@@ -1,3 +1,4 @@
+import { toArray } from '@sim/utils/object'
 import type { ContractBody } from '@/lib/api/contracts'
 import type {
   jsmCreateObjectContract,
@@ -10,7 +11,7 @@ import type {
   jsmSearchObjectsAqlContract,
   jsmUpdateObjectContract,
 } from '@/lib/api/contracts/tools/jsm'
-import { asArray, createJsmAssetsClient } from '@/lib/internal/jsm/client'
+import { createJsmAssetsClient } from '@/lib/internal/jsm/client'
 import { mapAssetObject } from '@/tools/jsm/utils'
 
 type ListObjectSchemasInput = ContractBody<typeof jsmListObjectSchemasContract>
@@ -50,7 +51,7 @@ export async function executeJsmListObjectSchemas(
     signal,
     true
   )
-  const values = asArray(data.values)
+  const values = toArray(data.values)
   return {
     success: true,
     output: {
@@ -88,7 +89,7 @@ export async function executeJsmListObjectTypes(input: ListObjectTypesInput, sig
     true
   )
   const data = Array.isArray(value) ? {} : (value as Record<string, unknown>)
-  const objectTypes = Array.isArray(value) ? value : asArray(data.values)
+  const objectTypes = Array.isArray(value) ? value : toArray(data.values)
   return {
     success: true,
     output: { ts: new Date().toISOString(), objectTypes, total: objectTypes.length },
@@ -114,7 +115,7 @@ export async function executeJsmGetObjectTypeAttributes(
     true
   )
   const data = Array.isArray(value) ? {} : (value as Record<string, unknown>)
-  const attributes = Array.isArray(value) ? value : asArray(data.values)
+  const attributes = Array.isArray(value) ? value : toArray(data.values)
   return {
     success: true,
     output: { ts: new Date().toISOString(), attributes, total: attributes.length },
@@ -137,7 +138,7 @@ export async function executeJsmSearchObjectsAql(
   if (input.objectTypeId) body.objectTypeId = input.objectTypeId
   if (input.objectSchemaId) body.objectSchemaId = input.objectSchemaId
   const data = await client.json(client.assets('/object/aql'), jsonBody('POST', body), signal, true)
-  const entries = asArray(data.objectEntries)
+  const entries = toArray(data.objectEntries)
   return {
     success: true,
     output: {

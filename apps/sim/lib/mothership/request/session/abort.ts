@@ -8,7 +8,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { AbortReason } from './abort-reason'
-import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
+import { clearAbortMarker, hasAbortMarker, refreshBufferTtl, writeAbortMarker } from './buffer'
 import {
   type ChatStreamLease,
   chatStreamLockKey,
@@ -227,14 +227,19 @@ export async function acquirePendingChatStream(
     },
     async (span) => {
       const redis = getRedisClient()
-      const lease = { key: chatStreamLockKey(chatId), value: `${streamId}\n${generateId()}` }
+      const lease: ChatStreamLease = {
+        key: chatStreamLockKey(chatId),
+        value: `${streamId}\n${generateId()}`,
+      }
       span.setAttribute(TraceAttr.LockBackend, redis ? AbortBackend.Redis : AbortBackend.InProcess)
       if (redis) {
         const deadline = Date.now() + timeoutMs
         for (;;) {
           try {
+            const attemptedAt = Date.now()
             const acquired = await acquireLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
             if (acquired) {
+              lease.acquiredAt = attemptedAt
               registerPendingChatStream(chatId, streamId, lease)
               span.setAttribute(TraceAttr.LockAcquired, true)
               return true
@@ -307,17 +312,21 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
     TraceSpan.CopilotChatAbortActiveStream,
     { [TraceAttr.StreamId]: streamId },
     async (span) => {
-      await writeAbortMarker(streamId)
-      span.setAttribute(TraceAttr.CopilotAbortMarkerWritten, true)
-      const controller = activeStreams.get(streamId)
-      if (!controller) {
-        span.setAttribute(TraceAttr.CopilotAbortControllerFired, false)
-        return false
+      let fired = false
+      /** This process's controller stops even when the cross-process marker cannot be written. */
+      try {
+        await writeAbortMarker(streamId)
+        span.setAttribute(TraceAttr.CopilotAbortMarkerWritten, true)
+      } finally {
+        const controller = activeStreams.get(streamId)
+        if (controller) {
+          controller.abort(AbortReason.UserStop)
+          activeStreams.delete(streamId)
+          fired = true
+        }
+        span.setAttribute(TraceAttr.CopilotAbortControllerFired, fired)
       }
-      controller.abort(AbortReason.UserStop)
-      activeStreams.delete(streamId)
-      span.setAttribute(TraceAttr.CopilotAbortControllerFired, true)
-      return true
+      return fired
     }
   )
 }
@@ -357,8 +366,14 @@ export function startAbortPoller(
   const chatId = options?.chatId
   const lease = options?.lease ?? (chatId ? getLocalChatStreamLease(chatId, streamId) : undefined)
 
-  let lastHeartbeatAt = Date.now()
+  /** The lock's TTL runs from its last confirmed write: the acquisition until a renewal lands. */
+  let lastHeartbeatAt = lease?.acquiredAt ?? Date.now()
   let heartbeatOwnershipLost = false
+  const stopController = (message: string) => {
+    heartbeatOwnershipLost = true
+    abortController.abort(new StreamControllerSupersededError())
+    logger.warn(message, { chatId, streamId, ...(requestId ? { requestId } : {}) })
+  }
 
   return setInterval(() => {
     if (pollingStreams.has(streamId)) return
@@ -388,14 +403,17 @@ export function startAbortPoller(
         const owned = await extendLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
         lastHeartbeatAt = Date.now()
         if (!owned) {
-          heartbeatOwnershipLost = true
-          abortController.abort(new StreamControllerSupersededError())
-          logger.warn('Lost ownership of chat stream lock — stopping heartbeat', {
+          stopController('Lost ownership of chat stream lock — stopping heartbeat')
+          return
+        }
+        await refreshBufferTtl(streamId).catch((error) => {
+          logger.warn('Failed to refresh stream buffer TTL', {
             chatId,
             streamId,
             ...(requestId ? { requestId } : {}),
+            error: toError(error).message,
           })
-        }
+        })
       } catch (error) {
         logger.warn('Failed to extend chat stream lock TTL', {
           chatId,
@@ -403,6 +421,9 @@ export function startAbortPoller(
           ...(requestId ? { requestId } : {}),
           error: toError(error).message,
         })
+        /** Unrenewed this long, the lock has lapsed and another controller may own the run. */
+        if (Date.now() - lastHeartbeatAt >= CHAT_STREAM_LOCK_TTL_SECONDS * 1000)
+          stopController('Chat stream lock lapsed while unrenewable — stopping this controller')
       }
     })()
   }, pollMs)

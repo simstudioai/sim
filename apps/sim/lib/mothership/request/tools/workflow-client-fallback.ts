@@ -10,6 +10,7 @@ import { claimWorkflowToolExecution } from '@/lib/mothership/async-runs/reposito
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
+import { toolStartWindowClosed } from '@/lib/mothership/request/tools/deadline'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotWorkflowClientFallback')
@@ -32,6 +33,8 @@ interface RaceWorkflowToolClientPickupParams {
   toolCallId: string
   workflowId?: string
   timeoutMs: number
+  /** When the call's deadline passes: past it the server does not take the call over. */
+  deadlineAt?: number
   graceMs: number
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
@@ -49,8 +52,10 @@ interface RaceWorkflowToolClientPickupParams {
  *
  * After `graceMs` with no result, this competes for the same single-winner
  * execution claim that `/api/workflows/[id]/execute` takes on the browser's
- * behalf. Losing the claim means a browser really is running it, so we go back
- * to waiting; winning it means nobody was there, so we run it in-process.
+ * behalf. Losing the claim means a browser started it through that route, so we
+ * go back to waiting: the route reports the bound execution's outcome itself when
+ * it settles, even if the browser has gone. Winning it means nobody was there, so
+ * we run it in-process.
  * Because both sides contend on `claimedBy IS NULL`, the workflow can never run
  * twice — a browser arriving late gets a 409 it already treats as benign.
  */
@@ -93,8 +98,8 @@ export async function raceWorkflowToolClientPickup(
     return { winner: 'client', completion: first.completion }
   }
 
-  // Never claim work on a turn the user already stopped.
-  if (abortSignal?.aborted) {
+  // Never claim work on a turn the user already stopped, or too late to start the call.
+  if (abortSignal?.aborted || toolStartWindowClosed(params.deadlineAt, Date.now())) {
     return { winner: 'client', completion: await clientWait }
   }
 

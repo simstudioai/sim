@@ -222,18 +222,3 @@ export interface DownloadArtifactV2Response extends ToolResponse {
     file: UserFile
   }
 }
-
-export type CursorResponse =
-  | ListAgentsResponse
-  | GetAgentResponse
-  | GetConversationResponse
-  | LaunchAgentResponse
-  | AddFollowupResponse
-  | StopAgentResponse
-  | DeleteAgentResponse
-  | GetApiKeyInfoResponse
-  | ListModelsResponse
-  | ListRepositoriesResponse
-  | ListArtifactsResponse
-  | DownloadArtifactResponse
-  | DownloadArtifactV2Response

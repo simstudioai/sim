@@ -11,30 +11,62 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { encodingForModel, type Tiktoken } from 'js-tiktoken'
+import {
+  getEncoding as createEncoding,
+  getEncodingNameForModel,
+  type Tiktoken,
+  type TiktokenEncoding,
+  type TiktokenModel,
+} from 'js-tiktoken'
+import { LRUCache } from 'lru-cache'
 
 const logger = createLogger('TokenizationAccurate')
 
-const encodingCache = new Map<string, Tiktoken>()
+/** Keyed by encoding, not model: each instance holds a full rank table, so models share one. */
+const encodingCache = new Map<TiktokenEncoding, Tiktoken>()
+
+/** Memory backstop for {@link encodingNameByModel}; model ids are caller-supplied strings. */
+const ENCODING_NAME_CACHE_MAX_MODELS = 1_000
 
 /**
- * Get or create a cached encoding for a model
+ * Model id → encoding name, so a non-OpenAI model does not throw and catch inside
+ * `getEncodingNameForModel` on every count.
  */
-function getEncoding(modelName: string): Tiktoken {
-  if (encodingCache.has(modelName)) {
-    return encodingCache.get(modelName)!
-  }
+const encodingNameByModel = new LRUCache<string, TiktokenEncoding>({
+  max: ENCODING_NAME_CACHE_MAX_MODELS,
+})
 
+/** OpenAI families tokenized with `o200k_base` that `js-tiktoken`'s exact-name table may not list yet. */
+const O200K_MODEL_FAMILY = /^(?:gpt-(?:4o|4\.1|4\.5|5|6|oss)|chatgpt-4o|o\d)/
+
+/**
+ * The encoding for a model id. Exact OpenAI names resolve through `js-tiktoken`; newer
+ * OpenAI ids resolve by family; every other model (Claude, Gemini, …) has no public
+ * tiktoken encoding and is approximated with `cl100k_base`.
+ *
+ * @public The token counter reaches this through a lazy `import()` knip cannot trace.
+ */
+export function resolveEncodingName(modelName: string): TiktokenEncoding {
+  const cached = encodingNameByModel.get(modelName)
+  if (cached) return cached
+  let encodingName: TiktokenEncoding
   try {
-    const encoding = encodingForModel(modelName as Parameters<typeof encodingForModel>[0])
-    encodingCache.set(modelName, encoding)
-    return encoding
-  } catch (error) {
-    logger.warn(`Failed to get encoding for model ${modelName}, falling back to cl100k_base`)
-    const encoding = encodingForModel('gpt-4')
-    encodingCache.set(modelName, encoding)
-    return encoding
+    encodingName = getEncodingNameForModel(modelName as TiktokenModel)
+  } catch {
+    const baseModel = modelName.slice(modelName.lastIndexOf('/') + 1).toLowerCase()
+    encodingName = O200K_MODEL_FAMILY.test(baseModel) ? 'o200k_base' : 'cl100k_base'
   }
+  encodingNameByModel.set(modelName, encodingName)
+  return encodingName
+}
+
+function getEncoding(modelName: string): Tiktoken {
+  const encodingName = resolveEncodingName(modelName)
+  const cached = encodingCache.get(encodingName)
+  if (cached) return cached
+  const encoding = createEncoding(encodingName)
+  encodingCache.set(encodingName, encoding)
+  return encoding
 }
 
 if (typeof process !== 'undefined') {
@@ -44,22 +76,30 @@ if (typeof process !== 'undefined') {
 }
 
 /**
- * Get accurate token count for text using tiktoken
- * This is the exact count OpenAI's API will use
+ * The tiktoken count, or `null` when encoding fails, so a caller can label its fallback as an
+ * estimate rather than an exact count.
+ *
+ * @public The token counter reaches this through a lazy `import()` knip cannot trace.
  */
-export function getAccurateTokenCount(text: string, modelName = 'text-embedding-3-small'): number {
+export function getExactTokenCount(text: string, modelName: string): number | null {
   if (!text || text.length === 0) {
     return 0
   }
 
   try {
-    const encoding = getEncoding(modelName)
-    const tokens = encoding.encode(text)
-    return tokens.length
+    return getEncoding(modelName).encode(text).length
   } catch (error) {
     logger.error('Error counting tokens with tiktoken:', error)
-    return Math.ceil(text.length / 4)
+    return null
   }
+}
+
+/**
+ * Get accurate token count for text using tiktoken
+ * This is the exact count OpenAI's API will use
+ */
+export function getAccurateTokenCount(text: string, modelName = 'text-embedding-3-small'): number {
+  return getExactTokenCount(text, modelName) ?? Math.ceil(text.length / 4)
 }
 
 /**

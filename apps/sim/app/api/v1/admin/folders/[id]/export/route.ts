@@ -24,14 +24,15 @@ import { NextResponse } from 'next/server'
 import { adminV1ExportFolderContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isWorkspaceFolder } from '@/lib/folders/scope'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { exportFolderToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  internalErrorResponse,
-  notFoundResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { FolderExportPayload, WorkflowExportState } from '@/app/api/v1/admin/types'
@@ -114,13 +115,14 @@ export const GET = withRouteHandler(
           id: folderTable.id,
           name: folderTable.name,
           workspaceId: folderTable.workspaceId,
+          projectId: folderTable.projectId,
         })
         .from(folderTable)
         .where(and(eq(folderTable.id, folderId), eq(folderTable.resourceType, 'workflow')))
         .limit(1)
 
-      if (!folderData) {
-        return notFoundResponse('Folder')
+      if (!folderData || !isWorkspaceFolder(folderData)) {
+        return adminNotFoundResponse('Folder')
       }
 
       const allWorkflows = await db
@@ -252,7 +254,7 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to export folder', { error, folderId })
-      return internalErrorResponse('Failed to export folder')
+      return adminInternalErrorResponse('Failed to export folder')
     }
   })
 )

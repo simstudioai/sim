@@ -26,7 +26,7 @@ function StatusIcon({ status }: { status: ProgressStatus }) {
   return <Loader animate className={cn(ICON_CLASS, 'text-[var(--text-icon)]')} />
 }
 
-export interface ProgressItemProps
+interface ProgressItemProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'title'>,
     VariantProps<typeof progressItemVariants> {
   status: ProgressStatus
@@ -100,4 +100,4 @@ const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function Prog
 })
 ProgressItem.displayName = 'ProgressItem'
 
-export { ProgressItem, progressItemVariants }
+export { ProgressItem }

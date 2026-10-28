@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchProvider,
   parseProviderJson,
@@ -29,11 +29,21 @@ describe('token service-account error helpers', () => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   describe('fetchProvider', () => {
+    it('preserves caller cancellation instead of reporting a provider outage', async () => {
+      const controller = new AbortController()
+      const reason = new Error('Caller cancelled credential verification')
+      controller.abort(reason)
+      mockFetch.mockImplementationOnce((_input: unknown, init: RequestInit) => {
+        init.signal?.throwIfAborted()
+        return Promise.resolve(new Response())
+      })
+
+      await expect(fetchProvider(PROVIDER_URL, { signal: controller.signal }, 'self')).rejects.toBe(
+        reason
+      )
+    })
+
     it('maps a rejected fetch to provider_unavailable 502', async () => {
       mockFetch.mockRejectedValue(new TypeError('fetch failed'))
 

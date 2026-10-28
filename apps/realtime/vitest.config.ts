@@ -1,26 +1,37 @@
 import path from 'node:path'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, mergeConfig } from 'vitest/config'
+import sharedConfig, { integrationTestConfig } from '../../vitest.shared'
 
-export default defineConfig({
-  test: {
-    globals: true,
-    include: ['**/*.test.{ts,tsx}'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
-    setupFiles: ['./vitest.setup.ts'],
-    pool: 'threads',
-    testTimeout: 10000,
-  },
-  resolve: {
-    alias: [
-      {
-        find: '@sim/db',
-        replacement: path.resolve(__dirname, '../../packages/db'),
+export default defineConfig(({ mode }) =>
+  mergeConfig(
+    mergeConfig(sharedConfig, mode === 'integration' ? integrationTestConfig : {}),
+    defineConfig({
+      test: {
+        include: mode === 'integration' ? ['src/**/*.integration.ts'] : ['**/*.test.{ts,tsx}'],
+        setupFiles: [
+          mode === 'integration' ? './vitest.integration.setup.ts' : './vitest.setup.ts',
+        ],
+        pool: 'threads',
+        testTimeout: mode === 'integration' ? 30000 : 10000,
+        ...(mode === 'integration'
+          ? {
+              fileParallelism: false,
+            }
+          : {}),
       },
-      {
-        find: '@sim/logger',
-        replacement: path.resolve(__dirname, '../../packages/logger/src'),
+      resolve: {
+        alias: [
+          {
+            find: '@sim/db',
+            replacement: path.resolve(__dirname, '../../packages/db'),
+          },
+          {
+            find: '@sim/logger',
+            replacement: path.resolve(__dirname, '../../packages/logger/src'),
+          },
+          { find: '@', replacement: path.resolve(__dirname, 'src') },
+        ],
       },
-      { find: '@', replacement: path.resolve(__dirname, 'src') },
-    ],
-  },
-})
+    })
+  )
+)

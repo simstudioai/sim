@@ -18,7 +18,7 @@ import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import {
   buildFileSelectionLabel,
   truncateSelectionText,
@@ -44,7 +44,7 @@ import { isCollabReady } from '@/app/workspace/[workspaceId]/files/components/fi
 import { useFileDocCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
 import { useMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
-import { findHeadingPos } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors'
+import { scrollToHeading } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors'
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
 import {
   extractImageFiles,
@@ -68,13 +68,17 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 import { isPlainTextPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
+import { MarkdownStreamingContext } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
 import { useEditorMentions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention'
 import { EditorBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu'
 import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card'
 import { TableBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/table-menu'
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
-import { firstHeadingTitle } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/title-heading'
+import {
+  firstHeadingTitle,
+  isSelectionInLeadingHeading,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/title-heading'
 import { TextEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor'
 import { useEditableFileContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content'
 import { useSelectionCopyBridge } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge'
@@ -98,9 +102,6 @@ const EXTENSIONS = createMarkdownEditorExtensions({
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
 const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
 const STREAM_REPARSE_THROTTLE_MS = 120
-
-/** Debounce before naming a still-untitled file after its leading heading, so it fires once typing settles. */
-const DERIVE_TITLE_DEBOUNCE_MS = 600
 
 function warnRichMarkdownPasteLimit(reason?: 'paste' | 'formatting') {
   if (reason === 'formatting') {
@@ -179,6 +180,19 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
         'aria-multiline': 'true',
         'aria-readonly': 'true',
       },
+      handleClick: (_view, _pos, event) =>
+        Boolean(
+          (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')?.startsWith('#')
+        ),
+      handleDOMEvents: {
+        click: (view, event) => {
+          const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
+          if (!href?.startsWith('#')) return false
+          event.preventDefault()
+          scrollToHeading(view, href)
+          return true
+        },
+      },
     },
   })
   const buildSelectionContext = useCallback(
@@ -186,7 +200,12 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
     [editor, file.id, file.name]
   )
   useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
-  return <EditorContent ref={containerRef} editor={editor} className={EDITOR_SURFACE_CLASS} />
+  return (
+    <>
+      {editor && <LinkHoverCard editor={editor} />}
+      <EditorContent ref={containerRef} editor={editor} className={EDITOR_SURFACE_CLASS} />
+    </>
+  )
 }
 
 interface RichMarkdownEditorProps {
@@ -226,11 +245,12 @@ interface RichMarkdownEditorProps {
    */
   collaborative?: boolean
   /**
-   * Called (debounced) with the document's leading-heading text while the file is still untitled, so the
-   * caller can name the file after it. Omitted on read-only/non-editable surfaces. See
-   * {@link isUntitledName}.
+   * Called at most once per mount with the file id and the document's leading-heading text, when the
+   * local user finishes that heading (the cursor leaves it, the editor blurs, or it unmounts) while the
+   * file is still untitled, so the caller can name the file after it. Omitted on read-only/non-editable
+   * surfaces. See {@link isUntitledName}.
    */
-  onDeriveTitleFromHeading?: (headingText: string) => void
+  onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   /**
    * Claim Cmd/Ctrl+F for find-in-document. Off by default, because this editor also renders as a
    * preview pane beside something that owns the shortcut itself. Every find surface binds its own
@@ -296,6 +316,39 @@ function RichMarkdownSurface({
    * re-clobbering exactly what this closes. The child turns it on for the non-collaborative fallback.
    */
   const [canClientAutosave, setCanClientAutosave] = useState(!collaborative)
+  const [collaborationReset, setCollaborationReset] = useState({
+    fileId: file.id,
+    previewContextKey,
+    generation: 0,
+  })
+  const collaborationGeneration =
+    collaborationReset.fileId === file.id &&
+    collaborationReset.previewContextKey === previewContextKey
+      ? collaborationReset.generation
+      : 0
+  const resetCollaboration = useCallback(() => {
+    setCollaborationReset((previous) => ({
+      fileId: file.id,
+      previewContextKey,
+      generation:
+        previous.fileId === file.id && previous.previewContextKey === previewContextKey
+          ? previous.generation + 1
+          : 1,
+    }))
+  }, [file.id, previewContextKey])
+  /** A relay older than read membership rejects a read-only member, who then reads the file locally. */
+  const [localReadOnly, setLocalReadOnly] = useState<{
+    fileId: string
+    previewContextKey?: string
+  } | null>(null)
+  const collaborationDeclined =
+    !canEdit &&
+    localReadOnly?.fileId === file.id &&
+    localReadOnly.previewContextKey === previewContextKey
+  const declineCollaboration = useCallback(
+    () => setLocalReadOnly({ fileId: file.id, previewContextKey }),
+    [file.id, previewContextKey]
+  )
 
   const {
     content,
@@ -303,6 +356,7 @@ function RichMarkdownSurface({
     isStreamInteractionLocked,
     isContentLoading,
     hasContentError,
+    contentError,
     saveImmediately,
     hasConflict,
     isReloading,
@@ -332,7 +386,9 @@ function RichMarkdownSurface({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
+        <p className='text-[var(--text-muted)] text-small'>
+          {contentError ?? 'Failed to load file content'}
+        </p>
       </div>
     )
   }
@@ -347,7 +403,10 @@ function RichMarkdownSurface({
         />
       )}
       <LoadedRichMarkdownEditor
-        key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
+        key={`${file.id}:${previewContextKey ?? ''}:${collaborationDeclined ? 'local' : collaborationGeneration}`}
+        recoveringCollaboration={collaborationGeneration > 0}
+        onWriteAccessLost={resetCollaboration}
+        onReadOnlyJoinRejected={declineCollaboration}
         file={file}
         workspaceId={workspaceId}
         content={content}
@@ -361,7 +420,7 @@ function RichMarkdownSurface({
         streamOperation={streamOperation}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         disableTagging={disableTagging}
-        collaborative={collaborative}
+        collaborative={collaborative && !collaborationDeclined}
         onChange={setDraftContent}
         onSaveShortcut={saveImmediately}
         downloadSourceRef={downloadSourceRef}
@@ -375,6 +434,9 @@ function RichMarkdownSurface({
 }
 
 interface LoadedRichMarkdownEditorProps {
+  recoveringCollaboration?: boolean
+  onWriteAccessLost?: () => void
+  onReadOnlyJoinRejected?: () => void
   file: WorkspaceFileRecord
   workspaceId: string
   /** The live content from the engine — grows as the agent streams, then settles to the saved doc. */
@@ -402,7 +464,7 @@ interface LoadedRichMarkdownEditorProps {
   /** Reports client autosave eligibility; collaborative documents are persisted by the relay. */
   onClientAutosaveChange: (canAutosave: boolean) => void
   /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
-  onDeriveTitleFromHeading?: (headingText: string) => void
+  onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   /** See {@link RichMarkdownEditorProps.enableFind}. */
   enableFind: boolean
   onEditSource?: () => void
@@ -430,6 +492,9 @@ function lockSettled(content: string): SettledContent {
 
 /** The single TipTap editor: read-only while streaming, editable on settle; frontmatter is held aside and re-applied. */
 export function LoadedRichMarkdownEditor({
+  recoveringCollaboration = false,
+  onWriteAccessLost,
+  onReadOnlyJoinRejected,
   file,
   workspaceId,
   content,
@@ -457,14 +522,16 @@ export function LoadedRichMarkdownEditor({
 
   /** Only accepted source snapshots and stream settlement change editing eligibility. */
   const [settled, setSettled] = useState<SettledContent | null>(() =>
-    streamingAtMount ? null : lockSettled(content)
+    streamingAtMount && !recoveringCollaboration
+      ? null
+      : lockSettled(recoveringCollaboration ? (acceptedBaselineContent ?? '') : content)
   )
   const [acceptedBaseline, setAcceptedBaseline] = useState(acceptedBaselineContent)
   /**
    * Collaboration is decided once at mount from synchronously-available inputs
    * via `useState`-init, and never changes — TipTap
    * fixes the extension set at editor creation, so it cannot turn on later. Enabled on a
-   * `collaborative` surface (the Files page or the embedded chat file preview) for an editable,
+   * `collaborative` surface (the Files page or the embedded chat file preview) for a readable,
    * round-trip-safe workspace document with a known user, as long as it is not ALREADY streaming at
    * mount. An agent stream that begins AFTER mount is applied as CRDT
    * diffs into the live doc, so collaboration and streaming coexist (see the streaming effect below).
@@ -472,8 +539,7 @@ export function LoadedRichMarkdownEditor({
   const [collaborationEnabled] = useState(
     () =>
       collaborative &&
-      canEdit &&
-      !streamingAtMount &&
+      (!streamingAtMount || recoveringCollaboration) &&
       (settled?.verdict ?? false) &&
       Boolean(userId) &&
       (file.storageContext ?? 'workspace') === 'workspace'
@@ -497,7 +563,6 @@ export function LoadedRichMarkdownEditor({
     collaborationEnabled ? 'connecting' : 'ready'
   )
   const collabReady = collabStatus === 'ready'
-  const isEditable = canEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   const collaboration = useFileDocCollaboration({
     workspaceId,
@@ -505,7 +570,10 @@ export function LoadedRichMarkdownEditor({
     userId,
     userName,
     enabled: collaborationEnabled,
+    onWriteAccessLost,
   })
+  const effectiveCanEdit = canEdit && (!collaborationEnabled || collaboration?.canWrite === true)
+  const isEditable = effectiveCanEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   /**
    * Initial editor content. When collaborating, the Y.Doc is the source of truth —
@@ -524,7 +592,13 @@ export function LoadedRichMarkdownEditor({
    */
   const [placeholder] = useState(() =>
     collaborationEnabled
-      ? { content: parseMarkdownToDoc(splitFrontmatter(content).body), markdown: content }
+      ? {
+          content: parseMarkdownToDoc(
+            splitFrontmatter(recoveringCollaboration ? (acceptedBaselineContent ?? '') : content)
+              .body
+          ),
+          markdown: recoveringCollaboration ? (acceptedBaselineContent ?? '') : content,
+        }
       : null
   )
   /**
@@ -564,13 +638,25 @@ export function LoadedRichMarkdownEditor({
   const saveFrontmatterResolverRef = useRef(resolveSaveFrontmatter)
 
   /**
-   * While the file is still unnamed, name it after its leading heading: `onDeriveTitleFromHeading` is
-   * called (debounced) so the caller can rename the file, and `fileNameRef` lets the onUpdate handler
-   * read the current name without re-subscribing. See {@link isUntitledName}.
+   * While the file is still unnamed, name it after its leading heading once the local user finishes
+   * typing it — never on an idle pause, which would name the file after half a heading. A local edit
+   * marks the title pending; leaving the heading, blurring, or unmounting commits it, at most once per
+   * mount. `fileNameRef` lets the editor callbacks read the current name without re-subscribing. See
+   * {@link isUntitledName}.
    */
   const onDeriveTitleFromHeadingRef = useRef(onDeriveTitleFromHeading)
   const fileNameRef = useRef(file.name)
-  const deriveTitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const headingTitlePendingRef = useRef(false)
+  const headingTitleCommittedRef = useRef(false)
+  const commitHeadingTitle = (editor: Editor) => {
+    if (!headingTitlePendingRef.current || headingTitleCommittedRef.current) return
+    headingTitlePendingRef.current = false
+    if (!editor.isEditable || !isUntitledName(fileNameRef.current)) return
+    const title = firstHeadingTitle(editor.state.doc)
+    if (!title) return
+    headingTitleCommittedRef.current = true
+    onDeriveTitleFromHeadingRef.current?.(file.id, title)
+  }
   /**
    * Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
    * between sessions within one turn, e.g. an append followed by a rewrite).
@@ -593,6 +679,13 @@ export function LoadedRichMarkdownEditor({
   /** The picker anchor maps through edits while the operating-system file dialog is open. */
   const imageInputRef = useRef<HTMLInputElement>(null)
   const pendingImageAnchorRef = useRef<string | null>(null)
+  const imageUploadBatchesRef = useRef<Set<{
+    editor: Editor
+    anchors: string[]
+    controller: AbortController
+    toastId?: ReturnType<typeof toast.info>
+  }> | null>(null)
+  imageUploadBatchesRef.current ??= new Set()
 
   /**
    * Uploads are sequential; every position is anchored before awaiting so queued images also follow
@@ -607,39 +700,55 @@ export function LoadedRichMarkdownEditor({
     fallback?: ImageFileFallback | null
   ) => {
     const editor = editorInstanceRef.current
-    if (!editor) return
+    if (!editor || !effectiveCanEdit) return
     const anchors = beginImageUploads(
       editor,
       range,
       images.map((image) => image.name)
     )
-    for (const [index, image] of images.entries()) {
-      if (editor.isDestroyed) break
-      if (!editor.isEditable) {
-        for (const pending of anchors) removeImageUpload(editor, pending)
-        break
-      }
-      const anchor = anchors[index]
-      if (!anchor || findImageUpload(editor, anchor) === null) continue
-      const uploadingToastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
-      const result = await uploadFile
-        .mutateAsync({ workspaceId, file: image, folderId: file.folderId ?? null })
-        .catch(() => null)
-      toast.dismiss(uploadingToastId)
-      if (result) {
-        const inserted = finishImageUpload(
-          editor,
-          anchor,
-          result.file.url,
-          image.name,
-          fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
-        )
-        if (!inserted && !editor.isDestroyed) {
-          toast.info('The image was uploaded to the workspace but was not inserted.')
+    const batch = {
+      editor,
+      anchors,
+      controller: new AbortController(),
+      toastId: undefined as ReturnType<typeof toast.info> | undefined,
+    }
+    imageUploadBatchesRef.current?.add(batch)
+    try {
+      for (const [index, image] of images.entries()) {
+        if (editor.isDestroyed || !editor.isEditable || batch.controller.signal.aborted) break
+        const anchor = anchors[index]
+        if (!anchor || findImageUpload(editor, anchor) === null) continue
+        batch.toastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
+        const result = await uploadFile
+          .mutateAsync({
+            workspaceId,
+            file: image,
+            folderId: file.folderId ?? null,
+            signal: batch.controller.signal,
+          })
+          .catch(() => null)
+        toast.dismiss(batch.toastId)
+        batch.toastId = undefined
+        if (batch.controller.signal.aborted) break
+        if (result) {
+          const inserted = finishImageUpload(
+            editor,
+            anchor,
+            result.file.url,
+            image.name,
+            fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
+          )
+          if (!inserted && !editor.isDestroyed) {
+            toast.info('The image was uploaded to the workspace but was not inserted.')
+          }
+        } else {
+          removeImageUpload(editor, anchor)
         }
-      } else {
-        removeImageUpload(editor, anchor)
       }
+    } finally {
+      if (batch.toastId !== undefined) toast.dismiss(batch.toastId)
+      for (const anchor of anchors) removeImageUpload(editor, anchor)
+      imageUploadBatchesRef.current?.delete(batch)
     }
   }
 
@@ -714,31 +823,34 @@ export function LoadedRichMarkdownEditor({
        * read-only follows directly. A same-page anchor (`[x](#slug)`) scrolls to the matching heading; a
        * same-origin in-app path navigates within the SPA (same tab); everything else opens a new tab.
        */
-      handleClick: (view, _pos, event) => {
-        const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
-        if (!href) return false
-        if (view.editable && !(event.metaKey || event.ctrlKey)) return false
-        if (href.startsWith('#')) {
-          const pos = findHeadingPos(view.state.doc, href.slice(1))
-          if (pos < 0) return false
-          ;(view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          })
+      // Preserve the selection on modifier-click; navigation runs on the native click below.
+      handleClick: (view, _pos, event) =>
+        (!view.editable || event.metaKey || event.ctrlKey) &&
+        Boolean((event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')),
+      handleDOMEvents: {
+        click: (view, event) => {
+          const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
+          if (!href) return false
+          if (view.editable && !(event.metaKey || event.ctrlKey)) return false
+          if (href.startsWith('#')) {
+            event.preventDefault()
+            scrollToHeading(view, href)
+            return true
+          }
+          const normalized = normalizeLinkHref(href)
+          if (!normalized) return false
+          event.preventDefault()
+          if (
+            !(event.metaKey || event.ctrlKey) &&
+            normalized.startsWith('/') &&
+            !normalized.startsWith('//')
+          ) {
+            routerRef.current.push(normalized)
+            return true
+          }
+          window.open(normalized, '_blank', 'noopener,noreferrer')
           return true
-        }
-        const normalized = normalizeLinkHref(href)
-        if (!normalized) return false
-        if (
-          !(event.metaKey || event.ctrlKey) &&
-          normalized.startsWith('/') &&
-          !normalized.startsWith('//')
-        ) {
-          routerRef.current.push(normalized)
-          return true
-        }
-        window.open(normalized, '_blank', 'noopener,noreferrer')
-        return true
+        },
       },
       transformPasted: (slice, view) =>
         normalizePastedImageSources(slice, view.state.doc, resolveImageSrcRef.current),
@@ -784,36 +896,28 @@ export function LoadedRichMarkdownEditor({
         lastSyncedFrontmatterRef.current = saveFrontmatterResolverRef.current()
         onChangeRef.current(applyFrontmatter(lastSyncedFrontmatterRef.current, md))
       }
-      // While the file is still untitled, name it after its leading heading once typing settles — but
-      // only for the LOCAL user's own edits. `isChangeOrigin` is true for a remote Yjs change (a peer
-      // typing); bail BEFORE touching the timer so a remote edit never cancels or reschedules the local
-      // user's pending rename (and every client doesn't schedule the same rename from a peer's
-      // not-yet-synced heading). It is false for local edits and non-collaborative surfaces.
-      if (isChangeOrigin(transaction)) return
-      // Local edit: restart the debounce. Clearing first cancels a stale rename if the heading was
-      // removed/changed before it fired; the timer re-derives the title from the live doc rather than a
-      // value captured now, so it can never name the file after a heading the user has since changed.
+      // Only the LOCAL user's edits mark the heading title pending: `isChangeOrigin` is true for a
+      // remote Yjs change, so every peer doesn't rename from someone else's half-synced heading.
       // `editor.isEditable` is the autosave gate (canEdit + settled + collab-ready), so a view-only
-      // viewer or the not-yet-editable mount seed never schedules a rename.
-      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
-      if (
-        !editor.isEditable ||
-        !isUntitledName(fileNameRef.current) ||
-        firstHeadingTitle(editor.state.doc) === null
-      )
-        return
-      deriveTitleTimerRef.current = setTimeout(() => {
-        const liveEditor = editorInstanceRef.current
-        if (!liveEditor || !liveEditor.isEditable || !isUntitledName(fileNameRef.current)) return
-        const title = firstHeadingTitle(liveEditor.state.doc)
-        if (title) onDeriveTitleFromHeadingRef.current?.(title)
-      }, DERIVE_TITLE_DEBOUNCE_MS)
+      // viewer or the not-yet-editable mount seed never marks it, and `docChanged` skips the empty
+      // update `setEditable` emits on open. The commit re-checks the name and heading.
+      if (isChangeOrigin(transaction)) return
+      if (editor.isEditable && transaction.docChanged) headingTitlePendingRef.current = true
+      if (!isSelectionInLeadingHeading(editor.state)) commitHeadingTitle(editor)
+    },
+    onSelectionUpdate: ({ editor }) => {
+      if (!isSelectionInLeadingHeading(editor.state)) commitHeadingTitle(editor)
+    },
+    onBlur: ({ editor }) => {
+      // Switching windows blurs the editor mid-heading; only a blur within the page finishes it.
+      if (document.hasFocus()) commitHeadingTitle(editor)
     },
   })
 
   useEffect(
     () => () => {
-      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
+      const liveEditor = editorInstanceRef.current
+      if (liveEditor && !liveEditor.isDestroyed) commitHeadingTitle(liveEditor)
     },
     []
   )
@@ -895,6 +999,9 @@ export function LoadedRichMarkdownEditor({
       const synced = provider.synced
       const seeded = config.get(FILE_DOC_SEED.flag) === true
       const fatal = provider.joinError?.retryable === false
+      if (fatal && !canEdit && provider.joinError?.code === 'ACCESS_DENIED') {
+        onReadOnlyJoinRejected?.()
+      }
       setReady(
         isCollabReady({ synced, seeded, fatal }),
         fatal,
@@ -918,7 +1025,7 @@ export function LoadedRichMarkdownEditor({
       // ungate it while the doc is unready.
       onClientAutosaveChange(false)
     }
-  }, [collaboration, editor, onClientAutosaveChange])
+  }, [collaboration, editor, onClientAutosaveChange, canEdit, onReadOnlyJoinRejected])
 
   /**
    * Owns editability for the collaborative lifecycle: `useEditor`'s `editable` is only the initial
@@ -945,6 +1052,22 @@ export function LoadedRichMarkdownEditor({
     }
   }, [editor, collaborationEnabled, isEditable])
 
+  useEffect(() => {
+    if (!editor || !effectiveCanEdit) return
+    return () => {
+      for (const batch of imageUploadBatchesRef.current ?? []) {
+        batch.controller.abort()
+        for (const anchor of batch.anchors) removeImageUpload(batch.editor, anchor)
+        if (batch.toastId !== undefined) toast.dismiss(batch.toastId)
+      }
+      imageUploadBatchesRef.current?.clear()
+      const anchor = pendingImageAnchorRef.current
+      if (anchor) removeImageUpload(editor, anchor)
+      pendingImageAnchorRef.current = null
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
+  }, [editor, effectiveCanEdit])
+
   /**
    * Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
    * shared across instances). Reads only refs, so the handler stays stable across the editor's life.
@@ -959,6 +1082,7 @@ export function LoadedRichMarkdownEditor({
     }
     input?.addEventListener('cancel', cancelImagePicker)
     editor.storage.slashCommand.insertImage = (at: number) => {
+      if (!editor.isEditable) return
       const previous = pendingImageAnchorRef.current
       if (previous) removeImageUpload(editor, previous)
       pendingImageAnchorRef.current =
@@ -1014,6 +1138,16 @@ export function LoadedRichMarkdownEditor({
     // the standalone Files page) alike. This branch moves content only — editability for the collab
     // lifecycle is owned by the reactive effect above.
     if (collaborationEnabled) {
+      if (!effectiveCanEdit) {
+        if (streamRafRef.current !== null) cancelAnimationFrame(streamRafRef.current)
+        streamRafRef.current = null
+        pendingStreamSourceRef.current = null
+        if (collaboration && agentAnnouncedRef.current) clearAgentApplying(collaboration.awareness)
+        agentAnnouncedRef.current = false
+        if (agentStreamSessionRef.current) endAgentStream(agentStreamSessionRef.current)
+        agentStreamSessionRef.current = null
+        return
+      }
       if (isStreaming) {
         wasStreamingRef.current = true
         // Apply streamed diffs only after the shared doc has SEEDED (synced + seed flag, i.e.
@@ -1221,7 +1355,7 @@ export function LoadedRichMarkdownEditor({
         syncEditorContent(content)
         pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
-        editor.setEditable(canEdit && settledVerdict && collabReady)
+        editor.setEditable(effectiveCanEdit && settledVerdict && collabReady)
         if (shouldFocus) editor.commands.focus('end')
       })
       return
@@ -1234,7 +1368,7 @@ export function LoadedRichMarkdownEditor({
         pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
       }
-      if (settled) editor.setEditable(canEdit && settled.verdict && collabReady)
+      if (settled) editor.setEditable(effectiveCanEdit && settled.verdict && collabReady)
     })
   }, [
     editor,
@@ -1243,7 +1377,7 @@ export function LoadedRichMarkdownEditor({
     settled,
     collaboration,
     isStreaming,
-    canEdit,
+    effectiveCanEdit,
     autoFocus,
     disableStreamingAutoScroll,
     collaborationEnabled,
@@ -1439,17 +1573,19 @@ export function LoadedRichMarkdownEditor({
             void insertImagesRef.current(images, range)
           }}
         />
-        {showPlaceholder && placeholder && (
-          <ReadOnlyPlaceholder
-            content={placeholder.content}
-            file={file}
-            workspaceId={workspaceId}
+        <MarkdownStreamingContext value={isStreaming}>
+          {showPlaceholder && placeholder && (
+            <ReadOnlyPlaceholder
+              content={placeholder.content}
+              file={file}
+              workspaceId={workspaceId}
+            />
+          )}
+          <EditorContent
+            editor={editor}
+            className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
           />
-        )}
-        <EditorContent
-          editor={editor}
-          className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
-        />
+        </MarkdownStreamingContext>
       </div>
     </div>
   )

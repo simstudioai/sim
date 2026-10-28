@@ -3,21 +3,25 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import { usePathname } from 'next/navigation'
+import { SettingsMobileNavigation } from '@/components/settings/mobile-navigation'
 import {
   ACCOUNT_SETTINGS_GROUPS,
   ACCOUNT_SETTINGS_ITEMS,
   ACCOUNT_SETTINGS_PATH_ALIASES,
   getAccountSettingsHref,
   getSelfHostSettingsHref,
+  getSettingsSectionMeta,
   parseSettingsPathSection,
   SELFHOST_SETTINGS_GROUPS,
   SELFHOST_SETTINGS_ITEMS,
   SETTINGS_PLANE_CHROME,
+  toSettingsHeaderMeta,
 } from '@/components/settings/navigation'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
+import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
-import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
@@ -41,10 +45,14 @@ interface SelfHostSettingsShellProps extends StandaloneSettingsShellBaseProps {
 
 type StandaloneSettingsShellProps = AccountSettingsShellProps | SelfHostSettingsShellProps
 
+function pendingSectionMeta(plane: 'account' | 'selfhost', section: string) {
+  const item = getSettingsSectionMeta(plane, section)
+  return item ? toSettingsHeaderMeta(item) : null
+}
+
 export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const { children, plane } = props
   useSeedDeploymentShape(props.deployment)
-  useSettingsBeforeUnload()
   const pathname = usePathname()
   const { hosted, billingEnabled } = useDeploymentShape()
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false
@@ -96,33 +104,52 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     )
 
   return (
-    <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)]'>
-      {/*
-        Mirrors the in-workspace chrome (WorkspaceChrome): a flush, borderless
-        sidebar column against the app surface, meeting the content pane on a
-        single hairline divider with no gutter. Keep the two in step — a settings
-        page should look the same whether it is reached inside a workspace or not.
-      */}
-      <aside
-        className={cn(
-          'flex h-full w-[var(--sidebar-expanded-width)] shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3',
-          SIDEBAR_NO_MOTION_CLASS
-        )}
-        aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
-      >
-        {sidebar}
-      </aside>
-      <div className='flex min-w-0 flex-1 flex-col'>
-        <main className='flex-1 overflow-hidden border-[var(--border)] border-l bg-[var(--bg)]'>
-          <SettingsHeaderProvider>
-            <SettingsHeaderShell>
-              <SettingsSectionProvider plane={plane} section={activeSection}>
-                {children}
-              </SettingsSectionProvider>
-            </SettingsHeaderShell>
-          </SettingsHeaderProvider>
-        </main>
+    <SettingsNavigationProvider>
+      <div className='flex h-dvh w-full overflow-hidden bg-[var(--surface-1)]'>
+        {/*
+          Mirrors the in-workspace chrome (WorkspaceChrome): a flush, borderless
+          sidebar column against the app surface, meeting the content pane on a
+          single hairline divider with no gutter. Keep the two in step — a settings
+          page should look the same whether it is reached inside a workspace or not.
+        */}
+        <aside
+          className={cn(
+            'hidden h-full w-[var(--sidebar-expanded-width)] shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3 md:flex',
+            SIDEBAR_NO_MOTION_CLASS
+          )}
+          aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
+        >
+          {sidebar}
+        </aside>
+        <div className='flex min-w-0 flex-1 flex-col'>
+          {plane === 'account' ? (
+            <SettingsMobileNavigation
+              activeSection={accountSection}
+              plane={plane}
+              items={accountItems}
+              hrefForSection={getAccountSettingsHref}
+            />
+          ) : (
+            <SettingsMobileNavigation
+              activeSection={selfHostSection}
+              plane={plane}
+              items={selfHostItems}
+              hrefForSection={getSelfHostSettingsHref}
+            />
+          )}
+          <main className='min-h-0 flex-1 overflow-hidden border-[var(--border)] bg-[var(--bg)] md:border-l'>
+            <SettingsPendingSection resolveMeta={(section) => pendingSectionMeta(plane, section)}>
+              <SettingsHeaderProvider>
+                <SettingsHeaderShell>
+                  <SettingsSectionProvider plane={plane} section={activeSection}>
+                    {children}
+                  </SettingsSectionProvider>
+                </SettingsHeaderShell>
+              </SettingsHeaderProvider>
+            </SettingsPendingSection>
+          </main>
+        </div>
       </div>
-    </div>
+    </SettingsNavigationProvider>
   )
 }

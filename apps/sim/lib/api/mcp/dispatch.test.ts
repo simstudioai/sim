@@ -1,10 +1,12 @@
-import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import type { NextRequest } from 'next/server'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => ({ route: vi.fn(), audiences: [] as unknown[] }))
 
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
 vi.mock('@/lib/api/mcp/catalog', () => {
   const contracts = {
     getTableRow: {
@@ -32,19 +34,19 @@ vi.mock('@/lib/api/mcp/catalog', () => {
 import { dispatchMcpOperation } from '@/lib/api/mcp/dispatch'
 import { getOAuthAccessTokenAudience } from '@/lib/auth/oauth-access-token'
 
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+afterAll(resetUrlsMock)
+
 const audience = { resource: 'https://mcp.sim.test/mcp', allowUnboundApiTokens: true }
 const context = {
-  inbound: new NextRequest('https://mcp.sim.test/mcp', {
+  inbound: createMockRequest({
     method: 'POST',
+    url: 'https://mcp.sim.test/mcp',
     headers: { 'x-forwarded-for': '203.0.113.7', cookie: 'session=private' },
   }),
   credential: { apiKey: null, bearer: 'sim_oat_token' },
   audience,
   signal: new AbortController().signal,
-}
-
-function jsonResponse(body: unknown, status = 200) {
-  return Response.json(body, { status })
 }
 
 function dispatched(): NextRequest {

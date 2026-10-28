@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_TTS_TEXT_BYTES, synthesizeGoogle, synthesizeOpenAi } from '@/lib/internal/tts/client'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -7,8 +7,6 @@ describe('TTS provider client', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock)
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it('bounds and decodes Google base64 JSON responses', async () => {
     fetchMock.mockResolvedValue(

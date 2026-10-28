@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  clearSailPointTokenStateForTests,
   getSailPointAccessToken,
-  getSailPointTokenStateForTests,
   resolveSailPointHosts,
   sailpointFetch,
 } from '@/lib/internal/sailpoint/client'
@@ -13,16 +11,19 @@ function tokenResponse(token: string, expiresIn = 3600): Response {
   return Response.json({ access_token: token, expires_in: expiresIn })
 }
 
+/** Tokens are cached per credential for the module's lifetime, so each test owns its secret. */
+function credentialsFor(clientSecret: string) {
+  return { tenant: 'acme', clientId: 'client', clientSecret }
+}
+
 describe('SailPoint client', () => {
   beforeEach(() => {
-    clearSailPointTokenStateForTests()
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('accepts only commercial and government tenant hosts', () => {
@@ -40,9 +41,9 @@ describe('SailPoint client', () => {
       .mockResolvedValueOnce(tokenResponse('first'))
       .mockResolvedValueOnce(tokenResponse('second'))
 
-    const common = { tenant: 'acme', clientId: 'client' }
-    expect(await getSailPointAccessToken({ ...common, clientSecret: 'one' })).toBe('first')
-    expect(await getSailPointAccessToken({ ...common, clientSecret: 'two' })).toBe('second')
+    expect(await getSailPointAccessToken(credentialsFor('isolate-one'))).toBe('first')
+    expect(await getSailPointAccessToken(credentialsFor('isolate-two'))).toBe('second')
+    expect(await getSailPointAccessToken(credentialsFor('isolate-one'))).toBe('first')
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
@@ -54,7 +55,7 @@ describe('SailPoint client', () => {
           release = resolve
         })
     )
-    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
+    const credentials = credentialsFor('single-flight')
     const first = getSailPointAccessToken(credentials)
     const second = getSailPointAccessToken(credentials)
     expect(mockFetch).toHaveBeenCalledTimes(1)
@@ -70,7 +71,7 @@ describe('SailPoint client', () => {
           release = resolve
         })
     )
-    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
+    const credentials = credentialsFor('abort-one-waiter')
     const controller = new AbortController()
     const first = getSailPointAccessToken(credentials, controller.signal)
     const second = getSailPointAccessToken(credentials)
@@ -80,7 +81,41 @@ describe('SailPoint client', () => {
     release?.(tokenResponse('shared'))
     await expect(second).resolves.toBe('shared')
     expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(getSailPointTokenStateForTests().exchangeSize).toBe(0)
+  })
+
+  it('caps in-flight exchanges across distinct credentials and frees slots as they settle', async () => {
+    const releases: Array<(response: Response) => void> = []
+    mockFetch.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          releases.push(resolve)
+        })
+    )
+    const pending = Array.from({ length: 100 }, (_, index) =>
+      getSailPointAccessToken(credentialsFor(`in-flight-${index}`))
+    )
+
+    await expect(getSailPointAccessToken(credentialsFor('in-flight-overflow'))).rejects.toThrow(
+      'Too many concurrent SailPoint token exchanges'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(100)
+
+    for (const release of releases) release(tokenResponse('token'))
+    await Promise.all(pending)
+    mockFetch.mockResolvedValueOnce(tokenResponse('after-drain'))
+    expect(await getSailPointAccessToken(credentialsFor('in-flight-after-drain'))).toBe(
+      'after-drain'
+    )
+  })
+
+  it('does not cache a failed exchange', async () => {
+    mockFetch
+      .mockResolvedValueOnce(Response.json({ error: 'invalid_client' }, { status: 401 }))
+      .mockResolvedValueOnce(tokenResponse('recovered'))
+    const credentials = credentialsFor('failed-exchange')
+
+    await expect(getSailPointAccessToken(credentials)).rejects.toThrow('invalid_client')
+    expect(await getSailPointAccessToken(credentials)).toBe('recovered')
   })
 
   it('expires cached tokens before their provider expiry', async () => {
@@ -89,23 +124,13 @@ describe('SailPoint client', () => {
     mockFetch
       .mockResolvedValueOnce(tokenResponse('old', 100))
       .mockResolvedValueOnce(tokenResponse('new', 100))
-    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
+    const credentials = credentialsFor('expiry')
 
+    expect(await getSailPointAccessToken(credentials)).toBe('old')
+    vi.setSystemTime(new Date('2026-01-01T00:01:29.000Z'))
     expect(await getSailPointAccessToken(credentials)).toBe('old')
     vi.setSystemTime(new Date('2026-01-01T00:01:31.000Z'))
     expect(await getSailPointAccessToken(credentials)).toBe('new')
-  })
-
-  it('evicts the oldest token when the bounded cache is full', async () => {
-    mockFetch.mockImplementation(async () => tokenResponse('token'))
-    for (let index = 0; index < 101; index += 1) {
-      await getSailPointAccessToken({
-        tenant: 'acme',
-        clientId: `client-${index}`,
-        clientSecret: 'secret',
-      })
-    }
-    expect(getSailPointTokenStateForTests()).toEqual({ cacheSize: 100, exchangeSize: 0 })
   })
 
   it('aborts during rate-limit backoff without another provider call', async () => {
@@ -113,9 +138,8 @@ describe('SailPoint client', () => {
       .mockResolvedValueOnce(tokenResponse('token'))
       .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'retry-after': '30' } }))
     const controller = new AbortController()
-    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
     const pending = sailpointFetch(
-      credentials,
+      credentialsFor('rate-limit'),
       (hosts) => ({
         url: `${hosts.apiBaseUrl}/identities/v1`,
         init: { method: 'GET' },
@@ -129,13 +153,30 @@ describe('SailPoint client', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
+  it('refreshes the token once when the provider rejects it', async () => {
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse('revoked'))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(tokenResponse('fresh'))
+      .mockResolvedValueOnce(Response.json({ id: 'identity' }))
+
+    const result = await sailpointFetch(credentialsFor('refresh-on-401'), (hosts) => ({
+      url: `${hosts.apiBaseUrl}/identities/v1/id`,
+      init: { method: 'GET' },
+    }))
+
+    expect(result.data).toEqual({ id: 'identity' })
+    expect(new Headers(mockFetch.mock.calls[3][1]?.headers).get('Authorization')).toBe(
+      'Bearer fresh'
+    )
+  })
+
   it('rejects redirects for token and authenticated provider requests', async () => {
     mockFetch
       .mockResolvedValueOnce(tokenResponse('token'))
       .mockResolvedValueOnce(Response.json({ id: 'identity' }))
-    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
 
-    await sailpointFetch(credentials, (hosts) => ({
+    await sailpointFetch(credentialsFor('redirects'), (hosts) => ({
       url: `${hosts.apiBaseUrl}/identities/v1/id`,
       init: { method: 'GET' },
     }))

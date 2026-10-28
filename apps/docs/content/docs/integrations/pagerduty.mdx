@@ -1,31 +1,29 @@
 ---
 title: PagerDuty
 description: Manage incidents and on-call schedules with PagerDuty
+integration:
+  type: "pagerduty"
+  color: "#06AC38"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="pagerduty"
-  color="#06AC38"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [PagerDuty](https://www.pagerduty.com/) to manage incidents, add investigation notes, and find services, escalation policies, and on-call responders. The REST API uses API-key authentication; Send Event uses Events API v2.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate PagerDuty into your workflow to list, get, create, update, snooze, and merge incidents, add notes and list alerts, look up services and escalation policies, check on-call schedules, list users, and send monitoring events through the Events API v2.
-
-
 
 ## Actions
 
 ### PagerDuty List Incidents
 
 List incidents from PagerDuty with optional filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -63,9 +61,13 @@ List incidents from PagerDuty with optional filters.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
+</ReferenceDetails>
+
 ### PagerDuty Get Incident
 
 Get a single incident from PagerDuty by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +97,13 @@ Get a single incident from PagerDuty by ID.
 | `incidentKey` | string | De-duplication key |
 | `htmlUrl` | string | PagerDuty web URL |
 
+</ReferenceDetails>
+
 ### PagerDuty Create Incident
 
 Create a new incident in PagerDuty.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +133,13 @@ Create a new incident in PagerDuty.
 | `serviceId` | string | Service ID |
 | `htmlUrl` | string | PagerDuty web URL |
 
+</ReferenceDetails>
+
 ### PagerDuty Update Incident
 
 Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -156,9 +166,13 @@ Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).
 | `updatedAt` | string | Last updated timestamp |
 | `htmlUrl` | string | PagerDuty web URL |
 
+</ReferenceDetails>
+
 ### PagerDuty Snooze Incident
 
 Snooze a triggered PagerDuty incident for a number of seconds, after which it returns to triggered.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -178,9 +192,13 @@ Snooze a triggered PagerDuty incident for a number of seconds, after which it re
 | `status` | string | Incident status after snoozing |
 | `htmlUrl` | string | PagerDuty web URL |
 
+</ReferenceDetails>
+
 ### PagerDuty Merge Incidents
 
 Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +219,13 @@ Merge one or more source incidents into a target incident. Source incidents are 
 | `status` | string | Target incident status |
 | `htmlUrl` | string | PagerDuty web URL |
 
+</ReferenceDetails>
+
 ### PagerDuty Add Note
 
 Add a note to an existing PagerDuty incident.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -223,9 +245,13 @@ Add a note to an existing PagerDuty incident.
 | `createdAt` | string | Creation timestamp |
 | `userName` | string | Name of the user who created the note |
 
+</ReferenceDetails>
+
 ### PagerDuty List Incident Alerts
 
 List the individual alerts attached to a PagerDuty incident.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -255,9 +281,13 @@ List the individual alerts attached to a PagerDuty incident.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
+</ReferenceDetails>
+
 ### PagerDuty List Services
 
 List services from PagerDuty with optional name filter.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -285,9 +315,13 @@ List services from PagerDuty with optional name filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
+</ReferenceDetails>
+
 ### PagerDuty Get Service
 
 Get a single service from PagerDuty by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -312,9 +346,13 @@ Get a single service from PagerDuty by ID.
 | `escalationPolicyId` | string | Escalation policy ID |
 | `htmlUrl` | string | PagerDuty web URL |
 
+</ReferenceDetails>
+
 ### PagerDuty List On-Calls
 
 List current on-call entries from PagerDuty.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -346,9 +384,13 @@ List current on-call entries from PagerDuty.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
+</ReferenceDetails>
+
 ### PagerDuty List Escalation Policies
 
 List escalation policies from PagerDuty with an optional name filter.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -374,9 +416,13 @@ List escalation policies from PagerDuty with an optional name filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
+</ReferenceDetails>
+
 ### PagerDuty List Schedules
 
 List on-call schedules from PagerDuty with an optional name filter.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -401,9 +447,13 @@ List on-call schedules from PagerDuty with an optional name filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
+</ReferenceDetails>
+
 ### PagerDuty List Users
 
 List users from PagerDuty with an optional name/email filter.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -430,9 +480,13 @@ List users from PagerDuty with an optional name/email filter.
 | `more` | boolean | Whether more results are available |
 | `offset` | number | Offset used for this page of results |
 
+</ReferenceDetails>
+
 ### PagerDuty Send Event
 
 Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a service integration key. Used to page from monitoring/alerting sources without a PagerDuty user account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -456,16 +510,20 @@ Send a trigger, acknowledge, or resolve event to PagerDuty Events API v2 using a
 | `message` | string | Description of the result |
 | `dedupKey` | string | De-duplication key for the alert |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### PagerDuty Incident Acknowledged
 
 Trigger workflow when an incident is acknowledged in PagerDuty
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -480,7 +538,7 @@ Trigger workflow when an incident is acknowledged in PagerDuty
 | `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
 | `occurred_at` | string | When the event occurred \(ISO 8601\) |
 | `agent` | json | The user or service that caused the event \(may be null\) |
-| `incident` | object | incident output from the tool |
+| `incident` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `number` | number | Incident number |
 |   ↳ `title` | string | Incident title |
@@ -489,23 +547,24 @@ Trigger workflow when an incident is acknowledged in PagerDuty
 |   ↳ `html_url` | string | Web URL of the incident |
 |   ↳ `created_at` | string | Incident creation timestamp |
 |   ↳ `priority` | string | Priority label \(may be null\) |
-|   ↳ `service` | object | service output from the tool |
+|   ↳ `service` | object |  |
 |     ↳ `id` | string | Service ID |
 |     ↳ `summary` | string | Service name |
 |     ↳ `html_url` | string | Service web URL |
-|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|   ↳ `escalation_policy` | object |  |
 |     ↳ `id` | string | Escalation policy ID |
 |     ↳ `summary` | string | Escalation policy name |
 |     ↳ `html_url` | string | Escalation policy web URL |
 |   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
 
-
----
+</ReferenceDetails>
 
 ### PagerDuty Incident Escalated
 
 Trigger workflow when an incident is escalated in PagerDuty
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -520,7 +579,7 @@ Trigger workflow when an incident is escalated in PagerDuty
 | `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
 | `occurred_at` | string | When the event occurred \(ISO 8601\) |
 | `agent` | json | The user or service that caused the event \(may be null\) |
-| `incident` | object | incident output from the tool |
+| `incident` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `number` | number | Incident number |
 |   ↳ `title` | string | Incident title |
@@ -529,23 +588,24 @@ Trigger workflow when an incident is escalated in PagerDuty
 |   ↳ `html_url` | string | Web URL of the incident |
 |   ↳ `created_at` | string | Incident creation timestamp |
 |   ↳ `priority` | string | Priority label \(may be null\) |
-|   ↳ `service` | object | service output from the tool |
+|   ↳ `service` | object |  |
 |     ↳ `id` | string | Service ID |
 |     ↳ `summary` | string | Service name |
 |     ↳ `html_url` | string | Service web URL |
-|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|   ↳ `escalation_policy` | object |  |
 |     ↳ `id` | string | Escalation policy ID |
 |     ↳ `summary` | string | Escalation policy name |
 |     ↳ `html_url` | string | Escalation policy web URL |
 |   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
 
-
----
+</ReferenceDetails>
 
 ### PagerDuty Incident Event
 
 Trigger workflow from any PagerDuty incident event
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -560,7 +620,7 @@ Trigger workflow from any PagerDuty incident event
 | `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
 | `occurred_at` | string | When the event occurred \(ISO 8601\) |
 | `agent` | json | The user or service that caused the event \(may be null\) |
-| `incident` | object | incident output from the tool |
+| `incident` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `number` | number | Incident number |
 |   ↳ `title` | string | Incident title |
@@ -569,23 +629,24 @@ Trigger workflow from any PagerDuty incident event
 |   ↳ `html_url` | string | Web URL of the incident |
 |   ↳ `created_at` | string | Incident creation timestamp |
 |   ↳ `priority` | string | Priority label \(may be null\) |
-|   ↳ `service` | object | service output from the tool |
+|   ↳ `service` | object |  |
 |     ↳ `id` | string | Service ID |
 |     ↳ `summary` | string | Service name |
 |     ↳ `html_url` | string | Service web URL |
-|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|   ↳ `escalation_policy` | object |  |
 |     ↳ `id` | string | Escalation policy ID |
 |     ↳ `summary` | string | Escalation policy name |
 |     ↳ `html_url` | string | Escalation policy web URL |
 |   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
 
-
----
+</ReferenceDetails>
 
 ### PagerDuty Incident Reassigned
 
 Trigger workflow when an incident is reassigned in PagerDuty
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -600,7 +661,7 @@ Trigger workflow when an incident is reassigned in PagerDuty
 | `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
 | `occurred_at` | string | When the event occurred \(ISO 8601\) |
 | `agent` | json | The user or service that caused the event \(may be null\) |
-| `incident` | object | incident output from the tool |
+| `incident` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `number` | number | Incident number |
 |   ↳ `title` | string | Incident title |
@@ -609,23 +670,24 @@ Trigger workflow when an incident is reassigned in PagerDuty
 |   ↳ `html_url` | string | Web URL of the incident |
 |   ↳ `created_at` | string | Incident creation timestamp |
 |   ↳ `priority` | string | Priority label \(may be null\) |
-|   ↳ `service` | object | service output from the tool |
+|   ↳ `service` | object |  |
 |     ↳ `id` | string | Service ID |
 |     ↳ `summary` | string | Service name |
 |     ↳ `html_url` | string | Service web URL |
-|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|   ↳ `escalation_policy` | object |  |
 |     ↳ `id` | string | Escalation policy ID |
 |     ↳ `summary` | string | Escalation policy name |
 |     ↳ `html_url` | string | Escalation policy web URL |
 |   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
 
-
----
+</ReferenceDetails>
 
 ### PagerDuty Incident Resolved
 
 Trigger workflow when an incident is resolved in PagerDuty
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -640,7 +702,7 @@ Trigger workflow when an incident is resolved in PagerDuty
 | `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
 | `occurred_at` | string | When the event occurred \(ISO 8601\) |
 | `agent` | json | The user or service that caused the event \(may be null\) |
-| `incident` | object | incident output from the tool |
+| `incident` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `number` | number | Incident number |
 |   ↳ `title` | string | Incident title |
@@ -649,23 +711,24 @@ Trigger workflow when an incident is resolved in PagerDuty
 |   ↳ `html_url` | string | Web URL of the incident |
 |   ↳ `created_at` | string | Incident creation timestamp |
 |   ↳ `priority` | string | Priority label \(may be null\) |
-|   ↳ `service` | object | service output from the tool |
+|   ↳ `service` | object |  |
 |     ↳ `id` | string | Service ID |
 |     ↳ `summary` | string | Service name |
 |     ↳ `html_url` | string | Service web URL |
-|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|   ↳ `escalation_policy` | object |  |
 |     ↳ `id` | string | Escalation policy ID |
 |     ↳ `summary` | string | Escalation policy name |
 |     ↳ `html_url` | string | Escalation policy web URL |
 |   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
 
-
----
+</ReferenceDetails>
 
 ### PagerDuty Incident Triggered
 
 Trigger workflow when a new incident is triggered in PagerDuty
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -680,7 +743,7 @@ Trigger workflow when a new incident is triggered in PagerDuty
 | `event_type` | string | Event type \(e.g. incident.triggered, incident.resolved\) |
 | `occurred_at` | string | When the event occurred \(ISO 8601\) |
 | `agent` | json | The user or service that caused the event \(may be null\) |
-| `incident` | object | incident output from the tool |
+| `incident` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `number` | number | Incident number |
 |   ↳ `title` | string | Incident title |
@@ -689,13 +752,15 @@ Trigger workflow when a new incident is triggered in PagerDuty
 |   ↳ `html_url` | string | Web URL of the incident |
 |   ↳ `created_at` | string | Incident creation timestamp |
 |   ↳ `priority` | string | Priority label \(may be null\) |
-|   ↳ `service` | object | service output from the tool |
+|   ↳ `service` | object |  |
 |     ↳ `id` | string | Service ID |
 |     ↳ `summary` | string | Service name |
 |     ↳ `html_url` | string | Service web URL |
-|   ↳ `escalation_policy` | object | escalation_policy output from the tool |
+|   ↳ `escalation_policy` | object |  |
 |     ↳ `id` | string | Escalation policy ID |
 |     ↳ `summary` | string | Escalation policy name |
 |     ↳ `html_url` | string | Escalation policy web URL |
 |   ↳ `assignees` | json | Array of assignee references \(\{ id, summary, html_url \}\) |
+
+</ReferenceDetails>
 

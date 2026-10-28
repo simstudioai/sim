@@ -1,31 +1,40 @@
 ---
 title: Notion
 description: Manage Notion pages
+integration:
+  type: "notion_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="notion_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use Notion to read and manage pages, databases, blocks, and comments. Query a database or search the workspace to find the content a workflow needs; webhook triggers can start workflows when content changes.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Internal integrations](/integrations/notion-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.
+Sim requests no OAuth scopes for Notion. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/notion` |
+| Environment variables | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` |
 
+## Use the block [#usage-instructions]
+
+Choose an operation and select a connected account. Use Search Workspace to find content, Query Database to retrieve rows from a database, or Append Content to add blocks to a page.
 
 ## Actions
 
 ### Notion Reader
 
 Read content from a Notion page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -43,9 +52,13 @@ Read content from a Notion page
 | `content` | string | Page content in markdown format |
 | `title` | string | Page title |
 
+</ReferenceDetails>
+
 ### Read Notion Database
 
 Read database information and structure from Notion
+
+<ReferenceDetails>
 
 #### Input
 
@@ -64,9 +77,13 @@ Read database information and structure from Notion
 | `properties` | object | Database properties schema |
 | `title` | string | Database title |
 
+</ReferenceDetails>
+
 ### Notion Content Appender
 
 Append content to a Notion page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +98,13 @@ Append content to a Notion page
 | --------- | ---- | ----------- |
 | `appended` | boolean | Whether content was successfully appended |
 
+</ReferenceDetails>
+
 ### Notion Page Creator
 
 Create a new page in Notion
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +124,13 @@ Create a new page in Notion
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Page title |
 
+</ReferenceDetails>
+
 ### Notion Page Updater
 
 Update properties of a Notion page
+
+<ReferenceDetails>
 
 #### Input
 
@@ -123,9 +148,13 @@ Update properties of a Notion page
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Page title |
 
+</ReferenceDetails>
+
 ### Query Notion Database
 
 Query and filter Notion database entries with advanced filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,8 +193,17 @@ Query and filter Notion database entries with advanced filtering
 |     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
 |     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
 |   ↳ `icon` | object | Page/database icon \(emoji, custom_emoji, or file\) |
-|     ↳ `url` | string | Authenticated URL valid for one hour |
-|     ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `type` | string | Icon type: "emoji", "custom_emoji", or "file" |
+|     ↳ `emoji` | string | Emoji character \(if type is emoji\) |
+|     ↳ `custom_emoji` | object | Custom emoji object \(if type is custom_emoji\) |
+|       ↳ `id` | string | Custom emoji UUID |
+|       ↳ `name` | string | Custom emoji name |
+|       ↳ `url` | string | URL to custom emoji image |
+|     ↳ `file` | object | Notion-hosted file \(if type is file\) |
+|       ↳ `url` | string | Authenticated URL valid for one hour |
+|       ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `external` | object | External file \(if type is external\) |
+|       ↳ `url` | string | External file URL, returned as supplied; availability depends on the external host |
 |   ↳ `cover` | object | Page/database cover image |
 |     ↳ `type` | string | File type: "file", "file_upload", or "external" |
 |     ↳ `file` | object | Notion-hosted file object \(when type is "file"\) |
@@ -174,15 +212,19 @@ Query and filter Notion database entries with advanced filtering
 |     ↳ `file_upload` | object | API-uploaded file object \(when type is "file_upload"\) |
 |       ↳ `id` | string | File upload UUID |
 |     ↳ `external` | object | External file object \(when type is "external"\) |
-|       ↳ `url` | string | External file URL \(never expires\) |
+|       ↳ `url` | string | External file URL, returned as supplied; availability depends on the external host |
 |   ↳ `properties` | object | Page property values \(structure depends on parent type - database properties or title only\) |
 | `has_more` | boolean | Whether more results are available |
 | `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
 
+</ReferenceDetails>
+
 ### Search Notion Workspace
 
 Search across all pages and databases in Notion workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +266,13 @@ Search across all pages and databases in Notion workspace
 | `next_cursor` | string | Cursor for next page of results |
 | `total_results` | number | Number of results returned |
 
+</ReferenceDetails>
+
 ### Create Notion Database
 
 Create a new database in Notion with custom properties
+
+<ReferenceDetails>
 
 #### Input
 
@@ -246,9 +292,13 @@ Create a new database in Notion with custom properties
 | `properties` | object | Database properties schema |
 | `title` | string | Database title |
 
+</ReferenceDetails>
+
 ### Add Notion Database Row
 
 Add a new row to a Notion database with specified properties
+
+<ReferenceDetails>
 
 #### Input
 
@@ -267,9 +317,13 @@ Add a new row to a Notion database with specified properties
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
 | `title` | string | Row title |
 
+</ReferenceDetails>
+
 ### Notion Append Block Children
 
 Append new block children (content) to a Notion page or block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -304,9 +358,13 @@ Append new block children (content) to a Notion page or block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Retrieve Block
 
 Retrieve a single Notion block by its UUID, including its type-specific content
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,9 +397,13 @@ Retrieve a single Notion block by its UUID, including its type-specific content
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Retrieve Block Children
 
 Retrieve the block children (content) of a Notion page or block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -376,9 +438,13 @@ Retrieve the block children (content) of a Notion page or block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Update Block
 
 Update the content or archived state of a single Notion block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -413,9 +479,13 @@ Update the content or archived state of a single Notion block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Delete Block
 
 Delete (move to trash) a single Notion block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -448,9 +518,13 @@ Delete (move to trash) a single Notion block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Create Comment
 
 Create a comment on a Notion page or within an existing discussion thread
+
+<ReferenceDetails>
 
 #### Input
 
@@ -485,9 +559,13 @@ Create a comment on a Notion page or within an existing discussion thread
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion List Comments
 
 List unresolved comments on a Notion page or block
+
+<ReferenceDetails>
 
 #### Input
 
@@ -522,9 +600,13 @@ List unresolved comments on a Notion page or block
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion List Users
 
 List all users (members and bots) in the Notion workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -558,9 +640,13 @@ List all users (members and bots) in the Notion workspace
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 ### Notion Retrieve User
 
 Retrieve a single Notion user by their UUID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -593,16 +679,20 @@ Retrieve a single Notion user by their UUID
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Notion Comment Created
 
 Trigger workflow when a comment or suggested edit is added in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -624,22 +714,23 @@ Trigger workflow when a comment or suggested edit is added in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Comment ID |
 |   ↳ `entity_type` | string | Entity type \(comment\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `page_id` | string | Page ID that owns the comment thread |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page or block ID |
 |     ↳ `parent_type` | string | Parent type \(page or block\) |
 
-
----
+</ReferenceDetails>
 
 ### Notion Database Created
 
 Trigger workflow when a new database is created in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -661,23 +752,24 @@ Trigger workflow when a new database is created in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page, database, workspace, or space ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Database Deleted
 
 Trigger workflow when a database is deleted in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -699,23 +791,24 @@ Trigger workflow when a database is deleted in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page, database, workspace, or space ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Database Schema Updated
 
 Trigger workflow when a database schema is modified in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -737,23 +830,24 @@ Trigger workflow when a database schema is modified in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page, database, workspace, or space ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Content Updated
 
 Trigger workflow when page content is changed in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -775,23 +869,24 @@ Trigger workflow when page content is changed in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Created
 
 Trigger workflow when a new page is created in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -813,23 +908,24 @@ Trigger workflow when a new page is created in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Deleted
 
 Trigger workflow when a page is deleted in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -851,23 +947,24 @@ Trigger workflow when a page is deleted in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Page Properties Updated
 
 Trigger workflow when page properties are modified in Notion
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -889,23 +986,24 @@ Trigger workflow when page properties are modified in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
 |     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
-
----
+</ReferenceDetails>
 
 ### Notion Webhook (All Events)
 
 Trigger workflow on any Notion webhook event
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -927,14 +1025,16 @@ Trigger workflow on any Notion webhook event
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | object | entity output from the tool |
+| `entity` | object |  |
 |   ↳ `id` | string | Entity ID \(page, database, block, comment, or data source ID\) |
 |   ↳ `entity_type` | string | Entity type: `page`, `database`, `block`, `comment`, or `data_source` |
-| `data` | object | data output from the tool |
-|   ↳ `parent` | object | parent output from the tool |
+| `data` | object |  |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | string | Parent entity ID, when provided by Notion |
 |     ↳ `parent_type` | string | Parent type \(`page`, `database`, `block`, `workspace`, `space`, …\), when present |
 |   ↳ `page_id` | string | Page ID related to the event, when present |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Updated properties included with the event, when provided by Notion |
+
+</ReferenceDetails>
 

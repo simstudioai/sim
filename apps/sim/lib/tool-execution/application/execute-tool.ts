@@ -1,23 +1,33 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   isBlockTypeAllowed,
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
-} from '@/lib/catalog/application/catalog-context'
+} from '@/lib/catalog/application/context'
 import {
   resolveVisibleToolId,
   resolveVisibleToolOwners,
 } from '@/lib/catalog/application/tool-scope'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import {
+  admitWrittenContent,
+  defineAuthorizedWorkspaceUseCase,
+  mustClassifyContent,
+} from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { durableSecretProvenanceFromRegistry } from '@/lib/execution/durable-secret-provenance'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
+import { isEnvVarReference } from '@/executor/constants'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeRegistryTool } from '@/tools'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -32,6 +42,13 @@ export interface ExecuteToolInput {
   input: Record<string, unknown>
   credentialId?: string
   timeoutSeconds?: number
+}
+
+export class ToolUsageLimitExceededError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ToolUsageLimitExceededError'
+  }
 }
 
 export interface ExecuteToolResult {
@@ -49,10 +66,10 @@ export interface ExecuteToolResult {
  * deployment hosts keys, any `enabled` predicate accepts these params, and the
  * caller has not brought a key of their own — which wins where present.
  *
- * Pre-dispatch only, for the required-input exemption: a parameter Sim will
- * fill is not missing. It is deliberately NOT the metering gate — it cannot see
- * a BYOK key, which the registry injects while reporting the call as *not*
- * hosted, so after dispatch the registry's own verdict is read instead.
+ * Pre-dispatch only: the required-input exemption (a parameter Sim will fill is
+ * not missing) and usage admission. It is deliberately NOT the metering gate —
+ * it cannot see a BYOK key, which the registry injects while reporting the call
+ * as *not* hosted, so after dispatch the registry's own verdict is read instead.
  */
 function hostedKeyParamFor(
   tool: ExecutableToolConfig,
@@ -63,6 +80,42 @@ function hostedKeyParamFor(
   const supplied = params[tool.hosting.apiKeyParam]
   if (typeof supplied === 'string' && supplied.trim().length > 0) return undefined
   return tool.hosting.apiKeyParam
+}
+
+/**
+ * `params` as the registry holds them when it decides on Sim's key.
+ *
+ * The registry resolves each whole-value `{{VAR}}` in a `user-only` parameter
+ * before `injectHostedKeyIfNeeded` runs, so a reference can supply the key, or
+ * the value an `enabled` predicate reads, and an empty variable leaves the key
+ * for Sim's to fill. Resolved the same way here — same environment, same
+ * options. A missing variable stays as written: the registry refuses the call
+ * on it before any key is spent.
+ */
+async function resolveUserOnlyReferences(
+  tool: ExecutableToolConfig,
+  params: Record<string, unknown>,
+  userId: string,
+  workspaceId: string
+): Promise<Record<string, unknown>> {
+  const referenced = Object.entries(tool.params ?? {})
+    .filter(([name, declaration]) => {
+      const value = params[name]
+      return (
+        declaration?.visibility === 'user-only' &&
+        typeof value === 'string' &&
+        isEnvVarReference(value)
+      )
+    })
+    .map(([name]) => name)
+  if (referenced.length === 0) return params
+
+  const env = await getEffectiveDecryptedEnv(userId, workspaceId)
+  const resolved = { ...params }
+  for (const name of referenced) {
+    resolved[name] = resolveEnvVarReferences(params[name], env, { allowEmbedded: false })
+  }
+  return resolved
 }
 
 /**
@@ -297,10 +350,33 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError('forbidden', 'Tool execution requires an acting user')
     }
 
+    const registry = mustClassifyContent(principal)
+      ? new ResolvedSecretTraceRegistry([], { userId, workspaceId: context.workspaceId })
+      : undefined
+
     const billingAttribution = await resolveBillingAttribution({
       actorUserId: userId,
       workspaceId: context.workspaceId,
     })
+
+    /**
+     * Admission before Sim's key is spent: metering runs only after the provider
+     * has charged it. A BYOK workspace is gated too, since only the registry can
+     * see that key — the same standing every workflow run is held to.
+     */
+    if (
+      hostedKeyParamFor(
+        tool,
+        await resolveUserOnlyReferences(tool, callerParams, userId, context.workspaceId)
+      )
+    ) {
+      const usage = await checkExecutionUsageLimits(billingAttribution)
+      if (usage.isExceeded) {
+        throw new ToolUsageLimitExceededError(
+          usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+        )
+      }
+    }
 
     const params: Record<string, unknown> = {
       ...callerParams,
@@ -329,6 +405,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     const callId = generateId()
 
     const result = await executeRegistryTool(toolId, params, {
+      resolvedSecretTraceRegistry: registry,
       signal: AbortSignal.timeout((input.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000),
       operationContext: {
         /**
@@ -339,6 +416,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
          */
         workflowId: '',
         callerPrincipal: principal,
+        resolvedSecretTraceRegistry: registry,
         userId,
         workspaceId: context.workspaceId,
         billingAttribution,
@@ -375,6 +453,20 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
         output: result.output,
       })
     }
+
+    await admitWrittenContent(
+      principal,
+      registry
+        ? [
+            {
+              kind: 'tool-result',
+              id: callId,
+              provenance: durableSecretProvenanceFromRegistry(registry, result),
+              view: 'complete',
+            },
+          ]
+        : []
+    )
 
     return {
       toolId,

@@ -98,19 +98,6 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Format a time into a short format
- * @param date - The date to format
- * @returns A formatted time string in the format "h:mm A"
- */
-export function formatTime(date: Date): string {
-  return date.toLocaleString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
-
-/**
  * Format a duration to a human-readable format
  * @param duration - Duration in milliseconds (number) or as string (e.g., "500ms")
  * @param options - Optional formatting options
@@ -211,4 +198,16 @@ export function formatRelativeTime(dateString: string): string {
   }
   const years = Math.floor(diffInSeconds / 31536000)
   return `${years}y ago`
+}
+
+/**
+ * Formats a count as a lower-bound claim, rounded down to two significant
+ * figures (272 → "270+", 5421 → "5,400+"), so a published figure stays true
+ * as the underlying count grows.
+ * @param count - Non-negative integer count
+ * @returns The rounded count with a trailing "+"
+ */
+export function formatLowerBound(count: number): string {
+  const step = 10 ** Math.max(0, Math.floor(Math.log10(count)) - 1)
+  return `${(Math.floor(count / step) * step).toLocaleString('en-US')}+`
 }

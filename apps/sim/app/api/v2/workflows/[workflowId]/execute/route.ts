@@ -21,7 +21,7 @@ import {
   v2InvalidBodyResponse,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attribution'
+import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import type { ForbiddenDetailCode } from '@/lib/core/application'
@@ -448,6 +448,7 @@ export const POST = withRouteHandler(
               mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
               blockId: manualRun.entry.blockId,
               sourceRunId: manualRun.entry.sourceRunId,
+              stopAfterBlockId: manualRun.stopAfterBlockId,
             },
             request: req,
           })
@@ -460,6 +461,7 @@ export const POST = withRouteHandler(
               mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
               triggerBlockId: manualRun.entry?.blockId,
               useMockPayload: manualRun.entry?.useMockPayload === true,
+              stopAfterBlockId: manualRun.stopAfterBlockId,
             },
             request: req,
           })

@@ -5,14 +5,36 @@ import {
   resetDbChainMock as resetDatabaseMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
-import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  routeWindowScans,
+  windowScan,
+  windowScans,
+} from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
+import {
+  removeDisabledImages,
+  runConnectorContentPass,
+} from '@/lib/knowledge/connectors/sync-content-pass'
 import {
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
@@ -21,49 +43,49 @@ import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
 
+uploadsMetadataMockFns.mockGetFileMetadataByKeys.mockImplementation(async (keys: string[]) =>
+  keys.flatMap((key) => bindings.get(key) ?? [])
+)
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
+  async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }
+)
+
 function resetDbChainMock() {
   resetDatabaseMock()
-  dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+  routeWindowScans()
 }
 
-const mocks = vi.hoisted(() => ({
-  upload: vi.fn(),
-  deleteFile: vi.fn(),
-  deleteMetadata: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   enqueueCleanup: vi.fn(async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
-  dispatch: vi.fn(),
   onPage: vi.fn(),
-  hardDelete: vi.fn(async (_ids: string[]) => 0),
 }))
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: mocks.hardDelete,
-  processDocumentsWithQueue: mocks.dispatch,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
-vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mocks.upload } }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mocks.deleteFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mocks.deleteMetadata,
-  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
-    keys.flatMap((key) => bindings.get(key) ?? [])
-  ),
-  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
-    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
-    bindings.set(options.key, binding)
-    return binding
-  }),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
-  enqueueKnowledgeStorageCleanup: mocks.enqueueCleanup,
+  enqueueKnowledgeStorageCleanup: hoisted.enqueueCleanup,
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
+
+const mocks = {
+  ...hoisted,
+  dispatch: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+  hardDelete: knowledgeDocumentsServiceMockFns.mockHardDeleteDocuments,
+}
+mocks.hardDelete.mockImplementation(async (_ids: string[]) => 0)
+triggerAvailabilityMockFns.mockIsTriggerAvailable.mockReturnValue(true)
 
 interface StoredPage {
   id: string
@@ -75,7 +97,12 @@ interface StoredPage {
   sourceSeenAt: Date | null
 }
 
-const SOURCE_CONFIG = { domain: 'fixture.atlassian.net', spaceKey: 'ENG' }
+/** Images on, as a new connector is created. */
+const SOURCE_CONFIG = {
+  domain: 'fixture.atlassian.net',
+  spaceKey: 'ENG',
+  imageAttachments: 'semantic',
+}
 const EXISTING: StoredPage = {
   id: 'document',
   externalId: 'page',
@@ -108,10 +135,12 @@ beforeEach(() => {
   sourceBody = { value: '' }
   mocks.hardDelete.mockResolvedValue(0)
   mocks.onPage.mockReset()
-  mocks.upload.mockImplementation(async ({ customKey }: { customKey: string }) => ({
-    key: customKey,
-    path: `/api/files/serve/${encodeURIComponent(customKey)}`,
-  }))
+  storageServiceMockFns.mockUploadFile.mockImplementation(
+    async ({ customKey }: { customKey: string }) => ({
+      key: customKey,
+      path: `/api/files/serve/${encodeURIComponent(customKey)}`,
+    })
+  )
   mocks.dispatch.mockImplementation(async (documents: unknown[]) => ({
     accepted: documents.length,
     failed: 0,
@@ -142,7 +171,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 /**
@@ -171,15 +199,10 @@ function _grantsSomeone(node: Record<string, unknown>): boolean {
 describe('completed listing removal counts', () => {
   interface AbsentDocument {
     id: string
-    seenAt: string
-    deletedAt: Date | null
+    tombstoned: boolean
   }
 
-  const absent = (id: string, deletedAt: Date | null = null): AbsentDocument => ({
-    id,
-    seenAt: '2026-09-07T12:00:00.000000',
-    deletedAt,
-  })
+  const absent = (id: string, tombstoned = false): AbsentDocument => ({ id, tombstoned })
 
   async function reconcile(options: {
     soft?: AbsentDocument[]
@@ -202,10 +225,17 @@ describe('completed listing removal counts', () => {
       listedCount: 8,
     }
     queueTableRows(schemaMock.document, [
-      { ownedCount: 10, listedCount: 8, softCount: soft.length, hardCount: hard.length },
+      {
+        ownedCount: 10,
+        listedCount: 8,
+        aclCount: options.revoked?.length ?? 0,
+        softCount: soft.length,
+        hardCount: hard.length,
+      },
     ])
-    queueTableRows(schemaMock.document, options.revoked ?? [])
+    /** A walk whose count is zero never scans. Each walk here fits in one partial window. */
     if (options.revoked?.length) {
+      windowScans.push(windowScan(options.revoked))
       /** Each window reads what still grants someone; pages are bounded by their chunks' rows. */
       const granting = options.revoked.map(({ id }) => ({ id, chunkCount: 10 }))
       queueTableRows(schemaMock.document, granting)
@@ -218,20 +248,17 @@ describe('completed listing removal counts', () => {
       const batches = 1 + Math.ceil(options.revoked.length / 25)
       for (let batch = 0; batch < batches; batch++)
         queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
-      queueTableRows(schemaMock.document, [])
     }
-    if (!options.fullSync) {
-      queueTableRows(schemaMock.document, soft)
-      if (soft.length) {
-        queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
-        dbChainMockFns.returning.mockResolvedValueOnce(
-          options.updated ?? soft.map(({ id }) => ({ id }))
-        )
-        queueTableRows(schemaMock.document, [])
-      }
+    if (!options.fullSync && soft.length) {
+      windowScans.push(windowScan(soft))
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
+      dbChainMockFns.returning.mockResolvedValueOnce(
+        options.updated ?? soft.map(({ id }) => ({ id }))
+      )
     }
-    queueTableRows(schemaMock.document, hard)
-    if (hard.length) queueTableRows(schemaMock.document, [])
+    if (hard.length) {
+      windowScans.push(windowScan(hard))
+    }
     const result: SyncResult = {
       docsAdded: 0,
       docsUpdated: 0,
@@ -239,6 +266,7 @@ describe('completed listing removal counts', () => {
       docsUnchanged: 0,
       docsSkipped: 0,
       docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
     }
     const pass = await runConnectorContentPass({
       connectorId: 'connector',
@@ -278,7 +306,7 @@ describe('completed listing removal counts', () => {
 
     mocks.hardDelete.mockResolvedValue(2)
     const cleanup = await reconcile({
-      hard: [absent('one', new Date(0)), absent('two', new Date(0))],
+      hard: [absent('one', true), absent('two', true)],
     })
     expect(cleanup.docsDeleted).toBe(0)
     expect(mocks.hardDelete).toHaveBeenCalledWith(['one', 'two'], 'run', 'connector', 'kb', {
@@ -429,6 +457,42 @@ function contentWrite(): Record<string, unknown> {
   expect(call).toBeDefined()
   return call![0]
 }
+
+describe('disabled image removal', () => {
+  it('keeps walking past a page that removed nothing', async () => {
+    queueTableRows(schemaMock.document, [{ id: 'detached' }])
+    queueTableRows(schemaMock.document, [{ id: 'image' }])
+    queueTableRows(schemaMock.document, [])
+    mocks.hardDelete.mockResolvedValueOnce(0).mockResolvedValueOnce(1)
+    const result: SyncResult = {
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 0,
+      docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+    }
+
+    const finished = await removeDisabledImages({
+      connectorId: 'connector',
+      connector: { knowledgeBaseId: 'kb', connectorType: 'confluence', imageRemovalPending: true },
+      lease: {
+        stillHeld: () => stillHoldsSyncLock('connector', 'run'),
+        beatIfDue: async () => undefined,
+        beatLive: async () => undefined,
+      },
+      leaseKind: 'content',
+      runId: 'run',
+      deadlineAt: Date.now() + 60_000,
+      result,
+    })
+
+    expect(finished).toBe(true)
+    expect(mocks.hardDelete.mock.calls.map((call) => call[0])).toEqual([['detached'], ['image']])
+    expect(result.docsDeleted).toBe(1)
+  })
+})
 
 describe('content pass checkpoint intent', () => {
   it('does not reconcile deletions after a user listing failed, even without the unsafe marker', async () => {
@@ -597,8 +661,8 @@ describe('Confluence empty content through the shared content pass', () => {
     })
     expect(written).not.toHaveProperty('storageKey')
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    expect(mocks.deleteFile).not.toHaveBeenCalled()
-    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
     expect(mocks.dispatch).not.toHaveBeenCalled()
   })
 })

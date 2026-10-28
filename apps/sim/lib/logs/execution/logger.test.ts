@@ -1,10 +1,29 @@
-import { usageLog, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { usageLog, workflow, workflowExecutionLogs, workspace } from '@sim/db/schema'
 import {
   dbChainMockFns,
   flattenMockConditions,
+  loggerMock,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -14,89 +33,70 @@ import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
+billingUsageMonitorMockFns.mockCheckUsageStatus.mockResolvedValue({
+  limit: 100,
+  percentUsed: 50,
+  currentUsage: 50,
+  isExceeded: false,
+  isWarning: false,
+  scope: 'user',
+  organizationId: null,
+})
+billingUsageMockFns.mockGetOrgUsageLimit.mockResolvedValue({ limit: 1000 })
+billingUsageMockFns.mockMaybeSendUsageThresholdEmail.mockResolvedValue(undefined)
+billingUsageLogMockFns.mockRecordUsage.mockResolvedValue(undefined)
+billingUsageLogMockFns.mockStableEventKey.mockImplementation((parts: Record<string, unknown>) =>
+  JSON.stringify(parts)
+)
+billingUsageLogMockFns.mockDeriveBillingContext.mockImplementation((userId: string) => ({
+  billingEntity: { type: 'user', id: userId },
+  billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
+}))
+
+billingAttributionMockFns.mockResolveBillingAttribution.mockImplementation(
+  ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
+    Promise.resolve({
+      actorUserId,
+      workspaceId,
+      billedAccountUserId: 'payer-1',
+      organizationId: 'org-1',
+      billingEntity: { type: 'organization', id: 'org-1' },
+      billingPeriod: {
+        start: '2024-01-01T00:00:00.000Z',
+        end: '2024-02-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    })
+)
+billingAttributionMockFns.mockToBillingContext.mockImplementation((attribution) => ({
+  billingEntity: attribution.billingEntity,
+  billingPeriod: {
+    start: new Date(attribution.billingPeriod.start),
+    end: new Date(attribution.billingPeriod.end),
+  },
+}))
+
+billingSubscriptionMockFns.mockGetHighestPriorityPersonalSubscription.mockImplementation(() =>
+  Promise.resolve(null)
+)
+billingSubscriptionMockFns.mockGetHighestPrioritySubscription.mockImplementation(() =>
+  Promise.resolve(null)
+)
+
 afterAll(resetDbChainMock)
 
-/** Flat logger whose withMetadata() children share one spy set, so log level is assertable. */
-const { mockLogger, statsLogErrorMock } = vi.hoisted(() => {
-  const mockLogger: Record<string, ReturnType<typeof vi.fn>> = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-  }
-  mockLogger.child = vi.fn(() => mockLogger)
-  mockLogger.withMetadata = vi.fn(() => mockLogger)
-  return { mockLogger, statsLogErrorMock: mockLogger.error }
-})
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mockLogger),
-  logger: mockLogger,
-  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
-  getRequestContext: vi.fn(() => undefined),
-  setRequestAuth: vi.fn(),
-}))
-
 // Mock billing modules
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPriorityPersonalSubscription: vi.fn(() => Promise.resolve(null)),
-  getHighestPrioritySubscription: vi.fn(() => Promise.resolve(null)),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: vi.fn(
-    ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
-      Promise.resolve({
-        actorUserId,
-        workspaceId,
-        billedAccountUserId: 'payer-1',
-        organizationId: 'org-1',
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: '2024-01-01T00:00:00.000Z',
-          end: '2024-02-01T00:00:00.000Z',
-        },
-        payerSubscription: null,
-      })
-  ),
-  toBillingContext: vi.fn((attribution) => ({
-    billingEntity: attribution.billingEntity,
-    billingPeriod: {
-      start: new Date(attribution.billingPeriod.start),
-      end: new Date(attribution.billingPeriod.end),
-    },
-  })),
-}))
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkUsageStatus: vi.fn(() =>
-    Promise.resolve({
-      limit: 100,
-      percentUsed: 50,
-      currentUsage: 50,
-      isExceeded: false,
-      isWarning: false,
-      scope: 'user',
-      organizationId: null,
-    })
-  ),
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  getOrgUsageLimit: vi.fn(() => Promise.resolve({ limit: 1000 })),
-  maybeSendUsageThresholdEmail: vi.fn(() => Promise.resolve()),
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  recordUsage: vi.fn(() => Promise.resolve()),
-  stableEventKey: vi.fn((parts: Record<string, unknown>) => JSON.stringify(parts)),
-  deriveBillingContext: vi.fn((userId: string) => ({
-    billingEntity: { type: 'user', id: userId },
-    billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
-  })),
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
+
+vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
@@ -128,27 +128,10 @@ vi.mock('@/lib/logs/execution/progress-markers', () => ({
 // Mock snapshot service
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
-    createSnapshotWithDeduplication: vi.fn(() =>
-      Promise.resolve({
-        snapshot: {
-          id: 'snapshot-123',
-          workflowId: 'workflow-123',
-          stateHash: 'hash-123',
-          stateData: { blocks: {}, edges: [], loops: {}, parallels: {} },
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-        isNew: true,
-      })
+    resolveSnapshot: vi.fn(() =>
+      Promise.resolve({ id: 'snapshot-123', workflowId: 'workflow-123', stateHash: 'hash' })
     ),
-    getSnapshot: vi.fn(() =>
-      Promise.resolve({
-        id: 'snapshot-123',
-        workflowId: 'workflow-123',
-        stateHash: 'hash-123',
-        stateData: { blocks: {}, edges: [], loops: {}, parallels: {} },
-        createdAt: '2024-01-01T00:00:00.000Z',
-      })
-    ),
+    rememberReferencedSnapshot: vi.fn(),
   },
 }))
 
@@ -157,13 +140,11 @@ describe('ExecutionLogger', () => {
 
   beforeEach(() => {
     logger = new ExecutionLogger()
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
   describe('interface implementation', () => {
     test('marks new execution rows as contract-aware before any provenance is available', async () => {
-      dbChainMockFns.limit.mockResolvedValueOnce([])
       dbChainMockFns.returning.mockResolvedValueOnce([
         {
           id: 'log-1',
@@ -239,7 +220,10 @@ describe('ExecutionLogger', () => {
       vi.spyOn(logger as any, 'applyPiiRedaction').mockImplementation(
         async (_workspaceId: unknown, payload: unknown) => payload
       )
-      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue(0)
+      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue({
+        recordedIncrement: 0,
+        costTotalRefined: false,
+      })
 
       const result = await logger.completeWorkflowExecution({
         executionId: 'execution-1',
@@ -289,6 +273,9 @@ describe('ExecutionLogger', () => {
     async function completeAndReadWrite(params: {
       executionState?: SerializableExecutionState
       redactedState?: SerializableExecutionState
+      /** Runs the real log-stage PII pass instead of standing in for it. */
+      realRedaction?: boolean
+      finalOutput?: Record<string, unknown>
     }) {
       const startedAt = new Date('2026-08-11T00:00:00.000Z')
       queueTableRows(workflowExecutionLogs, [
@@ -313,15 +300,23 @@ describe('ExecutionLogger', () => {
       ])
       const internals = logger as unknown as {
         applyPiiRedaction: (workspaceId: string, payload: Record<string, unknown>) => unknown
-        recordExecutionUsage: () => Promise<number>
+        recordExecutionUsage: () => Promise<{
+          recordedIncrement: number
+          costTotalRefined: boolean
+        }>
       }
-      vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
-        async (_workspaceId: string, payload: Record<string, unknown>) =>
-          Object.hasOwn(params, 'redactedState')
-            ? { ...payload, executionState: params.redactedState }
-            : payload
-      )
-      vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue(0)
+      if (!params.realRedaction) {
+        vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
+          async (_workspaceId: string, payload: Record<string, unknown>) =>
+            Object.hasOwn(params, 'redactedState')
+              ? { ...payload, executionState: params.redactedState }
+              : payload
+        )
+      }
+      vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue({
+        recordedIncrement: 0,
+        costTotalRefined: false,
+      })
 
       await logger.completeWorkflowExecution({
         executionId: 'execution-1',
@@ -337,7 +332,7 @@ describe('ExecutionLogger', () => {
           baseExecutionCharge: 0,
           models: {},
         },
-        finalOutput: { completed: true },
+        finalOutput: params.finalOutput ?? { completed: true },
         traceSpans: [],
         ...(params.executionState ? { executionState: params.executionState } : {}),
       })
@@ -444,6 +439,65 @@ describe('ExecutionLogger', () => {
       expect(preserved?.resolvedSecretTraceProvenance).toBe(provenance)
       expect(preserved?.trustedLargeValueAccess).toBe(trustedLargeValueAccess)
       expect(preserved?.blockStates).toEqual(redactedState.blockStates)
+    })
+
+    test('keeps encrypted provenance sidecars intact through log PII redaction', async () => {
+      queueTableRows(workspace, [
+        {
+          orgSettings: {
+            piiRedaction: { rules: [{ workspaceId: null, entityTypes: ['PHONE_NUMBER'] }] },
+          },
+        },
+      ])
+      maskClientMockFns.mockMaskPIIBatchViaHttp.mockImplementation(async (texts: string[]) => ({
+        masked: texts.map((text) => text.replace(/\d{7,}/g, '<PHONE_NUMBER>')),
+        scrubbedCount: 0,
+      }))
+      const sidecar = (encryptedValue: string) => ({
+        version: 1 as const,
+        complete: true,
+        entries: [{ name: 'API_SECRET', encryptedValue }],
+      })
+      const finalOutputProvenance = sidecar('9f3c2a5551234567e0:4b18093327716650aa:0c1d')
+      const workflowInputProvenance = sidecar('1e2f5550001111e0:77a0384460007799bb:9d8e')
+      const loopInputProvenance = sidecar('3a4b5552223333c0:66b0129930004455cc:5f6a')
+      const parallelOutputProvenance = sidecar('7c8d5554445555a0:11b0567780009911dd:2e3f')
+
+      const written = await completeAndReadWrite({
+        realRedaction: true,
+        finalOutput: { reply: 'Call me at 5551234567' },
+        executionState: {
+          ...EMPTY_STATE,
+          sourceExecutionId: 'execution-20260811123456789',
+          resolvedSecretTraceProvenance: RUN_PROVENANCE,
+          resolvedSecretTraceCheckpointVersion: 1,
+          finalOutputResolvedSecretTraceProvenance: finalOutputProvenance,
+          workflowInputResolvedSecretTraceProvenance: workflowInputProvenance,
+          loopExecutions: {
+            loop1: {
+              iteration: 0,
+              items: ['Call 5559876543'],
+              inputResolvedSecretTraceProvenance: loopInputProvenance,
+            },
+          },
+          parallelExecutions: {
+            parallel1: { resolvedSecretTraceProvenance: parallelOutputProvenance },
+          },
+        } as SerializableExecutionState,
+      })
+
+      const state = written?.executionState as SerializableExecutionState | undefined
+      expect(written?.finalOutput).toEqual({ reply: 'Call me at <PHONE_NUMBER>' })
+      expect(state?.loopExecutions?.loop1?.items).toEqual(['Call <PHONE_NUMBER>'])
+      expect(state?.finalOutputResolvedSecretTraceProvenance).toEqual(finalOutputProvenance)
+      expect(state?.workflowInputResolvedSecretTraceProvenance).toEqual(workflowInputProvenance)
+      expect(state?.loopExecutions?.loop1?.inputResolvedSecretTraceProvenance).toEqual(
+        loopInputProvenance
+      )
+      expect(state?.parallelExecutions?.parallel1?.resolvedSecretTraceProvenance).toEqual(
+        parallelOutputProvenance
+      )
+      expect(state?.sourceExecutionId).toBe('execution-20260811123456789')
     })
 
     test('summarizes oversized execution data before storage', () => {
@@ -763,12 +817,71 @@ describe('ExecutionLogger', () => {
   })
 })
 
+describe('recordExecutionUsage for a workflow that no longer exists', () => {
+  const executionLoggerLog =
+    loggerMock.createLogger.mock.results[
+      loggerMock.createLogger.mock.calls.findIndex(([name]) => name === 'ExecutionLogger')
+    ]?.value
+  const costSummary = {
+    totalCost: 0.005,
+    totalInputCost: 0,
+    totalOutputCost: 0,
+    totalTokens: 0,
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    baseExecutionCharge: 0.005,
+    models: {},
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  const record = () =>
+    (
+      new ExecutionLogger() as unknown as {
+        recordExecutionUsage: (...args: unknown[]) => Promise<unknown>
+      }
+    ).recordExecutionUsage(
+      'workflow-1',
+      costSummary,
+      'api',
+      'exec-1',
+      'user-1',
+      undefined,
+      true,
+      'ws-1'
+    )
+
+  test('records nothing and logs at info when the whole workspace was deleted', async () => {
+    queueTableRows(workflow, [])
+    queueTableRows(workspace, [])
+
+    await expect(record()).resolves.toEqual({ recordedIncrement: 0, costTotalRefined: false })
+
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.error).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.info).toHaveBeenCalledWith(
+      "Skipped usage recording: the run's workspace was deleted"
+    )
+  })
+
+  test('still logs an error when the workflow is missing from a live workspace', async () => {
+    queueTableRows(workflow, [])
+    queueTableRows(workspace, [{ id: 'ws-1' }])
+
+    await expect(record()).resolves.toEqual({ recordedIncrement: 0, costTotalRefined: false })
+
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.error).toHaveBeenCalledWith('Workflow not found for usage recording')
+  })
+})
+
 describe('recordExecutionUsage boundary-delta reconciliation', () => {
   let logger: any
 
   beforeEach(() => {
     logger = new ExecutionLogger() as any
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -848,7 +961,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       }),
     ])
     // Returns the amount recorded at this boundary (drives threshold-email math).
-    expect(recorded).toBeCloseTo(1.005, 8)
+    expect(recorded.recordedIncrement).toBeCloseTo(1.005, 8)
     // cost_total is refined to the exact ledger sum inside the locked tx.
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
   })
@@ -893,7 +1006,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(lastEntries()).not.toContainEqual(
       expect.objectContaining({ category: 'model', description: 'mothership' })
     )
-    expect(recorded).toBeCloseTo(1.005, 8)
+    expect(recorded.recordedIncrement).toBeCloseTo(1.005, 8)
     expect(setCostTotalMock).toHaveBeenCalledWith({ costTotal: '1.505' })
   })
 
@@ -934,14 +1047,9 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       'user-1'
     )
 
-    expect(recorded).toBe(0)
+    expect(recorded.recordedIncrement).toBe(0)
     expect(recordUsage).not.toHaveBeenCalled()
   })
-
-  const unbilledErrorCalls = () =>
-    mockLogger.error.mock.calls.filter((call) =>
-      String(call[0]).includes('Failed to record execution usage to usage_log ledger')
-    )
 
   test('retry with everything already billed records nothing (idempotent)', async () => {
     await run(

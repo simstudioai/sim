@@ -1,23 +1,15 @@
 import { Readable } from 'node:stream'
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockExportBundle,
-  mockBuildKnowledgeBundleArchive,
-  mockKnowledgeBundleFileName,
-} = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockExportBundle: vi.fn(),
-  mockBuildKnowledgeBundleArchive: vi.fn(),
-  mockKnowledgeBundleFileName: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
+const { mockExportBundle, mockBuildKnowledgeBundleArchive, mockKnowledgeBundleFileName } =
+  vi.hoisted(() => ({
+    mockExportBundle: vi.fn(),
+    mockBuildKnowledgeBundleArchive: vi.fn(),
+    mockKnowledgeBundleFileName: vi.fn(),
+  }))
 
 vi.mock('@/lib/knowledge/application/exports', () => ({
   exportKnowledgeBase: {
@@ -34,9 +26,11 @@ vi.mock('@/lib/knowledge/transfer/export-archive', () => ({
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/knowledge/[id]/export/route'
 
+const mockGetSession = authMockFns.mockGetSession
+
 const KNOWLEDGE_BASE_ID = 'kb-1'
 const FILE_NAME = 'Support docs.simkb.zip'
-const context = { params: Promise.resolve({ id: KNOWLEDGE_BASE_ID }) }
+const context = createRouteContext({ id: KNOWLEDGE_BASE_ID })
 
 const BUNDLE = {
   knowledgeBase: { name: 'Support docs', description: null, chunkingConfig: null },

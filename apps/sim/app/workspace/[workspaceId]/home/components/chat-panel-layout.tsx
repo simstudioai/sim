@@ -8,7 +8,7 @@ import type {
   Ref,
 } from 'react'
 import { Button, cn } from '@sim/emcn'
-import { PanelLeft } from '@sim/emcn/icons'
+import { ArrowLeft, PanelLeft } from '@sim/emcn/icons'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 
 interface ChatPanelLayoutProps {
@@ -43,13 +43,16 @@ export function ChatPanelLayout({
   }`
   return (
     <div
-      className={cn('relative flex h-full min-h-0 bg-[var(--bg)]', RESOURCE_HEADER_CLASSES.layout)}
+      className={cn(
+        'relative flex h-full min-h-0 min-w-0 bg-[var(--bg)]',
+        RESOURCE_HEADER_CLASSES.layout
+      )}
     >
-      {children}
+      <div className={cn('contents', !collapsed && 'max-md:hidden')}>{children}</div>
       {!collapsed && (
-        <div className='relative z-20 w-0 flex-none'>
+        <div className='relative z-20 w-0 flex-none max-md:hidden'>
           <div
-            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
+            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize touch-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
             role='separator'
             tabIndex={0}
             aria-orientation='vertical'
@@ -62,7 +65,11 @@ export function ChatPanelLayout({
       )}
       {panel}
       <div
-        className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
+        className={cn(
+          'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
+          RESOURCE_HEADER_CLASSES.overlay,
+          RESOURCE_HEADER_CLASSES.endPosition
+        )}
       >
         <Button
           variant='ghost'
@@ -70,10 +77,19 @@ export function ChatPanelLayout({
           type='button'
           onClick={onToggle}
           className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
-          aria-label={toggleLabel}
         >
+          <span className={cn('sr-only', !collapsed && 'max-md:hidden')}>{toggleLabel}</span>
+          {!collapsed && <span className='sr-only hidden max-md:block'>Back to chat</span>}
           <span className='relative'>
-            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
+            {!collapsed && (
+              <ArrowLeft className='hidden size-[16px] text-[var(--text-icon)] max-md:block' />
+            )}
+            <PanelLeft
+              className={cn(
+                '-scale-x-100 size-[16px] text-[var(--text-icon)]',
+                !collapsed && 'max-md:hidden'
+              )}
+            />
             {collapsed && activityCount > 0 && (
               <span
                 aria-hidden='true'
@@ -111,8 +127,8 @@ export function ChatPanelContent({
       onKeyDownCapture={onInteraction}
       inert={collapsed}
       className={cn(
-        'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
-        collapsed ? 'w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
+        'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none max-md:absolute max-md:inset-0 max-md:w-full! max-md:min-w-0! max-md:border-l-0 max-md:transition-none',
+        collapsed ? 'w-0 min-w-0 border-l-0 max-md:hidden' : 'w-1/2 border-l',
         '[--workspace-content-title-bar-inset:0px]',
         className
       )}

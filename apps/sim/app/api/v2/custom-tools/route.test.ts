@@ -1,84 +1,22 @@
-import { NextRequest } from 'next/server'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { v1RateLimitContextModuleMock } from '@sim/testing/mocks/v1-route.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, log, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  /**
-   * The same surface `createMockLogger` provides, because this stub *replaces*
-   * the global `@sim/logger` mock for this file. A narrower one is not merely
-   * incomplete — the first module in this route's graph to call `logger.trace`
-   * or `logger.child` would throw `TypeError` here and nowhere else, which reads
-   * as a route bug rather than a missing mock method. `child`/`withMetadata`
-   * return the same instance so a chained call still records on `log`.
-   */
-  const log: Record<string, unknown> = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-  }
-  log.child = vi.fn(() => log)
-  log.withMetadata = vi.fn(() => log)
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      list: vi.fn(),
-      create: vi.fn(),
-    },
-    log: log as {
-      info: ReturnType<typeof vi.fn>
-      warn: ReturnType<typeof vi.fn>
-      error: ReturnType<typeof vi.fn>
-      debug: ReturnType<typeof vi.fn>
-      trace: ReturnType<typeof vi.fn>
-      fatal: ReturnType<typeof vi.fn>
-      child: ReturnType<typeof vi.fn>
-      withMetadata: ReturnType<typeof vi.fn>
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
-
-/**
- * Overrides the global logger mock with one stable instance so the malformed-row
- * warnings can be asserted — `createLogger` is called at module load, before any
- * `beforeEach` could capture the per-call mock the global stub returns.
- */
-vi.mock('@sim/logger', () => ({
-  createLogger: () => log,
-  logger: log,
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  create: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
-vi.mock('@/lib/api/server/rate-limit-context', () => ({
-  recordRateLimitSnapshot: vi.fn(),
-  getRateLimitHeaders: vi.fn().mockReturnValue(null),
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   listWorkspaceCustomToolsUseCase: {
     operation: { id: 'custom_tools.list' },
@@ -93,8 +31,10 @@ vi.mock('@/lib/custom-tools/application/use-cases', () => ({
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET } from '@/app/api/v2/custom-tools/route'
 
+const log = getMockLogger('V2CustomToolsSerialization')
+
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
+const PRINCIPAL = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 const AUTH = {
   principal: PRINCIPAL,
   rateLimitSubjectIds: ['workspace:workspace-1'] as const,
@@ -127,21 +67,19 @@ const tool = {
 }
 
 function request(method: 'GET' | 'POST', url: string, body?: unknown) {
-  return new NextRequest(`http://localhost:3000${url}`, {
+  return createMockRequest({
     method,
-    headers: {
-      'x-api-key': 'key',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    url: `http://localhost:3000${url}`,
+    headers: { 'x-api-key': 'key' },
+    body,
   })
 }
 
 describe('/api/v2/custom-tools', () => {
   beforeEach(() => {
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.list.mockResolvedValue({ tools: [tool] })
     mocks.create.mockResolvedValue({ tool })
   })

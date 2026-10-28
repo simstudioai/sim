@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface AzureDevOpsBaseParams {
+interface AzureDevOpsBaseParams {
   /** Azure DevOps organization name */
   organization: string
   /** Azure DevOps project name */
@@ -17,7 +17,7 @@ export interface ListPipelinesParams extends AzureDevOpsBaseParams {
   continuationToken?: string
 }
 
-export interface AzureDevOpsPipeline {
+interface AzureDevOpsPipeline {
   id: number
   name: string
   folder: string
@@ -42,7 +42,7 @@ export interface GetPipelineParams extends AzureDevOpsBaseParams {
   pipelineVersion?: number
 }
 
-export interface AzureDevOpsPipelineConfiguration {
+interface AzureDevOpsPipelineConfiguration {
   type: string
   path?: string
   repository?: {
@@ -51,7 +51,7 @@ export interface AzureDevOpsPipelineConfiguration {
   }
 }
 
-export interface AzureDevOpsPipelineDetail extends AzureDevOpsPipeline {
+interface AzureDevOpsPipelineDetail extends AzureDevOpsPipeline {
   configuration: AzureDevOpsPipelineConfiguration
   links: {
     self: string
@@ -74,7 +74,7 @@ export interface ListPipelineRunsParams extends AzureDevOpsBaseParams {
   pipelineId: number
 }
 
-export interface AzureDevOpsPipelineRun {
+interface AzureDevOpsPipelineRun {
   id: number
   name: string
   state: string
@@ -102,7 +102,7 @@ export interface GetPipelineRunParams extends AzureDevOpsBaseParams {
   runId: number
 }
 
-export interface AzureDevOpsPipelineRunDetail extends AzureDevOpsPipelineRun {
+interface AzureDevOpsPipelineRunDetail extends AzureDevOpsPipelineRun {
   pipeline: {
     id: number
     name: string
@@ -131,7 +131,7 @@ export interface ListBuildsParams extends AzureDevOpsBaseParams {
   branchName?: string
 }
 
-export interface AzureDevOpsBuild {
+interface AzureDevOpsBuild {
   id: number
   buildNumber: string
   status: string
@@ -164,7 +164,7 @@ export interface ListBuildLogsParams extends AzureDevOpsBaseParams {
   buildId: number
 }
 
-export interface AzureDevOpsBuildLog {
+interface AzureDevOpsBuildLog {
   id: number
   type: string
   url: string
@@ -413,24 +413,6 @@ export interface AddCommentResponse extends ToolResponse {
 }
 
 // ── Response Union ────────────────────────────────────────────────────────────
-
-export type AzureDevOpsResponse =
-  | ListPipelinesResponse
-  | GetPipelineResponse
-  | ListPipelineRunsResponse
-  | GetPipelineRunResponse
-  | ListBuildsResponse
-  | ListBuildLogsResponse
-  | GetBuildLogResponse
-  | GetBuildTimelineResponse
-  | GetWorkItemsBetweenBuildsResponse
-  | QueryWorkItemsResponse
-  | GetWorkItemResponse
-  | GetWorkItemsBatchResponse
-  | CreateWorkItemResponse
-  | UpdateWorkItemResponse
-  | AddCommentResponse
-  | GetCommentsResponse
 
 // ── Get Comments ──────────────────────────────────────────────────────────────
 

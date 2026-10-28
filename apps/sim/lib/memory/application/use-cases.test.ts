@@ -1,47 +1,44 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   readBoundProvenance: vi.fn(),
   readPlainMemoryTail: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
 vi.mock('@/lib/memory/conversation-store', () => ({
-  readPlainMemoryTail: mocks.readPlainMemoryTail,
+  readPlainMemoryTail: hoisted.readPlainMemoryTail,
   appendMemoryMessages: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: (value: unknown) => value,
-}))
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/memory/secret-provenance', () => ({
-  readBoundMemorySecretProvenance: mocks.readBoundProvenance,
+  MEMORY_SECRET_PROVENANCE_COLUMNS: {},
+  readBoundMemorySecretProvenance: hoisted.readBoundProvenance,
   replaceMemorySecretProvenanceInTx: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { listMemoriesUseCase } from '@/lib/memory/application/use-cases'
 import type { PlainMemoryReadBudget } from '@/lib/memory/read-budget'
+
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const WORKSPACE_ID = 'workspace-canonical'
 const BILLING_OWNER_ID = 'billing-owner'
@@ -160,6 +157,36 @@ describe('Memory application use cases', () => {
     )
     expect(mocks.readBoundProvenance).not.toHaveBeenCalled()
   })
+  it('stops a list cancelled during its billing lookup before reading tails or provenance', async () => {
+    queueTableRows(schemaMock.memory, [
+      {
+        id: 'memory-1',
+        key: 'conversation-1',
+        data: [],
+        storageVersion: 2,
+        secretProvenanceVersion: null,
+      },
+    ])
+    const controller = new AbortController()
+    await expect(
+      listMemoriesUseCase.execute({
+        principal: ACTORLESS_DEPLOYED_PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE_ID,
+          limit: 50,
+          includePersistedSecretProvenance: true,
+          signal: controller.signal,
+          resolveBillingAttribution: async () => {
+            controller.abort(new Error('cancelled'))
+            return BILLING_ATTRIBUTION
+          },
+        },
+      })
+    ).rejects.toThrow('cancelled')
+    expect(mocks.readPlainMemoryTail).not.toHaveBeenCalled()
+    expect(mocks.readBoundProvenance).not.toHaveBeenCalled()
+  })
+
   it('enforces one appended-history budget across the entire list response', async () => {
     queueTableRows(
       schemaMock.memory,

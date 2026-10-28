@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
+import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -8,17 +11,14 @@ const {
   mockGetOrganizationSurfaceContext,
   mockWorkspaceChrome,
   mockPrefetchOrganizationSidebar,
-  mockUseSession,
   mockUseMothershipChatEvents,
 } = vi.hoisted(() => ({
   mockGetOrganizationSurfaceContext: vi.fn(),
   mockWorkspaceChrome: vi.fn(({ children }: { children: ReactNode }) => children),
   mockPrefetchOrganizationSidebar: vi.fn(async () => undefined),
-  mockUseSession: vi.fn(),
   mockUseMothershipChatEvents: vi.fn(),
 }))
 
-vi.mock('@/lib/table/ttl-availability', () => ({ isTableRowTtlEnabled: async () => false }))
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
 }))
@@ -26,7 +26,7 @@ vi.mock('@/hooks/use-mothership-chat-events', () => ({
   useMothershipChatEvents: mockUseMothershipChatEvents,
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({ useSession: mockUseSession }))
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/queries/admin-users', () => ({
   useStopImpersonating: () => ({ mutate: vi.fn(), isPending: false }),
 }))
@@ -35,10 +35,7 @@ vi.mock('@/lib/auth/stale-session-recovery', () => ({
   recoverFromStaleSession: vi.fn(),
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  HydrationBoundary: ({ children }: { children: ReactNode }) => children,
-  dehydrate: vi.fn(() => ({})),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: () => ({}),
@@ -52,11 +49,7 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => ({ value: '1' })) })),
 }))
 
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    throw new Error(`redirect:${path}`)
-  },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('@/lib/organizations/surface', () => ({
   getOrganizationSurfaceContext: mockGetOrganizationSurfaceContext,
@@ -68,6 +61,7 @@ vi.mock('@/app/o/[organizationId]/components/organization-sidebar', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: mockWorkspaceChrome,
+  WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () => ({
@@ -77,6 +71,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () =
 import OrganizationLayout from '@/app/o/[organizationId]/layout'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockUseSession = authClientMockFns.mockUseSession
 
 const SURFACE_CONTEXT = {
   organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: null, memberCount: 1 },
@@ -109,7 +104,7 @@ describe('OrganizationLayout', () => {
         children: <div>Organization child</div>,
         params: Promise.resolve({ organizationId: 'customer-org' }),
       })
-    ).rejects.toThrow('redirect:/workspace?redirect=settings')
+    ).rejects.toThrow('NEXT_REDIRECT:/workspace?redirect=settings')
     expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith(
       'customer-org',
       'customer-member'
@@ -147,7 +142,7 @@ describe('OrganizationLayout', () => {
           children: <div>Organization settings</div>,
           params: Promise.resolve({ organizationId: 'org-1' }),
         })
-      ).rejects.toThrow('redirect:/workspace?redirect=settings')
+      ).rejects.toThrow('NEXT_REDIRECT:/workspace?redirect=settings')
       expect(mockWorkspaceChrome).not.toHaveBeenCalled()
       expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
     }

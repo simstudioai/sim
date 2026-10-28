@@ -1,4 +1,5 @@
-import type { ChatPosition } from './types'
+import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
+import type { ChatPosition } from '@/stores/chat/types'
 
 /**
  * Floating chat dimensions
@@ -24,16 +25,14 @@ const CONTENT_WINDOW_GAP = 8
 /**
  * Calculate default position in top right of canvas, offset from panel edge
  */
-const calculateDefaultPosition = (): ChatPosition => {
+const calculateDefaultPosition = (width: number): ChatPosition => {
   if (typeof window === 'undefined') {
     return { x: 100, y: 100 }
   }
 
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
 
-  const x = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - 32 - DEFAULT_WIDTH
+  const x = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - 32 - width
   const y = CONTENT_WINDOW_GAP + 32
 
   return { x, y }
@@ -54,12 +53,8 @@ export const constrainChatPosition = (
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
-  const terminalHeight = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
-  )
+  const panelWidth = getPanelWidth()
+  const terminalHeight = getTerminalHeight()
 
   const minX = sidebarWidth
   const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
@@ -85,7 +80,7 @@ export const getChatPosition = (
   height: number = DEFAULT_HEIGHT
 ): ChatPosition => {
   if (!storedPosition) {
-    return calculateDefaultPosition()
+    return calculateDefaultPosition(width)
   }
 
   // Validate stored position is still within bounds
@@ -97,7 +92,7 @@ export const getChatPosition = (
   const deltaY = Math.abs(constrained.y - storedPosition.y)
 
   if (deltaX > 100 || deltaY > 100) {
-    return calculateDefaultPosition()
+    return calculateDefaultPosition(width)
   }
 
   return constrained

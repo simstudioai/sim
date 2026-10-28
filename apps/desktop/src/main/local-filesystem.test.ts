@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   open,
+  readFile,
   realpath,
   rename,
   rm,
@@ -16,7 +17,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
-  return { ...actual, open: vi.fn(actual.open) }
+  return {
+    ...actual,
+    open: vi.fn(actual.open),
+    realpath: vi.fn(actual.realpath),
+    readFile: vi.fn(actual.readFile),
+  }
 })
 
 import type { LocalFilesystemMount, LocalFilesystemResponse } from '@sim/desktop-bridge'
@@ -105,6 +111,27 @@ describe('LocalFilesystemService', () => {
       code: 'INVALID_REQUEST',
       error: expect.stringContaining('catastrophic backtracking'),
     })
+  })
+
+  it('trims long runs of slashes in grep and glob paths in linear time', async () => {
+    const granted = await mount(service)
+    const slashes = `${'/'.repeat(200_000)}x`
+    const startedAt = performance.now()
+
+    expect(
+      service.isAuthorizedClientToolRequest(
+        { operation: 'grep', uri: granted.uri, pattern: 'TODO', requestId: 'grep-tool' },
+        { toolName: 'grep', args: { path: slashes, pattern: 'TODO' } }
+      )
+    ).toBe(false)
+    await service.handle({
+      operation: 'glob',
+      uri: granted.uri,
+      pattern: '**/*.ts',
+      pathPrefix: slashes,
+    })
+
+    expect(performance.now() - startedAt).toBeLessThan(1000)
   })
 
   it('binds privileged client reads and searches to server-persisted tool args', async () => {
@@ -236,6 +263,27 @@ describe('LocalFilesystemService', () => {
     ).toBe(false)
   })
 
+  it('hands back nothing from a folder forgotten while the read ran', async () => {
+    const granted = await mount(service)
+
+    const reading = service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
+    const searching = service.handle({ operation: 'grep', uri: granted.uri, pattern: 'hello' })
+    await service.handle({ operation: 'forget_mount', uri: granted.uri })
+
+    await expect(reading).resolves.toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+    await expect(searching).resolves.toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+  })
+
+  it('keeps a read whose folder the user selected again while it ran', async () => {
+    const granted = await mount(service)
+
+    const reading = service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
+    const again = await mount(service)
+
+    expect(again.uri).toBe(granted.uri)
+    await expect(reading).resolves.toMatchObject({ ok: true })
+  })
+
   it('rejects unknown mounts and symlinks that escape the selected directory', async () => {
     const granted = await mount(service)
     const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
@@ -334,6 +382,34 @@ describe('LocalFilesystemService', () => {
         await opened?.close()
         await rm(outside, { recursive: true, force: true })
       }
+    }
+  )
+
+  it.each(['resolution', 'read'] as const)(
+    'returns no VFS contents when access is revoked during %s',
+    async (stage) => {
+      const granted = await mount(service)
+      const revoke = () => service.handle({ operation: 'forget_mount', uri: granted.uri })
+      if (stage === 'resolution') {
+        const original = vi.mocked(realpath).getMockImplementation()
+        if (!original) throw new Error('Missing real filesystem implementation')
+        vi.mocked(realpath).mockImplementationOnce(async (...args) => {
+          const result = await original(...args)
+          await revoke()
+          return result
+        })
+      } else {
+        const original = vi.mocked(readFile).getMockImplementation()
+        if (!original) throw new Error('Missing real filesystem implementation')
+        vi.mocked(readFile).mockImplementationOnce(async (...args) => {
+          const result = await original(...args)
+          await revoke()
+          return result
+        })
+      }
+      expect(
+        await service.handle({ operation: 'read', uri: `${granted.uri}README.md` })
+      ).toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
     }
   )
 

@@ -1,31 +1,29 @@
 ---
 title: Google Maps
 description: Geocoding, directions, places, and distance calculations
+integration:
+  type: "google_maps"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_maps"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google Maps](https://maps.google.com) APIs to look up coordinates and places, calculate routes and travel times, validate addresses, and retrieve location-based environmental data. Each action below documents its required location inputs and returned fields.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Google Maps Platform APIs into your workflow. Supports geocoding addresses to coordinates, reverse geocoding, getting directions between locations, calculating distance matrices, searching for places, retrieving place details, elevation data, and timezone information.
-
-
+Look up coordinates and places, calculate routes and travel times, retrieve place, elevation, and timezone details, validate addresses, and query supported environmental data.
 
 ## Actions
 
 ### Google Maps Air Quality
 
 Get current air quality data for a location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -60,9 +58,13 @@ Get current air quality data for a location
 |   ↳ `additionalInfo` | object | Additional info about sources and effects |
 | `healthRecommendations` | object | Health recommendations for different populations |
 
+</ReferenceDetails>
+
 ### Google Maps Directions
 
 Get directions and route information between two locations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -105,9 +107,13 @@ Get directions and route information between two locations
 |   ↳ `maneuver` | string | Maneuver type \(turn-left, etc.\) |
 | `polyline` | string | Encoded polyline for the primary route |
 
+</ReferenceDetails>
+
 ### Google Maps Distance Matrix
 
 Calculate travel distance and time between multiple origins and destinations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -137,9 +143,13 @@ Calculate travel distance and time between multiple origins and destinations
 |     ↳ `durationInTrafficSeconds` | number | Duration in traffic in seconds |
 |     ↳ `status` | string | Element status \(OK, NOT_FOUND, ZERO_RESULTS\) |
 
+</ReferenceDetails>
+
 ### Google Maps Elevation
 
 Get elevation data for a location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -158,9 +168,13 @@ Get elevation data for a location
 | `lng` | number | Longitude of the elevation sample |
 | `resolution` | number | Maximum distance between data points \(meters\) from which elevation was interpolated |
 
+</ReferenceDetails>
+
 ### Google Maps Geocode
 
 Convert an address into geographic coordinates (latitude and longitude)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +200,13 @@ Convert an address into geographic coordinates (latitude and longitude)
 |   ↳ `types` | array | Component types |
 | `locationType` | string | Location accuracy type \(ROOFTOP, RANGE_INTERPOLATED, etc.\) |
 
+</ReferenceDetails>
+
 ### Google Maps Geolocate
 
 Geolocate a device using WiFi access points, cell towers, or IP address
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +229,13 @@ Geolocate a device using WiFi access points, cell towers, or IP address
 | `lng` | number | Longitude coordinate |
 | `accuracy` | number | Accuracy radius in meters |
 
+</ReferenceDetails>
+
 ### Google Maps Place Details
 
 Get detailed information about a specific place
+
+<ReferenceDetails>
 
 #### Input
 
@@ -260,9 +282,13 @@ Get detailed information about a specific place
 | `vicinity` | string | Simplified address \(neighborhood/street\) |
 | `businessStatus` | string | Business status \(OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY\) |
 
+</ReferenceDetails>
+
 ### Google Maps Places Nearby Search
 
 Search for places of a given type within a radius of a location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +321,13 @@ Search for places of a given type within a radius of a location
 |   ↳ `openNow` | boolean | Whether currently open |
 |   ↳ `businessStatus` | string | Business status |
 
+</ReferenceDetails>
+
 ### Google Maps Places Search
 
 Search for places using a text query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -331,9 +361,13 @@ Search for places using a text query
 |   ↳ `businessStatus` | string | Business status |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Google Maps Pollen
 
 Get a daily pollen forecast (grass, tree, weed) for a location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -366,9 +400,13 @@ Get a daily pollen forecast (grass, tree, weed) for a location
 |     ↳ `indexInfo` | object | Universal Pollen Index \(UPI\) info |
 |     ↳ `plantDescription` | object | Plant details \(type, family, season, cross-reactions\) |
 
+</ReferenceDetails>
+
 ### Google Maps Reverse Geocode
 
 Convert geographic coordinates (latitude and longitude) into a human-readable address
+
+<ReferenceDetails>
 
 #### Input
 
@@ -391,9 +429,13 @@ Convert geographic coordinates (latitude and longitude) into a human-readable ad
 |   ↳ `types` | array | Component types |
 | `types` | array | Address types \(e.g., street_address, route\) |
 
+</ReferenceDetails>
+
 ### Google Maps Snap to Roads
 
 Snap GPS coordinates to the nearest road segment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +457,13 @@ Snap GPS coordinates to the nearest road segment
 |   ↳ `placeId` | string | Place ID for this road segment |
 | `warningMessage` | string | Warning message if any \(e.g., if points could not be snapped\) |
 
+</ReferenceDetails>
+
 ### Google Maps Solar
 
 Get solar potential and panel insights for the building nearest a location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +489,13 @@ Get solar potential and panel insights for the building nearest a location
 | `administrativeArea` | string | Administrative area \(e.g., state or province\) |
 | `solarPotential` | object | Solar potential: max panel count/area, sunshine hours, carbon offset, panel specs, and configs |
 
+</ReferenceDetails>
+
 ### Google Maps Speed Limits
 
 Get speed limits for road segments. Requires either path coordinates or placeIds.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -471,9 +521,13 @@ Get speed limits for road segments. Requires either path coordinates or placeIds
 |   ↳ `originalIndex` | number | Index in the original path |
 |   ↳ `placeId` | string | Place ID for this road segment |
 
+</ReferenceDetails>
+
 ### Google Maps Timezone
 
 Get timezone information for a location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -496,9 +550,13 @@ Get timezone information for a location
 | `totalOffsetSeconds` | number | Total UTC offset in seconds \(rawOffset + dstOffset\) |
 | `totalOffsetHours` | number | Total UTC offset in hours \(e.g., -5 for EST, -4 for EDT\) |
 
+</ReferenceDetails>
+
 ### Google Maps Validate Address
 
 Validate and standardize a postal address
+
+<ReferenceDetails>
 
 #### Input
 
@@ -531,5 +589,7 @@ Validate and standardize a postal address
 | `missingComponentTypes` | array | Types of address components that are missing |
 | `unconfirmedComponentTypes` | array | Types of components that could not be confirmed |
 | `unresolvedTokens` | array | Input tokens that could not be resolved |
+
+</ReferenceDetails>
 
 

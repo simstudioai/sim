@@ -1,20 +1,10 @@
-import { createMockRedis } from '@sim/testing'
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnv, MockRedisConstructor, mockLogger } = vi.hoisted(() => ({
-  mockEnv: {
-    REDIS_URL: 'redis://localhost:6379' as string | undefined,
-    REDIS_TLS_SERVERNAME: undefined as string | undefined,
-  },
+const { MockRedisConstructor } = vi.hoisted(() => ({
   MockRedisConstructor: vi.fn(),
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-  },
 }))
 
 const mockRedisInstance = createMockRedis()
@@ -30,17 +20,6 @@ function newMockClient(this: object) {
 MockRedisConstructor.mockImplementation(newMockClient)
 
 vi.unmock('@/lib/core/config/redis')
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
-/** Overrides the global mock, whose `createLogger` returns a fresh spy per call,
- *  so assertions can reach the instance this module captured at import. */
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-  logger: mockLogger,
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-  setRequestTraceId: () => {},
-}))
 vi.mock('ioredis', () => ({
   default: MockRedisConstructor,
 }))
@@ -59,6 +38,9 @@ import {
   warmRedisConnection,
 } from '@/lib/core/config/redis'
 import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
+
+const mockEnv = mockEnvObject
+const mockLogger = getMockLogger('Redis')
 
 describe('redis config', () => {
   beforeEach(() => {

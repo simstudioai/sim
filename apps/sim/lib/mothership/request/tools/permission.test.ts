@@ -22,6 +22,7 @@ vi.mock('@/lib/mothership/persistence/tool-permission', async (importOriginal) =
 
 import { MothershipStreamV1ToolExecutor } from '@/lib/mothership/generated/mothership-stream-v1'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
+import { TOOL_DEADLINE_BEFORE_START_MESSAGE } from '@/lib/mothership/request/tools/deadline'
 import {
   runGatedToolExecution,
   toolCallNeedsApproval,
@@ -203,6 +204,84 @@ describe('gated tools are askable', () => {
 describe('runGatedToolExecution', () => {
   beforeEach(() => {
     toolRequiresApproval.mockReturnValue(true)
+  })
+
+  it('opens no prompt once the call deadline has passed', async () => {
+    const toolCall = { ...makeToolCall(), deadlineAt: Date.now() - 1 }
+    const execute = vi.fn()
+
+    expect(await gate(makeContext(), toolCall, execute, [])).toMatchObject({ status: 'error' })
+    expect(waitForToolPermissionDecision).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('does not honor an approval that lands after the call deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      waitForToolPermissionDecision.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ toolCallId: 'call-1', decision: 'allow' }), 2_000)
+          )
+      )
+      const toolCall = { ...makeToolCall(), deadlineAt: Date.now() + 1_000 }
+      const execute = vi.fn()
+      const pending = gate(makeContext(), toolCall, execute, [])
+
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      expect(await pending).toMatchObject({ status: 'error' })
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not honor an approval that leaves less than a minute to run the call', async () => {
+    vi.useFakeTimers()
+    try {
+      waitForToolPermissionDecision.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ toolCallId: 'call-1', decision: 'allow' }), 40_000)
+          )
+      )
+      const toolCall = { ...makeToolCall(), deadlineAt: Date.now() + 90_000 }
+      const execute = vi.fn()
+      const pending = gate(makeContext(), toolCall, execute, [])
+
+      await vi.advanceTimersByTimeAsync(40_000)
+
+      expect(await pending).toMatchObject({ status: 'error' })
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops waiting for an answer at the deadline the worker named for the call', async () => {
+    vi.useFakeTimers()
+    try {
+      waitForToolPermissionDecision.mockImplementation(
+        (_toolCallId: string, timeoutMs: number) =>
+          new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))
+      )
+      const toolCall = { ...makeToolCall(), deadlineAt: Date.now() + 5 * 60_000 }
+      const execute = vi.fn()
+      let settled = false
+      const pending = gate(makeContext(), toolCall, execute, []).finally(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+
+      expect(settled).toBe(true)
+      expect(await pending).toMatchObject({ status: 'error' })
+      expect(toolCall.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not execute the tool until the user has answered', async () => {

@@ -1,18 +1,51 @@
 ---
 title: Files
-description: Manage files — every subcommand, argument, and flag
+description: Browse workspace files, read or write content, manage versions, and configure sharing.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
+Browse workspace files, read or write content, manage versions, and configure sharing.
+
 `sim files` is also spelled `sim file`.
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+These commands accept the [global options](/cli/commands#global-options).
 
-## Delete several files at once
+## Browse and inspect
+
+### List file resources and child folders together
 
 ```bash
-sim files batch-delete [options]
+sim files ls [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Folder path to list; defaults to the root folder |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+API request and response schemas: [listFiles](/api-reference/files/listFiles), [listFileFolders](/api-reference/files/listFilesFolders).
+
+### List files
+
+```bash
+sim files list [options]
 ```
 
 **Options**
@@ -21,12 +54,102 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this operation. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--recursive` | No | Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter. |
+| `--no-recursive` | No | Send --recursive as false. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--search <value>` | No | Case-insensitive substring match against the file name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "uploadedAt". Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
-## Create file
+API request and response schemas: [listFiles](/api-reference/files/listFiles).
+
+### Search file content
+
+```bash
+sim files search [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
+| `--mode <value>` | No | How `query` is read. Defaults to "regex". Accepted values: `exact`, `regex`. |
+| `--max-results <value>` | No | Maximum matching lines to return. Defaults to 50. |
+| `--folder <value...>` | No | Folders to search, by path as shown in the app; omit to search the whole workspace (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--include-subfolders` | No | Whether each folder scope includes nested folders; on by default. |
+| `--no-include-subfolders` | No | Send --include-subfolders as false. |
+
+</CommandTable>
+
+API request and response schemas: [searchFileContent](/api-reference/files/searchFileContent).
+
+### Show file metadata and sharing status
+
+```bash
+sim files describe <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both. Accepted values: `active`, `archived`. |
+
+</CommandTable>
+
+API request and response schemas: [getFile](/api-reference/files/getFile).
+
+## Upload, create, and read
+
+### Upload a file to the workspace
+
+```bash
+sim files upload <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Local file to upload |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <path>` | No | Folder path as shown in the app; defaults to the root folder. |
+| `--name <name>` | No | Store it under a different name. |
+
+</CommandTable>
+
+API request and response schemas: [createFileUpload](/api-reference/files/createFileUpload), [createFileUploadPartUrls](/api-reference/files/createFileUploadPartUrls), [completeFileUpload](/api-reference/files/completeFileUpload), [abortFileUpload](/api-reference/files/abortFileUpload).
+
+### Create file
 
 ```bash
 sim files create [options]
@@ -41,15 +164,17 @@ sim files create [options]
 | `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
 | `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. |
-| `--encoding <value>` | No | Encoding of the content field. Accepted values: `utf-8`, `base64`. |
+| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including encoding and the envelope; the separate decoded-file limit is 50 MiB. For larger payloads, use `sim files upload <path>`. Defaults to "". |
+| `--encoding <value>` | No | Encoding of the content field. Defaults to "utf-8". Accepted values: `utf-8`, `base64`. |
 
 </CommandTable>
 
-## Create a file folder at a path
+API request and response schemas: [createFile](/api-reference/files/createFile).
+
+### Download a file’s content to stdout or a local file
 
 ```bash
-sim files folders create <path>
+sim files get <fileId> [options]
 ```
 
 **Arguments**
@@ -58,23 +183,7 @@ sim files folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path as shown in the app; the leading / is optional |
-
-</CommandTable>
-
-## Delete folder
-
-```bash
-sim files folders delete <path> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `fileId` | Yes | File whose content to read |
 
 </CommandTable>
 
@@ -84,18 +193,28 @@ sim files folders delete <path> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this operation. |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
 
 </CommandTable>
 
-## List folders
+API request and response schemas: [downloadFile](/api-reference/files/downloadFile).
+
+### Read a file’s text content as JSON or YAML
 
 ```bash
-sim files folders list [options]
+sim files read <fileId> [options]
 ```
 
-Also available as `sim files folders ls`.
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload. |
+
+</CommandTable>
 
 **Options**
 
@@ -103,39 +222,20 @@ Also available as `sim files folders ls`.
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--parent <value>` | No | Direct parent folder path. |
-| `--search <value>` | No | Case-insensitive substring match against the folder name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
-| `--recursive <value>` | No | Whether parentPath includes every descendant instead of direct children only. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
-| `--depth <value>` | No | Deepest level below parentPath to include when recursive is true. |
+| `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
+| `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
 
 </CommandTable>
 
-## Rename or move a file folder
+API request and response schemas: [readFileText](/api-reference/files/readFileText).
+
+## Edit and organize
+
+### Apply one exact or anchor-based edit to a text file
 
 ```bash
-sim files folders move <path> <destination>
-```
-
-Also available as `sim files folders mv`.
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `path` | Yes | Folder path as shown in the app; the leading / is optional |
-| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
-
-</CommandTable>
-
-## Restore an archived file folder
-
-```bash
-sim files folders restore <path>
+sim files edit <fileId> [options]
 ```
 
 **Arguments**
@@ -144,14 +244,108 @@ sim files folders restore <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `fileId` | Yes | File identifier. |
 
 </CommandTable>
 
-## Delete file
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--edit <json\|@file>` | Yes | One edit object: &#123;"mode":"search_replace","search":"old","content":"new","replaceAll":false&#125;, &#123;"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"&#125;, &#123;"mode":"insert_after","anchor":"line","content":"new"&#125;, or &#123;"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"&#125;. Anchored modes also accept occurrence starting at 1 (JSON, or @path / @- to read a file or stdin). |
+| `--expected-revision <value>` | No | Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on. |
+
+</CommandTable>
+
+API request and response schemas: [editFileContent](/api-reference/files/editFileContent).
+
+### Replace a file’s contents
 
 ```bash
-sim files delete <fileId> [options]
+sim files set-content <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content. |
+| `--encoding <value>` | No | Content encoding. Defaults to "utf-8". Accepted values: `utf-8`, `base64`. |
+| `--expected-revision <value>` | No | Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on. |
+
+</CommandTable>
+
+API request and response schemas: [updateFileContent](/api-reference/files/updateFileContent).
+
+### Rename a file
+
+```bash
+sim files rename <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | New file name, including its extension. |
+
+</CommandTable>
+
+API request and response schemas: [renameFile](/api-reference/files/renameFile).
+
+### Move files into another folder
+
+```bash
+sim files move [options]
+```
+
+Also available as `sim files mv`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+</CommandTable>
+
+API request and response schemas: [moveFileItems](/api-reference/files/moveFileItems).
+
+### Unzip an archive into a new folder beside it
+
+This writes every file in the archive into the workspace.
+
+```bash
+sim files unzip <fileId> [options]
 ```
 
 **Arguments**
@@ -174,10 +368,14 @@ sim files delete <fileId> [options]
 
 </CommandTable>
 
-## Permanently delete a previous version of a file
+API request and response schemas: [unzipFile](/api-reference/files/unzipFile).
+
+## Sharing
+
+### Show a file’s share settings
 
 ```bash
-sim files versions delete <fileId> <version> [options]
+sim files share get <fileId>
 ```
 
 **Arguments**
@@ -187,7 +385,26 @@ sim files versions delete <fileId> <version> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
-| `version` | Yes | Version number. |
+
+</CommandTable>
+
+API request and response schemas: [getFileShare](/api-reference/files/getFileShare).
+
+### Enable or disable sharing for a file
+
+OAuth login or personal API key required.
+
+```bash
+sim files share set <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
 
 </CommandTable>
 
@@ -197,28 +414,18 @@ sim files versions delete <fileId> <version> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this operation. |
+| `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
+| `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply. |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
-## Show the metadata of one version of a file
+API request and response schemas: [upsertFileShare](/api-reference/files/upsertFileShare).
 
-```bash
-sim files versions describe <fileId> <version>
-```
+## Versions
 
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier. |
-| `version` | Yes | Version number. |
-
-</CommandTable>
-
-## List the recorded versions of a file
+### List the recorded versions of a file
 
 ```bash
 sim files versions list <fileId> [options]
@@ -240,14 +447,35 @@ sim files versions list <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `version`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "version". Accepted values: `version`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
-## Read the text content of one version of a file
+API request and response schemas: [listFileVersions](/api-reference/files/listFileVersions).
+
+### Show the metadata of one version of a file
+
+```bash
+sim files versions describe <fileId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+API request and response schemas: [getFileVersion](/api-reference/files/getFileVersion).
+
+### Read the text content of one version of a file as JSON or YAML
 
 ```bash
 sim files versions read <fileId> <version> [options]
@@ -271,40 +499,14 @@ sim files versions read <fileId> <version> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
-| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
 | `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
 
 </CommandTable>
 
-## Make a previous version of a file current again
+API request and response schemas: [readFileVersionText](/api-reference/files/readFileVersionText).
 
-```bash
-sim files versions revert <fileId> <version> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier. |
-| `version` | Yes | Version number. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
-| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
-
-</CommandTable>
-
-## Download the content of one version of a file
+### Download the content of one version of a file
 
 ```bash
 sim files versions download <fileId> <version> [options]
@@ -332,10 +534,12 @@ sim files versions download <fileId> <version> [options]
 
 </CommandTable>
 
-## Apply one exact or anchor-based edit to a text file
+API request and response schemas: [downloadFileVersion](/api-reference/files/downloadFileVersion).
+
+### Make a previous version of a file current again
 
 ```bash
-sim files edit <fileId> [options]
+sim files versions revert <fileId> <version> [options]
 ```
 
 **Arguments**
@@ -345,6 +549,7 @@ sim files edit <fileId> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
 
 </CommandTable>
 
@@ -354,15 +559,19 @@ sim files edit <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--edit <json\|@file>` | Yes | One edit object: &#123;"mode":"search_replace","search":"old","content":"new","replaceAll":false&#125;, &#123;"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"&#125;, &#123;"mode":"insert_after","anchor":"line","content":"new"&#125;, or &#123;"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"&#125;. Anchored modes also accept occurrence starting at 1 (JSON, or @path / @- to read a file or stdin). |
-| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get file metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
 
 </CommandTable>
 
-## Show file metadata and sharing status
+API request and response schemas: [revertFileVersion](/api-reference/files/revertFileVersion).
+
+### Permanently delete a previous version of a file
+
+This permanently removes the version from history and schedules deletion of its stored content; storage cleanup may retry in the background.
 
 ```bash
-sim files describe <fileId> [options]
+sim files versions delete <fileId> <version> [options]
 ```
 
 **Arguments**
@@ -372,6 +581,7 @@ sim files describe <fileId> [options]
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
 
 </CommandTable>
 
@@ -381,194 +591,20 @@ sim files describe <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-## Show a file’s share settings
+API request and response schemas: [deleteFileVersion](/api-reference/files/deleteFileVersion).
+
+## Archive and restore
+
+### Delete file
+
+This archives the file.
 
 ```bash
-sim files share get <fileId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier. |
-
-</CommandTable>
-
-## Enable or disable sharing for a file
-
-```bash
-sim files share set <fileId> [options]
-```
-
-Enable or disable sharing for a file (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
-| `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
-| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-
-</CommandTable>
-
-## List files
-
-```bash
-sim files list [options]
-```
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-| `--recursive` | No | Include subfolders in the folder filter. Defaults to true when searching and false otherwise. Ignored without a folder filter. |
-| `--no-recursive` | No | Send --recursive as false. |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
-| `--search <value>` | No | Case-insensitive substring match against the file name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
-
-</CommandTable>
-
-## Move files into another folder
-
-```bash
-sim files move [options]
-```
-
-Also available as `sim files mv`.
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--to <value>` | No | Destination folder path; omit for root. |
-
-</CommandTable>
-
-## Read a file’s text content
-
-```bash
-sim files read <fileId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier, or the file’s VFS path: `files/&lt;folder&gt;/&lt;name&gt;`, or `uploads/&lt;name&gt;` for a Chat upload. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
-| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
-| `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
-
-</CommandTable>
-
-## Rename a file
-
-```bash
-sim files rename <fileId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | Yes | New file name, including its extension. |
-
-</CommandTable>
-
-## Restore an archived file
-
-```bash
-sim files restore <fileId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `fileId` | Yes | File identifier. |
-
-</CommandTable>
-
-## Search file content
-
-```bash
-sim files search [options]
-```
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
-| `--mode <value>` | No | How `query` is read. Accepted values: `exact`, `regex`. |
-| `--max-results <value>` | No | Maximum matching lines to return. |
-| `--folder <value...>` | No | Folders to search, by path as shown in the app; omit to search the whole workspace (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--include-subfolders` | No | Whether each folder scope includes nested folders; on by default. |
-| `--no-include-subfolders` | No | Send --include-subfolders as false. |
-
-</CommandTable>
-
-## Unzip an archive into a new folder beside it
-
-```bash
-sim files unzip <fileId> [options]
+sim files delete <fileId> [options]
 ```
 
 **Arguments**
@@ -591,10 +627,33 @@ sim files unzip <fileId> [options]
 
 </CommandTable>
 
-## Replace a file’s contents
+API request and response schemas: [deleteFile](/api-reference/files/deleteFile).
+
+### Delete several files at once
+
+This archives the listed files; restore them with `files restore`.
 
 ```bash
-sim files set-content <fileId> [options]
+sim files batch-delete [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [bulkDeleteFiles](/api-reference/files/bulkDeleteFiles).
+
+### Restore an archived file
+
+```bash
+sim files restore <fileId>
 ```
 
 **Arguments**
@@ -607,22 +666,40 @@ sim files set-content <fileId> [options]
 
 </CommandTable>
 
+API request and response schemas: [restoreFile](/api-reference/files/restoreFile).
+
+## Folders
+
+### List folders
+
+```bash
+sim files folders list [options]
+```
+
+Also available as `sim files folders ls`.
+
 **Options**
 
 <CommandTable>
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
-| `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
-| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "name". Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--recursive <value>` | No | Whether parentPath includes every descendant instead of direct children only. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
+| `--depth <value>` | No | Deepest level below parentPath to include when recursive is true. |
 
 </CommandTable>
 
-## Upload a file to the workspace
+API request and response schemas: [listFileFolders](/api-reference/files/listFilesFolders).
+
+### Create a file folder at a path
 
 ```bash
-sim files upload <path> [options]
+sim files folders create <path>
 ```
 
 **Arguments**
@@ -631,25 +708,18 @@ sim files upload <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Local file to upload |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
-**Options**
+API request and response schemas: [createFileFolder](/api-reference/files/createFilesFolder).
 
-<CommandTable>
+### Delete folder
 
-| Option | Required | Description |
-| --- | --- | --- |
-| `--folder <path>` | No | Folder path as shown in the app; defaults to the root folder. |
-| `--name <name>` | No | Store it under a different name. |
-
-</CommandTable>
-
-## Get a file’s content
+This archives the file folder and, when recursive, everything inside it.
 
 ```bash
-sim files get <fileId> [options]
+sim files folders delete <path> [options]
 ```
 
 **Arguments**
@@ -658,7 +728,7 @@ sim files get <fileId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `fileId` | Yes | File whose content to read |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -668,15 +738,17 @@ sim files get <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
-| `--force` | No | Overwrite --output-file if it already exists. |
+| `--recursive` | No | Archive the folder and its descendants. Defaults to "false". |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-## List file resources and child folders together
+API request and response schemas: [deleteFileFolder](/api-reference/files/deleteFilesFolder).
+
+### Restore an archived file folder
 
 ```bash
-sim files ls [path] [options]
+sim files folders restore <path>
 ```
 
 **Arguments**
@@ -685,22 +757,34 @@ sim files ls [path] [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | No | Folder path to list; defaults to the root folder |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
-**Options**
+API request and response schemas: [restoreFileFolder](/api-reference/files/restoreFilesFolder).
+
+### Rename or move a file folder
+
+```bash
+sim files folders move <path> <destination>
+```
+
+Also available as `sim files folders mv`.
+
+**Arguments**
 
 <CommandTable>
 
-| Option | Required | Description |
+| Argument | Required | Description |
 | --- | --- | --- |
-| `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
-## Create a file directory at a path
+API request and response schemas: [relocateFileFolder](/api-reference/files/relocateFilesFolder).
+
+### Create a file directory at a path
 
 ```bash
 sim files mkdir <path>
@@ -715,3 +799,31 @@ sim files mkdir <path>
 | `path` | Yes | Folder path to create; the leading / is optional |
 
 </CommandTable>
+
+API request and response schemas: [createFileFolder](/api-reference/files/createFilesFolder).
+
+## Other commands
+
+### Copy file items
+
+OAuth login or personal API key required.
+
+```bash
+sim files copy [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source <json\|@file>` | Yes | Source owner and selected fileIds or folderIds (JSON, or @path / @- to read a file or stdin). |
+| `--destination <json\|@file>` | Yes | Destination owner and optional folderId (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Related docs
+
+- [Files](/files)
+- [Output formats](/cli/output)

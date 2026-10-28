@@ -6,8 +6,14 @@ import {
   createWorkflowState as createTestWorkflowState,
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
+import {
+  containerConfigFields,
+  generateWorkflowDiffSummary,
+  hasWorkflowChanged,
+  omitPresentationChanges,
+  type WorkflowDiffSummary,
+} from '@/lib/workflows/comparison/compare'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { generateWorkflowDiffSummary, hasWorkflowChanged } from './compare'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
@@ -43,6 +49,25 @@ function createBlock(id: string, overrides: Record<string, any> = {}): any {
 }
 
 describe('hasWorkflowChanged', () => {
+  it('distinguishes nested JSON null from an omitted operation argument', () => {
+    const state = (value: unknown) =>
+      createWorkflowState({
+        blocks: {
+          mcp: createBlock('mcp', {
+            type: 'mcp',
+            subBlocks: {
+              arguments: { id: 'arguments', type: 'mcp-dynamic-args', value },
+            },
+          }),
+        },
+      })
+    const base = state({ patch: { owner: null, active: true } })
+    const target = state({ patch: { active: true } })
+    expect(hasWorkflowChanged(target, base)).toBe(true)
+    expect(hasWorkflowChanged(base, target)).toBe(true)
+    expect(hasWorkflowChanged(base, state({ patch: { active: true, owner: null } }))).toBe(false)
+  })
+
   describe('Basic Cases', () => {
     it.concurrent('should return true when deployedState is null', () => {
       const currentState = createWorkflowState()
@@ -1618,5 +1643,246 @@ describe('generateWorkflowDiffSummary', () => {
 
       expect(diffResult.hasChanges).toBe(hasChangedResult)
     })
+  })
+})
+
+describe('containerChanges', () => {
+  function stateWithLoop(loop: Record<string, any>, blocks: Record<string, any> = {}) {
+    return createWorkflowState({
+      blocks: {
+        loop1: createBlock('loop1', { type: 'loop', name: 'My Loop' }),
+        ...blocks,
+      },
+      loops: { loop1: { id: 'loop1', enabled: true, ...loop } },
+    })
+  }
+
+  it.concurrent('describes a reconfigured loop field by field, named after its block', () => {
+    const previous = stateWithLoop({ nodes: ['a'], loopType: 'for', iterations: 2 })
+    const current = stateWithLoop({ nodes: ['a'], loopType: 'for', iterations: 5 })
+
+    const result = generateWorkflowDiffSummary(current, previous)
+
+    expect(result.loopChanges).toEqual({ added: 0, removed: 0, modified: 1 })
+    expect(result.containerChanges).toEqual([
+      {
+        id: 'loop1',
+        kind: 'loop',
+        name: 'My Loop',
+        changes: [{ field: 'iterations', oldValue: 2, newValue: 5 }],
+        nodesAdded: [],
+        nodesRemoved: [],
+      },
+    ])
+  })
+
+  it.concurrent(
+    'reports membership moves and a loop type switch with the fields that came and went',
+    () => {
+      const previous = stateWithLoop({ nodes: ['a', 'b'], loopType: 'for', iterations: 2 })
+      const current = stateWithLoop({
+        nodes: ['b', 'c'],
+        loopType: 'forEach',
+        forEachItems: '<start.items>',
+        /* Stale count left behind by the switch; the normalized shape drops it for forEach. */
+        iterations: 2,
+      })
+
+      const [change] = generateWorkflowDiffSummary(current, previous).containerChanges
+
+      expect(change.nodesAdded).toEqual(['c'])
+      expect(change.nodesRemoved).toEqual(['a'])
+      expect(change.changes).toEqual([
+        { field: 'loopType', oldValue: 'for', newValue: 'forEach' },
+        { field: 'iterations', oldValue: 2, newValue: null },
+        { field: 'forEachItems', oldValue: null, newValue: '<start.items>' },
+      ])
+    }
+  )
+
+  it.concurrent(
+    'describes a parallel and skips containers that were added, removed or unchanged',
+    () => {
+      const previous = createWorkflowState({
+        blocks: {
+          par1: createBlock('par1', { type: 'parallel' }),
+          parGone: createBlock('parGone', { type: 'parallel' }),
+          loopSame: createBlock('loopSame', { type: 'loop' }),
+        },
+        parallels: {
+          par1: { id: 'par1', nodes: ['x'], parallelType: 'count', count: 2, enabled: true },
+          parGone: { id: 'parGone', nodes: [], parallelType: 'count', count: 1, enabled: true },
+        },
+        loops: { loopSame: { id: 'loopSame', nodes: ['y', 'z'], loopType: 'for', iterations: 1 } },
+      })
+      const current = createWorkflowState({
+        blocks: {
+          par1: createBlock('par1', { type: 'parallel' }),
+          parNew: createBlock('parNew', { type: 'parallel' }),
+          loopSame: createBlock('loopSame', { type: 'loop' }),
+        },
+        parallels: {
+          par1: {
+            id: 'par1',
+            nodes: ['x'],
+            parallelType: 'collection',
+            distribution: '<start.list>',
+            enabled: true,
+          },
+          parNew: { id: 'parNew', nodes: [], parallelType: 'count', count: 3, enabled: true },
+        },
+        /* Same membership in a different order is not a change. */
+        loops: { loopSame: { id: 'loopSame', nodes: ['z', 'y'], loopType: 'for', iterations: 1 } },
+      })
+
+      const result = generateWorkflowDiffSummary(current, previous)
+
+      expect(result.parallelChanges).toEqual({ added: 1, removed: 1, modified: 1 })
+      expect(result.loopChanges).toEqual({ added: 0, removed: 0, modified: 0 })
+      expect(result.containerChanges).toEqual([
+        {
+          id: 'par1',
+          kind: 'parallel',
+          name: 'Block par1',
+          changes: [
+            { field: 'parallelType', oldValue: 'count', newValue: 'collection' },
+            { field: 'count', oldValue: 2, newValue: null },
+            { field: 'distribution', oldValue: null, newValue: '<start.list>' },
+          ],
+          nodesAdded: [],
+          nodesRemoved: [],
+        },
+      ])
+    }
+  )
+})
+
+function summary(overrides: Partial<WorkflowDiffSummary> = {}): WorkflowDiffSummary {
+  return {
+    addedBlocks: [],
+    removedBlocks: [],
+    modifiedBlocks: [],
+    edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
+    loopChanges: { added: 0, removed: 0, modified: 0 },
+    parallelChanges: { added: 0, removed: 0, modified: 0 },
+    containerChanges: [],
+    variableChanges: {
+      added: 0,
+      removed: 0,
+      modified: 0,
+      addedNames: [],
+      removedNames: [],
+      modifiedNames: [],
+    },
+    hasChanges: false,
+    ...overrides,
+  }
+}
+
+describe('omitPresentationChanges', () => {
+  it('hides presentation-only rows, drops blocks left empty and recomputes hasChanges', () => {
+    const only = summary({
+      modifiedBlocks: [
+        {
+          id: 'a',
+          type: 'function',
+          name: 'a',
+          changes: [
+            { scope: 'block', field: 'horizontalHandles', oldValue: true, newValue: false },
+            { scope: 'block', field: 'tools.properties', oldValue: {}, newValue: {} },
+          ],
+        },
+        {
+          id: 'b',
+          type: 'function',
+          name: 'b',
+          changes: [
+            { scope: 'block', field: 'horizontalHandles', oldValue: true, newValue: false },
+            { scope: 'subblock', field: 'code', oldValue: 'x', newValue: 'y' },
+          ],
+        },
+      ],
+      hasChanges: true,
+    })
+
+    const next = omitPresentationChanges(only)
+
+    expect(next.modifiedBlocks).toEqual([
+      {
+        id: 'b',
+        type: 'function',
+        name: 'b',
+        changes: [{ scope: 'subblock', field: 'code', oldValue: 'x', newValue: 'y' }],
+      },
+    ])
+    expect(next.hasChanges).toBe(true)
+
+    /* The basic/advanced mode decides which stored value executes, so it is never hidden. */
+    const modeOnly = summary({
+      modifiedBlocks: [
+        {
+          id: 'c',
+          type: 'slack',
+          name: 'c',
+          changes: [
+            {
+              scope: 'block',
+              field: 'data.canonicalModes',
+              oldValue: {},
+              newValue: { channel: 'advanced' },
+            },
+          ],
+        },
+      ],
+      hasChanges: true,
+    })
+    expect(omitPresentationChanges(modeOnly).modifiedBlocks).toHaveLength(1)
+
+    const presentationOnly = summary({
+      modifiedBlocks: [only.modifiedBlocks[0]],
+      hasChanges: true,
+    })
+    expect(omitPresentationChanges(presentationOnly)).toMatchObject({
+      modifiedBlocks: [],
+      hasChanges: false,
+    })
+    expect(
+      omitPresentationChanges(
+        summary({
+          modifiedBlocks: [only.modifiedBlocks[0]],
+          edgeChanges: { added: 1, removed: 0, addedDetails: [], removedDetails: [] },
+          hasChanges: true,
+        })
+      ).hasChanges
+    ).toBe(true)
+  })
+})
+
+describe('containerConfigFields', () => {
+  it('reports only the settings the loop or parallel type uses', () => {
+    const state = {
+      loops: {
+        l: {
+          id: 'l',
+          nodes: [],
+          loopType: 'forEach' as const,
+          iterations: 5,
+          forEachItems: '<start.items>',
+        },
+      },
+      parallels: {
+        p: { id: 'p', nodes: [], parallelType: 'count' as const, count: 3, distribution: 'x' },
+      },
+    } as unknown as Pick<WorkflowState, 'loops' | 'parallels'>
+
+    expect(containerConfigFields(state, 'l')).toEqual([
+      { field: 'loopType', value: 'forEach' },
+      { field: 'forEachItems', value: '<start.items>' },
+    ])
+    expect(containerConfigFields(state, 'p')).toEqual([
+      { field: 'parallelType', value: 'count' },
+      { field: 'count', value: 3 },
+    ])
+    expect(containerConfigFields(state, 'missing')).toEqual([])
   })
 })

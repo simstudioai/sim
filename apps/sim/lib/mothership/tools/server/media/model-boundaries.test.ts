@@ -1,3 +1,4 @@
+import { workspaceFileSecretProvenanceMock } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
@@ -5,17 +6,11 @@ const {
   mockGenerateContent,
   mockGenerateFalAudio,
   mockGenerateFalVideo,
-  mockIsOpaqueWorkspaceFileEgressSafe,
-  mockResolveWorkspaceFileReference,
-  mockReadWorkspaceFileContent,
   mockWriteWorkspaceFileByPath,
 } = vi.hoisted(() => ({
   mockGenerateContent: vi.fn(),
   mockGenerateFalAudio: vi.fn(),
   mockGenerateFalVideo: vi.fn(),
-  mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockReadWorkspaceFileContent: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
 
@@ -26,21 +21,15 @@ vi.mock('@google/genai', () => ({
 }))
 vi.mock('@/lib/core/config/api-keys', () => ({ getRotatingApiKey: vi.fn(() => 'api-key') }))
 vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
+  validateCopilotWorkspaceFileWriteTarget: vi.fn(),
   writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 vi.mock('@/lib/media/falai-audio', () => ({ generateFalAudio: mockGenerateFalAudio }))
 vi.mock('@/lib/media/falai-video', () => ({ generateFalVideo: mockGenerateFalVideo }))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-}))
-vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
-  readWorkspaceFileContent: { execute: mockReadWorkspaceFileContent },
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isOpaqueWorkspaceFileEgressSafe: mockIsOpaqueWorkspaceFileEgressSafe,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
@@ -48,18 +37,18 @@ import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/gen
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const file = {
-  id: 'file-1',
-  workspaceId: 'workspace-1',
-  name: 'reference.png',
-  key: 'workspace/workspace-1/reference.png',
-  path: '/api/files/serve/reference.png',
-  size: 10,
-  type: 'image/png',
-  uploadedBy: 'user-1',
-  uploadedAt: new Date('2026-08-05T00:00:00.000Z'),
-  updatedAt: new Date('2026-08-05T00:00:00.000Z'),
-  storageContext: 'workspace' as const,
+interface FalGenerationParams {
+  signal?: AbortSignal
+  onCost: (cost: { costDollars: number }) => Promise<void>
+}
+
+/** A fal generation that bills 0.1 through `onCost`, then returns `media` with that cost. */
+function billsThen(media: Record<string, unknown>) {
+  return async ({ onCost }: FalGenerationParams) => {
+    const cost = { costDollars: 0.1 }
+    await onCost(cost)
+    return { ...media, cost }
+  }
 }
 
 function contextWithSecrets(
@@ -80,9 +69,6 @@ function contextWithSecrets(
 
 describe('Mothership media model boundaries', () => {
   beforeEach(() => {
-    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
-    mockResolveWorkspaceFileReference.mockResolvedValue(file)
-    mockReadWorkspaceFileContent.mockResolvedValue({ file, content: Buffer.from('opaque-media') })
     mockWriteWorkspaceFileByPath.mockResolvedValue({
       id: 'output-1',
       name: 'output.bin',
@@ -96,19 +82,17 @@ describe('Mothership media model boundaries', () => {
         { content: { parts: [{ inlineData: { data: 'aW1hZ2U=', mimeType: 'image/png' } }] } },
       ],
     })
-    mockGenerateFalVideo.mockResolvedValue({
-      buffer: Buffer.from('video'),
-      contentType: 'video/mp4',
-      model: 'veo-3.1-fast',
-      cost: { costDollars: 0.1 },
-    })
-    mockGenerateFalAudio.mockResolvedValue({
-      buffer: Buffer.from('audio'),
-      contentType: 'audio/mpeg',
-      type: 'music',
-      model: 'music-model',
-      cost: { costDollars: 0.1 },
-    })
+    mockGenerateFalVideo.mockImplementation(
+      billsThen({ buffer: Buffer.from('video'), contentType: 'video/mp4', model: 'veo-3.1-fast' })
+    )
+    mockGenerateFalAudio.mockImplementation(
+      billsThen({
+        buffer: Buffer.from('audio'),
+        contentType: 'audio/mpeg',
+        type: 'music',
+        model: 'music-model',
+      })
+    )
   })
 
   it('meters image, video and audio at their provider boundary before file persistence', async () => {
@@ -125,6 +109,52 @@ describe('Mothership media model boundaries', () => {
       ['falai_audio', 0.1],
     ])
   })
+
+  it.each([
+    ['audio', () => mockGenerateFalAudio, generateAudioServerTool],
+    ['video', () => mockGenerateFalVideo, generateVideoServerTool],
+  ] as const)(
+    'ends the %s generation when the tool call is aborted',
+    async (_kind, generator, tool) => {
+      generator().mockImplementationOnce(
+        ({ signal }: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            if (signal?.aborted) return reject(signal.reason)
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+      const controller = new AbortController()
+      const result = tool.execute(
+        { prompt: 'p' },
+        { ...contextWithSecrets([]), abortSignal: controller.signal }
+      )
+
+      controller.abort(new Error('Tool timed out'))
+
+      await expect(result).resolves.toMatchObject({ success: false })
+    }
+  )
+
+  it.each([
+    ['audio', 'falai_audio', mockGenerateFalAudio, generateAudioServerTool],
+    ['video', 'falai_video', mockGenerateFalVideo, generateVideoServerTool],
+  ] as const)(
+    'bills a completed %s generation once when the tool call is aborted after it',
+    async (_kind, service, generator, tool) => {
+      generator.mockImplementationOnce(async ({ onCost }: FalGenerationParams) => {
+        await onCost({ costDollars: 0.2 })
+        throw new Error('Tool timed out')
+      })
+      const charges = vi.fn().mockResolvedValue(undefined)
+
+      const result = await observeServiceCosts(charges, () =>
+        tool.execute({ prompt: 'p' }, contextWithSecrets([]))
+      )
+
+      expect(result).toMatchObject({ success: false })
+      expect(charges.mock.calls).toEqual([[service, 0.2]])
+    }
+  )
 
   it('preserves image prompts that merely collide with ambient secret plaintext', async () => {
     const context = contextWithSecrets([{ name: 'PROMPT', plaintext: 'private prompt' }])
@@ -178,48 +208,4 @@ describe('Mothership media model boundaries', () => {
       expect.objectContaining({ prompt: 'private prompt', lyrics: 'private lyrics' })
     )
   })
-
-  it.each([
-    [
-      'image',
-      () =>
-        generateImageServerTool.execute(
-          { prompt: 'safe', inputs: { files: [{ path: 'files/reference.png' }] } },
-          contextWithSecrets([])
-        ),
-    ],
-    [
-      'video',
-      () =>
-        generateVideoServerTool.execute(
-          { prompt: 'safe', inputs: { files: [{ path: 'files/reference.png' }] } },
-          contextWithSecrets([])
-        ),
-    ],
-    [
-      'audio',
-      () =>
-        generateAudioServerTool.execute(
-          { prompt: 'safe', inputs: { files: [{ path: 'files/reference.mp3' }] } },
-          contextWithSecrets([])
-        ),
-    ],
-  ])(
-    'rejects unsafe %s references before fetching bytes or calling a model',
-    async (_name, run) => {
-      mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(false)
-
-      await expect(run()).resolves.toEqual(
-        expect.objectContaining({
-          success: false,
-          message: expect.stringContaining('cannot be sent'),
-        })
-      )
-
-      expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
-      expect(mockGenerateContent).not.toHaveBeenCalled()
-      expect(mockGenerateFalVideo).not.toHaveBeenCalled()
-      expect(mockGenerateFalAudio).not.toHaveBeenCalled()
-    }
-  )
 })

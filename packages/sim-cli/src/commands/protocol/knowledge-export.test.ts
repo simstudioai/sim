@@ -39,7 +39,6 @@ beforeEach(() => {
 
 afterEach(() => {
   process.chdir(originalCwd)
-  vi.restoreAllMocks()
   rmSync(dir, { recursive: true, force: true })
 })
 

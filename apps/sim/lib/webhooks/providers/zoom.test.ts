@@ -1,12 +1,8 @@
 import crypto from 'node:crypto'
-import { NextRequest } from 'next/server'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { describe, expect, it } from 'vitest'
 import { validateZoomSignature, zoomHandler } from '@/lib/webhooks/providers/zoom'
 import { isZoomEventMatch } from '@/triggers/zoom/utils'
-
-function reqWithHeaders(headers: Record<string, string>): NextRequest {
-  return new NextRequest('http://localhost/test', { headers })
-}
 
 describe('Zoom webhook provider', () => {
   it('isZoomEventMatch rejects empty event for specialized triggers', () => {
@@ -32,7 +28,7 @@ describe('Zoom webhook provider', () => {
       webhook: { id: 'w' },
       workflow: { id: 'wf' },
       body: { event: 'endpoint.url_validation' },
-      request: reqWithHeaders({}),
+      request: createMockRequest({}),
       requestId: 't5',
       providerConfig: { triggerId: 'zoom_webhook' },
     })

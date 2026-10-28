@@ -26,7 +26,6 @@ describe('Search MCP client connection', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
 
   async function render(endpoint = ENDPOINT) {
@@ -38,7 +37,7 @@ describe('Search MCP client connection', () => {
     await act(async () => {
       trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     })
-    const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')).find(
       (element) => element.textContent?.trim() === label
     )
     expect(item, `Expected the ${label} client`).toBeDefined()

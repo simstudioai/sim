@@ -8,7 +8,7 @@
  * These tests assert the seeded default reaching each tool for operations whose
  * control is deliberately not last, so re-introducing a collision goes red.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { executeGetZoneSettingsOperation } from '@/lib/internal/cloudflare/operations/get-zone-settings'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import * as cloudflareTools from '@/tools/cloudflare'
@@ -34,7 +34,7 @@ function seededDefaults(): Record<string, unknown> {
 /**
  * Returns what the tool actually receives. The executor merges the mapper's
  * output OVER the raw inputs (`finalInputs = { ...inputs, ...transformedParams }`
- * in `executor/handlers/generic/generic-handler.ts`), so a key the mapper merely
+ * in `executor/handlers/generic/handler.ts`), so a key the mapper merely
  * omits survives as its raw subBlock string. Asserting on the mapper's return
  * alone would let an alias or a stale filter through unnoticed.
  */
@@ -222,6 +222,13 @@ describe('a shared subBlock id means the same thing everywhere', () => {
     'appId',
     'bucketName',
     'rulesetId',
+    'recordId',
+    'policyId',
+    'serviceTokenId',
+    'groupId',
+    'routeId',
+    'scriptName',
+    'tunnelId',
   ])
 
   /**
@@ -831,10 +838,6 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     )
   }
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('issues one request per setting against the per-setting endpoint', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -852,21 +855,18 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     ])
   })
 
-  it('keeps a crafted zone ID inside the zone path segment', async () => {
+  it('rejects a crafted zone ID before making a provider request', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async (input) => settingEnvelope(String(input).split('/').pop()!, 'on'))
 
-    await executeGetZoneSettingsOperation({
+    const result = await executeGetZoneSettingsOperation({
       zoneId: '../accounts',
       apiKey,
       settingIds: 'ssl',
     } as never)
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.cloudflare.com/client/v4/zones/..%2Faccounts/settings/ssl',
-      expect.any(Object)
-    )
+    expect(result.success).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('does not let a dot-segment setting ID escape the settings endpoint', async () => {
@@ -879,7 +879,7 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     } as never)) as { success: boolean; error?: string }
 
     expect(out.success).toBe(false)
-    expect(out.error).toMatch(/setting ID must identify a resource/)
+    expect(out.error).toMatch(/settingId/)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -972,6 +972,21 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     expect(out.error).toBe('Invalid zone identifier')
   })
 
+  it('rejects a setting response whose declared size exceeds the per-setting cap', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: true, result: { id: 'ssl', value: 'full' } }), {
+        headers: { 'Content-Length': String(1024 * 1024 + 1) },
+      })
+    )
+    const result = await executeGetZoneSettingsOperation({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: 'ssl',
+    } as never)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/exceed|limit|large/i)
+  })
+
   it('refuses an unbounded fan-out instead of issuing the requests', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
 
@@ -1056,5 +1071,78 @@ describe('list transforms survive a non-array result', () => {
       output: Record<string, unknown>
     }
     expect(out.output[key]).toEqual([])
+  })
+})
+
+describe('Cloudflare review regressions', () => {
+  it.each(['create_access_application', 'update_access_application'])(
+    'preserves existing SaaS and target inputs through %s request mapping',
+    (operation) => {
+      const tool =
+        operation === 'create_access_application'
+          ? cloudflareTools.cloudflareCreateAccessApplicationTool
+          : cloudflareTools.cloudflareUpdateAccessApplicationTool
+      const saasApp = { auth_type: 'saml', consumer_service_url: 'https://example.com/acs' }
+      const targetCriteria = [
+        { port: 22, protocol: 'SSH', target_attributes: { hostname: ['example'] } },
+      ]
+      const mapped = mapFor(operation, {
+        saasApp: JSON.stringify(saasApp),
+        targetCriteria: JSON.stringify(targetCriteria),
+      })
+      expect(tool.request.body?.(mapped as never)).toMatchObject({
+        saas_app: saasApp,
+        target_criteria: targetCriteria,
+      })
+    }
+  )
+
+  it('keeps a pause-only zone update limited to that setting', () => {
+    const mapped = mapFor('update_zone', { zoneId: 'zone', zonePaused: 'true' })
+    const body = cloudflareTools.cloudflareUpdateZoneTool.request.body?.(mapped as never)
+    expect(body).toEqual({ paused: true })
+  })
+
+  it.each([true, false])('returns the ssl_recommender enabled value %s', async (enabled) => {
+    const transform = cloudflareTools.cloudflareUpdateZoneSettingTool.transformResponse
+    if (!transform) throw new Error('Expected response transform')
+    const result = await transform(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'ssl_recommender', enabled },
+        })
+      )
+    )
+    expect(result.output.value).toBe(String(enabled))
+  })
+})
+
+describe('Cloudflare response envelopes and conditional inputs', () => {
+  it.each([undefined, null])('accepts confirmed group deletion with result %s', async (result) => {
+    const transform = cloudflareTools.cloudflareDeleteAccessGroupTool.transformResponse
+    if (!transform) throw new Error('Expected response transform')
+    const response = await transform(envelope(result))
+    expect(response.success).toBe(true)
+    expect(response.output.id).toBeNull()
+  })
+
+  it.each([undefined, null, 'true'])(
+    'rejects an Access list envelope with success %s',
+    async (success) => {
+      const transform = cloudflareTools.cloudflareListAccessApplicationsTool.transformResponse
+      if (!transform) throw new Error('Expected response transform')
+      const response = await transform(new Response(JSON.stringify({ success, result: [] })))
+      expect(response.success).toBe(false)
+    }
+  )
+
+  it.each([
+    { settingId: 'ssl_recommender', field: 'enabled' },
+    { settingId: 'ssl', field: 'value' },
+  ])('rejects $settingId updates without $field', ({ settingId, field }) => {
+    const body = cloudflareTools.cloudflareUpdateZoneSettingTool.request.body
+    if (!body) throw new Error('Expected request body')
+    expect(() => body({ apiKey, zoneId: 'zone', settingId })).toThrow(field)
   })
 })

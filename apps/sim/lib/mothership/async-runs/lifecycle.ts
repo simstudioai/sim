@@ -4,6 +4,9 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 
+/** Recorded on every run the current code admits; older values mark runs from earlier protocols. */
+export const SIM_TOOL_EXECUTION_VERSION = 2
+
 export const ASYNC_TOOL_STATUS = MothershipStreamV1AsyncToolRecordStatus
 
 export const EXECUTABLE_TOOL_PERMISSION_DECISIONS = [
@@ -100,6 +103,21 @@ export function isExecutableToolPermissionDecision(
   return decision !== null && decision !== undefined && decision !== 'skip'
 }
 
+/**
+ * A call held for the user's decision may run only once they allowed it. A recorded decision
+ * that does not allow it disqualifies the call even without the gate marker, which calls gated
+ * before the marker existed lack.
+ */
+export function isAwaitingToolPermission(call: {
+  permissionRequestedAt: Date | null
+  permissionDecision: CopilotToolPermissionDecision | null
+}): boolean {
+  return (
+    Boolean(call.permissionRequestedAt || call.permissionDecision) &&
+    !isExecutableToolPermissionDecision(call.permissionDecision)
+  )
+}
+
 export function isWorkflowToolExecutionClaimable(
   status: CopilotAsyncToolStatus,
   permissionDecision: CopilotToolPermissionDecision | null | undefined
@@ -109,6 +127,15 @@ export function isWorkflowToolExecutionClaimable(
     status === ASYNC_TOOL_STATUS.delivered ||
     (status === ASYNC_TOOL_STATUS.pending && isExecutableToolPermissionDecision(permissionDecision))
   )
+}
+
+/** The confirmation status a settled call reports: its durable terminal status, as the wire names it. */
+export function getTerminalConfirmationStatus(
+  status: AsyncTerminalStatus
+): AsyncConfirmationStatus {
+  if (status === ASYNC_TOOL_STATUS.completed) return ASYNC_TOOL_CONFIRMATION_STATUS.success
+  if (status === ASYNC_TOOL_STATUS.cancelled) return ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
+  return ASYNC_TOOL_CONFIRMATION_STATUS.error
 }
 
 export function isTerminalAsyncStatus(

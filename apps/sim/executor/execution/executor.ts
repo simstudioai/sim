@@ -41,7 +41,7 @@ import {
   extractParallelIdFromSentinel,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedWorkflow } from '@/serializer/types'
@@ -87,6 +87,17 @@ export class DAGExecutor {
   }
 
   async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
+    await this.contextExtensions.testHooks?.enterWorkflow({
+      workflowId,
+      deploymentVersionId: this.loadedDeploymentVersionId(workflowId),
+      blocks: this.workflow.blocks.map((block) => ({
+        id: block.id,
+        name: block.metadata?.name ?? block.id,
+        type: block.metadata?.id ?? '',
+        params: block.config.params ?? {},
+      })),
+      resolvedSecretTraceRegistry: this.contextExtensions.resolvedSecretTraceRegistry,
+    })
     const savedIncomingEdges = this.contextExtensions.dagIncomingEdges
     const dag = this.dagBuilder.build(this.workflow, {
       triggerBlockId,
@@ -274,6 +285,15 @@ export class DAGExecutor {
     return result
   }
 
+  /** The version this execution's state was loaded from, as its delegation authority records it. */
+  private loadedDeploymentVersionId(workflowId: string): string | null {
+    const current = this.contextExtensions.executorDelegationOrigin?.currentWorkflow
+    if (current?.workflowId !== workflowId) {
+      throw new Error(`Test run of workflow ${workflowId} has no loaded version`)
+    }
+    return current.mode === 'deployment' ? current.deploymentVersionId : null
+  }
+
   private restoreSavedIncomingEdges(dag: DAG, savedIncomingEdges?: Record<string, string[]>): void {
     if (!savedIncomingEdges) return
 
@@ -444,6 +464,7 @@ export class DAGExecutor {
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
       piiBlockOutputRedaction: this.contextExtensions.piiBlockOutputRedaction,
+      testHooks: this.contextExtensions.testHooks,
       blockStates: state.getBlockStates(),
       blockLogs: restoredBlockLogs,
       /*
@@ -464,6 +485,7 @@ export class DAGExecutor {
       executionOrderCounter: {
         value: restoredBlockLogs.reduce((max, log) => Math.max(max, log.executionOrder ?? 0), 0),
       },
+      unrecordedModelCost: this.contextExtensions.unrecordedModelCost ?? { total: 0 },
       metadata: {
         ...this.contextExtensions.metadata,
         ...(this.contextExtensions.billingAttribution
@@ -597,10 +619,10 @@ export class DAGExecutor {
       const isRegularBlock = this.workflow.blocks.some((b) => b.id === startBlockId)
 
       if (isRegularBlock) {
-        this.initializeStarterBlock(context, state, startBlockId)
+        this.initializeStarterBlock(state, startBlockId)
       }
     } else {
-      this.initializeStarterBlock(context, state, triggerBlockId)
+      this.initializeStarterBlock(state, triggerBlockId)
     }
 
     return { context, state }
@@ -640,11 +662,7 @@ export class DAGExecutor {
     return parentMap
   }
 
-  private initializeStarterBlock(
-    context: ExecutionContext,
-    state: ExecutionState,
-    triggerBlockId?: string
-  ): void {
+  private initializeStarterBlock(state: ExecutionState, triggerBlockId?: string): void {
     let startResolution: ReturnType<typeof resolveExecutorStartBlock> | null = null
 
     if (triggerBlockId) {

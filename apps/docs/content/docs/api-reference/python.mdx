@@ -1,768 +1,402 @@
 ---
 title: Python
+description: Execute deployed workflows from Python, poll runs, and handle SDK results.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-Use the Python SDK to execute workflows from Python applications.
+Use `SimStudioClient` to execute deployed workflows from a Python application. It supports synchronous requests, server-queued asynchronous runs, rate-limit retries, and file-like inputs. Its HTTP methods are blocking; asynchronous execution does not make it an `asyncio` client.
 
-<Callout type="info">
-  The Python SDK supports Python 3.8+ with async execution support, retry helpers with exponential backoff, and usage tracking.
-</Callout>
+## Install and configure [#installation]
 
-## Installation
-
-Install the SDK using pip:
+The package requires Python `3.8+` and `requests>=2.25.0`:
 
 ```bash
 pip install simstudio-sdk
 ```
 
-## Quick Start
+Create a key in **Account settings → Sim API keys**, or use a workspace key if your administrator requires one. Keep it on your server as `SIM_API_KEY`. Set `WORKFLOW_ID` to a deployed workflow you can access. See [Authentication](/api-reference/authentication) for key types and permissions.
 
-Here's a simple example to get you started:
+### Server compatibility
 
-```python
-from simstudio import SimStudioClient
+SDK `0.2.x` executes and polls through `/api/v2`. Your deployment must serve `POST /api/v2/workflows/{workflowId}/execute`; the SDK does not fall back when that route is unavailable. Upgrade an older self-hosted server, or intentionally retain `simstudio-sdk<0.2` for its legacy execution endpoints.
 
-# Initialize the client
-client = SimStudioClient(
-    api_key="your-api-key-here",
-    base_url="https://sim.ai"  # optional, defaults to https://sim.ai
-)
+The default origin is `https://www.sim.ai`. Set `base_url` to your self-hosted deployment's origin. Versions before `0.2.1` defaulted to `https://sim.ai`; set the `www` origin explicitly when using an older SDK against Sim Cloud to avoid redirects.
 
-# Execute a workflow
-try:
-    result = client.execute_workflow("workflow-id")
-    print("Workflow executed successfully:", result)
-except Exception as error:
-    print("Workflow execution failed:", error)
-```
+## Run a workflow [#quick-start]
 
-## API Reference
-
-### SimStudioClient
-
-#### Constructor
-
-```python
-SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
-```
-
-**Parameters:**
-- `api_key` (str): Your Sim API key
-- `base_url` (str, optional): Base URL for the Sim API
-
-#### Methods
-
-##### execute_workflow()
-
-Execute a workflow with optional input data.
-
-```python
-result = client.execute_workflow(
-    "workflow-id",
-    input={"message": "Hello, world!"},
-    timeout=30.0  # 30 seconds
-)
-```
-
-**Parameters:**
-- `workflow_id` (str): The ID of the workflow to execute
-- `input` (dict, optional): Input data to pass to the workflow
-- `timeout` (float, optional): Timeout in seconds (default: 30.0)
-- `stream` (bool, optional): Enable streaming responses (default: False)
-- `selected_outputs` (list[str], optional): Block outputs to stream in `blockName.attribute` format (e.g., `["agent1.content"]`)
-- `async_execution` (bool, optional): Execute asynchronously (default: False)
-- `execution_timeout_seconds` (int, optional): Optional server-side async execution cap from 1 to 604800 seconds. Requires `async_execution=True` and cannot extend the account policy.
-
-**Returns:** `WorkflowExecutionResult | AsyncExecutionResult`
-
-When `async_execution=True`, returns immediately with a `run_id` and `status_url` for polling. Otherwise, waits for completion.
-
-##### get_workflow_status()
-
-Get the status of a workflow (deployment status, etc.).
-
-```python
-status = client.get_workflow_status("workflow-id")
-print("Is deployed:", status.is_deployed)
-```
-
-**Parameters:**
-- `workflow_id` (str): The ID of the workflow
-
-**Returns:** `WorkflowStatus`
-
-##### validate_workflow()
-
-Validate that a workflow is ready for execution.
-
-```python
-is_ready = client.validate_workflow("workflow-id")
-if is_ready:
-    # Workflow is deployed and ready
-    pass
-```
-
-**Parameters:**
-- `workflow_id` (str): The ID of the workflow
-
-**Returns:** `bool`
-
-##### get_workflow_run()
-
-Get the status and optional outputs of a workflow execution.
-
-```python
-status = client.get_workflow_run("workflow-id", "run-id", include_output=True)
-print("Status:", status["status"])  # 'queued', 'running', 'completed', 'failed'
-if status["status"] == "completed":
-    print("Output:", status["output"])
-```
-
-**Parameters:**
-- `workflow_id` (str): The workflow ID
-- `run_id` (str): The run ID returned from async execution
-- `include_output` (bool, optional): Include the final output for completed executions
-- `selected_outputs` (list[str], optional): Block output selectors to include
-
-**Returns:** `Dict[str, Any]`
-
-**Response fields:**
-- `runId` (str): The run ID
-- `workflowId` (str): The workflow ID
-- `status` (str): One of `'queued'`, `'pending'`, `'running'`, `'paused'`, `'completed'`, `'failed'`, `'cancelled'`
-- `startedAt` / `endedAt` (str): Execution timestamps
-- `durationMs` (int, optional): Duration in milliseconds
-- `output` (any, optional): The workflow output when requested for a completed execution
-- `blockOutputs` (dict, optional): Requested block outputs
-- `error` (dict, optional): Structured failure details with `code`, `message`, and optional `details`
-
-##### get_job_status()
-
-Get the status of a job created through the legacy async execution endpoint. New integrations should use `get_workflow_run()` with the run ID instead.
-
-```python
-status = client.get_job_status("legacy-job-id")
-```
-
-##### execute_with_retry()
-
-Execute a workflow with automatic retry on rate limit errors using exponential backoff.
-
-```python
-result = client.execute_with_retry(
-    "workflow-id",
-    input={"message": "Hello"},
-    timeout=30.0,
-    max_retries=3,           # Maximum number of retries
-    initial_delay=1.0,       # Initial delay in seconds
-    max_delay=30.0,          # Maximum delay in seconds
-    backoff_multiplier=2.0   # Exponential backoff multiplier
-)
-```
-
-**Parameters:**
-- `workflow_id` (str): The ID of the workflow to execute
-- `input` (dict, optional): Input data to pass to the workflow
-- `timeout` (float, optional): Timeout in seconds
-- `stream` (bool, optional): Enable streaming responses
-- `selected_outputs` (list, optional): Block outputs to stream
-- `async_execution` (bool, optional): Execute asynchronously
-- `max_retries` (int, optional): Maximum number of retries (default: 3)
-- `initial_delay` (float, optional): Initial delay in seconds (default: 1.0)
-- `max_delay` (float, optional): Maximum delay in seconds (default: 30.0)
-- `backoff_multiplier` (float, optional): Backoff multiplier (default: 2.0)
-
-**Returns:** `WorkflowExecutionResult | AsyncExecutionResult`
-
-The retry logic uses exponential backoff (1s → 2s → 4s → 8s...) with ±25% jitter to prevent thundering herd. If the API provides a `retry-after` header, it will be used instead.
-
-##### get_rate_limit_info()
-
-Get the current rate limit information from the last API response.
-
-```python
-rate_limit_info = client.get_rate_limit_info()
-if rate_limit_info:
-    print("Limit:", rate_limit_info.limit)
-    print("Remaining:", rate_limit_info.remaining)
-    print("Reset:", datetime.fromtimestamp(rate_limit_info.reset))
-```
-
-**Returns:** `RateLimitInfo | None`
-
-##### get_usage_limits()
-
-Get current usage limits and quota information for your account.
-
-```python
-limits = client.get_usage_limits()
-print("Sync requests remaining:", limits.rate_limit["sync"]["remaining"])
-print("Async requests remaining:", limits.rate_limit["async"]["remaining"])
-print("Current period cost:", limits.usage["currentPeriodCost"])
-print("Plan:", limits.usage["plan"])
-```
-
-**Returns:** `UsageLimits`
-
-**Response structure:**
-```python
-{
-    "success": bool,
-    "rateLimit": {
-        "sync": {
-            "isLimited": bool,
-            "limit": int,
-            "remaining": int,
-            "resetAt": str
-        },
-        "async": {
-            "isLimited": bool,
-            "limit": int,
-            "remaining": int,
-            "resetAt": str
-        },
-        "authType": str  # 'api' or 'manual'
-    },
-    "usage": {
-        "currentPeriodCost": float,
-        "limit": float,
-        "plan": str  # e.g., 'free', 'pro'
-    }
-}
-```
-
-##### set_api_key()
-
-Update the API key.
-
-```python
-client.set_api_key("new-api-key")
-```
-
-##### set_base_url()
-
-Update the base URL.
-
-```python
-client.set_base_url("https://my-custom-domain.com")
-```
-
-##### close()
-
-Close the underlying HTTP session.
-
-```python
-client.close()
-```
-
-## Data Classes
-
-### WorkflowExecutionResult
-
-```python
-@dataclass
-class WorkflowExecutionResult:
-    success: bool
-    output: Optional[Any] = None
-    error: Optional[str] = None
-    logs: Optional[List[Any]] = None
-    metadata: Optional[Dict[str, Any]] = None
-    trace_spans: Optional[List[Any]] = None
-    total_duration: Optional[float] = None
-    status: Optional[str] = None
-```
-
-`success` is `True` only for the `completed` and `paused` statuses. `status` carries the server's terminal status verbatim, so a cancelled run (`success=False`, `error=None`) is distinguishable from a failed one.
-
-### AsyncExecutionResult
-
-```python
-@dataclass
-class AsyncExecutionResult:
-    success: bool
-    run_id: str
-    status_url: str
-    message: str = ""
-    async_execution: bool = True
-```
-
-### WorkflowStatus
-
-```python
-@dataclass
-class WorkflowStatus:
-    is_deployed: bool
-    deployed_at: Optional[str] = None
-    needs_redeployment: bool = False
-```
-
-### RateLimitInfo
-
-```python
-@dataclass
-class RateLimitInfo:
-    limit: int
-    remaining: int
-    reset: int
-    retry_after: Optional[int] = None
-```
-
-### UsageLimits
-
-```python
-@dataclass
-class UsageLimits:
-    success: bool
-    rate_limit: Dict[str, Any]
-    usage: Dict[str, Any]
-```
-
-### SimStudioError
-
-```python
-class SimStudioError(Exception):
-    def __init__(self, message: str, code: Optional[str] = None, status: Optional[int] = None):
-        super().__init__(message)
-        self.code = code
-        self.status = status
-```
-
-**Common error codes:**
-- `UNAUTHORIZED`: Invalid API key
-- `TIMEOUT`: Request timed out
-- `RATE_LIMIT_EXCEEDED`: Rate limit exceeded
-- `USAGE_LIMIT_EXCEEDED`: Usage limit exceeded
-- `EXECUTION_ERROR`: Workflow execution failed
-
-## Examples
-
-### Basic Workflow Execution
-
-<Steps>
-  <Step title="Initialize the client">
-    Set up the SimStudioClient with your API key.
-  </Step>
-  <Step title="Validate the workflow">
-    Check if the workflow is deployed and ready for execution.
-  </Step>
-  <Step title="Execute the workflow">
-    Run the workflow with your input data.
-  </Step>
-  <Step title="Handle the result">
-    Process the execution result and handle any errors.
-  </Step>
-</Steps>
+Use a context manager to close the HTTP session automatically:
 
 ```python
 import os
-from simstudio import SimStudioClient
-
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
-
-def run_workflow():
-    try:
-        # Check if workflow is ready
-        is_ready = client.validate_workflow("my-workflow-id")
-        if not is_ready:
-            raise Exception("Workflow is not deployed or ready")
-
-        # Execute the workflow
-        result = client.execute_workflow(
-            "my-workflow-id",
-            input={
-                "message": "Process this data",
-                "user_id": "12345"
-            }
-        )
-
-        if result.success:
-            print("Output:", result.output)
-            print("Duration:", result.metadata.get("duration") if result.metadata else None)
-        else:
-            print("Workflow failed:", result.error)
-            
-    except Exception as error:
-        print("Error:", error)
-
-run_workflow()
-```
-
-### Error Handling
-
-Handle different types of errors that may occur during workflow execution:
-
-```python
 from simstudio import SimStudioClient, SimStudioError
-import os
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
-
-def execute_with_error_handling():
+with SimStudioClient(
+    api_key=os.environ["SIM_API_KEY"],
+    base_url=os.getenv("SIM_BASE_URL", "https://www.sim.ai"),
+) as client:
     try:
-        result = client.execute_workflow("workflow-id")
-        return result
-    except SimStudioError as error:
-        if error.code == "UNAUTHORIZED":
-            print("Invalid API key")
-        elif error.code == "TIMEOUT":
-            print("Workflow execution timed out")
-        elif error.code == "USAGE_LIMIT_EXCEEDED":
-            print("Usage limit exceeded")
-        elif error.code == "INVALID_JSON":
-            print("Invalid JSON in request body")
+        result = client.execute_workflow_sync(
+            os.environ["WORKFLOW_ID"],
+            input={"message": "Process this data"},
+            timeout=30.0,
+        )
+        if result.status == "completed":
+            print(result.output)
+            print("Duration in ms:", result.total_duration)
+        elif result.status == "paused":
+            print("The workflow is waiting to resume.")
         else:
-            print(f"Workflow error: {error}")
+            print(result.status, result.error)
+    except SimStudioError as error:
+        print(error.code, error.status, str(error))
         raise
-    except Exception as error:
-        print(f"Unexpected error: {error}")
-        raise
 ```
 
-### Context Manager Usage
+Replace `message` with an input field defined by your deployed trigger. The SDK runs the active deployment; it does not select manual draft execution.
 
-Use the client as a context manager to automatically handle resource cleanup:
+A failed synchronous workflow returns normally with `status="failed"`, `success=False`, and `error` set. A cancelled run also returns `success=False`, often without an error. `success=True` means `completed` **or** `paused`; a pause is unfinished work. HTTP, authentication, and client timeout errors raise `SimStudioError`. This differs from the TypeScript SDK, which throws for a failed synchronous run.
 
-```python
-from simstudio import SimStudioClient
-import os
+## Start an asynchronous run [#async-workflow-execution]
 
-# Using context manager to automatically close the session
-with SimStudioClient(api_key=os.getenv("SIM_API_KEY")) as client:
-    result = client.execute_workflow("workflow-id")
-    print("Result:", result)
-# Session is automatically closed here
-```
-
-### Batch Workflow Execution
-
-Execute multiple workflows efficiently:
-
-```python
-from simstudio import SimStudioClient
-import os
-
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))   
-
-def execute_workflows_batch(workflow_data_pairs):
-    """Execute multiple workflows with different input data."""
-    results = []
-    
-    for workflow_id, input_data in workflow_data_pairs:
-        try:
-            # Validate workflow before execution
-            if not client.validate_workflow(workflow_id):
-                print(f"Skipping {workflow_id}: not deployed")
-                continue
-                
-            result = client.execute_workflow(workflow_id, input_data)
-            results.append({
-                "workflow_id": workflow_id,
-                "success": result.success,
-                "output": result.output,
-                "error": result.error
-            })
-            
-        except Exception as error:
-            results.append({
-                "workflow_id": workflow_id,
-                "success": False,
-                "error": str(error)
-            })
-    
-    return results
-
-# Example usage
-workflows = [
-    ("workflow-1", {"type": "analysis", "data": "sample1"}),
-    ("workflow-2", {"type": "processing", "data": "sample2"}),
-]
-
-results = execute_workflows_batch(workflows)
-for result in results:
-    print(f"Workflow {result['workflow_id']}: {'Success' if result['success'] else 'Failed'}")
-```
-
-### Async Workflow Execution
-
-Execute workflows asynchronously for long-running tasks:
+Queue a deployed run and poll its `run_id`. The initial `success=True` confirms acceptance, not completion:
 
 ```python
 import os
 import time
-from simstudio import SimStudioClient
+from simstudio import AsyncExecutionResult, SimStudioClient
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
+waiting = {"queued", "pending", "running", "redacting"}
+workflow_id = os.environ["WORKFLOW_ID"]
 
-def execute_async():
-    try:
-        # Start async execution
-        result = client.execute_workflow(
-            "workflow-id",
-            input={"data": "large dataset"},
-            async_execution=True  # Execute asynchronously
-        )
+with SimStudioClient(api_key=os.environ["SIM_API_KEY"]) as client:
+    result = client.execute_workflow(
+        workflow_id,
+        input={"message": "Process this dataset"},
+        async_execution=True,
+        execution_timeout_seconds=3600,
+    )
+    if not isinstance(result, AsyncExecutionResult):
+        raise RuntimeError("Expected an asynchronous run receipt")
 
-        # Check if result is an async execution
-        if hasattr(result, 'async_execution') and result.async_execution:
-            print(f"Run ID: {result.run_id}")
-            print(f"Status endpoint: {result.status_url}")
+    deadline = time.monotonic() + 300
+    while True:
+        run = client.get_workflow_run(workflow_id, result.run_id, include_output=True)
+        if run["status"] not in waiting:
+            break
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Stop waiting locally; run {result.run_id} may still be active")
+        time.sleep(2)
 
-            # Poll for completion
-            status = client.get_workflow_run(
-                "workflow-id", result.run_id, include_output=True
-            )
-
-            while status["status"] in ["queued", "pending", "running"]:
-                print(f"Current status: {status['status']}")
-                time.sleep(2)  # Wait 2 seconds
-                status = client.get_workflow_run(
-                    "workflow-id", result.run_id, include_output=True
-                )
-
-            if status["status"] == "completed":
-                print("Workflow completed!")
-                print(f"Output: {status['output']}")
-                print(f"Duration: {status['durationMs']}")
-            elif status["status"] == "paused":
-                print("Workflow is paused and waiting for input or resumption.")
-            elif status["status"] == "cancelled":
-                print("Workflow was cancelled.")
-            else:
-                print(f"Workflow failed: {status['error']}")
-
-    except Exception as error:
-        print(f"Error: {error}")
-
-execute_async()
+    if run["status"] == "completed":
+        print(run["output"])
+    elif run["status"] == "paused":
+        print("Resume condition:", run["paused"])
+    else:
+        print(run["status"], run["error"])
 ```
 
-### Rate Limiting and Retry
+The five-minute polling deadline is an application choice; it does not cancel the run. A time pause can resume automatically, while a human pause requires input. Resume can create another run attempt. Use [Get workflow run](/api-reference/workflow-runs/getWorkflowRunV2) and the [resume endpoint](/api-reference/workflow-runs/resumeWorkflowRunV2) for the current state and resume behavior.
 
-Handle rate limits automatically with exponential backoff:
+Async submission cannot include `stream=True`, `selected_outputs`, or other output-shaping options. `execution_timeout_seconds` accepts an integer from `1` to `604800`, requires async execution, and only shortens the account policy. The HTTP `timeout` remains separate.
+
+## Handle errors and rate limits [#error-handling]
+
+`SimStudioError(message, code=None, status=None)` exposes `code` and the HTTP `status` when available. A workflow failure returned in `WorkflowExecutionResult` must be handled separately from exceptions.
+
+| Code | Meaning |
+| --- | --- |
+| `UNAUTHORIZED` | Missing, invalid, or expired credential |
+| `BAD_REQUEST` | V2 request validation failed |
+| `TIMEOUT` | The client stopped waiting |
+| `RATE_LIMIT_EXCEEDED` | SDK wrapper for an HTTP `429` |
+| `USAGE_LIMIT_EXCEEDED` | Usage policy rejected the request or run |
+| `INVALID_EXECUTION_TIMEOUT` | An unsupported or invalid async timeout option |
+| `EXECUTION_ERROR` | Transport, parsing, or execution-request failure |
+| `STATUS_ERROR`, `USAGE_ERROR` | A status or usage helper failed |
+
+Other server codes can pass through. V2 uses `BAD_REQUEST` for invalid JSON/request input, rather than the legacy `INVALID_JSON` branch. See [API errors](/api-reference/getting-started#error-handling).
+
+`execute_with_retry` retries only rate-limit exceptions. Its defaults allow three retries after the initial attempt, with exponential delay and ±25% jitter. A supplied `Retry-After` takes precedence over the calculated delay; jitter applies to that wait too.
 
 ```python
 import os
-from simstudio import SimStudioClient, SimStudioError
+from simstudio import SimStudioClient
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
+with SimStudioClient(api_key=os.environ["SIM_API_KEY"]) as client:
+    result = client.execute_with_retry(
+        os.environ["WORKFLOW_ID"],
+        input={"message": "Process this"},
+        timeout=30.0,
+        max_retries=3,
+        initial_delay=1.0,
+        max_delay=30.0,
+        backoff_multiplier=2.0,
+    )
+    print(result)
+```
 
-def execute_with_retry_handling():
-    try:
-        # Automatically retries on rate limit
-        result = client.execute_with_retry(
-            "workflow-id",
-            input={"message": "Process this"},
-            max_retries=5,
-            initial_delay=1.0,
-            max_delay=60.0,
-            backoff_multiplier=2.0
+`initial_delay` and `max_delay` are **seconds**. `RateLimitInfo.retry_after` is **milliseconds**. `max_delay` caps the calculated backoff, not a server-supplied wait.
+
+<Callout type="warn">
+A client timeout or lost response does not prove the workflow never started. Avoid blindly repeating an execution that may have effects. For caller-chosen run IDs and reconciliation, use the raw v2 API described in [Getting started](/api-reference/getting-started#sync-vs-async-execution).
+</Callout>
+
+## Method reference [#api-reference]
+
+### Constructor
+
+```text
+SimStudioClient(api_key: str, base_url: str = "https://www.sim.ai")
+```
+
+`api_key` is required. `base_url` is an origin, without an `/api` suffix; trailing slashes are removed. The client sends the key in `X-API-Key`.
+
+### Execute
+
+```text
+execute_workflow(workflow_id: str, input=None, *, timeout=30.0,
+    stream=None, selected_outputs=None, async_execution=None,
+    execution_timeout_seconds=None) -> WorkflowExecutionResult | AsyncExecutionResult
+
+execute_workflow_sync(workflow_id: str, input=None, *, timeout=30.0,
+    stream=None, selected_outputs=None) -> WorkflowExecutionResult
+
+execute_with_retry(workflow_id: str, input=None, *, timeout=30.0,
+    stream=None, selected_outputs=None, async_execution=None,
+    execution_timeout_seconds=None, max_retries=3, initial_delay=1.0,
+    max_delay=30.0, backoff_multiplier=2.0)
+    -> WorkflowExecutionResult | AsyncExecutionResult
+```
+
+All options after `*` are keyword-only. `execute_workflow_sync` forces `async_execution=False`; the retry method accepts the same execution options as `execute_workflow`.
+
+| Parameter | Behavior and default |
+| --- | --- |
+| `workflow_id` | Deployed workflow ID |
+| `input` | Optional value; a dictionary becomes the v2 `input` object, while a primitive or list becomes `{"input": value}` inside it; omitted/`None` becomes `{}` |
+| `timeout` | Client HTTP timeout in seconds; default `30.0` |
+| `async_execution` | Default omitted, so server execution is synchronous; `True` returns an async receipt |
+| `execution_timeout_seconds` | Async-only integer cap, `1`–`604800`; cannot extend account policy |
+| `selected_outputs` | Optional list of normalized block-name/path selectors such as `agent.content`; incompatible with async submission |
+| `stream` | Defaults omitted/false; the current SDK parser cannot consume the SSE response when `True`; use raw HTTP below |
+| `max_retries` | Retry count after the initial attempt; default `3` |
+| `initial_delay`, `max_delay` | Calculated retry delay in seconds; defaults `1.0`, `30.0` |
+| `backoff_multiplier` | Delay multiplier; default `2.0` |
+
+File-like objects nested in input are converted to base64. The current synchronous adapter does not expose v2 `blockOutputs`, even when `selected_outputs` is sent. Use a run read or raw HTTP when you need that map.
+
+### Read workflow deployment and runs
+
+```text
+get_workflow_status(workflow_id: str) -> WorkflowStatus
+validate_workflow(workflow_id: str) -> bool
+get_workflow_run(workflow_id: str, run_id: str, *,
+    include_output=None, selected_outputs=None) -> Dict[str, Any]
+get_job_status(job_id: str) -> Dict[str, Any]
+```
+
+`get_workflow_status` reads the legacy `/api/workflows/{id}/status` route. `validate_workflow` returns only its `is_deployed` flag; it returns `False` if the status request raises `SimStudioError`. It does not validate credentials, input, quota, or deployment readiness. Use the status method directly to distinguish a failed lookup from an undeployed workflow:
+
+```python
+status = client.get_workflow_status("workflow-id")
+print(status.is_deployed, status.needs_redeployment)
+```
+
+`get_workflow_run` reads and unwraps the v2 run resource. `include_output=True` includes final output for a completed run; default omitted/false. Run-read `selected_outputs` uses **block IDs**, as `blockId` or `blockId.path`, rather than block names. Selected block outputs are independent of `include_output`.
+
+`get_job_status` is for IDs created by legacy `0.1.x` async execution at `/api/jobs/{jobId}`. Use `get_workflow_run` for runs started by `0.2.x`.
+
+### Read limits and update the client
+
+```text
+get_rate_limit_info() -> RateLimitInfo | None
+get_usage_limits() -> UsageLimits
+set_api_key(api_key: str) -> None
+set_base_url(base_url: str) -> None
+close() -> None
+```
+
+`get_rate_limit_info` reads cached headers from the most recent response that supplied rate information. It does not make a request. `get_usage_limits` calls the legacy account helper; see its shape below. Setters change subsequent requests. `close` closes the HTTP session; a context manager calls it automatically.
+
+## Return objects [#data-classes]
+
+### WorkflowExecutionResult
+
+| Field | Python type/default | Current behavior |
+| --- | --- | --- |
+| `success` | `bool`, required | `True` only for completed or paused |
+| `status` | `Optional[str] = None` | Server status: completed, failed, paused, or cancelled |
+| `output` | `Optional[Any] = None` | Workflow output, including any returned partial result |
+| `error` | `Optional[str] = None` | Failure message, when present |
+| `metadata` | `Optional[Dict[str, Any]] = None` | SDK-built `duration`, `runId`, `startTime`, `endTime`; duration is milliseconds |
+| `total_duration` | `Optional[float] = None` | Duration in milliseconds |
+| `logs`, `trace_spans` | `Optional[list] = None` | Compatibility fields; not populated by the v2 adapter |
+
+Nested oversized values may be `LargeValueRef` objects with `__simLargeValueRef`, `version`, `id`, `kind`, `size`, optional `key`, `executionId`, and `preview`. Their keys are opaque server pointers, not download URLs. See [large outputs](/workflows/deployment/api#oversized-outputs).
+
+### AsyncExecutionResult
+
+| Field | Python type/default |
+| --- | --- |
+| `success` | `bool`, required; current accepted receipts set `True` |
+| `run_id` | `str`, required |
+| `status_url` | `str`, required |
+| `message` | `str = ""`; current adapter sets `"Workflow execution queued"` |
+| `async_execution` | `bool = True` |
+
+### WorkflowStatus
+
+| Field | Python type/default |
+| --- | --- |
+| `is_deployed` | `bool`, required |
+| `deployed_at` | `Optional[str] = None` |
+| `needs_redeployment` | `bool = False` |
+
+### Run dictionary
+
+`get_workflow_run` returns the server's `data` dictionary without changing camelCase keys:
+
+| Field | Shape |
+| --- | --- |
+| `runId`, `workflowId` | String identifiers |
+| `status` | `queued`, `pending`, `running`, `redacting`, `paused`, `completed`, `failed`, or `cancelled` |
+| `trigger` | String or `None` |
+| `startedAt`, `endedAt` | ISO timestamps or `None`; queued runs report enqueue time as startedAt |
+| `durationMs` | Number or `None` |
+| `paused` | Pause details or `None`; use `pauseKind` and `resumeAt` to identify the resume condition |
+| `cost` | `{"total": number}` in credits, or `None` when unavailable/withheld |
+| `error` | Structured `code`/`message` failure, or `None` |
+| `output` | Final output when requested for a completed run, otherwise `None` |
+| `blockOutputs` | Selected block-ID/path outputs, or `None` |
+| `files` | Produced-file metadata when output is requested/available, otherwise `None` |
+
+Each file includes `id`, `name`, byte `size`, MIME `type`, `downloadPath`, and nullable `base64`. The SDK does not expose file-inlining options; download at the returned path with an authenticated raw HTTP request. Permission policies can withhold cost or recorded output fields. See [Get workflow run](/api-reference/workflow-runs/getWorkflowRunV2) for the full contract, functional-output permission conflict, and file limits.
+
+### RateLimitInfo
+
+Fields are `limit: int`, `remaining: int`, `reset: int`, and `retry_after: Optional[int] = None`. V2 ISO reset headers become epoch **milliseconds**. Integer reset headers from older endpoints retain their original epoch-seconds value. For a v2 response:
+
+```python
+from datetime import datetime, timezone
+
+rate = client.get_rate_limit_info()
+if rate:
+    print(rate.remaining)
+    print(datetime.fromtimestamp(rate.reset / 1000, tz=timezone.utc))
+```
+
+Use a known response surface when converting `reset`; use `resetAt` ISO strings from the usage helper when you need a format that is unambiguous across endpoints.
+
+### UsageLimits
+
+The dataclass contains `success: bool`, `rate_limit: Dict[str, Any]`, and `usage: Dict[str, Any]`:
+
+```text
+rate_limit:
+  sync / async:
+    isLimited: bool
+    requestsPerMinute: number
+    maxBurst: number
+    remaining: number
+    resetAt: ISO timestamp
+  authType: "api" or "manual"
+usage:
+  currentPeriodCost: number (USD)
+  limit: number (USD)
+  plan: str
+```
+
+`requestsPerMinute` is the refill rate; `maxBurst` is the bucket capacity. There is no `rate_limit["sync"]["limit"]` field. The Python dataclass does not expose the legacy route's `storage` result.
+
+```python
+limits = client.get_usage_limits()
+print("Sync remaining:", limits.rate_limit["sync"]["remaining"])
+print("Resets at:", limits.rate_limit["sync"]["resetAt"])
+print("Period cost in USD:", limits.usage["currentPeriodCost"])
+```
+
+This helper resolves account/key-owner usage and can differ from the payer for a selected workspace. For workspace credit and storage state, use [Get billing status](/api-reference/billing/getBillingStatus). Logs APIs also report USD; v2 Billing and run-resource amounts use credits.
+
+## File inputs
+
+Include a binary file-like object under the input field your deployed trigger expects:
+
+```python
+import os
+from simstudio import SimStudioClient
+
+with SimStudioClient(api_key=os.environ["SIM_API_KEY"]) as client:
+    with open("document.pdf", "rb") as document:
+        result = client.execute_workflow_sync(
+            os.environ["WORKFLOW_ID"],
+            input={"documents": [document], "query": "Summarize this document"},
         )
+    print(result.output)
+```
 
-        print(f"Success: {result}")
+The SDK reads and base64-encodes the bytes, retaining the file name and using its `content_type` attribute when available. Otherwise MIME type defaults to `application/octet-stream`. Validate upload size and content on your backend; the execute request has a 10 MiB JSON-body limit, including base64 overhead.
+
+## Execute several workflows [#batch-workflow-execution]
+
+The client has no batch-execution method. A sequential loop makes one request per workflow and handles each result independently:
+
+```python
+for workflow_id, workflow_input in [
+    ("workflow-1", {"message": "Analyze this"}),
+    ("workflow-2", {"message": "Summarize this"}),
+]:
+    try:
+        result = client.execute_workflow_sync(workflow_id, workflow_input)
+        print(workflow_id, result.status, result.output, result.error)
     except SimStudioError as error:
-        if error.code == "RATE_LIMIT_EXCEEDED":
-            print("Rate limit exceeded after all retries")
-
-            # Check rate limit info
-            rate_limit_info = client.get_rate_limit_info()
-            if rate_limit_info:
-                from datetime import datetime
-                reset_time = datetime.fromtimestamp(rate_limit_info.reset)
-                print(f"Rate limit resets at: {reset_time}")
-
-execute_with_retry_handling()
+        print(workflow_id, error.code, str(error))
 ```
 
-### Usage Monitoring
+Use this inside the configured client context. A deployment-status precheck is optional and cannot guarantee the later run will succeed.
 
-Monitor your account usage and limits:
+## Stream through HTTP [#streaming-workflow-execution]
+
+The current `0.2.x` SDK sends `stream=True` but then parses the response as JSON. It does not expose an SSE iterator; a valid SSE response fails that parser. Use raw HTTP for streaming:
 
 ```python
 import os
-from simstudio import SimStudioClient
-
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
-
-def check_usage():
-    try:
-        limits = client.get_usage_limits()
-
-        print("=== Rate Limits ===")
-        print("Sync requests:")
-        print(f"  Limit: {limits.rate_limit['sync']['limit']}")
-        print(f"  Remaining: {limits.rate_limit['sync']['remaining']}")
-        print(f"  Resets at: {limits.rate_limit['sync']['resetAt']}")
-        print(f"  Is limited: {limits.rate_limit['sync']['isLimited']}")
-
-        print("\nAsync requests:")
-        print(f"  Limit: {limits.rate_limit['async']['limit']}")
-        print(f"  Remaining: {limits.rate_limit['async']['remaining']}")
-        print(f"  Resets at: {limits.rate_limit['async']['resetAt']}")
-        print(f"  Is limited: {limits.rate_limit['async']['isLimited']}")
-
-        print("\n=== Usage ===")
-        print(f"Current period cost: ${limits.usage['currentPeriodCost']:.2f}")
-        print(f"Limit: ${limits.usage['limit']:.2f}")
-        print(f"Plan: {limits.usage['plan']}")
-
-        percent_used = (limits.usage['currentPeriodCost'] / limits.usage['limit']) * 100
-        print(f"Usage: {percent_used:.1f}%")
-
-        if percent_used > 80:
-            print("⚠️  Warning: You are approaching your usage limit!")
-
-    except Exception as error:
-        print(f"Error checking usage: {error}")
-
-check_usage()
-```
-
-### Streaming Workflow Execution
-
-Execute workflows with real-time streaming responses:
-
-```python
-from simstudio import SimStudioClient
-import os
-
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
-
-def execute_with_streaming():
-    """Execute workflow with streaming enabled."""
-    try:
-        # Enable streaming for specific block outputs
-        result = client.execute_workflow(
-            "workflow-id",
-            input={"message": "Count to five"},
-            stream=True,
-            selected_outputs=["agent1.content"]  # Use blockName.attribute format
-        )
-
-        print("Workflow result:", result)
-    except Exception as error:
-        print("Error:", error)
-
-execute_with_streaming()
-```
-
-The streaming response follows the Server-Sent Events (SSE) format:
-
-```
-data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
-
-data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
-
-data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
-
-data: [DONE]
-```
-
-**Flask Streaming Example:**
-
-```python
-from flask import Flask, Response, stream_with_context
 import requests
-import json
-import os
 
-app = Flask(__name__)
-
-@app.route('/stream-workflow')
-def stream_workflow():
-    """Stream workflow execution to the client."""
-
-    def generate():
-        response = requests.post(
-            'https://sim.ai/api/v2/workflows/WORKFLOW_ID/execute',
-            headers={
-                'Content-Type': 'application/json',
-                'X-API-Key': os.getenv('SIM_API_KEY')
-            },
-            json={
-                'input': {'message': 'Generate a story'},
-                'stream': True,
-                'selectedOutputs': ['agent1.content']
-            },
-            stream=True
-        )
-
-        for line in response.iter_lines():
-            if line:
-                decoded_line = line.decode('utf-8')
-                if decoded_line.startswith('data: '):
-                    data = decoded_line[6:]  # Remove 'data: ' prefix
-
-                    if data == '[DONE]':
-                        break
-
-                    try:
-                        parsed = json.loads(data)
-                        if 'chunk' in parsed:
-                            yield f"data: {json.dumps(parsed)}\n\n"
-                        elif parsed.get('event') == 'done':
-                            yield f"data: {json.dumps(parsed)}\n\n"
-                            print("Execution complete:", parsed.get('metadata'))
-                    except json.JSONDecodeError:
-                        pass
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/event-stream'
-    )
-
-if __name__ == '__main__':
-    app.run(debug=True)
+workflow_id = os.environ["WORKFLOW_ID"]
+with requests.post(
+    f"https://www.sim.ai/api/v2/workflows/{workflow_id}/execute",
+    headers={
+        "X-API-Key": os.environ["SIM_API_KEY"],
+        "X-Sim-Stream-Protocol": "agent-events-v1",
+    },
+    json={"input": {"message": "Count to five"}, "stream": True,
+          "selectedOutputs": ["agent.content"]},
+    stream=True,
+    timeout=(10, 300),
+) as response:
+    response.raise_for_status()
+    for line in response.iter_lines():
+        if line:
+            print(line.decode("utf-8"))
 ```
 
-### Environment Configuration
+This prints raw SSE. Applications must parse complete events: success ends with `{event:"final",data:...}`, failure ends with `{event:"error",...}`, then `[DONE]`. Preserve structured output and reset events; do not filter only for `chunk` or the obsolete `done` event. The protocol header enables live answer tokens and requires handling `chunk_reset`; reasoning/tool events require their separate flags.
 
-Configure the client using environment variables:
+For Flask or another web backend, authenticate the caller and authorize the workflow before opening the upstream request. Forward all SSE bytes with `text/event-stream`, check upstream HTTP status before starting the downstream response, and close the upstream response if the caller disconnects. See [API streaming](/workflows/deployment/api#streaming) and the [reference client](/workflows/deployment/agent-events#reference-client) for framing and event handling.
 
-<Tabs items={['Development', 'Production']}>
-  <Tab value="Development">
-    ```python
-    import os
-    from simstudio import SimStudioClient
+## Upgrade from 0.1.x
 
-    # Development configuration
-    client = SimStudioClient(
-        api_key=os.getenv("SIM_API_KEY"),
-        base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
-    )
-    ```
-  </Tab>
-  <Tab value="Production">
-    ```python
-    import os
-    from simstudio import SimStudioClient
+`0.2.0` changed execution requests to `/api/v2`, nests named input under `input`, and sends async/timeout options in the body instead of `X-Execution-Mode` and `X-Execution-Timeout-Seconds` headers.
 
-    # Production configuration with error handling
-    api_key = os.getenv("SIM_API_KEY")
-    if not api_key:
-        raise ValueError("SIM_API_KEY environment variable is required")
+Replace `AsyncExecutionResult.job_id` with `run_id`; its old `execution_id` field is removed. Poll with `get_workflow_run(workflow_id, run_id)`, not `get_job_status`. Synchronous metadata is now SDK-built: use `metadata["runId"]` instead of the former `metadata["executionId"]`. Read `status` to distinguish failed and cancelled returns. Logs and trace spans are no longer populated by this adapter.
 
-    client = SimStudioClient(
-        api_key=api_key,
-        base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
-    )
-    ```
-  </Tab>
-</Tabs>
+Workflow status, legacy jobs, and account usage helpers still use their original routes. This SDK does not expose every v2 operation, manual execution, resume/cancel, caller-selected run headers, or NDJSON/agent-event streaming controls.
 
-## Getting Your API Key
+## Related docs
 
-Create a key in **Account settings → Sim API keys**, or use a workspace key if your administrator requires one. See [Authentication](/api-reference/authentication) for key types and permissions. Deploy the workflow before calling it through the SDK. Keep the key in a server-side environment variable.
-
-## Requirements
-
-- Python 3.8+
-- requests >= 2.25.0
-
-## License
-
-Apache-2.0
+- [API authentication](/api-reference/authentication)
+- [TypeScript SDK](/api-reference/typescript)
+- [API getting started](/api-reference/getting-started)
+- [Get workflow run](/api-reference/workflow-runs/getWorkflowRunV2)
+- [Python package source and Apache-2.0 license](https://github.com/simstudioai/sim/tree/main/packages/python-sdk)

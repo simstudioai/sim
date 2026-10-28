@@ -1,5 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { toError } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024
 
@@ -9,7 +10,37 @@ const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024
  * makes ffmpeg prompt on an unread stdin pipe and hang until the timeout
  * kills it.
  */
-export const FFMPEG_BASE_ARGS = ['-y', '-nostdin'] as const
+const FFMPEG_BASE_ARGS = ['-y', '-nostdin'] as const
+
+/**
+ * Inputs are always files this process wrote, so they may open local files and
+ * nothing else; a container that names a URL (a playlist, a reference movie)
+ * fails instead of reaching the network. The option applies to the input that
+ * follows it.
+ */
+const INPUT_PROTOCOL_WHITELIST = ['-protocol_whitelist', 'file,pipe'] as const
+
+/** FFmpeg argv: base flags, then `args` with the protocol whitelist before every input. */
+export function ffmpegArgs(args: readonly string[]): string[] {
+  return [
+    ...FFMPEG_BASE_ARGS,
+    ...args.flatMap((arg) => (arg === '-i' ? [...INPUT_PROTOCOL_WHITELIST, arg] : [arg])),
+  ]
+}
+
+/** FFprobe argv that prints the format and streams of `filePath` as JSON. */
+export function ffprobeJsonArgs(filePath: string): string[] {
+  return [
+    ...INPUT_PROTOCOL_WHITELIST,
+    '-v',
+    'error',
+    '-print_format',
+    'json',
+    '-show_format',
+    '-show_streams',
+    filePath,
+  ]
+}
 
 export interface ExecutableOptions {
   cwd?: string
@@ -35,7 +66,23 @@ export function resolveExecutable(binary: string): string | null {
 }
 
 /**
- * Run an executable with a shell-free argument vector and bounded output.
+ * The environment a media tool runs with: what it needs to find its libraries
+ * and fonts, never the variables this process was configured with.
+ */
+function executableEnv(): NodeJS.ProcessEnv {
+  const allowed = filterUndefined({
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    FONTCONFIG_FILE: process.env.FONTCONFIG_FILE,
+    FONTCONFIG_PATH: process.env.FONTCONFIG_PATH,
+    SYSTEMROOT: process.env.SYSTEMROOT,
+  })
+  return { ...allowed, NODE_ENV: process.env.NODE_ENV }
+}
+
+/**
+ * Run an executable with a shell-free argument vector, a minimal environment,
+ * and bounded output.
  *
  * `execFile` owns the timeout and abort handling, including killing the child.
  * `maxBuffer` bounds both stdout and stderr, which prevents FFmpeg diagnostics
@@ -54,6 +101,7 @@ export function runExecutable(
         {
           cwd: options.cwd,
           encoding: 'utf-8',
+          env: executableEnv(),
           killSignal: 'SIGKILL',
           maxBuffer: options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
           signal: options.signal,

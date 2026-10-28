@@ -5,32 +5,30 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadataMockFns,
+} from '@sim/testing/mocks/read-workspace-file-metadata.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  readMetadata: vi.fn(),
-  getUserEmailsByIds: vi.fn(),
-}))
-
-vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
-  readWorkspaceFileMetadataWithVersion: {
-    operation: { id: 'files.read_metadata', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.readMetadata,
-  },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-workspace-file-metadata',
+  () => readWorkspaceFileMetadataMock
+)
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mocks.getUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/files/[fileId]/metadata/route'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
+const readMetadata = readWorkspaceFileMetadataMockFns.mockReadWorkspaceFileMetadataWithVersion
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -90,15 +88,15 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.readMetadata.mockResolvedValue({
+    readMetadata.mockResolvedValue({
       file: { ...buildRecord(), currentVersion: 3 },
       share: SHARE,
     })
-    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('conceals cross-workspace authorization as not found', async () => {
-    mocks.readMetadata.mockRejectedValue(new NoWorkspaceAccessError())
+    readMetadata.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
 
@@ -107,13 +105,13 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
   })
 
   it('leaves an archived file unreachable when scope is omitted', async () => {
-    mocks.readMetadata.mockImplementation(archivedFileUseCase)
+    readMetadata.mockImplementation(archivedFileUseCase)
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
-    expect(mocks.readMetadata).toHaveBeenCalledWith(
+    expect(readMetadata).toHaveBeenCalledWith(
       expect.objectContaining({
         input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
       })
@@ -121,13 +119,13 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
   })
 
   it('leaves an archived file unreachable under an explicit scope=active', async () => {
-    mocks.readMetadata.mockImplementation(archivedFileUseCase)
+    readMetadata.mockImplementation(archivedFileUseCase)
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=active`)
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
-    expect(mocks.readMetadata).toHaveBeenCalledWith(
+    expect(readMetadata).toHaveBeenCalledWith(
       expect.objectContaining({
         input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
       })
@@ -135,7 +133,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
   })
 
   it('returns archived metadata when scope=archived opts into the archived set', async () => {
-    mocks.readMetadata.mockImplementation(archivedFileUseCase)
+    readMetadata.mockImplementation(archivedFileUseCase)
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=archived`)
 
@@ -158,7 +156,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         revision: expect.any(String),
       },
     })
-    expect(mocks.readMetadata).toHaveBeenCalledWith(
+    expect(readMetadata).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: auth.principal,
         input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: true },

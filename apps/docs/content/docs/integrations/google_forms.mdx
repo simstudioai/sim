@@ -1,31 +1,46 @@
 ---
 title: Google Forms
 description: Manage Google Forms and responses
+integration:
+  type: "google_forms"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_forms"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Google Forms](https://www.google.com/forms/about/) collects structured responses. Use this integration to read and update forms, retrieve responses, and manage watches. Its triggers can start workflows when forms receive responses or change.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Google Forms account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Google Forms into your workflow. Read form structure, get responses, create forms, update content, and manage notification watches.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-forms` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
+| `https://www.googleapis.com/auth/forms.body` | View and manage Google Forms |
+| `https://www.googleapis.com/auth/forms.responses.readonly` | View responses to Google Forms |
 
+## Use the block [#usage-instructions]
+
+Read form structure, get responses, create forms, update content, and manage notification watches.
 
 ## Actions
 
 ### Google Forms: Get Responses
 
 Retrieve a single response or list responses from a Google Form
+
+<ReferenceDetails>
 
 #### Input
 
@@ -54,9 +69,13 @@ Retrieve a single response or list responses from a Google Form
 |   ↳ `answers` | json | Map of question IDs to answer values |
 | `raw` | json | Raw API response data |
 
+</ReferenceDetails>
+
 ### Google Forms: Get Form
 
 Retrieve a form structure including its items, settings, and metadata
+
+<ReferenceDetails>
 
 #### Input
 
@@ -82,9 +101,13 @@ Retrieve a form structure including its items, settings, and metadata
 | `settings` | json | Form settings |
 | `publishSettings` | json | Form publish settings |
 
+</ReferenceDetails>
+
 ### Google Forms: Create Form
 
 Create a new Google Form with a title
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +127,13 @@ Create a new Google Form with a title
 | `responderUri` | string | The URI to share with responders |
 | `revisionId` | string | The revision ID of the form |
 
+</ReferenceDetails>
+
 ### Google Forms: Batch Update
 
 Apply multiple updates to a form (add items, update info, change settings, etc.)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -152,9 +179,13 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 |       ↳ `isPublished` | boolean | Whether the form is published |
 |       ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
 
+</ReferenceDetails>
+
 ### Google Forms: Set Publish Settings
 
 Update the publish settings of a form (publish/unpublish, accept responses)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -174,9 +205,13 @@ Update the publish settings of a form (publish/unpublish, accept responses)
 |     ↳ `isPublished` | boolean | Whether the form is published |
 |     ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
 
+</ReferenceDetails>
+
 ### Google Forms: Create Watch
 
 Create a notification watch for form changes (schema changes or new responses)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,9 +233,13 @@ Create a notification watch for form changes (schema changes or new responses)
 | `expireTime` | string | When the watch expires \(7 days after creation\) |
 | `state` | string | The watch state \(ACTIVE, SUSPENDED\) |
 
+</ReferenceDetails>
+
 ### Google Forms: List Watches
 
 List all notification watches for a form
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,9 +258,13 @@ List all notification watches for a form
 |   ↳ `expireTime` | string | When the watch expires |
 |   ↳ `state` | string | Watch state |
 
+</ReferenceDetails>
+
 ### Google Forms: Delete Watch
 
 Delete a notification watch from a form
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +279,13 @@ Delete a notification watch from a form
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the watch was successfully deleted |
 
+</ReferenceDetails>
+
 ### Google Forms: Renew Watch
 
 Renew a notification watch for another 7 days
+
+<ReferenceDetails>
 
 #### Input
 
@@ -256,11 +303,13 @@ Renew a notification watch for another 7 days
 | `expireTime` | string | The new expiration time |
 | `state` | string | The watch state |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Google Forms Webhook
 

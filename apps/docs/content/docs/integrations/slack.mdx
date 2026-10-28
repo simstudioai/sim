@@ -1,14 +1,13 @@
 ---
 title: Slack
 description: Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions
+integration:
+  type: "slack_v2"
+  color: "#611f69"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="slack_v2"
-  color="#611f69"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Slack](https://www.slack.com/) to send and manage messages, work with canvases, and inspect channels and users. Custom bots also support Agent Sessions and streamed trigger responses.
@@ -23,7 +22,7 @@ List actions return one page. Use the returned cursor or page information to con
 
 User-token-only search, profile updates, and notification controls, Slack’s retired reminders APIs, and Enterprise administration APIs are not included. Use scheduled messages or a scheduled Sim workflow for reminders.
 
-## Stream Trigger Responses
+## Stream trigger responses [#stream-trigger-responses]
 
 Custom-bot Slack triggers can stream workflow outputs directly back into the conversation that started a run. Turn on **Enable agent session** (`streamResponse`) on a Message, App Mention, or Assistant Thread Started trigger, then select the outputs to deliver in **Outputs to stream** (`streamOutputs`).
 
@@ -40,25 +39,84 @@ The **Set Assistant Status** (`set_status`) action changes the assistant-thread 
 
 Testing a block with sample input verifies its logic. To verify a Slack integration, check the real event's deployed workflow run and any execution or delivery errors, then confirm the reply in the originating conversation or thread.
 
-## AI-Generated Content
+## Review generated content [#ai-generated-content]
 
-Sim workflows may use AI models to generate messages and responses sent to Slack. AI-generated content may be inaccurate or contain errors. Always review automated outputs, especially for critical communications.
+Review model-generated Slack messages where your communication process requires approval; model output can contain errors.
 
 For help with the Slack integration, contact [help@sim.ai](mailto:help@sim.ai).
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Slack account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/slack` |
+| Environment variables | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `channels:read` | View public channels |
+| `channels:history` | Read public channel messages |
+| `channels:manage` | Create, archive, and rename public channels |
+| `groups:read` | View private channels |
+| `groups:history` | Read private channel messages |
+| `groups:write` | Create, archive, and manage private channels |
+| `chat:write` | Send messages |
+| `chat:write.public` | Post to public channels without joining them |
+| `im:write` | Start direct messages |
+| `im:read` | View direct message channels |
+| `users:read` | View workspace users |
+| `files:write` | Upload, edit, and delete files |
+| `files:read` | Download and read files |
+| `canvases:read` | Read canvas sections |
+| `canvases:write` | Create, edit, and delete canvas documents |
+| `reactions:write` | Add emoji reactions to messages |
+| `reactions:read` | View emoji reactions on messages |
+
+Requested only when `SLACK_EXTENDED_SCOPES` and `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` are enabled. Enable them only after Slack approves the app for these scopes:
+
+| Scope | Description |
+| ----- | ----------- |
+| `assistant:write` | Manage assistant status, titles, and suggested prompts |
+| `app_mentions:read` | View messages that mention the app |
+| `im:history` | Read direct message history |
+
+Some actions run only on a bot or service-account credential, never the OAuth connection. That credential needs these additional scopes:
+
+| Scope | Actions |
+| ----- | ------- |
+| `assistant:write` | Slack Set Agent Suggested Prompts |
+| `bookmarks:read` | Slack List Bookmarks |
+| `bookmarks:write` | Slack Add Bookmark, Slack Edit Bookmark, Slack Remove Bookmark |
+| `channels:join` | Slack Join Conversation |
+| `chat:write.customize` | Slack Set Agent Session Status |
+| `dnd:read` | Slack Get Do Not Disturb Info, Slack Get Team Do Not Disturb Info |
+| `emoji:read` | Slack List Custom Emoji |
+| `links:write` | Slack Unfurl Links |
+| `lists:read` | Slack Lists List Items, Slack Lists Get Item, Slack Start List Export, Slack Get List Export |
+| `lists:write` | Slack Lists Create List, Slack Lists Update List, Slack Lists Share List, Slack Lists Create Item, Slack Lists Update Items, Slack Lists Delete Item, Slack Revoke List Access, Slack Delete List Items |
+| `pins:read` | Slack List Pins |
+| `pins:write` | Slack Pin Message, Slack Unpin Message |
+| `team:read` | Slack Get Workspace Info |
+| `usergroups:read` | Slack List User Groups, Slack List User Group Members |
+| `usergroups:write` | Slack Create User Group, Slack Update User Group, Slack Enable User Group, Slack Disable User Group, Slack Update User Group Members |
+| `users:read.email` | Slack Find User by Email |
+| `users:write` | Slack Set Bot Presence |
+| `users.profile:read` | Slack Get User Profile, Slack Get Workspace Profile Fields |
+
+## Use the block [#usage-instructions]
 
 Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.
-
-
 
 ## Actions
 
 ### Slack Message
 
 Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -138,9 +196,13 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | `fileCount` | number | Number of files uploaded \(when files are attached\) |
 | `files` | file[] | Files attached to the message |
 
+</ReferenceDetails>
+
 ### Slack Ephemeral Message
 
 Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -161,9 +223,13 @@ Send an ephemeral message visible only to a specific user in a channel. Optional
 | `messageTs` | string | Timestamp of the ephemeral message \(cannot be used with chat.update\) |
 | `channel` | string | Channel ID where the ephemeral message was sent |
 
+</ReferenceDetails>
+
 ### Slack Canvas Writer
 
 Create and share Slack canvases in channels. Canvases are collaborative documents within Slack.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -181,9 +247,13 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 | --------- | ---- | ----------- |
 | `canvas_id` | string | Unique canvas identifier |
 
+</ReferenceDetails>
+
 ### Slack Message Reader
 
 Read the latest messages from Slack channels. Retrieve conversation history with filtering options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -258,9 +328,13 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
 
+</ReferenceDetails>
+
 ### Slack Get Message
 
 Retrieve a specific message by its timestamp. Useful for getting a thread parent message.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -331,9 +405,13 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
 
+</ReferenceDetails>
+
 ### Slack Get Thread
 
 Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -517,9 +595,13 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 | `replyCount` | number | Number of replies returned in this response |
 | `hasMore` | boolean | Whether there are more messages in the thread \(pagination needed\) |
 
+</ReferenceDetails>
+
 ### Slack Get Thread Replies
 
 Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -710,9 +792,13 @@ Fetch every message in a Slack thread, automatically following pagination across
 | `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
 | `pages` | number | Number of pages fetched in this invocation |
 
+</ReferenceDetails>
+
 ### Slack Get Channel History
 
 Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -792,9 +878,13 @@ Fetch message history from a Slack channel, automatically following pagination. 
 | `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
 | `pages` | number | Number of pages fetched in this invocation |
 
+</ReferenceDetails>
+
 ### Slack Get Permalink
 
 Get a stable permalink URL to a specific Slack message.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -813,9 +903,13 @@ Get a stable permalink URL to a specific Slack message.
 | `channel` | string | Channel ID containing the message |
 | `permalink` | string | The permalink URL to the message |
 
+</ReferenceDetails>
+
 ### Slack Set Assistant Status
 
 Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -836,9 +930,13 @@ Set or clear the assistant thread status indicator (the loading shimmer) on a Sl
 | `channel` | string | Channel ID the status was set on |
 | `threadTs` | string | Thread timestamp the status was set on |
 
+</ReferenceDetails>
+
 ### Slack Set Assistant Title
 
 Set the title of a Slack assistant thread (shown in the AI app thread header).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -858,9 +956,13 @@ Set the title of a Slack assistant thread (shown in the AI app thread header).
 | `channel` | string | Channel ID the title was set on |
 | `threadTs` | string | Thread timestamp the title was set on |
 
+</ReferenceDetails>
+
 ### Slack Set Suggested Prompts
 
 Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -881,9 +983,13 @@ Set the clickable suggested prompts shown in a Slack assistant thread (the promp
 | `channel` | string | Channel ID the prompts were set on |
 | `threadTs` | string | Thread timestamp the prompts were set on |
 
+</ReferenceDetails>
+
 ### Slack Set Agent Suggested Prompts
 
 Set suggested prompts in Slack Agent View, optionally scoped to a specific thread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -902,9 +1008,13 @@ Set suggested prompts in Slack Agent View, optionally scoped to a specific threa
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack updated the suggested prompts |
 
+</ReferenceDetails>
+
 ### Slack Set Agent Session Status
 
 Create or update the state of a Slack agent session associated with a thread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -930,9 +1040,13 @@ Create or update the state of a Slack agent session associated with a thread.
 | `agentStatus` | string | Agent status recorded by Slack |
 | `title` | string | Current agent session title, or null when the session has no title |
 
+</ReferenceDetails>
+
 ### Slack Rename Agent Session
 
 Rename the Slack agent session associated with a thread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -951,9 +1065,13 @@ Rename the Slack agent session associated with a thread.
 | `ok` | boolean | Whether Slack renamed the agent session |
 | `title` | string | Updated agent session title |
 
+</ReferenceDetails>
+
 ### Slack List Channels
 
 List one page of accessible public and private Slack channels. Pass the returned nextCursor as cursor to fetch the next page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1000,9 +1118,13 @@ List one page of accessible public and private Slack channels. Pass the returned
 | `hasMore` | boolean | Whether a next cursor is available to fetch more Slack conversations |
 | `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
 
+</ReferenceDetails>
+
 ### Slack List Channel Members
 
 List all members (user IDs) in a Slack channel. Use with Get User Info to resolve IDs to names.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1022,9 +1144,13 @@ List all members (user IDs) in a Slack channel. Use with Get User Info to resolv
 | `count` | number | Total number of members returned |
 | `nextCursor` | string | Cursor for the next page; null if no more pages |
 
+</ReferenceDetails>
+
 ### Slack List Users
 
 List all users in a Slack workspace. Returns user profiles with names and avatars.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1059,9 +1185,13 @@ List all users in a Slack workspace. Returns user profiles with names and avatar
 | `count` | number | Total number of users returned |
 | `nextCursor` | string | Cursor for the next page; null if no more pages |
 
+</ReferenceDetails>
+
 ### Slack Get User Info
 
 Get detailed information about a specific Slack user by their user ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1111,9 +1241,13 @@ Get detailed information about a specific Slack user by their user ID.
 |   ↳ `updated` | number | Unix timestamp of last profile update |
 |   ↳ `has_2fa` | boolean | Whether two-factor auth is enabled |
 
+</ReferenceDetails>
+
 ### Download File from Slack
 
 Download a file from Slack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1130,9 +1264,13 @@ Download a file from Slack
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
+</ReferenceDetails>
+
 ### Slack Update Message
 
 Update a message previously sent by the bot in Slack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1210,9 +1348,13 @@ Update a message previously sent by the bot in Slack
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `text` | string | Updated message text |
 
+</ReferenceDetails>
+
 ### Slack Delete Message
 
 Delete a message previously sent by the bot in Slack
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1232,9 +1374,13 @@ Delete a message previously sent by the bot in Slack
 |   ↳ `channel` | string | Channel ID |
 |   ↳ `timestamp` | string | Message timestamp |
 
+</ReferenceDetails>
+
 ### Slack Add Reaction
 
 Add an emoji reaction to a Slack message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1256,9 +1402,13 @@ Add an emoji reaction to a Slack message
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `reaction` | string | Emoji reaction name |
 
+</ReferenceDetails>
+
 ### Slack Remove Reaction
 
 Remove an emoji reaction from a Slack message
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1280,9 +1430,13 @@ Remove an emoji reaction from a Slack message
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `reaction` | string | Emoji reaction name |
 
+</ReferenceDetails>
+
 ### Slack Get Channel Info
 
 Get detailed information about a Slack channel by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1315,9 +1469,13 @@ Get detailed information about a Slack channel by its ID
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
+</ReferenceDetails>
+
 ### Slack Get User Presence
 
 Check whether a Slack user is currently active or away
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1338,9 +1496,13 @@ Check whether a Slack user is currently active or away
 | `connectionCount` | number | Total number of active connections for the user \(only available when checking own presence\) |
 | `lastActivity` | number | Unix timestamp of last detected activity \(only available when checking own presence\) |
 
+</ReferenceDetails>
+
 ### Slack Edit Canvas
 
 Edit an existing Slack canvas by inserting, replacing, or deleting content
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1360,9 +1522,13 @@ Edit an existing Slack canvas by inserting, replacing, or deleting content
 | --------- | ---- | ----------- |
 | `content` | string | Success message |
 
+</ReferenceDetails>
+
 ### Slack Create Channel Canvas
 
 Create a canvas pinned to a Slack channel as its resource hub
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1380,9 +1546,13 @@ Create a canvas pinned to a Slack channel as its resource hub
 | --------- | ---- | ----------- |
 | `canvas_id` | string | ID of the created channel canvas |
 
+</ReferenceDetails>
+
 ### Slack Get Canvas Info
 
 Get Slack canvas file metadata by canvas ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1422,9 +1592,13 @@ Get Slack canvas file metadata by canvas ID
 |   ↳ `linked_channel_id` | string | Channel ID linked to this canvas |
 |   ↳ `canvas_creator_id` | string | User ID of the canvas creator |
 
+</ReferenceDetails>
+
 ### Slack List Canvases
 
 List Slack canvases available to the authenticated user or bot
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1475,9 +1649,13 @@ List Slack canvases available to the authenticated user or bot
 |   ↳ `page` | number | Current page number |
 |   ↳ `pages` | number | Total number of pages |
 
+</ReferenceDetails>
+
 ### Slack Lookup Canvas Sections
 
 Find Slack canvas section IDs matching criteria for later edits
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1495,9 +1673,13 @@ Find Slack canvas section IDs matching criteria for later edits
 | `sections` | array | Canvas sections matching the lookup criteria |
 |   ↳ `id` | string | Canvas section identifier |
 
+</ReferenceDetails>
+
 ### Slack Delete Canvas
 
 Delete a Slack canvas by its canvas ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1513,9 +1695,13 @@ Delete a Slack canvas by its canvas ID
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack deleted the canvas successfully |
 
+</ReferenceDetails>
+
 ### Slack Lists Create List
 
 Create a Slack List with an optional column schema. Requires a paid Slack plan.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1539,9 +1725,13 @@ Create a Slack List with an optional column schema. Requires a paid Slack plan.
 |   ↳ `is_primary_column` | boolean | Whether this is the primary text column |
 |   ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
 
+</ReferenceDetails>
+
 ### Slack Lists Update List
 
 Update a Slack List name, description, or task tracking fields.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1558,9 +1748,13 @@ Update a Slack List name, description, or task tracking fields.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack completed the operation |
 
+</ReferenceDetails>
+
 ### Slack Lists Share List
 
 Grant users or channels access to a Slack List. Provide exactly one of userIds or channelIds. Read allows viewing, write allows editing, and owner grants ownership to users only; only a current owner can grant ownership.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1577,9 +1771,13 @@ Grant users or channels access to a Slack List. Provide exactly one of userIds o
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack completed the operation |
 
+</ReferenceDetails>
+
 ### Slack Lists List Items
 
 Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1635,9 +1833,13 @@ Read a page of Slack List rows and optionally its column schema. Pass nextCursor
 |     ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
 | `nextCursor` | string | Next page cursor; empty when there are no more rows |
 
+</ReferenceDetails>
+
 ### Slack Lists Get Item
 
 Read a Slack List row and its parent List column schema.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1689,9 +1891,13 @@ Read a Slack List row and its parent List column schema.
 |     ↳ `is_primary_column` | boolean | Whether this is the primary text column |
 |     ↳ `options` | json | Type-specific column settings, including select choices \(value, label, color\) |
 
+</ReferenceDetails>
+
 ### Slack Lists Create Item
 
 Create a Slack List row using real column IDs and typed cell values. Text columns require rich_text, not text.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1735,9 +1941,13 @@ Create a Slack List row using real column IDs and typed cell values. Text column
 |   ↳ `updated_timestamp` | string | Last update timestamp |
 |   ↳ `parent_record_id` | string | Parent row ID for subtasks |
 
+</ReferenceDetails>
+
 ### Slack Lists Update Items
 
 Update cells across Slack List rows. Each cell requires row_id, column_id, and one typed value. Use empty arrays to clear array-valued cells, or false to clear a checkbox.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1752,9 +1962,13 @@ Update cells across Slack List rows. Each cell requires row_id, column_id, and o
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack completed the operation |
 
+</ReferenceDetails>
+
 ### Slack Lists Delete Item
 
 Delete a row from an existing Slack List.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1769,9 +1983,13 @@ Delete a row from an existing Slack List.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack completed the operation |
 
+</ReferenceDetails>
+
 ### Slack Create Conversation
 
 Create a new public or private channel in a Slack workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1805,9 +2023,13 @@ Create a new public or private channel in a Slack workspace.
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
+</ReferenceDetails>
+
 ### Slack Invite to Conversation
 
 Invite one or more users to a Slack channel. Supports up to 100 users at a time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1845,9 +2067,13 @@ Invite one or more users to a Slack channel. Supports up to 100 users at a time.
 |   ↳ `ok` | boolean | Always false for error entries |
 |   ↳ `error` | string | Error code for this user |
 
+</ReferenceDetails>
+
 ### Slack Open View
 
 Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1891,9 +2117,13 @@ Open a modal view in Slack using a trigger_id from an interaction payload. Used 
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
+</ReferenceDetails>
+
 ### Slack Update View
 
 Update an existing modal view in Slack. Identify the view by view_id or external_id, and provide the updated view payload.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1938,9 +2168,13 @@ Update an existing modal view in Slack. Identify the view by view_id or external
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
+</ReferenceDetails>
+
 ### Slack Push View
 
 Push a new view onto an existing modal stack in Slack. Limited to 2 additional views after the initial modal is opened.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1984,9 +2218,13 @@ Push a new view onto an existing modal stack in Slack. Limited to 2 additional v
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
+</ReferenceDetails>
+
 ### Slack Publish View
 
 Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2030,9 +2268,13 @@ Publish a static view to a user's Home tab in Slack. Used to create or update th
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
+</ReferenceDetails>
+
 ### Slack Schedule Message
 
 Schedule a message to be sent to a Slack channel or DM at a future time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2055,9 +2297,13 @@ Schedule a message to be sent to a Slack channel or DM at a future time.
 | `channel` | string | Channel ID where the message is scheduled |
 | `message` | object | The scheduled message object returned by Slack |
 
+</ReferenceDetails>
+
 ### Slack List Scheduled Messages
 
 List pending scheduled messages in a Slack workspace, optionally filtered by channel.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2084,9 +2330,13 @@ List pending scheduled messages in a Slack workspace, optionally filtered by cha
 |   ↳ `text` | string | Scheduled message text |
 | `nextCursor` | string | Cursor for the next page \(null when there are no more pages\) |
 
+</ReferenceDetails>
+
 ### Slack Delete Scheduled Message
 
 Delete a pending scheduled message before it posts to Slack.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2103,9 +2353,13 @@ Delete a pending scheduled message before it posts to Slack.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the scheduled message was deleted successfully |
 
+</ReferenceDetails>
+
 ### Slack Archive Conversation
 
 Archive a Slack channel so it is closed to new activity.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2121,9 +2375,13 @@ Archive a Slack channel so it is closed to new activity.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the conversation was archived successfully |
 
+</ReferenceDetails>
+
 ### Slack Rename Conversation
 
 Rename an existing Slack channel.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2156,9 +2414,13 @@ Rename an existing Slack channel.
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
+</ReferenceDetails>
+
 ### Slack Set Conversation Topic
 
 Set the topic for a Slack channel (max 250 characters).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2191,9 +2453,13 @@ Set the topic for a Slack channel (max 250 characters).
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
+</ReferenceDetails>
+
 ### Slack Set Conversation Purpose
 
 Set the purpose (description) for a Slack channel (max 250 characters).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2210,9 +2476,13 @@ Set the purpose (description) for a Slack channel (max 250 characters).
 | --------- | ---- | ----------- |
 | `purpose` | string | The purpose/description that was set on the channel |
 
+</ReferenceDetails>
+
 ### Slack Revoke List Access
 
 Remove access to a Slack List for either users or channels.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2228,9 +2498,13 @@ Remove access to a Slack List for either users or channels.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Start List Export
 
 Start an asynchronous CSV or JSON List export. Use the returned job_id with Get List Export and the same format options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2249,9 +2523,13 @@ Start an asynchronous CSV or JSON List export. Use the returned job_id with Get 
 | `ok` | boolean | Ok |
 | `job_id` | string | Job id |
 
+</ReferenceDetails>
+
 ### Slack Get List Export
 
 Read a List export job status and its download URL when ready. Format, Include Threads, and Include Attachments must match Start List Export.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2271,9 +2549,13 @@ Read a List export job status and its download URL when ready. Format, Include T
 | `status` | string | Status |
 | `download_url` | string | Download url |
 
+</ReferenceDetails>
+
 ### Slack Delete List Items
 
 Delete multiple rows from a Slack List in one call.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2288,9 +2570,13 @@ Delete multiple rows from a Slack List in one call.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Share Canvas
 
 Change access for users or regular channels on a standalone canvas. For sharing, first send the canvas link in Slack to the target. Channel resource canvases cannot be changed this way.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2307,9 +2593,13 @@ Change access for users or regular channels on a standalone canvas. For sharing,
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Revoke Canvas Access
 
 Remove user or regular-channel access to a standalone canvas. Channel-granted access must be revoked at the channel level.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2325,9 +2615,13 @@ Remove user or regular-channel access to a standalone canvas. Channel-granted ac
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Join Conversation
 
 Join a public Slack channel as the authenticated bot.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2362,9 +2656,13 @@ Join a public Slack channel as the authenticated bot.
 |     ↳ `creator` | string | Creator |
 |     ↳ `last_set` | number | Last set |
 
+</ReferenceDetails>
+
 ### Slack Leave Conversation
 
 Leave a Slack channel as the authenticated identity.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2378,9 +2676,13 @@ Leave a Slack channel as the authenticated identity.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Remove User from Conversation
 
 Remove a user from a Slack conversation, subject to workspace permissions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2395,9 +2697,13 @@ Remove a user from a Slack conversation, subject to workspace permissions.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Unarchive Conversation
 
 Restore an archived Slack channel.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2410,11 +2716,15 @@ Restore an archived Slack channel.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
+
+</ReferenceDetails>
 
 ### Slack Close Conversation
 
 Close a direct message or group direct message for the authenticated identity.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -2427,9 +2737,13 @@ Close a direct message or group direct message for the authenticated identity.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Mark Conversation Read
 
 Move the authenticated identity’s read cursor to a message timestamp.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2444,9 +2758,13 @@ Move the authenticated identity’s read cursor to a message timestamp.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Open Conversation
 
 Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Supply exactly one target; omit the calling user from User IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2484,9 +2802,13 @@ Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Suppl
 |     ↳ `creator` | string | Creator |
 |     ↳ `last_set` | number | Last set |
 
+</ReferenceDetails>
+
 ### Slack Find User by Email
 
 Find a Slack user by their email address.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2524,9 +2846,13 @@ Find a Slack user by their email address.
 |     ↳ `status_expiration` | number | Status expiration |
 |     ↳ `fields` | json | Fields |
 
+</ReferenceDetails>
+
 ### Slack List User Conversations
 
 List one page of conversations accessible to the selected user. Continue with response_metadata.next_cursor.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2569,9 +2895,13 @@ List one page of conversations accessible to the selected user. Continue with re
 | `response_metadata` | object | Metadata |
 |   ↳ `next_cursor` | string | Next cursor |
 
+</ReferenceDetails>
+
 ### Slack Get User Profile
 
 Read a Slack user’s profile, status, and custom fields. Omit User ID for the authenticated identity.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2603,9 +2933,13 @@ Read a Slack user’s profile, status, and custom fields. Omit User ID for the a
 |   ↳ `status_expiration` | number | Status expiration |
 |   ↳ `fields` | json | Fields |
 
+</ReferenceDetails>
+
 ### Slack Set Bot Presence
 
 Set the selected custom bot’s presence to away or automatic. This does not change a workspace member’s presence.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2619,9 +2953,13 @@ Set the selected custom bot’s presence to away or automatic. This does not cha
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Get File Info
 
 Read Slack file metadata and one page of legacy file comments. Continue with response_metadata.next_cursor.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2668,9 +3006,13 @@ Read Slack file metadata and one page of legacy file comments. Continue with res
 | `response_metadata` | object | Metadata |
 |   ↳ `next_cursor` | string | Next cursor |
 
+</ReferenceDetails>
+
 ### Slack List Files
 
 List one page of Slack files matching user, channel, type, or timestamp filters. Continue using paging.page and paging.pages.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2715,9 +3057,13 @@ List one page of Slack files matching user, channel, type, or timestamp filters.
 |   ↳ `pages` | number | Pages |
 |   ↳ `total` | number | Total |
 
+</ReferenceDetails>
+
 ### Slack Delete File
 
 Permanently delete a Slack file the authenticated identity is allowed to delete.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2731,9 +3077,13 @@ Permanently delete a Slack file the authenticated identity is allowed to delete.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Get Reactions
 
 Get reactions for exactly one message, file, or file comment. Messages require both Channel ID and Message Timestamp.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2789,9 +3139,13 @@ Get reactions for exactly one message, file, or file comment. Messages require b
 |     ↳ `count` | number | Count |
 |     ↳ `users` | array | Users |
 
+</ReferenceDetails>
+
 ### Slack List Reactions
 
 List one page of items reacted to by a user. Continue with response_metadata.next_cursor.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2852,9 +3206,13 @@ List one page of items reacted to by a user. Continue with response_metadata.nex
 | `response_metadata` | object | Metadata |
 |   ↳ `next_cursor` | string | Next cursor |
 
+</ReferenceDetails>
+
 ### Slack Pin Message
 
 Pin a message to its Slack conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2868,11 +3226,15 @@ Pin a message to its Slack conversation.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
+
+</ReferenceDetails>
 
 ### Slack Unpin Message
 
 Remove a message from its conversation’s pinned items.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -2886,9 +3248,13 @@ Remove a message from its conversation’s pinned items.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack List Pins
 
 Read the pinned messages and files in a Slack conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2943,9 +3309,13 @@ Read the pinned messages and files in a Slack conversation.
 |   ↳ `created` | number | Created |
 |   ↳ `created_by` | string | Created by |
 
+</ReferenceDetails>
+
 ### Slack Add Bookmark
 
 Add a link bookmark to a Slack channel.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2973,9 +3343,13 @@ Add a link bookmark to a Slack channel.
 |   ↳ `date_updated` | number | Date updated |
 |   ↳ `entity_id` | string | Entity id |
 
+</ReferenceDetails>
+
 ### Slack Edit Bookmark
 
 Change a channel link bookmark’s title, URL, or emoji.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3003,9 +3377,13 @@ Change a channel link bookmark’s title, URL, or emoji.
 |   ↳ `date_updated` | number | Date updated |
 |   ↳ `entity_id` | string | Entity id |
 
+</ReferenceDetails>
+
 ### Slack List Bookmarks
 
 Read the bookmarks in a Slack channel.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3029,9 +3407,13 @@ Read the bookmarks in a Slack channel.
 |   ↳ `date_updated` | number | Date updated |
 |   ↳ `entity_id` | string | Entity id |
 
+</ReferenceDetails>
+
 ### Slack Remove Bookmark
 
 Remove a bookmark from a Slack channel.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3046,9 +3428,13 @@ Remove a bookmark from a Slack channel.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
+</ReferenceDetails>
+
 ### Slack Create User Group
 
 Create a Slack user group with a mention handle and default channels. Requires a paid plan and permission to manage user groups.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3083,9 +3469,13 @@ Create a Slack user group with a mention handle and default channels. Requires a
 |     ↳ `channels` | array | Channels |
 |     ↳ `groups` | array | Groups |
 
+</ReferenceDetails>
+
 ### Slack Update User Group
 
 Change a Slack user group’s name, handle, description, or default channels. Requires permission to manage user groups.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3121,9 +3511,13 @@ Change a Slack user group’s name, handle, description, or default channels. Re
 |     ↳ `channels` | array | Channels |
 |     ↳ `groups` | array | Groups |
 
+</ReferenceDetails>
+
 ### Slack Enable User Group
 
 Reactivate a disabled Slack user group. Requires permission to manage user groups.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3152,11 +3546,15 @@ Reactivate a disabled Slack user group. Requires permission to manage user group
 |   ↳ `prefs` | object | Prefs |
 |     ↳ `channels` | array | Channels |
 |     ↳ `groups` | array | Groups |
+
+</ReferenceDetails>
 
 ### Slack Disable User Group
 
 Disable a Slack user group and remove its members. Requires permission to manage user groups.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -3185,9 +3583,13 @@ Disable a Slack user group and remove its members. Requires permission to manage
 |     ↳ `channels` | array | Channels |
 |     ↳ `groups` | array | Groups |
 
+</ReferenceDetails>
+
 ### Slack List User Groups
 
 Read Slack user groups, optionally including disabled groups, members, and member counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3218,9 +3620,13 @@ Read Slack user groups, optionally including disabled groups, members, and membe
 |     ↳ `channels` | array | Channels |
 |     ↳ `groups` | array | Groups |
 
+</ReferenceDetails>
+
 ### Slack List User Group Members
 
 Read the user IDs in a Slack user group.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3237,9 +3643,13 @@ Read the user IDs in a Slack user group.
 | `ok` | boolean | Ok |
 | `users` | array | Users |
 
+</ReferenceDetails>
+
 ### Slack Update User Group Members
 
 Replace all members of a Slack user group with the supplied user IDs. An empty list is not supported; disable the group instead.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3272,9 +3682,13 @@ Replace all members of a Slack user group with the supplied user IDs. An empty l
 |     ↳ `channels` | array | Channels |
 |     ↳ `groups` | array | Groups |
 
+</ReferenceDetails>
+
 ### Slack Get Do Not Disturb Info
 
 Read a user’s Do Not Disturb schedule and available snooze information.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3296,9 +3710,13 @@ Read a user’s Do Not Disturb schedule and available snooze information.
 | `snooze_remaining` | number | Snooze remaining |
 | `snooze_is_indefinite` | boolean | Snooze is indefinite |
 
+</ReferenceDetails>
+
 ### Slack Get Team Do Not Disturb Info
 
 Read Do Not Disturb settings for the supplied user IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3314,9 +3732,13 @@ Read Do Not Disturb settings for the supplied user IDs.
 | `ok` | boolean | Ok |
 | `users` | json | Users |
 
+</ReferenceDetails>
+
 ### Slack List Custom Emoji
 
 List workspace custom emoji as names mapped to image URLs or alias references.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3330,9 +3752,13 @@ List workspace custom emoji as names mapped to image URLs or alias references.
 | `ok` | boolean | Ok |
 | `emoji` | json | Custom emoji names mapped to image URLs or alias:name values |
 
+</ReferenceDetails>
+
 ### Slack Get Workspace Info
 
 Read a Slack workspace’s name, domain, icon, and available organization details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3358,9 +3784,13 @@ Read a Slack workspace’s name, domain, icon, and available organization detail
 |     ↳ `image_132` | string | Image 132 |
 |     ↳ `image_default` | boolean | Image default |
 
+</ReferenceDetails>
+
 ### Slack Get Workspace Profile Fields
 
 Read the workspace’s custom profile field definitions, optionally filtered by visibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3390,9 +3820,13 @@ Read the workspace’s custom profile field definitions, optionally filtered by 
 |     ↳ `order` | number | Order |
 |     ↳ `is_hidden` | boolean | Is hidden |
 
+</ReferenceDetails>
+
 ### Slack Unfurl Links
 
 Attach custom previews to links already shared in a message. Configure the relevant unfurl domains in your Slack app.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3408,32 +3842,17 @@ Attach custom previews to links already shared in a message. Configure the relev
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 
-{/* MANUAL-CONTENT-START:notes */}
-## Lists and Canvas notes
-
-### Lists
-
-Lists actions require a custom Slack bot and a paid Slack plan. **Manage Lists** is selected by default during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
-
-- **Share List** grants access to users or channels. Choose **Share With**, enter a JSON array of Slack IDs, and select **Can view**, **Can edit**, or **Owner**. Ownership is for users only and requires the current owner. Creating a List does not automatically share it with your personal Slack account. See Slack's [sharing reference](https://docs.slack.dev/reference/methods/slackLists.access.set/).
-- Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
-- **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
-- To read every row, pass `nextCursor` into **Cursor** until it is empty. **Archived Rows** reads archived rows instead of active rows.
-
-### Canvases
-
-For custom bots, **Manage canvases** is selected by default during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
-
-**Edit Canvas** can replace the whole document when **Section ID** is empty. **Get Canvas Info** and **List Canvases** return metadata, not document contents. See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) for details.
-{/* MANUAL-CONTENT-END */}
+</ReferenceDetails>
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Slack
 
 Trigger from Slack events, interactions, and slash commands
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3503,3 +3922,24 @@ Trigger from Slack events, interactions, and slash commands
 |   ↳ `hasFiles` | boolean | Whether the message has file attachments |
 |   ↳ `files` | file[] | File attachments downloaded from the message \(if includeFiles is enabled and bot token is provided\) |
 
+</ReferenceDetails>
+
+
+{/* MANUAL-CONTENT-START:notes */}
+## Lists and Canvas notes
+
+### Lists
+
+Lists actions require a custom Slack bot and a paid Slack plan. **Manage Lists** is selected by default during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
+
+- **Share List** grants access to users or channels. Choose **Share With**, enter a JSON array of Slack IDs, and select **Can view**, **Can edit**, or **Owner**. Ownership is for users only and requires the current owner. Creating a List does not automatically share it with your personal Slack account. See Slack's [sharing reference](https://docs.slack.dev/reference/methods/slackLists.access.set/).
+- Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
+- **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
+- To read every row, pass `nextCursor` into **Cursor** until it is empty. **Archived Rows** reads archived rows instead of active rows.
+
+### Canvases
+
+For custom bots, **Manage canvases** is selected by default during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
+
+**Edit Canvas** can replace the whole document when **Section ID** is empty. **Get Canvas Info** and **List Canvases** return metadata, not document contents. See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) for details.
+{/* MANUAL-CONTENT-END */}

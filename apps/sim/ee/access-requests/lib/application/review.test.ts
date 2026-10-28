@@ -2,67 +2,75 @@ import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import { organizationMemberUsageLimit, permissionGroup, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { permissionGroupLocksMock } from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccessRequestRecord, AccessRequestTarget } from '@/lib/api/contracts/access-requests'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import type { StoredAccessRequest } from '@/ee/access-requests/lib/repository'
 import { createAccessRequestCatalog } from '@/ee/access-requests/lib/targets'
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   membership: vi.fn(),
-  organizationLock: vi.fn(),
-  groupLock: vi.fn(),
-  audit: vi.fn(),
-  outbox: vi.fn(),
   enabled: vi.fn(),
-  enterprise: vi.fn(),
   catalog: vi.fn(),
   deploymentReason: vi.fn(),
-  group: vi.fn(),
   impact: vi.fn(),
   present: vi.fn(),
   stored: vi.fn(),
-  setLimit: vi.fn(),
 }))
 
 vi.mock('@/ee/access-requests/lib/application/authorization', () => ({
-  authorizeAccessRequestScope: mocks.authorize,
-  loadAccessRequestMembership: mocks.membership,
+  authorizeAccessRequestScope: hoistedMocks.authorize,
+  loadAccessRequestMembership: hoistedMocks.membership,
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.organizationLock,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: mocks.outbox }))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.groupLock }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/ee/access-requests/lib/settings', () => ({
-  isAccessRequestEnabled: mocks.enabled,
+  isAccessRequestEnabled: hoistedMocks.enabled,
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true, isAccessControlEnabled: true }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/ee/access-requests/lib/catalog', () => ({
-  loadAccessRequestCatalog: mocks.catalog,
-  getAccessRequestDeploymentUnavailableReason: mocks.deploymentReason,
+  loadAccessRequestCatalog: hoistedMocks.catalog,
+  getAccessRequestDeploymentUnavailableReason: hoistedMocks.deploymentReason,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  resolveWorkspaceGroup: mocks.group,
-  resolveDefaultGroup: mocks.group,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/ee/access-requests/lib/impact', () => ({
-  loadAccessRequestGroupImpact: mocks.impact,
+  loadAccessRequestGroupImpact: hoistedMocks.impact,
 }))
 vi.mock('@/ee/access-requests/lib/repository', () => ({
-  presentAccessRequest: mocks.present,
-  loadStoredAccessRequest: mocks.stored,
+  presentAccessRequest: hoistedMocks.present,
+  loadStoredAccessRequest: hoistedMocks.stored,
 }))
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  setOrgMemberUsageLimit: mocks.setLimit,
-}))
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
 
 import {
   previewAccessRequest,
@@ -70,7 +78,20 @@ import {
 } from '@/ee/access-requests/lib/application/review'
 import { PERMISSION_ACCESS_REQUEST_DECIDED_EVENT } from '@/ee/access-requests/lib/notification-events'
 
-const principal = { kind: 'session', userId: 'admin', sessionId: 'session' } as const
+const mocks = {
+  ...hoistedMocks,
+  organizationLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  enterprise: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+  group: permissionGroupsResolveMockFns.mockResolveWorkspaceGroup,
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+  outbox: outboxServiceMockFns.mockEnqueueOutboxEvent,
+  setLimit: organizationMemberLimitsMockFns.mockSetOrgMemberUsageLimit,
+}
+
+setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
+afterAll(resetEnvFlagsMock)
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const input = { organizationId: 'organization', requestId: 'request' }
 const target = { kind: 'model', id: 'gpt-example' } as const
 const catalog = createAccessRequestCatalog({
@@ -158,6 +179,9 @@ async function preview() {
 beforeEach(() => {
   vi.resetAllMocks()
   resetDbChainMock()
+  permissionGroupsResolveMockFns.mockResolveDefaultGroup.mockImplementation((...args) =>
+    mocks.group(...args)
+  )
   mocks.authorize.mockResolvedValue({
     organizationId: 'organization',
     workspaceId: null,

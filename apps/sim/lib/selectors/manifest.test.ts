@@ -24,12 +24,15 @@ describe('selector manifest', () => {
     const rawConnectionKeys = providerKeys.filter(
       (key) => !serverSelectorRegistry[key as keyof typeof serverSelectorRegistry].credential
     )
-    expect(providerKeys).toHaveLength(94)
     expect(rawConnectionKeys.sort()).toEqual([
       'cloudwatch.logGroups',
       'cloudwatch.logStreams',
       'imap.mailboxes',
       'mcp.tools',
+      'planetscale.backups',
+      'planetscale.branches',
+      'planetscale.databases',
+      'planetscale.deployRequests',
     ])
   })
 

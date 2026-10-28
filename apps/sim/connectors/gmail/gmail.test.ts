@@ -1,30 +1,20 @@
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: (
-    url: string,
-    init: RequestInit,
-    options: {
-      fetcher?: (url: string, init: RequestInit, transport: typeof fetch) => Promise<Response>
-    }
-  ) =>
-    options.fetcher
-      ? options.fetcher(url, init, mockFetchWithRetry)
-      : mockFetchWithRetry(url, init),
-}))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 vi.mock('@/connectors/gmail/mailbox', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/connectors/gmail/mailbox')>()),
   getGmailMailboxEmail: vi.fn(async (token: string) =>
     token === 'bob-token' ? 'bob@example.com' : 'alice@example.com'
   ),
 }))
-vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: () => false,
-  processDocumentsWithQueue: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: vi.fn(),
   persistSkippedDocuments: vi.fn(),
@@ -43,6 +33,17 @@ import {
   memberDocumentId,
   PER_MEMBER_LISTING_CONTEXT,
 } from '@/connectors/utils'
+
+knowledgeSecureFetchMockFns.mockFetchWithRetry.mockImplementation(
+  (
+    url: string,
+    init: RequestInit,
+    options: {
+      fetcher?: (url: string, init: RequestInit, transport: typeof fetch) => Promise<Response>
+    }
+  ) =>
+    options.fetcher ? options.fetcher(url, init, mockFetchWithRetry) : mockFetchWithRetry(url, init)
+)
 
 function threads(count: number, prefix: string) {
   return Array.from({ length: count }, (_, i) => ({ id: `${prefix}-${i}`, historyId: '1' }))

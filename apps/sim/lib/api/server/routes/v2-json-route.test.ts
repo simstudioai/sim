@@ -25,7 +25,6 @@ class TestLockedError extends HttpError {
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-import { markInternalRequest } from '@/lib/api/server/routes/internal-request'
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import {
   admitOptionalV2Request,
@@ -207,21 +206,6 @@ describe('defineV2JsonRoute', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
-  it('authenticates but never rate-limits a request the server marked as its own', async () => {
-    // The embedded CLI and the agent-cli engines dispatch to these handlers in-process;
-    // the IP bucket and the per-key limits exist for callers on the wire, and a chat
-    // turn's tool calls all land on one key (dev 2026-09-03: grep hit the limit).
-    const internal = request()
-    markInternalRequest(internal)
-
-    const response = await createHandler()(internal)
-
-    expect(response.status).toBe(201)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledTimes(1)
-    expect(v2RouteMocks.preauthRate).not.toHaveBeenCalled()
-    expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
-  })
-
   it('fails closed before authentication when the IP bucket cannot admit the request', async () => {
     v2RouteMocks.preauthRate.mockResolvedValueOnce({
       allowed: false,
@@ -294,11 +278,13 @@ describe('defineV2JsonRoute', () => {
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
       'v2:widgets.update:api-key:key-1',
-      expect.objectContaining({ maxTokens: 100 })
+      expect.objectContaining({ maxTokens: 100 }),
+      1
     )
     expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
       'v2:widgets.update:user:user-1',
-      expect.objectContaining({ maxTokens: 100 })
+      expect.objectContaining({ maxTokens: 100 }),
+      1
     )
     expect(response.headers.get('X-RateLimit-Limit')).toBe('100')
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('12')

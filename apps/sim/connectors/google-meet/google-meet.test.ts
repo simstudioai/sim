@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { googleMeetConnector } from '@/connectors/google-meet/google-meet'
 
 const RECORD_NAME = 'conferenceRecords/abc123'
@@ -39,13 +40,6 @@ const ENTRIES = [
   },
 ]
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
 
 beforeEach(() => {
@@ -72,10 +66,6 @@ beforeEach(() => {
     throw new Error(`Unexpected fetch: ${url}`)
   })
   vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 async function listStub(sourceConfig: Record<string, unknown>) {

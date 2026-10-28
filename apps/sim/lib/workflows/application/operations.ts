@@ -45,6 +45,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: reading a workflow is governed by workspace role, not by a group capability
@@ -54,15 +55,8 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: reporting where a workflow is already deployed is a read of existing state; a group withholds the act of deploying, not the record of it
-  readDeploymentOverview: defineWorkspaceOperation({
-    id: 'workflows.deployment_overview.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
@@ -72,6 +66,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -81,6 +76,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: inspecting saved tool bindings reads workflow content; protected dependencies reauthorize separately
@@ -89,22 +85,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: reading a block's declared outputs is workflow content; Chat itself is withheld by copilot.use at the chat surface
-  readCopilotBlockOutputs: defineWorkspaceOperation({
-    id: 'workflows.copilot.block_outputs.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: resolving which upstream blocks a block may reference is workflow content; Chat itself is withheld by copilot.use at the chat surface
-  readCopilotUpstreamReferences: defineWorkspaceOperation({
-    id: 'workflows.copilot.upstream_references.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
+    contentDelivery: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: the workflow module has no hide key, so creating a workflow is governed by workspace role alone
@@ -114,6 +95,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: renaming or re-describing a workflow is governed by workspace role
@@ -123,6 +105,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
@@ -147,6 +130,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
@@ -174,6 +158,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: restoring a soft-deleted workflow is governed by workspace role
@@ -183,6 +168,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: a workflow's run policy is workspace-admin configuration; no group capability withholds it
@@ -200,15 +186,8 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: toggling a block edits workflow content; which integrations a member may use is allowedIntegrations, enforced against the block type rather than the operation
-  setBlockEnabled: defineWorkspaceOperation({
-    id: 'workflows.blocks.set_enabled',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: moving workflows between folders is placement, governed by workspace role
   moveBulk: defineWorkspaceOperation({
@@ -217,39 +196,8 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  createVfsFolders: defineWorkspaceOperation({
-    id: 'workflows.vfs.folders.create',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  moveVfsItems: defineWorkspaceOperation({
-    id: 'workflows.vfs.move',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  copyVfsItems: defineWorkspaceOperation({
-    id: 'workflows.vfs.copy',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: the workflow file tree has no hide key; arranging it is governed by workspace role
-  deleteVfsItems: defineWorkspaceOperation({
-    id: 'workflows.vfs.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: duplicating copies a graph the caller may already read into the same workspace, so it crosses no capability boundary
   duplicate: defineWorkspaceOperation({
@@ -258,6 +206,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: running a workflow is governed by workspace role; Chat itself is withheld by copilot.use at the chat surface
@@ -266,6 +215,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -275,6 +225,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: running a workflow is governed by workspace role; Chat itself is withheld by copilot.use at the chat surface
@@ -283,6 +234,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: running a single block is governed by workspace role; Chat itself is withheld by copilot.use at the chat surface
@@ -291,6 +243,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: deleting a workflow is governed by workspace role
@@ -300,6 +253,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: the workflow folder tree has no hide key; reading it is governed by workspace role
@@ -309,6 +263,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: the workflow folder tree has no hide key; arranging it is governed by workspace role
@@ -318,6 +273,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: the workflow folder tree has no hide key; arranging it is governed by workspace role
@@ -327,6 +283,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: the workflow folder tree has no hide key; arranging it is governed by workspace role
@@ -336,6 +293,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   deploy: defineWorkspaceOperation({
@@ -344,6 +302,7 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.api',
+    contentDelivery: 'none',
     ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   undeploy: defineWorkspaceOperation({
@@ -352,6 +311,7 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.api',
+    contentDelivery: 'none',
     ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   deployChat: defineWorkspaceOperation({
@@ -360,14 +320,7 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
-    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
-  }),
-  undeployChat: defineWorkspaceOperation({
-    id: 'workflows.chat.undeploy',
-    oauthScope: 'api:write',
-    minimumRole: 'admin',
-    workspaceApiKey: 'deny',
-    capability: 'deploy.chat',
+    contentDelivery: 'none',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
@@ -385,6 +338,7 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -394,6 +348,7 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.api',
+    contentDelivery: 'none',
     ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: reverting the draft to an earlier version edits workflow content; deployment capabilities govern what is served, not what is edited
@@ -403,6 +358,7 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: a version's name and description are metadata on workflow content, governed by workspace role
@@ -412,7 +368,18 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  // permission-group-exempt: comparing deployment versions reads workflow content, governed by workspace role
+  compareVersions: defineWorkspaceOperation({
+    id: 'workflows.versions.compare',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: version history is workflow content, governed by workspace role
   listVersions: defineWorkspaceOperation({
@@ -421,6 +388,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: version history is workflow content, governed by workspace role
@@ -430,15 +398,8 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
-  }),
-  // permission-group-exempt: comparing references across two versions reads workflow content the caller may already open
-  compareReferences: defineWorkspaceOperation({
-    id: 'workflows.versions.compare_references',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    capability: 'none',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: an export returns the graph its reader can already open; logs.export withholds execution logs, not definitions
   export: defineWorkspaceOperation({
@@ -447,6 +408,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
@@ -458,6 +420,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: importing is workflow authoring governed by workspace role; the blocks the payload carries are judged against allowedIntegrations before they are persisted
@@ -467,6 +430,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: running a workflow from an authenticated surface is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
@@ -476,6 +440,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
@@ -485,6 +450,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'sourced',
     principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -495,6 +461,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'sourced',
     principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -505,6 +472,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
@@ -514,6 +482,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: a paused execution's detail is pause points and resume state, not the run's execution data — the fields logs.cost and logs.trace_spans withhold never appear here
@@ -523,6 +492,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
@@ -553,6 +523,7 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: stopping a run already in flight is governed by workspace role
@@ -562,6 +533,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: answering a paused run is governed by workspace role
@@ -571,6 +543,7 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'none',
+    contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
 } as const

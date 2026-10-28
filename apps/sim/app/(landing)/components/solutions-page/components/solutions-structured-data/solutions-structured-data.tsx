@@ -65,6 +65,8 @@ export function SolutionsStructuredData({ config }: SolutionsStructuredDataProps
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web',
         url,
+        isPartOf: { '@id': `${SITE_URL}#software` },
+        publisher: { '@id': `${SITE_URL}#organization` },
         featureList,
         ...(offersFreeTier && {
           offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },

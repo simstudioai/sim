@@ -1,12 +1,18 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { workspaceAuthorizationMock } from '@sim/testing/mocks/workspace-authorization.mock'
 import {
-  copilotHttpMock,
-  copilotHttpMockFns,
-  permissionsMock,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
-import { NextRequest } from 'next/server'
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
@@ -15,47 +21,38 @@ const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-    billedAccountUserId: 'owner',
-  }),
-}))
-vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: async () => undefined,
-}))
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 
 vi.mock('@/lib/mothership/chat/stream-liveness', () => ({
   reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
 }))
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: vi.fn() },
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-import { GET } from '@/app/api/mothership/chats/route'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { GET, POST } from '@/app/api/mothership/chats/route'
 
 function createRequest(workspaceId: string) {
-  return new NextRequest(`http://localhost:3000/api/mothership/chats?workspaceId=${workspaceId}`, {
-    method: 'GET',
+  return createMockRequest({
+    url: `http://localhost:3000/api/mothership/chats?workspaceId=${workspaceId}`,
   })
 }
 
-describe('GET /api/mothership/chats', () => {
+describe('/api/mothership/chats', () => {
   beforeEach(() => {
     resetDbChainMock()
+    workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
+      async (workspaceId: string) =>
+        createMockWorkspaceApplicationContext({ workspaceId, billedAccountUserId: 'owner' })
+    )
 
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
     })
 
     mockReconcileChatStreamMarkers.mockImplementation(
@@ -106,7 +103,7 @@ describe('GET /api/mothership/chats', () => {
       ])
     )
 
-    const response = await GET(createRequest('ws-1'))
+    const response = await GET(createRequest('ws-1'), createRouteContext({}))
     expect(response.status).toBe(200)
     const body = await response.json()
 
@@ -125,6 +122,21 @@ describe('GET /api/mothership/chats', () => {
       expect.objectContaining({ id: 'chat-idle', activeStreamId: null }),
     ])
   })
+
+  it.each(['forbidden', 'not_found'] as const)(
+    'identifies the workspace in a POST %s refusal',
+    async (code) => {
+      workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockRejectedValueOnce(
+        new OrchestrationError(code, 'Workspace unavailable')
+      )
+      const response = await POST(
+        createMockRequest('POST', { workspaceId: 'ws-denied' }),
+        createRouteContext({})
+      )
+      expect(response.status).toBe(403)
+      expect(await response.json()).toEqual({ error: 'Workspace access denied' })
+    }
+  )
 
   afterAll(() => {
     resetDbChainMock()

@@ -1,31 +1,46 @@
 ---
 title: Gmail
 description: Send, read, search, and move Gmail messages or trigger workflows from Gmail events
+integration:
+  type: "gmail_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="gmail_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Gmail](https://mail.google.com/) to send or draft messages, read and search mail, and manage labels and read status. Gmail triggers can start a workflow when new mail arrives.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Gmail account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-email` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/gmail.send` | Send emails |
+| `https://www.googleapis.com/auth/gmail.modify` | Read, compose, send, and modify email messages |
+| `https://www.googleapis.com/auth/gmail.labels` | View and manage email labels |
 
+## Use the block [#usage-instructions]
+
+Send or draft messages, read and search mail, and manage labels and read status. New-mail triggers can start workflows.
 
 ## Actions
 
 ### Gmail Send
 
-Send emails using Gmail. Returns API-aligned fields only.
+Send emails using Gmail.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +64,13 @@ Send emails using Gmail. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
+</ReferenceDetails>
+
 ### Gmail Draft
 
-Draft emails using Gmail. Returns API-aligned fields only.
+Draft emails using Gmail.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -76,9 +95,13 @@ Draft emails using Gmail. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
+</ReferenceDetails>
+
 ### Gmail Edit Draft
 
 Update an existing Gmail draft in place without deleting and recreating it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +127,13 @@ Update an existing Gmail draft in place without deleting and recreating it.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
+</ReferenceDetails>
+
 ### Gmail Read
 
-Read emails from Gmail. Returns API-aligned fields only.
+Read emails from Gmail.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +162,13 @@ Read emails from Gmail. Returns API-aligned fields only.
 | `attachments` | file[] | Downloaded attachments \(if enabled\) |
 | `results` | json | Summary results when reading multiple messages |
 
+</ReferenceDetails>
+
 ### Gmail Search
 
-Search emails in Gmail. Returns API-aligned fields only.
+Search emails in Gmail.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -152,9 +183,13 @@ Search emails in Gmail. Returns API-aligned fields only.
 | --------- | ---- | ----------- |
 | `results` | json | Array of search results |
 
+</ReferenceDetails>
+
 ### Gmail Move
 
-Move emails between labels/folders in Gmail. Returns API-aligned fields only.
+Move emails between labels/folders in Gmail.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +207,13 @@ Move emails between labels/folders in Gmail. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
+</ReferenceDetails>
+
 ### Gmail Mark as Read
 
-Mark a Gmail message as read. Returns API-aligned fields only.
+Mark a Gmail message as read.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -190,9 +229,13 @@ Mark a Gmail message as read. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
+</ReferenceDetails>
+
 ### Gmail Mark as Unread
 
-Mark a Gmail message as unread. Returns API-aligned fields only.
+Mark a Gmail message as unread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -208,9 +251,13 @@ Mark a Gmail message as unread. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
+</ReferenceDetails>
+
 ### Gmail Archive
 
-Archive a Gmail message (remove from inbox). Returns API-aligned fields only.
+Archive a Gmail message (remove from inbox).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +273,13 @@ Archive a Gmail message (remove from inbox). Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
+</ReferenceDetails>
+
 ### Gmail Unarchive
 
-Unarchive a Gmail message (move back to inbox). Returns API-aligned fields only.
+Unarchive a Gmail message (move back to inbox).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -244,9 +295,13 @@ Unarchive a Gmail message (move back to inbox). Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
+</ReferenceDetails>
+
 ### Gmail Delete
 
-Delete a Gmail message (move to trash). Returns API-aligned fields only.
+Delete a Gmail message (move to trash).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -262,9 +317,13 @@ Delete a Gmail message (move to trash). Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
+</ReferenceDetails>
+
 ### Gmail Add Label
 
-Add label(s) to a Gmail message. Returns API-aligned fields only.
+Add label(s) to a Gmail message.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -281,9 +340,13 @@ Add label(s) to a Gmail message. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
+</ReferenceDetails>
+
 ### Gmail Remove Label
 
-Remove label(s) from a Gmail message. Returns API-aligned fields only.
+Remove label(s) from a Gmail message.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +363,13 @@ Remove label(s) from a Gmail message. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
+</ReferenceDetails>
+
 ### Gmail List Labels
 
 List all labels in a Gmail account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,13 +382,15 @@ List all labels in a Gmail account
 | --------- | ---- | ----------- |
 | `labels` | json | Array of label objects with id, name, type, and visibility settings |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+These triggers poll for new data on a schedule.
 
 ### Gmail Email Trigger
 
@@ -342,7 +411,7 @@ Triggers when new emails are received in Gmail (requires Gmail credentials)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `email` | object | email output from the tool |
+| `email` | object |  |
 |   ↳ `id` | string | Gmail message ID |
 |   ↳ `threadId` | string | Gmail thread ID |
 |   ↳ `subject` | string | Email subject line |

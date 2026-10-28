@@ -1,17 +1,15 @@
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation, requireAdmittedContent } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
-import type { SessionFileIdentity } from '@/lib/execution/remote-sandbox/session-file-observer'
-import { isSessionFileProvenanceClean } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { workspaceFileDelegationPolicy } from '@/lib/workspace-files/application/authorization'
 
 /** Absolute scratch paths are explicit; failed workspace reads never select a workbench. */
@@ -44,11 +42,13 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'sourced',
     principalKinds: ['session', 'personal_api_key', 'delegated'],
     delegatedServices: ['copilot'],
   }),
   organizationOperation: defineOrganizationOperation({
     id: 'mothership.chats.read_sandbox_file',
+    contentDelivery: 'sourced',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session', 'personal_api_key', 'organization_delegated'],
@@ -78,7 +78,7 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
         principal.resourceScope?.fileId === undefined,
     },
   },
-  async execute({ context, input }) {
+  async execute({ context, input, principal }) {
     const path = normalizeScratchPath(input.path)
     const maxBytes = input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_TEXT_EXTRACTION_BYTES) {
@@ -93,15 +93,11 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
       sessionKey,
       signal: input.signal,
     })
-    let machine: SessionFileIdentity | undefined
     const snapshot = await openSessionFileSnapshot(
       sessionKey,
       path,
       input.signal,
-      (identity, stream) => {
-        machine = identity
-        return provenance.observeUpload(identity, stream)
-      },
+      provenance.observeUpload,
       { allowedRoots: ['/home/user', '/tmp'], maxBytes }
     )
     try {
@@ -116,18 +112,20 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
       })
       input.signal?.throwIfAborted()
       const receipt = provenance.uploadProvenance()
-      const exactEmpty = receipt.status === 'exact' && receipt.entries.length === 0
-      if (
-        (receipt.status === 'exact' && receipt.entries.length > 0) ||
-        (!exactEmpty && (!machine || !(await isSessionFileProvenanceClean(sessionKey, machine))))
-      ) {
-        throw new OrchestrationError(
-          'forbidden',
-          'This scratch file has no verified secret-free provenance. Read a verified source or regenerate it in a fresh workbench.'
-        )
-      }
+      await requireAdmittedContent(principal, {
+        kind: 'workspace-file',
+        id: path,
+        provenance: receipt,
+        view: 'complete',
+      })
       input.signal?.throwIfAborted()
-      return { buffer, path, name: posix.basename(path) }
+      return {
+        buffer,
+        path,
+        name: posix.basename(path),
+        /** A visual of these bytes would show what text redaction hides. */
+        hasRecordedSecrets: receipt.status === 'exact' && receipt.entries.length > 0,
+      }
     } finally {
       await snapshot.dispose()
     }

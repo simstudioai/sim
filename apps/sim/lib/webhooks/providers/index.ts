@@ -17,6 +17,11 @@ export function extractProviderIdentifierFromBody(provider: string, body: unknow
   return handler.extractIdempotencyId?.(body) ?? null
 }
 
+/** Whether a delivery without a header or body identifier is expected for this provider. */
+export function isDeliveryIdOptional(provider: string): boolean {
+  return getProviderHandler(provider).deliveryIdOptional === true
+}
+
 /**
  * Whether a provider accepts deliveries through the generic per-webhook path route.
  *

@@ -663,7 +663,7 @@ const adminDashboardBillingActionsSchema = z.object({
     .object({
       operationId: z.string().uuid(),
       timing: z.enum(['period_end', 'immediate']),
-      status: z.enum(['pending', 'processing', 'applied', 'failed']),
+      status: z.enum(['pending', 'processing', 'applied', 'resolved', 'failed']),
       error: z.string().nullable(),
     })
     .nullable(),
@@ -684,7 +684,7 @@ const adminDashboardBillingActionsSchema = z.object({
 const adminDashboardCancellationResultSchema = z.object({
   success: z.literal(true),
   operationId: z.string(),
-  status: z.enum(['pending', 'processing', 'applied', 'failed']),
+  status: z.enum(['pending', 'processing', 'applied', 'resolved', 'failed']),
 })
 const adminDashboardRefundResultSchema = z.object({
   success: z.literal(true),

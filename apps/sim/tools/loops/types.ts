@@ -218,21 +218,6 @@ export interface LoopsGetTransactionalEmailResponse extends ToolResponse {
   }
 }
 
-export type LoopsResponse =
-  | LoopsCreateContactResponse
-  | LoopsUpdateContactResponse
-  | LoopsFindContactResponse
-  | LoopsDeleteContactResponse
-  | LoopsSendTransactionalEmailResponse
-  | LoopsSendEventResponse
-  | LoopsListMailingListsResponse
-  | LoopsListTransactionalEmailsResponse
-  | LoopsCreateContactPropertyResponse
-  | LoopsListContactPropertiesResponse
-  | LoopsCheckContactSuppressionResponse
-  | LoopsRemoveContactSuppressionResponse
-  | LoopsGetTransactionalEmailResponse
-
 export const LOOPS_CONTACT_OUTPUT_PROPERTIES = {
   id: { type: 'string' as const, description: 'Loops-assigned contact ID' },
   email: { type: 'string' as const, description: 'Contact email address' },

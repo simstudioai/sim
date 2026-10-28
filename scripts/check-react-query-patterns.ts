@@ -21,29 +21,23 @@
  *                             pageParam machinery) are checked, and only when both a queryKey and an
  *                             inline-arrow queryFn with a recognizable call are present.
  *
- * Enforcement model (mirrors check-api-validation-contracts.ts):
- *   - STRICT ZONE (apps/sim/hooks/queries/**): zero tolerance — any violation fails.
- *   - Elsewhere under apps/sim/**: ratcheted against scripts/check-react-query-patterns.baseline.json
- *     (fails only when a category's count rises above the recorded baseline).
+ * Zero tolerance across apps/sim/**: any violation fails.
  *
  * Escape hatch: put `// rq-lint-allow: <reason>` on the line directly above the
  * flagged construct (up to 3 preceding comment lines tolerated). The reason must
  * be non-empty.
  *
- * Usage:
- *   bun run scripts/check-react-query-patterns.ts            # report
- *   bun run scripts/check-react-query-patterns.ts --check    # CI gate (strict zone + ratchet)
- *   bun run scripts/check-react-query-patterns.ts --update-baseline
+ * Usage: bun run scripts/check-react-query-patterns.ts
  */
-import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const APP_DIR = path.join(ROOT, 'apps/sim')
-const BASELINE_PATH = path.join(ROOT, 'scripts/check-react-query-patterns.baseline.json')
 
+/** The shared query-hook layer, where every `*Keys` factory must expose an `all` root key. */
+const QUERY_HOOKS_PREFIX = 'apps/sim/hooks/queries/'
 const SKIP_DIRS = new Set(['node_modules', '.next', '.turbo', 'coverage', 'dist', 'build'])
-const STRICT_PREFIX = 'apps/sim/hooks/queries/'
 const ALLOW = 'rq-lint-allow:'
 
 type Category =
@@ -143,7 +137,7 @@ function hasAllow(lines: string[], line: number): boolean {
  * The optional explicit type argument on a query call — `useQuery<Row[]>({ ... })`.
  *
  * Matched rather than ignored because a call carrying one is still a query call: without this
- * the scan skipped every generically-typed query, including ten in the strict zone, which then
+ * the scan skipped every generically-typed query, including ten in `hooks/queries`, which then
  * reported zero violations while never having looked at them. One level of nesting is enough
  * for the shapes that occur here (`useQuery<Record<string, T>>`).
  */
@@ -429,7 +423,7 @@ function scanFile(rel: string, content: string): Violation[] {
   }
 
   // 4: key factory must have an `all` root (hooks/queries/** only, excluding util key files that compose others)
-  if (rel.startsWith(STRICT_PREFIX)) {
+  if (rel.startsWith(QUERY_HOOKS_PREFIX)) {
     KEYS_FACTORY.lastIndex = 0
     let k: RegExpExecArray | null = KEYS_FACTORY.exec(content)
     for (; k !== null; k = KEYS_FACTORY.exec(content)) {
@@ -445,23 +439,7 @@ function scanFile(rel: string, content: string): Violation[] {
   return violations
 }
 
-interface Baseline {
-  generatedFrom: string
-  counts: Record<string, number>
-}
-
-async function loadBaseline(): Promise<Baseline> {
-  try {
-    return JSON.parse(await readFile(BASELINE_PATH, 'utf8'))
-  } catch {
-    return { generatedFrom: 'none', counts: {} }
-  }
-}
-
 async function main() {
-  const update = process.argv.includes('--update-baseline')
-  const check = process.argv.includes('--check')
-
   const files = await walk(APP_DIR)
   const all: Violation[] = []
   for (const file of files) {
@@ -474,60 +452,16 @@ async function main() {
     all.push(...scanFile(rel, content))
   }
 
-  const strict = all.filter((v) => v.file.startsWith(STRICT_PREFIX))
-  const ratchet = all.filter((v) => !v.file.startsWith(STRICT_PREFIX))
-
-  const counts: Record<string, number> = {}
-  for (const v of ratchet) counts[v.category] = (counts[v.category] ?? 0) + 1
-
-  if (update) {
-    const baseline: Baseline = { generatedFrom: 'apps/sim (non-strict zone)', counts }
-    await writeFile(BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`)
-    console.log(`✓ Baseline written: ${JSON.stringify(counts)}`)
-    process.exit(0)
-  }
-
   console.log(`React Query pattern audit — scanned ${files.length} files`)
-  console.log(`  strict zone (${STRICT_PREFIX}**) violations: ${strict.length}`)
-  console.log(`  ratchet zone violations: ${ratchet.length} ${JSON.stringify(counts)}`)
-
-  let failed = false
-
-  if (strict.length > 0) {
-    failed = true
-    console.error(`\n✗ ${strict.length} violation(s) in the strict zone (${STRICT_PREFIX}**):\n`)
-    for (const v of strict) {
+  if (all.length > 0) {
+    console.error(`\n✗ ${all.length} violation(s):\n`)
+    for (const v of all) {
       console.error(`  ${v.file}:${v.line}  [${v.category}]`)
       console.error(`    ${v.snippet}`)
       console.error(`    → ${v.message}\n`)
     }
+    process.exit(1)
   }
-
-  if (!check && ratchet.length > 0) {
-    console.error(`\nRatchet-zone occurrences (not failing without --check):`)
-    for (const v of ratchet) {
-      console.error(`  ${v.file}:${v.line}  [${v.category}]  ${v.snippet}`)
-    }
-  }
-
-  if (check) {
-    const baseline = await loadBaseline()
-    for (const [category, count] of Object.entries(counts)) {
-      const base = baseline.counts[category] ?? 0
-      if (count > base) {
-        failed = true
-        console.error(
-          `\n✗ ratchet regression: ${category} rose to ${count} (baseline ${base}). ` +
-            `Fix the new occurrence(s) or annotate with // ${ALLOW} <reason>.`
-        )
-        for (const v of ratchet.filter((x) => x.category === category)) {
-          console.error(`    ${v.file}:${v.line}  ${v.snippet}`)
-        }
-      }
-    }
-  }
-
-  if (failed) process.exit(1)
   console.log('\n✓ React Query pattern audit passed.')
   process.exit(0)
 }

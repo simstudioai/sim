@@ -5,11 +5,17 @@ import {
   copilotRequestStops,
   copilotRuns,
 } from '@sim/db/schema'
-import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   areStreamToolExecutionsSettled,
-  claimSimToolExecution,
+  claimToolExecution,
   claimWorkflowToolExecution,
   closeStreamToolAdmission,
   createRunSegment,
@@ -142,9 +148,10 @@ describe('run admission and early Stop', () => {
       [copilotRequestStops.workspaceId, scope.workspaceId],
       [copilotRequestStops.streamId, scope.streamId],
     ]) {
+      /** The chat row is read first; the Stop lookup follows it. */
       expect(
         hasMockCondition(
-          dbChainMockFns.where.mock.calls[0]?.[0],
+          dbChainMockFns.where.mock.calls[1]?.[0],
           (condition) =>
             condition.type === 'eq' && condition.left === column && condition.right === value
         )
@@ -185,6 +192,21 @@ describe('run admission and early Stop', () => {
   })
 })
 
+/** Finds a condition anywhere in a mocked expression, including inside `sql` and `sql.join` fragments. */
+function someNestedCondition(
+  node: unknown,
+  predicate: (condition: Record<string, unknown>) => boolean
+): boolean {
+  if (!node || typeof node !== 'object') return false
+  const record = node as Record<string, unknown>
+  if (predicate(record)) return true
+  return ['conditions', 'values', 'fragments'].some(
+    (key) =>
+      Array.isArray(record[key]) &&
+      (record[key] as unknown[]).some((child) => someNestedCondition(child, predicate))
+  )
+}
+
 describe('durable Sim tool ownership', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -211,7 +233,7 @@ describe('durable Sim tool ownership', () => {
       dbChainMockFns.for.mockResolvedValueOnce([
         { toolExecutionVersion: 2, toolAdmissionClosedAt: null, status },
       ])
-      expect(await claimSimToolExecution(input)).toEqual({ outcome: 'closed' })
+      expect(await claimToolExecution(input)).toEqual({ outcome: 'closed' })
       dbChainMockFns.for.mockResolvedValueOnce([{ version: 2, closedAt: null, status }])
       await expect(
         recordSimSandboxProcess({
@@ -232,7 +254,7 @@ describe('durable Sim tool ownership', () => {
       { id: input.runId, toolExecutionVersion: 2, toolAdmissionClosedAt: null },
     ])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1' }])
-    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'claimed' })
+    expect(await claimToolExecution(input)).toEqual({ outcome: 'claimed' })
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(
       hasMockCondition(
@@ -240,12 +262,24 @@ describe('durable Sim tool ownership', () => {
         (condition) => condition.type === 'eq' && condition.right === input.userId
       )
     ).toBe(true)
+    /** A first execution, or a re-run of one whose owner died before it recorded a result. */
+    const claimable = flattenMockConditions(dbChainMockFns.where.mock.calls[1]?.[0]).find(
+      (condition) => condition.type === 'or'
+    )
+    const [firstExecution, interruptedExecution] = (claimable?.conditions ?? []) as unknown[]
     expect(
       hasMockCondition(
-        dbChainMockFns.where.mock.calls[1]?.[0],
+        firstExecution,
         (condition) =>
           condition.type === 'isNull' &&
           condition.column === copilotAsyncToolCalls.executionStartedAt
+      )
+    ).toBe(true)
+    expect(
+      someNestedCondition(
+        interruptedExecution,
+        (condition) =>
+          condition.type === 'lt' && condition.left === copilotAsyncToolCalls.executionAttempts
       )
     ).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
@@ -257,13 +291,13 @@ describe('durable Sim tool ownership', () => {
     dbChainMockFns.for.mockResolvedValueOnce([
       { toolExecutionVersion: 2, toolAdmissionClosedAt: new Date() },
     ])
-    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'closed' })
+    expect(await claimToolExecution(input)).toEqual({ outcome: 'closed' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it.each([0, 1])('does not certify or execute through tracking version %s', async (version) => {
     dbChainMockFns.for.mockResolvedValueOnce([{ toolExecutionVersion: version }])
-    await expect(claimSimToolExecution(input)).rejects.toThrow('ownership is unavailable')
+    await expect(claimToolExecution(input)).rejects.toThrow('ownership is unavailable')
     dbChainMockFns.returning.mockResolvedValueOnce([{ version }])
     expect(await closeStreamToolAdmission('stream-1', input.userId)).toBe(false)
   })
@@ -278,7 +312,7 @@ describe('durable Sim tool ownership', () => {
       executionSettledAt: null,
     }
     queueTableRows(copilotAsyncToolCalls, [record])
-    expect(await claimSimToolExecution(input)).toEqual({ outcome: 'existing' })
+    expect(await claimToolExecution(input)).toEqual({ outcome: 'existing' })
   })
 
   it('keeps a terminal result distinct from actual execution settlement', async () => {

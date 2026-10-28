@@ -141,8 +141,6 @@ export interface XUserResponse extends ToolResponse {
   }
 }
 
-export type XResponse = XWriteResponse | XReadResponse | XSearchResponse | XUserResponse
-
 /**
  * Transforms raw X API tweet data (snake_case) into the XTweet format (camelCase)
  */
@@ -221,7 +219,7 @@ export const transformPersonalizedTrend = (trend: any): XPersonalizedTrend => ({
   trendingSince: trend.trending_since ?? null,
 })
 
-// --- New Tool Parameter Interfaces ---
+// New Tool Parameter Interfaces
 
 export interface XSearchTweetsParams extends XBaseParams {
   query: string

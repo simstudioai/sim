@@ -6,13 +6,13 @@ import {
 } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
-import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   createWorkflowFolder,
   deleteWorkflowFolder,
   listWorkflowFolders,
   relocateWorkflowFolder,
-} from '@/lib/workflows/application/workflow-folders'
+} from '@/lib/workflows/application/folders'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import { toV2PathFolder } from '@/app/api/v2/lib/folders'
 
 export const dynamic = 'force-dynamic'

@@ -1,11 +1,11 @@
 ---
-title: CLI Commands
-description: Global options, and every sim command group
+title: CLI commands
+description: Find command groups, global options, and login, configuration, and Chat commands.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
-Every `sim` command follows the same shape:
+Resource commands use this shape:
 
 ```bash
 sim <resource> [sub-resource] <verb> [arguments] [options]
@@ -13,11 +13,15 @@ sim <resource> [sub-resource] <verb> [arguments] [options]
 
 Some resource groups also accept a singular alias: `sim workflow get` and
 `sim workflows get` are the same command. `knowledge` also answers to `kb`.
-Each group’s reference lists its supported aliases.
+Each group’s reference lists its supported aliases. Login, configuration, and
+Chat commands appear below. To find a command for a task, use
+`sim cli search "describe your task"`.
 
 ## Global options
 
-These apply to every command, and may be written before or after it.
+Place these options before or after the command. Each command uses the settings
+relevant to its action. Telemetry commands always print text; workflow export
+prints a portable JSON document, or YAML when selected.
 
 | Option | Description |
 | --- | --- |
@@ -26,37 +30,44 @@ These apply to every command, and may be written before or after it.
 | `-w, --workspace <id>` | Workspace to target (env: SIM_WORKSPACE). |
 | `--output <format>` | Output format for this command. Accepted values: `table`, `json`, `yaml`, `text`. |
 
+Use `--help` to inspect a command. Run `sim --version` to print the CLI version;
+`--version` takes no value and exits without running a command. Deployment-version
+commands use their documented arguments or `--to-version` instead.
+
+See [output formats](/cli/output) for the JSON default and display formats.
+
 ## Command groups
 
 | Group | Description |
 | --- | --- |
-| [`sim profiles`](/cli/profiles) | List profiles or add a workspace profile that shares a stored login |
-| [`sim telemetry`](/cli/telemetry) | Control anonymous usage reporting |
-| [`sim audit-logs`](/cli/audit-logs) | Manage audit logs |
-| [`sim billing`](/cli/billing) | Manage billing |
-| [`sim blocks`](/cli/blocks) | Manage blocks |
-| [`sim chat-deployments`](/cli/chat-deployments) | Manage chat deployments |
-| [`sim connector-types`](/cli/connector-types) | Manage connector types |
-| [`sim credentials`](/cli/credentials) | Manage credentials |
-| [`sim custom-tools`](/cli/custom-tools) | Manage custom tools |
-| [`sim files`](/cli/files) | Manage files |
-| [`sim knowledge`](/cli/knowledge) | Manage knowledge |
-| [`sim logs`](/cli/logs) | Manage logs |
-| [`sim mcp-servers`](/cli/mcp-servers) | Manage mcp servers |
-| [`sim meta`](/cli/meta) | Manage meta |
-| [`sim organizations`](/cli/organizations) | Manage organizations |
-| [`sim permission-groups`](/cli/permission-groups) | Manage permission groups |
-| [`sim sandboxes`](/cli/sandboxes) | Manage sandboxes |
-| [`sim secrets`](/cli/secrets) | Manage secrets |
-| [`sim selectors`](/cli/selectors) | Manage selectors |
-| [`sim skills`](/cli/skills) | Manage skills |
-| [`sim tables`](/cli/tables) | Manage tables |
-| [`sim tools`](/cli/tools) | Manage tools |
-| [`sim workflow-mcp-servers`](/cli/workflow-mcp-servers) | Manage workflow mcp servers |
-| [`sim workflows`](/cli/workflows) | Manage workflows |
-| [`sim workspaces`](/cli/workspaces) | Manage workspaces |
+| [`sim profiles`](/cli/profiles) | List profiles and add a workspace profile that shares a stored login. |
+| [`sim telemetry`](/cli/telemetry) | Inspect and change this machine’s anonymous usage-reporting preference. |
+| [`sim cli`](/cli/cli) | Find a command by describing the task you want to perform. |
+| [`sim audit-logs`](/cli/audit-logs) | Read organization audit actions and filter by actor, resource, workspace, or time. |
+| [`sim billing`](/cli/billing) | Read billing status, credit usage, and storage usage. |
+| [`sim blocks`](/cli/blocks) | Inspect workflow blocks, integration blocks, and triggers available to the workspace. |
+| [`sim chat-deployments`](/cli/chat-deployments) | List workflow chat deployments in the workspace. |
+| [`sim connector-types`](/cli/connector-types) | Discover knowledge connectors and their authentication and source-configuration schemas. |
+| [`sim credentials`](/cli/credentials) | Discover providers, connect accounts, and manage credential access. |
+| [`sim custom-tools`](/cli/custom-tools) | Create and manage code-backed tools that agents can call. |
+| [`sim files`](/cli/files) | Browse workspace files, read or write content, manage versions, and configure sharing. |
+| [`sim knowledge`](/cli/knowledge) | Manage knowledge bases, indexed documents, search, tags, and connector syncs. |
+| [`sim logs`](/cli/logs) | Read run diagnostics, follow new runs, and summarize failures and latency. |
+| [`sim mcp-servers`](/cli/mcp-servers) | Connect external Model Context Protocol (MCP) servers so workflows can use their tools. |
+| [`sim meta`](/cli/meta) | Inspect API availability and the calling credential’s type and expiry. |
+| [`sim organizations`](/cli/organizations) | Manage organization membership, invitations, usage, access requests, and SSO. |
+| [`sim permission-groups`](/cli/permission-groups) | Manage organization permission groups, their configuration, and member assignments. |
+| [`sim sandboxes`](/cli/sandboxes) | Manage reusable dependency sets for Function blocks. |
+| [`sim secrets`](/cli/secrets) | Set and manage workspace or personal secrets. |
+| [`sim selectors`](/cli/selectors) | Discover destination options for registered fields, such as calendars, channels, and tables. |
+| [`sim skills`](/cli/skills) | Create reusable agent instructions and manage their editors. |
+| [`sim tables`](/cli/tables) | Manage tables, rows, schemas, views, enrichment runs, imports, and exports. |
+| [`sim tools`](/cli/tools) | Find built-in tools, inspect their parameters, and run them. |
+| [`sim workflow-mcp-servers`](/cli/workflow-mcp-servers) | Serve deployed workflows as tools for Model Context Protocol (MCP) clients. |
+| [`sim workflows`](/cli/workflows) | Build, deploy, run, and inspect workflows from the terminal. |
+| [`sim workspaces`](/cli/workspaces) | Read workspace access and manage reviewed fork, push, and pull operations. |
 
-## Sign in through the browser and store the login for the profile
+## Log in through the browser and store the login for the profile
 
 ```bash
 sim login [options]
@@ -108,7 +119,9 @@ sim whoami [options]
 
 </CommandTable>
 
-## Set a profile's endpoint, default workspace, or output format
+API request and response schemas: [getMeta](/api-reference/meta/getApiMeta), [getWorkspace](/api-reference/workspaces/getWorkspace).
+
+## Switch a profile's default workspace, or set its endpoint or output format
 
 ```bash
 sim configure [options]
@@ -168,3 +181,19 @@ sim chat <message> [options]
 | `-c, --conversation <id>` | No | Continue the conversation with this ID. |
 
 </CommandTable>
+
+Each turn prints the reply on stdout and the conversation ID on stderr; pass that ID back with -c to continue the same conversation. With --output json or yaml the reply is not streamed — the finished result is printed as one document, conversation ID included.
+
+**Examples**
+
+```bash
+sim chat "What workflows do I have?"
+sim chat -c "$CONVERSATION_ID" "Which of those run on a schedule?"
+sim --output json chat "Summarize yesterday's failed runs" | jq -r '.content'
+```
+
+## Related docs
+
+- [Complete command reference](/cli/reference)
+- [Authentication](/cli/authentication)
+- [Scripting](/cli/scripting)

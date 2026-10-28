@@ -117,7 +117,7 @@ describe('native computer model projection', () => {
       const result = computerToolResultForModel(nested ? sequence(state) : state)
       const textResult = { ...result, observations: undefined }
       const serialized = JSON.stringify(textResult)
-      expect(new TextEncoder().encode(serialized).length).toBeLessThan(44 * 1024)
+      expect(new TextEncoder().encode(serialized).length).toBeLessThan(22 * 1024)
       expect(serialized).toContain('editor-late AXTextArea parent=e782')
       expect(serialized).toContain('e782 AXStaticText parent=e0')
       expect(serialized).toContain('send-late AXButton parent=e782')
@@ -133,6 +133,70 @@ describe('native computer model projection', () => {
       expect(state.nodes[783]?.label).toBe('Fixture composer')
     }
   )
+
+  it.each([false, true])(
+    'omits an oversized screenshot while retaining usable state and dispatch certainty (nested=%s)',
+    (nested) => {
+      const state = snapshot()
+      state.screenshot = {
+        base64: Buffer.alloc(8 * 1024 * 1024).toString('base64'),
+        mimeType: 'image/png',
+        width: 3840,
+        height: 2160,
+      }
+      const result = computerToolResultForModel(nested ? sequence(state) : state)
+      const body = JSON.stringify({
+        toolCallId: 'large-screenshot',
+        status: 'success',
+        message: 'Observed',
+        data: result,
+      })
+      expect(Buffer.byteLength(body)).toBeLessThan(10 * 1024 * 1024)
+      expect(result).not.toHaveProperty('observations')
+      const projected = 'observation' in result ? result.observation : result
+      expect(projected).toMatchObject({
+        screenshotError: expect.stringContaining('omitted'),
+        accessibilityTree: expect.stringContaining('editor AXTextArea'),
+      })
+      expect(projected).not.toHaveProperty('screenshotSize')
+      if (nested)
+        expect(result).toMatchObject({
+          dispatched: true,
+          verified: false,
+          sequence: { completedSteps: 1 },
+        })
+    }
+  )
+
+  it('retains a focused editor without dangling references when its ancestry exceeds the budget', () => {
+    const state = snapshot()
+    state.nodes = Array.from({ length: 100 }, (_, index) => ({
+      elementId: `deep-${index}`,
+      parentId: index > 0 ? `deep-${index - 1}` : undefined,
+      role: index === 99 ? 'AXTextArea' : 'AXGroup',
+      label: 'Container '.repeat(50),
+      value: 'State '.repeat(80),
+      actions: [],
+      focused: index === 99,
+      editable: index === 99,
+    }))
+    const result = computerToolResultForModel(sequence(state))
+    if (
+      !('observation' in result) ||
+      !result.observation ||
+      !('accessibilityTree' in result.observation)
+    )
+      throw new Error('Missing projected observation')
+    const tree = result.observation.accessibilityTree
+    const ids = new Set(tree.split('\n').map((row) => row.split(' ')[0]))
+    expect(ids.has('deep-99')).toBe(true)
+    expect(ids.size).toBeLessThan(state.nodes.length)
+    for (const match of tree.matchAll(/\bparent=(\S+)/g)) expect(ids.has(match[1])).toBe(true)
+    expect(Buffer.byteLength(JSON.stringify({ ...result, observations: undefined }))).toBeLessThan(
+      22 * 1024
+    )
+    expect(result).toMatchObject({ dispatched: true, sequence: { completedSteps: 1 } })
+  })
 
   it('does not split an emoji when bounding text for the model', () => {
     const state = snapshot()

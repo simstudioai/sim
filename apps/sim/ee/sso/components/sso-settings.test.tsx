@@ -3,6 +3,7 @@
  */
 import { act, type ChangeEventHandler, type ReactNode } from 'react'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
@@ -11,16 +12,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 const {
   mockUseConfigureSSO,
   mockUseDeleteSSOProvider,
-  mockUseOrganizationBilling,
-  mockUseSession,
+  mockUseOrganizationPlanSeats,
   mockUseSetPrimarySSOProvider,
   mockUseSSOProviders,
 } = vi.hoisted(() => ({
   mockUseConfigureSSO: vi.fn(),
   mockUseDeleteSSOProvider: vi.fn(),
   mockUseSetPrimarySSOProvider: vi.fn(),
-  mockUseOrganizationBilling: vi.fn(),
-  mockUseSession: vi.fn(),
+  mockUseOrganizationPlanSeats: vi.fn(),
   mockUseSSOProviders: vi.fn(),
 }))
 
@@ -136,9 +135,7 @@ vi.mock('@sim/emcn', () => ({
   },
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: mockUseSession,
-}))
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/app/workspace/[workspaceId]/components/credential-detail', () => ({
   UnsavedChangesModal: () => null,
@@ -215,12 +212,9 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () =
 }))
 
 /** The guard's own behavior is tested with its hook; here leaving is always allowed. */
-vi.mock('@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard', () => ({
+vi.mock('@/components/settings/use-settings-unsaved-guard', () => ({
   useSettingsUnsavedGuard: () => ({
-    showUnsavedModal: false,
-    setShowUnsavedModal: vi.fn(),
     guardBack: (onLeave: () => void) => onLeave(),
-    confirmDiscard: vi.fn(),
   }),
 }))
 
@@ -264,11 +258,13 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row
   ),
 }))
 
-vi.mock('@/hooks/queries/organization', () => ({
-  useOrganizationBilling: mockUseOrganizationBilling,
+vi.mock('@/hooks/queries/organization-plan-seats', () => ({
+  useOrganizationPlanSeats: mockUseOrganizationPlanSeats,
 }))
 
 import { SSO } from '@/ee/sso/components/sso-settings'
+
+const mockUseSession = authClientMockFns.mockUseSession
 
 function provider(organizationId: string) {
   const suffix = organizationId === 'org-a' ? 'a' : 'b'
@@ -337,8 +333,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   mockUseSession.mockReturnValue({ data: { user: { id: 'user-1' } } })
-  mockUseOrganizationBilling.mockReturnValue({
-    data: { data: { subscriptionPlan: 'enterprise' } },
+  mockUseOrganizationPlanSeats.mockReturnValue({
+    data: { data: { subscriptionPlan: 'enterprise', hasEnterprisePlan: true } },
     error: null,
     isFetching: false,
     isLoading: false,
@@ -368,7 +364,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.clearAllMocks()
 })
 
 /**
@@ -379,6 +374,18 @@ afterEach(() => {
  * their secret or saves the literal string "[REDACTED]" as one.
  */
 describe('SSO client secret preservation', () => {
+  it('withholds provider editing when an Enterprise subscription is not usable', () => {
+    mockUseOrganizationPlanSeats.mockReturnValue({
+      data: { data: { subscriptionPlan: 'enterprise', hasEnterprisePlan: false } },
+      isLoading: false,
+      error: null,
+    })
+    renderSso('org-a')
+    startEditing()
+    expect(container.querySelector('#sso-client-secret')).toBeNull()
+    expect(findButton('Update')).toBeUndefined()
+  })
+
   function secretInput() {
     return container.querySelector<HTMLInputElement>('#sso-client-secret')
   }

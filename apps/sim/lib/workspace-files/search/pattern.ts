@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { escapeLikePattern } from '@sim/utils/string'
 import {
   FILE_SEARCH_CANDIDATE_LITERAL_CHARS,
   FILE_SEARCH_MAX_QUERY_LENGTH,
@@ -49,10 +50,6 @@ export { FileSearchPatternError } from '@/lib/workspace-files/search/regex'
 
 export function isFileSearchCaseSensitive(text: string): boolean {
   return /\p{Lu}/u.test(text)
-}
-
-export function escapeFileSearchLikePattern(query: string): string {
-  return query.replace(/[\\%_]/g, '\\$&')
 }
 
 /**
@@ -108,9 +105,9 @@ function compileExactPattern(query: string): CompiledFileSearchPattern {
   return {
     mode: 'exact',
     caseSensitive,
-    sqlPattern: `%${escapeFileSearchLikePattern(query)}%`,
+    sqlPattern: `%${escapeLikePattern(query)}%`,
     candidatePatterns: [
-      `%${escapeFileSearchLikePattern([...query].slice(0, FILE_SEARCH_CANDIDATE_LITERAL_CHARS).join(''))}%`,
+      `%${escapeLikePattern([...query].slice(0, FILE_SEARCH_CANDIDATE_LITERAL_CHARS).join(''))}%`,
     ],
     literalText: query,
     findMatchRange: (segment) => findLiteralMatchRange(segment, query, caseSensitive),
@@ -146,8 +143,7 @@ function compileRegexPattern(query: string): CompiledFileSearchPattern {
     caseSensitive,
     sqlPattern: analysis.postgresSource,
     candidatePatterns:
-      analysis.candidateLiterals?.map((literal) => `%${escapeFileSearchLikePattern(literal)}%`) ??
-      null,
+      analysis.candidateLiterals?.map((literal) => `%${escapeLikePattern(literal)}%`) ?? null,
     literalText: null,
     findMatchRange: () => null,
   }

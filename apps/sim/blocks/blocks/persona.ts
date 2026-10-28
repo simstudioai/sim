@@ -1,7 +1,6 @@
 import { PersonaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { PersonaResponse } from '@/tools/persona/types'
 
 /** Canonical basic/advanced pair for the account importer's CSV. */
 const IMPORT_FILE_FIELD = ['importFile', 'importFileRef'] as const
@@ -9,12 +8,12 @@ const IMPORT_FILE_FIELD = ['importFile', 'importFileRef'] as const
 /** A screening report names its subject either as a free-form term or as name parts. */
 const REPORT_SUBJECT_FIELD = ['term', 'nameFirst'] as const
 
-export const PersonaBlock: BlockConfig<PersonaResponse> = {
+export const PersonaBlock: BlockConfig = {
   type: 'persona',
   name: 'Persona',
   description: 'Verify identities with Persona',
   longDescription:
-    'Integrate Persona identity verification into the workflow. Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.',
+    'Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.',
   docsLink: 'https://docs.sim.ai/integrations/persona',
   category: 'tools',
   integrationType: IntegrationType.Security,

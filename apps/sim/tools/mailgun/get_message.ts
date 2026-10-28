@@ -1,4 +1,5 @@
 import type { GetMessageParams, GetMessageResult } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResult> = {
@@ -13,6 +14,12 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
       required: true,
       visibility: 'user-only',
       description: 'Mailgun API key',
+    },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Mailgun account region: "us" (default) or "eu"',
     },
     domain: {
       type: 'string',
@@ -30,14 +37,14 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
 
   request: {
     url: (params) =>
-      `https://api.mailgun.net/v3/domains/${params.domain}/messages/${params.messageKey}`,
+      `${getMailgunApiBaseUrl(params.region)}/domains/${params.domain}/messages/${params.messageKey}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,
     }),
   },
 
-  transformResponse: async (response, params): Promise<GetMessageResult> => {
+  transformResponse: async (response): Promise<GetMessageResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to get message')

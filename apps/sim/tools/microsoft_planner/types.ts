@@ -273,23 +273,3 @@ export interface MicrosoftPlannerToolParams {
   categoryDescriptions?: Record<string, any>
   sharedWith?: Record<string, any>
 }
-
-export type MicrosoftPlannerResponse =
-  | MicrosoftPlannerReadResponse
-  | MicrosoftPlannerCreateResponse
-  | MicrosoftPlannerUpdateTaskResponse
-  | MicrosoftPlannerDeleteTaskResponse
-  | MicrosoftPlannerListPlansResponse
-  | MicrosoftPlannerReadPlanResponse
-  | MicrosoftPlannerCreatePlanResponse
-  | MicrosoftPlannerDeletePlanResponse
-  | MicrosoftPlannerGetPlanDetailsResponse
-  | MicrosoftPlannerListBucketsResponse
-  | MicrosoftPlannerReadBucketResponse
-  | MicrosoftPlannerCreateBucketResponse
-  | MicrosoftPlannerUpdateBucketResponse
-  | MicrosoftPlannerDeleteBucketResponse
-  | MicrosoftPlannerGetTaskDetailsResponse
-  | MicrosoftPlannerUpdateTaskDetailsResponse
-  | MicrosoftPlannerUpdatePlanResponse
-  | MicrosoftPlannerUpdatePlanDetailsResponse

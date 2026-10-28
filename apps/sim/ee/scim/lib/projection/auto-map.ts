@@ -1,7 +1,7 @@
 import { permissionGroup, scimGroupMapping } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, ne } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 
 /**
@@ -94,7 +94,7 @@ export async function autoMapPermissionGroupByName(
  * mode, and both commit together.
  */
 export async function settleMappedPermissionGroupsExplicit(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { organizationId: string; scimGroupId: string }
 ): Promise<void> {
   const inheriting = await tx

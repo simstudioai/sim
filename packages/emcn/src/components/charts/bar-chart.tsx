@@ -4,13 +4,11 @@ import { memo, useId, useMemo, useState } from 'react'
 import {
   CHART_AXIS_LABEL_GAP,
   CHART_DEFAULT_HEIGHT,
-  CHART_GRID_FRACTIONS,
   CHART_TICK_FILL,
   CHART_TICK_FONT_SIZE,
   ChartDataTable,
   ChartTooltip,
   ChartTooltipRow,
-  chartPlotBand,
   cn,
   estimateTooltipHeight,
   estimateTooltipWidth,
@@ -20,14 +18,14 @@ import {
   formatChartTimestamp,
   formatTimeTick,
   positionChartTooltip,
+  resolveBarTickValues,
   resolveChartPadding,
   resolveSpanMs,
   resolveTimeTickIndices,
   useChartWidth,
-  useIsDarkTheme,
 } from '@sim/emcn'
 
-export interface BarChartPoint {
+interface BarChartPoint {
   timestamp: string
   value: number
 }
@@ -105,15 +103,9 @@ function BarChartComponent(props: BarChartProps) {
   const uniqueId = useId().replace(/:/g, '')
   const [containerRef, containerWidth] = useChartWidth()
   const width = containerWidth ?? 0
-  const { yMin, yMax } = chartPlotBand(height)
-  const isDark = useIsDarkTheme()
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
 
   const hasExternalWrapper = !label
-
-  /** Tracks need stronger opacity on light backgrounds to remain visible. */
-  const trackOpacity = isDark ? 0.12 : 0.3
-  const trackHoverOpacity = isDark ? 0.22 : 0.5
 
   const layers = useMemo<BarChartSeries[]>(
     () =>
@@ -132,13 +124,12 @@ function BarChartComponent(props: BarChartProps) {
     [buckets, layers]
   )
 
-  const maxValue = useMemo(() => {
-    const peak = Math.max(...totals, 0)
-    return peak <= 0 ? 1 : unit ? peak * 1.1 : Math.ceil(peak * 1.1)
-  }, [totals, unit])
-
-  const maximumLabel = unit ? formatBarValue(maxValue, unit) : formatChartCompactNumber(maxValue)
-  const padding = resolveChartPadding([maximumLabel, '0'])
+  const tickValues = resolveBarTickValues(Math.max(...totals, 0))
+  const maxValue = tickValues[tickValues.length - 1]
+  const tickLabels = tickValues.map((value) =>
+    value === 0 ? '0' : unit ? formatBarValue(value, unit) : formatChartCompactNumber(value)
+  )
+  const padding = resolveChartPadding(tickLabels)
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
@@ -151,21 +142,14 @@ function BarChartComponent(props: BarChartProps) {
       ? null
       : Math.max(0, Math.min(buckets.length - 1, Math.floor((hoverPos.x - padding.left) / slot)))
 
-  /**
-   * One column per bucket, its segments stacked bottom-up. The column's total is
-   * clamped into the plot band once and each segment takes its share of that height,
-   * so a stack can never overshoot the band that a single bar is held to.
-   */
   const columns = useMemo(
     () =>
       buckets.map((point, index) => {
         const x = padding.left + slot * index + (slot - barWidth) / 2
         const total = totals[index] ?? 0
-        const rawTop = padding.top + chartHeight - (total / maxValue) * chartHeight
-        const top = Math.max(yMin, Math.min(yMax, rawTop))
         const baseline = height - padding.bottom
-        /** Empty buckets must stay at zero despite the plot-band clamp. */
-        const columnHeight = total > 0 ? Math.max(0, baseline - top) : 0
+        const columnHeight = (total / maxValue) * chartHeight
+        const top = baseline - columnHeight
         let cursor = baseline
         const segments = layers.flatMap((layer) => {
           const value = Math.max(0, layer.data[index]?.value ?? 0)
@@ -186,10 +170,7 @@ function BarChartComponent(props: BarChartProps) {
       chartHeight,
       height,
       padding.left,
-      padding.top,
       padding.bottom,
-      yMin,
-      yMax,
     ]
   )
 
@@ -268,57 +249,32 @@ function BarChartComponent(props: BarChartProps) {
           }}
           onMouseLeave={() => setHoverPos(null)}
         >
-          {!isStacked && (
-            <defs>
-              <linearGradient id={`bar-${uniqueId}`} x1='0' x2='0' y1='0' y2='1'>
-                <stop offset='0%' stopColor={layers[0]?.color} stopOpacity={isDark ? 0.9 : 1} />
-                <stop
-                  offset='100%'
-                  stopColor={layers[0]?.color}
-                  stopOpacity={isDark ? 0.35 : 0.55}
+          {tickValues.map((value, index) => {
+            const y = height - padding.bottom - (value / maxValue) * chartHeight
+            return (
+              <g key={value}>
+                <line
+                  x1={padding.left}
+                  y1={y}
+                  x2={width - padding.right}
+                  y2={y}
+                  stroke='var(--border)'
+                  strokeOpacity={value === 0 ? 0.5 : 0.35}
+                  strokeDasharray={value === 0 ? undefined : '2 4'}
                 />
-              </linearGradient>
-            </defs>
-          )}
-
-          <line
-            x1={padding.left}
-            y1={padding.top}
-            x2={padding.left}
-            y2={height - padding.bottom}
-            stroke='var(--border)'
-            strokeWidth='1'
-          />
-
-          {CHART_GRID_FRACTIONS.map((fraction) => (
-            <line
-              key={`${uniqueId}-grid-${fraction}`}
-              x1={padding.left}
-              y1={padding.top + chartHeight * fraction}
-              x2={width - padding.right}
-              y2={padding.top + chartHeight * fraction}
-              stroke='var(--border)'
-              strokeOpacity='0.35'
-              strokeWidth='1'
-            />
-          ))}
-
-          {/** Tracks preserve empty buckets and hover targets; keep them outside the screen blend. */}
-          <g>
-            {columns.map((column, index) => (
-              <rect
-                key={`${uniqueId}-track-${column.point.timestamp}`}
-                x={column.x}
-                y={padding.top}
-                width={barWidth}
-                height={chartHeight}
-                rx='2'
-                fill='var(--border)'
-                fillOpacity={hoverIndex === index ? trackHoverOpacity : trackOpacity}
-                className='transition-[fill-opacity] duration-150 motion-reduce:transition-none'
-              />
-            ))}
-          </g>
+                <text
+                  x={padding.left - CHART_AXIS_LABEL_GAP}
+                  y={y}
+                  dominantBaseline='middle'
+                  textAnchor='end'
+                  fontSize={CHART_TICK_FONT_SIZE}
+                  fill={CHART_TICK_FILL}
+                >
+                  {tickLabels[index]}
+                </text>
+              </g>
+            )
+          })}
 
           {/**
            * Each column is one bar: its segments are square and clipped to a single
@@ -344,7 +300,7 @@ function BarChartComponent(props: BarChartProps) {
               )
             )}
           </defs>
-          <g style={{ mixBlendMode: isDark && !isStacked ? 'screen' : 'normal' }}>
+          <g>
             {columns.map((column, index) => (
               <g
                 key={`${uniqueId}-bar-${column.point.timestamp}`}
@@ -357,7 +313,7 @@ function BarChartComponent(props: BarChartProps) {
                     y={segment.y}
                     width={barWidth}
                     height={segment.height + 0.5}
-                    fill={isStacked ? segment.layer.color : `url(#bar-${uniqueId})`}
+                    fill={segment.layer.color}
                     className='transition-opacity duration-150 motion-reduce:transition-none'
                     opacity={segmentOpacity(segment.layer.id, index)}
                   />
@@ -385,36 +341,6 @@ function BarChartComponent(props: BarChartProps) {
               </text>
             )
           })}
-
-          <text
-            x={padding.left - CHART_AXIS_LABEL_GAP}
-            y={padding.top}
-            textAnchor='end'
-            fontSize={CHART_TICK_FONT_SIZE}
-            fill={CHART_TICK_FILL}
-          >
-            {/** Same formatter the tooltip uses, or the axis and the hover disagree
-                about what the numbers mean on any non-`credits` unit. */}
-            {maximumLabel}
-          </text>
-          <text
-            x={padding.left - CHART_AXIS_LABEL_GAP}
-            y={height - padding.bottom}
-            textAnchor='end'
-            fontSize={CHART_TICK_FONT_SIZE}
-            fill={CHART_TICK_FILL}
-          >
-            0
-          </text>
-
-          <line
-            x1={padding.left}
-            y1={height - padding.bottom}
-            x2={width - padding.right}
-            y2={height - padding.bottom}
-            stroke='var(--border)'
-            strokeWidth='1'
-          />
         </svg>
 
         {hoverIndex !== null &&

@@ -5,7 +5,7 @@ import {
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
+import { PERMISSION_GROUP_RESTRICTION_KEYS } from '@/lib/permission-groups/fields'
 import {
   ACCESS_REQUEST_MAX_ID_LENGTH,
   ACCESS_REQUEST_MAX_OFFSET,
@@ -267,7 +267,7 @@ const previewShape = {
   request: accessRequestRecordSchema.describe('Access request being reviewed.'),
   changes: z
     .array(accessRequestPolicyChangeSchema)
-    .max(Object.keys(PERMISSION_GROUP_FIELDS).length)
+    .max(PERMISSION_GROUP_RESTRICTION_KEYS.length)
     .describe('Permission changes proposed for the whole governing group.'),
   impact: storedAccessRequestDecisionSchema.shape.impact,
   fingerprint: fingerprintSchema.describe(

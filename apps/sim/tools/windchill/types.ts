@@ -287,13 +287,13 @@ export interface WindchillDocumentUsageLink {
   children: WindchillDocumentUsageLink[]
 }
 
-export interface WindchillPageInfo {
+interface WindchillPageInfo {
   count: number
   totalCount: number | null
   nextLink: string | null
 }
 
-export type WindchillAttributeValue =
+type WindchillAttributeValue =
   | string
   | number
   | boolean
@@ -301,7 +301,7 @@ export type WindchillAttributeValue =
   | WindchillAttributeValue[]
   | { [key: string]: WindchillAttributeValue }
 
-export interface WindchillCreateDocumentInput {
+interface WindchillCreateDocumentInput {
   name: string
   containerOid: string
   number?: string
@@ -311,12 +311,12 @@ export interface WindchillCreateDocumentInput {
   attributes?: Record<string, WindchillAttributeValue>
 }
 
-export interface WindchillUpdateDocumentInput {
+interface WindchillUpdateDocumentInput {
   id: string
   attributes: Record<string, WindchillAttributeValue>
 }
 
-export interface WindchillSecurityLabelInput {
+interface WindchillSecurityLabelInput {
   id: string
   labels: Record<string, string>
 }

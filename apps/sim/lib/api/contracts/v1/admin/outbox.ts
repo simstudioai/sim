@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  type ContractBody,
   type ContractJsonResponse,
   type ContractParams,
   type ContractQuery,
@@ -62,6 +63,29 @@ const adminV1OutboxRequeueResultSchema = z.object({
   }),
 })
 
+/** Bounded so the 500-character `last_error` keeps at least 100 characters of the last failure. */
+const adminV1ResolveOutboxEventBodySchema = z.object({
+  reason: z
+    .string({ error: 'reason is required' })
+    .trim()
+    .min(1, 'reason is required')
+    .max(300, 'reason must be at most 300 characters'),
+  resolvedBy: z
+    .string({ error: 'resolvedBy is required' })
+    .trim()
+    .min(1, 'resolvedBy is required')
+    .max(60, 'resolvedBy must be at most 60 characters'),
+})
+
+const adminV1OutboxResolveResultSchema = z.object({
+  success: z.literal(true),
+  resolved: z.object({
+    id: z.string(),
+    eventType: z.string(),
+    lastError: z.string().nullable(),
+  }),
+})
+
 export const adminV1ListOutboxContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/outbox',
@@ -82,6 +106,17 @@ export const adminV1RequeueOutboxEventContract = defineRouteContract({
   },
 })
 
+export const adminV1ResolveOutboxEventContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/outbox/[id]/resolve',
+  params: adminV1IdParamsSchema,
+  body: adminV1ResolveOutboxEventBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1OutboxResolveResultSchema,
+  },
+})
+
 export type AdminV1ListOutboxQueryInput = ContractQueryInput<typeof adminV1ListOutboxContract>
 export type AdminV1ListOutboxQuery = ContractQuery<typeof adminV1ListOutboxContract>
 export type AdminV1RequeueOutboxEventParams = ContractParams<
@@ -90,4 +125,8 @@ export type AdminV1RequeueOutboxEventParams = ContractParams<
 export type AdminV1ListOutboxResponse = ContractJsonResponse<typeof adminV1ListOutboxContract>
 export type AdminV1RequeueOutboxEventResponse = ContractJsonResponse<
   typeof adminV1RequeueOutboxEventContract
+>
+export type AdminV1ResolveOutboxEventBody = ContractBody<typeof adminV1ResolveOutboxEventContract>
+export type AdminV1ResolveOutboxEventResponse = ContractJsonResponse<
+  typeof adminV1ResolveOutboxEventContract
 >

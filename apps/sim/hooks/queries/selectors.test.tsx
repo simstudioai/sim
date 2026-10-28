@@ -1,21 +1,19 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteSelectorRequest, mockRequestJson } = vi.hoisted(() => ({
+const { mockExecuteSelectorRequest } = vi.hoisted(() => ({
   mockExecuteSelectorRequest: vi.fn(),
-  mockRequestJson: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/client/execute-selector', () => ({
   executeSelectorRequest: mockExecuteSelectorRequest,
 }))
-
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
 
 import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/queries/selectors'
 
@@ -98,76 +96,6 @@ afterEach(() => {
 })
 
 describe('generic selector queries', () => {
-  it('uses the dedicated personal setup contract and isolates it from ordinary browsing', async () => {
-    const personalItems = [{ id: 'PERSONAL', label: 'Personal project' }]
-    mockRequestJson.mockResolvedValue({
-      success: true,
-      data: { kind: 'list', items: personalItems },
-    })
-    mockExecuteSelectorRequest.mockResolvedValue({
-      kind: 'list',
-      items: [{ id: 'ADMIN', label: 'Admin project' }],
-    })
-    const hook = renderHookWithClient(() =>
-      useSelectorOptions('jira.projectKeys', {
-        context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
-        scope: { kind: 'organization', organizationId: 'org-1' },
-        surface: { kind: 'personal-search-setup', organizationId: 'org-1', connectorType: 'jira' },
-        surfaceId: 'projects',
-      })
-    )
-    await waitFor(() => expect(hook.getResult().data).toEqual(personalItems))
-    expect(mockExecuteSelectorRequest).not.toHaveBeenCalled()
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/api/knowledge/sim-search/personal-source-setup' }),
-      expect.objectContaining({
-        body: {
-          action: 'options',
-          organizationId: 'org-1',
-          connectorType: 'jira',
-          credentialId: 'credential-1',
-          domain: 'example.atlassian.net',
-          request: { kind: 'list' },
-        },
-        signal: expect.any(AbortSignal),
-      })
-    )
-    hook.rerender(() =>
-      useSelectorOptions('jira.projectKeys', {
-        context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
-        scope: { kind: 'organization', organizationId: 'org-1' },
-        surfaceId: 'projects',
-      })
-    )
-    await waitFor(() =>
-      expect(hook.getResult().data).toEqual([{ id: 'ADMIN', label: 'Admin project' }])
-    )
-    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
-  })
-
-  it.each(['selector', 'organization'] as const)(
-    'rejects a mismatched personal setup %s before sending a request',
-    async (mismatch) => {
-      const hook = renderHookWithClient(() =>
-        useSelectorOptions(mismatch === 'selector' ? 'confluence.spaces' : 'jira.projectKeys', {
-          context: { oauthCredential: 'credential-1', domain: 'example.atlassian.net' },
-          scope: {
-            kind: 'organization',
-            organizationId: mismatch === 'organization' ? 'org-2' : 'org-1',
-          },
-          surface: {
-            kind: 'personal-search-setup',
-            organizationId: 'org-1',
-            connectorType: 'jira',
-          },
-        })
-      )
-      await waitFor(() => expect(hook.getResult().error).not.toBeNull())
-      expect(mockRequestJson).not.toHaveBeenCalled()
-      expect(mockExecuteSelectorRequest).not.toHaveBeenCalled()
-    }
-  )
-
   it('transports supported search and keeps context and request plaintext out of query keys', async () => {
     const credentialReference = '{{SHARED_GOOGLE_CREDENTIAL}}'
     const search = 'private search phrase'

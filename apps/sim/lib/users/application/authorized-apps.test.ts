@@ -1,30 +1,18 @@
-import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { oauthAccessToken, oauthConsent } from '@sim/db/schema'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  transaction: vi.fn(),
-  select: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.recordAudit,
-  AuditAction: { OAUTH_APP_REVOKED: 'oauth_app.revoked' },
-  AuditResourceType: { OAUTH_CLIENT: 'oauth_client' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
-
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: mocks.transaction,
-    select: mocks.select,
-  },
-}))
 
 import { ForbiddenOperationError } from '@/lib/core/application'
 import {
@@ -32,12 +20,14 @@ import {
   revokeAuthorizedAppUseCase,
 } from '@/lib/users/application/authorized-apps'
 
-const session: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
-const personalKey: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'user-1',
-  keyId: 'key-1',
+const mocks = {
+  recordAudit: auditMockFns.mockRecordAudit,
+  transaction: dbChainMockFns.transaction,
+  select: dbChainMockFns.select,
 }
+
+const session = createSessionPrincipal()
+const personalKey = createPersonalApiKeyPrincipal()
 
 /** A drizzle select chain that answers `rows` whenever it is finally awaited. */
 function selectChain(rows: unknown[]) {
@@ -56,6 +46,9 @@ function selectChain(rows: unknown[]) {
 }
 
 describe('authorized apps', () => {
+  beforeEach(resetDbChainMock)
+  afterAll(resetDbChainMock)
+
   it('refuses a principal that is not the account holder in session', async () => {
     await expect(
       listAuthorizedAppsUseCase.execute({ principal: personalKey, input: {} })

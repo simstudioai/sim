@@ -44,7 +44,6 @@ export function createIntegrationCredentialVisibility({
   blockVisibility,
   oauthServices = getAllOAuthServices(),
 }: IntegrationCredentialVisibilityOptions): IntegrationCredentialVisibility {
-  const oauthOwners = oauthServices.filter((service) => service.authType === 'oauth')
   const oauthOwnersByProviderId = new Map<string, OAuthServiceMetadata[]>()
   const serviceAccountOwnersByProviderId = new Map<string, OAuthServiceMetadata[]>()
   const availabilityByType = new Map(

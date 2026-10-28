@@ -43,6 +43,7 @@ import path from 'node:path'
 import Ajv2020 from 'ajv/dist/2020'
 import { z } from 'zod'
 import { OPENAPI_SPEC_FILES } from '../apps/docs/lib/openapi-specs'
+import { unpublishedProjectFileDocumentation } from '../apps/sim/lib/api/contracts/v2/openapi/unpublished-project-files'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
@@ -66,6 +67,12 @@ const SPEC_FILES = OPENAPI_SPEC_FILES
  * transfer is published on `transfer.url` in `contracts/v2/uploads.ts`.
  */
 const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    unpublishedProjectFileDocumentation.routes.map(({ contract }) => [
+      `${contract.method} ${contract.path.replace(/\[([^\]]+)\]/g, '{$1}')}`,
+      unpublishedProjectFileDocumentation.reason,
+    ])
+  ),
   'POST /api/v2/chat':
     'Conversational surface behind `sim chat`. The contract describes the JSON answer, but the CLI consumes the same endpoint as an NDJSON progress stream negotiated by Accept header — a protocol `checkV2Conventions` cannot describe as a published operation. Deliberately unpublished while the surface is CLI-only; document it when the JSON shape is committed to as public API.',
   'PUT /api/v2/uploads/{uploadId}':
@@ -161,7 +168,11 @@ function listContractFiles(dir: string): string[] {
     if (entry.isDirectory()) {
       if (entry.name === '__tests__') continue
       files.push(...listContractFiles(full))
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+    } else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.endsWith('.test.ts') &&
+      entry.name !== 'test-utils.ts'
+    ) {
       files.push(full)
     }
   }

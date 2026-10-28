@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChipInput, Info, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -49,48 +50,60 @@ export function UsageLimitField({
   context,
   organizationId,
 }: UsageLimitFieldProps) {
-  const { mutate: saveUserLimit } = useUpdateUsageLimit()
-  const { mutate: saveOrgLimit } = useUpdateOrganizationUsageLimit()
+  const userUpdate = useUpdateUsageLimit()
+  const orgUpdate = useUpdateOrganizationUsageLimit()
+  const saveUserLimit = userUpdate.mutate
+  const saveOrgLimit = orgUpdate.mutate
 
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState<string | null>(null)
   const debouncedDraft = useDebounce(draft, AUTOSAVE_DELAY_MS)
-  const syncedRef = useRef<number | null>(null)
-  /**
-   * Read the latest limit inside the auto-save effect WITHOUT making it a
-   * dependency. If `currentLimit` were a dep, an external change (e.g. the
-   * on-demand toggle optimistically bumping the limit) would re-run the effect
-   * with a stale `debouncedDraft` and save the old value, clobbering the toggle.
-   */
+  const value =
+    draft ?? (currentLimit >= ON_DEMAND_UNLIMITED ? '' : String(dollarsToCredits(currentLimit)))
   const currentLimitRef = useRef(currentLimit)
-  currentLimitRef.current = currentLimit
+  const draftRef = useRef(draft)
+  const pendingRef = useRef(false)
+  const pending = userUpdate.isPending || orgUpdate.isPending
+  useEffect(() => {
+    currentLimitRef.current = currentLimit
+    draftRef.current = draft
+    pendingRef.current = pending
+  }, [currentLimit, draft, pending])
+
+  useSettingsUnsavedGuard({
+    isDirty:
+      canEdit &&
+      draft !== null &&
+      (draft.trim() === ''
+        ? currentLimit < ON_DEMAND_UNLIMITED
+        : Number.parseFloat(draft) !== dollarsToCredits(currentLimit)),
+    navigationBlocked: pending,
+    onDiscard: () => setDraft(null),
+  })
 
   useEffect(() => {
-    if (currentLimit == null || syncedRef.current === currentLimit) return
-    // Display in credits; the prop is dollars. Integer credits round-trip exactly
-    // through creditsToDollars/dollarsToCredits, so the value never drifts. The
-    // on-demand "uncapped" sentinel renders as a blank field (No Usage Limit
-    // placeholder) rather than a meaningless giant credit number.
-    const lastSyncedDraft =
-      syncedRef.current == null || syncedRef.current >= ON_DEMAND_UNLIMITED
-        ? ''
-        : String(dollarsToCredits(syncedRef.current))
-    const isClean = draft === '' || draft === lastSyncedDraft
-    syncedRef.current = currentLimit
-    if (isClean) {
-      setDraft(currentLimit >= ON_DEMAND_UNLIMITED ? '' : String(dollarsToCredits(currentLimit)))
-    }
-  }, [currentLimit, draft])
-
-  useEffect(() => {
-    if (!canEdit) return
+    if (
+      !canEdit ||
+      debouncedDraft === null ||
+      draftRef.current !== debouncedDraft ||
+      pendingRef.current
+    )
+      return
     const currentLimit = currentLimitRef.current
-    if (currentLimit == null || debouncedDraft.trim() === '') return
+    if (currentLimit == null) return
+    if (debouncedDraft.trim() === '') {
+      if (currentLimit >= ON_DEMAND_UNLIMITED)
+        setDraft((current) => (current === debouncedDraft ? null : current))
+      return
+    }
     const parsedCredits = Number.parseFloat(debouncedDraft)
     if (Number.isNaN(parsedCredits)) {
       toast.error('Usage limit must be a number')
       return
     }
-    if (parsedCredits === dollarsToCredits(currentLimit)) return
+    if (parsedCredits === dollarsToCredits(currentLimit)) {
+      setDraft((current) => (current === debouncedDraft ? null : current))
+      return
+    }
     const minimumCredits = dollarsToCredits(minimumLimit)
     if (parsedCredits < minimumCredits) {
       toast.error(`Usage limit must be at least ${minimumCredits.toLocaleString()} credits`)
@@ -105,6 +118,8 @@ export function UsageLimitField({
       })
     }
 
+    const onSuccess = () => setDraft((current) => (current === debouncedDraft ? null : current))
+
     if (context === 'organization') {
       if (!organizationId) {
         toast.error("Couldn't update usage limit", {
@@ -112,11 +127,11 @@ export function UsageLimitField({
         })
         return
       }
-      saveOrgLimit({ organizationId, limit: limitDollars }, { onError })
+      saveOrgLimit({ organizationId, limit: limitDollars }, { onError, onSuccess })
       return
     }
 
-    saveUserLimit({ limit: limitDollars }, { onError })
+    saveUserLimit({ limit: limitDollars }, { onError, onSuccess })
   }, [debouncedDraft, minimumLimit, canEdit, context, organizationId, saveOrgLimit, saveUserLimit])
 
   return (
@@ -129,7 +144,7 @@ export function UsageLimitField({
       */}
       <ChipInput
         inputMode='numeric'
-        value={draft}
+        value={value}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={
           currentLimit == null
@@ -138,7 +153,7 @@ export function UsageLimitField({
               ? 'No Usage Limit'
               : String(dollarsToCredits(currentLimit))
         }
-        disabled={!canEdit}
+        disabled={!canEdit || pending}
       />
     </SettingsSection>
   )

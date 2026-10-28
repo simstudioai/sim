@@ -7,21 +7,19 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { PulseParserOutput } from '@/tools/pulse/types'
 
 const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
 /* v2 swaps the advanced URL input for a file reference, so the pair differs. */
 const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
 
-export const PulseBlock: BlockConfig<PulseParserOutput> = {
+export const PulseBlock: BlockConfig = {
   type: 'pulse',
   name: 'Pulse',
   description: 'Extract text from documents using Pulse OCR',
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'pulse_v2' },
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.',
+  longDescription: 'Extract text from PDF documents, images, and Office files via URL or upload.',
   docsLink: 'https://docs.sim.ai/integrations/pulse',
   category: 'tools',
   integrationType: IntegrationType.AI,
@@ -179,14 +177,14 @@ const pulseV2SubBlocks = (PulseBlock.subBlocks || []).flatMap((subBlock) => {
   return [subBlock]
 })
 
-export const PulseV2Block: BlockConfig<PulseParserOutput> = {
+export const PulseV2Block: BlockConfig = {
   ...PulseBlock,
   sunset: undefined,
   type: 'pulse_v2',
   name: 'Pulse',
   hideFromToolbar: false,
   longDescription:
-    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.',
+    'Extract text from PDF documents, images, and Office files via upload or file references.',
   canvasPresentation: {
     defaultTitle: 'Pulse',
     sentences: {

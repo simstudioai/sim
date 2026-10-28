@@ -5,7 +5,7 @@ import type { ToolResponse } from '@/tools/types'
  * operation schema. Every datacenter is published twice — the bare host and its `www-`
  * twin — except GLZ, which has no twin.
  */
-export type SapConcurDatacenter =
+type SapConcurDatacenter =
   | 'us.api.concursolutions.com'
   | 'www-us.api.concursolutions.com'
   | 'us2.api.concursolutions.com'
@@ -25,7 +25,7 @@ export type SapConcurDatacenter =
   | 'emea-impl.api.concursolutions.com'
   | 'www-emea-impl.api.concursolutions.com'
 
-export type SapConcurGrantType = 'client_credentials' | 'password'
+type SapConcurGrantType = 'client_credentials' | 'password'
 
 export interface SapConcurBaseParams {
   datacenter?: SapConcurDatacenter

@@ -5,7 +5,8 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -30,6 +31,7 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
+  type NormalizedWorkflowData,
 } from '@/lib/workflows/persistence/utils'
 import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
@@ -110,6 +112,12 @@ export interface ExecuteWorkflowServiceParams {
   includeToolCalls?: boolean
   /** Execute the current saved state manually instead of the active deployment. */
   useDraftState?: boolean
+  /**
+   * The saved state the application use case loaded to choose and validate the entry
+   * point. Requires `useDraftState`; the run executes this same snapshot instead of
+   * reading the draft tables again.
+   */
+  draftState?: NormalizedWorkflowData
   /** Explicit trigger entry point selected and validated by the application use case. */
   triggerBlockId?: string
   /** Trusted prior-run snapshot resolved by the application use case. */
@@ -120,6 +128,8 @@ export interface ExecuteWorkflowServiceParams {
     /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
     variableInputs?: Record<string, unknown>
   }
+  /** Saved block after which execution stops, validated by the application use case. */
+  stopAfterBlockId?: string
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -270,8 +280,10 @@ export async function executeWorkflowService(
     includeThinking = false,
     includeToolCalls = false,
     useDraftState = false,
+    draftState,
     triggerBlockId,
     runFromBlock,
+    stopAfterBlockId,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -288,6 +300,12 @@ export async function executeWorkflowService(
   }
   if (runFromBlock && !useDraftState) {
     throw new Error('Run-from-block requires manual execution state')
+  }
+  if (stopAfterBlockId && !useDraftState) {
+    throw new Error('Stop-after-block requires manual execution state')
+  }
+  if (draftState && !useDraftState) {
+    throw new Error('A preloaded draft state requires manual execution state')
   }
 
   if (callChain) {
@@ -461,7 +479,7 @@ export async function executeWorkflowService(
     let workflowBlocks: Record<string, unknown> = {}
     try {
       const workflowData = useDraftState
-        ? await loadWorkflowFromNormalizedTables(workflowId)
+        ? (draftState ?? (await loadWorkflowFromNormalizedTables(workflowId)))
         : deploymentVersionId
           ? await loadWorkflowDeploymentVersionState(workflowId, deploymentVersionId, workspaceId)
           : await loadDeployedWorkflowState(workflowId, workspaceId)
@@ -588,7 +606,9 @@ export async function executeWorkflowService(
               workflowTriggerType: triggerType,
               triggerBlockId,
               useDraftState,
+              draftState,
               runFromBlock,
+              stopAfterBlockId,
               onStream,
               onBlockComplete: (blockId, data) =>
                 onBlockComplete(blockId, data.output, data.outputBlockId),
@@ -689,6 +709,8 @@ export async function executeWorkflowService(
           base64MaxBytes,
           abortSignal: timeoutController.signal,
           runFromBlock,
+          stopAfterBlockId,
+          draftState,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
@@ -718,7 +740,7 @@ export async function executeWorkflowService(
           timeoutController.isTimedOut() &&
           timeoutController.timeoutMs
         ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           reqLogger.info('Execution timed out', { timeoutMs: timeoutController.timeoutMs })
           await loggingSession.markAsFailed(timeoutErrorMessage)
           const compactTimeoutOutput = await compactServiceOutput(result.output, compactionContext)
@@ -826,7 +848,7 @@ export async function executeWorkflowService(
           })
         }
 
-        reqLogger.error(`Execution failed: ${errorMessage}`)
+        logFailureOnce(reqLogger, `Execution failed: ${errorMessage}`, error, { executionId })
 
         let compactErrorOutput: NormalizedBlockOutput | undefined
         let compactErrorBlockOutputs: Record<string, unknown> | null = null
@@ -877,6 +899,12 @@ export async function executeWorkflowService(
       } finally {
         abortSignal?.removeEventListener('abort', abortFromRequest)
         timeoutController.cleanup()
+        /**
+         * The sync result is the run's receipt: callers read its log, state, and cost as
+         * soon as it lands (a run-from-block names it as its source run). The core
+         * finalizes those in the background, so hold the result until they are durable.
+         */
+        await loggingSession.waitForPostExecution()
       }
     }
 

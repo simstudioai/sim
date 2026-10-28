@@ -2,47 +2,7 @@ import { MondayIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  MondayArchiveItemResponse,
-  MondayChangeColumnValueResponse,
-  MondayCreateBoardResponse,
-  MondayCreateColumnResponse,
-  MondayCreateGroupResponse,
-  MondayCreateItemResponse,
-  MondayCreateSubitemResponse,
-  MondayCreateUpdateResponse,
-  MondayDeleteItemResponse,
-  MondayDuplicateItemResponse,
-  MondayGetBoardResponse,
-  MondayGetGroupsResponse,
-  MondayGetItemResponse,
-  MondayGetItemsResponse,
-  MondayListBoardsResponse,
-  MondayMoveItemToGroupResponse,
-  MondaySearchItemsResponse,
-  MondayUpdateItemResponse,
-} from '@/tools/monday/types'
 import { getTrigger } from '@/triggers'
-
-type MondayResponse =
-  | MondayListBoardsResponse
-  | MondayGetBoardResponse
-  | MondayGetItemResponse
-  | MondayGetItemsResponse
-  | MondayCreateItemResponse
-  | MondayUpdateItemResponse
-  | MondayDeleteItemResponse
-  | MondayArchiveItemResponse
-  | MondayCreateUpdateResponse
-  | MondayCreateGroupResponse
-  | MondaySearchItemsResponse
-  | MondayCreateSubitemResponse
-  | MondayMoveItemToGroupResponse
-  | MondayChangeColumnValueResponse
-  | MondayCreateBoardResponse
-  | MondayCreateColumnResponse
-  | MondayGetGroupsResponse
-  | MondayDuplicateItemResponse
 
 const BOARD_OPS = [
   'get_board',
@@ -71,13 +31,13 @@ const ITEM_ID_OPS = [
 const BOARD_FIELD = ['boardSelector', 'manualBoardId'] as const
 const GROUP_FIELD = ['groupSelector', 'manualGroupId'] as const
 
-export const MondayBlock: BlockConfig<MondayResponse> = {
+export const MondayBlock: BlockConfig = {
   type: 'monday',
   name: 'Monday',
   description: 'Manage Monday.com boards, items, and groups',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.',
+    'Read or manage boards, groups, columns, items, and subitems in Monday.com. Search items, change column values, move or archive items, post updates, and start workflows from supported board events.',
   docsLink: 'https://docs.sim.ai/integrations/monday',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

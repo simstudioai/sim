@@ -4,6 +4,11 @@
  */
 
 import {
+  hasEnvCapabilityValue,
+  inspectCapability,
+  SANDBOX_CAPABILITY,
+} from '@sim/deployment-config/env-capabilities'
+import {
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
@@ -16,7 +21,6 @@ import {
   resolveSandboxFeatureAvailability,
 } from './enterprise-entitlements'
 import { env, envBoolean, envNumber, getEnv, isFalsy, isTruthy } from './env'
-import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
 
 /**
  * Is the application running in production mode
@@ -295,13 +299,15 @@ export const isEnterpriseEnabled =
 /**
  * Reads a feature's own flag as a tri-state, picking the server var or its
  * browser twin for the current runtime. `undefined` means the operator left it
- * unset, which is what lets the master switch and legacy default apply.
+ * unset, which is what lets the master switch and legacy default apply. A
+ * server-only feature passes a `null` twin.
  */
 function explicitEnterpriseFlag(
   serverValue: boolean | string | undefined,
-  clientKey: string
+  clientKey: string | null
 ): boolean | undefined {
-  return typeof window === 'undefined' ? envBoolean(serverValue) : envBoolean(getEnv(clientKey))
+  if (typeof window === 'undefined') return envBoolean(serverValue)
+  return clientKey ? envBoolean(getEnv(clientKey)) : undefined
 }
 
 /**
@@ -316,7 +322,7 @@ function explicitEnterpriseFlag(
 function enterpriseFeatureEnabled(
   feature: EnterpriseFeature,
   serverValue: boolean | string | undefined,
-  clientKey: string
+  clientKey: string | null
 ): boolean {
   const explicit = explicitEnterpriseFlag(serverValue, clientKey)
   if (isBillingEnabled) return explicit ?? false
@@ -469,6 +475,17 @@ export const isSessionPoliciesEnabled = enterpriseFeatureEnabled(
   'sessionPolicies',
   env.SESSION_POLICIES_ENABLED,
   'NEXT_PUBLIC_SESSION_POLICIES_ENABLED'
+)
+
+/**
+ * Are Credential Groups (managed connected accounts) enabled on a deployment
+ * without billing. Server-only: the browser learns availability from the
+ * credential-groups routes, so there is no `NEXT_PUBLIC_` twin.
+ */
+export const isCredentialGroupsEnabled = enterpriseFeatureEnabled(
+  'credentialGroups',
+  env.CREDENTIAL_GROUPS,
+  null
 )
 
 /**
@@ -725,7 +742,3 @@ export function getCostMultiplier(): number {
 }
 
 /** Backend selector. Kept independent of enterprise entitlement overrides. */
-const liveEnterpriseSearchSetting =
-  typeof window === 'undefined' ? env.SIM_SEARCH_LIVE : getEnv('NEXT_PUBLIC_SIM_SEARCH_LIVE')
-export const isLiveEnterpriseSearchEnabled =
-  liveEnterpriseSearchSetting === undefined || isTruthy(liveEnterpriseSearchSetting)

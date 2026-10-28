@@ -1,5 +1,8 @@
 import { copilotChats, workspace } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRead, mockWrite, mockRunEmbeddedCli, mockMint } = vi.hoisted(() => ({
@@ -20,18 +23,14 @@ vi.mock('sim/embed', () => ({
   createEmbeddedClient: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mockMint }))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: async () => [] }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: async () => 'write',
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getInternalApiBaseUrl: () => 'http://internal',
-  SITE_URL: 'http://sim.test',
-}))
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+
+urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('http://internal')
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
 
 const context = { workspaceId: 'ws-1', userId: 'u-1', chatId: 'chat-1' } as Parameters<
   typeof executeSimCli

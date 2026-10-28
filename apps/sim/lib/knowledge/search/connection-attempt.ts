@@ -5,7 +5,6 @@ export const SEARCH_CONNECTION_ATTEMPT_EVENT = 'sim:search-connection-attempt'
 const attemptSchema = z.object({
   completionId: z.string().uuid(),
   requestedAt: z.number(),
-  connectorId: z.string().optional(),
   credentialId: z.string().optional(),
   status: z.enum(['pending', 'connected', 'failed']),
   error: z.string().nullable(),

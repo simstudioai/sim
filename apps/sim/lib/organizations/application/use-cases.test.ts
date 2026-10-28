@@ -1,14 +1,20 @@
 import type { Principal } from '@sim/auth/principal'
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/audit', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/audit')>()),
-  recordAudit: vi.fn(),
-}))
-const mocks = vi.hoisted(() => ({
-  config: vi.fn(),
+vi.mock('@sim/audit', () => auditMock)
+const hoisted = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   create: vi.fn(),
@@ -18,21 +24,21 @@ const mocks = vi.hoisted(() => ({
   members: vi.fn(),
   organizations: vi.fn(),
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/organizations/member-manager', () => ({
-  updateOrganizationMemberRecord: mocks.update,
-  removeOrganizationMemberRecord: mocks.remove,
+  updateOrganizationMemberRecord: hoisted.update,
+  removeOrganizationMemberRecord: hoisted.remove,
 }))
 vi.mock('@/lib/invitations/organization-invitations', () => ({
-  prepareOrganizationInvitationContext: mocks.prepare,
-  createOrganizationInvitation: mocks.create,
+  prepareOrganizationInvitationContext: hoisted.prepare,
+  createOrganizationInvitation: hoisted.create,
 }))
-vi.mock('@/lib/organizations/member-queries', () => ({ readOrganizationMemberPage: mocks.members }))
+vi.mock('@/lib/organizations/member-queries', () => ({
+  readOrganizationMemberPage: hoisted.members,
+}))
 vi.mock('@/lib/organizations/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/organizations/queries')>()),
-  listOrganizationRecordsForUser: mocks.organizations,
+  listOrganizationRecordsForUser: hoisted.organizations,
 }))
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
@@ -44,8 +50,13 @@ import {
 import { listOrganizationMembers, listOrganizations } from '@/lib/organizations/application/reads'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const session: Principal = { kind: 'session', userId: 'actor', sessionId: 'current-session' }
-const key: Principal = { kind: 'personal_api_key', userId: 'actor', keyId: 'key' }
+const mocks = {
+  ...hoisted,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
+
+const session: Principal = createSessionPrincipal({ userId: 'actor', sessionId: 'current-session' })
+const key: Principal = createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' })
 const oauth: Principal = {
   kind: 'oauth_access_token',
   userId: 'actor',
@@ -89,7 +100,10 @@ describe('organization application operations', () => {
   it('rejects workspace keys before protected loading', async () => {
     await expect(
       updateOrganizationMember.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'workspace-key' },
+        principal: createWorkspaceApiKeyPrincipal({
+          workspaceId: 'workspace',
+          keyId: 'workspace-key',
+        }),
         input: roleInput,
       })
     ).rejects.toMatchObject({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })

@@ -54,6 +54,11 @@ export const ALL_COMPETITORS: CompetitorProfile[] = [
 
 const COMPETITOR_BY_SLUG = new Map(ALL_COMPETITORS.map((c) => [c.id, c]))
 
+/** Path of the Sim vs `competitor` comparison page. */
+export function comparisonPath(competitor: CompetitorProfile): string {
+  return `/comparisons/${competitor.id}`
+}
+
 export function getCompetitorBySlug(slug: string): CompetitorProfile | null {
   return COMPETITOR_BY_SLUG.get(slug) ?? null
 }
@@ -95,18 +100,21 @@ export interface ComparisonVerdict {
 
 export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdict {
   const strength = competitor.standoutFeatures[0]
-  const chooseCompetitor = strength
-    ? `Choose ${competitor.name} if you specifically need ${lowercaseFirst(strength.title)}: ${strength.description}`
-    : `Choose ${competitor.name} if its specific strengths, documented above, matter more to your team than an AI-native, self-hostable workspace.`
+  const chooseCompetitor =
+    competitor.chooseCompetitorAnswer ??
+    (strength
+      ? `Choose ${competitor.name} if you specifically need ${lowercaseFirst(strength.title)}: ${strength.description}`
+      : `Choose ${competitor.name} if its specific strengths, documented above, matter more to your team than an AI-native, self-hostable workspace.`)
 
   return {
-    chooseSim: `Choose Sim if you want an open-source, self-hostable AI workspace that treats AI agents as first-class citizens: native multi-LLM support, real-time multiplayer editing, environment promotion (dev/qa/prod), human-in-the-loop approvals, and enterprise governance (SSO, credential-level permissions, audit logs) built in rather than bolted on.`,
+    chooseSim: `Choose Sim if you want an open-source, self-hostable AI workspace that treats AI agents as first-class citizens: native multi-LLM support, real-time multiplayer editing, human-in-the-loop approvals, and, on the Enterprise plan, environment promotion (dev/qa/prod) and governance (SSO, credential-level permissions, audit logs) built in rather than bolted on.`,
     chooseCompetitor,
   }
 }
 
 /**
- * Builds the FAQ set for a "Sim vs {Competitor}" page. Answer-first, each
+ * Builds the FAQ set for a "Sim vs {Competitor}" page: the profile's
+ * hand-written FAQs first, then the generated ones. Answer-first, each
  * question/answer pair is independently quotable per the landing GEO rules,
  * and every answer names "Sim" and the competitor explicitly. Every answer
  * draws on a real, sourced {@link Fact} field rather than a generic claim,
@@ -116,9 +124,10 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   const name = competitor.name
   const facts = competitor.facts
   const faqs: ComparisonFaq[] = [
+    ...(competitor.faqs ?? []),
     {
       question: `Is Sim a good alternative to ${name}?`,
-      answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
+      answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim's core is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
     },
     {
       question: `What is the main difference between Sim and ${name}?`,
@@ -126,7 +135,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Does Sim support self-hosting compared to ${name}?`,
-      answer: `Sim can be self-hosted via Docker or Kubernetes under an Apache 2.0 license, in addition to a managed cloud-hosted plan. ${name}'s self-hosting position: ${ensurePeriod(firstSentence(facts.platform.selfHostOption.value))}`,
+      answer: `Sim can be self-hosted via Docker or Kubernetes with an Apache 2.0-licensed core, in addition to a managed cloud-hosted plan. Enterprise features such as SSO and audit logs require an Enterprise license. ${name}'s self-hosting position: ${ensurePeriod(firstSentence(facts.platform.selfHostOption.value))}`,
     },
     {
       question: `How does Sim's pricing compare to ${name}?`,
@@ -194,14 +203,27 @@ function formatClaim(item: { title: string; description: string }): string {
   return `${lowercaseFirst(item.title)}: ${item.description}`
 }
 
+const SENTENCE_END = /[.!?]["')]?(?=\s+["'(A-Z]|$)/g
+
+/** A period that closes "vs.", "incl.", "etc.", or a single letter ("e.g.", "U.S."), not a sentence. */
+const ABBREVIATION_END = /(?:^|[\s(.-])(?:vs|incl|etc|[A-Za-z])\.$/
+
+/**
+ * Returns the first sentence of `value`: text up to the first `.`, `!`, or `?`
+ * (plus any closing quote or paren) followed by whitespace and a capital, quote,
+ * or paren, or by the end of the string. Decimals ("2.0", "$0.005") and abbreviations ("vs.", "U.S.") never end it.
+ */
 function firstSentence(value: string): string {
-  const match = value.match(/^[^.]+\./)
-  return match ? match[0] : value
+  for (const match of value.matchAll(SENTENCE_END)) {
+    const candidate = value.slice(0, match.index + match[0].length)
+    if (!ABBREVIATION_END.test(value.slice(0, match.index + 1))) return candidate
+  }
+  return value
 }
 
-/** Appends a period if `value` doesn't already end in sentence-closing punctuation. */
+/** Appends a period unless `value` already ends in sentence-closing punctuation, optionally followed by a closing quote or paren. */
 export function ensurePeriod(value: string): string {
-  return /[.!?]$/.test(value) ? value : `${value}.`
+  return /[.!?]["')]?$/.test(value) ? value : `${value}.`
 }
 
 /**

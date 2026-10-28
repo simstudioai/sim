@@ -1,23 +1,22 @@
 import { randomBytes } from 'node:crypto'
-import { describe, expect, it } from 'vitest'
+import { db } from '@sim/db'
+import * as schema from '@sim/db/schema'
+import { eq, sql } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
+import * as tokenStore from '@/lib/auth/oauth-access-token'
+import * as provider from '@/lib/auth/oauth-provider'
+import { revokeOAuthToken, rotateOAuthRefreshToken } from '@/lib/auth/oauth-token-family'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+/**
+ * Set before the imports above evaluate: they load the auth graph at collection, not against the
+ * test's timeout.
+ */
+vi.hoisted(() => {
+  process.env.BETTER_AUTH_SECRET ||= 'oauth-token-family-integration-test-secret'
+})
 
-describe.skipIf(!databaseUrl)('OAuth token families in PostgreSQL', () => {
+describe('OAuth token families in PostgreSQL', () => {
   it('rotates, contains replay, revokes one login, and follows consent changes', async () => {
-    process.env.DATABASE_URL = databaseUrl
-    process.env.BETTER_AUTH_SECRET ||= 'oauth-token-family-integration-test-secret'
-
-    const [{ db }, schema, { eq, sql }, provider, tokenStore] = await Promise.all([
-      import('@sim/db'),
-      import('@sim/db/schema'),
-      import('drizzle-orm'),
-      import('@/lib/auth/oauth-provider'),
-      import('@/lib/auth/oauth-access-token'),
-    ])
-    const { revokeOAuthToken, rotateOAuthRefreshToken } = await import(
-      '@/lib/auth/oauth-token-family'
-    )
     const testId = randomBytes(8).toString('hex')
     const userId = `oauth-family-test-user-${testId}`
     const sessionId = `oauth-family-test-session-${testId}`

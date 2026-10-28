@@ -1,31 +1,45 @@
 ---
 title: Google Docs
 description: Read, write, create, and edit documents
+integration:
+  type: "google_docs"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_docs"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google Docs](https://docs.google.com) in Sim to read, create, and update documents. Workflows can insert text, tables, images, and page breaks; find and replace text; and apply text styling.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Google Docs account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-docs` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
 
+## Use the block [#usage-instructions]
+
+Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.
 
 ## Actions
 
 ### Read Google Docs Document
 
 Read content from a Google Docs document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -44,9 +58,13 @@ Read content from a Google Docs document
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Write to Google Docs Document
 
 Append content to a Google Docs document. Content is inserted literally; Markdown is not interpreted. For formatted output from Markdown, use the Create operation with the markdown toggle enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -66,9 +84,13 @@ Append content to a Google Docs document. Content is inserted literally; Markdow
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Create Google Docs Document
 
 Create a new Google Docs document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -90,9 +112,13 @@ Create a new Google Docs document
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Insert Text into Google Docs Document
 
 Insert text at a specific index in a Google Docs document. When no index is provided, text is appended to the end of the document. Text is inserted literally; Markdown is not interpreted.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -113,9 +139,13 @@ Insert text at a specific index in a Google Docs document. When no index is prov
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Find and Replace Text in Google Docs Document
 
 Replace all occurrences of a search string with new text across a Google Docs document.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -137,9 +167,13 @@ Replace all occurrences of a search string with new text across a Google Docs do
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Insert Table into Google Docs Document
 
 Insert an empty table with the given number of rows and columns into a Google Docs document. When no index is provided, the table is appended to the end of the document.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -161,9 +195,13 @@ Insert an empty table with the given number of rows and columns into a Google Do
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Insert Image into Google Docs Document
 
 Insert an inline image from a public URL into a Google Docs document. The image must be publicly accessible and under 50 MB. When no index is provided, the image is appended to the end of the document.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +224,13 @@ Insert an inline image from a public URL into a Google Docs document. The image 
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Insert Page Break into Google Docs Document
 
 Insert a page break into a Google Docs document. When no index is provided, the page break is appended to the end of the document.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -208,9 +250,13 @@ Insert a page break into a Google Docs document. When no index is provided, the 
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Apply Text Style in Google Docs Document
 
 Apply bold, italic, underline, and/or font size to a range of text in a Google Docs document, identified by its start and end character index.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -235,9 +281,13 @@ Apply bold, italic, underline, and/or font size to a range of text in a Google D
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Update Paragraph Style in Google Docs Document
 
 Apply a named paragraph style (such as a heading or title) and/or alignment to the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -260,9 +310,13 @@ Apply a named paragraph style (such as a heading or title) and/or alignment to t
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Create Paragraph Bullets in Google Docs Document
 
 Add bulleted or numbered list formatting to the paragraphs overlapping a range of text in a Google Docs document, using a chosen bullet glyph preset.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -284,9 +338,13 @@ Add bulleted or numbered list formatting to the paragraphs overlapping a range o
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Delete Paragraph Bullets in Google Docs Document
 
 Remove bullet or numbered list formatting from the paragraphs overlapping a range of text in a Google Docs document, identified by its start and end character index.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -307,9 +365,13 @@ Remove bullet or numbered list formatting from the paragraphs overlapping a rang
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Delete Content Range in Google Docs Document
 
 Delete all content between a start and end character index in a Google Docs document. The endIndex is exclusive and must be greater than the startIndex.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -330,9 +392,13 @@ Delete all content between a start and end character index in a Google Docs docu
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Create Named Range in Google Docs Document
 
 Create a named range over a span of content in a Google Docs document so it can be referenced or deleted later. The name may be 1-256 characters and need not be unique.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +420,13 @@ Create a named range over a span of content in a Google Docs document so it can 
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
 
+</ReferenceDetails>
+
 ### Delete Named Range in Google Docs Document
 
 Delete one or more named ranges from a Google Docs document by their ID or by name. Provide exactly one of namedRangeId or name; deleting by name removes all ranges sharing that name. The content itself is not removed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -376,5 +446,7 @@ Delete one or more named ranges from a Google Docs document by their ID or by na
 |   ↳ `title` | string | Document title |
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
+
+</ReferenceDetails>
 
 

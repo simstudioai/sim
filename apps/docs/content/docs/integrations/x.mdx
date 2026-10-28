@@ -1,31 +1,56 @@
 ---
 title: X
 description: Interact with X
+integration:
+  type: "x"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="x"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [X](https://x.com/) through an OAuth connection to manage posts and bookmarks, search content, inspect user relationships, and retrieve trends and account usage. The actions below document the available posting and account controls.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a X account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate X into the workflow. Search tweets, manage bookmarks, follow/block/mute users, like and retweet, view trends, and more.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/x` |
+| Environment variables | `X_CLIENT_ID`, `X_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `tweet.read` | Read tweets and timeline |
+| `tweet.write` | Post, repost, and delete tweets |
+| `tweet.moderate.write` | Hide and unhide replies to tweets |
+| `users.read` | Read user profiles and account information |
+| `follows.read` | View followers and following lists |
+| `follows.write` | Follow and unfollow users |
+| `bookmark.read` | View bookmarked tweets |
+| `bookmark.write` | Add and remove bookmarks |
+| `like.read` | View liked tweets and liking users |
+| `like.write` | Like and unlike tweets |
+| `block.read` | View blocked users |
+| `block.write` | Block and unblock users |
+| `mute.read` | View muted users |
+| `mute.write` | Mute and unmute users |
+| `offline.access` | Access account when not using the application |
 
+## Use the block [#usage-instructions]
+
+Search tweets, manage bookmarks, follow/block/mute users, like and retweet, view trends, and more.
 
 ## Actions
 
 ### X Create Tweet
 
 Create a new tweet, reply, or quote tweet on X
+
+<ReferenceDetails>
 
 #### Input
 
@@ -44,9 +69,13 @@ Create a new tweet, reply, or quote tweet on X
 | `id` | string | The ID of the created tweet |
 | `text` | string | The text of the created tweet |
 
+</ReferenceDetails>
+
 ### X Delete Tweet
 
 Delete a tweet authored by the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -60,9 +89,13 @@ Delete a tweet authored by the authenticated user
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the tweet was successfully deleted |
 
+</ReferenceDetails>
+
 ### X Search Tweets
 
 Search for recent tweets using keywords, hashtags, or advanced query operators
+
+<ReferenceDetails>
 
 #### Input
 
@@ -111,9 +144,13 @@ Search for recent tweets using keywords, hashtags, or advanced query operators
 |   ↳ `oldestId` | string | ID of the oldest tweet |
 |   ↳ `nextToken` | string | Pagination token for next page |
 
+</ReferenceDetails>
+
 ### X Get Tweets By IDs
 
 Look up multiple tweets by their IDs (up to 100)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -150,9 +187,13 @@ Look up multiple tweets by their IDs (up to 100)
 |       ↳ `followingCount` | number | Number of users following |
 |       ↳ `tweetCount` | number | Total number of tweets |
 
+</ReferenceDetails>
+
 ### X Get Quote Tweets
 
 Get tweets that quote a specific tweet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -182,9 +223,13 @@ Get tweets that quote a specific tweet
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Token for next page |
 
+</ReferenceDetails>
+
 ### X Hide Reply
 
 Hide or unhide a reply to a tweet authored by the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -199,9 +244,13 @@ Hide or unhide a reply to a tweet authored by the authenticated user
 | --------- | ---- | ----------- |
 | `hidden` | boolean | Whether the reply is now hidden |
 
+</ReferenceDetails>
+
 ### X Get User Tweets
 
 Get tweets authored by a specific user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +300,13 @@ Get tweets authored by a specific user
 |   ↳ `nextToken` | string | Token for next page |
 |   ↳ `previousToken` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### X Get User Mentions
 
 Get tweets that mention a specific user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -302,9 +355,13 @@ Get tweets that mention a specific user
 |   ↳ `nextToken` | string | Token for next page |
 |   ↳ `previousToken` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### X Get User Timeline
 
 Get the reverse chronological home timeline for the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +411,13 @@ Get the reverse chronological home timeline for the authenticated user
 |   ↳ `nextToken` | string | Token for next page |
 |   ↳ `previousToken` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### X Manage Like
 
 Like or unlike a tweet on X
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,9 +433,13 @@ Like or unlike a tweet on X
 | --------- | ---- | ----------- |
 | `liked` | boolean | Whether the tweet is now liked |
 
+</ReferenceDetails>
+
 ### X Manage Retweet
 
 Retweet or unretweet a tweet on X
+
+<ReferenceDetails>
 
 #### Input
 
@@ -390,9 +455,13 @@ Retweet or unretweet a tweet on X
 | --------- | ---- | ----------- |
 | `retweeted` | boolean | Whether the tweet is now retweeted |
 
+</ReferenceDetails>
+
 ### X Get Liked Tweets
 
 Get tweets liked by a specific user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -415,9 +484,13 @@ Get tweets liked by a specific user
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Token for next page |
 
+</ReferenceDetails>
+
 ### X Get Liking Users
 
 Get the list of users who liked a specific tweet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -446,9 +519,13 @@ Get the list of users who liked a specific tweet
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Token for next page |
 
+</ReferenceDetails>
+
 ### X Get Retweeted By
 
 Get the list of users who retweeted a specific tweet
+
+<ReferenceDetails>
 
 #### Input
 
@@ -477,9 +554,13 @@ Get the list of users who retweeted a specific tweet
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Token for next page |
 
+</ReferenceDetails>
+
 ### X Get Bookmarks
 
 Get bookmarked tweets for the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -524,9 +605,13 @@ Get bookmarked tweets for the authenticated user
 |   ↳ `nextToken` | string | Token for next page |
 |   ↳ `previousToken` | string | Token for previous page |
 
+</ReferenceDetails>
+
 ### X Create Bookmark
 
 Bookmark a tweet for the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -541,9 +626,13 @@ Bookmark a tweet for the authenticated user
 | --------- | ---- | ----------- |
 | `bookmarked` | boolean | Whether the tweet was successfully bookmarked |
 
+</ReferenceDetails>
+
 ### X Delete Bookmark
 
 Remove a tweet from the authenticated user's bookmarks
+
+<ReferenceDetails>
 
 #### Input
 
@@ -558,9 +647,13 @@ Remove a tweet from the authenticated user's bookmarks
 | --------- | ---- | ----------- |
 | `bookmarked` | boolean | Whether the tweet is still bookmarked \(should be false after deletion\) |
 
+</ReferenceDetails>
+
 ### X Get Me
 
 Get the authenticated user's profile information
+
+<ReferenceDetails>
 
 #### Input
 
@@ -583,9 +676,13 @@ Get the authenticated user's profile information
 |     ↳ `followingCount` | number | Number of users following |
 |     ↳ `tweetCount` | number | Total number of tweets |
 
+</ReferenceDetails>
+
 ### X Search Users
 
 Search for X users by name, username, or bio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -614,9 +711,13 @@ Search for X users by name, username, or bio
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Pagination token for next page |
 
+</ReferenceDetails>
+
 ### X Get Followers
 
 Get the list of followers for a user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -645,9 +746,13 @@ Get the list of followers for a user
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Token for next page |
 
+</ReferenceDetails>
+
 ### X Get Following
 
 Get the list of users that a user is following
+
+<ReferenceDetails>
 
 #### Input
 
@@ -676,9 +781,13 @@ Get the list of users that a user is following
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Token for next page |
 
+</ReferenceDetails>
+
 ### X Manage Follow
 
 Follow or unfollow a user on X
+
+<ReferenceDetails>
 
 #### Input
 
@@ -695,9 +804,13 @@ Follow or unfollow a user on X
 | `following` | boolean | Whether you are now following the user |
 | `pendingFollow` | boolean | Whether the follow request is pending \(for protected accounts\) |
 
+</ReferenceDetails>
+
 ### X Manage Block
 
 Block or unblock a user on X
+
+<ReferenceDetails>
 
 #### Input
 
@@ -713,9 +826,13 @@ Block or unblock a user on X
 | --------- | ---- | ----------- |
 | `blocking` | boolean | Whether you are now blocking the user |
 
+</ReferenceDetails>
+
 ### X Get Blocking
 
 Get the list of users blocked by the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -744,9 +861,13 @@ Get the list of users blocked by the authenticated user
 |   ↳ `resultCount` | number | Number of results returned |
 |   ↳ `nextToken` | string | Token for next page |
 
+</ReferenceDetails>
+
 ### X Manage Mute
 
 Mute or unmute a user on X
+
+<ReferenceDetails>
 
 #### Input
 
@@ -762,9 +883,13 @@ Mute or unmute a user on X
 | --------- | ---- | ----------- |
 | `muting` | boolean | Whether you are now muting the user |
 
+</ReferenceDetails>
+
 ### X Get Trends By WOEID
 
 Get trending topics for a specific location by WOEID (e.g., 1 for worldwide, 23424977 for US)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -781,9 +906,13 @@ Get trending topics for a specific location by WOEID (e.g., 1 for worldwide, 234
 |   ↳ `trendName` | string | Name of the trending topic |
 |   ↳ `tweetCount` | number | Number of tweets for this trend |
 
+</ReferenceDetails>
+
 ### X Get Personalized Trends
 
 Get personalized trending topics for the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -800,9 +929,13 @@ Get personalized trending topics for the authenticated user
 |   ↳ `category` | string | Category of the trend |
 |   ↳ `trendingSince` | string | ISO 8601 timestamp of when the topic started trending |
 
+</ReferenceDetails>
+
 ### X Get Usage
 
 Get the API usage data for your X project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -826,5 +959,7 @@ Get the API usage data for your X project
 |   ↳ `usage` | array | Daily usage entries for this app |
 |     ↳ `date` | string | Usage date in ISO 8601 format |
 |     ↳ `usage` | number | Number of tweets consumed |
+
+</ReferenceDetails>
 
 

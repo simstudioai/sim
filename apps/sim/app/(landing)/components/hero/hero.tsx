@@ -3,6 +3,10 @@ import { HeroAnnouncementChip } from '@/app/(landing)/components/hero/components
 import { LandingHeroHeader } from '@/app/(landing)/components/hero/components/hero-header'
 import { HeroPlatformStage } from '@/app/(landing)/components/hero/components/hero-platform-stage'
 import {
+  HOME_HERO_HEADING,
+  HOME_HERO_SUMMARY,
+} from '@/app/(landing)/components/home-structured-data'
+import {
   HOME_INSET,
   LANDING_CONTENT_WIDTH,
   LANDING_GUTTER,
@@ -29,12 +33,7 @@ export function Hero() {
         LANDING_GUTTER
       )}
     >
-      <p className='sr-only'>
-        Sim is the open-source AI workspace where teams build, deploy, and manage AI agents for
-        their organization. Connect hundreds of integrations and every major LLM, then govern
-        access, spend, data, and deployment from one place. Build visually, conversationally, or
-        with code, and run Sim in your own cloud.
-      </p>
+      <p className='sr-only'>{HOME_HERO_SUMMARY}</p>
 
       <div className={HOME_INSET}>
         <LandingHeroHeader
@@ -43,9 +42,9 @@ export function Hero() {
           eyebrow={<HeroAnnouncementChip />}
           heading={
             <>
-              Build and govern
+              {HOME_HERO_HEADING[0]}
               <br />
-              every AI agent in one place
+              {HOME_HERO_HEADING[1]}
             </>
           }
           description='Build, deploy, and manage AI agents with central control over access, spend, and data.'

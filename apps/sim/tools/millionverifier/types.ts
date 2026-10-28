@@ -26,7 +26,3 @@ export interface MillionVerifierGetCreditsResponse extends ToolResponse {
     credits: number
   }
 }
-
-export type MillionVerifierResponse =
-  | MillionVerifierVerifyEmailResponse
-  | MillionVerifierGetCreditsResponse

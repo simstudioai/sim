@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeWarehouseParams } from '@/too
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -12,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const getWarehouseTool: ToolConfig<SnowflakeWarehouseParams, SnowflakeStatementResponse> = {
   id: 'snowflake_get_warehouse',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Get Warehouse',
   description: 'Get the full details for a Snowflake virtual warehouse.',
   params: {

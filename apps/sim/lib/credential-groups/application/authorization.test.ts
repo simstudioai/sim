@@ -1,42 +1,36 @@
 import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 
-const mocks = vi.hoisted(() => ({
-  loadEnrollmentAccess: vi.fn(),
-  loadBinding: vi.fn(),
-  requirePolicy: vi.fn(),
-  isAvailable: vi.fn(),
-}))
-
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
-  loadManagedCredentialGroupBinding: mocks.loadBinding,
-  isManagedCredentialGroupBindingLive: (binding: {
-    managedOauthStatus: string
-    enrollmentStatus: string
-    groupStatus: string
-    optionStatus: string | null
-  }) =>
-    binding.managedOauthStatus === 'active' &&
-    ['in_progress', 'completed'].includes(binding.enrollmentStatus) &&
-    binding.groupStatus === 'active' &&
-    binding.optionStatus === 'active',
-}))
-
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.isAvailable,
-}))
-
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.requirePolicy,
-}))
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
 import {
   requireCredentialGroupCredentialAccess,
   requireCredentialGroupWorkflowActor,
 } from '@/lib/credential-groups/application/authorization'
+
+const mocks = {
+  loadEnrollmentAccess:
+    credentialGroupsCredentialsMockFns.mockLoadCredentialGroupEnrollmentAccessForSubject,
+  loadBinding: credentialGroupsCredentialsMockFns.mockLoadManagedCredentialGroupBinding,
+  requirePolicy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  isAvailable: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
 
 const context = {
   workspaceId: 'workspace-1',

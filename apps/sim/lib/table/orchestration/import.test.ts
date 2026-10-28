@@ -3,59 +3,44 @@
  * routes delegate to, so neither can drift on what an import actually does.
  */
 import { Readable } from 'node:stream'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockMarkTableJobRunning,
-  mockReleaseJobClaim,
-  mockImportAppendRows,
-  mockImportReplaceRows,
-  mockGetMaxRowsPerTable,
-  mockDispatchAfterBatchInsert,
-  mockSignalSchemaChanged,
-  mockGetWorkspaceTableLimits,
-  mockBatchInsertRows,
-  mockCreateTable,
-  mockDeleteTable,
-} = vi.hoisted(() => ({
-  mockMarkTableJobRunning: vi.fn(),
-  mockReleaseJobClaim: vi.fn(),
+const { mockImportAppendRows, mockImportReplaceRows } = vi.hoisted(() => ({
   mockImportAppendRows: vi.fn(),
   mockImportReplaceRows: vi.fn(),
-  mockGetMaxRowsPerTable: vi.fn(),
-  mockDispatchAfterBatchInsert: vi.fn(),
-  mockSignalSchemaChanged: vi.fn(),
-  mockGetWorkspaceTableLimits: vi.fn(),
-  mockBatchInsertRows: vi.fn(),
-  mockCreateTable: vi.fn(),
-  mockDeleteTable: vi.fn(),
 }))
 
-vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunning: mockMarkTableJobRunning,
-  releaseJobClaim: mockReleaseJobClaim,
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/import-data', () => ({
   importAppendRows: mockImportAppendRows,
   importReplaceRows: mockImportReplaceRows,
 }))
-vi.mock('@/lib/table/billing', () => ({
-  getMaxRowsPerTable: mockGetMaxRowsPerTable,
-  getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
-  wouldExceedRowLimit: (limit: number, current: number, added: number) =>
-    limit >= 0 && current + added > limit,
-}))
-vi.mock('@/lib/table/rows/service', () => ({
-  batchInsertRows: mockBatchInsertRows,
-  dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
-}))
-vi.mock('@/lib/table/service', () => ({
-  createTable: mockCreateTable,
-  deleteTable: mockDeleteTable,
-}))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mockSignalSchemaChanged }))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { performCreateTableFromCsv, performTableCsvImport } from '@/lib/table/orchestration/import'
+
+const mockMarkTableJobRunning = tableJobsServiceMockFns.mockMarkTableJobRunning
+const mockReleaseJobClaim = tableJobsServiceMockFns.mockReleaseJobClaim
+const mockGetMaxRowsPerTable = tableBillingMockFns.mockGetMaxRowsPerTable
+const mockGetWorkspaceTableLimits = tableBillingMockFns.mockGetWorkspaceTableLimits
+const mockBatchInsertRows = tableRowsServiceMockFns.mockBatchInsertRows
+const mockDispatchAfterBatchInsert = tableRowsServiceMockFns.mockDispatchAfterBatchInsert
+const mockCreateTable = tableServiceMockFns.mockCreateTable
+const mockDeleteTable = tableServiceMockFns.mockDeleteTable
 
 const TABLE = {
   id: 'table-1',
@@ -174,6 +159,50 @@ describe('performTableCsvImport', () => {
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
     expect(result.error).toContain('exceed table row limit')
     expect(mockImportAppendRows).not.toHaveBeenCalled()
+  })
+
+  it('reports the row limit for an over-limit file before contending for the job slot', async () => {
+    mockMarkTableJobRunning.mockResolvedValue(false)
+    mockGetMaxRowsPerTable.mockResolvedValue(11)
+    const threeRows = `${CSV}g@h.i,Gus\n`
+
+    const append = await performTableCsvImport(importParams())
+    const replaceWithinLimit = await performTableCsvImport(
+      importParams({ mode: 'replace', fileStream: csvStream(threeRows) })
+    )
+    mockGetMaxRowsPerTable.mockResolvedValue(2)
+    const replaceOverLimit = await performTableCsvImport(
+      importParams({ mode: 'replace', fileStream: csvStream(threeRows) })
+    )
+
+    expect(append).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(append.error).toContain('Append would exceed table row limit')
+    expect(replaceWithinLimit).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(replaceOverLimit).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(replaceOverLimit.error).toContain('Replace would exceed table row limit (2)')
+  })
+
+  it('lets timers run while coercing a large file instead of holding the event loop', async () => {
+    const rowCount = 50_000
+    const lines = ['email,name']
+    for (let i = 0; i < rowCount; i++) lines.push(`user${i}@example.com,Name ${i}`)
+    let timerFired = false
+    let timerFiredBeforeWrite = false
+    mockGetMaxRowsPerTable.mockResolvedValue(-1)
+    mockImportAppendRows.mockImplementation(async () => {
+      timerFiredBeforeWrite = timerFired
+      return { inserted: [], table: TABLE }
+    })
+
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+    const result = await performTableCsvImport(
+      importParams({ fileStream: csvStream(`${lines.join('\n')}\n`) })
+    )
+
+    expect(result.success).toBe(true)
+    expect(timerFiredBeforeWrite).toBe(true)
   })
 
   it('rejects an archived table and a table with a job already running', async () => {

@@ -23,6 +23,31 @@ export const retoolProfile: CompetitorProfile = {
   },
   oneLiner:
     'Retool is a low-code platform for building, deploying, and managing internal software (apps, workflows, and AI agents) that connect to databases, APIs, and LLMs.',
+  leadAnswer: [
+    'Retool is a proprietary low-code platform for building internal software: React-based apps, workflows, and a separate Agents product connected to databases, APIs, and LLMs, on Retool Cloud or self-hosted on any plan with a Retool-issued license key. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Retool when the deliverable is an internal app with a user interface on top of production data, such as an admin panel or dashboard. Choose Sim when the deliverable is the agent or automation itself, built in one workflow builder and deployed as a REST API, chat interface, or MCP tool, with built-in evaluation and guardrail blocks.',
+  ],
+  faqs: [
+    {
+      question: 'Sim vs Retool for building internal AI tools: which should I use?',
+      answer:
+        "Use Retool when the internal tool needs a full app interface, and Sim when the tool is an AI agent or automation. Retool builds internal business applications with a React frontend and TypeScript backend, and its AppGen generates the UI, data queries, and bindings from a plain-English prompt while inheriting the org's existing authentication and access controls. Retool Agents is a separate product that combines deterministic code, LLM decisions, and human-in-the-loop steps. Sim combines agent, function, and human approval blocks in a single workflow builder, builds and edits workflows from natural language through Chat and Copilot, and deploys them as a REST API, a public chat interface, or an MCP tool.",
+    },
+    {
+      question: 'What is a Retool alternative for building AI agents rather than internal apps?',
+      answer:
+        "Sim is built for AI agents first, while Retool's agent capabilities sit beside an internal app builder. Retool Agents usage is billed by the hour, separately from the monthly AI-credit allocation, and Retool documents no dedicated evaluation or guardrail framework for agent output, nor a way to publish an individual app or workflow as its own MCP tool. Sim includes an Evaluator block that scores outputs against named metrics, a Guardrails block for JSON validation, regex, hallucination scoring, and PII masking, reusable Agent Skills, and publishing of any deployed workflow as an MCP tool.",
+    },
+    {
+      question: 'Is Retool open source, and can it be self-hosted?',
+      answer:
+        "Retool is proprietary and closed-source, while Sim's core is licensed under Apache 2.0. Retool's pricing lists self-host plans on every tier, with Enterprise required for unlimited users, SSO, and air-gapped deployment. Every self-hosted deployment needs a Retool-issued license key, and its Docker Compose setup is for non-production testing only, so production self-hosting runs on Kubernetes with Helm. Sim can be self-hosted with Docker Compose or Kubernetes (Helm), and its enterprise features, such as SSO and audit logs, require a Sim Enterprise license.",
+    },
+    {
+      question: 'How do Sim and Retool compare for knowledge bases and RAG?',
+      answer:
+        "Sim's knowledge base combines vector and full-text search and keeps sources in sync, while Retool Vectors is a managed vector store for uploaded content. Retool Vectors indexes text, PDFs, and web pages, and it generates embeddings with an OpenAI embedding model (text-embedding-ada-002 by default) that cannot be changed after a vector is created. Sim stores embeddings in pgvector alongside a full-text index, supports 15 file types with configurable chunking, uses connectors to continuously sync sources such as Google Drive, Confluence, and Slack, and shows chunk-level detail with a dedicated chunk editor.",
+    },
+  ],
   standoutFeatures: [
     {
       title: 'Full internal business applications, not just agent workflows',
@@ -138,16 +163,21 @@ export const retoolProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'Yes: self-hosted deployment is available on Free, Team, and Business plans at the same pricing as cloud; Enterprise is required for unlimited users and advanced capabilities. A Retool-issued license key is required even when self-hosted.',
+          'Yes, on every plan: self-host plans cover Free (up to 5 users), Team and Business (up to 100 users), and Enterprise (unlimited users, SSO, and air-gapped deployment). A Retool-issued license key is required even when self-hosted.',
         detail:
           'Self-hosted Retool is deployable via Docker (non-production/testing only) or Kubernetes/Helm (production).',
-        shortValue: 'Yes, on Free/Team/Business; license key required',
+        shortValue: 'Yes, every plan; license key required',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://retool.com/self-hosted',
+            url: 'https://retool.com/md/pricing',
+            label: 'Retool Pricing (self-host plans)',
+            asOf: '2026-10-20',
+          },
+          {
+            url: 'https://retool.com/govern-enterprise-apps/self-hosted',
             label: 'Retool Self Hosted',
-            asOf: '2026-07-02',
+            asOf: '2026-10-19',
           },
           {
             url: 'https://docs.retool.com/self-hosted/tutorials/docker',
@@ -158,10 +188,20 @@ export const retoolProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Retool Cloud (multi-tenant SaaS), or self-hosted via Docker Compose (non-prod/testing) or Kubernetes with Helm chart (production).',
-        shortValue: 'Cloud, or self-hosted via Docker/Kubernetes',
+          'Retool Cloud (multi-tenant SaaS), or self-hosted on any plan via Docker Compose (non-prod/testing) or Kubernetes with Helm chart (production); air-gapped deployment requires Enterprise.',
+        shortValue: 'Cloud, or self-hosted on any plan',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://retool.com/md/pricing',
+            label: 'Retool Pricing (self-host plans)',
+            asOf: '2026-10-20',
+          },
+          {
+            url: 'https://docs.retool.com/self-hosted/self-managed/tutorials/kubernetes/kubernetes-helm',
+            label: 'Deploy Retool on Kubernetes with Helm | Retool Docs',
+            asOf: '2026-10-20',
+          },
           {
             url: 'https://docs.retool.com/self-hosted/tutorials/docker',
             label: 'Deploy Self-hosted Retool with Docker | Retool Docs',

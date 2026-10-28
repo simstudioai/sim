@@ -12,13 +12,11 @@ Sim connects your HubSpot CRM to AI workflows. Once connected, your workflows ca
 - **React to CRM changes** — start a workflow when a contact, company, deal, or ticket is created or updated in HubSpot.
 - **Combine HubSpot with AI steps** — enrich a new contact with an [Agent block](/workflows/blocks/agent), route deals with a [Condition](/workflows/blocks/condition), or sync records into [Tables](/tables).
 
-This guide covers installing the integration, connecting a HubSpot account, configuring it in a workflow, and disconnecting or uninstalling it.
-
 ## Before you begin
 
 You need:
 
-- A [Sim](https://sim.ai) account and a workspace where you have **Write** or **Admin** permission.
+- A [Sim](https://www.sim.ai) account and a workspace where you have **Write** or **Admin** permission.
 - A HubSpot account. To grant the requested scopes, your HubSpot user needs permission to install apps (typically a super admin).
 
 ## Install the app and connect HubSpot
@@ -26,36 +24,22 @@ You need:
 1. Log in to Sim, open your workspace, and click **Integrations** in the sidebar.
 2. Search for **HubSpot** and open it.
 
-<Image
-  src="/static/integrations/hubspot/integrations-page.png"
-  alt="The current Integrations page with search and HubSpot in the featured services"
-  width={1064}
-  height={760}
-/>
-
 3. Click **Add to Sim** and choose **Connect with OAuth**. For a private app token, follow the [Private App Tokens guide](/integrations/hubspot-service-account).
 
 <Image
-  src="/static/integrations/hubspot/hubspot-page-add-to-sim.png"
+  src="/static/docs-captures/hubspot.webp"
   alt="The HubSpot integration page in Sim with the Add to Sim button in the top right"
-  width={800}
-  height={717}
+  width={2400}
+  height={1176}
+  variant="overview"
+  background="ridges"
 />
 
 4. In the **Connect HubSpot** dialog, enter a **Display name** for the connection (for example "Sales HubSpot"), review the permissions requested, and click **Connect**.
 
 5. You are redirected to HubSpot. Sign in, then choose the HubSpot account you want to connect.
 
-<Image
-  src="/static/integrations/hubspot/hubspot-oauth-signin.png"
-  alt="HubSpot's screen for connecting your Sim account, with sign-in options"
-  width={600}
-  height={494}
-/>
-
 6. Review the requested scopes on HubSpot's approval screen and click **Connect app**.
-
-{/* VISUAL: screenshot of the HubSpot scope approval screen for the Sim app. */}
 
 7. You are returned to Sim. The connection appears under **Connected** on the Integrations page.
 
@@ -71,8 +55,6 @@ For your own workflows, the integration runs through the **HubSpot block**.
 2. In **HubSpot Account**, select the connection you created.
 3. Pick an **Operation** — for example *Create Contact*, *Search Deals*, *Update Ticket*, or *List Companies*.
 4. Fill in the operation's fields. Reference outputs from earlier blocks with [connection tags](/workflows/connections), like `<agent.content>` or `<start.input>`.
-
-{/* VISUAL: screenshot of a HubSpot block configured with an account and the Create Contact operation. */}
 
 The full list of operations, with every input and output, is on the [HubSpot integration reference](/integrations/hubspot).
 

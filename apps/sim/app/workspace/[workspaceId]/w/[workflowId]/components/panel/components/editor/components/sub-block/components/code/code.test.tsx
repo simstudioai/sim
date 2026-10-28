@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,10 +51,7 @@ vi.mock('@sim/emcn', () => ({
   languages: { javascript: {}, python: {}, bash: {} },
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  Check: () => null,
-  Wand: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock('react-simple-code-editor', () => ({
   default: ({
@@ -77,10 +76,6 @@ vi.mock('react-simple-code-editor', () => ({
       <pre data-testid='code-highlight' dangerouslySetInnerHTML={{ __html: highlight(value) }} />
     </>
   ),
-}))
-
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
 
 vi.mock(
@@ -163,6 +158,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
     selector({ blocks: {} }),
 }))
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { Code } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/code'
 
 let container: HTMLDivElement
@@ -183,12 +179,14 @@ afterEach(() => {
 function mount(password: boolean) {
   act(() => {
     root.render(
-      <Code
-        blockId='block-1'
-        subBlockId='privateKey'
-        password={password}
-        wandConfig={{ enabled: false, prompt: '' }}
-      />
+      <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+        <Code
+          blockId='block-1'
+          subBlockId='privateKey'
+          password={password}
+          wandConfig={{ enabled: false, prompt: '' }}
+        />
+      </WorkflowScopeProvider>
     )
   })
 }

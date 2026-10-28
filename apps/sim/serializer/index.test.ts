@@ -23,8 +23,13 @@ import {
   toolsUtilsMock,
 } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
+import { classifyFailure } from '@/lib/core/errors/failure-log'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { Serializer } from '@/serializer/index'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
 
 vi.mock('@/blocks', () => ({
   ...blocksMock,
@@ -43,8 +48,6 @@ vi.mock('@/blocks', () => ({
   }),
 }))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
-
 describe('Serializer', () => {
   describe('serializeWorkflow', () => {
     it.concurrent('should serialize a conditional workflow correctly', () => {
@@ -354,7 +357,8 @@ describe('Serializer', () => {
         enabled: true,
       }
 
-      expect(() => {
+      let refusal: unknown
+      try {
         serializer.serializeWorkflow(
           { 'test-block': blockWithMissingUserOnlyField },
           [],
@@ -362,7 +366,15 @@ describe('Serializer', () => {
           undefined,
           true
         )
-      }).toThrow('Test Jina Block is missing required fields: API Key')
+      } catch (error) {
+        refusal = error
+      }
+      expect(refusal).toMatchObject({
+        name: 'Error',
+        message: 'Test Jina Block is missing required fields: API Key',
+      })
+      /** The author's configuration, so execution logs it at info rather than paging at error. */
+      expect(classifyFailure(refusal)).toBe('user')
     })
 
     it.concurrent('should not validate user-or-llm fields during serialization', () => {

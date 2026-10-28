@@ -14,7 +14,6 @@ import {
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
-import { useParams } from 'next/navigation'
 import {
   SKILL_CONTENT_PLACEHOLDER,
   SKILL_DESCRIPTION_MAX_LENGTH,
@@ -43,6 +42,7 @@ const RichMarkdownField = dynamic(
 )
 
 interface SkillModalProps {
+  workspaceId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: () => void
@@ -63,10 +63,13 @@ const CREATE_TABS = [
   { value: 'import', label: 'Import' },
 ] as const
 
-export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-
+export function SkillModal({
+  workspaceId,
+  open,
+  onOpenChange,
+  onSave,
+  initialValues,
+}: SkillModalProps) {
   const createSkill = useCreateSkill()
   const updateSkill = useUpdateSkill()
 

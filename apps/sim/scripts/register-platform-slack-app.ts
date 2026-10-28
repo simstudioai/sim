@@ -2,8 +2,9 @@ import { db } from '@sim/db'
 import { slackApp } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 
 const logger = createLogger('RegisterPlatformSlackApp')
 
@@ -26,9 +27,7 @@ async function main() {
     encryptSecret(signingSecret),
   ])
   await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`slack-app:${appId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(tx, 'slack_app', `slack-app:${appId}`)
     const [existing] = await tx
       .select({ kind: slackApp.kind })
       .from(slackApp)

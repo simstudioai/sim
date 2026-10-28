@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleTasksResponse } from '@/tools/google_tasks/types'
 
 /**
  * Canonical basic/advanced pair for the task list, shared by the card
@@ -12,12 +11,11 @@ import type { GoogleTasksResponse } from '@/tools/google_tasks/types'
  */
 const TASK_LIST_FIELD = ['taskListSelector', 'taskListId'] as const
 
-export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
+export const GoogleTasksBlock: BlockConfig = {
   type: 'google_tasks',
   name: 'Google Tasks',
   description: 'Manage Google Tasks',
-  longDescription:
-    'Integrate Google Tasks into your workflow. Create, read, update, delete, and list tasks and task lists.',
+  longDescription: 'Create, read, update, delete, and list tasks and task lists.',
   docsLink: 'https://docs.sim.ai/integrations/google_tasks',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

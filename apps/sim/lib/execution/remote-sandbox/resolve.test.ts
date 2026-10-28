@@ -3,20 +3,21 @@
  * to surface as an explicit error, never as a baffling ModuleNotFoundError
  * inside the user's code. These cases pin that contract down.
  */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const {
-  mockSelect,
-  mockUpdate,
   mockProviderStrategy,
   mockEnsureSandboxImage,
   mockIsMissingImage,
   mockLocalGeneration,
   mockPlanAccess,
 } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockUpdate: vi.fn(),
   mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
   mockEnsureSandboxImage: vi.fn(),
   mockIsMissingImage: vi.fn(),
@@ -34,69 +35,7 @@ vi.mock('@/lib/execution/remote-sandbox/entitlement', () => ({
   hasWorkspaceSandboxRetentionAccessCached: mockPlanAccess,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    update: mockUpdate,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  workspaceSandbox: {
-    id: 'id',
-    workspaceId: 'workspace_id',
-    name: 'name',
-    language: 'language',
-    dependencies: 'dependencies',
-    cliTools: 'cli_tools',
-    systemPackages: 'system_packages',
-    specHash: 'spec_hash',
-  },
-  sandboxImage: {
-    provider: 'provider',
-    specHash: 'spec_hash',
-    status: 'status',
-    imageRef: 'image_ref',
-    materializationGeneration: 'materialization_generation',
-    errorCode: 'error_code',
-    errorMessage: 'error_message',
-    lastUsedAt: 'last_used_at',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: (...args: unknown[]) => args,
-  eq: (...args: unknown[]) => args,
-}))
-
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({
-    id: 'e2b',
-    get dependencyStrategy() {
-      return mockProviderStrategy.current
-    },
-    get images() {
-      return mockProviderStrategy.current === 'prebuilt'
-        ? {
-            rendererRevision: 1,
-            isMissingImage: mockIsMissingImage,
-            materialization: () => ({
-              rendererRevision: 1,
-              generation: mockLocalGeneration.current,
-              imageRefPrefix: 'sim-sbx-current:',
-              baseImageRef: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
-            }),
-            imageRefGeneration: (imageRef: string) => {
-              if (imageRef.startsWith('sim-sbx-current:')) return mockLocalGeneration.current
-              if (imageRef.startsWith('sim-sbx-newer:')) return mockLocalGeneration.current + 1000
-              if (imageRef.startsWith('sim-sbx-collision:')) return mockLocalGeneration.current
-              return undefined
-            },
-          }
-        : undefined
-    },
-  }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 
 import {
   invalidateSandboxResolution,
@@ -104,6 +43,35 @@ import {
   repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
+
+const { select: mockSelect, update: mockUpdate } = dbChainMockFns
+
+remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(() => ({
+  id: 'e2b',
+  get dependencyStrategy() {
+    return mockProviderStrategy.current
+  },
+  get images() {
+    return mockProviderStrategy.current === 'prebuilt'
+      ? {
+          rendererRevision: 1,
+          isMissingImage: mockIsMissingImage,
+          materialization: () => ({
+            rendererRevision: 1,
+            generation: mockLocalGeneration.current,
+            imageRefPrefix: 'sim-sbx-current:',
+            baseImageRef: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          }),
+          imageRefGeneration: (imageRef: string) => {
+            if (imageRef.startsWith('sim-sbx-current:')) return mockLocalGeneration.current
+            if (imageRef.startsWith('sim-sbx-newer:')) return mockLocalGeneration.current + 1000
+            if (imageRef.startsWith('sim-sbx-collision:')) return mockLocalGeneration.current
+            return undefined
+          },
+        }
+      : undefined
+  },
+}))
 
 /** Queues the rows each successive `db.select()` chain resolves to. */
 function queueSelects(...results: unknown[][]) {

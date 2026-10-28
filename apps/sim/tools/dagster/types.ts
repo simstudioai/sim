@@ -275,22 +275,3 @@ export interface DagsterWipeAssetResponse extends ToolResponse {
     assetKey: string
   }
 }
-
-export type DagsterResponse =
-  | DagsterLaunchRunResponse
-  | DagsterGetRunResponse
-  | DagsterListRunsResponse
-  | DagsterListJobsResponse
-  | DagsterTerminateRunResponse
-  | DagsterGetRunLogsResponse
-  | DagsterReexecuteRunResponse
-  | DagsterDeleteRunResponse
-  | DagsterListSchedulesResponse
-  | DagsterScheduleMutationResponse
-  | DagsterListSensorsResponse
-  | DagsterSensorMutationResponse
-  | DagsterListAssetsResponse
-  | DagsterGetAssetResponse
-  | DagsterMaterializeAssetsResponse
-  | DagsterReportAssetMaterializationResponse
-  | DagsterWipeAssetResponse

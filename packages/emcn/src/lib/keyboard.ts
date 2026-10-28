@@ -4,7 +4,7 @@ interface KeyboardActivationOptions {
   stopPropagation?: boolean
 }
 
-export function isKeyboardActivation(event: KeyboardEvent) {
+function isKeyboardActivation(event: KeyboardEvent) {
   return event.key === 'Enter' || event.key === ' '
 }
 

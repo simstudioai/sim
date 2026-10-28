@@ -51,7 +51,7 @@ export const discordKickMemberTool: ToolConfig<DiscordKickMemberParams, DiscordK
       },
     },
 
-    transformResponse: async (response) => {
+    transformResponse: async () => {
       return {
         success: true,
         output: {

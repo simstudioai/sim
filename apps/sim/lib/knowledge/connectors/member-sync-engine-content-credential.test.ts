@@ -4,19 +4,34 @@ import {
   resetDbChainMock,
   resetEnvFlagsMock,
   schemaMock,
-  setEnvFlags,
 } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExternalDocument } from '@/connectors/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   list: vi.fn(),
   get: vi.fn(),
   add: vi.fn(),
   update: vi.fn(),
-  dispatch: vi.fn(),
   token: vi.fn(),
-  rejectToken: vi.fn(),
   isCredentialInvalidError: vi.fn(),
   observe: vi.fn(),
   removeUnseen: vi.fn(),
@@ -24,7 +39,6 @@ const mocks = vi.hoisted(() => ({
   materialize: vi.fn(),
   rematerialize: vi.fn(async () => 0),
   lifecycle: vi.fn(),
-  credentials: vi.fn(),
   getChangeCursor: vi.fn(),
   listChanges: vi.fn(),
   supportsChangeFeed: vi.fn(),
@@ -33,61 +47,40 @@ const mocks = vi.hoisted(() => ({
   renew: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionOwner: vi.fn(),
-  assertBillingAttributionSnapshot: (value: unknown) => value,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: vi.fn(async () => true),
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  CredentialGroupCredentialCursorNotFoundError: class extends Error {},
-  isManagedCredentialGroupBindingLive: vi.fn(async () => true),
-  loadScopedAccountsCredentialListContext: vi.fn(async () => ({
-    status: 'active',
-    options: [{ id: 'option', status: 'active' }],
-  })),
-}))
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   inviteWorkspaceMembersToCredentialGroup: vi.fn(async () => ({ invited: 0 })),
 }))
 vi.mock('@/lib/knowledge/connectors/access-token', () => ({
   resolveConnectorTokenUserId: vi.fn(async () => 'credential-owner'),
-  resolveConnectorAccessToken: mocks.token,
+  resolveConnectorAccessToken: hoisted.token,
   syncContextForToken: (token: { cloudId?: string }) => ({ cloudId: token.cloudId }),
 }))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  KnowledgeConnectorMemberAccessDeniedError: class extends Error {},
-  listKnowledgeConnectorMemberCredentials: mocks.credentials,
-  mintKnowledgeConnectorMemberToken: vi.fn(async () => ({ accessToken: 'member-token' })),
-  rejectKnowledgeConnectorMemberToken: mocks.rejectToken,
-}))
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
-  applyMemberDocumentLifecycle: mocks.lifecycle,
-  materializeDocumentAcls: mocks.materialize,
-  rematerializeDocumentAcls: mocks.rematerialize,
-  recordMemberObservations: mocks.observe,
-  removeMemberObservationsForDocuments: mocks.removeForDocuments,
-  removeUnseenMemberObservations: mocks.removeUnseen,
-  renewMemberObservationsInScopes: mocks.renew,
+  applyMemberDocumentLifecycle: hoisted.lifecycle,
+  materializeDocumentAcls: hoisted.materialize,
+  rematerializeDocumentAcls: hoisted.rematerialize,
+  recordMemberObservations: hoisted.observe,
+  removeMemberObservationsForDocuments: hoisted.removeForDocuments,
+  removeUnseenMemberObservations: hoisted.removeUnseen,
+  renewMemberObservationsInScopes: hoisted.renew,
   rewriteConnectorAcls: vi.fn(async () => true),
   tombstoneDocumentsObservedOnlyBy: vi.fn(async () => 0),
   resurrectObservedDocuments: vi.fn(async () => 0),
 }))
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
-  addDocument: mocks.add,
-  updateDocument: mocks.update,
+  addDocument: hoisted.add,
+  updateDocument: hoisted.update,
   persistSkippedDocuments: vi.fn(async () => []),
-  persistSourceDocumentFailures: mocks.persistFailures,
+  persistSourceDocumentFailures: hoisted.persistFailures,
   persistHashOnlyUpdates: vi.fn(async () => []),
   resolveSourceMetadataFields: vi.fn(() => ({ sourceUrl: null, sourceModifiedAt: null })),
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(),
-  processDocumentsWithQueue: mocks.dispatch,
-  ConnectorSyncDeletionGuardError: class extends Error {},
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     full_listing: {
@@ -96,8 +89,8 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
       supportsSeparateContentCredential: true,
-      listDocuments: mocks.list,
-      getDocument: mocks.get,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
     },
     scoped_listing: {
       id: 'scoped_listing',
@@ -105,9 +98,9 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
       supportsSeparateContentCredential: true,
-      listDocuments: mocks.list,
-      getDocument: mocks.get,
-      listAccessibleScopes: mocks.scopes,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
+      listAccessibleScopes: hoisted.scopes,
       isListingCursorInvalidError: (error: unknown) =>
         error instanceof Error && error.message === 'cursor expired',
     },
@@ -117,12 +110,12 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
       supportsSeparateContentCredential: true,
-      listDocuments: mocks.list,
-      getDocument: mocks.get,
-      getChangeCursor: mocks.getChangeCursor,
-      listChanges: mocks.listChanges,
-      supportsChangeFeed: mocks.supportsChangeFeed,
-      isCredentialInvalidError: mocks.isCredentialInvalidError,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
+      getChangeCursor: hoisted.getChangeCursor,
+      listChanges: hoisted.listChanges,
+      supportsChangeFeed: hoisted.supportsChangeFeed,
+      isCredentialInvalidError: hoisted.isCredentialInvalidError,
     },
   },
 }))
@@ -141,6 +134,25 @@ import {
   MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
   SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
+
+const mocks = {
+  ...hoisted,
+  credentials: knowledgeMemberAccessMockFns.mockListKnowledgeConnectorMemberCredentials,
+  rejectToken: knowledgeMemberAccessMockFns.mockRejectKnowledgeConnectorMemberToken,
+  dispatch: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+}
+
+credentialGroupsCredentialsMockFns.mockIsManagedCredentialGroupBindingLive.mockReturnValue(true)
+credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext.mockImplementation(
+  async () => ({
+    status: 'active',
+    options: [{ id: 'option', status: 'active' }],
+  })
+)
+knowledgeMemberAccessMockFns.mockMintKnowledgeConnectorMemberToken.mockImplementation(async () => ({
+  accessToken: 'member-token',
+}))
+triggerAvailabilityMockFns.mockIsTriggerAvailable.mockReturnValue(true)
 
 const serviceDocument: ExternalDocument = {
   externalId: 'file-shared',
@@ -173,6 +185,8 @@ function arrange(
     existingDocument?: boolean
     openMemberFeed?: boolean
     contentFresh?: boolean
+    /** A content pass that finished before this run, past the content interval. */
+    finishedPass?: { lastSyncAt: Date; lastSyncDocCount: number }
     forceContentRefresh?: boolean
     noDueMembers?: boolean
     syncIntervalMinutes?: number
@@ -199,7 +213,8 @@ function arrange(
     memberSyncStatus: 'idle',
     memberSyncConsecutiveFailures: 0,
     syncIntervalMinutes: options.syncIntervalMinutes ?? 1440,
-    lastSyncAt: options.contentFresh ? new Date() : null,
+    lastSyncAt: options.finishedPass?.lastSyncAt ?? (options.contentFresh ? new Date() : null),
+    lastSyncDocCount: options.finishedPass?.lastSyncDocCount ?? null,
     directoryCheckpoint: options.directoryCheckpoint ?? null,
     sourceConfig: { folderId: 'shared-folder', adminEmail: 'admin@example.com' },
     accessRewritePending: false,
@@ -262,14 +277,14 @@ function arrange(
         {
           ownedCount: options.existingDocument ? 2 : 1,
           listedCount: 1,
+          aclCount: 0,
           softCount: 0,
           hardCount: 0,
         },
       ])
-      queueTableRows(schemaMock.document, [])
-      queueTableRows(schemaMock.document, [])
     }
-    queueTableRows(schemaMock.document, [{ count: 1 }])
+    if (!options.finishedPass || !options.contentIncomplete)
+      queueTableRows(schemaMock.document, [{ count: 1 }])
   }
   if (options.members && !options.noDueMembers)
     queueTableRows(schemaMock.document, [
@@ -357,7 +372,6 @@ describe('member engine with a dedicated content credential', () => {
   })
 
   it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
-    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const result = await arrange({ isSearchIndex: true, members: true })()
     expect(result.skipReason).toBe('connector_not_syncable')
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -541,6 +555,43 @@ describe('member engine with a dedicated content credential', () => {
           order > opened && order < inserted && JSON.stringify(call).includes('lock_timeout')
       )
     expect(bounded).toEqual([])
+  })
+
+  /**
+   * A finished pass recorded the count, and an unfinished slice of the next pass keeps it rather
+   * than scanning the whole connector again; the count is replaced when that pass finishes.
+   */
+  it('keeps the recorded document count on an unfinished slice once a pass has finished', async () => {
+    const run = arrange({
+      contentIncomplete: true,
+      finishedPass: { lastSyncAt: new Date(Date.now() - 2 * 86_400_000), lastSyncDocCount: 7 },
+    })
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now')
+    mocks.list.mockResolvedValue({
+      documents: Array.from({ length: 26 }, (_, i) => ({
+        ...serviceDocument,
+        externalId: `content-${i}`,
+      })),
+      hasMore: false,
+    })
+    mocks.get.mockImplementation(async (_token, _config, externalId: string) => {
+      clock.mockReturnValue(now + 35 * 60_000)
+      return { ...serviceDocument, externalId, content: 'Service content', contentDeferred: false }
+    })
+    try {
+      const result = await run()
+      expect(result.error).toBeUndefined()
+      expect(result.docsAdded).toBeGreaterThan(0)
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'partial', listedCount: null })
+      )
+      expect(
+        dbChainMockFns.set.mock.calls.some(([value]) => value && 'lastSyncDocCount' in value)
+      ).toBe(false)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('reserves time for member permissions when a slow dedicated content page has more batches', async () => {

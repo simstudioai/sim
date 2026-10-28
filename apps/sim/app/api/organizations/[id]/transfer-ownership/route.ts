@@ -13,6 +13,7 @@ import {
   transferOrganizationOwnership,
 } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 
 const logger = createLogger('TransferOwnershipAPI')
 
@@ -150,6 +151,7 @@ export const POST = withRouteHandler(
         memberId: selfMember.id,
         spareSessionToken: session.session.token,
       })
+      deliverRunStops(removeResult.stoppedRuns)
 
       if (!removeResult.success) {
         logger.error('Transfer succeeded but self-removal failed', {

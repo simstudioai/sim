@@ -17,6 +17,7 @@ import {
   ManagedOAuthCredentialError,
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -172,8 +173,10 @@ export const connectGitHubSearchInstallation = defineAuthorizedKnowledgeUseCase(
     })
     const { encrypted } = await encryptSecret(JSON.stringify(binding))
     return db.transaction(async (tx) => {
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`github-search:${context.organizationId}:${binding.installationId}`}, 0))`
+      await acquireAdvisoryXactLock(
+        tx,
+        'github_search',
+        `github-search:${context.organizationId}:${binding.installationId}`
       )
       const [admin] = await tx
         .select({ id: member.id })

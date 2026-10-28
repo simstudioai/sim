@@ -1,20 +1,12 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { AbortTaskRunError } from '@trigger.dev/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertConnectorSyncPayload, mockExecuteSync, mockTask, mockWarn } = vi.hoisted(() => ({
-  mockWarn: vi.fn(),
+const { mockAssertConnectorSyncPayload, mockExecuteSync } = vi.hoisted(() => ({
   mockAssertConnectorSyncPayload: vi.fn(),
   mockExecuteSync: vi.fn(),
-  mockTask: vi.fn((config) => config),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() }),
-}))
-vi.mock('@trigger.dev/sdk', () => ({
-  task: mockTask,
-  AbortTaskRunError: class AbortTaskRunError extends Error {},
-}))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({
   assertConnectorSyncPayload: mockAssertConnectorSyncPayload,
 }))
@@ -26,6 +18,8 @@ import {
   classifyConnectorSyncResult,
   executeConnectorSyncJob,
 } from '@/background/knowledge-connector-sync'
+
+const { warn: mockWarn } = getMockLogger('TriggerKnowledgeConnectorSync')
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',

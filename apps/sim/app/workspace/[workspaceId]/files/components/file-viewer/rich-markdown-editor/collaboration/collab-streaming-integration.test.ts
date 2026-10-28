@@ -6,7 +6,7 @@
  * streaming path, and a late joiner. Editors are wired as genuine Yjs peers (mesh update forwarding).
  * This exercises the CRDT/merge/convert LOGIC deterministically; it does NOT cover the realtime socket
  * transport, RAF-paced stream loop, or real browser timing (those need a live 2-browser E2E harness).
- * Run: bunx vitest run <thisfile> --disable-console-intercept
+ * Run: bun run --cwd apps/sim test <thisfile> --disable-console-intercept
  */
 import { Editor } from '@tiptap/core'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'

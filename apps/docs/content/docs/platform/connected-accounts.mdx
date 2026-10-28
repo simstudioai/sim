@@ -1,117 +1,123 @@
 ---
 title: Credential Groups
-description: Collect accounts in one organization credential group and control which workspaces can use them.
+description: Collect account connections for an organization and grant workspaces access by integration.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-**Credential Groups** collects people's accounts in one shared pool for your organization, also called a **credential group**. An organization admin chooses the providers, invites people to connect, and allows specific workspaces to use the pool. Workflows in those workspaces can find an account by email through the [Credential block](/workflows/blocks/credential).
+**Credential Groups** collects people's account connections in one organization pool. Organization administrators configure providers, request connections, and choose which integrations each workspace may use. Workflows find an account by invitation email through the [Credential block](/workflows/blocks/credential).
 
-Each organization has at most one pool. Creating it does not give any workspace access; the workspace allowlist starts empty.
+An organization has at most one pool. Its workspace access starts empty.
 
-## Availability
+## Availability and access
 
-Connected accounts must be enabled for your organization. Sim Cloud also requires an active Enterprise plan. Organization owners and admins manage the pool, subject to the organization's permission settings. A workspace admin who is not an organization admin cannot change the pool or its workspace access.
+Sim Cloud requires an active Enterprise plan. On self-hosted deployments, enable `CREDENTIAL_GROUPS=true`, or `ENTERPRISE_ENABLED=true` for the enterprise suite. Personal workspaces cannot use an organization pool.
 
-For self-hosted deployments using environment-based feature flags, set `CREDENTIAL_GROUPS=true`. Availability is organization-scoped; personal workspaces cannot use an organization pool.
+Organization owners and admins manage **Settings → Credential Groups**, subject to permission settings. Workspace Admin access alone does not allow changing the pool or its grants.
 
-Manage the pool under **Settings → Credential Groups**. It remains available independently of Search. Search administrators use **Settings → Sources**, while members connect personal Search accounts under **Integrations** in the main sidebar. These surfaces can share grants without sharing their purpose or resource settings.
+Credential Groups is available independently of Search. Search administrators configure **Settings → Sources**; members connect personal Search accounts under **Integrations**. Adding a provider to Credential Groups does not create a Search source or start indexing. Managed MCP connections support live tool calls.
 
-## Set up connected accounts
+## Set up the pool
 
-Open your organization’s **Settings → Credential Groups**. Select **Set up connected accounts** if this is your first time.
+Open the organization's **Settings → Credential Groups**. If no pool exists, select **Set up Credential Groups**.
 
-The page has three tabs:
-
-| Tab | What you manage |
+| Tab | Purpose |
 | --- | --- |
-| **Providers** | Services people can connect and their shared configuration |
-| **People** | Connection requests, each person's connected accounts, and revocation |
-| **Workspace access** | Workspaces allowed to use the organization's accounts |
+| **Integrations** | Add providers and manage their shared configuration |
+| **People** | Request connections, inspect accounts, resend invitations, and revoke access |
+| **Access** | Grant a workspace all or selected integrations |
 
-### 1. Add providers
+### 1. Add integrations
 
-In **Providers**, select **Add provider** and search the catalog. Complete any required configuration before adding the provider. Added providers appear in the list; use **Configure** to edit their settings or **Remove** in the row menu to remove them.
+In **Integrations**, select **Add integration**, search the catalog, and complete any required setup. Use **Configure** to change an added provider's settings or **Remove** in its menu to remove it.
 
-| Provider | Organization setup |
+| Provider | Required organization setup |
 | --- | --- |
-| OAuth providers, such as Gmail or Google Drive | Add the provider from the available catalog. Each invited person authorizes their account. |
-| Slack | Supply the Slack App ID, Slack workspace ID, OAuth client ID, and client secret, then complete app verification. The organization uses one app and Slack workspace. Existing workspace Slack bots remain separate. |
-| Fireflies and Granola | Add the provider. Sim supplies the MCP endpoint and handles OAuth client registration. People only complete their own authorization. |
-| Databricks | Enter a name, the tenant's MCP URL, a registered OAuth client ID, and a client secret if required by that client. |
+| OAuth providers such as Gmail or Google Drive | Add the provider; each invited person authorizes their account |
+| Slack | Supply the Slack App ID, Slack workspace ID, OAuth client ID, and client secret, then verify the app; the organization uses one app and Slack workspace |
+| Fireflies and Granola | Add the provider; Sim supplies the MCP endpoint and handles OAuth client registration |
+| HubSpot member access | The deployment must supply a registered HubSpot MCP OAuth app; people authorize CRM read access; see [HubSpot Search](/search/hubspot) |
+| Databricks | Enter a name, the tenant's HTTPS MCP URL, a registered OAuth client ID, and a client secret if that client requires one |
 
-For Databricks, **Add** validates and saves the configuration before the provider appears in the list. Cancelling the form leaves nothing added. Use an official Databricks HTTPS MCP endpoint, such as `https://your-workspace.cloud.databricks.com/api/2.0/mcp/sql`, and the OAuth client registered for your deployment. People connecting later use this organization configuration.
+Existing workspace Slack bots and their triggers remain separate from the organization's personal Slack connections.
 
-When editing Databricks, leaving the client secret blank preserves the saved secret. Changing the MCP URL or OAuth client requires people to reconnect.
+For Databricks, use an official endpoint such as `https://your-workspace.cloud.databricks.com/api/2.0/mcp/sql` and the OAuth client registered for the deployment. **Add** validates and saves the configuration before the provider appears; cancelling adds nothing. Leaving the client secret blank while editing preserves it. Changing the endpoint or OAuth client requires people to reconnect.
 
-Adding a provider makes account connections available; it does not add a Search source or start document indexing. Search source setup is managed under **Settings → Sources**. Live Search queries providers on demand. Credential Groups has no indexing controls or status indicators. Managed MCP providers support live tool calls.
+### 2. Request connections
 
-### 2. Invite people
+Configure the providers before inviting people. A Search source does not replace required OAuth or managed MCP setup.
 
-Open **Settings → Credential Groups → People**. Set up the provider before inviting people; a Search source does not replace required OAuth or managed MCP configuration.
+1. Open **People** and select **Request connections**.
+2. Enter email addresses and select **Send requests**.
+3. Each invitee opens the invitation, signs in with its verified Sim email, and authorizes the providers they want to contribute.
+4. They select **Submit** to finish the form.
 
-1. Select **Request connections**.
-2. Enter their email addresses and select **Send requests**.
-3. Each person opens the invitation, signs in to Sim with the verified invitation email, and authorizes the providers they want to connect.
-4. They select **Submit** to finish the connection form.
+Invitees can contribute accounts without joining your organization. The invitation gives access to the connection form, not to your workspaces or workflows.
 
-Invitees can contribute accounts without joining your organization. The invitation grants access to their connection form; it does not grant access to your workspaces or workflows.
-
-Use the invitation email in workflow lookups. For example, if you invite `alex@example.com`, **Find Organization Account** with that email and **Gmail** finds Alex's active Gmail contribution.
+Use the invitation email for workflow lookups. For example, inviting `alex@example.com` lets **Find Organization Account** look up Alex's active Gmail contribution with that email and **Gmail**.
 
 #### How the email is associated with a Sim user
 
-On first use, the invitation email must match the signed-in user's verified Sim email. Sim then binds the invitation to that user's account. Another person cannot take it over by opening the link, and a later email change does not transfer it to a different Sim user. The invitation email remains the workflow lookup key.
+On first use, the invitation email must match the signed-in user's verified Sim email. Sim binds the invitation to that user account. Opening the link as another person cannot take it over, and a later email change does not transfer it to another Sim user. The invitation email remains the workflow lookup key.
 
-The verified Sim user who starts authorization must complete it. A provider account can use a different email from the invitation; the saved contribution belongs to the bound Sim user. Managed MCP connections likewise use that Sim user’s authorization. Keep using the invitation email for workflow lookups. Search separately checks current provider identity and any source-specific requirements.
+The verified Sim user who starts authorization must complete it. The provider account may have a different email; its contribution belongs to the bound Sim user. Managed MCP connections use that person's authorization too. Search separately checks current provider identity and source-specific access requirements.
 
-In **People**, open a person's actions menu and select **Resend** when they need another invitation. **Revoke** stops the organization from using that person's contributions. The person cannot undo an administrator's revocation by reconnecting on their own.
+Use **Resend** in a person's menu when they need the invitation again. **Revoke** stops the organization from using their contributions. They cannot undo an administrator's revocation by reconnecting themselves.
 
-### 3. Allow workspaces
+### 3. Grant workspace access
 
-Open **Workspace access** and select **Add workspaces** to choose one or more workspaces. The list shows workspaces that have access; use a row's **Remove** action to withdraw it. Adding or removing a workspace applies immediately. Only workspaces in this organization can be allowed.
+1. Open **Access** and select **Add workspace**.
+2. Choose one workspace in this organization.
+3. Under **Integrations**, choose specific integration types or **All integrations**.
+4. Select **Add workspace** to save the grant.
 
-<Callout>
-An allowed workspace gives every authorized manual and deployed workflow in that workspace access to **every active account in the pool**. This includes scheduled, webhook, and public deployments that pass their normal workflow authorization. There is no separate workflow allowlist or restriction to the running user's own contributions.
+A selected grant requires at least one integration. **All integrations** also includes integrations added to the pool later. Use **Edit access** to change the selection, **Save access** to save it, or **Remove access** to withdraw the grant.
+
+<Callout type="warn">
+Every normally authorized workflow in the workspace can use active accounts for its allowed integration types, including scheduled, webhook, and public deployments. There is no separate workflow allowlist or restriction to the running person's own contributions. Choose **All integrations** only when this exposure is intended.
 </Callout>
 
-For example, allowing the Support workspace lets its authorized workflows use Alex's Gmail contribution even when someone else runs the workflow. Allowing the workspace does not grant anyone permission to edit or run a workflow they could not otherwise access.
+For example, allowing Gmail in the Support workspace lets its authorized workflows use Alex's Gmail contribution even when someone else runs them. The grant does not give anyone permission to edit or run a workflow they could not otherwise access.
 
-Removing a workspace stops subsequent use of the pool. It does not recall provider requests already in flight or remove data a workflow has already received. Chat continues to use each person's own connections; workspace access does not give Chat access to other people's accounts.
+Changes apply to subsequent calls. Removing access cannot recall a provider request already in flight or erase data already received. Standalone Chat continues to use each person's own connections; the workspace grant does not give Chat other people's accounts.
 
-## Use accounts in workflows
+## Use account references in workflows
 
-Use the **Credential** block's organization operations in an allowed workspace:
+In an eligible workspace, use the Credential block's organization operations:
 
-- **Find Organization Account** selects an OAuth account by invitation email and provider.
-- **List Organization Accounts** returns a page of OAuth accounts, optionally filtered by email and providers.
-- **Find Organization MCP Connection** selects a person's managed MCP connection by invitation email and MCP provider.
-- **List Organization MCP Connections** returns a page of managed MCP connections, optionally filtered by email and provider.
+| Operation | Result |
+| --- | --- |
+| **Find Organization Account** | One OAuth account matching the invitation email and provider |
+| **List Organization Accounts** | A page of OAuth accounts, optionally filtered by email and providers |
+| **Find Organization MCP Connection** | One managed MCP connection matching the invitation email and MCP provider |
+| **List Organization MCP Connections** | A page of managed MCP connections, optionally filtered by email and provider |
 
-The organization is determined by the workflow's workspace. You do not enter a credential group ID or organization ID in the block.
+The workflow's workspace determines the organization. You do not enter a credential group or organization ID.
 
-The outputs are account references, without tokens. Use an OAuth `credentialId` in the corresponding integration block's credential field. For managed MCP, `credentialId` identifies the person's connection; `mcpServerId` identifies shared configuration and cannot select that person's authorization by itself.
+Outputs contain account references, not tokens. Use an OAuth `credentialId` in a compatible integration block's credential field. For managed MCP, `credentialId` selects the person's connection. `mcpServerId` identifies shared configuration and cannot select that person's authorization by itself.
 
 See the [Credential block reference](/workflows/blocks/credential#organization-accounts) for inputs, outputs, pagination, and connection-event triggers.
 
 ## Reconnect or stop sharing
 
-People can open **Settings → Account → Connected accounts** to view accounts they contributed, including contributions to organizations they have not joined. **Reconnect** starts authorization again. **Disconnect** stops the organization from using that account in subsequent calls.
+Contributors can open **Settings → Account → Connected accounts** to inspect their contributions, including contributions to organizations they have not joined. **Reconnect** starts authorization again. **Disconnect** stops subsequent organization use of that account.
 
-For administrators, the controls have different scopes:
+Administrative controls have different scopes:
 
 | Action | Effect |
 | --- | --- |
-| Remove a provider | Stops use of that provider's contributions in the pool |
-| Revoke a person | Stops use of all that person's contributions to the organization |
-| Remove a workspace from the allowlist | Stops that workspace's workflows from using the pool |
+| Remove an integration | Stops use of that provider's contributions in the pool |
+| Revoke a person | Stops use of all their contributions to the organization |
+| Change a workspace grant | Limits it to the selected integration types |
+| Remove a workspace grant | Stops its workflows from using the pool |
 
-## Current limits and troubleshooting
+## Limits and troubleshooting
 
-- **One pool per organization:** there are no additional groups, per-workflow grants, or per-account workspace allowlists.
-- **One Databricks configuration:** multiple tenant endpoints cannot be added as separate Databricks providers in the same pool.
-- **Organization operations are missing:** confirm the feature is enabled for the organization and the workflow's workspace is allowed.
-- **An invitation rejects your sign-in:** use the verified Sim account matching the invitation email. The provider account can have a different email; the invitation stays bound to the verified Sim user.
-- **A Find operation fails:** it requires exactly one active matching connection. Check the invitation email, provider, connection status, and workspace access. It never chooses an arbitrary account when there are zero or multiple matches.
-- **A list seems incomplete:** organization list operations return up to 100 connections per page. Follow `nextCursor` while `hasMore` is true.
-- **A legacy Credential Group block fails:** replace it with the appropriate Credential block operation or trigger, update its output references, and redeploy the workflow.
+- **Pool and grant limits:** one pool per organization and up to 1,000 workspace grants. Grants select integration types, not individual people's accounts. There is no separate per-workflow allowlist.
+- **Databricks:** one tenant configuration per pool; multiple endpoints cannot be added as separate Databricks providers.
+- **Missing organization operations:** check organization availability, the workspace grant, and its selected integration types.
+- **Rejected sign-in:** use the verified Sim account matching the invitation email. The provider account can have a different email.
+- **Failed Find operation:** it requires exactly one active match. Check email, provider, connection status, and allowed integration type. Zero or multiple matches cause an error; Sim does not choose an arbitrary account.
+- **Incomplete list:** list operations return up to 100 connections per page. Follow `nextCursor` while `hasMore` is true.
+- **Migration-review error:** an operator must review existing pool policies and Search dependencies before enabling workflow sharing. Setting the feature flag does not migrate old grants; affected people may need to reconnect.
+- **Legacy Credential Group block:** replace it with the appropriate Credential operation or trigger, update output references, and redeploy.

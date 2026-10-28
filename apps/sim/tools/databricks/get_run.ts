@@ -1,4 +1,11 @@
 import type { DatabricksGetRunParams, DatabricksGetRunResponse } from '@/tools/databricks/types'
+import {
+  JOB_CLUSTERS_OUTPUT,
+  JOB_TASK_OUTPUT,
+  RUN_STATUS_OUTPUT,
+  RUN_STATUS_OUTPUT_PROPERTIES,
+} from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResponse> = {
@@ -8,6 +15,12 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
   version: '1.0.0',
 
   params: {
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Token for the next page of tasks and job clusters',
+    },
     host: {
       type: 'string',
       required: true,
@@ -42,14 +55,11 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
 
   request: {
     url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      const url = new URL(`https://${host}/api/2.1/jobs/runs/get`)
+      const url = new URL(databricksUrl(params.host, '/api/2.2/jobs/runs/get'))
       url.searchParams.set('run_id', String(params.runId))
       if (params.includeHistory) url.searchParams.set('include_history', 'true')
       if (params.includeResolvedValues) url.searchParams.set('include_resolved_values', 'true')
+      if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
       return url.toString()
     },
     method: 'GET',
@@ -69,6 +79,13 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
     return {
       success: true,
       output: {
+        tasks: data.tasks ?? [],
+        repairHistory: data.repair_history ?? [],
+        jobParameters: data.job_parameters ?? [],
+        jobClusters: data.job_clusters ?? [],
+        runStatus: data.status ?? null,
+        runDuration: data.run_duration ?? null,
+        nextPageToken: data.next_page_token ?? null,
         runId: data.run_id ?? 0,
         jobId: data.job_id ?? 0,
         runName: data.run_name ?? '',
@@ -93,6 +110,48 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
   },
 
   outputs: {
+    tasks: JOB_TASK_OUTPUT,
+    jobClusters: JOB_CLUSTERS_OUTPUT,
+    runStatus: RUN_STATUS_OUTPUT,
+    repairHistory: {
+      type: 'array',
+      description: 'Prior repairs; pass the latest id to Repair Run',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', optional: true },
+          type: { type: 'string' },
+          start_time: { type: 'number' },
+          end_time: { type: 'number' },
+          task_run_ids: { type: 'array', items: { type: 'number' } },
+          status: {
+            type: 'object',
+            optional: true,
+            description: 'Run lifecycle and termination or queue details',
+            properties: RUN_STATUS_OUTPUT_PROPERTIES,
+          },
+        },
+      },
+    },
+    jobParameters: {
+      type: 'array',
+      description: 'Resolved job parameter values',
+      items: {
+        type: 'object',
+        properties: { name: { type: 'string' }, value: { type: 'string' } },
+      },
+    },
+    runDuration: {
+      type: 'number',
+      nullable: true,
+      description: 'Run duration including repairs in milliseconds',
+    },
+    nextPageToken: {
+      type: 'string',
+      nullable: true,
+      description: 'Token for the next page of tasks or job clusters',
+    },
+
     runId: {
       type: 'number',
       description: 'The run ID',
@@ -126,7 +185,7 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
           type: 'string',
           description:
             'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED)',
-          optional: true,
+          nullable: true,
         },
         stateMessage: {
           type: 'string',
@@ -141,32 +200,32 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
     startTime: {
       type: 'number',
       description: 'Run start timestamp (epoch ms)',
-      optional: true,
+      nullable: true,
     },
     endTime: {
       type: 'number',
       description: 'Run end timestamp (epoch ms, 0 if still running)',
-      optional: true,
+      nullable: true,
     },
     setupDuration: {
       type: 'number',
       description: 'Cluster setup duration (ms)',
-      optional: true,
+      nullable: true,
     },
     executionDuration: {
       type: 'number',
       description: 'Execution duration (ms)',
-      optional: true,
+      nullable: true,
     },
     cleanupDuration: {
       type: 'number',
       description: 'Cleanup duration (ms)',
-      optional: true,
+      nullable: true,
     },
     queueDuration: {
       type: 'number',
       description: 'Time spent in queue before execution (ms)',
-      optional: true,
+      nullable: true,
     },
     runPageUrl: {
       type: 'string',

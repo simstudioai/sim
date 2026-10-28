@@ -1,10 +1,10 @@
 import type { ToolConfig } from '@/tools/types'
+import { readZohoDeskList } from '@/tools/zoho_desk/request'
 import type { ZohoDeskListTicketsParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_TICKET_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
-  getZohoDeskErrorMessage,
   normalizeZohoDeskCommaList,
 } from '@/tools/zoho_desk/utils'
 
@@ -109,13 +109,31 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
       description:
         'Comma-separated related data to embed. Allowed: contacts, products, departments, team, isRead, assignee',
     },
+    viewId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Saved view ID',
+    },
+    teamIds: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated team IDs or Unassigned',
+    },
+    selectedFields: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated fields to return; at most 30 system or custom fields',
+    },
   },
 
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.from !== undefined) query.set('from', String(params.from))
-      if (params.limit !== undefined) query.set('limit', String(params.limit))
+      if (params.from != null) query.set('from', String(params.from))
+      if (params.limit != null) query.set('limit', String(params.limit))
       // Every comma-separated filter goes through the same normalizer so a
       // pasted "High, Urgent" never reaches Zoho with the separator space
       // encoded. Interior spaces survive, so "On Hold" still matches.
@@ -147,6 +165,12 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
         }
         query.set('receivedInDays', String(receivedInDays))
       }
+      const viewId = String(params.viewId ?? '').trim()
+      if (viewId) query.set('viewId', viewId)
+      const teamIds = normalizeZohoDeskCommaList(params.teamIds)
+      if (teamIds) query.set('teamIds', teamIds)
+      const fields = normalizeZohoDeskCommaList(params.selectedFields)
+      if (fields) query.set('fields', fields)
       if (params.sortBy) query.set('sortBy', params.sortBy)
       const include = normalizeZohoDeskCommaList(params.include)
       if (include) query.set('include', include)
@@ -158,13 +182,8 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
   },
 
   transformResponse: async (response) => {
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(
-        getZohoDeskErrorMessage(data, `Failed to list tickets (HTTP ${response.status})`)
-      )
-    }
-    const tickets = Array.isArray(data.data) ? data.data : []
+    const { items } = await readZohoDeskList(response)
+    const tickets = items
     return {
       success: true,
       output: {

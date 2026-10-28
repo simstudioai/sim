@@ -13,6 +13,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import {
   createMarkdownExport,
@@ -25,9 +26,8 @@ import {
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
 import { verifyFileAccess } from '@/app/api/files/authorization'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesExportAPI')
 
@@ -60,7 +60,7 @@ export const GET = withRouteHandler(
     }
 
     const knowledgeAccess = authResult.authType === AuthType.SESSION ? 'user' : undefined
-    const hasAccess = await verifyFileAccess(record.key, userId, undefined, undefined, undefined, {
+    const hasAccess = await verifyFileAccess(record.key, userId, undefined, undefined, {
       knowledgeAccess,
     })
     if (!hasAccess) {
@@ -147,7 +147,7 @@ export const GET = withRouteHandler(
           const imgRecord = await getFileMetadataById(storedFileId(imageId))
           if (!imgRecord) return null
           if (
-            !(await verifyFileAccess(imgRecord.key, userId, undefined, undefined, undefined, {
+            !(await verifyFileAccess(imgRecord.key, userId, undefined, undefined, {
               knowledgeAccess,
             }))
           ) {

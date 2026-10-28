@@ -48,7 +48,7 @@ export const CREDENTIAL_GROUP_PROVIDER_IDS = [
 
 export type CredentialGroupProvider = (typeof CREDENTIAL_GROUP_PROVIDER_IDS)[number]
 
-export interface CredentialGroupProviderSupport {
+interface CredentialGroupProviderSupport {
   serviceId: string
   description: string
   configuration: 'oauth' | 'slack_custom_bot'
@@ -256,12 +256,6 @@ export function getCredentialGroupProviderService(
     )
   }
   return service
-}
-
-export function getCredentialGroupProviderSupport(
-  provider: CredentialGroupProvider
-): CredentialGroupProviderSupport {
-  return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider]
 }
 
 export function getCredentialGroupProviderId(provider: CredentialGroupProvider): string {

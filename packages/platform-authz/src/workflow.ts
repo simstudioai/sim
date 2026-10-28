@@ -6,8 +6,6 @@ import {
   resolveEffectiveWorkspacePermission,
 } from './workspace'
 
-export type { PermissionType }
-
 export type ActiveWorkflowRecord = typeof workflow.$inferSelect
 
 export interface ActiveWorkflowContext {
@@ -50,16 +48,6 @@ export async function getActiveWorkflowRecord(
   return context?.workflow ?? null
 }
 
-export async function assertActiveWorkflowContext(
-  workflowId: string
-): Promise<ActiveWorkflowContext> {
-  const context = await getActiveWorkflowContext(workflowId)
-  if (!context) {
-    throw new Error(`Active workflow not found: ${workflowId}`)
-  }
-  return context
-}
-
 type WorkflowRecord = typeof workflow.$inferSelect
 
 export class WorkflowLockedError extends Error {
@@ -80,7 +68,7 @@ export class FolderLockedError extends Error {
   }
 }
 
-export interface LockStatus {
+interface LockStatus {
   locked: boolean
   directLocked: boolean
   inheritedLocked: boolean
@@ -88,7 +76,10 @@ export interface LockStatus {
   lockedFolderId: string | null
 }
 
-export async function getFolderLockStatus(folderId: string | null): Promise<LockStatus> {
+async function getFolderLockStatus(
+  folderId: string | null,
+  executor: Pick<typeof db, 'select'> = db
+): Promise<LockStatus> {
   if (!folderId) {
     return {
       locked: false,
@@ -105,7 +96,7 @@ export async function getFolderLockStatus(folderId: string | null): Promise<Lock
 
   while (currentFolderId && !visited.has(currentFolderId)) {
     visited.add(currentFolderId)
-    const [folder] = await db
+    const [folder] = await executor
       .select({
         id: folderTable.id,
         parentId: folderTable.parentId,
@@ -145,7 +136,7 @@ export async function getFolderLockStatus(folderId: string | null): Promise<Lock
   }
 }
 
-export async function getWorkflowLockStatus(workflowId: string): Promise<LockStatus> {
+async function getWorkflowLockStatus(workflowId: string): Promise<LockStatus> {
   const [wf] = await db
     .select({
       locked: workflow.locked,
@@ -189,8 +180,16 @@ export async function assertWorkflowMutable(workflowId: string): Promise<void> {
   }
 }
 
-export async function assertFolderMutable(folderId: string | null): Promise<void> {
-  const status = await getFolderLockStatus(folderId)
+/**
+ * Throws {@link FolderLockedError} when the folder or an ancestor is locked. A caller inside a
+ * transaction passes its handle as `executor`, so the ancestry walk reads on the connection the
+ * transaction already holds instead of checking a second one out of the pool.
+ */
+export async function assertFolderMutable(
+  folderId: string | null,
+  executor: Pick<typeof db, 'select'> = db
+): Promise<void> {
+  const status = await getFolderLockStatus(folderId, executor)
   if (status.locked) {
     throw new FolderLockedError(
       status.inheritedLocked ? 'Folder is locked by an ancestor folder' : 'Folder is locked'

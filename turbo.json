@@ -19,13 +19,36 @@
   "cacheMaxAge": "7d",
   "cacheMaxSize": "40GB",
   "tasks": {
+    "ci:runtime": {
+      "dependsOn": ["^ci:runtime"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.integration.ts",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md",
+        "!vitest.*",
+        "!test-results/**",
+        "!e2e/**"
+      ],
+      "outputs": []
+    },
     "transit": {
       "dependsOn": ["^transit"],
       "outputs": []
     },
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.integration.ts",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md"
+      ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
@@ -37,19 +60,30 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.integration.ts",
+        "!**/AGENTS.md",
+        "!**/CLAUDE.md",
+        "$TURBO_ROOT$/vitest.shared.ts"
+      ],
       "outputs": []
     },
     "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "dependsOn": ["transit"],
       "outputs": []
     },
     "format": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "outputs": []
     },
     "format:check": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "outputs": []
     },
     "lint:check": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "dependsOn": ["transit"],
       "outputs": []
     },

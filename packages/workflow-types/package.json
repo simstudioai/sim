@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@xyflow/react": "12.11.3",
+    "@xyflow/react": "12.12.0",
     "typescript": "^7.0.2"
   }
 }

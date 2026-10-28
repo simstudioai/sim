@@ -30,7 +30,7 @@ export interface LogsGetExecutionParams {
   _context?: WorkflowToolExecutionContext
 }
 
-export type LogsComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!='
+type LogsComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!='
 
 export interface LogsQueryRunsParams {
   workflowIds?: string

@@ -1,57 +1,33 @@
 ---
 title: Circleback
-description: AI-powered meeting notes, action items, and transcripts
+description: Read Circleback meetings, notes, transcripts, and action items
+integration:
+  type: "circleback"
+  color: "linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="circleback"
-  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Circleback](https://circleback.ai/) to read meetings, notes, transcripts, and action items, or start workflows from meeting webhooks.
+Use [Circleback](https://circleback.ai/) to read and search meetings, notes, transcripts, and insights; manage action items and tags; and look up people and companies.
 
-**How it works in Sim:**  
-Circleback uses webhook triggers: whenever a meeting is processed, data is pushed automatically to your agent or automation. You can build further automations based on:
+The **Meeting Completed**, **Meeting Notes Ready**, and **General Webhook** triggers receive the meeting outcomes selected in your Circleback automation. The notes trigger receives the payload Circleback sends; it does not establish that notes arrive before the complete meeting is processed. Configure the webhook in Circleback and use the setup instructions below.
 
-- Meeting completed (all processed data available)
-- New notes (notes ready even before full meeting is processed)
-- Raw webhook integration for advanced use cases
-
-**The following information is available in the Circleback meeting webhook payload:**
-
-| Field          | Type    | Description                                        |
-|----------------|---------|----------------------------------------------------|
-| `id`           | number  | Circleback meeting ID                              |
-| `name`         | string  | Meeting title                                      |
-| `url`          | string  | Virtual meeting URL (Zoom, Meet, Teams, etc.)      |
-| `createdAt`    | string  | Meeting creation timestamp                         |
-| `duration`     | number  | Duration in seconds                                |
-| `recordingUrl` | string  | Recording URL (valid 24 hours)                     |
-| `tags`         | json    | Array of tags                                      |
-| `icalUid`      | string  | Calendar event ID                                  |
-| `attendees`    | json    | Array of attendee objects                          |
-| `notes`        | string  | Meeting notes in Markdown                          |
-| `actionItems`  | json    | Array of action items                              |
-| `transcript`   | json    | Array of transcript segments                       |
-| `insights`     | json    | User-created insights                              |
-| `meeting`      | json    | Full meeting payload                               |
+Webhook output includes meeting identity, title, creation time, duration in seconds, meeting URL, tags, calendar event ID, attendees, Markdown notes, action items, transcript segments, insights, and the complete payload in `meeting`. [Circleback's webhook reference](https://circleback.ai/docs/support/automations/export-meeting-data-with-webhooks) documents `id` as a string; Sim forwards the received value. `recordingUrl` is present only when recording storage is enabled and is valid for 24 hours.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate Circleback into your workflow to read meetings, notes, transcripts, and insights, search across meetings, manage action items and tags, and browse the people and companies you meet with. Circleback can also trigger workflows when meetings are processed.
-
-
 
 ## Actions
 
 ### Circleback List Meetings
 
 Lists meetings from Circleback with optional ownership, status, tag, and attendee filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +79,13 @@ Lists meetings from Circleback with optional ownership, status, tag, and attende
 | `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of meetings is available |
 
+</ReferenceDetails>
+
 ### Circleback Get Meeting
 
 Gets a Circleback meeting by ID, including notes, attendees, action items, insights, and recording details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -150,9 +130,13 @@ Gets a Circleback meeting by ID, including notes, attendees, action items, insig
 | `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
 | `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
+</ReferenceDetails>
+
 ### Circleback Search Meetings
 
 Searches Circleback meetings by name and content, with optional filters for specific meetings, tags, and people.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -204,9 +188,13 @@ Searches Circleback meetings by name and content, with optional filters for spec
 | `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of results is available |
 
+</ReferenceDetails>
+
 ### Circleback Get Transcript
 
 Gets the full transcript for a Circleback meeting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +212,13 @@ Gets the full transcript for a Circleback meeting.
 |   ↳ `text` | string | The words spoken |
 |   ↳ `timestamp` | number | The timestamp in seconds that marks the beginning of the segment |
 
+</ReferenceDetails>
+
 ### Circleback Update Meeting
 
 Updates the name, notes, or private notes of a Circleback meeting. The API returns only the fields that were updated.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +240,13 @@ Updates the name, notes, or private notes of a Circleback meeting. The API retur
 | `privateNotes` | string | The updated private notes, when the private notes were updated |
 | `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Circleback Delete Meeting
 
 Deletes a Circleback meeting. Only the owner of the meeting can delete it. Returns the deleted meeting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +291,13 @@ Deletes a Circleback meeting. Only the owner of the meeting can delete it. Retur
 | `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
 | `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
+</ReferenceDetails>
+
 ### Circleback List Action Items
 
 Lists action items across the authenticated user meetings, filtered by assignee, status, tags, and attendees. Defaults to incomplete action items assigned to the API key owner.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -332,9 +332,13 @@ Lists action items across the authenticated user meetings, filtered by assignee,
 | `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of action items is available |
 
+</ReferenceDetails>
+
 ### Circleback Update Action Item
 
 Updates the title, description, status, or assignee of a Circleback action item. Returns the updated action item.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -364,9 +368,13 @@ Updates the title, description, status, or assignee of a Circleback action item.
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 | `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
 
+</ReferenceDetails>
+
 ### Circleback Delete Action Item
 
 Deletes a Circleback action item. Returns the deleted action item.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -392,9 +400,13 @@ Deletes a Circleback action item. Returns the deleted action item.
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 | `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
 
+</ReferenceDetails>
+
 ### Circleback List Calendar Events
 
 Lists upcoming calendar events from the authenticated user connected calendars, with pagination and a configurable time window.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -438,9 +450,13 @@ Lists upcoming calendar events from the authenticated user connected calendars, 
 | `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of calendar events is available |
 
+</ReferenceDetails>
+
 ### Circleback List Companies
 
 Lists the companies whose people attend the authenticated user meetings, with optional tag filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -462,9 +478,13 @@ Lists the companies whose people attend the authenticated user meetings, with op
 | `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of companies is available |
 
+</ReferenceDetails>
+
 ### Circleback Get Company
 
 Gets a company by its domain from Circleback, including its people and external links.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -493,9 +513,13 @@ Gets a company by its domain from Circleback, including its people and external 
 |   ↳ `firstName` | string | The person first name |
 |   ↳ `lastName` | string | The person last name |
 
+</ReferenceDetails>
+
 ### Circleback List People
 
 Lists the people who attend the authenticated user meetings, ordered by most recent meeting, with optional company and tag filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -522,9 +546,13 @@ Lists the people who attend the authenticated user meetings, ordered by most rec
 | `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of people is available |
 
+</ReferenceDetails>
+
 ### Circleback Get Person
 
 Gets a person by their profile ID from Circleback, including their profile details and external links.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -549,9 +577,13 @@ Gets a person by their profile ID from Circleback, including their profile detai
 |   ↳ `objectType` | string | Whether the link refers to a person or a company |
 |   ↳ `type` | string | The platform or integration the link points to, such as Attio, HubSpot, Linear, Salesforce, Zoho, linkedin, or website |
 
+</ReferenceDetails>
+
 ### Circleback List Tags
 
 Lists every tag available to the authenticated Circleback user.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -568,9 +600,13 @@ Lists every tag available to the authenticated Circleback user.
 |   ↳ `name` | string | The display name of the tag |
 |   ↳ `description` | string | A description of the tag |
 
+</ReferenceDetails>
+
 ### Circleback Create Tag
 
 Creates a new tag in Circleback. If a tag with the same name already exists, a conflict error is returned.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -588,9 +624,13 @@ Creates a new tag in Circleback. If a tag with the same name already exists, a c
 | `name` | string | The display name of the tag |
 | `description` | string | A description of the tag |
 
+</ReferenceDetails>
+
 ### Circleback Update Tag
 
 Updates the name or description of a Circleback tag.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -609,9 +649,13 @@ Updates the name or description of a Circleback tag.
 | `name` | string | The display name of the tag |
 | `description` | string | A description of the tag |
 
+</ReferenceDetails>
+
 ### Circleback Delete Tag
 
 Permanently deletes a Circleback tag and removes it from every meeting it was applied to.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -628,9 +672,13 @@ Permanently deletes a Circleback tag and removes it from every meeting it was ap
 | `name` | string | The display name of the tag |
 | `description` | string | A description of the tag |
 
+</ReferenceDetails>
+
 ### Circleback Add Tag to Meetings
 
 Applies an existing Circleback tag to one or more meetings and returns the updated meetings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -677,9 +725,13 @@ Applies an existing Circleback tag to one or more meetings and returns the updat
 |   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
 |   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
+</ReferenceDetails>
+
 ### Circleback Remove Tag from Meetings
 
 Removes a Circleback tag from one or more meetings and returns the updated meetings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -726,16 +778,20 @@ Removes a Circleback tag from one or more meetings and returns the updated meeti
 |   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
 |   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Circleback Meeting Completed
 
 Trigger workflow when a meeting is processed and ready in Circleback
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -746,7 +802,7 @@ Trigger workflow when a meeting is processed and ready in Circleback
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Circleback meeting ID |
+| `id` | string | Circleback meeting ID |
 | `name` | string | Meeting title/name |
 | `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
 | `createdAt` | string | ISO8601 timestamp when meeting was created |
@@ -772,20 +828,21 @@ Trigger workflow when a meeting is processed and ready in Circleback
 |   ↳ `timestamp` | number | Timestamp in seconds |
 | `insights` | object | User-created insights keyed by insight name |
 | `meeting` | object | Full meeting payload object |
-|   ↳ `id` | number | Meeting ID |
+|   ↳ `id` | string | Meeting ID |
 |   ↳ `name` | string | Meeting name |
 |   ↳ `url` | string | Meeting URL |
 |   ↳ `duration` | number | Duration in seconds |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `recordingUrl` | string | Recording URL |
 
-
----
+</ReferenceDetails>
 
 ### Circleback Meeting Notes Ready
 
 Trigger workflow when meeting notes and action items are ready
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -796,7 +853,7 @@ Trigger workflow when meeting notes and action items are ready
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Circleback meeting ID |
+| `id` | string | Circleback meeting ID |
 | `name` | string | Meeting title/name |
 | `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
 | `createdAt` | string | ISO8601 timestamp when meeting was created |
@@ -822,20 +879,21 @@ Trigger workflow when meeting notes and action items are ready
 |   ↳ `timestamp` | number | Timestamp in seconds |
 | `insights` | object | User-created insights keyed by insight name |
 | `meeting` | object | Full meeting payload object |
-|   ↳ `id` | number | Meeting ID |
+|   ↳ `id` | string | Meeting ID |
 |   ↳ `name` | string | Meeting name |
 |   ↳ `url` | string | Meeting URL |
 |   ↳ `duration` | number | Duration in seconds |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `recordingUrl` | string | Recording URL |
 
-
----
+</ReferenceDetails>
 
 ### Circleback Webhook
 
 Generic webhook trigger for all Circleback events
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -846,7 +904,7 @@ Generic webhook trigger for all Circleback events
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | Circleback meeting ID |
+| `id` | string | Circleback meeting ID |
 | `name` | string | Meeting title/name |
 | `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
 | `createdAt` | string | ISO8601 timestamp when meeting was created |
@@ -872,10 +930,12 @@ Generic webhook trigger for all Circleback events
 |   ↳ `timestamp` | number | Timestamp in seconds |
 | `insights` | object | User-created insights keyed by insight name |
 | `meeting` | object | Full meeting payload object |
-|   ↳ `id` | number | Meeting ID |
+|   ↳ `id` | string | Meeting ID |
 |   ↳ `name` | string | Meeting name |
 |   ↳ `url` | string | Meeting URL |
 |   ↳ `duration` | number | Duration in seconds |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `recordingUrl` | string | Recording URL |
+
+</ReferenceDetails>
 

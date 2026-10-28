@@ -1,12 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import type { Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   collectUnresolvedReferences: vi.fn(async () => []),
   collectUnresolvedAgentToolReferences: vi.fn(async () => []),
-  getTableById: vi.fn(async () => null),
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 vi.mock('@/lib/workflows/editing/validation', () => ({
   collectUnresolvedReferences: mocks.collectUnresolvedReferences,
@@ -22,6 +23,10 @@ import {
   NO_ENTRY_BLOCK_NOTE,
   REFERENCES_UNCHECKED_NOTE,
 } from '@/lib/workflows/editing/lint-report'
+import { getBlock } from '@/blocks/registry'
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockGetBlock = getBlock as Mock
 
 const scope = { workflowId: 'workflow-1', workspaceId: 'workspace-1', subjectUserId: 'user-1' }
 
@@ -70,7 +75,7 @@ describe('buildWorkflowLintReport notes', () => {
     expect(report.tableFieldIssues).toEqual(tables.tableFieldIssues)
     expect(report.unresolvedReferences).toEqual(tables.unresolvedReferences)
     expect(report.notes).toEqual([...tables.notes, 'unresolvable-at-lint'])
-    expect(mocks.getTableById).not.toHaveBeenCalled()
+    expect(mockGetTableById).not.toHaveBeenCalled()
   })
 
   it.each(['references', 'agent tools'])(
@@ -162,7 +167,7 @@ describe('buildWorkflowLintReport table fields', () => {
   }
 
   beforeEach(() => {
-    mocks.getTableById.mockImplementation(async (tableId: string) =>
+    mockGetTableById.mockImplementation(async (tableId: string) =>
       tableId === 'tbl_leads' ? leads : null
     )
   })
@@ -182,7 +187,7 @@ describe('buildWorkflowLintReport table fields', () => {
       { ...scope, subjectUserId: null }
     )
 
-    expect(mocks.getTableById).toHaveBeenCalledWith('tbl_leads')
+    expect(mockGetTableById).toHaveBeenCalledWith('tbl_leads')
     expect(report.tableFieldIssues).toEqual([
       {
         blockId: 'query',
@@ -195,7 +200,7 @@ describe('buildWorkflowLintReport table fields', () => {
   })
 
   it('skips a table outside the workspace and reports an empty finding when the lookup fails', async () => {
-    mocks.getTableById.mockResolvedValueOnce({ ...leads, workspaceId: 'workspace-2' })
+    mockGetTableById.mockResolvedValueOnce({ ...leads, workspaceId: 'workspace-2' })
     const graph = {
       blocks: {
         query: tableBlock('query', {
@@ -208,11 +213,55 @@ describe('buildWorkflowLintReport table fields', () => {
 
     expect((await buildWorkflowLintReport(graph, scope)).tableFieldIssues).toEqual([])
 
-    mocks.getTableById.mockRejectedValueOnce(new Error('tables unavailable'))
+    mockGetTableById.mockRejectedValueOnce(new Error('tables unavailable'))
     expect((await buildWorkflowLintReport(graph, scope)).tableFieldIssues).toEqual([])
-    mocks.getTableById.mockRejectedValueOnce(new Error('private table lookup details'))
+    mockGetTableById.mockRejectedValueOnce(new Error('private table lookup details'))
     await expect(buildWorkflowLintReport(graph, scope, { requireComplete: true })).rejects.toThrow(
       'Workflow table schema checks could not complete'
     )
+  })
+})
+
+describe('buildWorkflowLintReport JSON fields', () => {
+  const registryStub = mockGetBlock.getMockImplementation()
+
+  beforeEach(() => {
+    mockGetBlock.mockImplementation((type: string) =>
+      type === 'table_v2'
+        ? { type, subBlocks: [{ id: 'data', type: 'code', language: 'json' }], outputs: {} }
+        : { type, category: 'triggers', subBlocks: [], outputs: {} }
+    )
+  })
+
+  afterEach(() => {
+    mockGetBlock.mockImplementation(registryStub ?? (() => undefined))
+  })
+
+  /**
+   * An unquoted string reference in Table row JSON reported nothing anywhere
+   * before run time, so a deploy went live with a block that failed on every run.
+   */
+  it('reports a string reference written unquoted in a JSON field, whoever the caller is', async () => {
+    const start = {
+      ...block('start', 'start_trigger'),
+      subBlocks: { inputFormat: { value: [{ name: 'order_id', type: 'string' }] } },
+    }
+    const insert = {
+      ...block('insert', 'table_v2'),
+      subBlocks: { data: { value: '{"order_id": <start.order_id>}' } },
+    }
+    const report = await buildWorkflowLintReport(
+      { blocks: { start, insert }, edges: [edge('start', 'insert')] } as never,
+      { ...scope, subjectUserId: null }
+    )
+
+    expect(report.unresolvedReferences).toEqual([
+      expect.objectContaining({
+        blockId: 'insert',
+        field: 'data',
+        kind: 'block-output',
+        value: ['<start.order_id>'],
+      }),
+    ])
   })
 })

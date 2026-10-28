@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getCloudId: vi.fn(),
@@ -16,10 +16,6 @@ describe('JiraClient', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock)
     mocks.getCloudId.mockResolvedValue('cloud-1')
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('rejects malformed attachment cloud IDs before constructing request URLs', async () => {

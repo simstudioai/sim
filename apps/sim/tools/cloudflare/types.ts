@@ -1,3 +1,23 @@
+import type {
+  ACCESS_APPLICATION_OUTPUTS,
+  ACCESS_GROUP_OUTPUTS,
+  ACCESS_POLICY_OUTPUTS,
+  CERTIFICATE_OUTPUTS,
+  DNS_RECORD_OUTPUTS,
+  IDENTITY_PROVIDER_OUTPUTS,
+  LIST_RULESETS_OUTPUTS,
+  R2_BUCKET_OUTPUTS,
+  RULESET_OUTPUTS,
+  SERVICE_TOKEN_OUTPUTS,
+  SERVICE_TOKEN_SECRET_OUTPUTS,
+  TUNNEL_CONFIGURATION_OUTPUTS,
+  TUNNEL_OUTPUTS,
+  WORKER_ROUTE_OUTPUTS,
+  WORKER_SCRIPT_OUTPUTS,
+  WORKER_SETTINGS_OUTPUTS,
+  ZONE_OUTPUTS,
+} from '@/tools/cloudflare/outputs'
+import type { CloudflareOutput } from '@/tools/cloudflare/utils'
 import type { ToolResponse } from '@/tools/types'
 
 interface CloudflareBaseParams {
@@ -9,11 +29,12 @@ interface CloudflareBaseParams {
  * endpoints populate `page`/`per_page`/`total_count`; the Rulesets engine and
  * R2 use cursors instead, so every field is optional.
  */
-export interface CloudflareResultInfo {
+interface CloudflareResultInfo {
   page?: number
   per_page?: number
   count?: number
   total_count?: number
+  total_pages?: number
   cursor?: string
   cursors?: {
     before?: string
@@ -35,7 +56,7 @@ export interface CloudflareEnvelope<TResult = unknown> {
 }
 
 /** Raw rule payload inside a ruleset, as returned by the Rulesets API. */
-export interface CloudflareRawRule {
+interface CloudflareRawRule {
   id?: string
   version?: string
   action?: string
@@ -67,236 +88,35 @@ export interface CloudflareRawRuleset {
 }
 
 /** Raw Cloudflare Access application payload. */
-export interface CloudflareRawAccessApplication {
-  id?: string
-  name?: string
-  domain?: string
-  type?: string
-  aud?: string
-  session_duration?: string
-  allowed_idps?: string[]
-  app_launcher_visible?: boolean
-  auto_redirect_to_identity?: boolean
-  custom_deny_message?: string
-  custom_deny_url?: string
-  logo_url?: string
-  self_hosted_domains?: string[]
-  destinations?: unknown[]
-  tags?: string[]
-  policies?: unknown[]
-}
 
 /** Raw Cloudflare Access policy payload. */
-export interface CloudflareRawAccessPolicy {
-  id?: string
-  name?: string
-  decision?: string
-  precedence?: number
-  include?: unknown[]
-  exclude?: unknown[]
-  require?: unknown[]
-  session_duration?: string
-  approval_required?: boolean
-  isolation_required?: boolean
-  purpose_justification_required?: boolean
-  purpose_justification_prompt?: string
-  created_at?: string
-  updated_at?: string
-}
 
 /** Raw Cloudflare Access group payload. */
-export interface CloudflareRawAccessGroup {
-  id?: string
-  name?: string
-  is_default?: unknown[]
-  include?: unknown[]
-  exclude?: unknown[]
-  require?: unknown[]
-  created_at?: string
-  updated_at?: string
-}
 
 /** Raw Cloudflare Access identity provider payload. */
-export interface CloudflareRawAccessIdentityProvider {
-  id?: string
-  name?: string
-  type?: string
-  read_only?: boolean
-  config?: Record<string, unknown>
-  scim_config?: Record<string, unknown>
-}
 
 /** Raw Cloudflare Access service token payload. `client_secret` only on create. */
-export interface CloudflareRawAccessServiceToken {
-  id?: string
-  name?: string
-  client_id?: string
-  client_secret?: string
-  duration?: string
-  enabled?: boolean
-  expires_at?: string
-  last_seen_at?: string
-  created_at?: string
-  updated_at?: string
-}
 
 /** Raw R2 bucket payload. */
-export interface CloudflareRawR2Bucket {
-  name?: string
-  creation_date?: string
-  location?: string
-  storage_class?: string
-  jurisdiction?: string
-}
 
 /** Raw Workers script payload from the list-scripts endpoint. */
-export interface CloudflareRawWorkerScript {
-  id?: string
-  tag?: string
-  etag?: string
-  created_on?: string
-  modified_on?: string
-  usage_model?: string
-  placement_mode?: string
-  logpush?: boolean
-  has_assets?: boolean
-  has_modules?: boolean
-  compatibility_date?: string
-  compatibility_flags?: string[]
-  routes?: unknown[]
-  tail_consumers?: unknown[]
-}
 
 /** Raw Workers route payload. */
-export interface CloudflareRawWorkerRoute {
-  id?: string
-  pattern?: string
-  script?: string
-}
 
 /** Raw Cloudflare Tunnel (cloudflared) payload. */
-export interface CloudflareRawTunnel {
-  id?: string
-  name?: string
-  account_tag?: string
-  config_src?: string
-  status?: string
-  tun_type?: string
-  remote_config?: boolean
-  metadata?: Record<string, unknown>
-  created_at?: string
-  deleted_at?: string
-  conns_active_at?: string
-  conns_inactive_at?: string
-  connections?: unknown[]
-}
 
 /** Raw zone payload from the zones endpoints. */
-export interface CloudflareRawZone {
-  id?: string
-  name?: string
-  status?: string
-  paused?: boolean
-  type?: string
-  name_servers?: string[]
-  original_name_servers?: string[]
-  created_on?: string
-  modified_on?: string
-  activated_on?: string
-  development_mode?: number
-  plan?: {
-    id?: string
-    name?: string
-    price?: number
-    is_subscribed?: boolean
-    frequency?: string
-    currency?: string
-    legacy_id?: string
-  }
-  account?: { id?: string; name?: string }
-  owner?: { id?: string; name?: string; type?: string }
-  meta?: {
-    cdn_only?: boolean
-    custom_certificate_quota?: number
-    dns_only?: boolean
-    foundation_dns?: boolean
-    page_rule_quota?: number
-    phishing_detected?: boolean
-    step?: number
-  }
-  vanity_name_servers?: string[]
-  permissions?: string[]
-}
 
 /** Raw DNS record payload. */
-export interface CloudflareRawDnsRecord {
-  id?: string
-  zone_id?: string
-  zone_name?: string
-  type?: string
-  name?: string
-  content?: string
-  proxiable?: boolean
-  proxied?: boolean
-  ttl?: number
-  locked?: boolean
-  priority?: number
-  comment?: string
-  tags?: string[]
-  comment_modified_on?: string
-  tags_modified_on?: string
-  meta?: CloudflareDnsRecordMeta
-  created_on?: string
-  modified_on?: string
-}
 
 /** Raw hostname-validation record shared by certificate pack validation fields. */
-export interface CloudflareRawValidationRecord {
-  cname?: string
-  cname_target?: string
-  emails?: string[]
-  http_body?: string
-  http_url?: string
-  status?: string
-  txt_name?: string
-  txt_value?: string
-}
 
 /** Raw certificate inside a certificate pack. */
-export interface CloudflareRawCertificate {
-  id?: string
-  hosts?: string[]
-  issuer?: string
-  signature?: string
-  status?: string
-  bundle_method?: string
-  zone_id?: string
-  uploaded_on?: string
-  modified_on?: string
-  expires_on?: string
-  priority?: number
-  geo_restrictions?: CloudflareCertificateGeoRestrictions
-}
 
 /** Raw certificate pack payload. */
-export interface CloudflareRawCertificatePack {
-  id?: string
-  type?: string
-  hosts?: string[]
-  primary_certificate?: string
-  status?: string
-  certificates?: CloudflareRawCertificate[]
-  cloudflare_branding?: boolean
-  validation_method?: string
-  validity_days?: number
-  certificate_authority?: string
-  validation_errors?: Array<{ message?: string }>
-  validation_records?: CloudflareRawValidationRecord[]
-  dcv_delegation_records?: CloudflareRawValidationRecord[]
-}
 
 /** Raw DNS analytics aggregate block (`totals`, `min`, and `max` share this shape). */
-export interface CloudflareRawDnsAnalyticsAggregate {
+interface CloudflareRawDnsAnalyticsAggregate {
   queryCount?: number
   uncachedCount?: number
   staleCount?: number
@@ -326,6 +146,9 @@ export interface CloudflareRawDnsAnalyticsReport {
 }
 
 export interface CloudflareListZonesParams extends CloudflareBaseParams {
+  type?: string
+  account_name?: string
+
   name?: string
   status?: string
   page?: number
@@ -336,57 +159,11 @@ export interface CloudflareListZonesParams extends CloudflareBaseParams {
   match?: string
 }
 
-interface CloudflareZonePlan {
-  id: string
-  name: string
-  price: number
-  is_subscribed: boolean
-  frequency: string
-  currency: string
-  legacy_id: string
-}
-
-interface CloudflareZoneMeta {
-  cdn_only: boolean
-  custom_certificate_quota: number
-  dns_only: boolean
-  foundation_dns: boolean
-  page_rule_quota: number
-  phishing_detected: boolean
-  step: number
-}
-
-interface CloudflareZone {
-  id: string
-  name: string
-  status: string
-  paused: boolean
-  type: string
-  name_servers: string[]
-  original_name_servers?: string[]
-  created_on: string
-  modified_on: string
-  activated_on?: string
-  development_mode?: number
-  plan?: CloudflareZonePlan
-  account?: {
-    id: string
-    name: string
-  }
-  owner?: {
-    id: string
-    name: string
-    type: string
-  }
-  meta?: CloudflareZoneMeta
-  vanity_name_servers?: string[]
-  permissions?: string[]
-}
-
 export interface CloudflareListZonesResponse extends ToolResponse {
   output: {
-    zones: CloudflareZone[]
+    zones: CloudflareOutput<typeof ZONE_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
@@ -395,32 +172,7 @@ export interface CloudflareGetZoneParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareGetZoneResponse extends ToolResponse {
-  output: {
-    id: string
-    name: string
-    status: string
-    paused: boolean
-    type: string
-    name_servers: string[]
-    original_name_servers: string[]
-    created_on: string
-    modified_on: string
-    activated_on: string
-    development_mode: number
-    plan: CloudflareZonePlan
-    account: {
-      id: string
-      name: string
-    }
-    owner: {
-      id: string
-      name: string
-      type: string
-    }
-    meta: CloudflareZoneMeta
-    vanity_name_servers: string[]
-    permissions: string[]
-  }
+  output: CloudflareOutput<typeof ZONE_OUTPUTS>
 }
 
 export interface CloudflareCreateZoneParams extends CloudflareBaseParams {
@@ -430,32 +182,7 @@ export interface CloudflareCreateZoneParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareCreateZoneResponse extends ToolResponse {
-  output: {
-    id: string
-    name: string
-    status: string
-    paused: boolean
-    type: string
-    name_servers: string[]
-    original_name_servers: string[]
-    created_on: string
-    modified_on: string
-    activated_on: string
-    development_mode: number
-    plan: CloudflareZonePlan
-    account: {
-      id: string
-      name: string
-    }
-    owner: {
-      id: string
-      name: string
-      type: string
-    }
-    meta: CloudflareZoneMeta
-    vanity_name_servers: string[]
-    permissions: string[]
-  }
+  output: CloudflareOutput<typeof ZONE_OUTPUTS>
 }
 
 export interface CloudflareDeleteZoneParams extends CloudflareBaseParams {
@@ -469,6 +196,26 @@ export interface CloudflareDeleteZoneResponse extends ToolResponse {
 }
 
 export interface CloudflareListDnsRecordsParams extends CloudflareBaseParams {
+  name_contains?: string
+  name_startswith?: string
+  name_endswith?: string
+  content_contains?: string
+  content_startswith?: string
+  content_endswith?: string
+  comment_present?: boolean
+  comment_absent?: boolean
+  comment_exact?: string
+  comment_startswith?: string
+  comment_endswith?: string
+  tag_present?: string
+  tag_absent?: string
+  tag_contains?: string
+  tag_startswith?: string
+  tag_endswith?: string
+  include_shadow_metadata?: boolean
+  shadowed_by_name?: string
+  shadowing_name?: string
+
   zoneId: string
   type?: string
   name?: string
@@ -485,43 +232,24 @@ export interface CloudflareListDnsRecordsParams extends CloudflareBaseParams {
   commentFilter?: string
 }
 
-interface CloudflareDnsRecordMeta {
-  source: string
-}
-
-interface CloudflareDnsRecord {
-  id: string
-  zone_id: string
-  zone_name: string
-  type: string
-  name: string
-  content: string
-  proxiable: boolean
-  proxied: boolean
-  ttl: number
-  locked: boolean
-  priority?: number | null
-  comment?: string | null
-  tags: string[]
-  comment_modified_on?: string | null
-  tags_modified_on?: string | null
-  meta?: CloudflareDnsRecordMeta | null
-  created_on: string
-  modified_on: string
-}
-
 export interface CloudflareListDnsRecordsResponse extends ToolResponse {
   output: {
-    records: CloudflareDnsRecord[]
+    records: CloudflareOutput<typeof DNS_RECORD_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
 export interface CloudflareCreateDnsRecordParams extends CloudflareBaseParams {
+  settings?: string | Record<string, unknown> | unknown[]
+  private_routing?: boolean
+  data?: string | Record<string, unknown> | unknown[]
+  include_shadow_metadata?: boolean
+
   zoneId: string
   type: string
   name: string
-  content: string
+  content?: string
   ttl?: number
   proxied?: boolean
   priority?: number
@@ -530,29 +258,16 @@ export interface CloudflareCreateDnsRecordParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareCreateDnsRecordResponse extends ToolResponse {
-  output: {
-    id: string
-    zone_id: string
-    zone_name: string
-    type: string
-    name: string
-    content: string
-    proxiable: boolean
-    proxied: boolean
-    ttl: number
-    locked: boolean
-    priority?: number
-    comment?: string | null
-    tags: string[]
-    comment_modified_on?: string | null
-    tags_modified_on?: string | null
-    meta?: CloudflareDnsRecordMeta | null
-    created_on: string
-    modified_on: string
-  }
+  output: CloudflareOutput<typeof DNS_RECORD_OUTPUTS>
 }
 
 export interface CloudflareUpdateDnsRecordParams extends CloudflareBaseParams {
+  clearComment?: boolean
+  settings?: string | Record<string, unknown> | unknown[]
+  private_routing?: boolean
+  data?: string | Record<string, unknown> | unknown[]
+  include_shadow_metadata?: boolean
+
   zoneId: string
   recordId: string
   type?: string
@@ -566,26 +281,7 @@ export interface CloudflareUpdateDnsRecordParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareUpdateDnsRecordResponse extends ToolResponse {
-  output: {
-    id: string
-    zone_id: string
-    zone_name: string
-    type: string
-    name: string
-    content: string
-    proxiable: boolean
-    proxied: boolean
-    ttl: number
-    locked: boolean
-    priority?: number
-    comment?: string | null
-    tags: string[]
-    comment_modified_on?: string | null
-    tags_modified_on?: string | null
-    meta?: CloudflareDnsRecordMeta | null
-    created_on: string
-    modified_on: string
-  }
+  output: CloudflareOutput<typeof DNS_RECORD_OUTPUTS>
 }
 
 export interface CloudflareDeleteDnsRecordParams extends CloudflareBaseParams {
@@ -607,60 +303,11 @@ export interface CloudflareListCertificatesParams extends CloudflareBaseParams {
   deploy?: string
 }
 
-interface CloudflareCertificateGeoRestrictions {
-  label: string
-}
-
-interface CloudflareCertificate {
-  id: string
-  hosts: string[]
-  issuer: string
-  signature: string
-  status: string
-  bundle_method: string
-  zone_id: string
-  uploaded_on: string
-  modified_on: string
-  expires_on: string
-  priority?: number
-  geo_restrictions?: CloudflareCertificateGeoRestrictions
-}
-
-interface CloudflareCertificateValidationError {
-  message: string
-}
-
-interface CloudflareDcvDelegationRecord {
-  cname: string
-  cname_target: string
-  emails: string[]
-  http_body: string
-  http_url: string
-  status: string
-  txt_name: string
-  txt_value: string
-}
-
-interface CloudflareCertificatePack {
-  id: string
-  type: string
-  hosts: string[]
-  primary_certificate: string
-  status: string
-  certificates: CloudflareCertificate[]
-  cloudflare_branding?: boolean
-  validation_method?: string
-  validity_days?: number
-  certificate_authority?: string
-  validation_errors?: CloudflareCertificateValidationError[]
-  validation_records?: CloudflareDcvDelegationRecord[]
-  dcv_delegation_records?: CloudflareDcvDelegationRecord[]
-}
-
 export interface CloudflareListCertificatesResponse extends ToolResponse {
   output: {
-    certificates: CloudflareCertificatePack[]
+    certificates: CloudflareOutput<typeof CERTIFICATE_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
@@ -747,6 +394,7 @@ interface CloudflareZoneSetting {
 
 /** Raw zone setting payload, as returned by the per-setting endpoint. */
 export interface CloudflareRawZoneSetting {
+  enabled?: boolean
   id?: string
   value?: unknown
   editable?: boolean
@@ -770,7 +418,8 @@ export interface CloudflareGetZoneSettingsResponse extends ToolResponse {
 export interface CloudflareUpdateZoneSettingParams extends CloudflareBaseParams {
   zoneId: string
   settingId: string
-  value: string
+  enabled?: boolean
+  value?: string
 }
 
 export interface CloudflareUpdateZoneSettingResponse extends ToolResponse {
@@ -789,41 +438,13 @@ export interface CloudflareListRulesetsParams extends CloudflareBaseParams {
   cursor?: string
 }
 
-interface CloudflareRulesetSummary {
-  id: string
-  name: string
-  description: string
-  kind: string
-  phase: string
-  version: string | null
-  last_updated: string | null
-}
-
 export interface CloudflareListRulesetsResponse extends ToolResponse {
   output: {
-    rulesets: CloudflareRulesetSummary[]
+    rulesets: CloudflareOutput<typeof LIST_RULESETS_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
     cursor: string | null
   }
-}
-
-interface CloudflareRule {
-  id: string
-  version: string | null
-  action: string
-  action_parameters: Record<string, unknown> | null
-  expression: string
-  description: string
-  enabled: boolean
-  ref: string | null
-  last_updated: string | null
-  categories: string[]
-  logging: Record<string, unknown> | null
-  ratelimit: Record<string, unknown> | null
-}
-
-interface CloudflareRuleset extends CloudflareRulesetSummary {
-  rules: CloudflareRule[]
 }
 
 export interface CloudflareGetRulesetParams extends CloudflareBaseParams {
@@ -832,10 +453,16 @@ export interface CloudflareGetRulesetParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareRulesetResponse extends ToolResponse {
-  output: CloudflareRuleset
+  output: CloudflareOutput<typeof RULESET_OUTPUTS>
 }
 
 export interface CloudflareCreateRulesetRuleParams extends CloudflareBaseParams {
+  exposed_credential_check?: string | Record<string, unknown> | unknown[]
+  id?: string
+  logging?: string | Record<string, unknown> | unknown[]
+  ratelimit?: string | Record<string, unknown> | unknown[]
+  dry_run?: boolean
+
   zoneId: string
   rulesetId: string
   action: string
@@ -848,6 +475,10 @@ export interface CloudflareCreateRulesetRuleParams extends CloudflareBaseParams 
 }
 
 export interface CloudflareUpdateRulesetRuleParams extends CloudflareBaseParams {
+  exposed_credential_check?: string | Record<string, unknown> | unknown[]
+  position?: string | Record<string, unknown> | unknown[]
+  dry_run?: boolean
+
   zoneId: string
   rulesetId: string
   ruleId: string
@@ -862,6 +493,8 @@ export interface CloudflareUpdateRulesetRuleParams extends CloudflareBaseParams 
 }
 
 export interface CloudflareDeleteRulesetRuleParams extends CloudflareBaseParams {
+  dry_run?: boolean
+
   zoneId: string
   rulesetId: string
   ruleId: string
@@ -873,6 +506,8 @@ export interface CloudflareGetRulesetEntrypointParams extends CloudflareBasePara
 }
 
 export interface CloudflareCreateRulesetParams extends CloudflareBaseParams {
+  dry_run?: boolean
+
   zoneId: string
   name: string
   phase: string
@@ -905,6 +540,16 @@ export interface CloudflareListManagedRulesetOverridesResponse extends ToolRespo
 }
 
 export interface CloudflareCreateRateLimitRuleParams extends CloudflareBaseParams {
+  actionParameters?: string | Record<string, unknown> | unknown[]
+  exposed_credential_check?: string | Record<string, unknown> | unknown[]
+  id?: string
+  logging?: string | Record<string, unknown> | unknown[]
+  ref?: string
+  position?: string | Record<string, unknown> | unknown[]
+  score_per_period?: number
+  score_response_header_name?: string
+  dry_run?: boolean
+
   zoneId: string
   rulesetId: string
   expression: string
@@ -920,6 +565,12 @@ export interface CloudflareCreateRateLimitRuleParams extends CloudflareBaseParam
 }
 
 export interface CloudflareUpdateRateLimitRuleParams extends CloudflareBaseParams {
+  exposed_credential_check?: string | Record<string, unknown> | unknown[]
+  position?: string | Record<string, unknown> | unknown[]
+  score_per_period?: number
+  score_response_header_name?: string
+  dry_run?: boolean
+
   zoneId: string
   rulesetId: string
   ruleId: string
@@ -938,26 +589,9 @@ export interface CloudflareUpdateRateLimitRuleParams extends CloudflareBaseParam
   logging?: string
 }
 
-interface CloudflareAccessApplication {
-  id: string
-  name: string | null
-  domain: string | null
-  type: string | null
-  aud: string | null
-  session_duration: string | null
-  allowed_idps: string[] | null
-  app_launcher_visible: boolean | null
-  auto_redirect_to_identity: boolean | null
-  custom_deny_message: string | null
-  custom_deny_url: string | null
-  logo_url: string | null
-  self_hosted_domains: string[] | null
-  destinations: unknown[] | null
-  tags: string[] | null
-  policies: unknown[] | null
-}
-
 export interface CloudflareListAccessApplicationsParams extends CloudflareBaseParams {
+  target_attributes?: string
+
   accountId: string
   name?: string
   domain?: string
@@ -970,8 +604,9 @@ export interface CloudflareListAccessApplicationsParams extends CloudflareBasePa
 
 export interface CloudflareListAccessApplicationsResponse extends ToolResponse {
   output: {
-    applications: CloudflareAccessApplication[]
+    applications: CloudflareOutput<typeof ACCESS_APPLICATION_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
@@ -981,10 +616,38 @@ export interface CloudflareGetAccessApplicationParams extends CloudflareBasePara
 }
 
 export interface CloudflareAccessApplicationResponse extends ToolResponse {
-  output: CloudflareAccessApplication
+  output: CloudflareOutput<typeof ACCESS_APPLICATION_OUTPUTS>
 }
 
 export interface CloudflareCreateAccessApplicationParams extends CloudflareBaseParams {
+  destinations?: string | Record<string, unknown> | unknown[]
+  oauth_configuration?: string | Record<string, unknown> | unknown[]
+  self_hosted_domains?: string | Record<string, unknown> | unknown[]
+  user_populations?: string | Record<string, unknown> | unknown[]
+  allow_authenticate_via_warp?: boolean
+  allow_iframe?: boolean
+  cors_headers?: string | Record<string, unknown> | unknown[]
+  custom_non_identity_deny_url?: string
+  custom_pages?: string | Record<string, unknown> | unknown[]
+  eager_redirect_cookie_setting?: boolean
+  enable_binding_cookie?: boolean
+  http_only_cookie_attribute?: boolean
+  mfa_config?: string | Record<string, unknown> | unknown[]
+  options_preflight_bypass?: boolean
+  path_cookie_attribute?: boolean
+  read_service_tokens_from_header?: string
+  same_site_cookie_attribute?: string
+  scim_config?: string | Record<string, unknown> | unknown[]
+  service_auth_401_redirect?: boolean
+  skip_interstitial?: boolean
+  use_clientless_isolation_app_launcher_url?: boolean
+  app_launcher_logo_url?: string
+  bg_color?: string
+  footer_links?: string | Record<string, unknown> | unknown[]
+  header_bg_color?: string
+  landing_page_design?: string | Record<string, unknown> | unknown[]
+  skip_app_launcher_login_page?: boolean
+
   accountId: string
   type: string
   domain?: string
@@ -1004,6 +667,34 @@ export interface CloudflareCreateAccessApplicationParams extends CloudflareBaseP
 
 export interface CloudflareUpdateAccessApplicationParams
   extends CloudflareCreateAccessApplicationParams {
+  destinations?: string | Record<string, unknown> | unknown[]
+  oauth_configuration?: string | Record<string, unknown> | unknown[]
+  self_hosted_domains?: string | Record<string, unknown> | unknown[]
+  user_populations?: string | Record<string, unknown> | unknown[]
+  allow_authenticate_via_warp?: boolean
+  allow_iframe?: boolean
+  cors_headers?: string | Record<string, unknown> | unknown[]
+  custom_non_identity_deny_url?: string
+  custom_pages?: string | Record<string, unknown> | unknown[]
+  eager_redirect_cookie_setting?: boolean
+  enable_binding_cookie?: boolean
+  http_only_cookie_attribute?: boolean
+  mfa_config?: string | Record<string, unknown> | unknown[]
+  options_preflight_bypass?: boolean
+  path_cookie_attribute?: boolean
+  read_service_tokens_from_header?: string
+  same_site_cookie_attribute?: string
+  scim_config?: string | Record<string, unknown> | unknown[]
+  service_auth_401_redirect?: boolean
+  skip_interstitial?: boolean
+  use_clientless_isolation_app_launcher_url?: boolean
+  app_launcher_logo_url?: string
+  bg_color?: string
+  footer_links?: string | Record<string, unknown> | unknown[]
+  header_bg_color?: string
+  landing_page_design?: string | Record<string, unknown> | unknown[]
+  skip_app_launcher_login_page?: boolean
+
   appId: string
 }
 
@@ -1018,23 +709,6 @@ export interface CloudflareDeletedIdResponse extends ToolResponse {
   }
 }
 
-interface CloudflareAccessPolicy {
-  id: string
-  name: string | null
-  decision: string | null
-  precedence: number | null
-  include: unknown[] | null
-  exclude: unknown[] | null
-  require: unknown[] | null
-  session_duration: string | null
-  approval_required: boolean | null
-  isolation_required: boolean | null
-  purpose_justification_required: boolean | null
-  purpose_justification_prompt: string | null
-  created_at: string | null
-  updated_at: string | null
-}
-
 export interface CloudflareListAccessPoliciesParams extends CloudflareBaseParams {
   accountId: string
   appId: string
@@ -1044,12 +718,17 @@ export interface CloudflareListAccessPoliciesParams extends CloudflareBaseParams
 
 export interface CloudflareListAccessPoliciesResponse extends ToolResponse {
   output: {
-    policies: CloudflareAccessPolicy[]
+    policies: CloudflareOutput<typeof ACCESS_POLICY_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
 export interface CloudflareCreateAccessPolicyParams extends CloudflareBaseParams {
+  approval_groups?: string | Record<string, unknown> | unknown[]
+  connection_rules?: string | Record<string, unknown> | unknown[]
+  mfa_config?: string | Record<string, unknown> | unknown[]
+
   accountId: string
   appId: string
   name: string
@@ -1066,11 +745,15 @@ export interface CloudflareCreateAccessPolicyParams extends CloudflareBaseParams
 }
 
 export interface CloudflareUpdateAccessPolicyParams extends CloudflareCreateAccessPolicyParams {
+  approval_groups?: string | Record<string, unknown> | unknown[]
+  connection_rules?: string | Record<string, unknown> | unknown[]
+  mfa_config?: string | Record<string, unknown> | unknown[]
+
   policyId: string
 }
 
 export interface CloudflareAccessPolicyResponse extends ToolResponse {
-  output: CloudflareAccessPolicy
+  output: CloudflareOutput<typeof ACCESS_POLICY_OUTPUTS>
 }
 
 export interface CloudflareDeleteAccessPolicyParams extends CloudflareBaseParams {
@@ -1089,35 +772,25 @@ export interface CloudflareListAccessGroupsParams extends CloudflareBaseParams {
 
 export interface CloudflareListAccessGroupsResponse extends ToolResponse {
   output: {
-    groups: Array<{
-      id: string
-      name: string | null
-      is_default: unknown[] | null
-      include: unknown[] | null
-      exclude: unknown[] | null
-      require: unknown[] | null
-      created_at: string | null
-      updated_at: string | null
-    }>
+    groups: CloudflareOutput<typeof ACCESS_GROUP_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
 export interface CloudflareListAccessIdentityProvidersParams extends CloudflareBaseParams {
+  scim_enabled?: string
+  page?: number
+  per_page?: number
+
   accountId: string
 }
 
 export interface CloudflareListAccessIdentityProvidersResponse extends ToolResponse {
   output: {
-    identity_providers: Array<{
-      id: string
-      name: string | null
-      type: string | null
-      read_only: boolean | null
-      config: Record<string, unknown> | null
-      scim_config: Record<string, unknown> | null
-    }>
+    identity_providers: CloudflareOutput<typeof IDENTITY_PROVIDER_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
@@ -1129,35 +802,26 @@ export interface CloudflareListAccessServiceTokensParams extends CloudflareBaseP
   per_page?: number
 }
 
-interface CloudflareAccessServiceToken {
-  id: string
-  name: string | null
-  client_id: string | null
-  duration: string | null
-  enabled: boolean | null
-  expires_at: string | null
-  last_seen_at: string | null
-  created_at: string | null
-  updated_at: string | null
-}
-
 export interface CloudflareListAccessServiceTokensResponse extends ToolResponse {
   output: {
-    service_tokens: CloudflareAccessServiceToken[]
+    service_tokens: CloudflareOutput<typeof SERVICE_TOKEN_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
 export interface CloudflareCreateAccessServiceTokenParams extends CloudflareBaseParams {
+  client_secret_version?: number
+  enabled?: boolean
+  previous_client_secret_expires_at?: string
+
   accountId: string
   name: string
   duration?: string
 }
 
 export interface CloudflareCreateAccessServiceTokenResponse extends ToolResponse {
-  output: CloudflareAccessServiceToken & {
-    client_secret: string | null
-  }
+  output: CloudflareOutput<typeof SERVICE_TOKEN_SECRET_OUTPUTS>
 }
 
 export interface CloudflareRevokeAccessServiceTokenParams extends CloudflareBaseParams {
@@ -1166,18 +830,11 @@ export interface CloudflareRevokeAccessServiceTokenParams extends CloudflareBase
 }
 
 export interface CloudflareAccessServiceTokenResponse extends ToolResponse {
-  output: CloudflareAccessServiceToken
-}
-
-interface CloudflareR2Bucket {
-  name: string
-  creation_date: string | null
-  location: string | null
-  storage_class: string | null
-  jurisdiction: string | null
+  output: CloudflareOutput<typeof SERVICE_TOKEN_OUTPUTS>
 }
 
 export interface CloudflareListR2BucketsParams extends CloudflareBaseParams {
+  order?: string
   accountId: string
   name_contains?: string
   start_after?: string
@@ -1189,7 +846,9 @@ export interface CloudflareListR2BucketsParams extends CloudflareBaseParams {
 
 export interface CloudflareListR2BucketsResponse extends ToolResponse {
   output: {
-    buckets: CloudflareR2Bucket[]
+    buckets: CloudflareOutput<typeof R2_BUCKET_OUTPUTS>[]
+    total_count: number
+    result_info: CloudflareResultInfo | null
     cursor: string | null
   }
 }
@@ -1209,7 +868,7 @@ export interface CloudflareCreateR2BucketParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareR2BucketResponse extends ToolResponse {
-  output: CloudflareR2Bucket
+  output: CloudflareOutput<typeof R2_BUCKET_OUTPUTS>
 }
 
 export interface CloudflareDeleteR2BucketParams extends CloudflareBaseParams {
@@ -1231,23 +890,9 @@ export interface CloudflareListWorkerScriptsParams extends CloudflareBaseParams 
 
 export interface CloudflareListWorkerScriptsResponse extends ToolResponse {
   output: {
-    scripts: Array<{
-      id: string
-      tag: string | null
-      etag: string | null
-      created_on: string | null
-      modified_on: string | null
-      usage_model: string | null
-      placement_mode: string | null
-      logpush: boolean | null
-      has_assets: boolean | null
-      has_modules: boolean | null
-      compatibility_date: string | null
-      compatibility_flags: string[] | null
-      routes: unknown[] | null
-      tail_consumers: unknown[] | null
-    }>
+    scripts: CloudflareOutput<typeof WORKER_SCRIPT_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
@@ -1257,19 +902,7 @@ export interface CloudflareGetWorkerScriptSettingsParams extends CloudflareBaseP
 }
 
 export interface CloudflareGetWorkerScriptSettingsResponse extends ToolResponse {
-  output: {
-    bindings: unknown[] | null
-    compatibility_date: string | null
-    compatibility_flags: string[] | null
-    limits: Record<string, unknown> | null
-    logpush: boolean | null
-    migrations: Record<string, unknown> | null
-    observability: Record<string, unknown> | null
-    placement: Record<string, unknown> | null
-    tags: string[] | null
-    tail_consumers: unknown[] | null
-    usage_model: string | null
-  }
+  output: CloudflareOutput<typeof WORKER_SETTINGS_OUTPUTS>
 }
 
 export interface CloudflareListWorkerRoutesParams extends CloudflareBaseParams {
@@ -1278,29 +911,10 @@ export interface CloudflareListWorkerRoutesParams extends CloudflareBaseParams {
 
 export interface CloudflareListWorkerRoutesResponse extends ToolResponse {
   output: {
-    routes: Array<{
-      id: string
-      pattern: string
-      script: string | null
-    }>
+    routes: CloudflareOutput<typeof WORKER_ROUTE_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
-}
-
-interface CloudflareTunnel {
-  id: string
-  name: string | null
-  account_tag: string | null
-  config_src: string | null
-  status: string | null
-  tun_type: string | null
-  remote_config: boolean | null
-  metadata: Record<string, unknown> | null
-  created_at: string | null
-  deleted_at: string | null
-  conns_active_at: string | null
-  conns_inactive_at: string | null
-  connections: unknown[] | null
 }
 
 export interface CloudflareListTunnelsParams extends CloudflareBaseParams {
@@ -1320,8 +934,9 @@ export interface CloudflareListTunnelsParams extends CloudflareBaseParams {
 
 export interface CloudflareListTunnelsResponse extends ToolResponse {
   output: {
-    tunnels: CloudflareTunnel[]
+    tunnels: CloudflareOutput<typeof TUNNEL_OUTPUTS>[]
     total_count: number
+    result_info: CloudflareResultInfo | null
   }
 }
 
@@ -1331,7 +946,7 @@ export interface CloudflareGetTunnelParams extends CloudflareBaseParams {
 }
 
 export interface CloudflareTunnelResponse extends ToolResponse {
-  output: CloudflareTunnel
+  output: CloudflareOutput<typeof TUNNEL_OUTPUTS>
 }
 
 export interface CloudflareGetTunnelConfigurationParams extends CloudflareBaseParams {
@@ -1340,49 +955,5 @@ export interface CloudflareGetTunnelConfigurationParams extends CloudflareBasePa
 }
 
 export interface CloudflareGetTunnelConfigurationResponse extends ToolResponse {
-  output: {
-    tunnel_id: string
-    account_id: string
-    version: number | null
-    source: string | null
-    created_at: string | null
-    config: Record<string, unknown> | null
-  }
+  output: CloudflareOutput<typeof TUNNEL_CONFIGURATION_OUTPUTS>
 }
-
-export type CloudflareResponse =
-  | CloudflareListRulesetsResponse
-  | CloudflareRulesetResponse
-  | CloudflareListManagedRulesetOverridesResponse
-  | CloudflareListAccessApplicationsResponse
-  | CloudflareAccessApplicationResponse
-  | CloudflareListAccessPoliciesResponse
-  | CloudflareAccessPolicyResponse
-  | CloudflareListAccessGroupsResponse
-  | CloudflareListAccessIdentityProvidersResponse
-  | CloudflareListAccessServiceTokensResponse
-  | CloudflareCreateAccessServiceTokenResponse
-  | CloudflareAccessServiceTokenResponse
-  | CloudflareDeletedIdResponse
-  | CloudflareListR2BucketsResponse
-  | CloudflareR2BucketResponse
-  | CloudflareDeleteR2BucketResponse
-  | CloudflareListWorkerScriptsResponse
-  | CloudflareGetWorkerScriptSettingsResponse
-  | CloudflareListWorkerRoutesResponse
-  | CloudflareListTunnelsResponse
-  | CloudflareTunnelResponse
-  | CloudflareGetTunnelConfigurationResponse
-  | CloudflareListZonesResponse
-  | CloudflareGetZoneResponse
-  | CloudflareCreateZoneResponse
-  | CloudflareDeleteZoneResponse
-  | CloudflareListDnsRecordsResponse
-  | CloudflareCreateDnsRecordResponse
-  | CloudflareUpdateDnsRecordResponse
-  | CloudflareDeleteDnsRecordResponse
-  | CloudflareListCertificatesResponse
-  | CloudflarePurgeCacheResponse
-  | CloudflareDnsAnalyticsResponse
-  | CloudflareGetZoneSettingsResponse
-  | CloudflareUpdateZoneSettingResponse

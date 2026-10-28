@@ -5,7 +5,6 @@ import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/
 import type { BlockConfig } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
-import type { TableQueryResponse } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -205,7 +204,7 @@ const QUERY_FILTER_FIELD = ['filterBuilder', 'filter'] as const
 const BULK_FILTER_FIELD = ['bulkFilterBuilder', 'filter'] as const
 const SORT_FIELD = ['sortBuilder', 'sort'] as const
 
-export const TableBlock: BlockConfig<TableQueryResponse> = {
+export const TableBlock: BlockConfig = {
   type: 'table',
   name: 'Table',
   description: 'User-defined data tables',

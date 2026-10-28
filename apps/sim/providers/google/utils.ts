@@ -1,4 +1,5 @@
 import {
+  ApiError,
   type Candidate,
   type Content,
   type FunctionCall,
@@ -14,7 +15,7 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import { buildGeminiMessageParts } from '@/providers/attachments'
 import { captureProviderConversationStep } from '@/providers/conversation-history'
 import {
@@ -28,6 +29,30 @@ import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('GoogleUtils')
+
+const RETRY_INFO_TYPE = 'type.googleapis.com/google.rpc.RetryInfo'
+
+/**
+ * The delay a Gemini rejection asks for before a retry. The SDK surfaces no response
+ * headers: `ApiError.message` is the JSON error body, and a rate limit carries a
+ * `google.rpc.RetryInfo` detail whose `retryDelay` is a protobuf Duration such as `"31s"`.
+ */
+export function geminiRetryDelayMs(error: unknown): number | null {
+  if (!(error instanceof ApiError)) return null
+  let body: unknown
+  try {
+    body = JSON.parse(error.message)
+  } catch {
+    return null
+  }
+  for (const detail of toArray(toRecord(toRecord(body).error).details)) {
+    const record = toRecord(detail)
+    if (record['@type'] !== RETRY_INFO_TYPE || typeof record.retryDelay !== 'string') continue
+    const seconds = /^(\d+(?:\.\d+)?)s$/.exec(record.retryDelay)
+    if (seconds) return Number(seconds[1]) * 1000
+  }
+  return null
+}
 
 /**
  * Ensures a value is a valid object for Gemini's functionResponse.response field.

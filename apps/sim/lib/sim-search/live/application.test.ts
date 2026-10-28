@@ -1,13 +1,23 @@
-import { resetDbChainMock } from '@sim/testing'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  enabled: true,
-  permission: vi.fn(),
-  context: vi.fn(),
   accounts: vi.fn(),
   resolveAccount: vi.fn(),
   search: vi.fn(),
+  mcpCall: vi.fn(),
   read: vi.fn(),
   admin: vi.fn(),
   adminSearch: vi.fn(),
@@ -16,39 +26,35 @@ const mocks = vi.hoisted(() => ({
   json: vi.fn(),
   service: vi.fn(),
   destroyPool: vi.fn(),
+  requiresEveryTerm: vi.fn(),
+  preview: vi.fn(),
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedConnectionPool: () => ({ agent: vi.fn(), destroy: mocks.destroyPool }),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/sim-search/live/service-session', () => ({
   createLiveServiceSession: mocks.service,
 }))
 vi.mock('@/lib/sim-search/live/http', async (original) => ({
   ...(await original<typeof import('@/lib/sim-search/live/http')>()),
-  createNativeClient: () => ({ json: mocks.json, text: vi.fn() }),
+  createNativeClient: () => ({
+    json: mocks.json,
+    text: vi.fn(async () => 'Original document text'),
+    bytes: vi.fn(),
+  }),
 }))
 vi.mock('@/lib/sim-search/live/gitlab-admin', () => ({ createAdminGitLabSession: mocks.admin }))
 vi.mock('@/lib/sim-search/live/policy-store', () => ({
   loadLiveSearchPolicies: vi.fn(async () => ({})),
   livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
 }))
+vi.mock('@/lib/sim-search/live/managed-mcp', () => ({
+  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall, close: async () => {} }),
+}))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
-  createCodaMcpClient: vi.fn(),
   searchCodaMcp: vi.fn(),
   readCodaMcp: vi.fn(),
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isLiveEnterpriseSearchEnabled() {
-    return mocks.enabled
-  },
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOwnerContext: mocks.context,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/sim-search/live/accounts', () => ({
   listLiveAccounts: mocks.accounts,
   resolveLiveAccount: mocks.resolveAccount,
@@ -61,6 +67,8 @@ vi.mock('@/lib/sim-search/live/providers', () => ({
   liveSearchGuidance: (providers: string[]) => `Live coverage: ${[...new Set(providers)]}`,
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,
+  requiresEveryTerm: mocks.requiresEveryTerm,
+  previewNativeText: mocks.preview,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: (value: string) => ({ safe: true, value }),
@@ -73,12 +81,22 @@ import {
   readLiveDocument,
   searchLiveKnowledge,
 } from '@/lib/sim-search/live/application'
+import { readDrive } from '@/lib/sim-search/live/google'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { livePolicyFor } from '@/lib/sim-search/live/policy-store'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const principal = { kind: 'session', userId: 'reader', sessionId: 's' } as const
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+inputValidationMockFns.mockCreatePinnedConnectionPool.mockImplementation(() => ({
+  agent: vi.fn(),
+  destroy: mocks.destroyPool,
+}))
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 's' })
 const input = { workspaceId: 'workspace', query: 'launch', topK: 20 }
 const account = {
   id: 'account',
@@ -99,15 +117,16 @@ const document = {
 describe('authorized live retrieval', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.enabled = true
+    vi.mocked(livePolicyFor).mockReset()
+    vi.mocked(livePolicyFor).mockReturnValue(defaultLiveSearchPolicy())
     mocks.service.mockResolvedValue(undefined)
-    mocks.context.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockResolvedValue({
       workspaceId: 'workspace',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'payer',
     })
-    mocks.permission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.accounts.mockResolvedValue([account])
     mocks.resolveAccount.mockResolvedValue({ account, accessToken: 'secret' })
     mocks.search.mockResolvedValue({ documents: [document] })
@@ -121,7 +140,294 @@ describe('authorized live retrieval', () => {
       documents: [{ ...document, id: 'src/a.ts', container: '42', kind: 'code' }],
     })
     mocks.adminVerify.mockResolvedValue(true)
+    mocks.requiresEveryTerm.mockReset().mockReturnValue(false)
+    mocks.preview.mockReset().mockResolvedValue(undefined)
   })
+  describe('Zoom continuation integrity', () => {
+    const connected = {
+      ...account,
+      provider: 'zoom' as const,
+      providerId: 'mcp:zoom',
+      type: 'managed_mcp' as const,
+      displayName: 'Fixture meetings',
+    }
+    const ids = {
+      first: '00000000-0000-4000-8000-000000000001',
+      prior: '00000000-0000-4000-8000-000000000002',
+      later: '00000000-0000-4000-8000-000000000003',
+    }
+    const listing = {
+      ...input,
+      query: '',
+      topK: 2,
+      filters: { sortBy: 'newest' as const },
+      nativeQueries: [{ provider: 'zoom' as const, accountId: connected.id, query: '' }],
+    }
+    let providerUsesCutoff = true
+    beforeEach(() => {
+      providerUsesCutoff = true
+      setEnv({ ZOOM_SEARCH: true })
+      dbChainMockFns.limit.mockResolvedValue([{ organizationId: 'org' }])
+      mocks.accounts.mockResolvedValue([connected])
+      mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+        if (name === 'search_meetings') {
+          const pageIds = !args.next_page_token
+            ? [ids.first]
+            : providerUsesCutoff
+              ? [
+                  Date.parse(String(args.to)) <= Date.parse('2026-09-01T12:00:00Z')
+                    ? ids.prior
+                    : ids.later,
+                ]
+              : [ids.prior, ids.later]
+          return {
+            meetings: pageIds.map((id) => ({ meeting_uuid: id, meeting_category: 'history' })),
+            next_page_token: args.next_page_token ? '' : 'fixture-second-page',
+          }
+        }
+        if (name !== 'get_meeting_assets') throw new Error('Unexpected meeting tool')
+        return {
+          meeting_uuid: args.meetingId,
+          meeting_category: 'history',
+          topic: 'Fixture meeting',
+          start_time:
+            args.meetingId === ids.later ? '2026-09-01T12:30:00Z' : '2026-09-01T11:30:00Z',
+          deep_url: 'https://zoom.us/meeting/insights/fixture',
+        }
+      })
+    })
+    it.each(['inferred cutoff', 'provider cursor'] as const)(
+      'rejects a caller-edited %s from an otherwise valid continuation',
+      async (changed) => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+          const first = await searchLiveKnowledge.execute({ principal, input: listing })
+          expect(first.results).toHaveLength(1)
+          const cursor = first.live?.accounts[0]?.nextCursor
+          expect(cursor).toBeTruthy()
+          const payload = JSON.parse(Buffer.from(cursor!.slice(5), 'base64url').toString('utf8'))
+          if (changed === 'inferred cutoff') payload.listingEndDate = '2026-09-01T14:00:00Z'
+          else payload.cursor = 'different-second-page'
+          const altered = `zoom:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+          const result = await searchLiveKnowledge.execute({
+            principal,
+            input: {
+              ...listing,
+              nativeQueries: [{ ...listing.nativeQueries[0]!, cursor: altered }],
+            },
+          })
+          expect(result.results).toEqual([])
+          expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
+    it.each(['provider window', 'local date filtering'] as const)(
+      'continues the original inferred cutoff after time advances: %s',
+      async (stage) => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+          const first = await searchLiveKnowledge.execute({ principal, input: listing })
+          expect(first.results).toHaveLength(1)
+          const cursor = first.live?.accounts[0]?.nextCursor
+          expect(cursor).toBeTruthy()
+          providerUsesCutoff = stage === 'provider window'
+          vi.setSystemTime(new Date('2026-09-01T13:00:00Z'))
+          const result = await searchLiveKnowledge.execute({
+            principal,
+            input: { ...listing, nativeQueries: [{ ...listing.nativeQueries[0]!, cursor }] },
+          })
+          expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+            ids.prior,
+          ])
+          expect(result.live?.accounts[0]?.status).not.toBe('unavailable')
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
+  })
+  describe('HubSpot continuation context', () => {
+    const connected = {
+      ...account,
+      provider: 'hubspot' as const,
+      providerId: 'mcp:hubspot',
+      type: 'managed_mcp' as const,
+      displayName: 'Fixture CRM',
+    }
+    const native = {
+      provider: 'hubspot' as const,
+      accountId: connected.id,
+      kind: 'contacts' as const,
+      query: 'launch',
+    }
+    const filters = { startDate: '2026-08-01T00:00:00Z', endDate: '2026-10-01T00:00:00Z' }
+    const row = (id: number, date: string) => ({
+      id,
+      displayName: `Fixture ${id}`,
+      properties: { name: `Fixture ${id}`, lastmodifieddate: date, hs_lastmodifieddate: date },
+    })
+    const response = (args: Record<string, unknown>, rows: unknown[], total: number) => ({
+      results: rows,
+      total,
+      offset: Number(args.offset ?? 0) + rows.length,
+      urlTemplate: `https://app.hubspot.com/contacts/12345/record/${args.objectType === 'COMPANY' ? '0-2' : '0-1'}/{id}`,
+    })
+    const details = {
+      accountId: 12345,
+      toolInformation: {
+        crmObjectTypeAvailability: {
+          CONTACT: { read: 'AVAILABLE' },
+          COMPANY: { read: 'AVAILABLE' },
+        },
+      },
+    }
+    beforeEach(() => {
+      mocks.accounts.mockResolvedValue([connected, { ...connected, id: 'another-account' }])
+      mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+        if (name === 'get_user_details') return details
+        if (name !== 'search_crm_objects') throw new Error('Unexpected CRM tool')
+        return response(args, [row(args.offset ? 43 : 42, '2026-09-01T00:00:00Z')], 2)
+      })
+    })
+    it.each([
+      { name: 'query', native: { ...native, query: 'release' }, filters },
+      { name: 'kind', native: { ...native, kind: 'companies' as const }, filters },
+      { name: 'date', native, filters: { ...filters, endDate: '2026-09-30T00:00:00Z' } },
+      { name: 'sort', native, filters: { ...filters, sortBy: 'oldest' as const } },
+      { name: 'account', native: { ...native, accountId: 'another-account' }, filters },
+    ])(
+      'rejects a cursor replayed after changing $name while the fresh search remains valid',
+      async (changed) => {
+        const first = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, topK: 1, filters, nativeQueries: [native] },
+        })
+        const cursor = first.live?.accounts[0]?.nextCursor
+        expect(cursor).toBeTruthy()
+        const fresh = await searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, topK: 1, filters: changed.filters, nativeQueries: [changed.native] },
+        })
+        expect(fresh.results).toHaveLength(1)
+        const replay = await searchLiveKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            topK: 1,
+            filters: changed.filters,
+            nativeQueries: [{ ...changed.native, cursor }],
+          },
+        })
+        expect(replay.results).toEqual([])
+        expect(replay.live?.accounts[0]).toMatchObject({
+          status: 'unavailable',
+          message: expect.stringMatching(/cursor|continuation|restart/i),
+        })
+      }
+    )
+    it.each([
+      'remove implicit cutoff',
+      'edit implicit cutoff',
+      'override explicit cutoff',
+    ] as const)('rejects a continuation that would %s', async (mode) => {
+      const query = mode === 'override explicit cutoff' ? 'launch' : ''
+      const searchInput = {
+        ...input,
+        query,
+        topK: 1,
+        filters: mode === 'override explicit cutoff' ? filters : { sortBy: 'newest' as const },
+        nativeQueries: [{ ...native, query }],
+      }
+      const first = await searchLiveKnowledge.execute({ principal, input: searchInput })
+      expect(first.results).toHaveLength(1)
+      const cursor = first.live?.accounts[0]?.nextCursor
+      expect(cursor).toBeTruthy()
+      const payload = JSON.parse(Buffer.from(cursor!.slice(8), 'base64url').toString('utf8'))
+      if (mode === 'remove implicit cutoff') payload.listingEndDate = undefined
+      else payload.listingEndDate = '2026-11-01T00:00:00Z'
+      const altered = `hubspot:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+      const result = await searchLiveKnowledge.execute({
+        principal,
+        input: { ...searchInput, nativeQueries: [{ ...native, query, cursor: altered }] },
+      })
+      expect(result.results).toEqual([])
+      expect(result.live?.accounts[0]).toMatchObject({ status: 'unavailable' })
+    })
+    it.each(['provider window', 'local date filtering'] as const)(
+      'keeps the original implicit listing boundary after time advances: %s',
+      async (stage) => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(new Date('2026-09-01T12:00:00Z'))
+          const old = row(43, '2026-09-01T11:30:00Z')
+          const later = row(44, '2026-09-01T12:30:00Z')
+          mocks.mcpCall.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+            if (name === 'get_user_details') return details
+            if (name !== 'search_crm_objects') throw new Error('Unexpected CRM tool')
+            if (!args.offset) return response(args, [row(42, '2026-09-01T11:45:00Z')], 3)
+            if (stage === 'local date filtering') return response(args, [old, later], 3)
+            const groups = args.filterGroups as { filters: { operator: string; value: string }[] }[]
+            const upper = Number(
+              groups[0].filters.find((filter) => filter.operator === 'LT')?.value
+            )
+            return response(args, [upper <= Date.parse('2026-09-01T12:00:00Z') ? old : later], 2)
+          })
+          const listing = {
+            ...input,
+            query: '',
+            topK: 1,
+            filters: { sortBy: 'newest' as const },
+            nativeQueries: [{ ...native, query: '' }],
+          }
+          const first = await searchLiveKnowledge.execute({ principal, input: listing })
+          const cursor = first.live?.accounts[0]?.nextCursor
+          expect(first.results).toHaveLength(1)
+          expect(cursor).toBeTruthy()
+          vi.setSystemTime(new Date('2026-09-01T13:00:00Z'))
+          const continued = await searchLiveKnowledge.execute({
+            principal,
+            input: { ...listing, topK: 2, nativeQueries: [{ ...native, query: '', cursor }] },
+          })
+          expect(
+            continued.results.map((result) => decodeLiveReference(result.documentId).id)
+          ).toEqual(['hubspot:12345:contacts:43'])
+          expect(continued.live?.accounts[0]?.status).not.toBe('unavailable')
+        } finally {
+          vi.useRealTimers()
+        }
+      }
+    )
+  })
+  it('rejects an empty Lucid native query without an explicit browse mode', async () => {
+    await expect(
+      searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          query: 'topology',
+          filters: { startDate: '2026-08-01T00:00:00Z' },
+          nativeQueries: [{ provider: 'lucid', query: ' \t ' }],
+        },
+      })
+    ).rejects.toMatchObject({
+      issues: expect.arrayContaining([expect.objectContaining({ path: [0, 'query'] })]),
+    })
+  })
+  it.each([undefined, 'google_drive'])(
+    'preserves date-only live results with source %s',
+    async (source) => {
+      const result = await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { source, startDate: '2026-08-01T00:00:00Z' } },
+      })
+      expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual(['doc'])
+      expect(result.live?.accounts[0]?.status).toBe('ok')
+    }
+  )
   it('filters admin-token GitLab results through the reader ACL before projection', async () => {
     const gitlab = {
       ...account,
@@ -251,6 +557,51 @@ describe('authorized live retrieval', () => {
     expect(statusOf('mail')?.nextCursor).toBeUndefined()
     expect(statusOf('account')).toMatchObject({ nextCursor: 'next' })
   })
+  it('ranks results across accounts by the query terms they hold, not by account order', async () => {
+    const gmail = { ...account, id: 'mail', provider: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([account, gmail])
+    const result = (id: string, title: string, content: string) => ({
+      ...document,
+      id,
+      title,
+      content,
+      url: `https://docs.google.com/${id}`,
+    })
+    mocks.search.mockImplementation(async (provider: string) => ({
+      documents:
+        provider === 'gmail'
+          ? [
+              result('notes', 'Weekly notes', 'The merge train skipped two builds'),
+              result('named', 'Merge Train', 'How builds queue'),
+            ]
+          : [result('sheet', 'Question bank', 'Questions')],
+    }))
+    const { results } = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'merge train' },
+    })
+    expect(results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'named',
+      'notes',
+      'sheet',
+    ])
+  })
+  it('counts two-letter query terms, so a page named for the query leads one sharing a word', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [
+        { ...document, id: 'generic', title: 'Agents', url: 'https://docs.google.com/generic' },
+        { ...document, id: 'named', title: 'AI agents', url: 'https://docs.google.com/named' },
+      ],
+    })
+    const { results } = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'AI agents' },
+    })
+    expect(results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'named',
+      'generic',
+    ])
+  })
   it('applies date filters before spending provider verification', async () => {
     const verify = vi.fn(async () => true)
     mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })
@@ -311,6 +662,114 @@ describe('authorized live retrieval', () => {
     expect(result.live?.accounts.map((status) => status.queryIndex)).toEqual([0, 1])
     expect(result.live?.guidance).toBe('Live coverage: slack')
   })
+  describe('result previews', () => {
+    const excerpts = ['a', 'b', 'c', 'd'].map((id) => ({
+      ...document,
+      id,
+      url: `https://docs.google.com/document/d/${id}/edit`,
+      content: `Excerpt ${id}`,
+    }))
+    const contents = (result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>>) =>
+      result.results.map((row) => row.content)
+
+    it('replaces the excerpts of an account’s top results with their full text', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      mocks.preview.mockImplementation(async (_provider, _client, { id }: { id: string }) =>
+        id === 'a' ? undefined : `Full ${id} launch text`
+      )
+      const result = await searchLiveKnowledge.execute({ principal, input })
+      expect(contents(result)).toEqual([
+        'Excerpt a',
+        'Full b launch text',
+        'Full c launch text',
+        'Excerpt d',
+      ])
+      expect(mocks.preview).toHaveBeenCalledTimes(3)
+    })
+
+    it('previews the passage around a match deep inside a long document', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 1) })
+      mocks.preview.mockResolvedValue(`${'filler '.repeat(30_000)}the launch checklist`)
+      const [row] = (await searchLiveKnowledge.execute({ principal, input })).results
+      expect(row?.content).toContain('launch checklist')
+    })
+
+    it('keeps the provider excerpt when a preview read fails', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 2) })
+      mocks.preview
+        .mockRejectedValueOnce(new NativeSearchError('rate_limited', 'Slow down'))
+        .mockResolvedValueOnce('Full b launch text')
+      const result = await searchLiveKnowledge.execute({ principal, input })
+      expect(contents(result)).toEqual(['Excerpt a', 'Full b launch text'])
+      expect(result.live?.accounts[0]?.status).toBe('ok')
+    })
+
+    it('keeps the provider excerpt when a preview read misses its deadline', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.search.mockResolvedValue({ documents: excerpts.slice(0, 1) })
+        mocks.preview.mockReturnValue(new Promise(() => {}))
+        const pending = searchLiveKnowledge.execute({ principal, input })
+        await vi.advanceTimersByTimeAsync(2500)
+        expect(contents(await pending)).toEqual(['Excerpt a'])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not read previews for a native query, whose operators would anchor the passage', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      await searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          query: '',
+          nativeQueries: [
+            { provider: 'google_drive' as const, query: "fullText contains 'launch'" },
+          ],
+        },
+      })
+      expect(mocks.preview).not.toHaveBeenCalled()
+    })
+
+    it('does not read previews for a listing without search terms', async () => {
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { sortBy: 'newest' } },
+      })
+      expect(mocks.preview).not.toHaveBeenCalled()
+    })
+  })
+
+  it('gives provider searches the account session cancellation signal', async () => {
+    const signals: (AbortSignal | undefined)[] = []
+    mocks.search.mockImplementation(async (_provider, _client, search) => {
+      signals.push(search.signal)
+      return { documents: [document] }
+    })
+    await searchLiveKnowledge.execute({ principal, input: { ...input, query: 'launch checklist' } })
+    expect(signals.length).toBeGreaterThan(0)
+    for (const signal of signals) expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('retries an underfilled search with any term for providers that require every term', async () => {
+    mocks.requiresEveryTerm.mockReturnValue(true)
+    const loose = { ...document, id: 'loose', url: 'https://docs.google.com/document/d/loose/edit' }
+    mocks.search.mockImplementation(async (_provider, _client, search) => ({
+      documents: search.textMatch === 'any' ? [loose, document] : [document],
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'launch checklist' },
+    })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'doc',
+      'loose',
+    ])
+    expect(mocks.search).toHaveBeenCalledTimes(2)
+  })
+
   it('checks the service source before returning member-visible candidates', async () => {
     const verify = vi.fn().mockResolvedValue(false)
     mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })
@@ -363,8 +822,75 @@ describe('authorized live retrieval', () => {
     ).rejects.toThrow('outside your organization')
     expect(mocks.read).toHaveBeenCalledOnce()
   })
+  it('suppresses conversation content when a sibling leaves the current service source', async () => {
+    const gmail = { ...account, provider: 'gmail', providerId: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([gmail])
+    mocks.resolveAccount.mockResolvedValue({ account: gmail, accessToken: 'secret' })
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    mocks.read.mockResolvedValue({
+      ...document,
+      content: 'Anchor evidence. Restricted sibling evidence.',
+      accessDependencies: [{ id: 'sibling' }],
+    })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy('gmail'),
+      verify: async () => true,
+      partial: false,
+    })
+    mocks.service.mockResolvedValueOnce({
+      policy: defaultLiveSearchPolicy('gmail'),
+      verify: async ({ id }: { id: string }) => id !== 'sibling',
+      partial: false,
+    })
+
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+  })
+  it('ignores stale message labels when rechecking member access after a read', async () => {
+    const gmail = { ...account, provider: 'gmail', providerId: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([gmail])
+    mocks.resolveAccount.mockResolvedValue({ account: gmail, accessToken: 'secret' })
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    vi.mocked(livePolicyFor).mockReturnValue({
+      ...defaultLiveSearchPolicy('gmail'),
+      mode: 'selected',
+      included: ['INBOX'],
+    })
+    let readCompleted = false
+    mocks.json.mockImplementation(async (path: string) => {
+      if (path === '/gmail/v1/users/me/labels') return { labels: [{ id: 'INBOX', name: 'INBOX' }] }
+      if (path === '/gmail/v1/users/me/messages/doc')
+        return { id: 'doc', labelIds: readCompleted ? ['SENT'] : ['INBOX'] }
+      throw new Error(`Unexpected Gmail resource: ${path}`)
+    })
+    mocks.read.mockImplementation(async () => {
+      readCompleted = true
+      return { ...document, accessMetadata: { id: 'doc', labelIds: ['INBOX'] } }
+    })
+
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toThrow('outside your organization')
+  })
   it('rejects nonmembers before account discovery or provider calls', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(searchLiveKnowledge.execute({ principal, input })).rejects.toThrow(
       'Insufficient workspace'
     )
@@ -403,6 +929,118 @@ describe('authorized live retrieval', () => {
     ).rejects.toThrow('Revoked')
     expect(mocks.read).not.toHaveBeenCalled()
   })
+  it.each([
+    [
+      'a missing or non-readable document',
+      new NativeSearchError('unavailable', 'Provider request failed (404).', undefined, 404),
+      { code: 'not_found', message: expect.stringContaining('Search again') },
+    ],
+    [
+      'a revoked grant',
+      new NativeSearchError('reconnect', 'The provider denied access.'),
+      { code: 'unauthorized', message: expect.stringContaining('Reconnect Google Drive') },
+    ],
+    [
+      'a provider rate limit',
+      new NativeSearchError('rate_limited', 'Provider rate limit reached.', 30),
+      { retryable: true, retryAfterSeconds: 30 },
+    ],
+    [
+      'a provider outage',
+      new NativeSearchError('unavailable', 'Provider request failed (503).', undefined, 503),
+      { retryable: true, message: expect.stringContaining('Try again') },
+    ],
+    [
+      'an MCP request timeout',
+      new McpError(ErrorCode.RequestTimeout, 'TimeoutError'),
+      { retryable: true, message: expect.stringContaining('took too long') },
+    ],
+    [
+      'a provider request timeout response',
+      new NativeSearchError('unavailable', 'Provider request failed (408).', undefined, 408),
+      { retryable: true, message: expect.stringContaining('timed out') },
+    ],
+    [
+      'a native request socket timeout',
+      Object.assign(new Error('Request timed out after 10000ms'), { code: 'ETIMEDOUT' }),
+      { retryable: true, message: expect.stringContaining('Try again') },
+    ],
+    [
+      'a native request dispatcher timeout',
+      Object.assign(new Error('Headers Timeout Error'), { code: 'UND_ERR_HEADERS_TIMEOUT' }),
+      { retryable: true, message: expect.stringContaining('Try again') },
+    ],
+  ])('classifies %s during a read so the caller can act on it', async (_, failure, expected) => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    mocks.read.mockRejectedValueOnce(failure)
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]?.documentId ?? '',
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    ).rejects.toMatchObject(expected)
+  })
+  it.each([
+    ['a stop reason', 'user_stop:test'],
+    ['an AbortError', new DOMException('The operation was aborted.', 'AbortError')],
+    ['a TimeoutError', new DOMException('The operation timed out.', 'TimeoutError')],
+  ])(
+    'rejects a read cancelled with %s instead of returning partial discussion coverage',
+    async (_, reason) => {
+      const search = await searchLiveKnowledge.execute({ principal, input })
+      const controller = new AbortController()
+      mocks.read.mockImplementation((_provider, client) => readDrive(client, 'doc'))
+      mocks.json.mockImplementation(async (path: string) => {
+        if (!path.endsWith('/comments'))
+          return {
+            id: 'doc',
+            name: 'Launch',
+            mimeType: 'application/vnd.google-apps.document',
+            webViewLink: document.url,
+          }
+        controller.abort(reason)
+        throw controller.signal.reason
+      })
+      await expect(
+        readLiveDocument.execute({
+          principal,
+          input: {
+            workspaceId: 'workspace',
+            documentId: search.results[0]!.documentId,
+            limit: 1,
+            resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+            signal: controller.signal,
+          },
+        })
+      ).rejects.toBe(reason)
+    }
+  )
+  it('rejects a read cancelled while its current scope was being verified', async () => {
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    const controller = new AbortController()
+    mocks.service.mockResolvedValueOnce(undefined)
+    mocks.service.mockImplementationOnce(async () => {
+      controller.abort('user_stop:test')
+      return { policy: defaultLiveSearchPolicy(), verify: async () => true, partial: false }
+    })
+    await expect(
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          signal: controller.signal,
+        },
+      })
+    ).rejects.toBe('user_stop:test')
+  })
   it('rejects cross-user document references before token resolution', async () => {
     const search = await searchLiveKnowledge.execute({ principal, input })
     const reference = decodeLiveReference(search.results[0].documentId)
@@ -432,7 +1070,7 @@ describe('authorized live retrieval', () => {
       verify: createPolicyVerifier(
         'google_drive',
         policy,
-        { json: mocks.json, text: vi.fn() },
+        { json: mocks.json, text: vi.fn(), bytes: vi.fn() },
         'https://www.googleapis.com'
       ),
       partial: false,

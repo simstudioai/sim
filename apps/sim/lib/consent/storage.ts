@@ -5,21 +5,34 @@ export const CONSENT_STORAGE_CONFIG = { defaultExpiryDays: 365 } as const
 const CONSENT_MAX_AGE_MS = CONSENT_STORAGE_CONFIG.defaultExpiryDays * 24 * 60 * 60 * 1000
 const PENDING_CONSENT_SYNC_KEY = 'c15t:pending-consent-sync'
 
-function hasCurrentConsent(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || !('consentInfo' in value)) return false
+function getConsentTime(value: unknown): number | undefined {
+  if (!value || typeof value !== 'object' || !('consentInfo' in value)) return undefined
 
   const { consentInfo } = value
-  if (!consentInfo || typeof consentInfo !== 'object' || !('time' in consentInfo)) return false
+  if (!consentInfo || typeof consentInfo !== 'object' || !('time' in consentInfo)) return undefined
 
   const { time } = consentInfo
+  return typeof time === 'number' && Number.isFinite(time) && time > 0 ? time : undefined
+}
+
+function hasCurrentConsent(value: unknown): boolean {
+  const time = getConsentTime(value)
   const now = Date.now()
-  return (
-    typeof time === 'number' &&
-    Number.isFinite(time) &&
-    time > 0 &&
-    time <= now &&
-    now - time < CONSENT_MAX_AGE_MS
-  )
+  return time !== undefined && time <= now && now - time < CONSENT_MAX_AGE_MS
+}
+
+/**
+ * When the visitor's stored consent choice lapses, in epoch milliseconds, or
+ * `undefined` when no choice is stored and the jurisdiction's defaults apply.
+ * Lets data written under a grant expire no later than the grant itself.
+ */
+export function getStoredConsentExpiry(): number | undefined {
+  try {
+    const time = getConsentTime(getConsentFromStorage(CONSENT_STORAGE_CONFIG))
+    return time === undefined ? undefined : time + CONSENT_MAX_AGE_MS
+  } catch {
+    return undefined
+  }
 }
 
 /**

@@ -2,7 +2,6 @@ import { EyeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { VisionResponse } from '@/tools/vision/types'
 
 const VISION_MODEL_OPTIONS = [
   { label: 'GPT 5.2', id: 'gpt-5.2' },
@@ -25,7 +24,7 @@ const IMAGE_FIELD = ['imageFile', 'imageFileReference', 'imageUrl'] as const
 /* v2 drops the URL input, keeping only the upload/reference pair. */
 const IMAGE_V2_FIELD = ['imageFile', 'imageFileReference'] as const
 
-export const VisionBlock: BlockConfig<VisionResponse> = {
+export const VisionBlock: BlockConfig = {
   type: 'vision',
   name: 'Vision (Legacy)',
   description: 'Analyze images with vision models',
@@ -116,7 +115,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   },
 }
 
-export const VisionV2Block: BlockConfig<VisionResponse> = {
+export const VisionV2Block: BlockConfig = {
   ...VisionBlock,
   type: 'vision_v2',
   name: 'Vision',

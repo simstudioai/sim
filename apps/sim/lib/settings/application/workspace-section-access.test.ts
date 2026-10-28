@@ -1,45 +1,49 @@
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspaceForkingAuthzMock,
+  workspaceForkingAuthzMockFns,
+} from '@sim/testing/mocks/workspace-forking-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   canOpenOrganizationSettingsSection: vi.fn(),
-  checkWorkspaceAccess: vi.fn(),
-  deploymentShape: {
-    hosted: true,
-    billingEnabled: true,
-    chatEnabled: true,
-    azureConfigured: false,
-    cohereConfigured: false,
-    features: {
-      accessControl: false,
-      auditLogs: false,
-      customBlocks: false,
-      dataDrains: false,
-      dataRetention: false,
-      inbox: false,
-      sandboxes: false,
-      sessionPolicies: false,
-      sso: false,
-      usageMonitoring: false,
-      whitelabeling: false,
-    },
-  },
   getOrganizationSettingsFeatures: vi.fn((hasEnterprisePlan: boolean) => ({ hasEnterprisePlan })),
-  isCustomBlocksEligibleForOrganization: vi.fn(),
-  isForkingAvailableForWorkspace: vi.fn(),
-  isOrganizationOnEnterprisePlan: vi.fn(),
   isOrganizationSettingsSectionAvailable: vi.fn(),
-  isScopedCredentialGroupsAvailable: vi.fn(),
-  isKnowledgeMemberAccessAvailable: vi.fn(),
   isPlatformAdmin: vi.fn(),
   isAccessRequestEnabled: vi.fn(),
-  resolveVerifiedUserAccessControlContext: vi.fn(),
   resolveWorkspaceNavigation: vi.fn(),
 }))
 
 vi.mock('@/components/settings/navigation', () => ({
-  getOrganizationSettingsFeatures: mocks.getOrganizationSettingsFeatures,
-  isOrganizationSettingsSectionAvailable: mocks.isOrganizationSettingsSectionAvailable,
-  resolveWorkspaceNavigation: mocks.resolveWorkspaceNavigation,
+  getOrganizationSettingsFeatures: hoisted.getOrganizationSettingsFeatures,
+  isOrganizationSettingsSectionAvailable: hoisted.isOrganizationSettingsSectionAvailable,
+  resolveWorkspaceNavigation: hoisted.resolveWorkspaceNavigation,
   UNIFIED_TO_ORGANIZATION_SECTION: {
     organization: 'members',
     billing: 'billing',
@@ -58,42 +62,50 @@ vi.mock('@/components/settings/navigation', () => ({
   WORKSPACE_PERMISSION_CONFIG_KEYS: { secrets: 'hideSecretsTab' },
 }))
 vi.mock('@/ee/access-requests/lib/settings', () => ({
-  isAccessRequestEnabled: mocks.isAccessRequestEnabled,
+  isAccessRequestEnabled: hoisted.isAccessRequestEnabled,
 }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.isOrganizationOnEnterprisePlan,
-}))
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  getDeploymentShape: () => mocks.deploymentShape,
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.isScopedCredentialGroupsAvailable,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mocks.isKnowledgeMemberAccessAvailable,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  /** Access Control follows the regime; these tests drive it from the same plan knob. */
-  isOrganizationPermissionRegimeActive: mocks.isOrganizationOnEnterprisePlan,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/organizations/settings-access', () => ({
-  canOpenOrganizationSettingsSection: mocks.canOpenOrganizationSettingsSection,
+  canOpenOrganizationSettingsSection: hoisted.canOpenOrganizationSettingsSection,
 }))
-vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }))
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  isCustomBlocksEligibleForOrganization: mocks.isCustomBlocksEligibleForOrganization,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  resolveVerifiedUserAccessControlContext: mocks.resolveVerifiedUserAccessControlContext,
-}))
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  isForkingAvailableForWorkspace: mocks.isForkingAvailableForWorkspace,
-}))
+vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: hoisted.isPlatformAdmin }))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
 
 import { authorizeWorkspaceSettingsSection } from '@/lib/settings/application/workspace-section-access'
+
+const mocks = {
+  ...hoisted,
+  isCustomBlocksEligibleForOrganization:
+    customBlockOperationsMockFns.mockIsCustomBlocksEligibleForOrganization,
+  isForkingAvailableForWorkspace: workspaceForkingAuthzMockFns.mockIsForkingAvailableForWorkspace,
+  isScopedCredentialGroupsAvailable:
+    credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  deploymentShape: createMockDeploymentShape({
+    hosted: true,
+    billingEnabled: true,
+    features: { inbox: false, sessionPolicies: false, whitelabeling: false },
+  }),
+  checkWorkspaceAccess: permissionsMockFns.mockCheckWorkspaceAccess,
+  isOrganizationOnEnterprisePlan: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+  isKnowledgeMemberAccessAvailable:
+    knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable,
+  resolveVerifiedUserAccessControlContext:
+    permissionGroupsResolveMockFns.mockResolveVerifiedUserAccessControlContext,
+}
+
+deploymentShapeMockFns.mockGetDeploymentShape.mockReturnValue(mocks.deploymentShape)
+
+/** Access Control follows the regime; these tests drive it from the same plan knob. */
+permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockImplementation(
+  (organizationId: string) => mocks.isOrganizationOnEnterprisePlan(organizationId)
+)
 
 const PERSONAL_ACCESS = {
   exists: true,

@@ -1,0 +1,37 @@
+---
+title: Granola
+description: Find meeting notes and read available transcripts from Granola
+---
+
+Granola Search uses **Member accounts** through the official MCP service. It searches content your account can access in your active Granola workspace.
+
+## Connect
+
+1. An admin adds **Granola → Member accounts** in **Settings → Sources**.
+2. Each teammate opens **Integrations → Granola → Connect** and authorizes their account.
+3. Ask a focused question such as `What did we decide about the enterprise launch?`, then read a result.
+
+Sim uses `https://mcp.granola.ai/mcp` with each member's managed OAuth grant. A shared API key cannot replace this connection. If meetings are missing, check the account and switch to the intended workspace in Granola; MCP follows the active workspace.
+
+## Queries and dates
+
+Granola uses semantic meeting queries. Ask about one topic, such as `Which customer meetings discussed audit logs?`, without Gmail operators or GitHub qualifiers.
+
+Use `startDate` and `endDate` for meeting dates. Without terms, Sim uses a meeting listing. When the server offers only preset ranges, it lists the last 30 days and filters those meetings to the requested dates. Older meetings need a focused question, subject to plan and access. If custom ranges are advertised, Sim uses them. Native `project` can scope a question to a meeting UUID when the server exposes that capability.
+
+There is no verified continuation cursor. Narrow the topic or dates for more coverage. Meeting dates are not note modification times; Sim does not invent missing timestamps.
+
+## Notes and transcript evidence
+
+Granola can return a generated answer. Sim uses it to locate explicit meeting references, then fetches the source notes. Answers without verifiable references return limited coverage with no source evidence. Each search retrieves source notes for at most ten meetings and is not exhaustive.
+
+Notes can contain AI summaries and private notes. Read the underlying transcript before quoting speech. If a transcript is unavailable, the result says so. Large notes and transcripts are bounded and marked when truncated.
+
+Basic plan note access is limited to the last 30 days. Transcripts require a paid plan and can be disabled by an Enterprise administrator. Workspace controls and provider quotas still apply. [Granola's current access rules](https://docs.granola.ai/help-center/sharing/integrations/mcp).
+
+Sim permits fixed read operations, validates advertised schemas, and rechecks the current grant before calls. Unexpected formats fail explicitly; exact capabilities depend on the authenticated server's current tools.
+
+## Related docs
+
+- [Connect your account](/search/connect-your-account)
+- [Granola MCP guide](https://docs.granola.ai/help-center/sharing/integrations/mcp)

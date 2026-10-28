@@ -72,7 +72,6 @@ function execute(
   return settingsServerTool.execute({ scope, section, action: 'execute', operation, input })
 }
 beforeEach(() => {
-  vi.restoreAllMocks()
   sectionAccess.mockReset().mockResolvedValue(true)
   resolve.mockReset()
   target('workspace')

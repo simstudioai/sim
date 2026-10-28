@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { OAuthApiScope } from '@/lib/auth/oauth-provider'
+import type { ContentDeliveryDeclaration } from '@/lib/core/application/content-delivery'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import {
@@ -68,6 +69,12 @@ export interface ApplicationOperation<Id extends string = string> {
    * and `check:permission-group-enforcement` keeps reading the source.
    */
   readonly capability: OperationDeclarableCapability | 'none'
+  /**
+   * Whether the result can carry content derived from a provenance-bearing store. Required on
+   * every workspace operation Chat can reach (see {@link ContentDeliveryDeclaration}); a `sourced`
+   * operation's use case classifies each item through `admitContent` before returning it to Chat.
+   */
+  readonly contentDelivery?: ContentDeliveryDeclaration
 }
 
 export type OAuthOperationPolicy<Kinds extends readonly string[]> =
@@ -115,12 +122,12 @@ export type PrincipalKind = Exclude<
  * A principal kind a non-workspace operation may name. `delegated` is excluded
  * on purpose: a delegated principal is only meaningful alongside a
  * `delegatedServices` policy and the workspace, audience, and expiry re-checks
- * that {@link defineWorkspaceOperation} exists to carry. An operation that needs
- * delegation is a workspace operation.
+ * that {@link defineWorkspaceOperation} exists to carry. Organization and resource
+ * delegation likewise require their own domain authorization policies.
  */
 export type UndelegatedPrincipalKind = Exclude<
   PrincipalKind,
-  'delegated' | 'organization_delegated'
+  'delegated' | 'organization_delegated' | 'resource_delegated'
 >
 
 /**
@@ -241,4 +248,28 @@ export interface OperationUseCase<O extends ApplicationOperation, I, R> {
     input: I
     request?: OrchestrationRequestContext
   }): Promise<void>
+}
+
+/**
+ * An operation Chat can reach says whether it returns stored content; one it cannot reach says
+ * nothing, so the field always means a reviewed answer. Test fixtures escape type-checking, so
+ * this is enforced where operations are minted too.
+ */
+export function assertContentDeliveryDeclaration(
+  operation: ApplicationOperation,
+  delegatedServices: readonly string[]
+): void {
+  const admitsCopilot = delegatedServices.includes('copilot')
+  if (
+    admitsCopilot &&
+    operation.contentDelivery !== 'sourced' &&
+    operation.contentDelivery !== 'none'
+  ) {
+    throw new Error(
+      `Operation ${operation.id} admits Copilot but does not declare contentDelivery; name 'sourced' or 'none'`
+    )
+  }
+  if (!admitsCopilot && operation.contentDelivery !== undefined) {
+    throw new Error(`Operation ${operation.id} declares contentDelivery without admitting Copilot`)
+  }
 }

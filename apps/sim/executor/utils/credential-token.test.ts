@@ -26,11 +26,6 @@ vi.mock('@/lib/credentials/application/copilot-managed-oauth-delegation', () => 
 vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
   executeCopilotCredentialUseCase: mockPersonalCredentialUseCase,
 }))
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: (id: string) =>
-    id === 'gmail_read' ? { id, oauth: { required: true, provider: 'google-email' } } : undefined,
-}))
-
 vi.mock('@/lib/oauth/token-resolution', () => ({
   resolveCredentialAccessToken: mockResolveCredentialAccessToken,
 }))
@@ -40,6 +35,15 @@ vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
 }))
 
 import { resolveExecutorCredentialToken } from '@/executor/utils/credential-token'
+import { getToolMetadata } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation((id: string) =>
+  id === 'gmail_read'
+    ? ({ id, oauth: { required: true, provider: 'google-email' } } as ReturnType<
+        typeof getToolMetadata
+      >)
+    : undefined
+)
 
 const ORIGIN: ExecutorDelegationOrigin = {
   subjectUserId: 'user-1',

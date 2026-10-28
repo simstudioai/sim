@@ -1,12 +1,14 @@
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockAvailable } = vi.hoisted(() => ({ mockAvailable: vi.fn() }))
-
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mockAvailable,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
+
+const mockAvailable = knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable
 
 describe('resolveKnowledgeSearchDefaults', () => {
   it('stays semantic-only with no boost where the feature is off', async () => {

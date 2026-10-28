@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { githubConnector } from '@/connectors/github/github'
 
 vi.mock('@/lib/core/rate-limiter/provider-capacity', () => ({
@@ -16,8 +16,6 @@ function treeResponse(tree: ReturnType<typeof treeFile>[], truncated = false, sh
 }
 
 describe('githubConnector member listing', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it('pages the same tree without refetching a moving branch', async () => {
     const files = Array.from({ length: 201 }, (_, index) => treeFile(`file-${index}.md`))
     const fetchMock = vi.fn().mockResolvedValue(treeResponse(files))
@@ -118,10 +116,6 @@ describe('githubConnector member listing', () => {
 })
 
 describe('githubConnector.getDocument', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('returns null only when a listed path is no longer present', async () => {
     vi.stubGlobal(
       'fetch',
@@ -159,8 +153,6 @@ describe('githubConnector.getDocument', () => {
 })
 
 describe('githubConnector symlinks', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   const link = { ...treeFile('docs/link.md', 'link-sha'), mode: '120000' }
   const target = treeFile('docs/target.md', 'target-sha')
 

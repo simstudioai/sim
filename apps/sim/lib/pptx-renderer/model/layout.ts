@@ -151,14 +151,14 @@ function extractPlaceholdersRecursive(
 export function parseLayout(root: SafeXmlNode): LayoutData {
   const cSld = root.child('cSld')
 
-  // --- Background ---
+  // Background
   const bg = cSld.child('bg')
   const background = bg.exists() ? bg : undefined
 
-  // --- Shape tree ---
+  // Shape tree
   const spTree = cSld.child('spTree')
 
-  // --- Color map override ---
+  // Color map override
   let colorMapOverride: Map<string, string> | undefined
   const clrMapOvr = root.child('clrMapOvr')
   if (clrMapOvr.exists()) {
@@ -168,10 +168,10 @@ export function parseLayout(root: SafeXmlNode): LayoutData {
     }
   }
 
-  // --- Placeholders (recursive so we find title/body inside grpSp; resolve position in slide space) ---
+  // Placeholders (recursive so we find title/body inside grpSp; resolve position in slide space)
   const placeholders = extractPlaceholdersRecursive(spTree, null)
 
-  // --- showMasterSp: if "0", master shapes should not be rendered for this layout ---
+  // showMasterSp: if "0", master shapes should not be rendered for this layout
   const showMasterSpAttr = root.attr('showMasterSp')
   const showMasterSp = showMasterSpAttr !== '0'
 

@@ -1,7 +1,14 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { McpError as McpSdkError } from '@modelcontextprotocol/sdk/types.js'
 import { generateShortId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, isTimeoutError } from '@/lib/core/execution-limits'
+import {
+  McpDnsResolutionError,
+  McpDomainNotAllowedError,
+  McpSsrfError,
+} from '@/lib/mcp/domain-check'
 import {
   type McpApiResponse,
   McpConnectionError,
@@ -137,6 +144,25 @@ export function mcpOrchestrationStatus(errorCode: string | undefined): number {
 }
 
 /**
+ * Reports whether a registered MCP server failed to answer usefully: its hostname no
+ * longer resolves, it could not be reached, timed out, is cooling down after a recent
+ * failure, or answered `tools/list` with a protocol or HTTP error. Typed only, never
+ * matched on message text, because `McpConnectionError` interpolates the server's display
+ * name into its message. Check authorization errors first: `UnauthorizedError` is not one
+ * of these, but a caller that wants to answer reauthorization separately must do so
+ * before asking.
+ */
+export function isMcpServerUnavailableError(error: unknown): boolean {
+  return (
+    isTimeoutError(error) ||
+    error instanceof McpDnsResolutionError ||
+    error instanceof McpConnectionError ||
+    error instanceof McpSdkError ||
+    error instanceof StreamableHTTPError
+  )
+}
+
+/**
  * Enhanced error categorization for more specific HTTP status codes.
  * Returns safe, generic messages to prevent leaking internal details.
  */
@@ -154,6 +180,12 @@ export function categorizeError(error: unknown): { message: string; status: numb
   }
   if (error instanceof McpConnectionError) {
     return { message: 'Connection failed', status: 502 }
+  }
+  if (error instanceof McpDnsResolutionError) {
+    return { message: 'Server hostname could not be resolved', status: 502 }
+  }
+  if (error instanceof McpSsrfError || error instanceof McpDomainNotAllowedError) {
+    return { message: 'Server URL is not allowed by egress policy', status: 403 }
   }
 
   // Fall back to substring matching for SDK / third-party errors we don't
@@ -241,6 +273,26 @@ export function generateMcpServerId(workspaceId: string, url: string): string {
   const hash = simpleHash(input)
 
   return `mcp-${hash}`
+}
+
+/**
+ * Whether two URLs name the same MCP server destination: the same origin,
+ * credentials, and exact path. Only the query string and fragment may differ — paths can be
+ * case-sensitive, so this is stricter than the id hash.
+ */
+export function isSameMcpServerDestination(a: string, b: string): boolean {
+  try {
+    const parsedA = new URL(a)
+    const parsedB = new URL(b)
+    return (
+      parsedA.origin === parsedB.origin &&
+      parsedA.username === parsedB.username &&
+      parsedA.password === parsedB.password &&
+      parsedA.pathname === parsedB.pathname
+    )
+  } catch {
+    return a === b
+  }
 }
 
 /**

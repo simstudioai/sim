@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
+import {
+  bindCopilotWorkspaceOperation,
+  markCopilotWorkspaceInvocation,
+} from '@/lib/core/application/copilot-workspace-invocation'
+import { MANAGED_MCP_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { tableDelegationPolicy } from '@/lib/table/application/authorization'
 
@@ -43,5 +47,24 @@ describe('private table workspace invocation', () => {
     expect(() => markCopilotWorkspaceInvocation({ ...principal(), serviceId: 'executor' })).toThrow(
       /current/
     )
+  })
+})
+describe('nested workspace operation binding', () => {
+  it('never moves a grant already narrowed to one resource onto another', () => {
+    const caller = createCopilotChatPrincipal(
+      { userId: 'actor', workspaceId: 'workspace', chatId: 'chat' },
+      'sim:selectors',
+      { credentialId: 'mcp-cg-granted' }
+    )
+    markCopilotWorkspaceInvocation(caller)
+    expect(() =>
+      bindCopilotWorkspaceOperation(
+        caller,
+        'workspace',
+        ['sim:selectors'],
+        { delegationAudience: MANAGED_MCP_DELEGATION_AUDIENCE },
+        { credentialId: 'mcp-cg-other' }
+      )
+    ).toThrow(/resource scope/)
   })
 })

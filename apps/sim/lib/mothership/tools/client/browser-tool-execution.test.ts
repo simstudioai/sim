@@ -3,7 +3,7 @@
  */
 import { Blob as NodeBlob } from 'node:buffer'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCancelBrowserTool,
@@ -78,10 +78,6 @@ describe('executeBrowserToolOnClient', () => {
     mockReportCompletionOnPageExit.mockResolvedValue(undefined)
     mockRestoreBrowserScope.mockResolvedValue(false)
     mockCancelBrowserTool.mockResolvedValue(true)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('reports stopped form outcomes with partial readbacks and does not replay their writes', async () => {
@@ -331,6 +327,35 @@ describe('executeBrowserToolOnClient', () => {
       CHAT_SCOPE,
       expect.any(Function)
     )
+    expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
+      text: 'page content',
+    })
+  })
+
+  it('resolves only once the browser action has settled and its result is handed to delivery', async () => {
+    let finishAction: (result: unknown) => void = () => {}
+    mockExecuteBrowserTool.mockReturnValue(
+      new Promise((resolve) => {
+        finishAction = resolve
+      })
+    )
+    const toolCallId = nextToolCallId()
+    let resolved = false
+    const running = executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {}, CHAT_SCOPE).then(
+      () => {
+        resolved = true
+      }
+    )
+
+    await vi.waitFor(() => expect(mockExecuteBrowserTool).toHaveBeenCalled())
+    await sleep(10)
+    expect(resolved).toBe(false)
+    expect(mockReportCompletion).not.toHaveBeenCalled()
+
+    finishAction({ text: 'page content' })
+    await running
+    // Delivery itself is owned by the retained-completion scheduler, which outlives the turn's
+    // Stop and the page; what the caller waits for is the action, with its report under way.
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'page content',
     })
@@ -1037,38 +1062,47 @@ describe('executeBrowserToolOnClient', () => {
     await flush()
   })
 
-  it('compacts a large known result before unload-safe delivery', async () => {
-    mockExecuteBrowserTool.mockResolvedValue({
-      dataUrl: `data:image/jpeg;base64,${'A'.repeat(64 * 1024)}`,
-      url: 'https://example.com',
-    })
-    let finishReport: () => void = () => {}
-    mockReportCompletion.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finishReport = resolve
-        })
-    )
-    const sendBeacon = vi.mocked(navigator.sendBeacon)
-    const toolCallId = nextToolCallId()
+  it.each([false, true])(
+    'compacts a large result without overstating outcome certainty (unknown=%s)',
+    async (outcomeUnknown) => {
+      mockExecuteBrowserTool.mockResolvedValue({
+        dataUrl: `data:image/jpeg;base64,${'A'.repeat(64 * 1024)}`,
+        url: 'https://example.com',
+        outcomeUnknown,
+        doNotRetry: outcomeUnknown,
+      })
+      let finishReport: () => void = () => {}
+      mockReportCompletion.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishReport = resolve
+          })
+      )
+      const sendBeacon = vi.mocked(navigator.sendBeacon)
+      const toolCallId = nextToolCallId()
 
-    executeBrowserToolOnClient(toolCallId, 'browser_screenshot', {})
-    await flush()
-    window.dispatchEvent(new Event('pagehide'))
-    await flush()
+      executeBrowserToolOnClient(toolCallId, 'browser_screenshot', {})
+      await flush()
+      window.dispatchEvent(new Event('pagehide'))
+      await flush()
 
-    const beaconPayload = sendBeacon.mock.calls[0]?.[1] as NodeBlob
-    const payload = JSON.parse(await beaconPayload.text())
-    expect(beaconPayload.size).toBeLessThanOrEqual(48 * 1024)
-    expect(payload).toMatchObject({
-      toolCallId,
-      status: 'success',
-      data: { resultOmittedDuringPageExit: true },
-    })
-    expect(payload.data.attachment).toBeUndefined()
-    finishReport()
-    await flush()
-  })
+      const beaconPayload = sendBeacon.mock.calls[0]?.[1] as NodeBlob
+      const payload = JSON.parse(await beaconPayload.text())
+      expect(beaconPayload.size).toBeLessThanOrEqual(48 * 1024)
+      expect(payload).toMatchObject({
+        toolCallId,
+        status: outcomeUnknown ? 'error' : 'success',
+        data: {
+          resultOmittedDuringPageExit: true,
+          ...(outcomeUnknown ? { outcomeUnknown: true, doNotRetry: true } : {}),
+        },
+      })
+      expect(payload.data.attachment).toBeUndefined()
+      if (outcomeUnknown) expect(payload.data.note).not.toContain('known terminal state')
+      finishReport()
+      await flush()
+    }
+  )
 
   it.each([['not accepted', () => false]])(
     'uses keepalive fallback for known success when the page-exit beacon %s',
@@ -1474,9 +1508,12 @@ describe('pre-dispatch drops still resolve the waiter', () => {
     expect(mockReportCompletion).toHaveBeenCalledWith(
       'stale-call-1',
       'error',
-      expect.stringContaining('too late'),
+      expect.stringContaining('too late to run safely'),
       expect.objectContaining({ staleEvent: true })
     )
+    const [, , message] = mockReportCompletion.mock.calls[0] ?? []
+    expect(message).toContain('Do not retry it in this turn')
+    expect(message).toContain('keep this chat open in the Sim desktop app')
   })
 
   it('marks a stale stateful event outcome unknown and unsafe to retry', async () => {

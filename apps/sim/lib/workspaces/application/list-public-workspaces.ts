@@ -8,8 +8,8 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { workspaceOperations } from '@/lib/workspaces/application/operations'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import {
   getPublicWorkspaceDetail,
   getPublicWorkspaceDetails,

@@ -6,41 +6,14 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type {
-  CodePipelineDisableStageTransitionResponse,
-  CodePipelineEnableStageTransitionResponse,
-  CodePipelineGetPipelineExecutionResponse,
-  CodePipelineGetPipelineResponse,
-  CodePipelineGetPipelineStateResponse,
-  CodePipelineListActionExecutionsResponse,
-  CodePipelineListPipelineExecutionsResponse,
-  CodePipelineListPipelinesResponse,
-  CodePipelinePutApprovalResultResponse,
-  CodePipelineRetryStageExecutionResponse,
-  CodePipelineStartExecutionResponse,
-  CodePipelineStopExecutionResponse,
-} from '@/tools/codepipeline/types'
 
-export const CodePipelineBlock: BlockConfig<
-  | CodePipelineListPipelinesResponse
-  | CodePipelineGetPipelineResponse
-  | CodePipelineGetPipelineStateResponse
-  | CodePipelineGetPipelineExecutionResponse
-  | CodePipelineListPipelineExecutionsResponse
-  | CodePipelineListActionExecutionsResponse
-  | CodePipelineStartExecutionResponse
-  | CodePipelineStopExecutionResponse
-  | CodePipelineRetryStageExecutionResponse
-  | CodePipelinePutApprovalResultResponse
-  | CodePipelineDisableStageTransitionResponse
-  | CodePipelineEnableStageTransitionResponse
-> = {
+export const CodePipelineBlock: BlockConfig = {
   type: 'codepipeline',
   name: 'CodePipeline',
   description: 'Run, monitor, and approve AWS CodePipeline pipelines',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.',
+    'Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/codepipeline',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

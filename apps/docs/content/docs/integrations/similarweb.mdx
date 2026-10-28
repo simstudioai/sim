@@ -1,40 +1,31 @@
 ---
 title: Similarweb
 description: Website traffic and analytics data
+integration:
+  type: "similarweb"
+  color: "#000922"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="similarweb"
-  color="#000922"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Similarweb](https://www.similarweb.com/) is a leading platform for web analytics that provides in-depth traffic and engagement data for millions of websites. Similarweb gives you insights into website visits, traffic sources, audience behavior, and competitive benchmarks.
+Use [Similarweb](https://www.similarweb.com/) to retrieve website traffic estimates, visit duration, bounce rate, pages per visit, country breakdowns, rankings, and traffic sources. Compare sites or report changes across the selected periods.
 
-With Similarweb in Sim, your agents can:
-
-- **Analyze website traffic**: Retrieve key metrics such as monthly visits, average duration, bounce rates, and top countries.
-- **Understand audience engagement**: Gain insights into how users interact with websites, including pages per visit and engagement duration.
-- **Track rankings and performance**: Access global, country, and category ranks to benchmark sites against competitors.
-- **Discover traffic sources**: Break down traffic by channels like direct, search, social, referrals, and more.
-
-Use Sim's Similarweb integration to automate the monitoring of competitors, track your site’s performance, or surface actionable market research—all integrated directly into your workflows and automations. Empower your agents to access and utilize reliable web analytics data easily and programmatically.
+These are provider estimates rather than your site's measured analytics. Use the selected operation's geographic, time-period, and granularity fields to keep comparisons consistent.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.
-
-
+Retrieve website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.
 
 ## Actions
 
 ### SimilarWeb Website Overview
 
-Get comprehensive website analytics including traffic, rankings, engagement, and traffic sources
+Get website traffic, rankings, engagement, and traffic sources.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -67,6 +58,8 @@ Get comprehensive website analytics including traffic, rankings, engagement, and
 |   ↳ `social` | number | Social traffic share |
 |   ↳ `mail` | number | Email traffic share |
 |   ↳ `paidReferrals` | number | Paid referral traffic share |
+
+</ReferenceDetails>
 
 ### SimilarWeb Traffic Visits
 

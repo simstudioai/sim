@@ -1,8 +1,10 @@
 import { ahrefsAnalytics } from '@c15t/scripts/ahrefs-analytics'
 import { gtag } from '@c15t/scripts/google-tag'
 import { xPixel } from '@c15t/scripts/x-pixel'
+import { FREEBUFF_TAG_SRC, installFreebuffStub } from '@/lib/analytics/freebuff'
+import { getGooglePageLocation, updateGooglePageContext } from '@/lib/consent/google-context'
 
-export const GOOGLE_ANALYTICS_ID = 'G-DR7YBE70VS' as const
+export const GOOGLE_ANALYTICS_ID = 'G-QB9D67TBHR' as const
 
 /**
  * Google Ads conversion tag. It rides the GA4 loader as a second `config`
@@ -32,35 +34,45 @@ export type ConsentScriptCallbackInfo = Parameters<
 >[0]
 const initializeGoogleAnalytics = GOOGLE_ANALYTICS_SCRIPT.onBeforeLoad
 
-function withoutQueryOrHash(value: string): string | undefined {
-  try {
-    const url = new URL(value)
-    return `${url.origin}${url.pathname}`
-  } catch {
-    return undefined
-  }
-}
-
 /** Consent-aware analytics that applies to both public and product routes. */
-export const GLOBAL_CONSENT_SCRIPTS = [
+const GLOBAL_CONSENT_SCRIPTS = [
   {
     ...GOOGLE_ANALYTICS_SCRIPT,
     onBeforeLoad: (info: ConsentScriptCallbackInfo) => {
+      const pageLocation = getGooglePageLocation(window.location.href)
+      if (!pageLocation) return
+
       window.dataLayer ||= []
       window.gtag ||= (...args: unknown[]) => {
         window.dataLayer.push(args)
       }
-      const referrer = document.referrer ? withoutQueryOrHash(document.referrer) : undefined
-      window.gtag('set', {
-        page_location: `${window.location.origin}${window.location.pathname}`,
-        ...(referrer ? { page_referrer: referrer } : {}),
-      })
+      updateGooglePageContext(window.location.href, document.referrer)
       initializeGoogleAnalytics?.(info)
       window.gtag('config', GOOGLE_ADS_ID)
     },
   },
   ahrefsAnalytics({ key: AHREFS_ANALYTICS_KEY }),
+  /**
+   * Global rather than landing-only: the ad lands on a marketing page but the
+   * conversion fires from `/signup`. The tag recovers `?bfcid=` from the
+   * original navigation entry, so a client-side route change before consent
+   * resolves does not lose the click id.
+   */
+  {
+    id: 'freebuff-tag',
+    src: FREEBUFF_TAG_SRC,
+    category: 'marketing',
+    async: true,
+    onBeforeLoad: installFreebuffStub,
+  },
 ] as const
+
+/** Registers Google's shared destination only on Sim's actual production origins. */
+export function getGlobalConsentScripts() {
+  const googleEnabled =
+    typeof window !== 'undefined' && getGooglePageLocation(window.location.href) !== undefined
+  return GLOBAL_CONSENT_SCRIPTS.filter((script) => script.id !== 'gtag' || googleEnabled)
+}
 
 /** Marketing-page integrations that should not load on a direct workspace visit. */
 export const X_PIXEL_SCRIPT = xPixel({ pixelId: X_PIXEL_ID })

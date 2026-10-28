@@ -1,28 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { McpToolResult } from '@/lib/mcp/types'
+import { type CodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
+import { managedMcpPayload } from '@/lib/sim-search/live/managed-mcp-payload'
 
-const mocks = vi.hoisted(() => ({
-  runtime: vi.fn(),
-  discover: vi.fn(),
-  execute: vi.fn(),
-  auth: vi.fn(),
-  validate: vi.fn(),
-}))
-vi.mock('@/lib/sim-search/live/mcp-accounts', () => ({ loadOwnCodaMcpRuntime: mocks.runtime }))
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { discoverManagedMcpTools: mocks.discover, executeManagedMcpTool: mocks.execute },
-}))
-vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
-  createManagedMcpAuthProvider: mocks.auth,
-}))
-vi.mock('@/lib/mcp/application/execute-tool', () => ({ validateToolArguments: mocks.validate }))
-
-import {
-  type CodaMcpClient,
-  codaMcpPayload,
-  createCodaMcpClient,
-  readCodaMcp,
-  searchCodaMcp,
-} from '@/lib/sim-search/live/coda-mcp'
+const codaMcpPayload = (result: McpToolResult) => managedMcpPayload(result, 'Coda')
 
 const input = { query: 'launch', limit: 20, scopes: [] }
 
@@ -73,33 +54,5 @@ describe('Coda MCP content search', () => {
       'unsupported resource URI'
     )
     expect(call).not.toHaveBeenCalled()
-  })
-  it('validates fresh tool schemas and rechecks personal grants before each execution', async () => {
-    const runtime = {
-      mcpServerId: 'server',
-      credentialId: 'mine',
-      scope: { kind: 'organization', organizationId: 'org' },
-      oauthConfigVersion: 1,
-      grantedAt: new Date(0),
-    }
-    mocks.runtime.mockResolvedValue(runtime)
-    mocks.discover.mockResolvedValue([{ name: 'search', inputSchema: { type: 'object' } }])
-    mocks.execute.mockResolvedValue({ structuredContent: { results: [] } })
-    const client = await createCodaMcpClient(
-      { organizationId: 'org' },
-      'person',
-      'mine',
-      new AbortController().signal
-    )
-    await client.call('search', { query: 'term' })
-    expect(mocks.runtime).toHaveBeenLastCalledWith({ organizationId: 'org' }, 'person', 'mine')
-    expect(mocks.validate).toHaveBeenCalledWith(expect.objectContaining({ name: 'search' }), {
-      query: 'term',
-    })
-    mocks.runtime.mockResolvedValue({ ...runtime, grantedAt: new Date(1) })
-    await expect(client.call('search', { query: 'term' })).rejects.toThrow('connection changed')
-    expect(mocks.execute).toHaveBeenCalledTimes(1)
-    await expect(client.call('formula_execute' as never, {})).rejects.toThrow('read request limit')
-    expect(mocks.execute).toHaveBeenCalledTimes(1)
   })
 })

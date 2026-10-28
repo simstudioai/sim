@@ -6,6 +6,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
 const logger = createLogger('AzureAnthropicProvider')
@@ -79,6 +80,7 @@ export const azureAnthropicProvider: ProviderConfig = {
             new Anthropic({
               baseURL,
               apiKey,
+              maxRetries: PROVIDER_MAX_RETRIES,
               ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
               defaultHeaders: {
                 'anthropic-version': anthropicVersion,

@@ -1,77 +1,52 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { TailscaleBaseParams } from './types'
-
-interface TailscaleSuspendUserParams extends TailscaleBaseParams {
-  userId: string
-}
-
-interface TailscaleSuspendUserResponse extends ToolResponse {
-  output: {
-    success: boolean
-    userId: string
-  }
-}
+import type { TailscaleSuspendUserResponse, TailscaleUserParams } from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
+import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleSuspendUserTool: ToolConfig<
-  TailscaleSuspendUserParams,
+  TailscaleUserParams,
   TailscaleSuspendUserResponse
 > = {
   id: 'tailscale_suspend_user',
   name: 'Tailscale Suspend User',
-  description: "Suspend a user's access to the tailnet",
+  description: 'Suspend a user’s access to the tailnet',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
-    },
-    tailnet: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     userId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID to suspend',
+      description: 'Tailscale user ID',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/users/${encodeURIComponent(params.userId.trim())}/suspend`,
+      `https://api.tailscale.com/api/v2/users/${safeUrlPathSegment(params.userId, 'userId')}/suspend`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey.trim()}`,
+      'Content-Type': 'application/json',
     }),
   },
-
-  transformResponse: async (response: Response, params?: TailscaleSuspendUserParams) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { success: false, userId: '' },
-        error: (data as Record<string, string>).message ?? 'Failed to suspend user',
-      }
-    }
-
-    return {
-      success: true,
-      output: {
-        success: true,
-        userId: params?.userId ?? '',
-      },
-    }
+  transformResponse: async (response, params) => {
+    await assertTailscaleResponse(response)
+    return { success: true, output: { success: true, userId: params?.userId ?? '' } }
   },
-
   outputs: {
-    success: { type: 'boolean', description: 'Whether the user was successfully suspended' },
-    userId: { type: 'string', description: 'ID of the suspended user' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the operation succeeded',
+    },
+    userId: {
+      type: 'string',
+      description: 'ID of the affected user',
+    },
   },
 }

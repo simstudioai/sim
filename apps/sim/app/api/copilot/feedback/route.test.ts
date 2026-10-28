@@ -2,7 +2,7 @@
  * Tests for copilot feedback API route
  */
 import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
@@ -11,10 +11,6 @@ import { GET } from '@/app/api/copilot/feedback/route'
 describe('Copilot Feedback API Route', () => {
   beforeEach(() => {
     resetDbChainMock()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   describe('GET', () => {

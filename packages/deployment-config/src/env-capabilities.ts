@@ -28,7 +28,7 @@ export type EnvCapabilityValues =
   | ReadonlyMap<string, EnvCapabilityValue>
   | Readonly<Record<string, EnvCapabilityValue>>
 
-export type EnvValueValidation =
+type EnvValueValidation =
   | {
       kind: 'integer'
       min?: number
@@ -79,13 +79,13 @@ export interface AnyOfRequirement {
   requirements: readonly EnvRequirement[]
 }
 
-export type EnvRequirement = EnvFieldRequirement | AllOfRequirement | AnyOfRequirement
+type EnvRequirement = EnvFieldRequirement | AllOfRequirement | AnyOfRequirement
 
-export type EnvProviderActivation =
+type EnvProviderActivation =
   | { mode: 'any-present'; keys: readonly string[] }
   | { mode: 'enabled'; key: string }
 
-export interface EnvProviderValidationIssue {
+interface EnvProviderValidationIssue {
   kind: 'missing' | 'invalid'
   fields: readonly string[]
   message: string
@@ -119,7 +119,7 @@ export interface FallbackCapabilityDefinition<
   providers: readonly TProvider[]
 }
 
-export type EnvDefaultProviderDefinition =
+type EnvDefaultProviderDefinition =
   | { id: string; kind: 'built-in'; label: string }
   | { id: string; kind: 'provider' }
 
@@ -180,11 +180,6 @@ export interface SelectedCapabilityInspection<
   error: EnvCapabilityConfigurationError | null
 }
 
-export type CapabilityInspection<TDefinition extends CapabilityDefinition> =
-  TDefinition extends SelectedCapabilityDefinition
-    ? SelectedCapabilityInspection<ProviderId<TDefinition>, DeclaredProviderId<TDefinition>>
-    : FallbackCapabilityInspection<DeclaredProviderId<TDefinition>>
-
 export class EnvCapabilityConfigurationError extends Error {
   constructor(
     readonly capabilityId: string,
@@ -237,11 +232,11 @@ export function envField(
   return { type: 'field', key, ...options }
 }
 
-export function allOf(...requirements: readonly EnvRequirement[]): AllOfRequirement {
+function allOf(...requirements: readonly EnvRequirement[]): AllOfRequirement {
   return { type: 'allOf', requirements }
 }
 
-export function anyOf(...requirements: readonly EnvRequirement[]): AnyOfRequirement {
+function anyOf(...requirements: readonly EnvRequirement[]): AnyOfRequirement {
   return { type: 'anyOf', requirements }
 }
 
@@ -352,7 +347,7 @@ export function defineCapability<const TDefinition extends CapabilityDefinition>
 }
 
 /** Returns the canonical command for configuring a runtime capability. */
-export function getCapabilitySetupCommand(definition: CapabilityDefinition): string {
+function getCapabilitySetupCommand(definition: CapabilityDefinition): string {
   return `npx sim-setup add ${definition.id}`
 }
 
@@ -540,7 +535,7 @@ function inspectRequiredProvider<const TProvider extends EnvProviderDefinition>(
   }
 }
 
-export function inspectProvider<const TProvider extends EnvProviderDefinition>(
+function inspectProvider<const TProvider extends EnvProviderDefinition>(
   provider: TProvider,
   values: EnvCapabilityValues
 ): ProviderInspection<TProvider['id']> {
@@ -1488,6 +1483,7 @@ export const OAUTH_CLIENT_CAPABILITIES = {
   airtable: ['AIRTABLE_CLIENT_ID', 'AIRTABLE_CLIENT_SECRET'],
   bitbucket: ['BITBUCKET_CLIENT_ID', 'BITBUCKET_CLIENT_SECRET'],
   'github-repositories': ['GITHUB_APP_CLIENT_ID', 'GITHUB_APP_CLIENT_SECRET'],
+  greenhouse: ['GREENHOUSE_CLIENT_ID', 'GREENHOUSE_CLIENT_SECRET'],
   notion: ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET'],
   microsoft: ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET'],
   clickup: ['CLICKUP_CLIENT_ID', 'CLICKUP_CLIENT_SECRET'],
@@ -1498,16 +1494,20 @@ export const OAUTH_CLIENT_CAPABILITIES = {
   dropbox: ['DROPBOX_CLIENT_ID', 'DROPBOX_CLIENT_SECRET'],
   slack: ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET'],
   reddit: ['REDDIT_CLIENT_ID', 'REDDIT_CLIENT_SECRET'],
+  ramp: ['RAMP_CLIENT_ID', 'RAMP_CLIENT_SECRET'],
+  helpscout: ['HELPSCOUT_CLIENT_ID', 'HELPSCOUT_CLIENT_SECRET'],
   wealthbox: ['WEALTHBOX_CLIENT_ID', 'WEALTHBOX_CLIENT_SECRET'],
   webflow: ['WEBFLOW_CLIENT_ID', 'WEBFLOW_CLIENT_SECRET'],
   asana: ['ASANA_CLIENT_ID', 'ASANA_CLIENT_SECRET'],
   pipedrive: ['PIPEDRIVE_CLIENT_ID', 'PIPEDRIVE_CLIENT_SECRET'],
   hubspot: ['HUBSPOT_CLIENT_ID', 'HUBSPOT_CLIENT_SECRET'],
+  'hubspot-mcp': ['HUBSPOT_MCP_CLIENT_ID', 'HUBSPOT_MCP_CLIENT_SECRET'],
   linkedin: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
   instagram: ['INSTAGRAM_CLIENT_ID', 'INSTAGRAM_CLIENT_SECRET'],
   salesforce: ['SALESFORCE_CLIENT_ID', 'SALESFORCE_CLIENT_SECRET'],
   shopify: ['SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET'],
   zoom: ['ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET'],
+  'zoom-mcp': ['ZOOM_MCP_CLIENT_ID', 'ZOOM_MCP_CLIENT_SECRET'],
   wordpress: ['WORDPRESS_CLIENT_ID', 'WORDPRESS_CLIENT_SECRET'],
   spotify: ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'],
   monday: ['MONDAY_CLIENT_ID', 'MONDAY_CLIENT_SECRET'],
@@ -1613,8 +1613,10 @@ const MICROSOFT_OAUTH_SERVICES = new Set([
   'microsoft-ad',
   'microsoft-dataverse',
   'microsoft-excel',
+  'microsoft-intune',
   'microsoft-teams',
   'microsoft-planner',
+  'microsoft-powerbi',
   'microsoft-word',
 ])
 
@@ -1634,6 +1636,11 @@ export function resolveOAuthClientCapabilityId(serviceId: string): OAuthClientCa
   return normalized in OAUTH_CLIENT_CAPABILITIES ? (normalized as OAuthClientCapabilityId) : null
 }
 
+/**
+ * Env fields that configure a service's OAuth client.
+ *
+ * @public scripts/generate-docs.ts loads this module by file path, which knip cannot trace.
+ */
 export function getOAuthClientCapabilityFields(serviceId: string): readonly string[] | null {
   const providerId = resolveOAuthClientCapabilityId(serviceId)
   return providerId ? OAUTH_CLIENT_CAPABILITIES[providerId] : null

@@ -247,8 +247,7 @@ export const instancesV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_instances_v2',
   name: 'Google Calendar Get Instances',
-  description:
-    'Get instances of a recurring event from Google Calendar. Returns API-aligned fields only.',
+  description: 'Get instances of a recurring event from Google Calendar.',
   version: '2.0.0',
   oauth: instancesTool.oauth,
   params: instancesTool.params,

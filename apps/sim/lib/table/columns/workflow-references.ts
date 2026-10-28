@@ -12,6 +12,7 @@
 
 import { db } from '@sim/db'
 import { workflowBlocks, workflow as workflowTable } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   collectPredicateFieldNames,
@@ -39,13 +40,9 @@ const TABLE_ID_SUB_BLOCKS = ['manualTableId', 'tableSelector', 'tableId'] as con
 
 const TABLE_BLOCK_TYPE = 'table_v2'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function subBlockValue(subBlocks: SubBlockValues, id: string): unknown {
   const entry = subBlocks[id]
-  return isRecord(entry) ? entry.value : undefined
+  return isRecordLike(entry) ? entry.value : undefined
 }
 
 /** The raw text of a sub-block, or `undefined` when it holds nothing. */
@@ -70,7 +67,7 @@ export function isTableBlockBoundTo(subBlocks: SubBlockValues, tableId: string):
 
 /** Every column a row payload names: the keys of the `{ column: value }` object. */
 function collectDataFieldNames(root: unknown): string[] {
-  return isRecord(root) ? Object.keys(root) : []
+  return isRecordLike(root) ? Object.keys(root) : []
 }
 
 const FIELD_COLLECTORS: Record<TableBlockColumnReferenceField, (root: unknown) => string[]> = {
@@ -147,7 +144,7 @@ export async function findUnmigratedTableBlockReferences(input: {
 
   const unmigrated: UnmigratedTableBlockReference[] = []
   for (const row of rows) {
-    if (!isRecord(row.subBlocks)) continue
+    if (!isRecordLike(row.subBlocks)) continue
     const subBlocks = row.subBlocks as SubBlockValues
     if (!isTableBlockBoundTo(subBlocks, input.tableId)) continue
     const fields = collectTableBlockColumnReferences(subBlocks, input.columnName)

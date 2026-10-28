@@ -1,11 +1,17 @@
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticateV2ApiKey: vi.fn(),
   cancel: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   complete: vi.fn(),
   create: vi.fn(),
   parts: vi.fn(),
@@ -35,20 +41,11 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { POST as COMPLETE } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route'
@@ -60,7 +57,7 @@ const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const BASE = `http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads`
 
 function context() {
-  return { params: Promise.resolve({ knowledgeBaseId: 'kb-1', uploadId: 'upload-1' }) }
+  return createRouteContext({ knowledgeBaseId: 'kb-1', uploadId: 'upload-1' })
 }
 
 function controlHeaders() {
@@ -108,10 +105,11 @@ const routes = [
     useCase: mocks.parts,
     call: () =>
       PARTS(
-        new NextRequest(`${BASE}/upload-1/parts?workspaceId=${WORKSPACE_ID}`, {
+        createMockRequest({
           method: 'POST',
-          headers: { ...controlHeaders(), 'content-type': 'application/json' },
-          body: JSON.stringify({ partNumbers: [1] }),
+          url: `${BASE}/upload-1/parts?workspaceId=${WORKSPACE_ID}`,
+          headers: { ...controlHeaders() },
+          body: { partNumbers: [1] },
         }),
         context()
       ),
@@ -141,13 +139,13 @@ const routes = [
  */
 describe('v2 knowledge upload resource concealment', () => {
   beforeEach(() => {
-    mocks.authenticateV2ApiKey.mockResolvedValue({
-      principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+    v2RouteMocks.authenticate.mockResolvedValue({
+      principal: createPersonalApiKeyPrincipal(),
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
     })
-    for (const limiter of [mocks.checkRateLimitDirect, mocks.checkRateLimitDirectOrThrow]) {
+    for (const limiter of [v2RouteMocks.preauthRate, v2RouteMocks.operationRate]) {
       limiter.mockResolvedValue({
         allowed: true,
         remaining: 99,

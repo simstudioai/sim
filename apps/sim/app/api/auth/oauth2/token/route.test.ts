@@ -1,10 +1,12 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   betterAuthPost: vi.fn(async () => new Response('delegated', { status: 201 })),
-  rateLimit: vi.fn(async () => null),
   rotate: vi.fn(),
   validateClient: vi.fn(),
 }))
@@ -12,12 +14,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('better-auth/next-js', () => ({
   toNextJsHandler: () => ({ POST: mocks.betterAuthPost }),
 }))
-vi.mock('@/lib/auth', () => ({ auth: { handler: vi.fn() } }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
 vi.mock('@/lib/auth/oauth-provider-adapter-guard', () => ({
   withOAuthProviderIssuanceCompensation: (work: () => Promise<Response>) => work(),
 }))
-vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mocks.rateLimit }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/auth/oauth-token-family', () => ({
   rotateOAuthRefreshToken: mocks.rotate,
   validateOAuthClientCredentials: mocks.validateClient,
@@ -25,6 +25,8 @@ vi.mock('@/lib/auth/oauth-token-family', () => ({
 
 import { bindOAuthIssuedResource, getOAuthIssuedResource } from '@/lib/auth/oauth-resource'
 import { POST } from '@/app/api/auth/oauth2/token/route'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
 
 function tokenRequest(body: string) {
   return new NextRequest('http://localhost/api/auth/oauth2/token', {
@@ -259,11 +261,14 @@ describe('OAuth token route', () => {
   )
 
   it('applies rate admission before parsing and prevents caching a refusal', async () => {
-    mocks.rateLimit.mockResolvedValueOnce(new Response('limited', { status: 429 }))
-    const request = new NextRequest('http://localhost/api/auth/oauth2/token', {
+    rateLimiterMockFns.mockEnforceIpRateLimit.mockResolvedValueOnce(
+      new Response('limited', { status: 429 })
+    )
+    const request = createMockRequest({
       method: 'POST',
-      body: '{}',
+      url: 'http://localhost/api/auth/oauth2/token',
       headers: { 'content-type': 'application/json' },
+      rawBody: '{}',
     })
 
     const response = await POST(request)
@@ -302,7 +307,7 @@ describe('OAuth token route', () => {
     expect(response.status).toBe(404)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(mocks.rotate).not.toHaveBeenCalled()
-    expect(mocks.rateLimit).not.toHaveBeenCalled()
+    expect(rateLimiterMockFns.mockEnforceIpRateLimit).not.toHaveBeenCalled()
     expect(mocks.betterAuthPost).not.toHaveBeenCalled()
   })
 })

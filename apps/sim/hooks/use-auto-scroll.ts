@@ -40,9 +40,10 @@ const POST_STOP_SETTLE_WINDOW = 800
  * of the bottom to re-engage. Each streaming start re-seeds stickiness from the
  * current scroll position, so a user who scrolled up beforehand stays put.
  *
+ * Yields scroll ownership while paused, including between streams.
  * Returns `ref`, the callback ref for the scroll container.
  */
-export function useAutoScroll(isStreaming: boolean) {
+export function useAutoScroll(isStreaming: boolean, paused = false) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
   const userDetachedRef = useRef(false)
@@ -76,6 +77,13 @@ export function useAutoScroll(isStreaming: boolean) {
   useEffect(() => () => settleCleanupRef.current?.(), [])
 
   useEffect(() => {
+    if (paused) {
+      stickyRef.current = false
+      userDetachedRef.current = true
+      settleCleanupRef.current?.()
+      settleCleanupRef.current = null
+      return
+    }
     if (!isStreaming) return
     const el = containerRef.current
     if (!el) return
@@ -249,7 +257,7 @@ export function useAutoScroll(isStreaming: boolean) {
         removeGestureGuard()
       }
     }
-  }, [isStreaming])
+  }, [isStreaming, paused])
 
   return { ref: callbackRef }
 }

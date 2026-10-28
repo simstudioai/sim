@@ -2,11 +2,7 @@ import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
-import type {
-  ChatCompletionChunk,
-  ChatCompletionCreateParamsStreaming,
-} from 'openai/resources/chat/completions'
-import type { CompletionUsage } from 'openai/resources/completions'
+import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -20,11 +16,15 @@ import {
 } from '@/providers/conversation-history'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { executeProviderTool } from '@/providers/runtime-context'
-import type { AgentStreamEvent } from '@/providers/stream-events'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
@@ -67,11 +67,6 @@ export interface OllamaCoreConfig {
   providerLabel: string
   /** Builds the OpenAI-compatible client (base URL + credentials per provider). */
   createClient: () => OpenAI
-  createStream: (
-    stream: AsyncIterable<ChatCompletionChunk>,
-    onComplete?: (content: string, usage: CompletionUsage, thinking?: string) => void,
-    request?: ProviderRequest
-  ) => ReadableStream<AgentStreamEvent>
   logger: Logger
 }
 
@@ -199,9 +194,10 @@ export async function executeOllamaProviderRequest(
         initialCost: { input: 0, output: 0, total: 0 },
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          config.createStream(
-            streamResponse,
-            (content, usage) => {
+          createOpenAICompatibleAgentEventStream(streamResponse, {
+            providerName: providerLabel,
+            request,
+            onComplete: ({ content, usage }) => {
               output.content = content
 
               if (content && request.responseFormat) {
@@ -227,8 +223,7 @@ export async function executeOllamaProviderRequest(
 
               finalizeTiming()
             },
-            request
-          ),
+          }),
       })
 
       return streamingResult
@@ -306,7 +301,7 @@ export async function executeOllamaProviderRequest(
       }
 
       logger.info(
-        `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+        `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1})`
       )
 
       const toolsStartTime = Date.now()
@@ -715,13 +710,16 @@ export async function executeOllamaProviderRequest(
       status = error.status
     }
 
-    logger.error(`Error in ${providerLabel} request:`, {
-      error: errorMessage,
-      errorType,
-      errorCode,
-      status,
-      duration: totalDuration,
-    })
+    logger[providerFailureLogLevel(error, request.abortSignal)](
+      `Error in ${providerLabel} request:`,
+      {
+        error: errorMessage,
+        errorType,
+        errorCode,
+        status,
+        duration: totalDuration,
+      }
+    )
 
     if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error

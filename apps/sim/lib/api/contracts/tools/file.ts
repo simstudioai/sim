@@ -209,11 +209,12 @@ export const fileManageContentBodySchema = z
     fileId: fileIdSelectionSchema.optional(),
     fileInput: z.unknown().optional(),
     /**
-     * First line to return, 1-based. Applied to each selected file separately,
-     * because a selection can be several files and one running offset across
-     * them would depend on an ordering the caller cannot see.
+     * First line to return, 1-based; 0 also starts at the first line, so a
+     * zero-based caller's first window reads instead of failing. Applied to each
+     * selected file separately, because a selection can be several files and one
+     * running offset across them would depend on an ordering the caller cannot see.
      */
-    offset: z.number().int().min(1, 'offset starts at line 1').optional(),
+    offset: z.number().int().min(0, 'offset cannot be negative').optional(),
     /** How many lines to return from `offset`. Absent reads to the end. */
     limit: z.number().int().min(1, 'limit must be at least 1').optional(),
   })

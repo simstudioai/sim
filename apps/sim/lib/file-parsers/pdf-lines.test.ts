@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import {
   collectCompounds,
   collectWords,
@@ -134,26 +135,30 @@ describe('joinLines', () => {
   })
 
   describe('dehyphenation', () => {
-    it('removes a line-end hyphen when the document shows the joined word', () => {
+    it('removes a line-end hyphen when the document shows the joined word', async () => {
       const lines = paragraph(['archived by the Infra-', 'structure team.'], 627.4)
-      const words = collectWords([{ text: 'The Infrastructure team owns it.', height: BODY }])
+      const words = await collectWords([
+        [{ text: 'The Infrastructure team owns it.', height: BODY }],
+      ])
 
       expect(joinLines(lines, { words, headingMarkers: false })).toBe(
         'archived by the Infrastructure team.'
       )
     })
 
-    it('keeps an unknown line-end hyphen rather than inventing a word', () => {
+    it('keeps an unknown line-end hyphen rather than inventing a word', async () => {
       const lines = paragraph(['we ship high-', 'quality builds'], 627.4)
-      const words = collectWords(lines)
+      const words = await collectWords([lines])
 
       expect(joinLines(lines, { words, headingMarkers: false })).toBe('we ship high-quality builds')
       expect(joinLines(lines, { headingMarkers: false })).toBe('we ship high-quality builds')
     })
 
-    it('keeps the hyphen when the compound appears intact elsewhere in the document', () => {
+    it('keeps the hyphen when the compound appears intact elsewhere in the document', async () => {
       const lines = paragraph(['we compare attention-', 'based models with others'], 700)
-      const compounds = collectCompounds([{ text: 'Attention-based models win.', height: BODY }])
+      const compounds = await collectCompounds([
+        [{ text: 'Attention-based models win.', height: BODY }],
+      ])
 
       expect(joinLines(lines, { compounds, headingMarkers: false })).toBe(
         'we compare attention-based models with others'
@@ -257,31 +262,68 @@ describe('readItemGeometry', () => {
 })
 
 describe('helpers', () => {
-  it('picks the character-weighted modal height as body height', () => {
+  it.each([
+    ['dominantLineHeight', dominantLineHeight],
+    ['collectCompounds', collectCompounds],
+    ['collectWords', collectWords],
+  ])('%s lets timers run between pages of a long document', async (_, pass) => {
+    let timerFired = false
+    let timerFiredBeforeLastPage = false
+    const pages = Array.from({ length: 4000 }, (_, page) =>
+      paragraph(
+        Array.from(
+          { length: 40 },
+          (_, row) => `page ${page} row ${row} well-known cross-page prose`
+        ),
+        700
+      )
+    )
+    const lastPage = pages[pages.length - 1]
+    const first = lastPage[0]
+    lastPage[0] = {
+      ...first,
+      get text() {
+        timerFiredBeforeLastPage ||= timerFired
+        return first.text
+      },
+    }
+    await yieldWhenSliceExpires()
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+
+    await pass(pages)
+
+    expect(timerFiredBeforeLastPage).toBe(true)
+  })
+
+  it('picks the character-weighted modal height as body height', async () => {
     expect(
-      dominantLineHeight([
-        { text: 'Heading', height: 15.4 },
-        { text: 'A long body line of text', height: 11 },
-        { text: 'Another body line', height: 11.02 },
+      await dominantLineHeight([
+        [
+          { text: 'Heading', height: 15.4 },
+          { text: 'A long body line of text', height: 11 },
+          { text: 'Another body line', height: 11.02 },
+        ],
       ])
     ).toBe(11)
   })
 
-  it('weighs only prose-like lines when the document has any, so table text cannot become the body', () => {
+  it('weighs only prose-like lines when the document has any, so table text cannot become the body', async () => {
     const cells = Array.from({ length: 200 }, (_, i) => ({ text: `${i} 4,512 7%`, height: 7.5 }))
     const prose = [
       { text: 'This sentence is long enough and has enough words to count as prose.', height: 11 },
     ]
 
-    expect(dominantLineHeight([...cells, ...prose])).toBe(11)
-    expect(dominantLineHeight(cells)).toBe(7.5)
+    expect(await dominantLineHeight([[...cells, ...prose]])).toBe(11)
+    expect(await dominantLineHeight([cells])).toBe(7.5)
   })
 
-  it('disables heading markers when too many lines would qualify', () => {
+  it('disables heading markers when too many lines would qualify', async () => {
     const bullets = Array.from({ length: 6 }, () => ({ text: 'Bullet', height: 15 }))
     const body = Array.from({ length: 4 }, () => ({ text: 'Body', height: 11 }))
 
-    expect(headingMarkersViable([...bullets, ...body], 11)).toBe(false)
-    expect(headingMarkersViable([bullets[0], ...body], 11)).toBe(true)
+    expect(await headingMarkersViable([[...bullets, ...body]], 11)).toBe(false)
+    expect(await headingMarkersViable([[bullets[0], ...body]], 11)).toBe(true)
   })
 })

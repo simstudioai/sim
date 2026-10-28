@@ -46,7 +46,7 @@ export const kalshiGetBalanceTool: ToolConfig<KalshiGetBalanceParams, KalshiGetB
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_balance')
+      handleKalshiError(data, 'get_balance')
     }
 
     const balance = data.balance ?? 0
@@ -90,8 +90,7 @@ export const kalshiGetBalanceV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_balance_v2',
   name: 'Get Balance from Kalshi V2',
-  description:
-    'Retrieve your account balance and portfolio value from Kalshi (V2 - exact API response)',
+  description: 'Retrieve your account balance and portfolio value from Kalshi',
   version: '2.0.0',
 
   params: {
@@ -122,7 +121,7 @@ export const kalshiGetBalanceV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_balance_v2')
+      handleKalshiError(data, 'get_balance_v2')
     }
 
     return {

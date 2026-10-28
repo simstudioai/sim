@@ -8,4 +8,12 @@ export const DB_POOL_PROFILES = {
   cleanup: { primaryMax: 5, replicaMax: 2, appName: 'sim-cleanup' },
   exec: { primaryMax: 10, replicaMax: 4, appName: 'sim-exec' },
   search: { primaryMax: 5, replicaMax: 0, appName: 'sim-search' },
+  /**
+   * Usage-ledger writes and threshold settlements: short transactions bounded by
+   * server-side timeouts, so they must never queue behind slow reads on the process
+   * pool, where postgres.js pipelines new work onto busy connections.
+   */
+  billing: { primaryMax: 4, replicaMax: 0, appName: 'sim-billing' },
+  /** Session, adapter, and API-key lookups that gate every authenticated request. */
+  auth: { primaryMax: 3, replicaMax: 0, appName: 'sim-auth' },
 } as const

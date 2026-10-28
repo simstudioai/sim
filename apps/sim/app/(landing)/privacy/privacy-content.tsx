@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/prose-page'
 
 const INLINE_PATTERN =
@@ -43,12 +44,12 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'September 2, 2026',
+  lastUpdated: 'October 13, 2026',
   intro: [
     {
       kind: 'paragraph',
       content: richText(
-        'This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data. This Privacy Policy is provided for transparency and information purposes only, including to satisfy the information obligations in Articles 13 and 14 of the General Data Protection Regulation ("GDPR"). It does not create contractual obligations on you. Your use of the Service is governed by the [Terms of Service](https://sim.ai/terms).'
+        `This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data. This Privacy Policy is provided for transparency and information purposes only, including to satisfy the information obligations in Articles 13 and 14 of the General Data Protection Regulation ("GDPR"). It does not create contractual obligations on you. Your use of the Service is governed by the [Terms of Service](${SITE_URL}/terms).`
       ),
     },
   ],
@@ -61,7 +62,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Under the following conditions, the meanings of words with capitalized first letters are defined. The following definitions have the same meaning whether they are written in singular or plural form.'
+            'Words with capitalized initial letters have the meanings defined below. These definitions apply whether the terms appear in singular or plural form.'
           ),
         },
         { kind: 'subheading', text: 'Definitions' },
@@ -199,7 +200,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'The [Cookie Policy](https://sim.ai/cookie-policy) lists the Cookies set by Sim and its providers, their purposes, lifetimes, providers, and the methods for changing or withdrawing a choice.'
+            `The [Cookie Policy](${SITE_URL}/cookie-policy) lists the Cookies set by Sim and its providers, their purposes, lifetimes, providers, and the methods for changing or withdrawing a choice.`
           ),
         },
       ],
@@ -262,7 +263,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
             ],
             [
               'Behavioral remarketing',
-              'Cookie and pixel identifiers, browser and Device data, campaign attribution, and website interaction data',
+              'Cookie and pixel identifiers, ad click identifiers, browser and Device data, campaign attribution, website interaction data, and, for Freebuff sign-up conversions, a pseudonymous Sim Account identifier and the sign-up time',
               'Consent — Article 6(1)(a)',
               'Marketing cookies and ad personalization require Marketing consent. Google Ads may load earlier with ad storage denied and send limited cookieless consent signals. Consent may be changed or withdrawn through the cookie preferences link.',
             ],
@@ -295,7 +296,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            "Where Sim processes customer content on behalf of a customer, Sim acts as a processor, the customer is the controller, and the customer determines the applicable legal basis. That processing is governed by the Data Processing Addendum and the customer's documented instructions."
+            "Where Sim processes customer content on behalf of a customer, Sim acts as a processor, the customer is the controller, and the customer determines the applicable legal basis. That processing is governed by the customer's agreement with Sim, including any data processing addendum in force between them, and the customer's documented instructions."
           ),
         },
       ],
@@ -342,12 +343,12 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
     },
     {
       id: 'transfer-of-data',
-      heading: '3. Transfer Of Data',
+      heading: '3. Transfer of Data',
       blocks: [
         {
           kind: 'paragraph',
           content: richText(
-            "Your information, including Personal Data, may be transferred to and maintained on computers outside Your state, province, country, or other governmental jurisdiction, where data protection laws may differ. If You are outside the United States and provide information to us, we transfer the data to the United States and process it there. Sim's primary hosting region is AWS us-east-1 in the United States. The current Service Provider list is maintained on the Sub-processors page."
+            "Your information, including Personal Data, may be transferred to and maintained on computers outside Your state, province, country, or other governmental jurisdiction, where data protection laws may differ. If You are outside the United States and provide information to us, we transfer the data to the United States and process it there. Sim's primary hosting region is AWS us-east-1 in the United States. The current list of sub-processors is published at [trust.sim.ai/subprocessors](https://trust.sim.ai/subprocessors)."
           ),
         },
         {
@@ -472,7 +473,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
     },
     {
       id: 'disclosure-of-data',
-      heading: '4. Disclosure Of Data',
+      heading: '4. Disclosure of Data',
       blocks: [
         { kind: 'subheading', text: 'Business Transactions' },
         {
@@ -509,7 +510,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
     },
     {
       id: 'security-of-data',
-      heading: '5. Security Of Data',
+      heading: '5. Security of Data',
       blocks: [
         {
           kind: 'paragraph',
@@ -552,7 +553,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            "Every Service Provider that processes Personal Data on Sim's behalf is engaged under a written data processing agreement that imposes confidentiality, purpose limitation, security, and sub-processor controls. Each provider is security-reviewed before onboarding and periodically thereafter and acts only on Sim's documented instructions. The current provider list is maintained on the Sub-processors page."
+            "Every Service Provider that processes Personal Data on Sim's behalf is engaged under a written data processing agreement that imposes confidentiality, purpose limitation, security, and sub-processor controls. Each provider is security-reviewed before onboarding and periodically thereafter and acts only on Sim's documented instructions. The current list of sub-processors is published at [trust.sim.ai/subprocessors](https://trust.sim.ai/subprocessors)."
           ),
         },
       ],
@@ -576,13 +577,37 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'The Company uses Google Ads, Twitter, and Facebook remarketing services to advertise on third-party websites after You visit the Service. These services operate through non-essential Cookies and similar technologies. Marketing Cookies and ad personalization are enabled only after You give consent to the Marketing category in the cookie banner. Google Ads may load before that consent with ad storage denied and send limited cookieless consent signals, as described in the Cookie Policy.'
+            'Sim advertises through Google Ads, X, and Freebuff, and measures which ads lead to sign-ups and demo bookings. These services use non-essential Cookies, pixels, and similar technologies. Marketing Cookies and ad personalization are enabled only after You consent to the Marketing category in the cookie banner.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'You may change or withdraw consent at any time through the cookie preferences link. If Your browser or extension sends a Global Privacy Control signal, we treat it as a withdrawal of consent for analytics and marketing Cookies. The [Cookie Policy](https://sim.ai/cookie-policy) explains the technologies, providers, purposes, lifetimes, and available controls.'
+            '**Google Ads.** The Google tag loads before a consent choice under Google Consent Mode v2, with ad storage denied, and may send limited cookieless signals, as described in the Cookie Policy. After Marketing consent, Sim reports demo bookings to Google Ads.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "**X.** The X pixel loads on Sim's marketing pages only after Marketing consent. It reports page views and demo bookings."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            '**Freebuff.** After Marketing consent, the Freebuff tag stores the click identifier from a Freebuff ad. When You sign up, Sim sends Freebuff that click identifier, the event type, a pseudonymous Sim Account identifier, and the sign-up time so the sign-up can be credited to the ad. Sim does not send Your name or email address.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Where the GDPR applies, Sim and each of these platforms are joint controllers for collecting this data on sim.ai and sending it to the platform. Sim is responsible for this notice and for obtaining and recording consent. Each platform is an independent controller for its own later processing, including ad delivery, measurement, and profiling, as described in its privacy policy. You may exercise Your rights with Sim under section 14 or with the platform directly.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            `You may change or withdraw consent at any time through the cookie preferences link. If Your browser or extension sends a Global Privacy Control signal, we treat it as a withdrawal of consent for analytics and marketing Cookies. The [Cookie Policy](${SITE_URL}/cookie-policy) explains the technologies, providers, purposes, lifetimes, and available controls.`
           ),
         },
         {
@@ -594,9 +619,11 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
           items: [
             richText('Google Ads: [Google Ads Settings](https://adssettings.google.com/)'),
             richText(
-              'Twitter: [Personalization and data settings](https://twitter.com/settings/account/personalization)'
+              'X: [Personalization and data settings](https://x.com/settings/privacy_and_safety)'
             ),
-            richText('Facebook: [Ad preferences](https://www.facebook.com/adpreferences/)'),
+            richText(
+              'Freebuff: withdraw Marketing consent through the cookie preferences link; Sim then deletes the Freebuff click identifier cookie'
+            ),
           ],
         },
       ],
@@ -743,7 +770,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Model providers are engaged as sub-processors under Data Processing Addenda and are identified on the Sub-processors page. Customer content sent to a model provider is not used by Sim or by that provider to train or improve generalized or shared models. This commitment applies to customer content generally and restates the Google Data Limited Use commitment in section 10 for Google Data.'
+            'Model providers are engaged as sub-processors under Data Processing Addenda and are listed at [trust.sim.ai/subprocessors](https://trust.sim.ai/subprocessors). Customer content sent to a model provider is not used by Sim or by that provider to train or improve generalized or shared models. This commitment applies to customer content generally and restates the Google Data Limited Use commitment in section 10 for Google Data.'
           ),
         },
         {
@@ -774,7 +801,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
     },
     {
       id: 'links-to-other-sites',
-      heading: '11. Links To Other Sites',
+      heading: '11. Links to Other Sites',
       blocks: [
         {
           kind: 'paragraph',
@@ -791,14 +818,14 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            "The Service is not directed at anyone under the age of 18, and Sim does not knowingly collect or process children's Personal Data. If children's Personal Data has been collected inadvertently without appropriate parental consent, Sim will take the necessary steps to erase it from its records. Anyone who believes that Sim has collected children's Personal Data should contact privacy@sim.ai so the matter can be addressed promptly."
+            "The Service is not directed at anyone under the age of 18, and Sim does not knowingly collect or process children's Personal Data. If Sim learns that it has collected Personal Data from anyone under 18, it will delete that data. Anyone who believes that Sim has collected children's Personal Data should contact privacy@sim.ai so the matter can be addressed promptly."
           ),
         },
       ],
     },
     {
       id: 'changes-to-policy',
-      heading: '13. Changes To This Privacy Policy',
+      heading: '13. Changes to This Privacy Policy',
       blocks: [
         {
           kind: 'paragraph',
@@ -896,7 +923,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'We do not sell Personal Information for monetary consideration. Some analytics or advertising disclosures may be considered a "sale" or "share" under California law. You may opt out by contacting privacy@sim.ai or by using the cookie preferences link.'
+            'We do not sell Personal Information for money. When Marketing Cookies are enabled, Sim makes identifiers and internet activity on sim.ai available to Google, X, and Freebuff for advertising and ad measurement. This includes cookie and click identifiers, pages visited, and conversion events. California law may treat this as a "sale" or "sharing" of Personal Information. You may opt out at any time through the cookie preferences link, by sending a Global Privacy Control signal, or by emailing privacy@sim.ai. Sim does not knowingly sell or share the Personal Information of consumers under 16.'
           ),
         },
         { kind: 'subheading', text: 'Global Privacy Control' },
@@ -1003,7 +1030,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Reports should be provided in English where possible. If You provide contact information, we will communicate in a transparent and timely manner. We will acknowledge receipt within three business days and will keep You informed about validation and remediation to the extent possible.'
+            'Reports should be provided in English where possible. If You provide contact information, we will communicate in a transparent and timely manner. We will keep You informed about validation and remediation to the extent possible.'
           ),
         },
       ],

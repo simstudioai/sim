@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isPlainRecord, omit } from '@sim/utils/object'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import {
   isLargeArrayManifest,
   LARGE_ARRAY_MANIFEST_MARKER,
@@ -81,6 +82,8 @@ interface ProjectionContext {
   sourceLargeValueBytes: number
   storedLargeValueBytes: number
   storedLargeValueCount: number
+  /** Content fields omitted so far; a span compares it across its own fields to set `contentWithheld`. */
+  omittedContentFields: number
 }
 
 interface OversizedHydrationGate {
@@ -161,6 +164,7 @@ function createProjectionContext(
     manifestIds: new WeakMap<object, string>(),
     nextManifestId: 0,
     largeValueCount: 0,
+    omittedContentFields: 0,
     sourceLargeValueBytes: 0,
     storedLargeValueBytes: 0,
     storedLargeValueCount: 0,
@@ -800,12 +804,14 @@ async function sanitizeContentField(
   value: unknown,
   context: ProjectionContext
 ): Promise<unknown | typeof OMIT> {
+  await yieldWhenSliceExpires()
   try {
     return await sanitizeMaterializedValue(value, context)
   } catch (error) {
     logger.warn('Omitting trace content that could not be sanitized', {
       failure: describeProjectionFailure(error),
     })
+    context.omittedContentFields += 1
     return OMIT
   }
 }
@@ -829,6 +835,7 @@ async function sanitizeIterationToolCalls(
   assertTraceStructureArrayFits(calls, state)
   const sanitized: IterationToolCall[] = []
   for (const call of calls) {
+    await yieldWhenSliceExpires()
     if (!takeTraceStructureNode(state, depth)) {
       throw new TraceSecretProjectionError('Trace tool-call structure limit exceeded')
     }
@@ -851,6 +858,7 @@ async function sanitizeLegacyToolCalls(
   assertTraceStructureArrayFits(calls, state)
   const sanitized: ToolCall[] = []
   for (const call of calls) {
+    await yieldWhenSliceExpires()
     if (!takeTraceStructureNode(state, depth)) {
       throw new TraceSecretProjectionError('Trace tool-call structure limit exceeded')
     }
@@ -881,6 +889,7 @@ async function sanitizeProviderSegment(
   state: BoundedTraceStructureState,
   depth: number
 ): Promise<ProviderTimingSegment> {
+  await yieldWhenSliceExpires()
   if (!takeTraceStructureNode(state, depth)) {
     throw new TraceSecretProjectionError('Trace provider structure limit exceeded')
   }
@@ -913,13 +922,16 @@ async function sanitizeTraceSpan(
   span: TraceSpan,
   context: ProjectionContext,
   depth: number,
-  state: BoundedTraceStructureState
+  state: BoundedTraceStructureState,
+  assertContentIsSafe: SpanContentAssertion
 ): Promise<TraceSpan> {
+  await yieldWhenSliceExpires()
   if (!takeTraceStructureNode(state, depth)) {
     throw new TraceSecretProjectionError('Trace span structure limit exceeded')
   }
 
   let projected = omit(span, ['displayResolvedSecretTraceProvenance']) as TraceSpan
+  const omittedBefore = context.omittedContentFields
 
   for (const key of ['input', 'output', 'thinking', 'errorMessage'] as const) {
     const value = span[key]
@@ -954,11 +966,15 @@ async function sanitizeTraceSpan(
     projected.providerTiming = { ...span.providerTiming, segments }
   }
 
+  if (context.omittedContentFields > omittedBefore) projected.contentWithheld = true
+
+  assertContentIsSafe(projected, depth)
+
   if (span.children !== undefined) {
     assertTraceStructureArrayFits(span.children, state)
     const children: TraceSpan[] = []
     for (const child of span.children) {
-      children.push(await sanitizeTraceSpan(child, context, depth + 1, state))
+      children.push(await sanitizeTraceSpan(child, context, depth + 1, state, assertContentIsSafe))
     }
     projected.children = children
   }
@@ -1065,6 +1081,7 @@ function structuralOnlySpan(
 
   return {
     ...structural,
+    contentWithheld: true,
     ...(modelToolCalls
       ? {
           modelToolCalls: projectBoundedArray(modelToolCalls, (call) =>
@@ -1278,11 +1295,12 @@ function assertNoPlaintext(
 
 type TraceContentVisitor = (value: unknown) => void
 
-function visitTraceSpanContent(
+/** Visits one span's content, not its children's; `visitTraceSpanContent` descends from here. */
+function visitTraceSpanOwnContent(
   span: TraceSpan,
   visit: TraceContentVisitor,
   structureState: BoundedTraceStructureState,
-  depth = 0
+  depth: number
 ): void {
   if (!takeTraceStructureNode(structureState, depth)) {
     throw new TraceSecretProjectionError('Trace invariant structure limit exceeded')
@@ -1335,6 +1353,15 @@ function visitTraceSpanContent(
     }
   }
   assertTraceStructureArrayFits(span.children ?? [], structureState)
+}
+
+function visitTraceSpanContent(
+  span: TraceSpan,
+  visit: TraceContentVisitor,
+  structureState: BoundedTraceStructureState,
+  depth = 0
+): void {
+  visitTraceSpanOwnContent(span, visit, structureState, depth)
   for (const child of span.children ?? []) {
     visitTraceSpanContent(child, visit, structureState, depth + 1)
   }
@@ -1348,12 +1375,23 @@ function visitTraceSpansContent(traceSpans: TraceSpan[], visit: TraceContentVisi
   }
 }
 
-function assertTraceSpansContentIsSafe(
-  traceSpans: TraceSpan[],
+type SpanContentAssertion = (span: TraceSpan, depth: number) => void
+
+/**
+ * The whole-trace content check, applied to each projected span as soon as its own content is
+ * final. Called in projection order (pre-order, a parent before its children), it walks exactly
+ * what one walk of the finished trace would, so an over-budget trace fails at the span that
+ * crosses the budget instead of after the whole trace was projected and then discarded.
+ */
+function createSpanContentAssertion(
+  traceSpans: readonly TraceSpan[],
   context: PlaintextInvariantContext
-): void {
+): SpanContentAssertion {
+  const structureState: BoundedTraceStructureState = { nodes: 0, truncated: false }
   const contentState: TraversalState = { nodes: 0, ancestors: new WeakSet<object>() }
-  visitTraceSpansContent(traceSpans, (value) => assertNoPlaintext(value, context, contentState))
+  assertTraceStructureArrayFits(traceSpans, structureState)
+  const visit = (value: unknown) => assertNoPlaintext(value, context, contentState)
+  return (span, depth) => visitTraceSpanOwnContent(span, visit, structureState, depth)
 }
 
 function collectPostTransformLargeValues(
@@ -1577,10 +1615,10 @@ export async function projectTraceSpansForSecrets(
     const projected: TraceSpan[] = []
     const state: BoundedTraceStructureState = { nodes: 0, truncated: false }
     assertTraceStructureArrayFits(traceSpans, state)
+    const assertContentIsSafe = createSpanContentAssertion(traceSpans, context)
     for (const span of traceSpans) {
-      projected.push(await sanitizeTraceSpan(span, context, 0, state))
+      projected.push(await sanitizeTraceSpan(span, context, 0, state, assertContentIsSafe))
     }
-    assertTraceSpansContentIsSafe(projected, context)
     return projected
   } catch (error) {
     logger.warn('Trace secret projection failed; retaining structural spans only', {

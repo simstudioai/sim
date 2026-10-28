@@ -29,7 +29,7 @@ import {
   SIM_REQUIREMENTS_PATH,
   systemPackageInstallCommand,
   validateSystemPackages,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+} from '@/lib/execution/remote-sandbox/spec'
 import {
   SANDBOX_BASE_RELEASE_REFRESH_CODE,
   type SandboxDependencyStrategy,
@@ -218,7 +218,7 @@ export async function resolveWorkspaceSandbox(args: {
   await requireSandboxPlan(workspaceId)
 
   const provider = resolveProvider()
-  const { db, sandboxImage, workspaceSandbox, and, eq } = await sandboxDb()
+  const { db, workspaceSandbox, and, eq } = await sandboxDb()
   const [row] = await db
     .select({
       id: workspaceSandbox.id,

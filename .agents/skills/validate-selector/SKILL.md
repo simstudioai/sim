@@ -1,6 +1,6 @@
 ---
 name: validate-selector
-description: Audit a Sim dynamic selector across its declaration, browser-safe manifest, server attachment, provider primitive, and selectors.execute security boundary. Use when reviewing selector correctness, secret handling, scope authorization, or migration completeness.
+description: Audit a Sim dynamic selector across its declaration, browser-safe manifest, server attachment, provider primitive, and selectors.execute security boundary. Use when reviewing selector correctness, secret handling, scope authorization, or dead selector-only routes.
 argument-hint: <selector-key-or-service>
 ---
 
@@ -64,11 +64,8 @@ personal/shared values are not automatically protected plaintext, but the execut
 deliberately or wholesale echo selector context. Only intentionally projected, normalized
 `{ id, label, meta? }` options and bounded cursors may cross the boundary.
 
-Selector code must not introduce a context, token, or result cache. The sole existing cache
-exception is authorized client-credential resolution after authorization and provider binding,
-which may reuse the credential service's TTL-governed, lazily pruned process-local token cache. The
-cache is not hard-bounded, the exception requires explicit security-owner acceptance, and selector
-work must not expand it.
+Selector code adds no context, token, or result cache beyond the single accepted exception
+described in the `add-selector` skill ("Wire the UI declaration").
 
 ## Validate provider reuse and browser boundaries
 

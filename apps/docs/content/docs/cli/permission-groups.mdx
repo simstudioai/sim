@@ -1,21 +1,169 @@
 ---
-title: Permission Groups
-description: Manage permission groups — every subcommand, argument, and flag
+title: Permission groups
+description: Manage organization permission groups, their configuration, and member assignments.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
+Manage organization permission groups, their configuration, and member assignments.
+
+Use the linked API request schema for the supported `--config` keys. Supplied arrays replace their entire lists; omitted settings remain unchanged on update.
+
 `sim permission-groups` is also spelled `sim permission-group`.
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+These commands accept the [global options](/cli/commands#global-options).
 
-## Add permission group member
+## Group configuration
+
+### List permission groups
+
+OAuth login or personal API key required.
+
+```bash
+sim permission-groups list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the group name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "createdAt". Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+API request and response schemas: [listPermissionGroups](/api-reference/permission-groups/listPermissionGroups).
+
+### Get permission group
+
+OAuth login or personal API key required.
+
+```bash
+sim permission-groups get <groupId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getPermissionGroup](/api-reference/permission-groups/getPermissionGroup).
+
+### Create permission group
+
+OAuth login or personal API key required.
+
+```bash
+sim permission-groups create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--name <value>` | Yes | Group name, unique within the organization. |
+| `--description <value>` | No | Optional group description. |
+| `--config <json\|@file>` | No | Group settings to set. Omitted keys use the default permission configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--default` | No | Whether the group is the organization default. Only one group can be the default. |
+| `--no-default` | No | Send --default as false. |
+| `--workspace-ids <json\|@file>` | Conditional | Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+API request and response schemas: [createPermissionGroup](/api-reference/permission-groups/createPermissionGroup).
+
+### Update permission group
+
+OAuth login or personal API key required.
+
+```bash
+sim permission-groups update <groupId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--name <value>` | No | Group name, unique within the organization. |
+| `--description <value>` | No | Group description. Null or an empty string clears it; omission leaves it unchanged. (--description null sends the word, not JSON null). |
+| `--config <json\|@file>` | No | Patch of group settings. Omitted keys remain unchanged; each supplied array replaces that entire list. (JSON, or @path / @- to read a file or stdin). |
+| `--default` | No | Whether the group is the organization default. Only one group can be the default. |
+| `--no-default` | No | Send --default as false. |
+| `--workspace-ids <json\|@file>` | No | Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+API request and response schemas: [updatePermissionGroup](/api-reference/permission-groups/updatePermissionGroup).
+
+## Member assignments
+
+### List permission group members
+
+OAuth login or personal API key required.
+
+```bash
+sim permission-groups members list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "assignedAt". Accepted values: `assignedAt`, `userId`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+API request and response schemas: [listPermissionGroupMembers](/api-reference/permission-groups/listPermissionGroupMembers).
+
+### Add permission group member
+
+OAuth login or personal API key required.
 
 ```bash
 sim permission-groups members add [options]
 ```
-
-Add Permission Group Member (OAuth login or personal API key required)
 
 **Options**
 
@@ -29,56 +177,17 @@ Add Permission Group Member (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Bulk add permission group members
+API request and response schemas: [addPermissionGroupMember](/api-reference/permission-groups/addPermissionGroupMember).
 
-```bash
-sim permission-groups members batch-add [options]
-```
+### Remove permission group member
 
-Bulk Add Permission Group Members (OAuth login or personal API key required)
+OAuth login or personal API key required.
 
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--group <value>` | Yes | Permission group identifier. |
-| `--user <value...>` | No | User IDs to add; cannot be combined with --all-members (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--all-members` | No | Add every current organization member; cannot be combined with --user. |
-
-</CommandTable>
-
-## List permission group members
-
-```bash
-sim permission-groups members list [options]
-```
-
-List Permission Group Members (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--group <value>` | Yes | Permission group identifier. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `assignedAt`, `userId`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
-
-</CommandTable>
-
-## Remove permission group member
+This removes the member assignment and changes which permission groups apply to the user.
 
 ```bash
 sim permission-groups members remove <userId> [options]
 ```
-
-Remove Permission Group Member (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -102,13 +211,15 @@ Remove Permission Group Member (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Create permission group
+API request and response schemas: [removePermissionGroupMember](/api-reference/permission-groups/removePermissionGroupMember).
+
+### Bulk add permission group members
+
+OAuth login or personal API key required.
 
 ```bash
-sim permission-groups create [options]
+sim permission-groups members batch-add [options]
 ```
-
-Create Permission Group (OAuth login or personal API key required)
 
 **Options**
 
@@ -117,22 +228,25 @@ Create Permission Group (OAuth login or personal API key required)
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
-| `--name <value>` | Yes | Group name, unique within the organization. |
-| `--description <value>` | No | Optional group description. |
-| `--config <json\|@file>` | No | Permission restrictions to set. Omitted keys use the default permission configuration. (JSON, or @path / @- to read a file or stdin). |
-| `--default` | No | Whether the group is the organization default. Only one group can be the default. |
-| `--no-default` | No | Send --default as false. |
-| `--workspace-ids <json\|@file>` | No | Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group. (JSON, or @path / @- to read a file or stdin). |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--user <value...>` | No | User IDs to add; cannot be combined with --all-members (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--all-members` | No | Add every current organization member; cannot be combined with --user. |
 
 </CommandTable>
 
-## Delete permission group
+API request and response schemas: [bulkAddPermissionGroupMembers](/api-reference/permission-groups/bulkAddPermissionGroupMembers).
+
+## Delete groups
+
+### Delete permission group
+
+OAuth login or personal API key required.
+
+This permanently deletes the permission group and its member assignments.
 
 ```bash
 sim permission-groups delete <groupId> [options]
 ```
-
-Delete Permission Group (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -155,86 +269,8 @@ Delete Permission Group (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Get permission group
+API request and response schemas: [deletePermissionGroup](/api-reference/permission-groups/deletePermissionGroup).
 
-```bash
-sim permission-groups get <groupId> [options]
-```
+## Related docs
 
-Get Permission Group (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `groupId` | Yes | Permission group identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-
-</CommandTable>
-
-## List permission groups
-
-```bash
-sim permission-groups list [options]
-```
-
-List Permission Groups (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--search <value>` | No | Case-insensitive substring match against the group name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
-
-</CommandTable>
-
-## Update permission group
-
-```bash
-sim permission-groups update <groupId> [options]
-```
-
-Update Permission Group (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `groupId` | Yes | Permission group identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--name <value>` | No | Group name, unique within the organization. |
-| `--description <value>` | No | Group description. Null or an empty string clears it; omission leaves it unchanged. (--description null sends the word, not JSON null). |
-| `--config <json\|@file>` | No | Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list. (JSON, or @path / @- to read a file or stdin). |
-| `--default` | No | Whether the group is the organization default. Only one group can be the default. |
-| `--no-default` | No | Send --default as false. |
-| `--workspace-ids <json\|@file>` | No | Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive. (JSON, or @path / @- to read a file or stdin). |
-
-</CommandTable>
+- [Permission groups](/platform/permissions)

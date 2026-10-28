@@ -18,17 +18,24 @@ import {
   formatPrice,
   formatTokenCount,
   getProviderBySlug,
+  getProviderPageDescription,
+  getProviderPageTitle,
   MODEL_PROVIDERS_WITH_CATALOGS,
+  MODEL_PROVIDERS_WITH_MODELS,
   TOP_MODEL_PROVIDERS,
 } from '@/app/(landing)/models/utils'
 
 const baseUrl = SITE_URL
 
-/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
-export const dynamicParams = true
+/**
+ * Unknown params 404 before rendering when this route is prerendered. The production image renders
+ * every route dynamically, so there the page's own `notFound()` is what 404s - which is why no
+ * `loading.tsx` may wrap this segment: its Suspense boundary commits a 200 before `notFound()` runs.
+ */
+export const dynamicParams = false
 
 export async function generateStaticParams() {
-  return MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
+  return MODEL_PROVIDERS_WITH_MODELS.map((provider) => ({
     provider: provider.slug,
   }))
 }
@@ -45,31 +52,35 @@ export async function generateMetadata({
     return {}
   }
 
-  const providerFaqs = buildProviderFaqs(provider)
+  const title = getProviderPageTitle(provider)
+  const description = getProviderPageDescription(provider)
 
   return {
-    title: `${provider.name} Models`,
-    description: `Browse ${provider.modelCount} ${provider.name} models tracked in Sim. Compare pricing, context windows, default model selection, and capabilities for ${provider.name}'s AI model lineup.`,
+    title,
+    description,
     keywords: [
-      `${provider.name} models`,
-      `${provider.name} pricing`,
-      `${provider.name} context window`,
-      `${provider.name} model list`,
-      `${provider.name} AI models`,
-      ...provider.models.slice(0, 6).map((model) => model.displayName),
+      ...new Set([
+        `${provider.apiName} API pricing`,
+        `${provider.modelFamily} API pricing`,
+        `${provider.name} pricing`,
+        `${provider.modelFamily} context window`,
+        `${provider.name} models`,
+        `${provider.name} model list`,
+        ...provider.models.slice(0, 6).map((model) => model.displayName),
+      ]),
     ],
     // og:image/twitter:image come from the sibling opengraph-image.tsx -
     // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
-      title: `${provider.name} Models | Sim`,
-      description: `Explore ${provider.modelCount} ${provider.name} models with pricing and capability details.`,
+      title: `${title} | Sim`,
+      description,
       url: `${baseUrl}${provider.href}`,
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${provider.name} Models | Sim`,
-      description: providerFaqs[0]?.answer ?? provider.summary,
+      title: `${title} | Sim`,
+      description,
     },
     alternates: {
       canonical: `${baseUrl}${provider.href}`,

@@ -240,10 +240,3 @@ export interface TypeformDeleteFormResponse extends ToolResponse {
     message: string
   }
 }
-
-export interface TypeformResponse extends ToolResponse {
-  output:
-    | TypeformResponsesResponse['output']
-    | TypeformFilesResponse['output']
-    | TypeformInsightsData
-}

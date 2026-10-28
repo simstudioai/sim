@@ -2,12 +2,11 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
 import { LIVE_SEARCH_SERVICE_PROVIDERS } from '@/lib/sim-search/live/policy-schema'
-import { searchSetupParam } from '@/lib/sim-search/search-params'
+import { searchSetupParam } from '@/lib/sim-search/params'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { serializeOrganizationPeople } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { OrganizationProviderDetail } from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/provider-detail'
@@ -49,7 +48,7 @@ export default async function OrganizationProviderPage({
     }))
   )
     notFound()
-  if (isLiveEnterpriseSearchEnabled && !LIVE_SEARCH_SERVICE_PROVIDERS.includes(connectorType))
+  if (!LIVE_SEARCH_SERVICE_PROVIDERS.includes(connectorType))
     redirect(organizationRoutes(organizationId).settingsSection('integrations'))
   const query = await searchParams
   const activeSetup =
@@ -73,7 +72,7 @@ export default async function OrganizationProviderPage({
   }
   return (
     <Suspense
-      fallback={<SettingsEmptyState variant='inline'>Loading integration…</SettingsEmptyState>}
+      fallback={<SettingsEmptyState variant='inline'>Loading integration</SettingsEmptyState>}
     >
       <OrganizationProviderDetail connectorType={connectorType} />
     </Suspense>

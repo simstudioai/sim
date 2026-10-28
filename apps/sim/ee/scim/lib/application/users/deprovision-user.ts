@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   defineAuthorizedScimUseCase,
   type ScimUseCaseArgs,
@@ -74,6 +75,7 @@ export const deprovisionScimUser = defineAuthorizedScimUseCase({
         memberId: membership.id,
         revokePersonalApiKeys: true,
       })
+      deliverRunStops(removal.stoppedRuns)
       if (!removal.success) {
         throw new ScimError(409, undefined, removal.error ?? 'The member could not be removed')
       }

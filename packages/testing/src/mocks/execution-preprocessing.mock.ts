@@ -6,7 +6,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { executionPreprocessingMockFns } from '@sim/testing'
+ * import { executionPreprocessingMockFns } from '@sim/testing/mocks/execution-preprocessing.mock'
  *
  * executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
  *   success: true,
@@ -29,4 +29,7 @@ export const executionPreprocessingMockFns = {
 export const executionPreprocessingMock = {
   preprocessExecution: executionPreprocessingMockFns.mockPreprocessExecution,
   WORKFLOW_NOT_DEPLOYED_CODE: 'WORKFLOW_NOT_DEPLOYED',
+  RATE_LIMIT_EXCEEDED_CODE: 'RATE_LIMIT_EXCEEDED',
+  isWorkflowStateRejection: (error: { workflowState?: string }) =>
+    error.workflowState !== undefined,
 }

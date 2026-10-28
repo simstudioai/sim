@@ -1,201 +1,149 @@
 ---
 title: Using MCP tools
-description: Connect external tools and services using the Model Context Protocol
+description: Connect external MCP servers and control which operations your workflow agents can call.
 ---
 
-import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-The Model Context Protocol ([MCP](https://modelcontextprotocol.com/)) is an open standard for connecting AI to external tools and data. Add an MCP server to your workspace and its tools become available to your agents — a way to integrate services Sim doesn't have a built-in integration for.
+MCP, the [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro), connects AI applications to external tools. Register a remote server in your workspace, authorize its connection, and give its operations to an **Agent** block or run them through an **MCP** block.
 
-## Adding an MCP Server as a Tool
+Registrations are workspace-scoped. Add a separate registration in each workspace that needs the server. To connect an external app to Sim itself, use the [Sim MCP server](/mcp/overview), [workflow deployment MCP](/workflows/deployment/mcp), or [Search MCP](/search/mcp).
 
-MCP servers provide collections of tools that your agents can use.
+## Add a server
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="mcp/settings-mcp-tools.mp4" width={700} height={450} />
-</div>
+You need **Write** or **Admin** access. Sim supports remote **Streamable HTTP** servers; a local stdio command is not a supported registration.
 
-To add one:
+1. Open **Settings → MCP tools** and select **Add server**. You can also select **Add MCP Server** in an Agent's **Tools** menu.
+2. Enter the **Server Name** and **Server URL**.
+3. Add authentication **Headers** if the provider requires them. Use saved secret references for sensitive values.
+4. If the provider requires an OAuth client that cannot be registered automatically, open **Advanced settings** and enter its **Client ID** and **Client Secret**.
+5. Select **Add server**. Sim tests the connection before saving.
+6. For OAuth authentication, select **Authorize** on the saved server and complete browser sign-in.
 
-1. Navigate to **Settings → MCP Tools**
+Open the server detail to inspect **Tools**, including parameter names, types, and required flags. A successful connection can expose no tools. When editing a registration, use **Test connection** to check connectivity.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/mcp-settings.png"
-    alt="MCP Tools settings page"
-    width={700}
-    height={147}
-    className="my-6"
-  />
-</div>
+The registration uses `streamable-http` and defaults to a 30,000 ms connection timeout. These are configuration values rather than selectable controls in the form. Each connection attempt is capped at 60,000 ms. OAuth requires HTTPS outside loopback development.
 
-2. Click **Add** to open the configuration modal
-3. Enter a **Server Name** and **Server URL**
-4. Add any required **Headers** (e.g. API keys)
-5. Click **Add MCP** to save
+**Edit JSON** accepts a remote configuration with a named `mcpServers` entry containing `url` and optional `headers`, or a configuration containing `url` directly. If several entries are present, it reads the first. It does not import a desktop client's executable command configuration.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/mcp-add-modal.png"
-    alt="Add New MCP Server modal"
-    width={450}
-    height={272}
-    className="my-6"
-  />
-</div>
+### Secrets in URLs and headers
 
-<Callout type="info">
-You can also configure MCP servers directly from the toolbar in an Agent block for quick setup.
-</Callout>
+URLs and headers support `{{VAR_NAME}}` substitution from available saved secrets. Type `{{` in either field to open the secret picker:
 
-### Server Configuration Options
-
-| Field | Description |
-|-------|-------------|
-| **Name** | Display name for the server |
-| **URL** | The MCP server endpoint |
-| **Transport** | Currently supports `streamable-http` |
-| **Headers** | Key-value pairs for authentication or custom headers |
-| **Timeout** | Connection timeout in milliseconds (default: 30,000) |
-
-### Environment Variables in Configuration
-
-Server URLs and headers support environment variable substitution using `{{VAR_NAME}}` syntax. This keeps sensitive values like API keys out of the server configuration.
-
-```
+```text
 URL: https://api.example.com/mcp
 Authorization: Bearer {{MCP_API_TOKEN}}
 ```
 
-When you type `{{` in the URL or header fields, a dropdown appears showing available workspace environment variables.
+When a secret is successfully substituted, Sim masks exact recognized values in stored MCP tool-call traces unless the secret's visibility setting exempts them. The real credentials are used for the provider request. See [Execution log protection](/platform/credentials#execution-log-protection) for model projection, visibility exceptions, and encoded or transformed values.
 
-When a saved secret is successfully substituted this way, exact occurrences of its value are masked in stored MCP tool-call traces. The real URL or header value still reaches the MCP server unchanged. See [Execution log protection](/platform/credentials#execution-log-protection) for the exact scope and limitations.
+### Connection identity
 
-### Testing and Validation
+Ordinary OAuth registrations use the acting user's OAuth connection. Unattended workflow runs use the run's trusted execution actor. Each member who needs an ordinary OAuth connection may need to authorize their own account.
 
-Click **Test Connection** before saving to verify the server is reachable and discover available tools. The test response shows the number of tools found and the protocol version.
+A managed connection uses the explicitly selected [Credential Group connection](/platform/connected-accounts) and its access grants. Servers managed by Connected accounts are configured there.
 
-After saving, each server displays its available tools with parameter names, types, and required flags. If a server's tools change (e.g., after a server update), click **Refresh** to fetch the latest schemas. This automatically updates any agent blocks using those tools.
-
-Tool validation badges appear on servers with issues — for example, if a tool was removed from the server but is still referenced in a workflow. Click the badge to see which workflows are affected.
-
-### Domain Allowlisting
-
-Self-hosted deployments can restrict which MCP server domains are allowed by setting the `ALLOWED_MCP_DOMAINS` environment variable (comma-separated list). When set, only servers on approved domains can be added. When unset, all domains are allowed.
-
-This governs which domains may be used. It is separate from where those domains are allowed to resolve: an MCP server on a private address is reached by naming it in `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES`, described in [Security](/platform/self-hosting/security#the-ssrf-boundary). Both checks apply.
-
-The allowlist covers the server URL itself. If the server requires OAuth, any endpoint its metadata names on a *different* origin than the server you configured is treated as content rather than as configuration, so that one has to be publicly routable. Endpoints on the server's own origin keep the server's reachability.
-
-## Using MCP Tools in Agents
-
-Once MCP servers are configured, their tools become available within your agent blocks:
-
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/mcp-agent-dropdown.png"
-    alt="Using MCP Tool in Agent Block"
-    width={700}
-    height={304}
-    className="my-6"
-  />
-</div>
-
-1. Open an **Agent** block
-2. In the **Tools** section, click **Add tool…**
-3. Under **MCP Servers**, click a server to see its tools
-
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/mcp-agent-tools.png"
-    alt="MCP tools list for a selected server"
-    width={400}
-    height={356}
-    className="my-6"
-  />
-</div>
-
-4. Select individual tools, or choose **Configure operations access** for a dynamic server attachment
-5. The agent can now access these tools during execution
-
-<Callout type="info">
-If you haven't configured a server yet, click **Add MCP Server** at the top of the dropdown to open the setup modal without leaving the block.
+<Callout type="warn">
+MCP calls use the authorized connection's headers or OAuth credential. Review its operations before giving them to an Agent, and restrict access where needed. Allowing a generic operation such as `execute_sql` does not restrict the SQL it can run.
 </Callout>
 
-## Standalone MCP Block
+## Add tools to an Agent
 
-Use the MCP block to discover operations or run one operation with explicit inputs:
+1. Open an **Agent** block with a model that supports tools.
+2. Under **Tools**, select **Add tool...**.
+3. In **MCP Servers**, open the configured server.
+4. Select individual tools, or select **Configure operations access** to attach the server with an access policy.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/mcp-tool-block.png"
-    alt="Standalone MCP Tool Block"
-    width={700}
-    height={299}
-    className="my-6"
-  />
-</div>
+Individual tools expose their argument fields. The Agent chooses when to call the tools and supplies model-controlled inputs. Per-tool **Permission Mode** and current workspace, credential, and organization authorization still apply.
 
-Choose an **Action**:
+### Dynamic server attachment
 
-- **List operations** discovers authorized operation names, descriptions, and input schemas without executing provider operations. Filter by name or description, set a page size from 1 to 100, and pass `nextCursor` into the next request while `hasMore` is true. An authorized list can be empty.
-- **Run operation** executes one exact operation name. Configured operations keep their generated argument fields. For an operation name resolved at runtime, supply a JSON arguments object; Sim validates it against the operation's discovered schema before execution.
+Select **MCP Server (Advanced)** to supply a server or managed-connection ID directly, or reference an upstream value. The **Tool IDs** field accepts literal exact operation names, such as `search_docs`, without a Sim server prefix. These fields use plain inputs rather than server or operation catalog pickers.
 
-**MCP Server** takes one shared-server ID or managed-connection ID. Sim resolves a managed connection's parent server internally and verifies workspace and credential access. Both actions accept the same ID; List operations returns that ID as `serverId`, alongside the discovered `operations` and pagination metadata.
-
-The standalone block's Basic fields select a configured connection and discovered operation. Advanced fields accept literal IDs/names or upstream references. A runtime server reference requires JSON arguments. Listing hides the operation and argument fields.
+Operation names in **Tool IDs** are configuration, not model arguments or upstream references. The policy applies to whichever authorized connection the server reference resolves to at runtime.
 
 ### Operations access
 
-The **MCP Server (Advanced)** Agent attachment takes a server/connection ID or upstream reference in a plain input. Its **Tool IDs** field accepts exact MCP tool names, such as `search_docs`, entered directly. These are the names returned by List operations, without a Sim server prefix. Neither field uses a server or operation catalog picker.
-
-Agent attachments have three access modes:
-
 | Mode | Behavior |
 | --- | --- |
-| **Only selected** | Allows only selected exact operation names. An empty selection allows nothing. Newly discovered names stay excluded. |
-| **All except selected** | Denies selected exact names. An empty selection allows everything otherwise permitted. Denied names stay saved if they temporarily disappear. |
+| **Only selected** | Allows the selected exact operation names. An empty selection allows nothing; newly discovered names stay excluded. |
+| **All except selected** | Denies the selected exact names. An empty selection allows everything otherwise permitted. Denied names remain saved if they temporarily disappear. |
 | **All permitted** | Allows every operation available to the authorized credential. |
 
-New restricted configurations start with an empty explicit selection. Existing saved workflows retain their prior access through normalization, while current organization and credential authorization still apply.
+New restricted attachments start with an empty explicit selection. Existing saved configurations retain their prior access through normalization, subject to current authorization.
 
-Operation restrictions are saved in workflow state on the Agent attachment. Tool IDs are literal configuration, not upstream references or model arguments. An operation must be available to the resolved, authorized connection and permitted by the saved restriction. The standalone block runs its explicitly specified operation and has no separate access policy.
+The policy is saved on the Agent attachment. Discovery filters the tools offered to the model, and execution checks the resolved server, connection, and policy again before calling the provider. Names are case-sensitive. The policy can narrow credential access; it cannot grant access the credential lacks.
 
-Discovery filters the tools exposed to the Agent. Execution checks the actual server, connection, and saved restriction again before calling the provider. Missing or forbidden operations, unverifiable schemas, malformed arguments, and incorrect connection scopes fail the call. An Agent attachment with no permitted operations fails clearly.
+Missing or forbidden operations, invalid connection scopes, unverifiable schemas, and malformed arguments fail the call. An Agent attachment with no permitted operations fails clearly. Operation restrictions match names; they do not inspect arguments.
 
-Policies match exact, case-sensitive MCP tool names on whichever authorized connection resolves at runtime. They do not inspect operation arguments: allowing a generic `execute_sql` operation does not limit which SQL it can execute.
+## Run or list operations with an MCP block
 
-## When to Use MCP Tool vs Agent
+Use an **MCP** block for explicit execution or authorized operation discovery. Select its **Action**:
 
-| Feature | **Agent with MCP tools** | **MCP Tool block** |
-|---|---|---|
-| **Execution** | AI decides which tools to call | Deterministic — runs the tool you pick |
-| **Parameters** | AI chooses at runtime | You set them explicitly |
-| **Best for** | Dynamic, conversational flows | Structured, repeatable steps |
-| **Reasoning** | Handles complex multi-step logic | One tool, one call |
+- **Run operation** executes one exact operation name. Configured operations show generated argument fields. If the name resolves at runtime, supply a JSON arguments object; Sim validates it against the discovered schema before execution.
+- **List operations** returns authorized operation names, descriptions, and input schemas without executing provider operations. **Search operations** filters names and descriptions. **Page size** accepts 1–100 and defaults to 100; it and **Cursor** are advanced fields.
 
-## Permission Requirements
+In Basic mode, select a configured connection under **MCP Server** and a discovered **Operation**. In Advanced mode, enter literal IDs/names or references. A runtime server reference requires JSON arguments. Listing hides the operation and argument fields.
 
-MCP functionality requires specific workspace permissions:
+**MCP Server** accepts one shared-server ID or managed-connection ID. Sim resolves a managed connection's parent server and verifies workspace and credential access. Both actions use the same identifier. The standalone block runs its specified operation and has no separate Agent attachment policy.
 
-| Action | Required Permission |
-|--------|-------------------|
-| Create or update MCP servers | **Write** or **Admin** |
-| Delete MCP servers | **Admin** |
-| Use MCP tools in agents | **Write** or **Admin** |
-| View available MCP tools | **Read**, **Write**, or **Admin** |
-| Execute MCP Tool blocks | **Read**, **Write**, or **Admin** |
+### Outputs and pagination
 
-<Callout type="warn">
-MCP servers run with the permissions of the user who configured them — only connect servers you trust, and review a server's tools before handing them to agents.
-</Callout>
+| Output | Meaning |
+| --- | --- |
+| `serverId` | The supplied server or managed-connection ID |
+| `operations` | Listed operations with `name`, `description`, and `inputSchema` |
+| `nextCursor` | Cursor for the next list page, or `null` |
+| `hasMore` | Whether more authorized operations remain in the discovered inventory |
+| `content` | The MCP content array returned by a run operation |
 
-import { FAQ } from '@/components/ui/faq'
+While `hasMore` is true, pass `nextCursor` into **Cursor** on the next list request. An authorized list can be empty. This pagination does not bypass the discovery limits below.
 
-<FAQ items={[
-  { question: "Can I use MCP servers from multiple workspaces?", answer: "MCP servers are configured per workspace. Each workspace maintains its own set of MCP server connections. If you need the same MCP server in multiple workspaces, you need to configure it separately in each workspace's settings." },
-  { question: "Can permission groups restrict access to MCP tools?", answer: "Yes. On Enterprise-entitled workspaces, any workspace admin can create a permission group that disables MCP tools for its members using the disableMcpTools option. When this is enabled, affected users will not be able to add or use MCP tools in workflows that belong to that workspace." },
-  { question: "What happens if an MCP server goes offline during workflow execution?", answer: "If the MCP server is unreachable during execution, the tool call will fail and return an error. In an Agent block, the AI may attempt to handle the failure gracefully. In a standalone MCP Tool block, the workflow step will fail. Check MCP server logs and verify the server is running and accessible to troubleshoot connectivity issues." },
-]} />
+## Refresh and troubleshoot
+
+Use **Refresh** on the server detail to fetch current schemas. Matching individual MCP bindings in draft Agent blocks receive updated schemas and server metadata. Removed operations remain referenced and can fail; review validation badges to see affected workflows. Deploy an updated draft when the deployed version needs those changes. Dynamic attachments discover authorized tools when they run.
+
+Discovery normally uses a five-minute cache. Failed server probes can be cached for two minutes; Refresh forces a retry. A cached or partially discovered inventory does not prove the provider has no other operations.
+
+### Discovery limits
+
+Client discovery follows the provider's `tools/list` pages within these bounds:
+
+| Budget | Hard limit |
+| --- | --- |
+| Pages | 50 |
+| Aggregated tools | 1,000 |
+| Combined tool payload | 5 MiB |
+| Aggregate discovery time | 60 seconds |
+
+Repeated provider cursors also stop discovery. Settings discovery may return a partial inventory after a bound or later-page failure. Runtime discovery requires completion and fails if the inventory is truncated. The standalone block's page size applies after this discovery and authorization.
+
+If a call fails, check the server's connectivity, authorization, current schema, and saved access policy. An Agent can receive the tool error and respond or try another action; a standalone block uses the workflow's configured error handling. Verify the provider's state before repeating an operation that may have side effects.
+
+## Permissions
+
+| Action | Required workspace role |
+| --- | --- |
+| View, discover, or execute available MCP operations | Read, Write, or Admin |
+| Register, edit, refresh, or delete external servers | Write or Admin |
+| Change a registered server's destination host or path | Admin |
+
+Adding or changing a workflow's tools also requires workflow edit access. Credential grants and organization permission-group restrictions apply separately. On Enterprise-entitled workspaces, a workspace Admin can configure `disableMcpTools` through [permission groups](/platform/enterprise/access-control).
+
+These permissions govern external server registrations. [Workflow MCP deployment](/workflows/deployment/mcp) has its own management and invocation requirements.
+
+## Self-hosted network policy
+
+Set `ALLOWED_MCP_DOMAINS` to a comma-separated list of exact approved hostnames to restrict server domains. When unset, there is no domain allowlist restriction.
+
+Domain approval and network reachability are separate checks. Private-address servers also need `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES`; see [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary).
+
+The domain allowlist applies to the configured server URL. For OAuth, an endpoint on that server's origin retains its reachability. An endpoint named by metadata on a different origin is treated as fetched content and must be publicly routable under the egress policy.
+
+## Related docs
+
+- [Choosing what to use](/agents/choosing)
+- [Connected accounts](/platform/connected-accounts)
+- [Sim MCP server](/mcp/overview)
+- [Workflow deployment MCP](/workflows/deployment/mcp)
+- [Search MCP](/search/mcp)

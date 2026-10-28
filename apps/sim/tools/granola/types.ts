@@ -162,7 +162,7 @@ export interface GranolaListAuditEventsResponse extends ToolResponse {
 }
 
 /** The webhook endpoint shape shared by the create, list, and update tools. */
-export interface GranolaWebhookEndpointOutput {
+interface GranolaWebhookEndpointOutput {
   id: string
   url: string
   urlRedacted: boolean

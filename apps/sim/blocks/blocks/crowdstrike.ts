@@ -6,7 +6,6 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { CrowdStrikeResponse } from '@/tools/crowdstrike/types'
 
 /**
  * Maximum `limit` for each CrowdStrike query collection. Every entry except IOC
@@ -92,13 +91,13 @@ const CLEARED_OPTIONAL_PARAMS: Record<string, undefined> = Object.freeze({
   vulnerabilityIds: undefined,
 })
 
-export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
+export const CrowdStrikeBlock: BlockConfig = {
   type: 'crowdstrike',
   name: 'CrowdStrike',
   description:
     'Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities',
   longDescription:
-    'Integrate CrowdStrike Falcon into workflows to triage alerts, contain hosts, manage host groups and custom indicators of compromise, review Spotlight vulnerabilities, run read-only Real Time Response commands, read Case Management cases, and query Identity Protection sensors.',
+    'Triage alerts, contain hosts, manage host groups and custom indicators of compromise, review Spotlight vulnerabilities, run read-only Real Time Response commands, read Case Management cases, and query Identity Protection sensors.',
   docsLink: 'https://docs.sim.ai/integrations/crowdstrike',
   category: 'tools',
   integrationType: IntegrationType.Security,

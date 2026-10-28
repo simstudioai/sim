@@ -46,6 +46,8 @@ describe('private workspace-upload classification', () => {
     { ...bound, version: 2 },
     { ...bound, workspaceId: 'other-workspace' },
     { ...bound, provenance: { status: 'future-status' } },
+    { ...bound, provenance: { status: 'unrecorded', entries: [entry] } },
+    { ...bound, provenance: { status: 'unrecorded', entries: {} } },
     { ...bound, provenance: { status: 'exact', entries: {} } },
     {
       ...bound,

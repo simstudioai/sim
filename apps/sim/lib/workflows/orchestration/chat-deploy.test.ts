@@ -1,23 +1,25 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkflowDeploymentSummary, mockPerformFullDeploy, mockCheckNeedsRedeployment } =
-  vi.hoisted(() => ({
-    mockGetWorkflowDeploymentSummary: vi.fn(),
-    mockPerformFullDeploy: vi.fn(),
-    mockCheckNeedsRedeployment: vi.fn(),
-  }))
+const { mockGetWorkflowDeploymentSummary, mockPerformFullDeploy } = vi.hoisted(() => ({
+  mockGetWorkflowDeploymentSummary: vi.fn(),
+  mockPerformFullDeploy: vi.fn(),
+}))
 
 vi.mock('@/lib/workflows/orchestration/deploy', () => ({
   getWorkflowDeploymentSummary: mockGetWorkflowDeploymentSummary,
   performFullDeploy: mockPerformFullDeploy,
 }))
 
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mockCheckNeedsRedeployment,
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
 
 import { performChatDeploy } from '@/lib/workflows/orchestration/chat-deploy'
+
+const { mockCheckNeedsRedeployment } = workflowDeploymentStatusMockFns
 
 const basePayload = {
   workflowId: 'workflow-1',

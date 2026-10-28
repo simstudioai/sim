@@ -19,7 +19,7 @@ import type {
   MultipartCompletionPolicy,
   StoredObjectInfo,
 } from '@/lib/uploads/shared/types'
-import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
+import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 
 const logger = createLogger('BlobClient')
@@ -187,37 +187,6 @@ export async function uploadToBlob(
     size: fileSize,
     type: contentType,
   }
-}
-
-/**
- * Generate a presigned URL for direct file access
- * @param key Blob name
- * @param expiresIn Time in seconds until URL expires
- * @returns Presigned URL
- */
-export async function getPresignedUrl(key: string, expiresIn = 3600) {
-  const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
-    await import('@azure/storage-blob')
-  const blobServiceClient = await getBlobServiceClient()
-  const containerClient = blobServiceClient.getContainerClient(BLOB_CONFIG.containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
-
-  const { accountName, accountKey } = getAccountCredentials()
-
-  const sasOptions = {
-    containerName: BLOB_CONFIG.containerName,
-    blobName: key,
-    permissions: BlobSASPermissions.parse('r'), // Read permission
-    startsOn: new Date(),
-    expiresOn: new Date(Date.now() + expiresIn * 1000),
-  }
-
-  const sasToken = generateBlobSASQueryParameters(
-    sasOptions,
-    new StorageSharedKeyCredential(accountName, accountKey)
-  ).toString()
-
-  return `${blockBlobClient.url}?${sasToken}`
 }
 
 /**

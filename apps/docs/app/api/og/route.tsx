@@ -2,8 +2,6 @@ import type { CSSProperties } from 'react'
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
 
-export const runtime = 'edge'
-
 const TITLE_FONT_SIZE = {
   large: 110,
   medium: 96,
@@ -136,10 +134,8 @@ function wrapTitleLines(title: string, fontSize: number): string[] {
  * Loads Söhne Kräftig (weight 500), the typeface used on the reference cover
  * template this OG image matches. Converted to a plain TTF from the
  * last-shipped `soehne-kraftig.woff2` since Satori (`next/og`'s renderer)
- * can't parse WOFF2 or variable fonts. Fetched over HTTP since the edge
- * runtime has no filesystem access — served from `/static/fonts/` (not
- * `/fonts/`) so it isn't intercepted by the site's proxy (`proxy.ts`),
- * whose matcher excludes `static` but not `fonts`.
+ * can't parse WOFF2 or variable fonts. Fetched over HTTP for Next's revalidation
+ * cache, from `/static/fonts/` so the site's proxy matcher excludes it.
  */
 async function loadTitleFont(baseUrl: string): Promise<ArrayBuffer> {
   const response = await fetch(new URL('/static/fonts/Soehne-Kraftig.ttf', baseUrl), {

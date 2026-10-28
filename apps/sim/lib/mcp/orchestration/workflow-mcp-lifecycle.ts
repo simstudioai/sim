@@ -3,6 +3,7 @@ import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   MAX_MCP_SERVER_PARAMETER_SCHEMAS_BYTES,
@@ -34,7 +35,7 @@ import {
   pruneOverridesToSchema,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { hasValidStartBlock } from '@/lib/workflows/triggers/utils.server'
 
 const logger = createLogger('WorkflowMcpOrchestration')
 
@@ -220,6 +221,16 @@ function validateServerToolMetadataBudgetForUpdate(
   return null
 }
 
+/** A workflow's tool input schema, with an input the schema cannot publish answered as a validation failure. */
+async function generateWorkflowMcpBaseSchema(workflowId: string): Promise<Record<string, unknown>> {
+  return generateParameterSchemaForWorkflow(workflowId).catch((error: unknown) => {
+    if (error instanceof OrchestrationError && error.code === 'validation') {
+      throw new WorkflowMcpExpectedError(error.message, 'validation')
+    }
+    throw error
+  })
+}
+
 async function prepareWorkflowMcpTool(params: {
   workflowRecord: WorkflowMcpToolWorkflowRecord
   toolName?: string
@@ -232,7 +243,7 @@ async function prepareWorkflowMcpTool(params: {
   const toolDescription =
     params.toolDescription !== undefined ? params.toolDescription?.trim() || null : null
 
-  const baseSchema = await generateParameterSchemaForWorkflow(workflowRecord.id)
+  const baseSchema = await generateWorkflowMcpBaseSchema(workflowRecord.id)
   const requestedOverrides =
     params.parameterDescriptionOverrides ??
     (params.legacyParameterSchema
@@ -924,7 +935,7 @@ export async function performUpdateWorkflowMcpTool(
         .limit(1)
       if (!toolRow) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
 
-      const baseSchema = await generateParameterSchemaForWorkflow(toolRow.workflowId)
+      const baseSchema = await generateWorkflowMcpBaseSchema(toolRow.workflowId)
       const overrides = pruneOverridesToSchema(
         params.parameterDescriptionOverrides ??
           (params.parameterSchema

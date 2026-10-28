@@ -2,14 +2,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SqsResponse } from '@/tools/sqs/types'
 
-export const SQSBlock: BlockConfig<SqsResponse> = {
+export const SQSBlock: BlockConfig = {
   type: 'sqs',
   name: 'Amazon SQS',
   description: 'Connect to Amazon SQS',
   longDescription:
-    'Integrate Amazon SQS into the workflow. Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.',
+    'Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.',
   docsLink: 'https://docs.sim.ai/integrations/sqs',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

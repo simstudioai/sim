@@ -1,68 +1,62 @@
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { foldersOrchestrationMock } from '@sim/testing/mocks/folders-orchestration.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { tableMock } from '@sim/testing/mocks/table.mock'
+import {
+  tableRowsSecretProvenanceMock,
+  tableRowsSecretProvenanceMockFns,
+} from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import type { TableDefinition } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
-  execute: vi.fn(),
-  permission: vi.fn(),
-  workspace: vi.fn(),
-  table: vi.fn(),
-  tables: vi.fn(),
-  named: vi.fn(),
-  folders: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   snapshot: vi.fn(),
-  safety: vi.fn(),
-  cloud: vi.fn(),
-  download: vi.fn(),
-  presign: vi.fn(),
 }))
 
-vi.mock('@/tools', () => ({ executeTool: mocks.execute }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === 'write' || (actual === 'read' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mocks.table,
-  listTables: mocks.tables,
-  findActiveTablesByExactName: mocks.named,
-  deleteTable: vi.fn(),
-  renameTable: vi.fn(),
-  moveTableToFolder: vi.fn(),
-}))
-vi.mock('@/lib/table', () => ({ getTableById: mocks.table }))
-vi.mock('@/lib/folders/queries', () => ({ listFoldersForWorkspace: mocks.folders }))
-vi.mock('@/lib/folders/orchestration', () => ({
-  createFolderAtPath: vi.fn(),
-  deleteFolderByPath: vi.fn(),
-  relocateFolderByPath: vi.fn(),
-}))
+vi.mock('@/tools', () => toolsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
 vi.mock('@/lib/table/snapshot-cache', () => ({
-  getOrCreateTableSnapshot: mocks.snapshot,
+  getOrCreateTableSnapshot: hoisted.snapshot,
   SNAPSHOT_MAX_BYTES: 500 * 1024 * 1024,
   TableSnapshotTooLargeError: class extends Error {},
 }))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  getTableSnapshotModelMountSafety: mocks.safety,
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  hasCloudStorage: mocks.cloud,
-  downloadFile: mocks.download,
-  generatePresignedDownloadUrl: mocks.presign,
-}))
-vi.mock('@/executor/utils/code-secret-references', () => ({
-  extractCodeSecretNames: vi.fn().mockResolvedValue([]),
-}))
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceTablesChanged: vi.fn() }))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
 import { readTableSnapshot } from '@/lib/table/application/read-table-snapshot'
 import { TableSnapshotTooLargeError } from '@/lib/table/snapshot-cache'
+
+const mocks = {
+  ...hoisted,
+  folders: folderQueriesMockFns.mockListFoldersForWorkspace,
+  safety: tableRowsSecretProvenanceMockFns.mockGetTableSnapshotModelMountSafety,
+  execute: toolsMockFns.mockExecuteTool,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  workspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  table: tableServiceMockFns.mockGetTableById,
+  tables: tableServiceMockFns.mockListTables,
+  named: tableServiceMockFns.mockFindActiveTablesByExactName,
+  cloud: storageServiceMockFns.mockHasCloudStorage,
+  download: storageServiceMockFns.mockDownloadFile,
+  presign: storageServiceMockFns.mockGeneratePresignedDownloadUrl,
+}
 
 const context: ToolExecutionContext = {
   userId: 'actor',
@@ -207,27 +201,20 @@ describe('Mothership table mounts through code calls', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  it('retains snapshot provenance refusal and cloud transport without buffering', async () => {
+  it('stops before code execution when a requested table snapshot is refused', async () => {
     mocks.safety.mockResolvedValueOnce('stale')
     await expect(run('table-orders')).rejects.toThrow('changed while preparing')
     expect(mocks.presign).not.toHaveBeenCalled()
     mocks.cloud.mockReturnValue(true)
     mocks.safety.mockResolvedValue('unsafe-provenance')
-    await run('table-orders')
-    const params = mocks.execute.mock.calls[0][1]
-    expect(params._sandboxFiles).toEqual([
-      {
-        type: 'url',
-        path: '/tmp/orders.csv',
-        url: 'https://storage.invalid/snapshot',
-        maxBytes: 500 * 1024 * 1024,
-      },
-    ])
-    expect(mocks.presign).toHaveBeenCalledWith('snapshot.csv', 'execution', 1800)
+    const result = await run('table-orders')
+    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(mocks.presign).not.toHaveBeenCalled()
     expect(mocks.download).not.toHaveBeenCalled()
-    expect(
-      mocks.execute.mock.calls[0][2].resolvedSecretTraceRegistry.exportProvenance().complete
-    ).toBe(false)
+    expect(result.output).toMatchObject({
+      codeExecuted: false,
+      excludedInputs: [{ path: 'table-orders', reason: expect.any(String) }],
+    })
   })
 
   it.each(['local', 'cloud'] as const)(

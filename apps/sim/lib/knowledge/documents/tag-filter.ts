@@ -1,6 +1,7 @@
 import { document } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, gt, gte, lt, lte, ne, type SQL, sql } from 'drizzle-orm'
-import { coerceTagFilterValue, escapeLikePattern } from '@/lib/knowledge/tags/utils'
+import { buildDateTagCondition, coerceTagFilterValue } from '@/lib/knowledge/tags/utils'
 
 /**
  * A single tag filter applied to a document list query.
@@ -111,29 +112,13 @@ export function buildTagFilterCondition(filter: TagFilterCondition): SQL | undef
   }
 
   if (filter.fieldType === 'date') {
-    const v = coerced.value as string
-    switch (filter.operator) {
-      case 'eq':
-        return sql`${col}::date = ${v}::date`
-      case 'neq':
-        return sql`${col}::date != ${v}::date`
-      case 'gt':
-        return sql`${col}::date > ${v}::date`
-      case 'gte':
-        return sql`${col}::date >= ${v}::date`
-      case 'lt':
-        return sql`${col}::date < ${v}::date`
-      case 'lte':
-        return sql`${col}::date <= ${v}::date`
-      case 'between': {
-        const coercedTo = coerceTagFilterValue(filter.valueTo, 'date')
-        if (!coercedTo.ok) return undefined
-        const valueTo = coercedTo.value as string
-        return and(sql`${col}::date >= ${v}::date`, sql`${col}::date <= ${valueTo}::date`)
-      }
-      default:
-        return undefined
-    }
+    const coercedTo = coerceTagFilterValue(filter.valueTo, 'date')
+    return buildDateTagCondition(
+      col as typeof document.date1,
+      filter.operator,
+      coerced.value as string,
+      coercedTo.ok ? (coercedTo.value as string) : undefined
+    )
   }
 
   if (filter.fieldType === 'boolean') {

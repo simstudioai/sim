@@ -355,7 +355,7 @@ describe('Slack tool progress', () => {
     expect(api.start).toHaveBeenCalledOnce()
   })
 
-  it('reports failed tools without exposing arguments, account labels, or backend errors', async () => {
+  it('completes recovered tool failures without exposing arguments, account labels, or backend errors', async () => {
     const { stream } = setup()
     await stream.start()
     const call = toolCall()
@@ -372,8 +372,21 @@ describe('Slack tool progress', () => {
         output: { accountLabel: 'private account' },
       },
     })
+    await stream.onEvent(toolCall('search_workspace', 'tool-2'))
+    await stream.onEvent(toolResult('search_workspace', 'tool-2'))
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Answer.' } })
+    await stream.finish(result)
     const chunks = deliveredChunks()
-    expect(chunks[1]).toEqual({ ...chunks[0], status: 'error' })
+    const tasks = chunks.filter((chunk) => chunk.type === 'task_update')
+    expect(tasks.map((chunk) => chunk.status)).toEqual([
+      'in_progress',
+      'complete',
+      'in_progress',
+      'complete',
+    ])
+    expect(deliveredText()).toBe('Answer.')
+    expect(api.stop.mock.calls[0][5]).toEqual([])
+    expect(api.stop.mock.calls[0][6]).toEqual([])
     expect(JSON.stringify(chunks)).not.toContain('private')
   })
 

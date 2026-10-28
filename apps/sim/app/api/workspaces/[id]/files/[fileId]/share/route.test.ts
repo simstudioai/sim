@@ -1,13 +1,12 @@
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
   getShare: vi.fn(),
   updateShare: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
 vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
   getWorkspaceFileShare: {
@@ -40,19 +39,20 @@ const SHARE = {
   hasPassword: false,
   allowedEmails: [] as string[],
 }
-const context = {
-  params: Promise.resolve({ id: WORKSPACE_ID, fileId: FILE_ID }),
-}
+const context = createRouteContext({ id: WORKSPACE_ID, fileId: FILE_ID })
 
 function getRequest() {
-  return new NextRequest(
-    `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/share`
-  )
+  return createMockRequest({
+    url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/share`,
+  })
 }
 
 describe('/api/workspaces/[id]/files/[fileId]/share', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
     mocks.getShare.mockResolvedValue({ share: SHARE })
     mocks.updateShare.mockResolvedValue({ share: SHARE })
   })

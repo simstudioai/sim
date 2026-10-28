@@ -4,7 +4,7 @@ export * from './components'
  * glyph). Like `Table` above, this explicit re-export resolves the barrel to
  * the COMPONENT; the icon stays available from `@sim/emcn/icons`.
  */
-export { Calendar, type CalendarProps } from './components/calendar/calendar'
+export { Calendar } from './components/calendar/calendar'
 export * from './components/charts'
 /**
  * `Code` exists in BOTH `./components` (the code editor) and `./icons` (a
@@ -19,8 +19,6 @@ export {
 } from './components/code/code'
 export {
   SCROLL_FADE_BAND_PX,
-  type ScrollEdges,
-  type ScrollEdgesX,
   scrollFadeAttributes,
   scrollFadeClass,
   scrollFadeXClass,
@@ -41,7 +39,6 @@ export {
   TableHead,
   TableHeader,
   TableRow,
-  tableVariants,
 } from './components/table/table'
 export {
   type ClipboardContent,
@@ -52,5 +49,5 @@ export { usePrefersReducedMotion } from './hooks/use-prefers-reduced-motion'
 export { useScrollEdges } from './hooks/use-scroll-edges'
 export * from './icons'
 export { cn } from './lib/cn'
-export { handleKeyboardActivation, isKeyboardActivation } from './lib/keyboard'
+export { handleKeyboardActivation } from './lib/keyboard'
 export { bindPreviewHorizontalWheel, bindPreviewWheelZoom } from './lib/preview-wheel-zoom'

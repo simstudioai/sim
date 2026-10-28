@@ -36,6 +36,7 @@ export function isValidOpaqueId(value: unknown): value is string {
 
 /** Optional connect scope forwarded from the desktop app's credential chips. */
 export interface ConnectScope {
+  sourceRequestId?: string
   workspaceId?: string
   credentialId?: string
   draftId?: string
@@ -54,6 +55,7 @@ export function buildDesktopConnectPath(
   scope: ConnectScope = {}
 ): string {
   const params = new URLSearchParams({ provider: providerId, state, port: String(port) })
+  if (scope.sourceRequestId) params.set('sourceRequestId', scope.sourceRequestId)
   if (scope.workspaceId) params.set('workspaceId', scope.workspaceId)
   if (scope.credentialId) params.set('credentialId', scope.credentialId)
   if (scope.draftId) params.set('draftId', scope.draftId)
@@ -76,8 +78,14 @@ export function buildConnectCompletePath(state: string, port: number, draftId?: 
  * §7.3 — the `127.0.0.1` IP literal, mirroring the login handoff). A present
  * `error` marks the flow failed; the app surfaces it as a toast.
  */
-export function buildConnectLoopbackUrl(state: string, port: number, error?: string): string {
+export function buildConnectLoopbackUrl(
+  state: string,
+  port: number,
+  error?: string,
+  credentialId?: string
+): string {
   const params = new URLSearchParams({ state })
+  if (credentialId) params.set('credentialId', credentialId)
   if (error) {
     params.set('error', error)
   }

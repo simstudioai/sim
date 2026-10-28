@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { ApiError } from '@google/genai'
+import { describe, expect, it, vi } from 'vitest'
 import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import {
   convertToGeminiFormat,
   convertUsageMetadata,
+  createReadableStreamFromGeminiStream,
+  geminiRetryDelayMs,
   mapToThinkingBudget,
 } from '@/providers/google/utils'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message, ProviderRequest } from '@/providers/types'
 
 describe('durable Gemini conversation history', () => {
@@ -493,5 +497,131 @@ describe('convertToGeminiFormat', () => {
       // Empty string is not valid JSON, so it falls back to { output: "" }
       expect(functionResponse?.response).toEqual({ output: '' })
     })
+  })
+})
+
+describe('createReadableStreamFromGeminiStream', () => {
+  async function collectEvents(
+    stream: ReadableStream<AgentStreamEvent>
+  ): Promise<AgentStreamEvent[]> {
+    const events: AgentStreamEvent[] = []
+    const reader = stream.getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      events.push(value)
+    }
+    return events
+  }
+
+  it('splits thought parts into thinking_delta and answer into text_delta', async () => {
+    const onComplete = vi.fn()
+    const stream = createReadableStreamFromGeminiStream(
+      (async function* () {
+        yield {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { text: 'Reasoning step. ', thought: true },
+                  { text: 'Final answer.', thought: false },
+                ],
+              },
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 7,
+            totalTokenCount: 12,
+          },
+        } as any
+      })(),
+      onComplete
+    )
+
+    const events = await collectEvents(stream)
+    expect(events).toEqual([
+      { type: 'thinking_delta', text: 'Reasoning step. ' },
+      { type: 'text_delta', text: 'Final answer.', turn: 'final' },
+    ])
+    expect(onComplete).toHaveBeenCalledWith(
+      'Final answer.',
+      expect.objectContaining({ promptTokenCount: 5 }),
+      'Reasoning step. '
+    )
+  })
+
+  it('does not invent thinking when only answer text is present', async () => {
+    const stream = createReadableStreamFromGeminiStream(
+      (async function* () {
+        yield {
+          text: 'Just text',
+          candidates: [{ content: { parts: [{ text: 'Just text' }] } }],
+        } as any
+      })()
+    )
+    const events = await collectEvents(stream)
+    expect(events.some((e) => e.type === 'thinking_delta')).toBe(false)
+    expect(
+      events
+        .filter((e) => e.type === 'text_delta')
+        .map((e) => e.text)
+        .join('')
+    ).toContain('Just text')
+  })
+
+  it('surfaces blocked prompts instead of completing an empty stream', async () => {
+    const stream = createReadableStreamFromGeminiStream(
+      (async function* () {
+        yield {
+          promptFeedback: {
+            blockReason: 'SAFETY',
+            blockReasonMessage: 'Prompt violated safety policy',
+          },
+        } as any
+      })()
+    )
+
+    await expect(collectEvents(stream)).rejects.toThrow(
+      'Gemini prompt blocked: SAFETY (Prompt violated safety policy)'
+    )
+  })
+})
+
+/** The SDK sets `ApiError.message` to the JSON error body, so this is the wire shape it sees. */
+describe('geminiRetryDelayMs', () => {
+  function rateLimited(retryDelay: string) {
+    return new ApiError({
+      status: 429,
+      message: JSON.stringify({
+        error: {
+          code: 429,
+          status: 'RESOURCE_EXHAUSTED',
+          details: [
+            { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [] },
+            { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay },
+          ],
+        },
+      }),
+    })
+  }
+
+  it.each([
+    ['31s', 31_000],
+    ['0.5s', 500],
+  ])('reads a RetryInfo delay of %s', (retryDelay, expected) => {
+    expect(geminiRetryDelayMs(rateLimited(retryDelay))).toBe(expected)
+  })
+
+  it('has no delay when the error carries no RetryInfo', () => {
+    const error = new ApiError({
+      status: 503,
+      message: JSON.stringify({ error: { code: 503, status: 'UNAVAILABLE' } }),
+    })
+    expect(geminiRetryDelayMs(error)).toBeNull()
+  })
+
+  it('has no delay for a transport failure', () => {
+    expect(geminiRetryDelayMs(new TypeError('fetch failed'))).toBeNull()
   })
 })

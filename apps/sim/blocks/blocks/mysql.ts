@@ -3,14 +3,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { MySQLIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { MySQLResponse } from '@/tools/mysql/types'
 
-export const MySQLBlock: BlockConfig<MySQLResponse> = {
+export const MySQLBlock: BlockConfig = {
   type: 'mysql',
   name: 'MySQL',
   description: 'Connect to MySQL database',
-  longDescription:
-    'Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
+  longDescription: 'Query, insert, update, delete, and execute raw SQL.',
   docsLink: 'https://docs.sim.ai/integrations/mysql',
   category: 'tools',
   integrationType: IntegrationType.Databases,

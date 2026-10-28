@@ -5,11 +5,16 @@ import { z } from 'zod'
 import { prepareBenchmarkExecution } from '@/lib/benchmarks/application/prepare-execution'
 import { prepareBenchmarkPlan } from '@/lib/benchmarks/application/prepare-plan'
 import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
+import {
+  type BenchmarkModelConfig,
+  DEFAULT_BENCHMARK_EVALUATOR,
+  DEFAULT_BENCHMARK_PLANNER,
+} from '@/lib/benchmarks/models'
 import type { BenchmarkCase } from '@/lib/benchmarks/types'
 import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import type {
@@ -64,6 +69,7 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
   messages: ExecuteMessage[]
   schema: S
   signal: AbortSignal
+  model?: BenchmarkModelConfig
   profile?: BenchmarkExecution
 }): Promise<{ data: z.output<S>; toolCalls: ToolCallSummary[] }> {
   getBenchmarkMothershipUrl()
@@ -91,6 +97,7 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
     messages: input.messages,
     useConversationHistory: false,
     responseFormat: z.toJSONSchema(input.schema),
+    ...(input.model ?? DEFAULT_BENCHMARK_EVALUATOR),
   }
   const billingAttribution = resolvesReferences
     ? await resolveOrganizationBillingAttribution({
@@ -150,8 +157,10 @@ export async function executeBenchmarkPlan(input: {
   principal: Principal
   benchmark: BenchmarkCase
   signal: AbortSignal
+  model?: BenchmarkModelConfig
 }): Promise<{ generatedSpec: string; plannerChatId: string }> {
   getBenchmarkMothershipUrl()
+  input.signal.throwIfAborted()
   const target = await prepareBenchmarkPlan.execute({
     principal: input.principal,
     input: { organizationId: input.benchmark.organizationId, benchmarkId: input.benchmark.id },
@@ -168,6 +177,7 @@ export async function executeBenchmarkPlan(input: {
     mode: 'plan',
     context: [],
     message: input.benchmark.artifacts.taskBrief,
+    ...(input.model ?? DEFAULT_BENCHMARK_PLANNER),
   }
   const billingAttribution = await resolveOrganizationBillingAttribution({
     actorUserId: executionUserId,

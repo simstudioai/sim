@@ -1,18 +1,17 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockGetFileMetadataById, mockRenderSimPageDocument } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockGetFileMetadataById: vi.fn(),
+const { mockRenderSimPageDocument } = vi.hoisted(() => ({
   mockRenderSimPageDocument: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataById: mockGetFileMetadataById,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/workspace-files/page-document', () => ({
   renderSimPageDocument: mockRenderSimPageDocument,
@@ -22,6 +21,10 @@ import {
   renderSimPageDocumentWithAssets,
   renderSimPageDocumentWithContributors,
 } from '@/lib/workspace-files/page-document.server'
+
+const mockGetFileMetadataById = uploadsMetadataMockFns.mockGetFileMetadataById
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 
 const WORKSPACE_ID = 'ws-1'
 const MB = 1024 * 1024

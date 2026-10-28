@@ -1,5 +1,10 @@
 import { sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import {
+  acquireAdvisoryXactLock,
+  acquireAdvisoryXactLocks,
+  withLockTimeout,
+} from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 
 const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
 
@@ -45,7 +50,7 @@ const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
  * acquires it, and `lib/` must not import from `app/api/**`.
  */
 export async function acquirePermissionGroupOrgLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string,
   options?: { lockTimeoutAlreadyBounded?: boolean }
 ): Promise<void> {
@@ -54,7 +59,30 @@ export async function acquirePermissionGroupOrgLock(
       sql`select set_config('lock_timeout', ${`${PERMISSION_GROUP_LOCK_TIMEOUT_MS}ms`}, true)`
     )
   }
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`permission_group:${organizationId}`}, 0))`
+  await acquireAdvisoryXactLock(tx, 'permission_group', permissionGroupLockKey(organizationId))
+}
+
+/**
+ * Takes the same organization lock SHARED, for a reader whose capability decision must stay
+ * current through commit but who writes no permission-group state: it waits out and excludes
+ * every exclusive holder of {@link acquirePermissionGroupOrgLock}, never another shared reader.
+ * The wait is bounded at the same 5000ms, and the caller's own `lock_timeout` is restored
+ * afterwards so the bound never reaches the work done under the lock. Exclusive holders take
+ * nothing after it (the LEAF rule above), so the shared holder's later locks cannot close a cycle
+ * through it; it must never later take this lock exclusively, or two such holders would wait on
+ * each other.
+ */
+export async function acquirePermissionGroupOrgReadLock(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<void> {
+  await withLockTimeout(tx, PERMISSION_GROUP_LOCK_TIMEOUT_MS, () =>
+    acquireAdvisoryXactLocks(tx, 'permission_group', [
+      { key: permissionGroupLockKey(organizationId), shared: true },
+    ])
   )
+}
+
+function permissionGroupLockKey(organizationId: string): string {
+  return `permission_group:${organizationId}`
 }

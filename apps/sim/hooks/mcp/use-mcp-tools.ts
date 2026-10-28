@@ -11,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { McpIcon } from '@/components/icons'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
+import { getManagedMcpConnectorBgColor } from '@/lib/credential-groups/managed-mcp-connectors'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { useMcpToolsQuery } from '@/hooks/queries/mcp'
@@ -54,7 +55,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       serverName: tool.serverName,
       type: 'mcp' as const,
       inputSchema: tool.inputSchema,
-      bgColor: '#6366F1',
+      bgColor: getManagedMcpConnectorBgColor(tool.managedConnectorId) ?? '#6366F1',
       icon: tool.managedConnectorId ? getManagedMcpConnectorIcon(tool.managedConnectorId) : McpIcon,
     }))
   }, [mcpToolsData])

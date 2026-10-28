@@ -1,9 +1,4 @@
 import { escapeRegExp } from '@sim/utils/string'
-import {
-  FOLDER_CONFIGS,
-  type MentionFolderId,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
-import type { MentionDataReturn } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -115,31 +110,6 @@ export function computeMentionHighlightRanges(
 }
 
 /**
- * Gets the data array for a folder ID from mentionData.
- * Uses FOLDER_CONFIGS as the source of truth for key mapping.
- * Returns any[] since item types vary by folder and are used with dynamic config.filterFn
- */
-export function getFolderData(mentionData: MentionDataReturn, folderId: MentionFolderId): any[] {
-  const config = FOLDER_CONFIGS[folderId]
-  return (mentionData[config.dataKey as keyof MentionDataReturn] as any[]) || []
-}
-
-/**
- * Gets the ensure loaded function for a folder ID from mentionData.
- * Uses FOLDER_CONFIGS as the source of truth for key mapping.
- */
-export function getFolderEnsureLoaded(
-  mentionData: MentionDataReturn,
-  folderId: MentionFolderId
-): (() => Promise<void>) | undefined {
-  const config = FOLDER_CONFIGS[folderId]
-  if (!config.ensureLoadedKey) return undefined
-  return mentionData[config.ensureLoadedKey as keyof MentionDataReturn] as
-    | (() => Promise<void>)
-    | undefined
-}
-
-/**
  * Extract specific ChatContext types for type-safe narrowing
  */
 type PastChatContext = Extract<ChatContext, { kind: 'past_chat' }>
@@ -221,6 +191,8 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
       return context.kind === 'folder' && c.folderId === context.folderId
     case 'filefolder':
       return context.kind === 'filefolder' && c.fileFolderId === context.fileFolderId
+    case 'workspace':
+      return true // The owner comparison above is the whole identity.
     // Selection kinds scope to part of a resource, so equality is the selected
     // range — not the file/table — or re-selecting a different passage of an
     // already-referenced file would be swallowed as a duplicate.

@@ -6,13 +6,13 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
-import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
+import { isComputerUseAvailableFor } from '@/lib/computer-use/application/availability'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
+import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import {
   type IntegrationGateConfig,
-  integrationGateSignature,
   projectIntegrationToolsForViewer,
 } from '@/lib/integrations/tool-projection'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
@@ -23,16 +23,18 @@ import {
   isAssistantIntegrationParameter,
   isAssistantIntegrationTool,
 } from '@/lib/mothership/assistant/tool-policy'
-import {
-  getBlockVisibilityForCopilot,
-  visibilitySignature,
-} from '@/lib/mothership/block-visibility'
+import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
 import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-images'
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
+import {
+  type ChatRequest,
+  type ModelSelection,
+  TOOL_DEADLINE_CAPABILITY,
+} from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
@@ -41,14 +43,15 @@ import { listOrganizationSecretNames } from '@/lib/organization-secrets/applicat
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { trackChatUpload } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('CopilotChatPayload')
-const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
-const INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES = 500
-const INTEGRATION_TOOL_SCHEMA_CACHE_MAX_BYTES = 32 * 1024 * 1024
+const EMAIL_TAGLINE_CACHE_TTL_MS = 5_000
+const EMAIL_TAGLINE_CACHE_MAX_ENTRIES = 20_000
+/** One per schema surface and personal-accounts mode; the cap only backstops a new surface. */
+const INTEGRATION_TOOL_SCHEMA_VARIANT_MAX_ENTRIES = 8
 
 interface BuildPayloadParams {
   message: string
@@ -65,8 +68,8 @@ interface BuildPayloadParams {
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
   /**
-   * MCP servers enabled for this chat — every server tagged on this or any
-   * earlier turn. Servers never tagged in the chat stay unavailable.
+   * MCP servers tagged on this or any earlier turn of the chat. Every usable
+   * workspace server is discoverable without a tag; tagged ones rank first.
    */
   mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
@@ -128,43 +131,56 @@ interface BuildIntegrationToolSchemasOptions {
   organizationId?: string
 }
 
-interface IntegrationToolSchemaBuildContext {
-  userId: string
-  options: Required<Omit<BuildIntegrationToolSchemasOptions, 'organizationId'>>
-  vis: BlockVisibilityState | null
-  permissionConfig: IntegrationGateConfig | null
+type IntegrationToolSchemaVariantOptions = Required<
+  Omit<BuildIntegrationToolSchemasOptions, 'organizationId'>
+>
+
+/**
+ * Every exposed integration tool's schema for one surface and mode, by tool id.
+ *
+ * Depends only on the tool registry and deployment config (`isHosted`, OAuth availability),
+ * fixed for the process's life, never on the viewer, so it is built once per process and
+ * shared: the entries are frozen and must not be mutated.
+ * Viewer gating (block visibility, permission groups, the deployment allowlist) picks
+ * which entries a request returns. Tools whose description gains the free-plan email
+ * tagline also get a tagged copy in `withEmailTagline`, sharing the same input schema.
+ */
+interface IntegrationToolSchemaVariant {
+  schemas: ReadonlyMap<string, ToolSchema>
+  withEmailTagline: ReadonlyMap<string, ToolSchema>
 }
 
-const integrationToolSchemaCache = new LRUCache<
+const integrationToolSchemaVariants = new LRUCache<
   string,
-  ToolSchema[],
-  IntegrationToolSchemaBuildContext
+  IntegrationToolSchemaVariant,
+  IntegrationToolSchemaVariantOptions
 >({
-  max: INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES,
-  maxSize: INTEGRATION_TOOL_SCHEMA_CACHE_MAX_BYTES,
-  sizeCalculation: (schemas) => Buffer.byteLength(JSON.stringify(schemas)),
-  ttl: INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS,
+  max: INTEGRATION_TOOL_SCHEMA_VARIANT_MAX_ENTRIES,
   ignoreFetchAbort: true,
-  fetchMethod: async (_key, _staleValue, { context }) =>
-    buildIntegrationToolSchemasUncached(context),
+  fetchMethod: async (_key, _staleValue, { context }) => buildIntegrationToolSchemaVariant(context),
 })
 
-function getIntegrationToolSchemaCacheKey(
-  userId: string,
-  workspaceId: string | undefined,
-  schemaSurface: string,
-  visSignature: string,
-  gateSignature: string
-): string {
-  // The visibility signature keys the entry to the viewer's gated projection —
-  // two users in one workspace with different preview reveals must not share.
-  // The gate signature does the same for permission-group policy, so an admin's
-  // change takes effect on the next build rather than when the entry expires.
-  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature, gateSignature])
-}
+/** Whether the viewer's plan adds the email tagline; as fresh as the subscription read it caches. */
+const emailTaglineCache = new LRUCache<string, boolean>({
+  max: EMAIL_TAGLINE_CACHE_MAX_ENTRIES,
+  ttl: EMAIL_TAGLINE_CACHE_TTL_MS,
+  ignoreFetchAbort: true,
+  fetchMethod: async (userId) => {
+    const subscription = await getHighestPrioritySubscription(userId)
+    return !subscription || !isPaid(subscription.plan)
+  },
+})
 
 export function clearIntegrationToolSchemaCacheForTests(): void {
-  integrationToolSchemaCache.clear()
+  integrationToolSchemaVariants.clear()
+  emailTaglineCache.clear()
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value
+  for (const child of Object.values(value)) deepFreeze(child)
+  Object.freeze(value)
+  return value
 }
 
 /**
@@ -175,6 +191,9 @@ export function clearIntegrationToolSchemaCacheForTests(): void {
  * When `workspaceId` is provided the user's workspace permission config is
  * loaded once and used to skip any tool whose owning block is not in the
  * workspace's `allowedIntegrations` allowlist.
+ *
+ * The returned array is the caller's own, but its schemas are shared across
+ * requests and frozen: copy one before changing it.
  */
 export async function buildIntegrationToolSchemas(
   userId: string,
@@ -184,9 +203,6 @@ export async function buildIntegrationToolSchemas(
   const schemaSurface = options.schemaSurface ?? 'copilot'
   const personalAccountsOnly = options.personalAccountsOnly ?? false
   const vis = await getBlockVisibilityForCopilot(userId, workspaceId, options.organizationId)
-  // Resolved before the key, not inside the cached build, so the entry is keyed
-  // to the policy it was produced under. The read this adds is cheap next to
-  // what the entry caches: a user-tool schema per exposed integration tool.
   let permissionConfig: IntegrationGateConfig | null = null
   if (workspaceId) {
     const { resolvePermissionGroupConfig } = await import(
@@ -199,17 +215,25 @@ export async function buildIntegrationToolSchemas(
       return []
     permissionConfig = organizationConfig
   }
-  const cacheKey = getIntegrationToolSchemaCacheKey(
-    userId,
-    workspaceId,
-    personalAccountsOnly ? `${schemaSurface}:personal` : schemaSurface,
-    visibilitySignature(vis),
-    integrationGateSignature(permissionConfig)
-  )
-  const schemas = await integrationToolSchemaCache.fetch(cacheKey, {
-    context: { userId, options: { schemaSurface, personalAccountsOnly }, vis, permissionConfig },
-  })
-  if (!schemas) throw new Error('Integration tool catalog is unavailable')
+  const [variant, appendEmailTagline] = await Promise.all([
+    integrationToolSchemaVariants.fetch(JSON.stringify([schemaSurface, personalAccountsOnly]), {
+      context: { schemaSurface, personalAccountsOnly },
+    }),
+    emailTaglineCache.fetch(userId),
+  ])
+  if (!variant || appendEmailTagline === undefined)
+    throw new Error('Integration tool catalog is unavailable')
+
+  const schemas: ToolSchema[] = []
+  for (const { toolId, service } of projectIntegrationToolsForViewer(vis, permissionConfig).tools) {
+    const schema =
+      (appendEmailTagline ? variant.withEmailTagline.get(toolId) : undefined) ??
+      variant.schemas.get(toolId)
+    if (!schema) continue
+    // The viewer's visible owning block can be a different service than the canonical one.
+    schemas.push(schema.service === service ? schema : Object.freeze({ ...schema, service }))
+  }
+
   if (options.organizationId && personalAccountsOnly) {
     const approvals = await listOrganizationSearchApprovals(options.organizationId)
     const providers = new Set(
@@ -217,42 +241,34 @@ export async function buildIntegrationToolSchemas(
         (connector) => connector.providerId
       )
     )
-    return structuredClone(
-      schemas.filter((schema) => {
-        const original = getToolMetadata(schema.name)
-        const metadata = original
-          ? projectAssistantConnectedAccountTool(original, isLiveEnterpriseSearchEnabled)
-          : undefined
-        return (
-          !metadata?.personalToken &&
-          metadata?.oauth?.required &&
-          providerIdsForService(metadata.oauth.provider).some((providerId) =>
-            providers.has(providerId)
-          )
+    return schemas.filter((schema) => {
+      const original = getToolMetadata(schema.name)
+      const metadata = original ? projectAssistantConnectedAccountTool(original) : undefined
+      return (
+        !metadata?.personalToken &&
+        metadata?.oauth?.required &&
+        providerIdsForService(metadata.oauth.provider).some((providerId) =>
+          providers.has(providerId)
         )
-      })
-    )
+      )
+    })
   }
-  return structuredClone(schemas)
+  return schemas
 }
 
-async function buildIntegrationToolSchemasUncached({
-  userId,
-  options,
-  vis,
-  permissionConfig,
-}: IntegrationToolSchemaBuildContext): Promise<ToolSchema[]> {
-  const integrationTools: ToolSchema[] = []
+async function buildIntegrationToolSchemaVariant(
+  options: IntegrationToolSchemaVariantOptions
+): Promise<IntegrationToolSchemaVariant> {
+  const schemas = new Map<string, ToolSchema>()
+  const withEmailTagline = new Map<string, ToolSchema>()
   const { createUserToolSchema } = await import('@/tools/params')
-  const subscription = await getHighestPrioritySubscription(userId)
-  const shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
 
-  const { tools: exposedTools } = projectIntegrationToolsForViewer(vis, permissionConfig)
-  for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
+  for (const { toolId, config: toolConfig, service, operation } of getExposedIntegrationTools()) {
+    await yieldWhenSliceExpires()
     const metadata = getToolMetadata(toolId)
     if (options.personalAccountsOnly && !isAssistantIntegrationTool(metadata)) continue
     const projectedTool = options.personalAccountsOnly
-      ? projectAssistantConnectedAccountTool(toolConfig, isLiveEnterpriseSearchEnabled)
+      ? projectAssistantConnectedAccountTool(toolConfig)
       : toolConfig
     const userSchema = createUserToolSchema(projectedTool, {
       surface: options.schemaSurface,
@@ -279,54 +295,68 @@ async function buildIntegrationToolSchemasUncached({
       }
     }
     const catalogEntry = getToolEntry(toolId)
-    integrationTools.push({
-      name: toolId,
-      service,
-      operation,
-      description: getCopilotToolDescription(toolConfig, {
+    const describe = (appendEmailTagline: boolean) =>
+      getCopilotToolDescription(toolConfig, {
         isHosted,
         hostedApiKey: deriveHostedApiKeySupport(toolConfig.hosting),
         fallbackName: toolId,
-        appendEmailTagline: shouldAppendEmailTagline,
-      }),
-      input_schema: { ...userSchema },
-      ...(toolConfig.outputs && {
-        outputs: Object.fromEntries(
-          Object.entries(toolConfig.outputs)
-            .filter(([, output]) => output != null)
-            .map(([key, output]) => [key, { type: output.type, description: output.description }])
-        ),
-      }),
-      defer_loading: true,
-      executeLocally: catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-      ...(projectedTool.oauth?.required &&
-        isOAuthServiceDeploymentAvailable(projectedTool.oauth.provider) && {
-          oauth: {
-            required: true,
-            provider: projectedTool.oauth.provider,
-          },
+        appendEmailTagline,
+      })
+    const description = describe(false)
+    // Cloned so freezing the shared schema never freezes registry objects it was built from.
+    const schema = deepFreeze(
+      structuredClone<ToolSchema>({
+        name: toolId,
+        service,
+        operation,
+        description,
+        input_schema: { ...userSchema },
+        ...(toolConfig.outputs && {
+          outputs: Object.fromEntries(
+            Object.entries(toolConfig.outputs)
+              .filter(([, output]) => output != null)
+              .map(([key, output]) => [key, { type: output.type, description: output.description }])
+          ),
         }),
-    })
+        defer_loading: true,
+        executeLocally: catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
+        ...(projectedTool.oauth?.required &&
+          isOAuthServiceDeploymentAvailable(projectedTool.oauth.provider) && {
+            oauth: {
+              required: true,
+              provider: projectedTool.oauth.provider,
+            },
+          }),
+      })
+    )
+    schemas.set(toolId, schema)
+    const taggedDescription = describe(true)
+    if (taggedDescription !== description)
+      withEmailTagline.set(toolId, Object.freeze({ ...schema, description: taggedDescription }))
   }
 
-  return integrationTools
+  return { schemas, withEmailTagline }
 }
 
 /**
  * Build the request payload for the copilot backend.
  */
-export async function buildCopilotRequestPayload(
-  params: BuildPayloadParams,
-  options: {
-    selectedModel: string
-  }
-): Promise<ChatRequest> {
+export async function buildCopilotRequestPayload(params: BuildPayloadParams): Promise<ChatRequest> {
   const { message, workflowId, userId, userMessageId, mode, contexts, fileAttachments, chatId } =
     params
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const isAssistant = effectiveMode === 'assistant'
+  const computerUseOwner = params.organizationId
+    ? { organizationId: params.organizationId }
+    : params.workspaceId
+      ? { workspaceId: params.workspaceId }
+      : null
   const computerUse =
-    !isAssistant && params.computerUse === true && (await isComputerUseAvailable())
+    !isAssistant &&
+    params.computerUse === true &&
+    params.principal !== undefined &&
+    computerUseOwner !== null &&
+    (await isComputerUseAvailableFor(params.principal, computerUseOwner))
   const integrationGateway = !isAssistant || (await isSearchIntegrationToolsEnabled())
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.
@@ -448,7 +478,15 @@ export async function buildCopilotRequestPayload(
     !isAssistant && params.principal && params.workspaceId
       ? await buildWorkspaceInventory(params.principal, params.workspaceId)
       : undefined
+  const entitlements = isAssistant
+    ? []
+    : await computeEntitlements({
+        principal: params.principal,
+        workspaceId: params.workspaceId,
+        organizationId: params.organizationId,
+      })
   return {
+    entitlements,
     message,
     ...(!isAssistant && workflowId ? { workflowId } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
@@ -495,8 +533,12 @@ export async function buildCopilotRequestPayload(
         }
       : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
-    // UI declares that capability explicitly; headless callers omit or send [] and the
-    // server runs those tools immediately instead of waiting out the pickup grace.
-    clientCapabilities: isAssistant ? [] : ['workflow-tool-pickup'],
+    // UI declares that capability explicitly; headless callers omit it and the server runs
+    // those tools immediately. The deadline token is this server's own: it bounds every
+    // handed call by the deadline its frame names.
+    clientCapabilities: [
+      ...(isAssistant ? [] : ['workflow-tool-pickup']),
+      TOOL_DEADLINE_CAPABILITY,
+    ],
   }
 }

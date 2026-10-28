@@ -5,6 +5,7 @@
  * Internal module: not exposed via the `@/lib/table` barrel.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 /**
  * Projects the schemaless `blockErrors` jsonb column onto the
  * `Record<string, string>` shape the domain type and the published contract
@@ -17,7 +18,7 @@
  * rather than publish an empty map.
  */
 export function normalizeBlockErrors(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  if (!isRecordLike(value)) return undefined
 
   const blockErrors: Record<string, string> = {}
   for (const [blockId, error] of Object.entries(value)) {

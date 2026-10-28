@@ -40,7 +40,7 @@ export const kalshiGetMarketTool: ToolConfig<KalshiGetMarketParams, KalshiGetMar
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_market')
+      handleKalshiError(data, 'get_market')
     }
 
     return {
@@ -124,8 +124,7 @@ export interface KalshiGetMarketV2Response {
 export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetMarketV2Response> = {
   id: 'kalshi_get_market_v2',
   name: 'Get Market from Kalshi V2',
-  description:
-    'Retrieve details of a specific prediction market by ticker (V2 - full API response)',
+  description: 'Retrieve details of a specific prediction market by ticker',
   version: '2.0.0',
 
   params: {
@@ -149,7 +148,7 @@ export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetM
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_market_v2')
+      handleKalshiError(data, 'get_market_v2')
     }
 
     const m = data.market || {}

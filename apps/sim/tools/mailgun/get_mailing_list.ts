@@ -1,4 +1,5 @@
 import type { GetMailingListParams, GetMailingListResult } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMailingListResult> = {
@@ -14,6 +15,12 @@ export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMail
       visibility: 'user-only',
       description: 'Mailgun API key',
     },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Mailgun account region: "us" (default) or "eu"',
+    },
     address: {
       type: 'string',
       required: true,
@@ -23,14 +30,14 @@ export const mailgunGetMailingListTool: ToolConfig<GetMailingListParams, GetMail
   },
 
   request: {
-    url: (params) => `https://api.mailgun.net/v3/lists/${params.address}`,
+    url: (params) => `${getMailgunApiBaseUrl(params.region)}/lists/${params.address}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,
     }),
   },
 
-  transformResponse: async (response, params): Promise<GetMailingListResult> => {
+  transformResponse: async (response): Promise<GetMailingListResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to get mailing list')

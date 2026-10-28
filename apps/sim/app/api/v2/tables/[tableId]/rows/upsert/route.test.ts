@@ -5,27 +5,20 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {}
-  return {
-    mocks: {
-      upsertRow: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
-
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  upsertTableRow: { operation: { id: 'tables.rows.upsert' }, execute: mocks.upsertRow },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { POST } from '@/app/api/v2/tables/[tableId]/rows/upsert/route'
+
+const { mockUpsertTableRow } = tableApplicationRowsMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -56,7 +49,7 @@ describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.upsertRow.mockResolvedValue({ table: TABLE, row: ROW, operation: 'update' })
+    mockUpsertTableRow.mockResolvedValue({ table: TABLE, row: ROW, operation: 'update' })
   })
 
   it('delegates the public conflict-target name unchanged for canonical ID resolution', async () => {
@@ -85,7 +78,7 @@ describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
         operation: 'update',
       },
     })
-    expect(mocks.upsertRow).toHaveBeenCalledWith({
+    expect(mockUpsertTableRow).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',

@@ -1,9 +1,8 @@
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReadResponseTextWithLimit, mockSecureFetch, MOCK_MAX_JSON_BYTES } = vi.hoisted(() => ({
+const { mockReadResponseTextWithLimit } = vi.hoisted(() => ({
   mockReadResponseTextWithLimit: vi.fn(),
-  mockSecureFetch: vi.fn(),
-  MOCK_MAX_JSON_BYTES: 10 * 1024 * 1024,
 }))
 
 vi.mock('@/lib/core/utils/stream-limits', () => {
@@ -21,10 +20,7 @@ vi.mock('@/lib/core/utils/stream-limits', () => {
   }
 })
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetch,
-  MAX_JSON_API_RESPONSE_BYTES: MOCK_MAX_JSON_BYTES,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { readConcurApiBody, readConcurUploadBody } from '@/lib/internal/sap-concur/client'
 

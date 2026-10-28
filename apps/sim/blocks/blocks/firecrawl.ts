@@ -2,18 +2,17 @@ import { FirecrawlIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, SubBlockType } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { FirecrawlResponse } from '@/tools/firecrawl/types'
 
 /** The document being parsed, whether it was uploaded or passed in by reference. */
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference'] as const
 
-export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
+export const FirecrawlBlock: BlockConfig = {
   type: 'firecrawl',
   name: 'Firecrawl',
   description: 'Scrape, search, crawl, map, and extract web data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.',
+    'Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.',
   docsLink: 'https://docs.sim.ai/integrations/firecrawl',
   category: 'tools',
   integrationType: IntegrationType.Search,

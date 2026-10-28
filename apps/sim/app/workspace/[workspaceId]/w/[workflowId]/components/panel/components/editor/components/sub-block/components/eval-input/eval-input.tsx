@@ -225,7 +225,6 @@ export function EvalInput({
                   )
                   const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
                     metric.id,
-                    metric.description || '',
                     (newValue) => updateMetricField(metric.id, newValue)
                   )
 

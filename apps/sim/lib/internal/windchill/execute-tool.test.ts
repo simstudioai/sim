@@ -1,14 +1,15 @@
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createExecutorPrincipalFromExecutionContext: vi.fn(),
   executeWindchillOperation: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createExecutorPrincipalFromExecutionContext,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/windchill/operations', () => ({
   executeWindchillOperation: mocks.executeWindchillOperation,
@@ -17,6 +18,8 @@ vi.mock('@/lib/internal/windchill/operations', () => ({
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { WindchillProviderError } from '@/lib/internal/windchill/client'
 import { executeWindchillTool } from '@/lib/internal/windchill/execute-tool'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const BASE = {
   baseUrl: 'https://windchill.example.com/Windchill/servlet/odata/v6',
@@ -61,7 +64,7 @@ function createRequest(
 
 describe('executeWindchillTool', () => {
   beforeEach(() => {
-    mocks.createExecutorPrincipalFromExecutionContext.mockResolvedValue(PRINCIPAL)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(PRINCIPAL)
   })
 
   it('rejects a prepared body for a different operation before provider work', async () => {

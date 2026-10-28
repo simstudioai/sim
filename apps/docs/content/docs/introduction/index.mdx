@@ -1,102 +1,62 @@
 ---
 title: Introduction
-description: Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
+description: Build, deploy, and manage AI agents in a shared workspace.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Image } from '@/components/ui/image'
-import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
+import { IntroductionHero, IntroductionLink } from '@/components/introduction'
 
-Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Build visually in the workflow builder, conversationally in **Chat**, or with code through the API. Connect the integration catalog and every major LLM to create agents that automate real work.
+Build, deploy, and manage AI agents in a shared workspace.
 
-<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
-  <Image
-    src="/static/introduction.png"
-    loading="eager"
-    fetchPriority="high"
-    alt="Sim workflow editor with an empty canvas, Editor panel, and workspace navigation"
-    width={2304}
-    height={1600}
-    className="w-full"
-  />
+<IntroductionHero alt="Sim Chat summarizing shipped and planned work beside the release tracker table." />
+
+## Start building [#choose-how-to-build]
+
+<div className="not-prose mb-7">
+  <IntroductionLink href="/chat" title="Start with Chat" icon="chat">
+    Describe a task and build with Sim.
+  </IntroductionLink>
+  <IntroductionLink href="/workflows" title="Use the workflow builder" icon="workflow">
+    Connect blocks, test each step, and deploy.
+  </IntroductionLink>
+  <IntroductionLink href="/api-reference/getting-started" title="Build with the API" icon="api">
+    Create resources and run workflows from your application.
+  </IntroductionLink>
 </div>
 
-## How you build
+You can start in Chat and refine the same workflow in the builder. On self-hosted deployments, Chat depends on the deployment's configuration and can be disabled.
 
-When you open Sim, the first thing you meet is **Chat**, a conversation over your whole workspace. You describe the system you want, and Sim scaffolds it: workflows, tables, knowledge bases, and the wiring between them. You then open what it built, run it, and refine it.
+Follow [Getting started](/getting-started) to build and run your first workflow.
 
-- **Chat.** Describe a system in natural language and Sim creates and edits the resources for you. The fastest way to start.
-- **Workflow builder.** Design agent logic visually by connecting blocks in the builder. The clearest way to see and fine-tune what runs.
-- **API and SDK.** Build and trigger agents programmatically.
+## Your workspace [#workspace-resources]
 
-You can mix these on one system, scaffolding in Chat and then fine-tuning in the builder.
+A workspace holds the resources your team and agents use:
 
-<Callout type="info">
-Sim generates the architecture, and you verify the execution. Even when you build conversationally, it helps to understand the resources Sim creates, so you can inspect, run, and improve them.
-</Callout>
+| Resource | Purpose |
+| --- | --- |
+| **[Workflows](/workflows)** | Executable logic made of connected blocks. Use Agent blocks for model reasoning and tools for actions such as sending email or querying an API. |
+| **[Tables](/tables)** | Structured rows that workflows can read, update, and process. |
+| **[Files](/files)** | Documents and media you upload, create, and share with agents. |
+| **[Knowledge bases](/knowledgebase)** | Searchable documents. Retrieve relevant passages for an agent to use in its answers. |
+| **[Logs](/logs-debugging)** | Run records and block inputs, outputs, errors, timing, and costs. |
 
-## The anatomy of a workspace
+[Deploy a workflow](/workflows/deployment) to make it available through an API, a chat interface, or an MCP server. MCP (Model Context Protocol) lets AI applications discover and call tools exposed by a server.
 
-A Sim system is not a single chat response. It is a set of resources that live in a **workspace** and connect to each other. The sidebar mirrors that anatomy, and these are its parts.
+## Models and integrations
 
-- **[Chat](/chat)** is your AI command center. Talk to Sim — build and manage everything in natural language.
-- **[Workflows](/workflows)** are visual programs made of blocks, where your logic runs. Most other resources become useful through a workflow.
-- **[Agents and tools](/agents)** are how a workflow acts. An agent reasons with a model, and tools let it take actions like sending an email or querying an API.
-- **[Tables](/tables)** hold structured rows your workflows read, write, and process.
-- **[Knowledge bases](/knowledgebase)** are searchable memory. An agent retrieves relevant passages from your documents to ground its answers.
-- **[Files](/files)** are the documents and media your workflows store, read, and produce.
-- **[Deployments](/workflows/deployment)** expose a workflow to the outside world as an API, a chat, or an MCP server.
-- **[Logs](/logs-debugging)** record every run, block by block, so you can verify what happened.
+Find supported services in the [integration catalog](/integrations). Add them as workflow blocks or tools an Agent can call.
 
-<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
-  <Video src="introduction/build-workflow.mp4" width={700} height={450} />
-</div>
+For tools outside the catalog, connect an [external MCP server](/agents/mcp) or create a [custom tool](/agents/custom-tools). Configure the credentials and permissions each service requires.
 
-## What you can build
+## Choose a deployment
 
-- **AI assistants and chatbots.** Conversational agents that search the web, manage calendars, send email, and act on your business systems.
-- **Business process automation.** Data entry, report generation, customer responses, and content workflows.
-- **Data processing and analysis.** Extract from documents, analyze datasets, and sync data across platforms.
-- **API integration workflows.** Unified endpoints that orchestrate multi-service logic and event-driven automation.
+- **Sim Cloud:** Sign in at [sim.ai](https://www.sim.ai) to use the managed service.
+- **Self-hosted:** Run Sim on your infrastructure with [Docker Compose](/platform/self-hosting/docker) or [Kubernetes](/platform/self-hosting/kubernetes). You can connect local models through Ollama or vLLM. Chat and external integrations can still require network access.
 
-## Integrations
+The core source is available on [GitHub](https://github.com/simstudioai/sim) under the Apache 2.0 license. Enterprise features use a separate license that requires an active Enterprise subscription for production use. See [self-hosting](/platform/self-hosting) for installation requirements and configuration.
 
-Sim provides native integrations with supported services:
+## Related docs
 
-- **AI models.** OpenAI, Anthropic, Google Gemini, Groq, Cerebras, and local models via Ollama or VLLM.
-- **Communication.** Gmail, Slack, Microsoft Teams, Telegram, WhatsApp.
-- **Productivity.** Notion, Google Workspace, Airtable.
-- **Development.** GitHub, Jira, Linear, automated browser testing.
-- **Search and data.** Google Search, Perplexity, Firecrawl, Exa AI.
-- **Databases.** PostgreSQL, MySQL, Supabase, Pinecone, Qdrant.
-
-For anything not built in, [MCP support](/agents/mcp) connects any external service or tool.
-
-## Deployment options
-
-- **Cloud-hosted.** Launch immediately at [sim.ai](https://sim.ai) with managed infrastructure, scaling, and observability.
-- **Self-hosted.** Deploy on your own infrastructure with Docker Compose or Kubernetes, with support for local models.
-
-## Next steps
-
-<Cards>
-  <Card title="Quickstart" href="/getting-started">
-    Build your first agent in 10 minutes
-  </Card>
-  <Card title="Building with Chat" href="/chat">
-    Build and manage your workspace in natural language
-  </Card>
-  <Card title="Workflows" href="/workflows">
-    The executable center, and the blocks it's built from
-  </Card>
-  <Card title="Blocks" href="/workflows#blocks">
-    The building blocks of a workflow
-  </Card>
-</Cards>
-
-<FAQ items={[
-  { question: "Is Sim open source?", answer: "Yes. Sim is open source under the Apache 2.0 license. The full source code is available on GitHub and you can self-host it, contribute to development, or modify it for your own needs. Enterprise features (SSO, access control) have a separate license that requires a subscription for production use." },
-  { question: "Can I self-host Sim?", answer: "Yes. Sim provides Docker Compose configurations for self-hosted deployments. The stack includes the Sim application, a PostgreSQL database with pgvector, and a realtime collaboration server. You can also integrate local AI models via Ollama for a fully offline setup." },
-]} />
+- [Getting started](/getting-started): Build and run a simple summarizer.
+- [Chat](/chat): Build and manage workspace resources conversationally.
+- [Workflows](/workflows): Blocks, connections, triggers, and execution.
+- [Quick reference](/quick-reference): Look up builder actions.

@@ -1,22 +1,31 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  delete: vi.fn(),
-  insert: vi.fn(),
+const { isCapabilityWithheldForUser } = vi.hoisted(() => ({
   isCapabilityWithheldForUser: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: { delete: mocks.delete, insert: mocks.insert } }))
-vi.mock('@/lib/permission-groups/user-scope.server', () => ({
-  isCapabilityWithheldForUser: mocks.isCapabilityWithheldForUser,
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
+vi.mock('@/lib/permission-groups/user-scope.server', () => ({ isCapabilityWithheldForUser }))
 
 import {
   guardOAuthProviderWrites,
   withOAuthProviderIssuanceCompensation,
 } from '@/lib/auth/oauth-provider-adapter-guard'
 import { bindOAuthIssuedResource, withOAuthResourceIssuance } from '@/lib/auth/oauth-resource'
+
+const mocks = {
+  delete: dbChainMockFns.delete,
+  insert: dbChainMockFns.insert,
+  isCapabilityWithheldForUser,
+}
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+
+afterAll(() => {
+  resetDbChainMock()
+  resetUrlsMock()
+})
 
 function adapter() {
   return {
@@ -45,6 +54,7 @@ function mockUpsert(rows: Record<string, unknown>[]) {
 
 describe('guardOAuthProviderWrites', () => {
   beforeEach(() => {
+    resetDbChainMock()
     mocks.isCapabilityWithheldForUser.mockResolvedValue(false)
     mocks.delete.mockReturnValue({ where: vi.fn(async () => undefined) })
   })

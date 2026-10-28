@@ -26,65 +26,10 @@ export function parseLargeExecutionValue(value: unknown): LargeExecutionValue | 
   }
 }
 
-/**
- * Finds execution IDs referenced by large values embedded in persisted execution state.
- */
-export function collectLargeValueExecutionIds(value: unknown): string[] {
-  const executionIds = new Set<string>()
-  collectLargeValueExecutionIdsInto(value, executionIds, new WeakSet<object>())
-  return Array.from(executionIds)
-}
-
 export function collectLargeValueKeys(value: unknown): string[] {
   const keys = new Set<string>()
   collectLargeValueKeysInto(value, keys, new WeakSet<object>())
   return Array.from(keys)
-}
-
-function collectLargeValueExecutionIdsInto(
-  value: unknown,
-  executionIds: Set<string>,
-  seen: WeakSet<object>
-): void {
-  if (!value || typeof value !== 'object') {
-    return
-  }
-
-  if (seen.has(value)) {
-    return
-  }
-  seen.add(value)
-
-  if (isLargeValueRef(value)) {
-    addExecutionId(value, executionIds)
-    collectLargeValueExecutionIdsInto(value.preview, executionIds, seen)
-    return
-  }
-
-  if (isLargeArrayManifest(value)) {
-    for (const chunk of value.chunks) {
-      addExecutionId(chunk.ref, executionIds)
-    }
-    collectLargeValueExecutionIdsInto(value.preview, executionIds, seen)
-    return
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      collectLargeValueExecutionIdsInto(item, executionIds, seen)
-    }
-    return
-  }
-
-  for (const item of Object.values(value)) {
-    collectLargeValueExecutionIdsInto(item, executionIds, seen)
-  }
-}
-
-function addExecutionId(ref: LargeValueRef, executionIds: Set<string>): void {
-  if (ref.executionId) {
-    executionIds.add(ref.executionId)
-  }
 }
 
 function collectLargeValueKeysInto(value: unknown, keys: Set<string>, seen: WeakSet<object>): void {

@@ -270,6 +270,77 @@ interface DatadogState {
   apiKey: string
 }
 
+interface SentinelState {
+  endpoint: string
+  ruleId: string
+  streamName: string
+  tenantId: string
+  clientId: string
+  clientSecret: string
+}
+
+const SENTINEL_FIELDS = [
+  {
+    key: 'endpoint',
+    label: 'Logs ingestion endpoint',
+    placeholder: 'https://my-dcr.eastus-1.ingest.monitor.azure.com',
+  },
+  { key: 'ruleId', label: 'DCR immutable ID', placeholder: 'dcr-0123456789abcdef0123456789abcdef' },
+  { key: 'streamName', label: 'Stream name', placeholder: 'Custom-SimLogs' },
+  { key: 'tenantId', label: 'Tenant ID', placeholder: 'Microsoft Entra tenant ID' },
+  { key: 'clientId', label: 'Client ID', placeholder: 'Application client ID' },
+] as const
+
+const sentinelFormSpec: DestinationFormSpec<SentinelState> = {
+  displayName: 'Microsoft Sentinel',
+  initialState: {
+    endpoint: '',
+    ruleId: '',
+    streamName: 'Custom-SimLogs',
+    tenantId: '',
+    clientId: '',
+    clientSecret: '',
+  },
+  FormFields: ({ state, setState }) => (
+    <>
+      {SENTINEL_FIELDS.map(({ key, label, placeholder }) => (
+        <SettingRow key={key} label={label} htmlFor={`drain-sentinel-${key}`}>
+          <ChipInput
+            id={`drain-sentinel-${key}`}
+            value={state[key]}
+            onChange={(e) => setState({ ...state, [key]: e.target.value })}
+            placeholder={placeholder}
+          />
+        </SettingRow>
+      ))}
+      <SettingRow label='Client secret' htmlFor='drain-sentinel-client-secret'>
+        <SecretInput
+          id='drain-sentinel-client-secret'
+          value={state.clientSecret}
+          onChange={(clientSecret) => setState({ ...state, clientSecret })}
+          placeholder='Paste the client secret value'
+        />
+      </SettingRow>
+      <p className='text-[var(--text-muted)] text-caption'>
+        Use an Azure public-cloud DCR with the Sim log schema. Test connection writes a probe event
+        to the configured table.
+      </p>
+    </>
+  ),
+  isComplete: (state) => Object.values(state).every((value) => value.trim().length > 0),
+  toDestinationBranch: ({ clientSecret, ...config }) => ({
+    destinationType: 'sentinel',
+    destinationConfig: {
+      endpoint: config.endpoint.trim(),
+      ruleId: config.ruleId.trim(),
+      streamName: config.streamName.trim(),
+      tenantId: config.tenantId.trim(),
+      clientId: config.clientId.trim(),
+    },
+    destinationCredentials: { clientSecret: clientSecret.trim() },
+  }),
+}
+
 const datadogFormSpec: DestinationFormSpec<DatadogState> = {
   displayName: 'Datadog',
   initialState: { site: 'us1', service: '', tags: '', apiKey: '' },
@@ -588,6 +659,7 @@ export const DESTINATION_FORM_REGISTRY: Record<DestinationType, DestinationFormS
   s3: s3FormSpec as DestinationFormSpec<unknown>,
   gcs: gcsFormSpec as DestinationFormSpec<unknown>,
   azure_blob: azureBlobFormSpec as DestinationFormSpec<unknown>,
+  sentinel: sentinelFormSpec as DestinationFormSpec<unknown>,
   datadog: datadogFormSpec as DestinationFormSpec<unknown>,
   bigquery: bigqueryFormSpec as DestinationFormSpec<unknown>,
   snowflake: snowflakeFormSpec as DestinationFormSpec<unknown>,

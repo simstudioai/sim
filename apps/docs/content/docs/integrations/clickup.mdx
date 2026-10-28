@@ -1,45 +1,42 @@
 ---
 title: ClickUp
-description: Interact with ClickUp
+description: Manage ClickUp tasks, comments, hierarchy, and time entries
+integration:
+  type: "clickup"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="clickup"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[ClickUp](https://clickup.com/) is a work management platform that organizes tasks into a hierarchy of workspaces, spaces, folders, and lists. It combines task tracking, comments, checklists, custom fields, and time tracking in one place, with configurable statuses and views for each team.
+Use [ClickUp](https://clickup.com/) to manage tasks, comments, checklists, custom fields, tags, attachments, and time entries. Browse workspaces, spaces, folders, and lists to find the resource IDs needed by each action; you can also create folders and lists and look up task or list members.
 
-With the ClickUp integration in Sim, you can:
-
-- **Manage tasks**: Create, get, update, and delete tasks, and list or search tasks across a workspace
-- **Collaborate with comments**: Create, list, update, and delete comments on tasks
-- **Organize the hierarchy**: Look up workspaces, spaces, folders, and lists, and create new folders and lists
-- **Work with custom fields**: Retrieve a list's custom fields, and set or clear their values on a task
-- **Track checklists**: Create, update, and delete checklists and their individual items
-- **Track time**: List, create, update, and delete time entries, and start, stop, or inspect a running timer
-- **Apply tags and attachments**: Add or remove space tags on a task and upload file attachments
-- **Look up people**: Retrieve the members of a task or a list
-- **React to changes**: Trigger workflows on task, list, folder, space, goal, and key-result events
-
-In Sim, the ClickUp integration enables your agents to participate in your team's project workflow. Agents can open tasks from incoming requests, comment with context they gathered elsewhere, move work through statuses, log time, and run downstream automation the moment a task is created, updated, or moved.
+Trigger mode starts workflows on task, list, folder, space, goal, and key-result events. For a saved personal API token, see [ClickUp API tokens](/integrations/clickup-service-account).
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [API tokens](/integrations/clickup-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.
+Sim requests no OAuth scopes for ClickUp. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/clickup` |
+| Environment variables | `CLICKUP_CLIENT_ID`, `CLICKUP_CLIENT_SECRET` |
 
+## Use the block [#usage-instructions]
+
+Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Trigger workflows on ClickUp events like task, list, folder, space, and goal changes.
 
 ## Actions
 
 ### ClickUp Create Task
 
 Create a new task in a ClickUp list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -68,9 +65,13 @@ Create a new task in a ClickUp list
 | --------- | ---- | ----------- |
 | `task` | json | The created task |
 
+</ReferenceDetails>
+
 ### ClickUp Get Task
 
 Retrieve a task from ClickUp by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -86,9 +87,13 @@ Retrieve a task from ClickUp by ID
 | --------- | ---- | ----------- |
 | `task` | json | The requested task |
 
+</ReferenceDetails>
+
 ### ClickUp Update Task
 
 Update an existing task in ClickUp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -117,9 +122,13 @@ Update an existing task in ClickUp
 | --------- | ---- | ----------- |
 | `task` | json | The updated task |
 
+</ReferenceDetails>
+
 ### ClickUp Delete Task
 
 Delete a task from ClickUp
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +143,13 @@ Delete a task from ClickUp
 | `id` | string | ID of the deleted task |
 | `deleted` | boolean | Whether the task was deleted |
 
+</ReferenceDetails>
+
 ### ClickUp Get Tasks
 
 List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,9 +175,13 @@ List the tasks in a ClickUp list (100 tasks per page; increment page until an em
 | --------- | ---- | ----------- |
 | `tasks` | array | Tasks in the list |
 
+</ReferenceDetails>
+
 ### ClickUp Search Tasks
 
 Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -192,9 +209,13 @@ Search tasks across a ClickUp workspace with filters for lists, folders, spaces,
 | --------- | ---- | ----------- |
 | `tasks` | array | Tasks matching the filters |
 
+</ReferenceDetails>
+
 ### ClickUp Create Comment
 
 Add a comment to a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +234,13 @@ Add a comment to a ClickUp task
 | `histId` | string | History ID of the created comment |
 | `date` | number | Creation timestamp of the comment \(Unix ms\) |
 
+</ReferenceDetails>
+
 ### ClickUp Get Comments
 
 Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -231,9 +256,13 @@ Retrieve comments on a ClickUp task, newest first (25 per page; paginate with st
 | --------- | ---- | ----------- |
 | `comments` | array | Comments on the task, newest first |
 
+</ReferenceDetails>
+
 ### ClickUp Update Comment
 
 Update the content, assignee, or resolved state of a ClickUp task comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +280,13 @@ Update the content, assignee, or resolved state of a ClickUp task comment
 | `id` | string | ID of the updated comment |
 | `updated` | boolean | Whether the comment was updated |
 
+</ReferenceDetails>
+
 ### ClickUp Delete Comment
 
 Delete a comment from a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +301,13 @@ Delete a comment from a ClickUp task
 | `id` | string | ID of the deleted comment |
 | `deleted` | boolean | Whether the comment was deleted |
 
+</ReferenceDetails>
+
 ### ClickUp Upload Attachment
 
 Upload a file to a ClickUp task as an attachment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -294,9 +331,13 @@ Upload a file to a ClickUp task as an attachment
 |   ↳ `thumbnailLarge` | string | Large thumbnail URL |
 | `files` | file[] | The uploaded attachment file |
 
+</ReferenceDetails>
+
 ### ClickUp Add Tag To Task
 
 Add an existing space tag to a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -312,9 +353,13 @@ Add an existing space tag to a ClickUp task
 | `taskId` | string | ID of the tagged task |
 | `tagName` | string | Name of the tag that was added |
 
+</ReferenceDetails>
+
 ### ClickUp Remove Tag From Task
 
 Remove a tag from a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -330,9 +375,13 @@ Remove a tag from a ClickUp task
 | `taskId` | string | ID of the task |
 | `tagName` | string | Name of the tag that was removed |
 
+</ReferenceDetails>
+
 ### ClickUp Get Space Tags
 
 List the task tags available in a ClickUp space
+
+<ReferenceDetails>
 
 #### Input
 
@@ -346,9 +395,13 @@ List the task tags available in a ClickUp space
 | --------- | ---- | ----------- |
 | `tags` | array | Tags available in the space |
 
+</ReferenceDetails>
+
 ### ClickUp Get Task Members
 
 List the workspace members who have explicit access to a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +415,13 @@ List the workspace members who have explicit access to a ClickUp task
 | --------- | ---- | ----------- |
 | `members` | array | Members with explicit access to the task |
 
+</ReferenceDetails>
+
 ### ClickUp Get List Members
 
 List the workspace members who have explicit access to a ClickUp list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -378,9 +435,13 @@ List the workspace members who have explicit access to a ClickUp list
 | --------- | ---- | ----------- |
 | `members` | array | Members with explicit access to the list |
 
+</ReferenceDetails>
+
 ### ClickUp Get Custom Fields
 
 List the custom fields accessible in a ClickUp list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -400,9 +461,13 @@ List the custom fields accessible in a ClickUp list
 |   ↳ `dateCreated` | string | Creation timestamp \(Unix ms\) |
 |   ↳ `hideFromGuests` | boolean | Whether the field is hidden from guests |
 
+</ReferenceDetails>
+
 ### ClickUp Get Workspaces
 
 List the ClickUp workspaces (teams) available to the connected account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -419,9 +484,13 @@ List the ClickUp workspaces (teams) available to the connected account
 |   ↳ `color` | string | Workspace color |
 |   ↳ `avatar` | string | Workspace avatar URL |
 
+</ReferenceDetails>
+
 ### ClickUp Get Spaces
 
 List the spaces in a ClickUp workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -444,9 +513,13 @@ List the spaces in a ClickUp workspace
 |     ↳ `color` | string | Status color |
 |     ↳ `type` | string | Status type |
 
+</ReferenceDetails>
+
 ### ClickUp Get Folders
 
 List the folders in a ClickUp space
+
+<ReferenceDetails>
 
 #### Input
 
@@ -461,9 +534,13 @@ List the folders in a ClickUp space
 | --------- | ---- | ----------- |
 | `folders` | array | Folders in the space |
 
+</ReferenceDetails>
+
 ### ClickUp Get Lists
 
 List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead
+
+<ReferenceDetails>
 
 #### Input
 
@@ -479,9 +556,13 @@ List the lists in a ClickUp folder, or the folderless lists in a space when a sp
 | --------- | ---- | ----------- |
 | `lists` | array | Lists in the folder or space |
 
+</ReferenceDetails>
+
 ### ClickUp Create Folder
 
 Create a new folder in a ClickUp space
+
+<ReferenceDetails>
 
 #### Input
 
@@ -496,9 +577,13 @@ Create a new folder in a ClickUp space
 | --------- | ---- | ----------- |
 | `folder` | json | The created folder |
 
+</ReferenceDetails>
+
 ### ClickUp Create List
 
 Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead
+
+<ReferenceDetails>
 
 #### Input
 
@@ -516,9 +601,13 @@ Create a new list in a ClickUp folder, or a folderless list in a space when a sp
 | --------- | ---- | ----------- |
 | `list` | json | The created list |
 
+</ReferenceDetails>
+
 ### ClickUp Set Custom Field Value
 
 Set the value of a custom field on a ClickUp task (the value shape depends on the field type)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -535,9 +624,13 @@ Set the value of a custom field on a ClickUp task (the value shape depends on th
 | `taskId` | string | ID of the updated task |
 | `fieldId` | string | ID of the custom field that was set |
 
+</ReferenceDetails>
+
 ### ClickUp Remove Custom Field Value
 
 Remove the value of a custom field from a ClickUp task (does not delete the field itself)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -553,9 +646,13 @@ Remove the value of a custom field from a ClickUp task (does not delete the fiel
 | `taskId` | string | ID of the updated task |
 | `fieldId` | string | ID of the custom field that was cleared |
 
+</ReferenceDetails>
+
 ### ClickUp Create Checklist
 
 Add a new checklist to a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -570,9 +667,13 @@ Add a new checklist to a ClickUp task
 | --------- | ---- | ----------- |
 | `checklist` | json | The created checklist |
 
+</ReferenceDetails>
+
 ### ClickUp Update Checklist
 
 Rename or reorder a checklist on a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -589,9 +690,13 @@ Rename or reorder a checklist on a ClickUp task
 | `id` | string | ID of the updated checklist |
 | `updated` | boolean | Whether the checklist was updated |
 
+</ReferenceDetails>
+
 ### ClickUp Delete Checklist
 
 Delete a checklist from a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -606,9 +711,13 @@ Delete a checklist from a ClickUp task
 | `id` | string | ID of the deleted checklist |
 | `deleted` | boolean | Whether the checklist was deleted |
 
+</ReferenceDetails>
+
 ### ClickUp Create Checklist Item
 
 Add an item to a checklist on a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -624,9 +733,13 @@ Add an item to a checklist on a ClickUp task
 | --------- | ---- | ----------- |
 | `checklist` | json | The updated checklist including its items |
 
+</ReferenceDetails>
+
 ### ClickUp Update Checklist Item
 
 Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -645,9 +758,13 @@ Update a checklist item on a ClickUp task — rename, assign, resolve, or nest i
 | --------- | ---- | ----------- |
 | `checklist` | json | The updated checklist including its items |
 
+</ReferenceDetails>
+
 ### ClickUp Delete Checklist Item
 
 Delete an item from a checklist on a ClickUp task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -663,9 +780,13 @@ Delete an item from a checklist on a ClickUp task
 | `id` | string | ID of the deleted checklist item |
 | `deleted` | boolean | Whether the item was deleted |
 
+</ReferenceDetails>
+
 ### ClickUp Get Time Entries
 
 List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -688,9 +809,13 @@ List time entries in a ClickUp workspace within a date range (defaults to the la
 | --------- | ---- | ----------- |
 | `timeEntries` | array | Time entries in the date range |
 
+</ReferenceDetails>
+
 ### ClickUp Create Time Entry
 
 Create a manual time entry in a ClickUp workspace, optionally linked to a task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -710,9 +835,13 @@ Create a manual time entry in a ClickUp workspace, optionally linked to a task
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The created time entry |
 
+</ReferenceDetails>
+
 ### ClickUp Update Time Entry
 
 Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state
+
+<ReferenceDetails>
 
 #### Input
 
@@ -734,9 +863,13 @@ Update a time entry in a ClickUp workspace — description, start/end times, tas
 | `id` | string | ID of the updated time entry |
 | `updated` | boolean | Whether the entry was updated |
 
+</ReferenceDetails>
+
 ### ClickUp Delete Time Entry
 
 Delete a time entry from a ClickUp workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -751,9 +884,13 @@ Delete a time entry from a ClickUp workspace
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The deleted time entry |
 
+</ReferenceDetails>
+
 ### ClickUp Start Timer
 
 Start a timer for the authenticated user in a ClickUp workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -771,9 +908,13 @@ Start a timer for the authenticated user in a ClickUp workspace
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The started time entry \(duration is negative while running\) |
 
+</ReferenceDetails>
+
 ### ClickUp Stop Timer
 
 Stop the authenticated user's currently running timer in a ClickUp workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -787,9 +928,13 @@ Stop the authenticated user's currently running timer in a ClickUp workspace
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The stopped time entry |
 
+</ReferenceDetails>
+
 ### ClickUp Get Running Timer
 
 Get the currently running time entry in a ClickUp workspace (null when no timer is running)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -804,16 +949,20 @@ Get the currently running time entry in a ClickUp workspace (null when no timer 
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The running time entry \(duration is negative while running\); null when no timer is running |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### ClickUp Folder Created
 
 Trigger workflow when a folder is created in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -834,13 +983,14 @@ Trigger workflow when a folder is created in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `folderId` | string | ID of the affected folder |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Folder Deleted
 
 Trigger workflow when a folder is deleted in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -861,13 +1011,14 @@ Trigger workflow when a folder is deleted in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `folderId` | string | ID of the affected folder |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Folder Updated
 
 Trigger workflow when a folder is updated in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -888,13 +1039,14 @@ Trigger workflow when a folder is updated in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `folderId` | string | ID of the affected folder |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Goal Created
 
 Trigger workflow when a goal is created in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -914,13 +1066,14 @@ Trigger workflow when a goal is created in ClickUp
 | `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Goal Deleted
 
 Trigger workflow when a goal is deleted in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -940,13 +1093,14 @@ Trigger workflow when a goal is deleted in ClickUp
 | `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Goal Updated
 
 Trigger workflow when a goal is updated in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -966,13 +1120,14 @@ Trigger workflow when a goal is updated in ClickUp
 | `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Key Result Created
 
 Trigger workflow when a key result is created in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -992,13 +1147,14 @@ Trigger workflow when a key result is created in ClickUp
 | `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Key Result Deleted
 
 Trigger workflow when a key result is deleted in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1018,13 +1174,14 @@ Trigger workflow when a key result is deleted in ClickUp
 | `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Key Result Updated
 
 Trigger workflow when a key result is updated in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1044,13 +1201,14 @@ Trigger workflow when a key result is updated in ClickUp
 | `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp List Created
 
 Trigger workflow when a list is created in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1071,13 +1229,14 @@ Trigger workflow when a list is created in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `listId` | string | ID of the affected list |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp List Deleted
 
 Trigger workflow when a list is deleted in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1098,13 +1257,14 @@ Trigger workflow when a list is deleted in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `listId` | string | ID of the affected list |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp List Updated
 
 Trigger workflow when a list is updated in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1125,13 +1285,14 @@ Trigger workflow when a list is updated in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `listId` | string | ID of the affected list |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Space Created
 
 Trigger workflow when a space is created in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1152,13 +1313,14 @@ Trigger workflow when a space is created in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `spaceId` | string | ID of the affected space |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Space Deleted
 
 Trigger workflow when a space is deleted in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1179,13 +1341,14 @@ Trigger workflow when a space is deleted in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `spaceId` | string | ID of the affected space |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Space Updated
 
 Trigger workflow when a space is updated in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1206,13 +1369,14 @@ Trigger workflow when a space is updated in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `spaceId` | string | ID of the affected space |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Assignee Updated
 
 Trigger workflow when the assignees of a task change in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1233,13 +1397,14 @@ Trigger workflow when the assignees of a task change in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Comment Posted
 
 Trigger workflow when a comment is posted on a task in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1260,13 +1425,14 @@ Trigger workflow when a comment is posted on a task in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Comment Updated
 
 Trigger workflow when a task comment is updated in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1287,13 +1453,14 @@ Trigger workflow when a task comment is updated in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Created
 
 Trigger workflow when a task is created in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1314,13 +1481,14 @@ Trigger workflow when a task is created in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Deleted
 
 Trigger workflow when a task is deleted in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1341,13 +1509,14 @@ Trigger workflow when a task is deleted in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Due Date Updated
 
 Trigger workflow when the due date of a task changes in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1368,13 +1537,14 @@ Trigger workflow when the due date of a task changes in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Moved
 
 Trigger workflow when a task is moved to a different list in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1395,13 +1565,14 @@ Trigger workflow when a task is moved to a different list in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Priority Updated
 
 Trigger workflow when the priority of a task changes in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1422,13 +1593,14 @@ Trigger workflow when the priority of a task changes in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Status Updated
 
 Trigger workflow when the status of a task changes in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1449,13 +1621,14 @@ Trigger workflow when the status of a task changes in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Tag Updated
 
 Trigger workflow when the tags of a task change in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1476,13 +1649,14 @@ Trigger workflow when the tags of a task change in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Time Estimate Updated
 
 Trigger workflow when the time estimate of a task changes in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1503,13 +1677,14 @@ Trigger workflow when the time estimate of a task changes in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Time Tracked Updated
 
 Trigger workflow when the tracked time of a task changes in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1530,13 +1705,14 @@ Trigger workflow when the tracked time of a task changes in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Task Updated
 
 Trigger workflow when a task is updated in ClickUp
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1557,12 +1733,13 @@ Trigger workflow when a task is updated in ClickUp
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
-
----
+</ReferenceDetails>
 
 ### ClickUp Webhook
 
 Trigger workflow on any ClickUp event (subscribes to all events)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1586,4 +1763,6 @@ Trigger workflow on any ClickUp event (subscribes to all events)
 | `listId` | string | ID of the affected list \(list events only\) |
 | `folderId` | string | ID of the affected folder \(folder events only\) |
 | `spaceId` | string | ID of the affected space \(space events only\) |
+
+</ReferenceDetails>
 

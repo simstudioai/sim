@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension } from '@/lib/uploads/utils/file'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import {
   SIM_ARTIFACT_SHELL,
   SIM_ARTIFACT_STYLESHEET,
@@ -50,6 +51,7 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
 export const RICH_PREVIEWABLE_EXTENSIONS = new Set(Object.keys(PREVIEWABLE_EXTENSIONS))
 
 export function resolvePreviewType(mimeType: string | null, filename: string): PreviewType {
+  mimeType = normalizeMimeType(mimeType)
   if (mimeType && PREVIEWABLE_MIME_TYPES[mimeType]) return PREVIEWABLE_MIME_TYPES[mimeType]
   const ext = getFileExtension(filename)
   return PREVIEWABLE_EXTENSIONS[ext] ?? null
@@ -456,7 +458,7 @@ const HtmlPreview = memo(function HtmlPreview({
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
           title='HTML Preview'
-          className='h-full w-full border-0 bg-[var(--surface-2)]'
+          className='size-full border-0 bg-[var(--surface-2)]'
         />
       )}
     </div>
@@ -473,7 +475,7 @@ function SvgPreview({ content }: { content: string }) {
   }, [content])
 
   return (
-    <ZoomablePreview className='min-h-0 flex-1' contentClassName='h-full w-full'>
+    <ZoomablePreview className='min-h-0 flex-1' contentClassName='size-full'>
       {blobUrl && (
         <img
           src={blobUrl}

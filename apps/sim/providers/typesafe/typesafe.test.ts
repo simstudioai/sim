@@ -60,8 +60,6 @@ describe('TypeSafe provider', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
   afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 

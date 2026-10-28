@@ -1,31 +1,44 @@
 ---
 title: Google BigQuery
 description: Query, list, and insert data in Google BigQuery
+integration:
+  type: "google_bigquery"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_bigquery"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [BigQuery](https://cloud.google.com/bigquery) stores and queries datasets with SQL. Use this integration to run queries, inspect datasets, tables, and schemas, and insert rows. Connect the Google credentials required by the selected operation.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Google BigQuery account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-bigquery` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/bigquery` | View and manage data in Google BigQuery |
+
+## Use the block [#usage-instructions]
 
 Connect to Google BigQuery to run SQL queries, list datasets and tables, get table metadata, and insert rows.
-
-
 
 ## Actions
 
 ### BigQuery Run Query
 
 Run a SQL query against Google BigQuery and return the results
+
+<ReferenceDetails>
 
 #### Input
 
@@ -54,9 +67,13 @@ Run a SQL query against Google BigQuery and return the results
 |   ↳ `location` | string | Geographic location of the job |
 | `pageToken` | string | Token for fetching additional result pages |
 
+</ReferenceDetails>
+
 ### BigQuery Get Query Results
 
 Fetch results for a previously submitted BigQuery job, or the next page of a Run Query result
+
+<ReferenceDetails>
 
 #### Input
 
@@ -86,9 +103,13 @@ Fetch results for a previously submitted BigQuery job, or the next page of a Run
 |   ↳ `location` | string | Geographic location of the job |
 | `pageToken` | string | Token for fetching additional result pages |
 
+</ReferenceDetails>
+
 ### BigQuery List Datasets
 
 List all datasets in a Google BigQuery project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +130,13 @@ List all datasets in a Google BigQuery project
 |   ↳ `location` | string | Geographic location where the data resides |
 | `nextPageToken` | string | Token for fetching next page of results |
 
+</ReferenceDetails>
+
 ### BigQuery Create Dataset
 
 Create a new dataset in a Google BigQuery project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +159,13 @@ Create a new dataset in a Google BigQuery project
 | `location` | string | Geographic location where the data resides |
 | `creationTime` | string | Dataset creation time \(milliseconds since epoch\) |
 
+</ReferenceDetails>
+
 ### BigQuery Delete Dataset
 
 Delete a dataset from a Google BigQuery project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -152,9 +181,13 @@ Delete a dataset from a Google BigQuery project
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the dataset was deleted |
 
+</ReferenceDetails>
+
 ### BigQuery List Tables
 
 List all tables in a Google BigQuery dataset
+
+<ReferenceDetails>
 
 #### Input
 
@@ -179,9 +212,13 @@ List all tables in a Google BigQuery dataset
 | `totalItems` | number | Total number of tables in the dataset |
 | `nextPageToken` | string | Token for fetching next page of results |
 
+</ReferenceDetails>
+
 ### BigQuery Get Table
 
 Get metadata and schema for a Google BigQuery table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -211,9 +248,13 @@ Get metadata and schema for a Google BigQuery table
 | `lastModifiedTime` | string | Last modification time \(milliseconds since epoch\) |
 | `location` | string | Geographic location where the table resides |
 
+</ReferenceDetails>
+
 ### BigQuery Create Table
 
 Create a new table in a Google BigQuery dataset
+
+<ReferenceDetails>
 
 #### Input
 
@@ -243,9 +284,13 @@ Create a new table in a Google BigQuery dataset
 | `creationTime` | string | Table creation time \(milliseconds since epoch\) |
 | `location` | string | Geographic location where the table resides |
 
+</ReferenceDetails>
+
 ### BigQuery Delete Table
 
 Delete a table from a Google BigQuery dataset
+
+<ReferenceDetails>
 
 #### Input
 
@@ -261,9 +306,13 @@ Delete a table from a Google BigQuery dataset
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the table was deleted |
 
+</ReferenceDetails>
+
 ### BigQuery List Table Data
 
 Preview rows from a Google BigQuery table without running a query. Pair with Get Table to know the column order.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -285,9 +334,13 @@ Preview rows from a Google BigQuery table without running a query. Pair with Get
 | `totalRows` | string | Total number of rows in the table |
 | `pageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### BigQuery Insert Rows
 
 Insert rows into a Google BigQuery table using streaming insert
+
+<ReferenceDetails>
 
 #### Input
 
@@ -311,5 +364,7 @@ Insert rows into a Google BigQuery table using streaming insert
 |     ↳ `reason` | string | Short error code summarizing the error |
 |     ↳ `location` | string | Where the error occurred |
 |     ↳ `message` | string | Human-readable error description |
+
+</ReferenceDetails>
 
 

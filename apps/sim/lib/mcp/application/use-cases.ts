@@ -2,7 +2,11 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
-import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
+import {
+  authorizeWorkspaceOperation,
+  defineAuthorizedWorkspaceUseCase,
+  ForbiddenOperationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import {
@@ -37,7 +41,7 @@ import {
 import { mcpService } from '@/lib/mcp/service'
 import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
 import type { McpAuthType } from '@/lib/mcp/types'
-import { generateMcpServerId } from '@/lib/mcp/utils'
+import { generateMcpServerId, isSameMcpServerDestination } from '@/lib/mcp/utils'
 
 type McpServerTransport = McpServerRow['transport']
 type McpWriteSource = 'api' | 'settings' | 'tool_input'
@@ -139,6 +143,8 @@ export interface DiscoverMcpServerToolsInput {
   refresh?: boolean
   signal?: AbortSignal
   requireComplete?: boolean
+  /** Discovery nobody asked for: reads the server's shared health state but never writes it. */
+  bestEffort?: boolean
 }
 
 /**
@@ -188,14 +194,18 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     })
     const refresh = input.refresh ? 'skip-cache' : 'cache-aside'
     const tools =
-      input.signal || input.requireComplete
+      input.signal || input.requireComplete || input.bestEffort
         ? await mcpService.discoverServerTools(
             userId,
             context.server.id,
             context.workspaceId,
             refresh,
             undefined,
-            { signal: input.signal, requireComplete: input.requireComplete }
+            {
+              signal: input.signal,
+              requireComplete: input.requireComplete,
+              bestEffort: input.bestEffort,
+            }
           )
         : await mcpService.discoverServerTools(
             userId,
@@ -386,6 +396,18 @@ async function updateMcpServer(args: {
       'This MCP server is managed from its Credential Group settings'
     )
   }
+  const changesDestination =
+    args.input.url !== undefined &&
+    (!args.context.server.url ||
+      !isSameMcpServerDestination(args.context.server.url, args.input.url))
+  if (changesDestination) {
+    await authorizeWorkspaceOperation(
+      args.principal,
+      mcpServerOperations.changeDestination,
+      args.context,
+      authorizationOptions
+    )
+  }
   const attribution = resolvePrincipalAttribution(args.principal, {
     workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
@@ -393,6 +415,7 @@ async function updateMcpServer(args: {
     workspaceId: args.context.workspaceId,
     userId: attribution.attributedUserId,
     serverId: args.context.server.id,
+    allowDestinationChange: changesDestination,
     name: args.input.name,
     description: args.input.description,
     transport: args.input.transport,
@@ -471,7 +494,7 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: DeleteMcpServerInput }) =>
     resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
-  async execute({ principal, input, context }) {
+  async execute({ principal, context }) {
     if (context.server.managedConnectorId) {
       throw new OrchestrationError(
         'conflict',

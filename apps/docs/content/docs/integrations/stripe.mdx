@@ -1,25 +1,21 @@
 ---
 title: Stripe
 description: Process payments and manage Stripe data
+integration:
+  type: "stripe"
+  color: "#635BFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="stripe"
-  color="#635BFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Stripe](https://stripe.com/) in Sim to manage payment intents, customers, subscriptions, invoices, charges, products, and prices. Stripe event triggers can start workflows when payment or other supported events occur.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrates Stripe into the workflow. Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Can be used in trigger mode to trigger a workflow when a Stripe event occurs.
-
-
+Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Supported Stripe events can start workflows.
 
 ## Actions
 
@@ -27,12 +23,14 @@ Integrates Stripe into the workflow. Manage payment intents, customers, subscrip
 
 Create a new Payment Intent to process a payment
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
-| `amount` | number | Yes | Amount in cents \(e.g., 2000 for $20.00\) |
+| `amount` | number | Yes | Amount in the currency’s smallest unit \(e.g., 2000 for 20.00 USD\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
 | `customer` | string | No | Customer ID to associate with this payment |
 | `payment_method` | string | No | Payment method ID |
@@ -45,7 +43,7 @@ Create a new Payment Intent to process a payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The created Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -98,9 +96,13 @@ Create a new Payment Intent to process a payment
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Payment Intent
 
 Retrieve an existing Payment Intent by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -113,7 +115,7 @@ Retrieve an existing Payment Intent by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The retrieved Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -166,9 +168,13 @@ Retrieve an existing Payment Intent by ID
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Update Payment Intent
 
 Update an existing Payment Intent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -176,7 +182,7 @@ Update an existing Payment Intent
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
-| `amount` | number | No | Updated amount in cents |
+| `amount` | number | No | Updated amount in the currency’s smallest unit |
 | `currency` | string | No | Three-letter ISO currency code |
 | `customer` | string | No | Customer ID |
 | `description` | string | No | Updated description |
@@ -186,7 +192,7 @@ Update an existing Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The updated Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -239,9 +245,13 @@ Update an existing Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Confirm Payment Intent
 
-Confirm a Payment Intent to complete the payment
+Confirm a Payment Intent and inspect its resulting status. Confirmation can require further action or asynchronous processing before payment succeeds.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -255,7 +265,7 @@ Confirm a Payment Intent to complete the payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The confirmed Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -308,9 +318,13 @@ Confirm a Payment Intent to complete the payment
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Capture Payment Intent
 
 Capture an authorized Payment Intent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,13 +332,13 @@ Capture an authorized Payment Intent
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
-| `amount_to_capture` | number | No | Amount to capture in cents \(defaults to full amount\) |
+| `amount_to_capture` | number | No | Amount to capture in the currency’s smallest unit \(defaults to the full amount\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The captured Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -377,9 +391,13 @@ Capture an authorized Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Cancel Payment Intent
 
 Cancel a Payment Intent
+
+<ReferenceDetails>
 
 #### Input
 
@@ -393,7 +411,7 @@ Cancel a Payment Intent
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment_intent` | object | The canceled Payment Intent object |
+| `payment_intent` | object | Stripe Payment Intent object |
 |   ↳ `id` | string | Unique identifier for the Payment Intent |
 |   ↳ `object` | string | String representing the object type \(payment_intent\) |
 |   ↳ `amount` | number | Amount intended to be collected in smallest currency unit |
@@ -446,9 +464,13 @@ Cancel a Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe List Payment Intents
 
 List all Payment Intents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -514,9 +536,13 @@ List all Payment Intents
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Payment Intents
 
 Search for Payment Intents using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -581,9 +607,13 @@ Search for Payment Intents using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Customer
 
 Create a new customer object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -602,7 +632,7 @@ Create a new customer object
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The created customer object |
+| `customer` | object | Stripe Customer object |
 |   ↳ `id` | string | Unique identifier for the customer |
 |   ↳ `object` | string | String representing the object type \(customer\) |
 |   ↳ `address` | object | Address object |
@@ -645,9 +675,13 @@ Create a new customer object
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Customer
 
 Retrieve an existing customer by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -660,7 +694,7 @@ Retrieve an existing customer by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The retrieved customer object |
+| `customer` | object | Stripe Customer object |
 |   ↳ `id` | string | Unique identifier for the customer |
 |   ↳ `object` | string | String representing the object type \(customer\) |
 |   ↳ `address` | object | Address object |
@@ -703,9 +737,13 @@ Retrieve an existing customer by ID
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
+</ReferenceDetails>
+
 ### Stripe Update Customer
 
 Update an existing customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -724,7 +762,7 @@ Update an existing customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The updated customer object |
+| `customer` | object | Stripe Customer object |
 |   ↳ `id` | string | Unique identifier for the customer |
 |   ↳ `object` | string | String representing the object type \(customer\) |
 |   ↳ `address` | object | Address object |
@@ -767,9 +805,13 @@ Update an existing customer
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
+</ReferenceDetails>
+
 ### Stripe Delete Customer
 
 Permanently delete a customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -785,9 +827,13 @@ Permanently delete a customer
 | `deleted` | boolean | Whether the resource was deleted |
 | `id` | string | ID of the deleted resource |
 
+</ReferenceDetails>
+
 ### Stripe List Customers
 
 List all customers
+
+<ReferenceDetails>
 
 #### Input
 
@@ -844,9 +890,13 @@ List all customers
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Customers
 
 Search for customers using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -902,9 +952,13 @@ Search for customers using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Subscription
 
 Create a new subscription for a customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -922,7 +976,7 @@ Create a new subscription for a customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The created subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -984,9 +1038,13 @@ Create a new subscription for a customer
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Subscription
 
 Retrieve an existing subscription by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -999,7 +1057,7 @@ Retrieve an existing subscription by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The retrieved subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1061,9 +1119,13 @@ Retrieve an existing subscription by ID
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Update Subscription
 
 Update an existing subscription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1079,7 +1141,7 @@ Update an existing subscription
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The updated subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1141,9 +1203,13 @@ Update an existing subscription
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Cancel Subscription
 
 Cancel a subscription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1158,7 +1224,7 @@ Cancel a subscription
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The canceled subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1220,9 +1286,13 @@ Cancel a subscription
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe Resume Subscription
 
-Resume a subscription that was scheduled for cancellation
+Resume a paused subscription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1235,7 +1305,7 @@ Resume a subscription that was scheduled for cancellation
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscription` | object | The resumed subscription object |
+| `subscription` | object | Stripe Subscription object |
 |   ↳ `id` | string | Unique identifier for the subscription |
 |   ↳ `object` | string | String representing the object type \(subscription\) |
 |   ↳ `application` | string | ID of the Connect application that created the subscription |
@@ -1297,9 +1367,13 @@ Resume a subscription that was scheduled for cancellation
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
+</ReferenceDetails>
+
 ### Stripe List Subscriptions
 
-List all subscriptions
+List one page of subscriptions. Follow starting_after while metadata.has_more is true.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1309,6 +1383,8 @@ List all subscriptions
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `status` | string | No | Filter by status \(active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing, all\) |
+| `starting_after` | string | No | Next-page cursor: last subscription ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first subscription ID from the current page. Do not combine with starting_after. |
 | `price` | string | No | Filter by price ID |
 
 #### Output
@@ -1376,16 +1452,21 @@ List all subscriptions
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Subscriptions
 
-Search for subscriptions using query syntax
+Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
-| `query` | string | Yes | Search query \(e.g., "status:'active' AND customer:'cus_xxx'"\) |
+| `query` | string | Yes | Search query \(e.g., "status:'active' AND metadata\['order_id'\]:'6735'"\) |
+| `page` | string | No | Pagination token from metadata.next_page. Omit for the first page and keep the same query. |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 
 #### Output
@@ -1452,10 +1533,15 @@ Search for subscriptions using query syntax
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
+
+</ReferenceDetails>
 
 ### Stripe Create Invoice
 
 Create a new invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1472,7 +1558,7 @@ Create a new invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The created invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -1534,29 +1620,33 @@ Create a new invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -1609,9 +1699,13 @@ Create a new invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Invoice
 
 Retrieve an existing invoice by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1624,7 +1718,7 @@ Retrieve an existing invoice by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The retrieved invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -1686,29 +1780,33 @@ Retrieve an existing invoice by ID
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -1761,9 +1859,13 @@ Retrieve an existing invoice by ID
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Update Invoice
 
 Update an existing invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1779,7 +1881,7 @@ Update an existing invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The updated invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -1841,29 +1943,33 @@ Update an existing invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -1916,9 +2022,13 @@ Update an existing invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Delete Invoice
 
 Permanently delete a draft invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1934,9 +2044,13 @@ Permanently delete a draft invoice
 | `deleted` | boolean | Whether the invoice was deleted |
 | `id` | string | The ID of the deleted invoice |
 
+</ReferenceDetails>
+
 ### Stripe Finalize Invoice
 
 Finalize a draft invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1950,7 +2064,7 @@ Finalize a draft invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The finalized invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -2012,29 +2126,33 @@ Finalize a draft invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -2087,9 +2205,13 @@ Finalize a draft invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Pay Invoice
 
 Pay an invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2103,7 +2225,7 @@ Pay an invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The paid invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -2165,29 +2287,33 @@ Pay an invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -2240,9 +2366,13 @@ Pay an invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Void Invoice
 
 Void an invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2255,7 +2385,7 @@ Void an invoice
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The voided invoice object |
+| `invoice` | object | Stripe Invoice object |
 |   ↳ `id` | string | Unique identifier for the invoice |
 |   ↳ `object` | string | String representing the object type \(invoice\) |
 |   ↳ `account_country` | string | Country of the business associated with this invoice |
@@ -2317,29 +2447,33 @@ Void an invoice
 |   ↳ `last_finalization_error` | json | Error encountered during finalization |
 |   ↳ `latest_revision` | string | ID of the most recent revision |
 |   ↳ `lines` | object | Invoice line items |
-|     ↳ `id` | string | Unique identifier for the line item |
-|     ↳ `object` | string | String representing the object type \(line_item\) |
-|     ↳ `amount` | number | Amount in smallest currency unit |
-|     ↳ `amount_excluding_tax` | number | Amount excluding tax |
-|     ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
-|     ↳ `description` | string | Description of the line item |
-|     ↳ `discount_amounts` | array | Discount amounts applied |
-|     ↳ `discountable` | boolean | Whether the line item is discountable |
-|     ↳ `discounts` | array | Discounts applied to the line item |
-|     ↳ `invoice` | string | ID of the invoice that contains this line item |
-|     ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
-|     ↳ `metadata` | json | Set of key-value pairs for storing additional information |
-|     ↳ `period` | json | Period this line item covers |
-|     ↳ `price` | json | Price object for this line item |
-|     ↳ `proration` | boolean | Whether this is a proration |
-|     ↳ `proration_details` | json | Additional details for proration line items |
-|     ↳ `quantity` | number | Quantity of the item |
-|     ↳ `subscription` | string | ID of the subscription |
-|     ↳ `subscription_item` | string | ID of the subscription item |
-|     ↳ `tax_amounts` | array | Tax amounts for this line item |
-|     ↳ `tax_rates` | array | Tax rates applied |
-|     ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
-|     ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of line items |
+|       ↳ `id` | string | Unique identifier for the line item |
+|       ↳ `object` | string | String representing the object type \(line_item\) |
+|       ↳ `amount` | number | Amount in smallest currency unit |
+|       ↳ `amount_excluding_tax` | number | Amount excluding tax |
+|       ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
+|       ↳ `description` | string | Description of the line item |
+|       ↳ `discount_amounts` | array | Discount amounts applied |
+|       ↳ `discountable` | boolean | Whether the line item is discountable |
+|       ↳ `discounts` | array | Discounts applied to the line item |
+|       ↳ `invoice` | string | ID of the invoice that contains this line item |
+|       ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `period` | json | Period this line item covers |
+|       ↳ `price` | json | Price object for this line item |
+|       ↳ `proration` | boolean | Whether this is a proration |
+|       ↳ `proration_details` | json | Additional details for proration line items |
+|       ↳ `quantity` | number | Quantity of the item |
+|       ↳ `subscription` | string | ID of the subscription |
+|       ↳ `subscription_item` | string | ID of the subscription item |
+|       ↳ `tax_amounts` | array | Tax amounts for this line item |
+|       ↳ `tax_rates` | array | Tax rates applied |
+|       ↳ `type` | string | Type of line item \(invoiceitem or subscription\) |
+|       ↳ `unit_amount_excluding_tax` | string | Unit amount excluding tax |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
 |   ↳ `next_payment_attempt` | number | Unix timestamp of next payment attempt |
@@ -2392,9 +2526,13 @@ Void an invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Send Invoice
 
 Send an invoice to the customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2414,9 +2552,13 @@ Send an invoice to the customer
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe List Invoices
 
 List all invoices
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2436,9 +2578,13 @@ List all invoices
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Invoices
 
 Search for invoices using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2457,16 +2603,20 @@ Search for invoices using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Charge
 
 Create a new charge to process a payment
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
-| `amount` | number | Yes | Amount in cents \(e.g., 2000 for $20.00\) |
+| `amount` | number | Yes | Amount in the currency’s smallest unit \(e.g., 2000 for 20.00 USD\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
 | `customer` | string | No | Customer ID to associate with this charge |
 | `source` | string | No | Payment source ID \(e.g., card token or saved card ID\) |
@@ -2486,9 +2636,13 @@ Create a new charge to process a payment
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Charge
 
 Retrieve an existing charge by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2509,9 +2663,13 @@ Retrieve an existing charge by ID
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe Update Charge
 
 Update an existing charge
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2534,9 +2692,13 @@ Update an existing charge
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe Capture Charge
 
 Capture an uncaptured charge
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2544,7 +2706,7 @@ Capture an uncaptured charge
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Charge ID \(e.g., ch_1234567890\) |
-| `amount` | number | No | Amount to capture in cents \(defaults to full amount\) |
+| `amount` | number | No | Amount to capture in the currency’s smallest unit \(defaults to the full amount\) |
 
 #### Output
 
@@ -2558,9 +2720,13 @@ Capture an uncaptured charge
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
+</ReferenceDetails>
+
 ### Stripe List Charges
 
 List all charges
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2580,9 +2746,13 @@ List all charges
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Charges
 
 Search for charges using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2601,9 +2771,13 @@ Search for charges using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Product
 
 Create a new product object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2626,9 +2800,13 @@ Create a new product object
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Product
 
 Retrieve an existing product by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2647,9 +2825,13 @@ Retrieve an existing product by ID
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
+</ReferenceDetails>
+
 ### Stripe Update Product
 
 Update an existing product
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2673,9 +2855,13 @@ Update an existing product
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
+</ReferenceDetails>
+
 ### Stripe Delete Product
 
 Permanently delete a product
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2691,9 +2877,13 @@ Permanently delete a product
 | `deleted` | boolean | Whether the product was deleted |
 | `id` | string | The ID of the deleted product |
 
+</ReferenceDetails>
+
 ### Stripe List Products
 
 List all products
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2712,9 +2902,13 @@ List all products
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Products
 
 Search for products using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2733,9 +2927,13 @@ Search for products using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Create Price
 
 Create a new price for a product
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2744,7 +2942,7 @@ Create a new price for a product
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `product` | string | Yes | Product ID \(e.g., prod_1234567890\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
-| `unit_amount` | number | No | Amount in cents \(e.g., 1000 for $10.00\) |
+| `unit_amount` | number | No | Amount in the currency’s smallest unit \(e.g., 1000 for 10.00 USD\) |
 | `recurring` | json | No | Recurring billing configuration \(interval: day/week/month/year\) |
 | `metadata` | json | No | Set of key-value pairs |
 | `billing_scheme` | string | No | Billing scheme \(per_unit or tiered\) |
@@ -2760,9 +2958,13 @@ Create a new price for a product
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Price
 
 Retrieve an existing price by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2782,9 +2984,13 @@ Retrieve an existing price by ID
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe Update Price
 
 Update an existing price
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2806,9 +3012,13 @@ Update an existing price
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
+</ReferenceDetails>
+
 ### Stripe List Prices
 
 List all prices
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2828,9 +3038,13 @@ List all prices
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Search Prices
 
 Search for prices using query syntax
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2849,9 +3063,13 @@ Search for prices using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 ### Stripe Retrieve Event
 
 Retrieve an existing Event by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2870,9 +3088,13 @@ Retrieve an existing Event by ID
 |   ↳ `type` | string | Event type identifier |
 |   ↳ `created` | number | Unix timestamp of creation |
 
+</ReferenceDetails>
+
 ### Stripe List Events
 
 List all Events
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2892,11 +3114,13 @@ List all Events
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Stripe Webhook
 

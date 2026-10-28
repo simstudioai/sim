@@ -6,9 +6,8 @@ import {
   canonicalTableVfsPath,
   canonicalWorkflowVfsDir,
   canonicalWorkspaceFilePath,
-  decodeVfsPathSegments,
-  encodeVfsPathSegments,
 } from '@/lib/mothership/vfs/path-utils'
+import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/vfs/path'
 
 describe('VFS path utilities', () => {
   it('round trips encoded nested path segments', () => {

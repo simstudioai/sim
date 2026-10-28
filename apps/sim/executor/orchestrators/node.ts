@@ -11,7 +11,7 @@ import {
   buildOuterBranchScopedId,
   extractBaseBlockId,
   extractOuterBranchIndex,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 
@@ -133,7 +133,7 @@ export class NodeExecutionOrchestrator {
     }
 
     if (subflowType === 'parallel') {
-      return await this.handleParallelSentinel(ctx, node, sentinelType, subflowId)
+      return await this.handleParallelSentinel(ctx, sentinelType, subflowId)
     }
 
     switch (sentinelType) {
@@ -183,7 +183,6 @@ export class NodeExecutionOrchestrator {
 
   private async handleParallelSentinel(
     ctx: ExecutionContext,
-    node: DAGNode,
     sentinelType: string | undefined,
     parallelId: string
   ): Promise<NormalizedBlockOutput> {

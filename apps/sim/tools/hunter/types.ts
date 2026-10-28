@@ -403,11 +403,3 @@ export interface HunterEmailCountResponse extends ToolResponse {
     }
   }
 }
-
-export type HunterResponse =
-  | HunterDiscoverResponse
-  | HunterDomainSearchResponse
-  | HunterEmailFinderResponse
-  | HunterEmailVerifierResponse
-  | HunterEnrichmentResponse
-  | HunterEmailCountResponse

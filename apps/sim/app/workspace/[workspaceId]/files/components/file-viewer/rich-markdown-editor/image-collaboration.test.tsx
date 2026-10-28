@@ -66,7 +66,6 @@ afterEach(async () => {
   host.remove()
   vi.clearAllTimers()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function imagePosition(editor: Editor, alt?: string): number {

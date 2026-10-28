@@ -1,18 +1,16 @@
-import { loggerMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { piiRedactionMock, piiRedactionMockFns } from '@sim/testing/mocks/pii-redaction.mock'
+import {
+  tokenizationAccurateMock,
+  tokenizationAccurateMockFns,
+} from '@sim/testing/mocks/tokenization-accurate.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret, mockRedactObjectStrings } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-  mockRedactObjectStrings: vi.fn(async (value: unknown) => value),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
-
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({
-  redactObjectStrings: mockRedactObjectStrings,
-}))
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
 
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
@@ -27,15 +25,15 @@ import type { Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const mockMemoryLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Memory')
-].value
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+const { mockRedactObjectStrings } = piiRedactionMockFns
+tokenizationAccurateMockFns.mockGetAccurateTokenCount.mockImplementation((text: string) =>
+  Math.ceil(text.length / 4)
+)
 
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: vi.fn((text: string) => {
-    return Math.ceil(text.length / 4)
-  }),
-}))
+const mockMemoryLogger = getMockLogger('Memory')
+
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
 
 describe('Memory', () => {
   let memoryService: Memory
@@ -51,8 +49,6 @@ describe('Memory', () => {
   describe('optional durable storage', () => {
     const ctx = { workspaceId: 'workspace-1' } as ExecutionContext
     const inputs = { memoryType: 'conversation' as const, conversationId: 'conversation-1' }
-
-    afterEach(() => vi.restoreAllMocks())
 
     function rejectRead(error: Error) {
       vi.spyOn(

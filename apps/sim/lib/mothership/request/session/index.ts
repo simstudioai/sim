@@ -68,7 +68,19 @@ export {
   FILE_PREVIEW_SESSION_SCHEMA_VERSION,
   isFilePreviewSession,
 } from './file-preview-session-contract'
-export { checkForReplayGap, type ReplayGapResult } from './recovery'
+export {
+  findReplayGap,
+  type RingPosition,
+  readRingPosition,
+  replayGapTerminal,
+  ringCanServe,
+} from './recovery'
+export {
+  forwardRunReplay,
+  openRunReplay,
+  type RunReplayEnd,
+  RunReplayUnavailableError,
+} from './run-replay'
 export { encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
 export type { StreamBatchEvent } from './types'
 export { StreamWriter, type StreamWriterOptions } from './writer'

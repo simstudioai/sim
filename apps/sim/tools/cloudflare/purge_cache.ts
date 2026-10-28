@@ -2,7 +2,9 @@ import type {
   CloudflarePurgeCacheParams,
   CloudflarePurgeCacheResponse,
 } from '@/tools/cloudflare/types'
+import { parseCsvParam, parseJsonArrayParam } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePurgeCacheResponse> =
   {
@@ -30,25 +32,26 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Comma-separated list of URLs to purge from cache',
+        description:
+          'Comma-separated URLs or a JSON array of URL strings and {url, headers} objects. Use headers for custom cache keys, for example [{"url":"https://example.com/a","headers":{"CF-IPCountry":"US"}}]',
       },
       tags: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Comma-separated list of cache tags to purge (Enterprise only)',
+        description: 'Comma-separated list of cache tags to purge',
       },
       hosts: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Comma-separated list of hostnames to purge (Enterprise only)',
+        description: 'Comma-separated list of hostnames to purge',
       },
       prefixes: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Comma-separated list of URL prefixes to purge (Enterprise only)',
+        description: 'Comma-separated list of URL prefixes to purge',
       },
       apiKey: {
         type: 'string',
@@ -60,41 +63,23 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
 
     request: {
       url: (params) =>
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/purge_cache`,
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/purge_cache`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
       body: (params) => {
-        const body: Record<string, string[]> = {}
-        if (params.files) {
-          const fileList = String(params.files)
-            .split(',')
-            .map((f) => f.trim())
-            .filter(Boolean)
-          if (fileList.length > 0) body.files = fileList
-        }
-        if (params.tags) {
-          const tagList = String(params.tags)
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-          if (tagList.length > 0) body.tags = tagList
-        }
-        if (params.hosts) {
-          const hostList = String(params.hosts)
-            .split(',')
-            .map((h) => h.trim())
-            .filter(Boolean)
-          if (hostList.length > 0) body.hosts = hostList
-        }
-        if (params.prefixes) {
-          const prefixList = String(params.prefixes)
-            .split(',')
-            .map((p) => p.trim())
-            .filter(Boolean)
-          if (prefixList.length > 0) body.prefixes = prefixList
+        const body: Record<string, unknown[]> = {}
+        const files =
+          Array.isArray(params.files) ||
+          (typeof params.files === 'string' && params.files.trim().startsWith('['))
+            ? parseJsonArrayParam(params.files, 'Files')
+            : parseCsvParam(params.files)
+        if (files?.length) body.files = files
+        for (const field of ['tags', 'hosts', 'prefixes'] as const) {
+          const values = parseCsvParam(params[field])
+          if (values?.length) body[field] = values
         }
 
         const targets = Object.keys(body)
@@ -140,7 +125,7 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
     transformResponse: async (response: Response) => {
       const data = await response.json()
 
-      if (!data.success) {
+      if (!response.ok || data.success !== true) {
         return {
           success: false,
           output: { id: '' },

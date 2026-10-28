@@ -8,12 +8,12 @@ import {
   workspace,
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { Webhook } from 'svix'
 import {
   agentMailEnvelopeSchema,
   agentMailMessageSchema,
@@ -41,22 +41,8 @@ const MAX_EMAILS_PER_HOUR = 20
 
 const AGENTMAIL_BODY_LABEL = 'AgentMail webhook body'
 
-/** Svix throws on a bad signature, stale timestamp, or malformed header. */
-function verifiesAgainst(
-  secret: string,
-  rawBody: string,
-  headers: Record<string, string>
-): boolean {
-  try {
-    new Webhook(secret).verify(rawBody, headers)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
- * Bound the unauthenticated AgentMail webhook body before buffering it for Svix
+ * Bound the unauthenticated AgentMail webhook body before buffering it for
  * signature verification, so an oversized payload cannot exhaust pod memory.
  */
 async function readAgentMailBody(req: Request): Promise<string> {
@@ -106,7 +92,7 @@ export const POST = withRouteHandler(async (req: Request) => {
     }
 
     /**
-     * Route to one tenant before hashing: svix HMACs the whole body synchronously,
+     * Route to one tenant before hashing: verification HMACs the whole body synchronously,
      * so checking every workspace secret would let one unauthenticated request cost
      * a hash per tenant. `inbox_id` is attacker-controlled but only selects which
      * secret to check — verification still binds the payload's inbox to the workspace.
@@ -129,7 +115,15 @@ export const POST = withRouteHandler(async (req: Request) => {
       .where(eq(workspace.inboxProviderId, inboxId))
       .limit(1)
 
-    if (!result || !verifiesAgainst(result.webhookSecret, rawBody, headersResult.data)) {
+    if (
+      !result ||
+      !verifyStandardWebhook({
+        secret: result.webhookSecret,
+        rawBody,
+        headers: req.headers,
+        headerPrefix: 'svix',
+      }).valid
+    ) {
       logger.warn('Webhook signature verification failed', { payloadInboxId: inboxId })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -185,13 +179,20 @@ export const POST = withRouteHandler(async (req: Request) => {
     const emailMessageId = message.message_id
     const inReplyTo = message.in_reply_to || null
 
+    // Message ids are sender-controlled and shared with every recipient of a mail,
+    // so a task is only ever matched inside the workspace that owns this inbox.
     const [existingResult, isAllowed, recentCount, parentTaskResult, isEntitled] =
       await Promise.all([
         emailMessageId
           ? db
               .select({ id: mothershipInboxTask.id })
               .from(mothershipInboxTask)
-              .where(eq(mothershipInboxTask.emailMessageId, emailMessageId))
+              .where(
+                and(
+                  eq(mothershipInboxTask.workspaceId, result.id),
+                  eq(mothershipInboxTask.emailMessageId, emailMessageId)
+                )
+              )
               .limit(1)
           : Promise.resolve([]),
         isSenderAllowed(fromEmail, result.id),
@@ -200,7 +201,12 @@ export const POST = withRouteHandler(async (req: Request) => {
           ? db
               .select({ chatId: mothershipInboxTask.chatId })
               .from(mothershipInboxTask)
-              .where(eq(mothershipInboxTask.responseMessageId, inReplyTo))
+              .where(
+                and(
+                  eq(mothershipInboxTask.workspaceId, result.id),
+                  eq(mothershipInboxTask.responseMessageId, inReplyTo)
+                )
+              )
               .limit(1)
           : Promise.resolve([]),
         hasWorkspaceInboxAccess(result.id),

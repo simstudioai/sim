@@ -11,7 +11,7 @@ import {
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
   toUsageLimitSubscription,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { type BillingEntity, deriveBillingContext } from '@/lib/billing/core/usage-log'

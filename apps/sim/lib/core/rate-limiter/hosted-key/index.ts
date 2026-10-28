@@ -2,7 +2,7 @@ export {
   getHostedKeyRateLimiter,
   HostedKeyRateLimiter,
   resetHostedKeyRateLimiter,
-} from './hosted-key-rate-limiter'
+} from './rate-limiter'
 export {
   DEFAULT_BURST_MULTIPLIER,
   DEFAULT_WINDOW_MS,

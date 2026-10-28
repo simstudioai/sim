@@ -1,5 +1,5 @@
 import { load } from 'js-yaml'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec } from '../contract/types'
 import { encodeFolderPath } from './request'
@@ -12,10 +12,6 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation((line: string) => {
     logged.push(line)
   })
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
 })
 
 /** The table arrives as one string; its first line is the header. */
@@ -209,6 +205,25 @@ describe('a truncation the response states inside its payload', () => {
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
     return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
   }
+
+  it.each(['readFileText', 'readFileVersionText'] as const)(
+    'preserves complete %s content in table output',
+    (operation) => {
+      const read = captureStderr()
+      const payload = {
+        fileId: 'file_probe',
+        name: 'probe.txt',
+        text: `${'Long line '.repeat(30)}\nsecond\tline\n\u001b[2Jlast line`,
+        truncated: false,
+      }
+
+      renderResult(operation, 'table', payload, CLI_CONTRACT[operation]!, {}, { data: payload })
+
+      expect(JSON.parse(logged.join('\n'))).toEqual(payload)
+      expect(logged.join('\n')).not.toContain('\u001b')
+      expect(read()).toBe('')
+    }
+  )
 
   it('reports a clipped file body, which the envelope says nothing about', () => {
     const read = captureStderr()

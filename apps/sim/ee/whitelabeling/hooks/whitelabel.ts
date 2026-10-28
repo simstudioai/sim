@@ -29,19 +29,26 @@ export const whitelabelKeys = {
   settings: (orgId: string) => [...whitelabelKeys.settingsList(), orgId] as const,
 }
 
+export interface OrganizationWhitelabel {
+  /** Whether the organization may save whitelabel settings: the entitlement the update enforces. */
+  isEnterprise: boolean
+  settings: OrganizationWhitelabelSettings
+}
+
 async function fetchWhitelabelSettings(
   orgId: string,
   signal?: AbortSignal
-): Promise<OrganizationWhitelabelSettings> {
-  const { data } = await requestJson(getOrganizationWhitelabelContract, {
+): Promise<OrganizationWhitelabel> {
+  const { data, isEnterprise } = await requestJson(getOrganizationWhitelabelContract, {
     params: { id: orgId },
     signal,
   })
-  return data
+  // A server from before the field omits it; saving still enforces the entitlement.
+  return { isEnterprise: isEnterprise ?? true, settings: data }
 }
 
 /**
- * Hook to fetch whitelabel settings for an organization.
+ * Hook to fetch an organization's whitelabel settings and whether it is entitled to change them.
  */
 export function useWhitelabelSettings(orgId: string | undefined) {
   return useQuery({

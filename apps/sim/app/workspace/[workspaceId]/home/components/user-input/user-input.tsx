@@ -15,6 +15,7 @@ import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -32,8 +33,12 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
+import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
+import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
+  ChatMessage,
+  ChatRequestMode,
   FileAttachmentForApi,
   MothershipResource,
   QueuedMessage,
@@ -42,6 +47,8 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
+import { useHydrated } from '@/hooks/use-hydrated'
+import { isMobileViewport } from '@/hooks/use-is-mobile'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -65,7 +72,8 @@ interface UserInputProps {
   onStopGeneration: () => void
   isInitialView?: boolean
   onSendQueuedHead?: () => void
-  onEditQueuedTail?: () => void
+  onEditQueuedTail?: () => boolean
+  getMessages?: () => readonly ChatMessage[]
 }
 
 export interface UserInputHandle {
@@ -95,15 +103,18 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     isInitialView = true,
     onSendQueuedHead,
     onEditQueuedTail,
+    getMessages,
   },
   ref
 ) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { userId, onContextAdd, onContextRemove } = useChatSurface()
+  // Server HTML cannot see the stored draft; hydration renders without it and the mount restore applies it.
+  const canReadStoredDraft = useHydrated()
   const [initialValue] = useState(() => {
     if (defaultValue) return defaultValue
-    if (!draftScopeKey) return ''
+    if (!canReadStoredDraft || !draftScopeKey) return ''
     const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
     return typeof text === 'string' ? text : ''
   })
@@ -113,7 +124,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const files = useFileAttachments({
     userId,
     workspaceId,
-    isLoading: isSending,
   })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
   const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
@@ -131,9 +141,24 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     onContextAdd,
     onPasteFiles: handlePasteFiles,
   })
+  const history = usePromptHistory({
+    editor,
+    attachedFiles: files.attachedFiles,
+    restoreAttachedFiles: files.restoreAttachedFiles,
+    getMessages,
+  })
   const editorRef = useRef(editor)
   editorRef.current = editor
   const textareaRef = editor.textareaRef
+  const handleModeChange = (mode: ChatRequestMode) => {
+    if (mode === 'agent' || mode === 'plan') onModeChange?.(mode)
+  }
+  const handleModeShortcut = useConversationModeShortcut({
+    value: requestMode,
+    onChange: onModeChange ? handleModeChange : undefined,
+    textareaRef,
+    pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,
+  })
   useChatInputFocus({ textareaRef })
 
   /**
@@ -189,14 +214,17 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     }
     if (restoredContexts) editor.setContexts(restoredContexts)
     if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
-    if (caretText !== null) {
+    // Text typed before hydration wins over the saved draft, caret included.
+    const typedBeforeHydration = initialValue === '' && editor.getValue() !== ''
+    if (caretText !== null && !typedBeforeHydration) {
+      if (initialValue === '') editor.setValue(caretText, { seed: true })
       const textarea = textareaRef.current
       if (textarea) {
-        textarea.focus()
+        if (!isMobileViewport()) textarea.focus()
         textarea.setSelectionRange(caretText.length, caretText.length)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+  }, []) // intentional mount-only restore
 
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)
@@ -259,6 +287,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           return `knowledge:${ctx.knowledgeId ?? ''}`
         case 'table':
           return `table:${ctx.tableId}`
+        case 'dashboard':
+          return `dashboard:${ctx.dashboardId}`
         case 'file':
           return `file:${ctx.fileId}`
         case 'folder':
@@ -312,7 +342,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }
 
   const {
-    audioLevelsRef,
+    audioLevels,
     isListening,
     isSupported: isSttSupported,
     toggleListening,
@@ -340,7 +370,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     () => ({
       loadQueuedMessage: (msg: QueuedMessage) => {
         const currentEditor = editorRef.current
-        currentEditor.setValue(msg.content)
+        history.reset()
+        const { hasUnavailableContexts } = currentEditor.restorePrompt(msg.content, msg.contexts)
+        if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
         const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
           id: a.id,
           name: a.filename,
@@ -352,7 +384,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           previewUrl: getMothershipAttachmentPreviewUrl(a),
         }))
         filesRef.current.restoreAttachedFiles(restored)
-        currentEditor.setContexts(msg.contexts ?? [])
         currentEditor.focusAtEnd()
       },
       populatePrompt: (text: string) => {
@@ -464,6 +495,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   /** Empties the text, chips, attachments, transcript, and the saved draft in one step. */
   const clearComposer = useCallback(() => {
+    history.reset()
     editorRef.current.clear()
     if (draftSaveTimerRef.current !== null) {
       window.clearTimeout(draftSaveTimerRef.current)
@@ -478,7 +510,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     resetTranscript()
     filesRef.current.clearAttachedFiles()
     filesRef.current = { ...filesRef.current, attachedFiles: [] }
-  }, [resetTranscript])
+  }, [resetTranscript, history.reset])
 
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
@@ -534,8 +566,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (filesRef.current.attachedFiles.length > 0) return false
     const onEditQueuedTail = onEditQueuedTailRef.current
     if (!onEditQueuedTail) return false
-    onEditQueuedTail()
-    return true
+    return onEditQueuedTail()
   }, [])
 
   const handlePlusClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -550,6 +581,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   return (
     <div
       onClick={handleContainerClick}
+      onKeyDown={handleModeShortcut}
       onFocusCapture={() => {
         composerOwnsFocusRef.current = true
       }}
@@ -578,10 +610,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <PromptEditor
         editor={editor}
+        aria-label='Message'
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
+        onNavigateHistory={history.navigate}
+        className={cn(
+          'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
+          isInitialView && 'min-h-[56px] max-md:min-h-0'
+        )}
       />
 
       <InputToolbar
@@ -622,19 +659,14 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
               <Tooltip.Content side='top'>Skills</Tooltip.Content>
             </Tooltip.Root>
             {onModeChange && (
-              <ConversationModeSelector
-                value={requestMode}
-                onChange={(mode) => {
-                  if (mode === 'agent' || mode === 'plan') onModeChange(mode)
-                }}
-              />
+              <ConversationModeSelector value={requestMode} onChange={handleModeChange} />
             )}
           </>
         }
         voiceControl={
           isSttSupported && (
             <MicButton
-              audioLevelsRef={audioLevelsRef}
+              audioLevels={audioLevels}
               isListening={isListening}
               onToggle={toggleListening}
             />

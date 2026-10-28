@@ -1,3 +1,4 @@
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -93,47 +94,7 @@ const {
   setTabsState: vi.fn(),
 }))
 
-vi.mock('@/lib/desktop', () => ({
-  isBrowserAgentEnabled: () => true,
-  getDesktopBridge: () => ({
-    browserAgent: {
-      supportsAtomicPanelOcclusion: true,
-      activateScope,
-      cancelActiveTool,
-      cancelTool,
-      executeTool,
-      capturePanelSnapshot,
-      disposeScope,
-      migrateScope: nativeMigrateScope,
-      onCloseFind,
-      onAddToChat,
-      onFindResult,
-      onFocusOmnibox,
-      onOpenFind,
-      onPageState,
-      onScopeSuspended,
-      onToolbarCommand,
-      onSessionStatus,
-      onTabsState,
-      openTab,
-      openUrl: openUrlAvailable.current ? openUrl : undefined,
-      panelAction,
-      registerSitePermissionPromptSupport,
-      reorderTab,
-      restoreScope,
-      suspendScope: nativeSuspendScope,
-      setPanelBounds,
-      setPanelFocused,
-      setPanelOccluded,
-      showToolbarMenu,
-      setTheme,
-    },
-    browserCredentials: {
-      onFillAvailability,
-      showChooser: showCredentialChooser,
-    },
-  }),
-}))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 vi.mock('@/stores/browser-session/store', () => ({
   useBrowserSessionStore: {
@@ -168,6 +129,45 @@ import {
   showBrowserToolbarMenu,
   suspendBrowserScope,
 } from '@/lib/browser-agent/transport'
+
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() => ({
+  browserAgent: {
+    supportsAtomicPanelOcclusion: true,
+    activateScope,
+    cancelActiveTool,
+    cancelTool,
+    executeTool,
+    capturePanelSnapshot,
+    disposeScope,
+    migrateScope: nativeMigrateScope,
+    onCloseFind,
+    onAddToChat,
+    onFindResult,
+    onFocusOmnibox,
+    onOpenFind,
+    onPageState,
+    onScopeSuspended,
+    onToolbarCommand,
+    onSessionStatus,
+    onTabsState,
+    openTab,
+    openUrl: openUrlAvailable.current ? openUrl : undefined,
+    panelAction,
+    registerSitePermissionPromptSupport,
+    reorderTab,
+    restoreScope,
+    suspendScope: nativeSuspendScope,
+    setPanelBounds,
+    setPanelFocused,
+    setPanelOccluded,
+    showToolbarMenu,
+    setTheme,
+  },
+  browserCredentials: {
+    onFillAvailability,
+    showChooser: showCredentialChooser,
+  },
+}))
 
 describe('browser panel transport', () => {
   beforeEach(async () => {

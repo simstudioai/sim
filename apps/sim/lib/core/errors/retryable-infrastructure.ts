@@ -23,6 +23,7 @@ const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   'ECONNREFUSED',
   'EPIPE',
   'ERR_STREAM_PREMATURE_CLOSE',
+  'EHOSTUNREACH',
   'ENETDOWN',
   'ENETRESET',
   'ENETUNREACH',
@@ -54,6 +55,17 @@ const RETRYABLE_PG_CLIENT_ERROR_CODES = new Set([
   'CONNECTION_DESTROYED',
 ])
 
+/**
+ * Deadlines the app enforces on its own reads: a read whose budget ran out before its query
+ * began (`DatabaseReadDeadlineError`) and a coalesced read that never settled
+ * (`CoalesceSettleTimeoutError`). Neither read produced an answer or an effect, the same
+ * class as `ETIMEDOUT` above.
+ */
+const RETRYABLE_READ_DEADLINE_ERROR_CODES = new Set([
+  'DATABASE_READ_DEADLINE_EXCEEDED',
+  'COALESCE_SETTLE_TIMEOUT',
+])
+
 function getErrorChain(error: unknown): Array<Error & Record<string, unknown>> {
   const chain: Array<Error & Record<string, unknown>> = []
   let current: unknown = error
@@ -78,6 +90,7 @@ export function describeRetryableInfrastructureError(
       (code && RETRYABLE_NETWORK_ERROR_CODES.has(code)) ||
       (code && RETRYABLE_APP_ERROR_CODES.has(code)) ||
       (code && RETRYABLE_PG_CLIENT_ERROR_CODES.has(code)) ||
+      (code && RETRYABLE_READ_DEADLINE_ERROR_CODES.has(code)) ||
       (errno && RETRYABLE_NETWORK_ERROR_CODES.has(errno))
     ) {
       return {
@@ -95,6 +108,19 @@ export function describeRetryableInfrastructureError(
 
 export function isRetryableInfrastructureError(error: unknown): boolean {
   return Boolean(describeRetryableInfrastructureError(error))
+}
+
+/**
+ * A network-level failure only — a dropped, refused, or timed-out socket anywhere in the
+ * cause chain. Narrower than {@link isRetryableInfrastructureError}: database and application
+ * codes are excluded, so a caller replaying a billed request never mistakes one for a socket.
+ */
+export function isRetryableNetworkError(error: unknown): boolean {
+  return getErrorChain(error).some(
+    (candidate) =>
+      (typeof candidate.code === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.code)) ||
+      (typeof candidate.errno === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.errno))
+  )
 }
 
 /**

@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { canUseBenchmarks } from '@/lib/benchmarks/application/access'
+import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { BenchmarkConsole } from '@/app/benchmark/benchmark-console'
 import BenchmarkLoading from '@/app/o/[organizationId]/benchmark/loading'
 

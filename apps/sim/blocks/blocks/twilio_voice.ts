@@ -1,16 +1,15 @@
 import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
-export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
+export const TwilioVoiceBlock: BlockConfig = {
   type: 'twilio_voice',
   name: 'Twilio Voice',
   description: 'Make and manage phone calls',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.',
+    'Make outbound calls, list calls, retrieve recordings, and receive call events through webhooks.',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   docsLink: 'https://docs.sim.ai/integrations/twilio_voice',

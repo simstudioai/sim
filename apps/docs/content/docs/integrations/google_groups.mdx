@@ -1,43 +1,47 @@
 ---
 title: Google Groups
 description: Manage Google Workspace Groups and their members
+integration:
+  type: "google_groups"
+  color: "#E8F0FE"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_groups"
-  color="#E8F0FE"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Groups](https://groups.google.com) is part of Google Workspace, providing email-based group communication, collaboration, and access control for teams and organizations. Google Groups lets you create mailing lists, manage membership, and control permissions for both internal and external users.
+Use [Google Groups](https://groups.google.com) to manage Google Workspace groups and membership through the Admin SDK Directory API. Create, read, update, or delete groups; manage aliases; add, remove, or update members with `OWNER`, `MANAGER`, or `MEMBER` roles; and check membership.
 
-This page explains how you can use Sim to automate the management of Google Groups in your workflows. With Sim, agents can create and configure groups, add or remove members, update group settings, and keep directory lists up-to-date automatically—ideal for onboarding workflows, syncing IT systems, or dynamically managing project teams.
-
-With Google Groups, you can:
-
-- **Centralize communications**: Create team or project mailing lists for group conversations
-- **Manage group membership**: Add, remove, or update members with granular roles (owner, manager, member)
-- **Control access**: Manage who can view, post, or join; set permissions for public/private visibility
-- **Collaborate across teams**: Streamline communication and document sharing via group-based access
-- **Automate IT tasks**: Use Sim to keep group memberships current as teams change
-
-In Sim, the Google Groups integration gives your agents API-driven control to automate common administrative tasks. Connect directly to your Google Workspace domain to add users to groups, manage lists, audit group settings, and ensure your organization’s access controls are always up-to-date—without manual overhead.
+Connect an account with the required Workspace administrative permissions. **Get Settings** and **Update Settings** also use the Groups Settings API, which requires [`https://www.googleapis.com/auth/apps.groups.settings`](https://developers.google.com/workspace/admin/groups-settings/auth). Sim's current Google Groups OAuth connection requests Directory API scopes only, so it does not provide the scope needed for those settings actions.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Google Groups account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-groups` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/admin.directory.group` | Manage Google Workspace groups |
+| `https://www.googleapis.com/auth/admin.directory.group.member` | Manage Google Workspace group memberships |
+
+## Use the block [#usage-instructions]
 
 Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.
-
-
 
 ## Actions
 
 ### Google Groups List Groups
 
 List all groups in a Google Workspace domain
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,9 +60,13 @@ List all groups in a Google Workspace domain
 | `groups` | json | Array of group objects |
 | `nextPageToken` | string | Token for fetching next page of results |
 
+</ReferenceDetails>
+
 ### Google Groups Get Group
 
 Get details of a specific Google Group by email or group ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +80,13 @@ Get details of a specific Google Group by email or group ID
 | --------- | ---- | ----------- |
 | `group` | json | Group object |
 
+</ReferenceDetails>
+
 ### Google Groups Create Group
 
 Create a new Google Group in the domain
+
+<ReferenceDetails>
 
 #### Input
 
@@ -90,9 +102,13 @@ Create a new Google Group in the domain
 | --------- | ---- | ----------- |
 | `group` | json | Created group object |
 
+</ReferenceDetails>
+
 ### Google Groups Update Group
 
 Update an existing Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +125,13 @@ Update an existing Google Group
 | --------- | ---- | ----------- |
 | `group` | json | Updated group object |
 
+</ReferenceDetails>
+
 ### Google Groups Delete Group
 
 Delete a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -125,9 +145,13 @@ Delete a Google Group
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### Google Groups List Members
 
 List all members of a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -145,9 +169,13 @@ List all members of a Google Group
 | `members` | json | Array of member objects |
 | `nextPageToken` | string | Token for fetching next page of results |
 
+</ReferenceDetails>
+
 ### Google Groups Get Member
 
 Get details of a specific member in a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -162,9 +190,13 @@ Get details of a specific member in a Google Group
 | --------- | ---- | ----------- |
 | `member` | json | Member object |
 
+</ReferenceDetails>
+
 ### Google Groups Add Member
 
 Add a new member to a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -180,9 +212,13 @@ Add a new member to a Google Group
 | --------- | ---- | ----------- |
 | `member` | json | Added member object |
 
+</ReferenceDetails>
+
 ### Google Groups Remove Member
 
 Remove a member from a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -197,9 +233,13 @@ Remove a member from a Google Group
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### Google Groups Update Member
 
 Update a member's role in a Google Group (promote or demote)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,9 +255,13 @@ Update a member's role in a Google Group (promote or demote)
 | --------- | ---- | ----------- |
 | `member` | json | Updated member object |
 
+</ReferenceDetails>
+
 ### Google Groups Has Member
 
 Check if a user is a member of a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -232,9 +276,13 @@ Check if a user is a member of a Google Group
 | --------- | ---- | ----------- |
 | `isMember` | boolean | Whether the user is a member of the group |
 
+</ReferenceDetails>
+
 ### Google Groups List Aliases
 
 List all email aliases for a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -253,9 +301,13 @@ List all email aliases for a Google Group
 |   ↳ `kind` | string | API resource type |
 |   ↳ `etag` | string | Resource version identifier |
 
+</ReferenceDetails>
+
 ### Google Groups Add Alias
 
 Add an email alias to a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -274,9 +326,13 @@ Add an email alias to a Google Group
 | `kind` | string | API resource type |
 | `etag` | string | Resource version identifier |
 
+</ReferenceDetails>
+
 ### Google Groups Remove Alias
 
 Remove an email alias from a Google Group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -291,9 +347,13 @@ Remove an email alias from a Google Group
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the alias was successfully deleted |
 
+</ReferenceDetails>
+
 ### Google Groups Get Settings
 
 Get the settings for a Google Group including access permissions, moderation, and posting options
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,9 +399,13 @@ Get the settings for a Google Group including access permissions, moderation, an
 | `whoCanDiscoverGroup` | string | Who can discover the group |
 | `defaultSender` | string | Default sender identity \(DEFAULT_SELF or GROUP\) |
 
+</ReferenceDetails>
+
 ### Google Groups Update Settings
 
 Update the settings for a Google Group including access permissions, moderation, and posting options
+
+<ReferenceDetails>
 
 #### Input
 
@@ -418,5 +482,7 @@ Update the settings for a Google Group including access permissions, moderation,
 | `enableCollaborativeInbox` | string | Whether collaborative inbox is enabled |
 | `whoCanDiscoverGroup` | string | Who can discover the group |
 | `defaultSender` | string | Default sender identity |
+
+</ReferenceDetails>
 
 

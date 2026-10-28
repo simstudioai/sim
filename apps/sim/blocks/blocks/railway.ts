@@ -1,9 +1,8 @@
 import { RailwayIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RailwayResponse } from '@/tools/railway/types'
 
-export const RailwayBlock: BlockConfig<RailwayResponse> = {
+export const RailwayBlock: BlockConfig = {
   type: 'railway',
   name: 'Railway',
   description: 'Manage Railway projects, services, deployments, and variables',

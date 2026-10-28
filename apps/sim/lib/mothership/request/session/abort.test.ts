@@ -1,4 +1,5 @@
 import { redisConfigMockFns } from '@sim/testing'
+import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockHasAbortMarker, mockClearAbortMarker, mockWriteAbortMarker } = vi.hoisted(() => ({
@@ -12,17 +13,29 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
   clearAbortMarker: mockClearAbortMarker,
   writeAbortMarker: mockWriteAbortMarker,
 }))
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (_span: unknown, _attrs: unknown, fn: (span: unknown) => unknown) =>
-    fn({ setAttribute: vi.fn() }),
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import {
+  abortActiveStream,
   acquirePendingChatStream,
   getChatStreamLockOwners,
+  registerActiveStream,
   releasePendingChatStream,
   startAbortPoller,
 } from '@/lib/mothership/request/session/abort'
+
+describe('abortActiveStream', () => {
+  it('stops this process’s controller even when the abort marker cannot be written', async () => {
+    const controller = new AbortController()
+    registerActiveStream('stream-marker-down', controller)
+    mockWriteAbortMarker.mockRejectedValueOnce(new Error('redis unavailable'))
+
+    await expect(abortActiveStream('stream-marker-down')).rejects.toThrow('redis unavailable')
+
+    expect(controller.signal.aborted).toBe(true)
+    expect(await abortActiveStream('stream-marker-down')).toBe(false)
+  })
+})
 
 describe('startAbortPoller heartbeat', () => {
   beforeEach(() => {
@@ -98,6 +111,59 @@ describe('startAbortPoller heartbeat', () => {
 
       await vi.advanceTimersByTimeAsync(1_000)
       expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(2)
+    } finally {
+      clearInterval(interval)
+    }
+  })
+
+  it('stops the controller once its lock lapsed while every renewal failed', async () => {
+    const controller = new AbortController()
+    const streamId = 'stream-partitioned'
+    const chatId = 'chat-partitioned'
+    redisConfigMockFns.mockExtendLock.mockRejectedValue(new Error('redis unreachable'))
+
+    const interval = startAbortPoller(streamId, controller, {
+      chatId,
+      lease: { key: `copilot:chat-stream-lock:${chatId}`, value: `${streamId}\ncontroller-1` },
+    })
+
+    try {
+      await vi.advanceTimersByTimeAsync(59_000)
+      expect(controller.signal.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(controller.signal.aborted).toBe(true)
+      expect(controller.signal.reason.name).toBe('StreamControllerSupersededError')
+      const attempts = redisConfigMockFns.mockExtendLock.mock.calls.length
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(attempts)
+    } finally {
+      clearInterval(interval)
+    }
+  })
+
+  it('times the lapse from when the lock was taken, not from when polling started', async () => {
+    const controller = new AbortController()
+    const streamId = 'stream-slow-setup'
+    const chatId = 'chat-slow-setup'
+    redisConfigMockFns.mockExtendLock.mockRejectedValue(new Error('redis unreachable'))
+
+    const interval = startAbortPoller(streamId, controller, {
+      chatId,
+      lease: {
+        key: `copilot:chat-stream-lock:${chatId}`,
+        value: `${streamId}\ncontroller-1`,
+        acquiredAt: Date.now() - 50_000,
+      },
+    })
+
+    try {
+      await vi.advanceTimersByTimeAsync(9_000)
+      expect(controller.signal.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(controller.signal.aborted).toBe(true)
+      expect(controller.signal.reason.name).toBe('StreamControllerSupersededError')
     } finally {
       clearInterval(interval)
     }

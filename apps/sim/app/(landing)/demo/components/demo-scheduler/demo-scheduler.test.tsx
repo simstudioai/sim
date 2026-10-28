@@ -64,7 +64,6 @@ describe('DemoScheduler', () => {
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    vi.clearAllMocks()
     mockTheme.resolvedTheme = 'light'
     mockConsent.marketing = true
     mockConsent.measurement = true

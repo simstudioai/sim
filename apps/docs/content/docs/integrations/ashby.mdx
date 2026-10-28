@@ -1,24 +1,23 @@
 ---
 title: Ashby
 description: Manage candidates, jobs, and applications in Ashby
+integration:
+  type: "ashby"
+  color: "#5D4ED6"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ashby"
-  color="#5D4ED6"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Ashby](https://www.ashbyhq.com/) to manage recruiting records and react to hiring events. List Jobs supports incremental sync tokens; custom-field actions annotate jobs, openings, applications, and candidates.
 
-The Ashby block also supports **webhook triggers** that automatically start workflows in response to Ashby events. Available triggers include Application Submitted, Candidate Stage Change, Candidate Hired, Candidate Deleted, Job Created, and Offer Created. Webhooks are fully managed — Sim automatically creates the webhook in Ashby when you save the trigger and deletes it when you remove it, so there's no manual webhook configuration needed. Just provide your Ashby API key (with `apiKeysWrite` permission) and select the event type.
+The Ashby block also supports **webhook triggers** that automatically start workflows in response to Ashby events. Available triggers include Application Submitted, Candidate Stage Change, Candidate Hired, Candidate Deleted, Job Created, and Offer Created. Sim creates the webhook when you deploy the workflow. Remove the trigger and redeploy to delete it. Provide an Ashby API key with `apiKeysWrite` permission and select the event type.
 
 ## API key permissions
 
 Ashby grants permissions per module rather than per endpoint, and a missing permission fails at **runtime**, not when you build the workflow.
-A key without the right scope returns a 403 in the middle of a run, so check the key before scheduling anything against it.
+Check the key before scheduling a workflow: an endpoint permission failure returns HTTP 403 with `missing_endpoint_permission`.
 
 | Permission | Covers |
 | --- | --- |
@@ -41,25 +40,24 @@ Every job returned by List Jobs carries a `confidential` flag, so you can filter
 
 These are constraints of the Ashby API itself, not of the Sim block:
 
-- **No notes or tags on a job or req.** Both are candidate-scoped in Ashby. Custom field values are the only way to annotate a job, which is what Set Custom Field Value is for. Writing `null` clears a value, so the annotation is reversible.
+- **Job annotations use custom fields.** The note and tag operations here act on candidates. Use **Set Custom Field Value** to annotate a job. Writing `null` clears a value, so the annotation is reversible.
 - **No pagination on List Job Postings.** The endpoint returns every posting in one response, with no cursor, page limit, or sync token. Paginate through List Jobs instead when you need to page.
-- **No way to delete, archive, or update a custom field definition.** Creating one is irreversible, so never create throwaway field definitions against a shared organization.
-- **No note deletion endpoint.** Notes can be created and listed but never removed.
-- **No candidate deletion endpoint.** Anonymize Candidate strips personal information but leaves the record and its applications in place. Real deletion is available only in the Ashby UI, is limited to a 10-day window, and is restricted to certain roles.
+- **No delete, archive, or update operation for custom field definitions is exposed by this integration.** Plan field definitions before creating them in a shared organization.
+- **Note deletion is not exposed by this integration.** The note operations create and list candidate notes.
+- **No candidate deletion endpoint.** Anonymize Candidate strips personal information but leaves the record and its applications in place. Use Ashby’s administrative UI and its current retention and permission policy for deletion; anonymization and deletion have different effects.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Ashby into the workflow. Manage and search candidates, applications, jobs, users, and openings; transfer applications; upload resumes and candidate files; read application history and interview feedback; manage offers, notes, tags, stages, sources, and custom fields; and react to hiring lifecycle webhooks.
-
-
+Manage and search candidates, applications, jobs, users, and openings; transfer applications; upload resumes and candidate files; read application history and interview feedback; manage offers, notes, tags, stages, sources, and custom fields; and react to hiring lifecycle webhooks.
 
 ## Actions
 
 ### Ashby Add Candidate Tag
 
 Adds a tag to a candidate in Ashby and returns the updated candidate.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -112,9 +110,13 @@ Adds a tag to a candidate in Ashby and returns the updated candidate.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Anonymize Candidate
 
-Strips personally identifiable information from a candidate in Ashby. This does not delete the candidate - the record and its applications remain, with the PII removed. Ashby exposes no candidate deletion endpoint; true deletion is UI-only, restricted by role, and limited to a 10-day window. Requires the candidatesWrite permission.
+Remove personally identifiable information from an Ashby candidate while retaining the candidate record and its applications. This operation does not delete the candidate. Requires the candidatesWrite permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -166,9 +168,13 @@ Strips personally identifiable information from a candidate in Ashby. This does 
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Change Application Source
 
 Changes the source attributed to an existing application, so programmatically created applications report correctly on the recruiting side. Requires the candidatesWrite permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +228,13 @@ Changes the source attributed to an existing application, so programmatically cr
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Change Application Stage
 
 Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +289,13 @@ Moves an application to a different interview stage. Requires an archive reason 
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Create Application
 
 Creates a new application for a candidate on a job. Optionally specify interview plan, stage, source, and credited user.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -340,9 +354,13 @@ Creates a new application for a candidate on a job. Optionally specify interview
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Create Candidate
 
 Creates a new candidate record in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -404,9 +422,13 @@ Creates a new candidate record in Ashby.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Create Note
 
 Creates a note on a candidate in Ashby. Supports plain text and HTML content (bold, italic, underline, links, lists, code).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -435,9 +457,13 @@ Creates a note on a candidate in Ashby. Supports plain text and HTML content (bo
 |   ↳ `lastName` | string | Author last name |
 |   ↳ `email` | string | Author email |
 
+</ReferenceDetails>
+
 ### Ashby Delete Application
 
 Permanently deletes an application in Ashby. Requires the candidatesDelete permission, which is a separate module permission from candidatesWrite - a read and write key returns 403 here. There is no equivalent endpoint for deleting a candidate; candidate deletion is UI-only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -453,9 +479,13 @@ Permanently deletes an application in Ashby. Requires the candidatesDelete permi
 | --------- | ---- | ----------- |
 | `applicationId` | string | UUID of the deleted application |
 
+</ReferenceDetails>
+
 ### Ashby Get Application
 
 Retrieves full details about a single application by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -508,9 +538,13 @@ Retrieves full details about a single application by its ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Get Candidate
 
 Retrieves full details about a single candidate by their ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -562,9 +596,13 @@ Retrieves full details about a single candidate by their ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Get Job
 
 Retrieves full details about a single job by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -616,9 +654,13 @@ Retrieves full details about a single job by its ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Get Job Posting
 
 Retrieves full details about a single job posting by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -688,9 +730,13 @@ Retrieves full details about a single job posting by its ID.
 | `updatedAt` | string | ISO 8601 last update timestamp |
 | `job` | object | The expanded job object, only present when the request was made with expandJob=true |
 
+</ReferenceDetails>
+
 ### Ashby Get Offer
 
 Retrieves full details about a single offer by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -742,9 +788,13 @@ Retrieves full details about a single offer by its ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Get Opening
 
 Retrieves one Ashby headcount opening by UUID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -795,9 +845,13 @@ Retrieves one Ashby headcount opening by UUID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby List Application Feedback
 
 Lists submitted interview feedback, optionally for one application, with pagination and incremental sync.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -828,9 +882,13 @@ Lists submitted interview feedback, optionally for one application, with paginat
 | `nextCursor` | string | Next page cursor |
 | `nextSyncCursor` | string | Next incremental sync token |
 
+</ReferenceDetails>
+
 ### Ashby List Application History
 
 Lists the full stage history and allowed actions for an application.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -857,9 +915,13 @@ Lists the full stage history and allowed actions for an application.
 | `moreDataAvailable` | boolean | Whether more pages exist |
 | `nextCursor` | string | Next page cursor |
 
+</ReferenceDetails>
+
 ### Ashby List Applications
 
 Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -884,9 +946,13 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
 
+</ReferenceDetails>
+
 ### Ashby List Archive Reasons
 
 Lists all archive reasons configured in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -905,9 +971,13 @@ Lists all archive reasons configured in Ashby.
 |   ↳ `reasonType` | string | Reason type \(RejectedByCandidate, RejectedByOrg, Other\) |
 |   ↳ `isArchived` | boolean | Whether the reason is archived |
 
+</ReferenceDetails>
+
 ### Ashby List Candidate Tags
 
 Lists all candidate tags configured in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -931,9 +1001,13 @@ Lists all candidate tags configured in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Sync token to use for incremental updates in future requests |
 
+</ReferenceDetails>
+
 ### Ashby List Candidates
 
 Lists all candidates in an Ashby organization with cursor-based pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -955,9 +1029,13 @@ Lists all candidates in an Ashby organization with cursor-based pagination.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
 
+</ReferenceDetails>
+
 ### Ashby List Custom Fields
 
 Lists all custom field definitions configured in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -989,9 +1067,13 @@ Lists all custom field definitions configured in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
 
+</ReferenceDetails>
+
 ### Ashby List Departments
 
 Lists all departments in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1020,9 +1102,13 @@ Lists all departments in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
 
+</ReferenceDetails>
+
 ### Ashby List Interview Schedules
 
 Lists interview schedules in Ashby, optionally filtered by application or interview stage.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1045,6 +1131,15 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 |   ↳ `status` | string | Schedule status \(NeedsScheduling, WaitingOnCandidateBooking, Scheduled, Complete, Cancelled, OnHold, etc.\) |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `interviewStageId` | string | Interview stage UUID |
+|   ↳ `scheduledBy` | object | User summary |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email |
+|     ↳ `globalRole` | string | Role |
+|     ↳ `isEnabled` | boolean | Whether enabled |
+|     ↳ `updatedAt` | string | Last update timestamp |
+|     ↳ `managerId` | string | User ID of the user's manager |
 |   ↳ `createdAt` | string | ISO 8601 creation timestamp |
 |   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 |   ↳ `interviewEvents` | array | Scheduled interview events on this schedule |
@@ -1064,9 +1159,13 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque token for the next incremental sync |
 
+</ReferenceDetails>
+
 ### Ashby List Interview Plans
 
 Lists Ashby interview plans, including optional archived plans and incremental changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1092,9 +1191,13 @@ Lists Ashby interview plans, including optional archived plans and incremental c
 | `nextCursor` | string | Next page cursor |
 | `nextSyncCursor` | string | Next incremental sync token |
 
+</ReferenceDetails>
+
 ### Ashby List Interview Stages
 
 Lists the ordered stages in an Ashby interview plan.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1115,9 +1218,13 @@ Lists the ordered stages in an Ashby interview plan.
 |   ↳ `orderInInterviewPlan` | number | Zero-based plan order |
 |   ↳ `interviewStageGroupId` | string | Stage group UUID |
 
+</ReferenceDetails>
+
 ### Ashby List Job Postings
 
 Lists all job postings in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1156,9 +1263,13 @@ Lists all job postings in Ashby.
 |   ↳ `shouldDisplayCompensationOnJobBoard` | boolean | Whether compensation is shown on the job board |
 |   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 
+</ReferenceDetails>
+
 ### Ashby List Jobs
 
 Lists all jobs in an Ashby organization. By default returns Open, Closed, and Archived jobs. Specify status to filter.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1185,9 +1296,13 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Ashby's syncToken for the next incremental run, returned only once the last page is drained. Named as a cursor because that is what it is - an opaque resumption marker, not a credential - so it stays readable in block output alongside nextCursor. |
 
+</ReferenceDetails>
+
 ### Ashby List Locations
 
 Lists all locations configured in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1224,9 +1339,13 @@ Lists all locations configured in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
 
+</ReferenceDetails>
+
 ### Ashby List Notes
 
 Lists all notes on a candidate with pagination support.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1254,9 +1373,13 @@ Lists all notes on a candidate with pagination support.
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
+</ReferenceDetails>
+
 ### Ashby List Offers
 
 Lists all offers with their latest version in an Ashby organization.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1281,9 +1404,13 @@ Lists all offers with their latest version in an Ashby organization.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
 
+</ReferenceDetails>
+
 ### Ashby List Openings
 
 Lists all openings in Ashby with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1303,9 +1430,13 @@ Lists all openings in Ashby with pagination.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque token for the next incremental sync |
 
+</ReferenceDetails>
+
 ### Ashby List Sources
 
 Lists all candidate sources configured in Ashby.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1327,9 +1458,13 @@ Lists all candidate sources configured in Ashby.
 |     ↳ `title` | string | Source type title |
 |     ↳ `isArchived` | boolean | Whether archived |
 
+</ReferenceDetails>
+
 ### Ashby List Users
 
 Lists all users in Ashby with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1350,9 +1485,13 @@ Lists all users in Ashby with pagination.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `nextSyncCursor` | string | Opaque token for the next incremental sync |
 
+</ReferenceDetails>
+
 ### Ashby Remove Candidate Tag
 
 Removes a tag from a candidate in Ashby and returns the updated candidate.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1405,9 +1544,13 @@ Removes a tag from a candidate in Ashby and returns the updated candidate.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Search Candidates
 
 Searches for candidates by name and/or email with AND logic. Results are limited to 100 matches. Use candidate.list for full pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1424,9 +1567,13 @@ Searches for candidates by name and/or email with AND logic. Results are limited
 | --------- | ---- | ----------- |
 | `candidates` | array | Matching candidates \(max 100 results\) |
 
+</ReferenceDetails>
+
 ### Ashby Search Jobs
 
 Searches Ashby jobs by title and/or requisition ID. Provide at least one of these filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1444,9 +1591,13 @@ Searches Ashby jobs by title and/or requisition ID. Provide at least one of thes
 | `jobs` | array | Matching jobs |
 | `moreDataAvailable` | boolean | Whether more matches exist |
 
+</ReferenceDetails>
+
 ### Ashby Search Openings
 
 Searches Ashby headcount openings by human-readable identifier.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1497,9 +1648,13 @@ Searches Ashby headcount openings by human-readable identifier.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Search Users
 
 Searches Ashby users by exact email address.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1514,9 +1669,13 @@ Searches Ashby users by exact email address.
 | --------- | ---- | ----------- |
 | `users` | array | Matching users |
 
+</ReferenceDetails>
+
 ### Ashby Set Custom Field Value
 
 Sets the value of a single custom field on an Ashby Application, Candidate, Job, or Opening. Custom fields are the only way to annotate a job or req, since Ashby has no job notes and no job tags. Requires the candidatesWrite permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1535,9 +1694,13 @@ Sets the value of a single custom field on an Ashby Application, Candidate, Job,
 | --------- | ---- | ----------- |
 | `customField` | object | The custom field as stored on the object after the write |
 
+</ReferenceDetails>
+
 ### Ashby Set Custom Field Values
 
 Sets several custom field values on one Ashby Application, Candidate, Job, or Opening in a single call. Prefer this over repeated single-field writes to the same object - Ashby recommends it because concurrent single-field calls can race and overwrite each other. Requires the candidatesWrite permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1553,47 +1716,15 @@ Sets several custom field values on one Ashby Application, Candidate, Job, or Op
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `candidates` | json | List of candidates with rich fields \(id, name, primaryEmailAddress, primaryPhoneNumber, emailAddresses\[\], phoneNumbers\[\], socialLinks\[\], linkedInUrl, githubUrl, profileUrl, position, company, school, timezone, location with locationComponents\[\], tags\[\], applicationIds\[\], customFields\[\], resumeFileHandle, fileHandles\[\], source with sourceType, creditedToUser, fraudStatus, createdAt, updatedAt\) |
-| `jobs` | json | List of jobs \(id, title, confidential, status, employmentType, locationId, departmentId, defaultInterviewPlanId, interviewPlanIds\[\], customFields\[\], jobPostingIds\[\], customRequisitionId, brandId, hiringTeam\[\], author, createdAt, updatedAt, openedAt, closedAt, location with address, openings\[\] with latestVersion\) |
-| `applications` | json | List of applications \(id, status, customFields\[\], candidate summary, currentInterviewStage, source with sourceType, archiveReason with customFields\[\], archivedAt, job summary, creditedToUser, hiringTeam\[\], appliedViaJobPostingId, submitterClientIp, submitterUserAgent, createdAt, updatedAt\) |
-| `notes` | json | List of notes \(id, content, author, isPrivate, createdAt\) |
-| `offers` | json | List of offers \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion with id/startDate/salary/createdAt/openingId/customFields\[\]/fileHandles\[\]/author/approvalStatus\) |
-| `archiveReasons` | json | List of archive reasons \(id, text, reasonType \[RejectedByCandidate/RejectedByOrg/Other\], isArchived\) |
-| `sources` | json | List of sources \(id, title, isArchived, sourceType \{id, title, isArchived\}\) |
-| `customFields` | json | For List Custom Fields, the field definitions \(id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues\[\] \{label, value, isArchived\}\). For Set Custom Field Values, the field values written to the object \(id, title, isPrivate, valueLabel, value\) |
-| `customField` | json | A single custom field value after a write \(id, title, isPrivate, valueLabel, value\) |
-| `departments` | json | List of departments \(id, name, externalName, isArchived, parentId, createdAt, updatedAt\) |
-| `locations` | json | List of locations \(id, name, externalName, isArchived, isRemote, workplaceType, parentLocationId, type, address with addressCountry/Region/Locality/postalCode/streetAddress\) |
-| `jobPostings` | json | List of job postings \(id, title, jobId, departmentName, teamName, locationName, locationIds, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensationTierSummary, shouldDisplayCompensationOnJobBoard, updatedAt\) |
-| `openings` | json | List of openings \(id, openedAt, closedAt, isArchived, archivedAt, closeReasonId, openingState, latestVersion with identifier/description/authorId/createdAt/teamId/jobIds\[\]/targetHireDate/targetStartDate/isBackfill/employmentType/locationIds\[\]/hiringTeam\[\]/customFields\[\]\) |
-| `users` | json | List of users \(id, firstName, lastName, email, globalRole, isEnabled, updatedAt\) |
-| `interviewSchedules` | json | List of interview schedules \(id, applicationId, interviewStageId, interviewEvents\[\] with interviewerUserIds/startTime/endTime/feedbackLink/location/meetingLink/hasSubmittedFeedback, status, scheduledBy, createdAt, updatedAt\) |
-| `interviewPlans` | json | Interview plans \(id, title, isArchived, createdAt, updatedAt\) |
-| `interviewStages` | json | Ordered interview stages for a plan |
-| `feedback` | json | Submitted application feedback with form definitions and values |
-| `history` | json | Application stage history and allowed actions |
-| `tags` | json | List of candidate tags \(id, title, isArchived\) |
-| `id` | string | Resource UUID |
-| `name` | string | Resource name |
-| `title` | string | Job title or job posting title |
-| `status` | string | Status |
-| `candidate` | json | Candidate summary \(id, name, primaryEmailAddress, primaryPhoneNumber\). For full candidate fields use the candidates list output or the get/create/update candidate operations. |
-| `job` | json | Job details \(id, title, status, employmentType, locationId, departmentId, hiringTeam\[\], author, location, openings\[\], createdAt, updatedAt\) |
-| `application` | json | Application details \(id, status, customFields\[\], candidate, currentInterviewStage, source, archiveReason, job, hiringTeam\[\], createdAt, updatedAt\) |
-| `offer` | json | Offer details \(id, decidedAt, applicationId, acceptanceStatus, offerStatus, latestVersion\) |
-| `jobPosting` | json | Job posting details \(id, title, descriptionPlain, descriptionHtml, descriptionSocial, descriptionParts, departmentName, teamName, teamNameHierarchy\[\], jobId, locationName, locationIds, address, isRemote, workplaceType, employmentType, isListed, publishedDate, applicationDeadline, externalLink, applyLink, compensation, updatedAt, job \[included when expandJob=true\]\) |
-| `content` | string | Note content |
-| `author` | json | Note author \(id, firstName, lastName, email\) |
-| `isPrivate` | boolean | Whether the note is private |
-| `createdAt` | string | ISO 8601 creation timestamp |
-| `applicationId` | string | UUID of the deleted application |
-| `moreDataAvailable` | boolean | Whether more pages exist |
-| `nextCursor` | string | Pagination cursor for next page |
-| `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
+| `customFields` | array | Custom field values |
+
+</ReferenceDetails>
 
 ### Ashby Update Candidate
 
 Updates an existing candidate record in Ashby. Only provided fields are changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1660,9 +1791,13 @@ Updates an existing candidate record in Ashby. Only provided fields are changed.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Transfer Application
 
 Transfers an application to another job, interview plan, and stage.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1718,9 +1853,13 @@ Transfers an application to another job, interview plan, and stage.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Upload Candidate File
 
 Securely uploads a file and attaches it to an Ashby candidate.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1774,9 +1913,13 @@ Securely uploads a file and attaches it to an Ashby candidate.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 ### Ashby Upload Resume
 
 Securely uploads a resume and sets it as the Ashby candidate resume.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1830,16 +1973,20 @@ Securely uploads a resume and sets it as the Ashby candidate resume.
 | `nextCursor` | string | Pagination cursor for next page |
 | `nextSyncCursor` | string | Ashby's opaque token for the next incremental list run, exposed as a cursor so it remains usable in workflow output |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Ashby Application Submitted
 
 Trigger workflow when a new application is submitted
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1852,29 +1999,30 @@ Trigger workflow when a new application is submitted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Application Updated
 
 Trigger workflow when an application is updated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1887,29 +2035,30 @@ Trigger workflow when an application is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Candidate Deleted
 
 Trigger workflow when a candidate is deleted
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1922,16 +2071,17 @@ Trigger workflow when a candidate is deleted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `candidate` | object | candidate output from the tool |
+| `candidate` | object |  |
 |   ↳ `id` | string | Deleted candidate UUID |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Candidate Hired
 
 Trigger workflow when a candidate is hired
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1944,37 +2094,38 @@ Trigger workflow when a candidate is hired
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Hired\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Accepted offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `acceptanceStatus` | string | Offer acceptance status |
 |   ↳ `offerStatus` | string | Offer process status |
 |   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\) |
-|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|   ↳ `latestVersion` | object |  |
 |     ↳ `id` | string | Latest offer version UUID |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Candidate Merged
 
 Trigger workflow when two candidate records are merged
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1987,18 +2138,19 @@ Trigger workflow when two candidate records are merged
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `deletedCandidate` | object | deletedCandidate output from the tool |
+| `deletedCandidate` | object |  |
 |   ↳ `id` | string | Deleted candidate UUID |
-| `mergedCandidate` | object | mergedCandidate output from the tool |
+| `mergedCandidate` | object |  |
 |   ↳ `id` | string | Final merged candidate UUID |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Candidate Stage Change
 
 Trigger workflow when a candidate changes interview stages
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2011,29 +2163,30 @@ Trigger workflow when a candidate changes interview stages
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Interview Schedule Created
 
 Trigger workflow when an interview schedule is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2046,7 +2199,7 @@ Trigger workflow when an interview schedule is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `interviewSchedule` | object | interviewSchedule output from the tool |
+| `interviewSchedule` | object |  |
 |   ↳ `id` | string | Interview schedule UUID |
 |   ↳ `status` | string | Interview schedule status |
 |   ↳ `applicationId` | string | Application UUID |
@@ -2056,12 +2209,13 @@ Trigger workflow when an interview schedule is created
 |   ↳ `updatedAt` | string | Last update timestamp |
 |   ↳ `interviewEvents` | json | Scheduled interview events |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Interview Schedule Updated
 
 Trigger workflow when an interview schedule is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2075,7 +2229,7 @@ Trigger workflow when an interview schedule is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `interviewSchedule` | object | interviewSchedule output from the tool |
+| `interviewSchedule` | object |  |
 |   ↳ `id` | string | Interview schedule UUID |
 |   ↳ `status` | string | Interview schedule status |
 |   ↳ `applicationId` | string | Application UUID |
@@ -2086,12 +2240,13 @@ Trigger workflow when an interview schedule is updated
 |   ↳ `updatedAt` | string | Last update timestamp |
 |   ↳ `interviewEvents` | json | Scheduled interview events |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Job Created
 
 Trigger workflow when a new job is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2105,20 +2260,21 @@ Trigger workflow when a new job is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `job` | object | job output from the tool |
+| `job` | object |  |
 |   ↳ `id` | string | Job UUID |
 |   ↳ `title` | string | Job title |
 |   ↳ `confidential` | boolean | Whether the job is confidential |
 |   ↳ `status` | string | Job status \(Open, Closed, Draft, Archived\) |
 |   ↳ `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract, Temporary\) |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Job Posting Deleted
 
 Trigger workflow when a job posting is deleted
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2131,17 +2287,18 @@ Trigger workflow when a job posting is deleted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `jobPosting` | object | jobPosting output from the tool |
+| `jobPosting` | object |  |
 |   ↳ `id` | string | Deleted job posting UUID |
 |   ↳ `jobId` | string | Associated job UUID |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Job Posting Updated
 
 Trigger workflow when a job posting is updated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2154,7 +2311,7 @@ Trigger workflow when a job posting is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `jobPosting` | object | jobPosting output from the tool |
+| `jobPosting` | object |  |
 |   ↳ `id` | string | Job posting UUID |
 |   ↳ `title` | string | Job posting title |
 |   ↳ `jobId` | string | Associated job UUID |
@@ -2166,12 +2323,13 @@ Trigger workflow when a job posting is updated
 |   ↳ `publishedDate` | string | Publication timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Job Updated
 
 Trigger workflow when a job is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2185,20 +2343,21 @@ Trigger workflow when a job is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `job` | object | job output from the tool |
+| `job` | object |  |
 |   ↳ `id` | string | Job UUID |
 |   ↳ `title` | string | Job title |
 |   ↳ `confidential` | boolean | Whether the job is confidential |
 |   ↳ `status` | string | Job status \(Open, Closed, Draft, Archived\) |
 |   ↳ `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract, Temporary\) |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Offer Created
 
 Trigger workflow when a new offer is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2211,22 +2370,23 @@ Trigger workflow when a new offer is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `acceptanceStatus` | string | Offer acceptance status \(Accepted, Declined, Pending, Created, Cancelled\) |
 |   ↳ `offerStatus` | string | Offer process status \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnApprovalDefinition, WaitingOnCandidateResponse, CandidateRejected, CandidateAccepted, OfferCancelled\) |
 |   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\). Typically null at creation; populated after candidate responds. |
-|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|   ↳ `latestVersion` | object |  |
 |     ↳ `id` | string | Latest offer version UUID |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Offer Deleted
 
 Trigger workflow when an offer is deleted
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2239,17 +2399,18 @@ Trigger workflow when an offer is deleted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Deleted offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Offer Updated
 
 Trigger workflow when an offer is updated
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2262,21 +2423,22 @@ Trigger workflow when an offer is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `acceptanceStatus` | string | Offer acceptance status \(Accepted, Declined, Pending, Created, Cancelled\) |
 |   ↳ `offerStatus` | string | Offer process status \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnApprovalDefinition, WaitingOnCandidateResponse, CandidateRejected, CandidateAccepted, OfferCancelled\) |
 |   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\). Typically null at creation; populated after candidate responds. |
-|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|   ↳ `latestVersion` | object |  |
 |     ↳ `id` | string | Latest offer version UUID |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Opening Created
 
 Trigger workflow when a headcount opening is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2290,7 +2452,7 @@ Trigger workflow when a headcount opening is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `opening` | object | opening output from the tool |
+| `opening` | object |  |
 |   ↳ `id` | string | Opening UUID |
 |   ↳ `openedAt` | string | Open timestamp |
 |   ↳ `closedAt` | string | Close timestamp |
@@ -2300,12 +2462,13 @@ Trigger workflow when a headcount opening is created
 |   ↳ `openingState` | string | Opening state |
 |   ↳ `latestVersion` | json | Latest opening version |
 
-
----
+</ReferenceDetails>
 
 ### Ashby Signature Request Updated
 
 Trigger workflow when an e-signature request changes state
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2324,4 +2487,6 @@ Trigger workflow when an e-signature request changes state
 | `offerId` | string | Related offer UUID |
 | `offerVersionId` | string | Related offer version UUID |
 | `eventType` | string | Signature request event: sent, cancelled, completed, or deleted |
+
+</ReferenceDetails>
 

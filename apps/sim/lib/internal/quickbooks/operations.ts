@@ -13,8 +13,8 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { buildQuickBooksCompanyUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/client'
@@ -28,7 +28,7 @@ import {
   QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS,
   QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS,
   QUICKBOOKS_MAX_ATTACHMENT_BYTES,
-  QUICKBOOKS_TEMP_URL_MAX_BYTES,
+  QUICKBOOKS_URL_MAX_BYTES,
   quickBooksDocumentSignal,
   sanitizeQuickBooksFileName,
   validateQuickBooksAttachmentFileType,
@@ -105,7 +105,7 @@ async function downloadQuickBooksAttachment(
     throw await getQuickBooksDocumentError(downloadUrlResponse, metadataSignal)
   }
   const temporaryUrlText = await readResponseTextWithLimit(downloadUrlResponse, {
-    maxBytes: QUICKBOOKS_TEMP_URL_MAX_BYTES,
+    maxBytes: QUICKBOOKS_URL_MAX_BYTES,
     label: 'QuickBooks attachment temporary URL response',
     signal: metadataSignal,
   })

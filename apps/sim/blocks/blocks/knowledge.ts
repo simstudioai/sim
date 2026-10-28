@@ -15,9 +15,9 @@ const DOCUMENT_FIELD = ['documentSelector', 'documentId'] as const
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
   name: 'Knowledge',
-  description: 'Use vector search',
+  description: 'Search knowledge bases and manage documents and chunks',
   longDescription:
-    'Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.',
+    'Search knowledge bases and list, retrieve, create, upsert, or delete documents. Upload, list, update, or delete chunks, list tag definitions, and set document tags during creation or upsert. Inspect connectors and trigger syncs.',
   bestPractices: `
   - Clarify which tags are available for the knowledge base to understand whether to use tag filters on a search.
   - Use List Documents to enumerate documents before operating on them.
@@ -213,7 +213,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: getCohereRerankerApiKeyCondition(),
     },
 
-    // --- List Documents ---
+    // List Documents
     {
       id: 'search',
       title: 'Search',
@@ -294,7 +294,7 @@ export const KnowledgeBlock: BlockConfig = {
       },
     },
 
-    // --- Upload Chunk ---
+    // Upload Chunk
     {
       id: 'content',
       title: 'Chunk Content',
@@ -305,7 +305,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'upload_chunk' },
     },
 
-    // --- Create Document / Upsert Document ---
+    // Create Document / Upsert Document
     {
       id: 'name',
       title: 'Document Name',
@@ -338,7 +338,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
 
-    // --- Update Chunk / Delete Chunk ---
+    // Update Chunk / Delete Chunk
     {
       id: 'chunkId',
       title: 'Chunk ID',
@@ -366,7 +366,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_chunk' },
     },
 
-    // --- Connector operations ---
+    // Connector operations
     {
       id: 'connectorId',
       title: 'Connector ID',
@@ -376,7 +376,7 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_connector', 'trigger_sync'] },
     },
 
-    // --- List Chunks ---
+    // List Chunks
     {
       id: 'chunkSearch',
       title: 'Search',

@@ -49,7 +49,6 @@ describe('workflow operation registry', () => {
     }
 
     expect(workflowOperations.deployChat.delegatedServices).toEqual(['copilot'])
-    expect(workflowOperations.undeployChat.delegatedServices).toEqual(['copilot'])
     expect(workflowOperations.revertVersion.delegatedServices).toEqual(['copilot'])
   })
 

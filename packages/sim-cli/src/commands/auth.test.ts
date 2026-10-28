@@ -88,12 +88,14 @@ vi.mock('../auth/oauth-flow', () => ({
 vi.mock('../config/index', async () => ({
   ...(await import('../config/profile').then(
     ({
+      DEFAULT_OUTPUT_FORMAT,
       FORBIDDEN_IN_VALUE,
       normalizeWorkspaceId,
       OUTPUT_FORMATS,
       ProfileConfigError,
       validateProfileName,
     }) => ({
+      DEFAULT_OUTPUT_FORMAT,
       FORBIDDEN_IN_VALUE,
       normalizeWorkspaceId,
       OUTPUT_FORMATS,
@@ -613,6 +615,150 @@ describe('whoami command', () => {
     expect(output).toContain('Login\tAPI key (credentials)')
     expect(output).not.toContain('sim_super_secret_value')
     expect(output).not.toContain('secret')
+  })
+
+  it.each([
+    { workspaceId: null, status: 401 },
+    { workspaceId: null, status: 403 },
+    { workspaceId: 'ws_1', status: 401 },
+    { workspaceId: 'ws_1', status: 403 },
+  ])(
+    'reports credential rejection with workspace=$workspaceId and HTTP $status',
+    async ({ workspaceId, status }) => {
+      mocks.profileFrom.mockReturnValue(configured({ workspaceId, output: 'json' }))
+      mocks.request.mockRejectedValue(new SimApiError('Credential rejected', status))
+
+      await whoami()
+
+      const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+      expect(result.authenticated).toBe(false)
+      expect(result.verification.status).toBe('rejected')
+      expect(result.verification.detail).toBe('Credential rejected')
+      expect(process.exitCode).toBe(1)
+    }
+  )
+
+  it.each([0, 404, 429, 502])(
+    'preserves setup guidance without claiming authentication when metadata is unavailable with HTTP %s',
+    async (status) => {
+      mocks.profileFrom.mockReturnValue(configured({ workspaceId: null, output: 'json' }))
+      mocks.request.mockRejectedValue(new SimApiError('Metadata unavailable', status))
+
+      await whoami()
+
+      const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+      expect(result.authenticated).toBeNull()
+      expect(result.verification.status).toBe('no-workspace')
+      expect(result.verification.detail).toContain(
+        'sim configure --profile default --set-workspace'
+      )
+      expect(process.exitCode).toBe(2)
+    }
+  )
+
+  it('distinguishes accepted credentials from missing workspace configuration', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ workspaceId: null, output: 'json' }))
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBe(true)
+    expect(result.verification.status).toBe('no-workspace')
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('keeps authentication separate from workspace access', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+    mocks.request.mockImplementation(async (path: string) => {
+      if (path === '/api/v2/meta') return { data: { keyType: 'workspace' } }
+      throw new SimApiError('Workspace not found', 404)
+    })
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBe(true)
+    expect(result.verification.status).toBe('rejected')
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('leaves authentication unknown when verification is explicitly skipped', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+    mocks.request.mockImplementation(async () => {
+      throw new Error('Verification must be skipped')
+    })
+
+    await whoami('--no-verify')
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBeNull()
+    expect(result.verification.status).toBe('disabled')
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('still verifies a workspace when an older server has no metadata endpoint', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+    mocks.request.mockImplementation(async (path: string) => {
+      if (path === '/api/v2/meta') throw new SimApiError('Not found', 404)
+      return { data: { id: 'ws_1', name: 'Workspace', memberCount: 1 } }
+    })
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBe(true)
+    expect(result.verification.status).toBe('verified')
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it.each([
+    undefined,
+    null,
+    {},
+    { data: null },
+    { data: {} },
+    { data: { keyType: 'unsupported' } },
+  ])('falls back to workspace verification for malformed metadata %j', async (meta) => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+    mocks.request.mockImplementation(async (path: string) =>
+      path === '/api/v2/meta' ? meta : { data: { id: 'ws_1', name: 'Workspace', memberCount: 1 } }
+    )
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBe(true)
+    expect(result.verification.status).toBe('verified')
+    expect(result.verification.keyType).toBeNull()
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('keeps authentication unknown when malformed metadata is the only possible check', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ workspaceId: null, output: 'json' }))
+    respond({ data: { keyType: 'unsupported' } })
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBeNull()
+    expect(result.verification.status).toBe('no-workspace')
+    expect(result.verification.keyType).toBeNull()
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('reports a key revoked between the metadata and workspace reads as unauthenticated', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+    mocks.request.mockImplementation(async (path: string) => {
+      if (path === '/api/v2/meta') return { data: { keyType: 'personal' } }
+      throw new SimApiError('Invalid API key', 401)
+    })
+
+    await whoami()
+
+    const result = JSON.parse(vi.mocked(console.log).mock.calls.flat().join('\n'))
+    expect(result.authenticated).toBe(false)
+    expect(result.verification.status).toBe('rejected')
+    expect(process.exitCode).toBe(1)
   })
 
   it('exits 1 when the API rejects the key, without hiding the resolved settings', async () => {

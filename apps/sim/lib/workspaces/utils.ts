@@ -4,9 +4,12 @@ import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
-import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
-import type { DbOrTx } from '@/lib/db/types'
+import { and, count, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
+import {
+  type ChangeWorkspaceStoragePayerParams,
+  changeWorkspaceStoragePayerInTx,
+} from '@/lib/billing/storage/payer-transfer'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('WorkspaceUtils')
 
@@ -18,13 +21,14 @@ export interface WorkspaceBillingSettings {
 export type WorkspaceScope = 'active' | 'archived' | 'all'
 
 export async function getWorkspaceBillingSettings(
-  workspaceId: string
+  workspaceId: string,
+  executor: DbClient = db
 ): Promise<WorkspaceBillingSettings | null> {
   if (!workspaceId) {
     return null
   }
 
-  const rows = await db
+  const rows = await executor
     .select({
       billedAccountUserId: workspaceTable.billedAccountUserId,
       allowPersonalApiKeys: workspaceTable.allowPersonalApiKeys,
@@ -49,26 +53,11 @@ export async function getWorkspaceBilledAccountUserId(workspaceId: string): Prom
 }
 
 /**
- * The organization that owns a workspace (null for personal workspaces). Used to
- * gate features by org cohort — the flag model allowlists org ids, and API routes
- * only carry a `workspaceId`, so this resolves the one from the other.
- */
-export async function getWorkspaceOrganizationId(workspaceId: string): Promise<string | null> {
-  if (!workspaceId) return null
-  const rows = await db
-    .select({ organizationId: workspaceTable.organizationId })
-    .from(workspaceTable)
-    .where(eq(workspaceTable.id, workspaceId))
-    .limit(1)
-  return rows[0]?.organizationId ?? null
-}
-
-/**
  * Workspaces the user administers purely through organization owner/admin role,
  * with no explicit permission row required. Empty when the user is not an org
  * owner/admin. Implements the workspace-permission inheritance model.
  */
-export async function getOrgAdminWorkspaceRows(
+async function getOrgAdminWorkspaceRows(
   userId: string,
   scope: WorkspaceScope = 'active',
   organizationId?: string
@@ -160,16 +149,6 @@ export async function listAccessibleWorkspaceRowsForUser(
   return [...elevatedExplicit, ...derived].sort(
     (a, b) => b.workspace.createdAt.getTime() - a.workspace.createdAt.getTime()
   )
-}
-
-export async function listUserWorkspaces(userId: string, scope: WorkspaceScope = 'active') {
-  const rows = await listAccessibleWorkspaceRowsForUser(userId, scope)
-
-  return rows.map(({ workspace: ws, permissionType }) => ({
-    workspaceId: ws.id,
-    workspaceName: ws.name,
-    role: ws.ownerId === userId ? 'owner' : permissionType,
-  }))
 }
 
 export interface ReassignBilledAccountResult {
@@ -369,6 +348,86 @@ export async function reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
   return { reassigned, unresolved }
 }
 
+/** Resolves the billing replacement consistently for deletion previews and transactional handoff. */
+export async function findWorkspaceBillingReplacement(
+  executor: DbOrTx,
+  ws: { id: string; ownerId: string },
+  departingUserId: string
+): Promise<string | null> {
+  let replacement: string | null = ws.ownerId !== departingUserId ? ws.ownerId : null
+
+  if (!replacement) {
+    const [admin] = await executor
+      .select({ userId: permissions.userId })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, ws.id),
+          eq(permissions.permissionType, 'admin'),
+          ne(permissions.userId, departingUserId)
+        )
+      )
+      .limit(1)
+
+    replacement = admin?.userId ?? null
+  }
+
+  return replacement
+}
+
+/** Plans the existing owner/admin replacement policy before a compound payer transfer takes locks. */
+export async function planBilledAccountReassignmentsForUser(
+  departingUserId: string,
+  executor: DbOrTx,
+  options: { excludeWorkspaceIds?: string[]; lockRows?: boolean } = {}
+): Promise<{ changes: ChangeWorkspaceStoragePayerParams[]; unresolved: string[] }> {
+  const query = executor
+    .select({
+      id: workspaceTable.id,
+      ownerId: workspaceTable.ownerId,
+      organizationId: workspaceTable.organizationId,
+    })
+    .from(workspaceTable)
+    .where(
+      and(
+        eq(workspaceTable.billedAccountUserId, departingUserId),
+        options.excludeWorkspaceIds?.length
+          ? notInArray(workspaceTable.id, options.excludeWorkspaceIds)
+          : undefined
+      )
+    )
+  const billedWorkspaces = options.lockRows
+    ? await query.orderBy(workspaceTable.id).for('no key update')
+    : await query
+
+  if (billedWorkspaces.length === 0) {
+    return { changes: [], unresolved: [] }
+  }
+
+  const changes: ChangeWorkspaceStoragePayerParams[] = []
+  const unresolved: string[] = []
+
+  for (const ws of billedWorkspaces) {
+    const replacement = await findWorkspaceBillingReplacement(executor, ws, departingUserId)
+    if (!replacement) {
+      unresolved.push(ws.id)
+      continue
+    }
+
+    changes.push({
+      workspaceId: ws.id,
+      organizationId: ws.organizationId,
+      billedAccountUserId: replacement,
+      expectedCurrentPayer: {
+        organizationId: ws.organizationId,
+        billedAccountUserId: departingUserId,
+      },
+    })
+  }
+  return { changes, unresolved }
+}
+
 /**
  * Reassigns `billedAccountUserId` on every workspace that points to `departingUserId` to
  * another eligible user, so the user can be deleted without violating the `workspace.billed_account_user_id`
@@ -391,64 +450,23 @@ export async function reassignBilledAccountForUser(
   departingUserId: string,
   executor: DbOrTx = db
 ): Promise<ReassignBilledAccountResult> {
-  const billedWorkspaces = await executor
-    .select({
-      id: workspaceTable.id,
-      ownerId: workspaceTable.ownerId,
-      organizationId: workspaceTable.organizationId,
-    })
-    .from(workspaceTable)
-    .where(eq(workspaceTable.billedAccountUserId, departingUserId))
-
-  if (billedWorkspaces.length === 0) {
-    return { reassigned: [], unresolved: [] }
-  }
-
+  const { changes, unresolved } = await planBilledAccountReassignmentsForUser(
+    departingUserId,
+    executor
+  )
   const reassigned: ReassignBilledAccountResult['reassigned'] = []
-  const unresolved: string[] = []
-
-  for (const ws of billedWorkspaces) {
-    let replacement: string | null = ws.ownerId !== departingUserId ? ws.ownerId : null
-
-    if (!replacement) {
-      const [admin] = await executor
-        .select({ userId: permissions.userId })
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, ws.id),
-            eq(permissions.permissionType, 'admin'),
-            ne(permissions.userId, departingUserId)
-          )
-        )
-        .limit(1)
-
-      replacement = admin?.userId ?? null
-    }
-
-    if (!replacement) {
-      unresolved.push(ws.id)
-      continue
-    }
-
+  for (const change of changes) {
     await executor.transaction(async (tx) => {
-      await changeWorkspaceStoragePayerInTx(tx, {
-        workspaceId: ws.id,
-        organizationId: ws.organizationId,
-        billedAccountUserId: replacement,
-        expectedCurrentPayer: {
-          organizationId: ws.organizationId,
-          billedAccountUserId: departingUserId,
-        },
-      })
+      await changeWorkspaceStoragePayerInTx(tx, change)
       await tx
         .update(workspaceTable)
         .set({ updatedAt: new Date() })
-        .where(eq(workspaceTable.id, ws.id))
+        .where(eq(workspaceTable.id, change.workspaceId))
     })
-
-    reassigned.push({ workspaceId: ws.id, newBilledAccountUserId: replacement })
+    reassigned.push({
+      workspaceId: change.workspaceId,
+      newBilledAccountUserId: change.billedAccountUserId,
+    })
   }
 
   if (reassigned.length > 0) {

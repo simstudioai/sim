@@ -12,9 +12,12 @@ import {
   telemetryMock,
   workflowAuthzMockFns,
 } from '@sim/testing'
+import { toRecord } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  activateExternalWebhookSubscription: vi.fn(),
+  cleanupExternalWebhook: vi.fn(),
   authorizeCredentialUseForAuth: vi.fn(),
   configurePolling: vi.fn(),
   createExternalWebhookSubscription: vi.fn(),
@@ -35,7 +38,8 @@ vi.mock('@/lib/webhooks/env-resolver', () => ({
   resolveEnvVarsInObject: mocks.resolveEnvVarsInObject,
 }))
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
-  cleanupExternalWebhook: vi.fn(),
+  activateExternalWebhookSubscription: mocks.activateExternalWebhookSubscription,
+  cleanupExternalWebhook: mocks.cleanupExternalWebhook,
   createExternalWebhookSubscription: mocks.createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription: mocks.shouldRecreateExternalWebhookSubscription,
 }))
@@ -461,4 +465,157 @@ describe('POST /api/webhooks credential references', () => {
     expect(response.status).toBe(403)
     expect(mocks.authorizeCredentialUseForAuth).not.toHaveBeenCalled()
   })
+})
+
+describe('POST /api/webhooks subscription replacement recovery', () => {
+  beforeEach(setupUpsertMocks)
+  it.each(['create', 'save'])(
+    'preserves the live subscription when replacement fails at %s',
+    async (failure) => {
+      queueUpdatePathRows(true, {
+        autoRegister: true,
+        externalId: 'external-old',
+        webhookSecret: 'old-secret',
+      })
+      mocks.getProviderHandler.mockReturnValue({ activateSubscription: async () => undefined })
+      mocks.shouldRecreateExternalWebhookSubscription.mockReturnValue(true)
+      const external = new Set(['external-old'])
+      mocks.createExternalWebhookSubscription.mockImplementation(async () => {
+        if (failure === 'create') throw new Error('creation unavailable')
+        external.add('external-new')
+        return {
+          updatedProviderConfig: {
+            autoRegister: true,
+            externalId: 'external-new',
+            webhookSecret: 'new-secret',
+            subscriptionActivationPending: true,
+          },
+          externalSubscriptionCreated: true,
+        }
+      })
+      if (failure === 'save')
+        dbChainMockFns.set.mockImplementation(() => {
+          throw new Error('database unavailable')
+        })
+      mocks.cleanupExternalWebhook.mockImplementation(async (row) => {
+        external.delete(String(toRecord(row.providerConfig).externalId))
+      })
+      expect((await POST(upsertRequest({ autoRegister: true }))).status).toBe(500)
+      expect([...external]).toEqual(['external-old'])
+    }
+  )
+  it.each([false, true])(
+    'retains recoverable state when prior cleanup fails: %s',
+    async (priorCleanupFails) => {
+      let cleanupUnavailable = priorCleanupFails
+      let activationMustFail = !priorCleanupFails
+      let nextExternalId = 0
+      let persisted: Record<string, unknown> = {
+        id: 'webhook-1',
+        workflowId: 'workflow-1',
+        blockId: 'block-1',
+        path: 'inbound-orders',
+        provider: 'plane',
+        isActive: true,
+        archivedAt: null,
+        providerConfig: {
+          autoRegister: true,
+          projectId: 'prior',
+          externalId: 'external-old',
+          webhookSecret: 'old-secret',
+        },
+      }
+      const external = new Map<string, { active: boolean }>([['external-old', { active: true }]])
+      const desired = { autoRegister: true, projectId: 'next' }
+      mocks.getProviderHandler.mockReturnValue({
+        createSubscription: async () => undefined,
+        activateSubscription: async () => undefined,
+      })
+      mocks.shouldRecreateExternalWebhookSubscription.mockImplementation(
+        ({ previousConfig, nextConfig }) => previousConfig.projectId !== nextConfig.projectId
+      )
+      const defaultSet = dbChainMockFns.set.getMockImplementation()
+      dbChainMockFns.set.mockImplementation((...args: unknown[]) => {
+        persisted = { ...persisted, ...structuredClone(toRecord(args[0])) }
+        return defaultSet?.(...args)
+      })
+      dbChainMockFns.returning.mockImplementation(async () => [structuredClone(persisted)])
+      mocks.createExternalWebhookSubscription.mockImplementation(async (_request, row) => {
+        const externalId = `external-${++nextExternalId}`
+        external.set(externalId, { active: false })
+        return {
+          updatedProviderConfig: {
+            ...toRecord(row.providerConfig),
+            externalId,
+            webhookSecret: 'new-secret',
+            subscriptionActivationPending: true,
+          },
+          externalSubscriptionCreated: true,
+        }
+      })
+      mocks.activateExternalWebhookSubscription.mockImplementation(async (_request, row) => {
+        const resource = external.get(String(toRecord(row.providerConfig).externalId))
+        if (!resource) throw new Error('provider subscription missing')
+        if (activationMustFail) {
+          activationMustFail = false
+          throw new Error('activation unavailable')
+        }
+        resource.active = true
+      })
+      mocks.cleanupExternalWebhook.mockImplementation(
+        async (row, _workflow, _requestId, options) => {
+          const externalId = String(toRecord(row.providerConfig).externalId)
+          if (cleanupUnavailable && externalId === 'external-old') {
+            if (options?.throwOnError) throw new Error('cleanup unavailable')
+            return
+          }
+          external.delete(externalId)
+        }
+      )
+      function queueCurrentRows(): void {
+        queueTableRows(workflow, [
+          { id: 'workflow-1', userId: 'actor-1', workspaceId: 'workspace-1' },
+        ])
+        queueTableRows(webhook, [{ id: 'webhook-1' }])
+        queueTableRows(webhook, [structuredClone(persisted)])
+      }
+      function replacementRequest() {
+        return createMockRequest('POST', {
+          workflowId: 'workflow-1',
+          path: 'inbound-orders',
+          provider: 'plane',
+          providerConfig: desired,
+        })
+      }
+      queueCurrentRows()
+      expect((await POST(replacementRequest())).status).toBe(500)
+      expect(external.size).toBe(2)
+      const retainedConfig = toRecord(persisted.providerConfig)
+      if (priorCleanupFails) {
+        expect(retainedConfig.projectId).toBe('next')
+        expect(toRecord(retainedConfig.previousSubscription).providerConfig).toEqual({
+          autoRegister: true,
+          projectId: 'prior',
+          externalId: 'external-old',
+          webhookSecret: 'old-secret',
+        })
+        expect(external.get('external-old')?.active).toBe(true)
+        expect(external.get(String(retainedConfig.externalId))?.active).toBe(true)
+      } else {
+        expect(retainedConfig.projectId).toBe('next')
+        expect(retainedConfig.webhookSecret).toBe('new-secret')
+        expect(external.get('external-old')?.active).toBe(true)
+        expect(external.get(String(retainedConfig.externalId))?.active).toBe(false)
+      }
+      cleanupUnavailable = false
+      queueCurrentRows()
+      expect((await POST(replacementRequest())).status).toBe(200)
+      expect(external.size).toBe(1)
+      const recoveredConfig = toRecord(persisted.providerConfig)
+      expect(recoveredConfig.projectId).toBe('next')
+      expect(recoveredConfig.webhookSecret).toBe('new-secret')
+      expect(external.get(String(recoveredConfig.externalId))?.active).toBe(true)
+      if (!priorCleanupFails) expect(recoveredConfig.externalId).toBe(retainedConfig.externalId)
+    }
+  )
 })

@@ -5,17 +5,18 @@
  */
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { workflowAuthzMockFns } from '@sim/testing'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
-  notify: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', async () => {
   class WorkflowStatePersistenceError extends Error {
@@ -29,11 +30,14 @@ vi.mock('@/lib/workflows/persistence/replace-normalized-state', async () => {
     replaceWorkflowNormalizedState: mocks.replace,
   }
 })
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowStatePersistenceError } from '@/lib/workflows/persistence/replace-normalized-state'
 import { saveWorkflowNormalizedState } from '@/lib/workflows/persistence/save-normalized-state'
+
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
 
 const STATE = {
   blocks: {
@@ -70,7 +74,7 @@ describe('saveWorkflowNormalizedState', () => {
     })
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.replace.mockResolvedValue({ warnings: ['dropped an edge'], state: STATE })
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   /**
@@ -102,7 +106,7 @@ describe('saveWorkflowNormalizedState', () => {
 
     expect(result).toMatchObject({ success: false, status: 403 })
     expect(result.success === false && result.error).toContain('gmail')
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   /** A workflow with no workspace has no permission group to resolve. */
@@ -143,7 +147,7 @@ describe('saveWorkflowNormalizedState', () => {
       error: 'Failed to save workflow state',
       details: 'constraint violation',
     })
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('reports a claimed graph id as 409 carrying the ids to change', async () => {
@@ -159,7 +163,7 @@ describe('saveWorkflowNormalizedState', () => {
       status: 409,
       error: 'Block ids already used by another workflow: block-1, block-2',
     })
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('reports a workflow archived since the authorization check as 404', async () => {
@@ -170,7 +174,7 @@ describe('saveWorkflowNormalizedState', () => {
       status: 404,
       error: 'Workflow not found',
     })
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('classifies through the wrapper drizzle puts around a throw inside the transaction', async () => {
@@ -205,6 +209,6 @@ describe('saveWorkflowNormalizedState', () => {
     mocks.replace.mockRejectedValue(new Error('pool exhausted'))
 
     await expect(saveWorkflowNormalizedState(params())).rejects.toThrow('pool exhausted')
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 })

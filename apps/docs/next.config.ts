@@ -6,7 +6,6 @@ const withMDX = createMDX()
 
 const config: NextConfig = {
   reactStrictMode: true,
-  productionBrowserSourceMaps: true,
   transpilePackages: ['@sim/emcn', '@sim/workflow-renderer'],
   images: {
     unoptimized: true,
@@ -16,6 +15,17 @@ const config: NextConfig = {
     webpackMemoryOptimizations: true,
     webpackBuildWorker: true,
   },
+  async headers() {
+    return [
+      {
+        source: '/llms-full.txt',
+        headers: [
+          { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=0, s-maxage=86400, must-revalidate' },
+        ],
+      },
+    ]
+  },
   async redirects() {
     return DOCS_REDIRECTS
   },
@@ -23,6 +33,10 @@ const config: NextConfig = {
     return [
       {
         source: '/:path*.mdx',
+        destination: '/llms.mdx/:path*',
+      },
+      {
+        source: '/:path*.md',
         destination: '/llms.mdx/:path*',
       },
     ]

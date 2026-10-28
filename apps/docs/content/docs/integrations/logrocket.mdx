@@ -1,39 +1,24 @@
 ---
 title: LogRocket
 description: Summarize sessions, manage users, and tag releases in LogRocket
+integration:
+  type: "logrocket"
+  color: "#764ABC"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="logrocket"
-  color="#764ABC"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[LogRocket](https://logrocket.com/) is a session replay and product analytics platform for frontend applications. It records what users actually did — clicks, navigation, network requests, console output, and application state — so teams can see the exact path that led to a bug, a drop-off, or a support ticket instead of asking the customer to reproduce it.
+Use [LogRocket](https://logrocket.com/) to request Galileo Highlights for a user's sessions, update user names, emails, and traits, retrieve JSON Lines export URLs, inspect the session-access audit log, and register releases for source-map decoding.
 
-With LogRocket, you can:
+**Request Highlights** returns an ID immediately. Poll **Get Highlights** while `status` is `PENDING`, then handle `READY` or `FAILED`. LogRocket says generation generally takes one to three minutes; this is an estimate, not a workflow deadline. See the [Galileo Highlights API](https://docs.logrocket.com/docs/session-highlights-api).
 
-- **Summarize sessions with AI**: Galileo Highlights reads a user's sessions and answers a plain-English question about them, returning a markdown summary plus per-session breakdowns.
-- **Identify users**: Attach names, emails, and custom traits to a user so sessions can be segmented by plan, lifecycle stage, or account value.
-- **Export session data**: Pull download URLs for JSON Lines session exports and load them into a warehouse.
-- **Audit session access**: Page through the audit log to see who viewed which sessions and when.
-- **Tag releases**: Register a deployed version so uploaded source maps decode its stack traces.
-
-Sim's LogRocket integration lets your agents run these operations programmatically. Use it to enrich a support ticket with a session summary, turn a vague bug report into reproduction steps, keep user traits in sync with your CRM, or register a release as part of a deploy workflow.
-
-Highlights requests are asynchronous: **Request Highlights** returns an ID and **Get Highlights** reports `PENDING` until generation finishes (typically one to three minutes), then `READY` or `FAILED`. Poll it rather than expecting the summary immediately.
-
-LogRocket has no REST API for querying sessions, issues, or metrics directly — that data is available through their [MCP server](https://docs.logrocket.com/docs/mcp) at `https://mcp.logrocket.com/mcp`, which you can add to Sim as an MCP server connection alongside this block.
+For session, issue, and metric queries beyond this block, inspect LogRocket's [MCP server](https://docs.logrocket.com/docs/mcp) at `https://mcp.logrocket.com/mcp` and add it as a separate MCP connection in Sim.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate LogRocket into your workflow to request AI session highlights for a user, poll for the result, list exported session files, read the audit log, create or update user profiles, and register releases so source maps decode their stack traces.
-
-
+Request AI session highlights for a user, poll for the result, list exported session files, read the audit log, create or update user profiles, and register releases so source maps decode their stack traces.
 
 ## Actions
 

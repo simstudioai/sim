@@ -1,3 +1,4 @@
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
@@ -12,7 +13,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   isBillingEnabled: true,
 }))
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 async function loadRuntime() {
   const [
@@ -58,7 +59,7 @@ async function loadRuntime() {
       }),
     ],
   })
-  const sql = postgres(databaseUrl!, { max: 1 })
+  const sql = postgres(databaseUrl, { max: 1 })
   return {
     db,
     schema,
@@ -82,7 +83,7 @@ async function loadRuntime() {
   }
 }
 
-describe.skipIf(!databaseUrl)('OAuth lifecycle on the provisioned PostgreSQL schema', () => {
+describe('OAuth lifecycle on the provisioned PostgreSQL schema', () => {
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
   let userId: string
   let clientId: string
@@ -92,7 +93,6 @@ describe.skipIf(!databaseUrl)('OAuth lifecycle on the provisioned PostgreSQL sch
   const scopes = ['offline_access', 'api:read', 'api:write']
 
   beforeAll(async () => {
-    process.env.DATABASE_URL = databaseUrl
     runtime = await loadRuntime()
   }, 30_000)
 

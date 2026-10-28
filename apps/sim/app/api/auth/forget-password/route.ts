@@ -1,8 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -69,27 +65,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         redirectTo,
       },
       method: 'POST',
+      headers: request.headers,
     })
-
-    const [existingUser] = await db
-      .select({ id: user.id, name: user.name, email: user.email })
-      .from(user)
-      .where(eq(user.email, email))
-      .limit(1)
-
-    if (existingUser) {
-      recordAudit({
-        actorId: existingUser.id,
-        actorName: existingUser.name,
-        actorEmail: existingUser.email,
-        action: AuditAction.PASSWORD_RESET_REQUESTED,
-        resourceType: AuditResourceType.PASSWORD,
-        resourceId: existingUser.id,
-        resourceName: existingUser.email ?? undefined,
-        description: `Password reset requested for ${existingUser.email}`,
-        request,
-      })
-    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

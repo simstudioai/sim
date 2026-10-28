@@ -9,7 +9,8 @@ const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> = {
   id: 'apify_run_actor_async',
   name: 'APIFY Run Actor (Async)',
-  description: 'Run an APIFY actor asynchronously with polling for long-running tasks',
+  description:
+    'Start an APIFY Actor run and poll it within the same workflow step until completion or the polling deadline',
   version: '1.0.0',
 
   params: {
@@ -101,7 +102,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       if (params.input) {
         try {
           inputData = JSON.parse(params.input)
-        } catch (e) {
+        } catch {
           throw new Error('Invalid JSON in input parameter')
         }
       }

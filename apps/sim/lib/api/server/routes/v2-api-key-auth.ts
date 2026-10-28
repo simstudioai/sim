@@ -1,7 +1,8 @@
-import type {
-  OAuthAccessTokenPrincipal,
-  PersonalApiKeyPrincipal,
-  WorkspaceApiKeyPrincipal,
+import {
+  ANONYMOUS_USER_ID,
+  type OAuthAccessTokenPrincipal,
+  type PersonalApiKeyPrincipal,
+  type WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { apiKey, user } from '@sim/db/schema'
@@ -10,13 +11,12 @@ import { eq } from 'drizzle-orm'
 import type { V2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { updateApiKeyLastUsed } from '@/lib/api-key/service'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import {
   InvalidOAuthAccessTokenError,
   type OAuthAccessTokenOptions,
   verifyOAuthAccessToken,
 } from '@/lib/auth/oauth-access-token'
-import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
+import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
@@ -120,7 +120,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
     .limit(1)
   const row = requireValidRow(candidate)
 
-  await updateApiKeyLastUsed(row.id)
+  updateApiKeyLastUsed(row.id)
   logger.debug('Authenticated v2 API key', { keyId: row.id, keyType: row.type })
 
   if (row.type === 'personal') {

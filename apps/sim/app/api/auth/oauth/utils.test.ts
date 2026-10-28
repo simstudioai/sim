@@ -3,6 +3,7 @@
  */
 
 import { redisConfigMockFns } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/oauth', () => ({
@@ -11,11 +12,7 @@ vi.mock('@/lib/oauth/oauth', () => ({
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
 }))
 
-const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: vi.fn(async (value: string) => ({ encrypted: value, iv: 'iv' })),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 const { mockMinter } = vi.hoisted(() => ({ mockMinter: vi.fn() }))
 vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
@@ -30,6 +27,12 @@ import { refreshOAuthToken } from '@/lib/oauth'
 import { refreshTokenIfNeeded, resolveServiceAccountToken } from '@/lib/oauth/credential-service'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: value,
+  iv: 'iv',
+}))
 
 const mockDb = db as any
 const mockRefreshOAuthToken = refreshOAuthToken as any
@@ -68,10 +71,6 @@ describe('OAuth Utils', () => {
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('Slack installation-scoped refresh', () => {
     const SLACK_ACCOUNT_ID = 'T08CM6ZNYBE-usr_U08USBQ9B1T-cbf46a7e-ca75-4a2e-bef5-fd467299eaae'
     const past = new Date(Date.now() - 3600 * 1000)
@@ -101,6 +100,8 @@ describe('OAuth Utils', () => {
     }
 
     it('locks per installation and refreshes with the freshest sibling refresh token', async () => {
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
       ])
@@ -128,6 +129,8 @@ describe('OAuth Utils', () => {
     })
 
     it('returns the freshest sibling token without refreshing when it is still valid', async () => {
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'sibling-at', refreshToken: 'live-rt', accessTokenExpiresAt: future },
       ])
@@ -149,12 +152,14 @@ describe('OAuth Utils', () => {
         del: vi.fn().mockResolvedValue(1),
       }
       redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
       ])
       mockRefreshOAuthToken.mockResolvedValueOnce({
         ok: false,
-        errorCode: 'token_revoked',
+        errorCode: 'invalid_client',
       })
       mockSelectChain([])
 
@@ -165,7 +170,7 @@ describe('OAuth Utils', () => {
       const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(fakeRedis.set).toHaveBeenCalledWith(
         `oauth:dead:${installationIdentity}`,
-        'token_revoked',
+        'invalid_client',
         'EX',
         3600
       )
@@ -178,12 +183,14 @@ describe('OAuth Utils', () => {
         del: vi.fn().mockResolvedValue(1),
       }
       redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
+      // The leader rereads the row under the lock.
+      mockSelectChain([])
       mockSelectOrderedChain([
         { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
       ])
       mockRefreshOAuthToken.mockResolvedValueOnce({
         ok: false,
-        errorCode: 'token_revoked',
+        errorCode: 'invalid_client',
       })
       mockSelectChain([{ moved: new Date() }])
 

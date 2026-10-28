@@ -8,7 +8,7 @@ import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limit
 import type { WorkspaceUseCaseAuditEntry } from '@/lib/core/application/authorized-workspace-use-case'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { loadAccessRequestMembership } from '@/ee/access-requests/lib/application/authorization'
 import { defineAuthorizedAccessRequestUseCase } from '@/ee/access-requests/lib/application/authorized-use-case'
@@ -52,13 +52,17 @@ const organizationScope = (input: ReviewInput): AccessRequestScope => ({
   organizationId: input.organizationId,
 })
 
-/** Checks the requester's present scope before inspecting or modifying any governing policy. */
+/**
+ * Checks the requester's present scope before inspecting or modifying any governing policy.
+ * Given `lockingTx`, it locks the scope rows and the governing policy in that transaction.
+ */
 async function loadReviewPreview(
-  executor: DbOrTx,
   row: StoredAccessRequest,
   prepared: PreparedAccessRequestPolicy | null,
-  forUpdate = false
+  lockingTx?: DbTransaction
 ) {
+  const executor = lockingTx ?? db
+  const forUpdate = Boolean(lockingTx)
   const request = await presentAccessRequest(executor, row)
   if (row.status === 'fulfilled' && row.decision) {
     const snapshot = storedAccessRequestDecisionSchema.parse(row.decision)
@@ -118,8 +122,8 @@ async function loadReviewPreview(
     membershipId: membership?.membershipId ?? '',
     role: membership?.role ?? ('read' as const),
   }
-  if (forUpdate)
-    await acquirePermissionGroupOrgLock(executor, row.organizationId, {
+  if (lockingTx)
+    await acquirePermissionGroupOrgLock(lockingTx, row.organizationId, {
       lockTimeoutAlreadyBounded: true,
     })
   const catalog = prepared.catalog
@@ -233,7 +237,7 @@ export const previewAccessRequest = defineAuthorizedAccessRequestUseCase({
   },
   async execute({ input, executor, prepared }) {
     const row = await loadStoredAccessRequest(executor, input.organizationId, input.requestId)
-    return (await loadReviewPreview(executor, row, prepared)).preview
+    return (await loadReviewPreview(row, prepared)).preview
   },
 })
 
@@ -251,7 +255,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
       storedAccessRequestTargetSchema.parse(row.target).kind
     )
   },
-  async execute({ principal, input, executor, prepared }) {
+  async execute({ input, actorUserId, executor, prepared }) {
     const row = await loadStoredAccessRequest(executor, input.organizationId, input.requestId, true)
     if (row.status !== 'pending')
       return { request: await presentAccessRequest(executor, row), changed: false }
@@ -262,7 +266,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
         .set({
           status: 'declined',
           decisionReason: input.decision.reason,
-          decidedBy: principal.userId,
+          decidedBy: actorUserId,
           decidedAt: now,
           updatedAt: now,
         })
@@ -275,7 +279,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
     }
     if (!prepared)
       throw new OrchestrationError('internal', 'Request preview preparation is missing')
-    const { preview, policy } = await loadReviewPreview(executor, row, prepared, true)
+    const { preview, policy } = await loadReviewPreview(row, prepared, executor)
     if (!preview.canApply)
       throw new OrchestrationError(
         'conflict',
@@ -302,7 +306,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
         row.organizationId,
         row.requesterId,
         creditsToDollars(newLimitCredits),
-        principal.userId,
+        actorUserId,
         executor
       )
     } else {
@@ -340,7 +344,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
       .update(permissionAccessRequest)
       .set({
         status: 'fulfilled',
-        decidedBy: principal.userId,
+        decidedBy: actorUserId,
         decidedAt: now,
         updatedAt: now,
         decision,

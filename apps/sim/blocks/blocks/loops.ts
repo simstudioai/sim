@@ -1,19 +1,18 @@
 import { LoopsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { LoopsResponse } from '@/tools/loops/types'
 import { getTrigger } from '@/triggers'
 
 /** How a contact is identified — email or user id, whichever the user filled. */
 const CONTACT_FIELD = ['contactEmail', 'userId'] as const
 
-export const LoopsBlock: BlockConfig<LoopsResponse> = {
+export const LoopsBlock: BlockConfig = {
   type: 'loops',
   name: 'Loops',
   description: 'Manage contacts and send emails with Loops',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Loops into the workflow. Create and manage contacts, send transactional emails, and trigger event-based automations.',
+    'Create and manage contacts, send transactional emails, and trigger event-based automations.',
   docsLink: 'https://docs.sim.ai/integrations/loops',
   category: 'tools',
   integrationType: IntegrationType.Email,

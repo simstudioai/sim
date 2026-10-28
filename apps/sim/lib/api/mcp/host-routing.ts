@@ -3,6 +3,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const PROTECTED_RESOURCE_METADATA = '/.well-known/oauth-protected-resource'
 const AUTHORIZATION_SERVER_METADATA = '/.well-known/oauth-authorization-server'
+const OPENAI_APPS_CHALLENGE = '/.well-known/openai-apps-challenge'
 
 /**
  * A `Host` header as a URL authority under `protocol`: lower-cased, without the
@@ -20,12 +21,15 @@ function authorityOf(host: string, protocol: string): string | null {
  * Routes requests for the Sim MCP server's canonical URL.
  *
  * On the MCP URL's host, the MCP path and its RFC 9728 metadata map onto the
- * app routes that serve them. When that host is dedicated (`mcp.sim.ai`), it
- * also serves the authorization-server metadata older clients look for at the
- * resource origin, and every other path the proxy sees is `not_found`; the app
- * host in turn answers `not_found` for the internal MCP paths, so the server has
- * exactly one URL and every client binds its tokens to it. `null` leaves the
- * request to the rest of the proxy.
+ * app routes that serve them. A dedicated host (`mcp.sim.ai`) also serves:
+ * - the same metadata at the root well-known path, which MCP clients try after
+ *   the path-inserted one (MCP authorization, Protected Resource Metadata Discovery);
+ * - the authorization-server metadata older clients look for at the resource origin.
+ *
+ * Every other path on a dedicated host is `not_found`, and the app host answers
+ * `not_found` for the internal MCP paths, so the server has exactly one URL and
+ * every client binds its tokens to it. `null` leaves the request to the rest of
+ * the proxy.
  *
  * Reads `Host` rather than `X-Forwarded-Host`, which a client could set to
  * reach the rest of the app through the dedicated host.
@@ -45,5 +49,20 @@ export function resolveSimMcpHostPath(
   if (pathname === mcp.pathname) return SIM_MCP_ROUTE_PATH
   if (pathname === `${PROTECTED_RESOURCE_METADATA}${mcp.pathname}`) return internalMetadataPath
   if (!dedicated) return null
-  return pathname === AUTHORIZATION_SERVER_METADATA ? pathname : 'not_found'
+  if (pathname === PROTECTED_RESOURCE_METADATA) return internalMetadataPath
+  return pathname === AUTHORIZATION_SERVER_METADATA || pathname === OPENAI_APPS_CHALLENGE
+    ? pathname
+    : 'not_found'
+}
+
+/**
+ * For a route the proxy does not run on: whether the request came in through the dedicated MCP
+ * host, which serves nothing but the MCP server. Such a route answers it as not found itself, as
+ * the proxy would have.
+ */
+export function isOffAppHost(request: { headers: Headers; url: string }): boolean {
+  return (
+    resolveSimMcpHostPath(request.headers.get('host'), new URL(request.url).pathname) ===
+    'not_found'
+  )
 }

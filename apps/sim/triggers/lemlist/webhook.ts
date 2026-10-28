@@ -1,11 +1,11 @@
 import { LemlistIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildLemlistExtraFields,
   buildLemlistOutputs,
   lemlistSetupInstructions,
   lemlistTriggerOptions,
 } from '@/triggers/lemlist/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -23,7 +23,7 @@ export const lemlistWebhookTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_webhook',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('All Events (no type filter)'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_webhook'),
   }),
 

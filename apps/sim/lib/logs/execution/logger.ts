@@ -8,14 +8,18 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { describeError, getErrorMessage } from '@sim/utils/errors'
+import {
+  describeError,
+  getErrorMessage,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
-import {
-  type BillingAttributionSnapshot,
-  toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
+import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
@@ -31,12 +35,19 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { FOREIGN_KEY_VIOLATION } from '@/lib/core/errors/database-query-error'
+import {
+  type ExecutionScope,
+  ExecutionScopeDeletedError,
+} from '@/lib/core/errors/execution-scope-deleted'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
+import { getJsonByteSize } from '@/lib/logs/execution/json-byte-size'
 import { redactLargeValueRefs } from '@/lib/logs/execution/pii-large-values'
 import { type RedactablePayload, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -48,6 +59,11 @@ import {
 } from '@/lib/logs/execution/progress-markers'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { traceSpansHaveHandledErrors } from '@/lib/logs/execution/trace-spans/handled-errors'
+import {
+  stripLegacyToolCallContent,
+  stripModelToolCallArguments,
+  summarizeTraceSpansWithoutIo,
+} from '@/lib/logs/execution/trace-spans/summarize'
 import { traceSpansIndicateFailure } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   copyTraceSpansWithoutCosts,
@@ -62,13 +78,12 @@ import type {
   ExecutionEnvironment,
   ExecutionFinalizationPath,
   ExecutionTrigger,
-  ExecutionLoggerService as IExecutionLoggerService,
   TraceSpan,
   WorkflowExecutionLog,
-  WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
 import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
+import { isLiveExecutionState } from '@/executor/execution/snapshot-serializer'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')
@@ -80,6 +95,7 @@ const logger = createLogger('ExecutionLogger')
  */
 const execDb = dbFor('exec')
 const MAX_EXECUTION_DATA_BYTES = 3 * 1024 * 1024
+const EXECUTION_DATA_SIZE_PROBE_LIMIT = MAX_EXECUTION_DATA_BYTES + 1
 const MAX_TRACE_IO_BYTES = 8 * 1024
 const MAX_WORKFLOW_VALUE_BYTES = 512 * 1024
 const EXECUTION_LOG_STATEMENT_TIMEOUT_MS = 30_000
@@ -88,82 +104,43 @@ const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
 // Bounds the wait for the per-execution usage-reconcile advisory lock. Generous
 // (favor waiting over dropping a charge); only trips on a pathological lock hold.
 const USAGE_RECONCILE_LOCK_TIMEOUT_MS = 10_000
+/** The log's snapshot foreign key as Postgres names it (identifiers are cut at 63 bytes). */
+const STATE_SNAPSHOT_FOREIGN_KEY = 'workflow_execution_logs_state_snapshot_id_workflow_execution_sn'
 
 type ExecutionData = WorkflowExecutionLog['executionData']
 
-function getJsonByteSize(
-  value: unknown,
-  maxBytes = MAX_EXECUTION_DATA_BYTES + 1
-): number | undefined {
-  const seen = new WeakSet<object>()
-  let bytes = 0
-
-  const add = (amount: number) => {
-    bytes += amount
-    if (bytes > maxBytes) {
-      throw new Error('json_size_limit_reached')
-    }
-  }
-
-  const visit = (item: unknown): void => {
-    if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
-      add(4)
-      return
-    }
-    if (item === null) {
-      add(4)
-      return
-    }
-    if (typeof item === 'string') {
-      add(Buffer.byteLength(JSON.stringify(item), 'utf8'))
-      return
-    }
-    if (typeof item === 'bigint') {
-      add(Buffer.byteLength(JSON.stringify(item.toString()), 'utf8'))
-      return
-    }
-    if (typeof item === 'number' || typeof item === 'boolean') {
-      add(Buffer.byteLength(JSON.stringify(item) ?? 'null', 'utf8'))
-      return
-    }
-    if (typeof item !== 'object') {
-      add(4)
-      return
-    }
-    if (seen.has(item)) {
-      return
-    }
-    seen.add(item)
-
-    if (Array.isArray(item)) {
-      add(2)
-      item.forEach((entry, index) => {
-        if (index > 0) add(1)
-        visit(entry)
-      })
-      return
-    }
-
-    const entries = Object.entries(item)
-    add(2)
-    entries.forEach(([key, entry], index) => {
-      if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol') return
-      if (index > 0) add(1)
-      add(Buffer.byteLength(JSON.stringify(key), 'utf8') + 1)
-      visit(entry)
-    })
-  }
-
-  try {
-    visit(value)
-    return bytes
-  } catch (error) {
-    if (getErrorMessage(error) === 'json_size_limit_reached') {
-      return maxBytes + 1
-    }
-    return undefined
-  }
+/** What one completion boundary wrote to the usage ledger. */
+interface ExecutionUsageRecording {
+  /** Billable cost recorded at this boundary — the increment, not the run total. */
+  recordedIncrement: number
+  /** Whether the ledger write also set `cost_total` to the exact reconciled sum. */
+  costTotalRefined: boolean
 }
+
+const NO_USAGE_RECORDED: ExecutionUsageRecording = { recordedIncrement: 0, costTotalRefined: false }
+
+/**
+ * The payer's usage before a boundary records its increment, read for the threshold
+ * email so usage after = before + increment never counts the boundary twice.
+ */
+type UsageThresholdEmailContext =
+  | {
+      scope: 'user'
+      userId: string
+      userEmail: string
+      userName: string | null
+      planName: string
+      periodStart: Date
+      before: Awaited<ReturnType<typeof checkResolvedUsageStatus>>
+    }
+  | {
+      scope: 'organization'
+      organizationId: string
+      planName: string
+      periodStart: Date
+      orgLimit: number
+      orgUsageBefore: number
+    }
 
 function describeValue(value: unknown): string {
   if (value === null) return 'null'
@@ -193,12 +170,6 @@ function retainBoundedTraceContent<T>(value: T, maxBytes = MAX_TRACE_IO_BYTES): 
   return size !== undefined && size <= maxBytes ? value : undefined
 }
 
-function stripModelToolCallArguments(
-  calls: NonNullable<TraceSpan['modelToolCalls']>
-): NonNullable<TraceSpan['modelToolCalls']> {
-  return calls.map(({ arguments: _arguments, ...call }) => call as (typeof calls)[number])
-}
-
 function compactModelToolCalls(
   calls: NonNullable<TraceSpan['modelToolCalls']>
 ): NonNullable<TraceSpan['modelToolCalls']> | undefined {
@@ -224,12 +195,6 @@ function compactLegacyToolCalls(
   return retainBoundedTraceContent(compacted)
 }
 
-function stripLegacyToolCallContent(
-  calls: NonNullable<TraceSpan['toolCalls']>
-): NonNullable<TraceSpan['toolCalls']> {
-  return calls.map(({ input: _input, output: _output, error: _error, ...call }) => call)
-}
-
 function compactProviderTiming(
   providerTiming: NonNullable<TraceSpan['providerTiming']>
 ): NonNullable<TraceSpan['providerTiming']> {
@@ -246,26 +211,6 @@ function compactProviderTiming(
               toolCalls: compactModelToolCalls(toolCalls) ?? stripModelToolCallArguments(toolCalls),
             }
           : {}),
-      })
-    ),
-  }
-}
-
-function stripProviderTimingContent(
-  providerTiming: NonNullable<TraceSpan['providerTiming']>
-): NonNullable<TraceSpan['providerTiming']> {
-  return {
-    ...providerTiming,
-    segments: providerTiming.segments.map(
-      ({
-        assistantContent: _assistantContent,
-        thinkingContent: _thinkingContent,
-        errorMessage: _errorMessage,
-        toolCalls,
-        ...segment
-      }) => ({
-        ...segment,
-        ...(toolCalls ? { toolCalls: stripModelToolCallArguments(toolCalls) } : {}),
       })
     ),
   }
@@ -315,31 +260,25 @@ function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpa
   })
 }
 
-function summarizeTraceSpansWithoutIo(traceSpans?: TraceSpan[]): TraceSpan[] | undefined {
-  if (!traceSpans) {
-    return traceSpans
-  }
-
-  return traceSpans.map((span) => {
-    const {
-      input: _input,
-      output: _output,
-      children,
-      thinking: _thinking,
-      errorMessage: _errorMessage,
-      modelToolCalls,
-      toolCalls,
-      providerTiming,
-      ...rest
-    } = span
-    return {
-      ...rest,
-      ...(modelToolCalls ? { modelToolCalls: stripModelToolCallArguments(modelToolCalls) } : {}),
-      ...(toolCalls ? { toolCalls: stripLegacyToolCallContent(toolCalls) } : {}),
-      ...(providerTiming ? { providerTiming: stripProviderTimingContent(providerTiming) } : {}),
-      ...(children?.length ? { children: summarizeTraceSpansWithoutIo(children) } : {}),
+/** Puts each loop or parallel scope's own provenance back onto its masked copy. */
+function restoreSubflowScopeProvenance(
+  redactedScopes: Record<string, unknown> | undefined,
+  originalScopes: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!redactedScopes) return redactedScopes
+  const scopes = { ...redactedScopes }
+  for (const [scopeId, originalScope] of Object.entries(originalScopes ?? {})) {
+    const redactedScope = scopes[scopeId]
+    if (!isRecordLike(redactedScope) || !isRecordLike(originalScope)) continue
+    scopes[scopeId] = {
+      ...redactedScope,
+      ...filterUndefined({
+        inputResolvedSecretTraceProvenance: originalScope.inputResolvedSecretTraceProvenance,
+        resolvedSecretTraceProvenance: originalScope.resolvedSecretTraceProvenance,
+      }),
     }
-  })
+  }
+  return scopes
 }
 
 function summarizeExecutionState(executionState?: SerializableExecutionState) {
@@ -360,13 +299,13 @@ function recordStoredByteSize(executionData: ExecutionData): {
   executionData: ExecutionData
   storedBytes?: number
 } {
-  const firstBytes = getJsonByteSize(executionData)
+  const firstBytes = getJsonByteSize(executionData, EXECUTION_DATA_SIZE_PROBE_LIMIT)
   if (firstBytes === undefined) {
     return { executionData }
   }
 
   const withFirstSize = { ...executionData, executionDataStoredBytes: firstBytes }
-  const secondBytes = getJsonByteSize(withFirstSize)
+  const secondBytes = getJsonByteSize(withFirstSize, EXECUTION_DATA_SIZE_PROBE_LIMIT)
   if (secondBytes === undefined || secondBytes === firstBytes) {
     return { executionData: withFirstSize, storedBytes: secondBytes ?? firstBytes }
   }
@@ -374,7 +313,7 @@ function recordStoredByteSize(executionData: ExecutionData): {
   const withSecondSize = { ...executionData, executionDataStoredBytes: secondBytes }
   return {
     executionData: withSecondSize,
-    storedBytes: getJsonByteSize(withSecondSize) ?? secondBytes,
+    storedBytes: getJsonByteSize(withSecondSize, EXECUTION_DATA_SIZE_PROBE_LIMIT) ?? secondBytes,
   }
 }
 
@@ -386,6 +325,47 @@ async function setExecutionLogWriteTimeouts(trx: Pick<typeof db, 'execute'>): Pr
   await trx.execute(
     sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${EXECUTION_LOG_IDLE_TIMEOUT_MS}ms'`)
   )
+}
+
+/**
+ * Throws {@link ExecutionScopeDeletedError} when the run's workspace no longer exists. Deleting a
+ * workspace cascades its log rows away, so a missing log under a missing workspace is a run whose
+ * owner deleted it, not a lost row.
+ */
+async function assertExecutionWorkspaceExists(
+  client: Pick<typeof db, 'select'>,
+  executionId: string,
+  workspaceId: string | null | undefined
+): Promise<void> {
+  if (!workspaceId) return
+  if (!(await workspaceRowExists(client, workspaceId))) {
+    throw new ExecutionScopeDeletedError(executionId, 'workspace')
+  }
+}
+
+async function workspaceRowExists(
+  client: Pick<typeof db, 'select'>,
+  workspaceId: string
+): Promise<boolean> {
+  const [row] = await client
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+  return row !== undefined
+}
+
+/**
+ * Whether a missing workflow is explained by its whole workspace having been deleted, which the
+ * completion then reports as a deleted run. A failed lookup reports `false`, keeping the error.
+ */
+async function isWorkspaceDeleted(workspaceId: string | null | undefined): Promise<boolean> {
+  if (!workspaceId) return false
+  try {
+    return !(await workspaceRowExists(execDb, workspaceId))
+  } catch {
+    return false
+  }
 }
 
 function countTraceSpans(traceSpans?: TraceSpan[]): number {
@@ -423,12 +403,12 @@ function recordedFile(file: TraversedFile) {
   }
 }
 
-export class ExecutionLogger implements IExecutionLoggerService {
+export class ExecutionLogger {
   private compactExecutionDataForStorage(
     executionData: ExecutionData,
     executionId: string
   ): ExecutionData {
-    const originalBytes = getJsonByteSize(executionData)
+    const originalBytes = getJsonByteSize(executionData, EXECUTION_DATA_SIZE_PROBE_LIMIT)
     if (originalBytes === undefined || originalBytes <= MAX_EXECUTION_DATA_BYTES) {
       return executionData
     }
@@ -650,6 +630,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
   }
 
+  /**
+   * Creates the execution's `running` log row, pointing it at the (deduplicated)
+   * workflow-state snapshot. Idempotent per execution id: when the row already
+   * exists — a retried job or a resumed start — only its deadline is refreshed.
+   */
   async startWorkflowExecution(params: {
     workflowId: string
     workspaceId: string
@@ -661,10 +646,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     workflowState: WorkflowState
     deploymentVersionId?: string
     executionDeadlineAt?: Date
-  }): Promise<{
-    workflowLog: WorkflowExecutionLog
-    snapshot: WorkflowExecutionSnapshot
-  }> {
+  }): Promise<void> {
     const {
       workflowId,
       workspaceId,
@@ -680,99 +662,74 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     execLog.debug('Starting workflow execution')
 
-    // Check if execution log already exists (idempotency check)
-    const existingLog = await execDb
-      .select()
-      .from(workflowExecutionLogs)
-      .where(eq(workflowExecutionLogs.executionId, executionId))
-      .limit(1)
+    const insertRunningLog = async (stateSnapshotId: string) => {
+      const [inserted] = await execDb
+        .insert(workflowExecutionLogs)
+        .values({
+          id: generateId(),
+          workflowId,
+          workspaceId,
+          executionId,
+          stateSnapshotId,
+          deploymentVersionId: deploymentVersionId ?? null,
+          level: 'info',
+          status: 'running',
+          trigger: trigger.type,
+          startedAt: new Date(),
+          endedAt: null,
+          totalDurationMs: null,
+          executionDeadlineAt: executionDeadlineAt ?? null,
+          executionData: {
+            secretProjectionVersion: SECRET_PROJECTION_VERSION,
+            environment,
+            trigger,
+            ...(billingAttribution ? { billingAttribution } : {}),
+            ...(trigger.data?.correlation ? { correlation: trigger.data.correlation } : {}),
+            hasTraceSpans: false,
+            traceSpanCount: 0,
+          },
+        })
+        .onConflictDoNothing({ target: workflowExecutionLogs.executionId })
+        .returning({ id: workflowExecutionLogs.id })
+      return inserted
+    }
 
-    if (existingLog.length > 0) {
-      execLog.debug('Execution log already exists, skipping duplicate INSERT (idempotent)')
-      await execDb
-        .update(workflowExecutionLogs)
-        .set({ executionDeadlineAt: executionDeadlineAt ?? null })
-        .where(
-          and(
-            eq(workflowExecutionLogs.executionId, executionId),
-            sql`${workflowExecutionLogs.status} IN ('pending', 'running')`
-          )
+    let snapshot = await snapshotService.resolveSnapshot(workflowId, workflowState)
+    let inserted: { id: string } | undefined
+    try {
+      inserted = await insertRunningLog(snapshot.id)
+    } catch (error) {
+      if (
+        getPostgresErrorCode(error) !== FOREIGN_KEY_VIOLATION ||
+        getPostgresConstraintName(error) !== STATE_SNAPSHOT_FOREIGN_KEY
+      ) {
+        throw error
+      }
+      /**
+       * A snapshot resolved before the insert can be deleted underneath it by
+       * orphan cleanup when no log references it yet. Resolve it again from the
+       * database, which recreates the row if it is gone.
+       */
+      snapshot = await snapshotService.resolveSnapshot(workflowId, workflowState, { fresh: true })
+      inserted = await insertRunningLog(snapshot.id)
+    }
+
+    if (inserted) {
+      snapshotService.rememberReferencedSnapshot(snapshot)
+      execLog.debug('Created workflow log', { logId: inserted.id })
+      return
+    }
+
+    execLog.debug('Execution log already exists, skipping duplicate INSERT (idempotent)')
+    await execDb
+      .update(workflowExecutionLogs)
+      .set({ executionDeadlineAt: executionDeadlineAt ?? null })
+      .where(
+        and(
+          eq(workflowExecutionLogs.executionId, executionId),
+          sql`${workflowExecutionLogs.status} IN ('pending', 'running')`
         )
-      const snapshot = await snapshotService.getSnapshot(existingLog[0].stateSnapshotId)
-      if (!snapshot) {
-        throw new Error(`Snapshot ${existingLog[0].stateSnapshotId} not found for existing log`)
-      }
-      return {
-        workflowLog: {
-          id: existingLog[0].id,
-          workflowId: existingLog[0].workflowId,
-          executionId: existingLog[0].executionId,
-          stateSnapshotId: existingLog[0].stateSnapshotId,
-          level: existingLog[0].level as 'info' | 'error',
-          trigger: existingLog[0].trigger as ExecutionTrigger['type'],
-          startedAt: existingLog[0].startedAt.toISOString(),
-          endedAt: existingLog[0].endedAt?.toISOString() || existingLog[0].startedAt.toISOString(),
-          totalDurationMs: existingLog[0].totalDurationMs || 0,
-          executionData: existingLog[0].executionData as WorkflowExecutionLog['executionData'],
-          createdAt: existingLog[0].createdAt.toISOString(),
-        },
-        snapshot,
-      }
-    }
-
-    const snapshotResult = await snapshotService.createSnapshotWithDeduplication(
-      workflowId,
-      workflowState
-    )
-
-    const startTime = new Date()
-
-    const [workflowLog] = await execDb
-      .insert(workflowExecutionLogs)
-      .values({
-        id: generateId(),
-        workflowId,
-        workspaceId,
-        executionId,
-        stateSnapshotId: snapshotResult.snapshot.id,
-        deploymentVersionId: deploymentVersionId ?? null,
-        level: 'info',
-        status: 'running',
-        trigger: trigger.type,
-        startedAt: startTime,
-        endedAt: null,
-        totalDurationMs: null,
-        executionDeadlineAt: executionDeadlineAt ?? null,
-        executionData: {
-          secretProjectionVersion: SECRET_PROJECTION_VERSION,
-          environment,
-          trigger,
-          ...(billingAttribution ? { billingAttribution } : {}),
-          ...(trigger.data?.correlation ? { correlation: trigger.data.correlation } : {}),
-          hasTraceSpans: false,
-          traceSpanCount: 0,
-        },
-      })
-      .returning()
-
-    execLog.debug('Created workflow log', { logId: workflowLog.id })
-
-    return {
-      workflowLog: {
-        id: workflowLog.id,
-        workflowId: workflowLog.workflowId,
-        executionId: workflowLog.executionId,
-        stateSnapshotId: workflowLog.stateSnapshotId,
-        level: workflowLog.level as 'info' | 'error',
-        trigger: workflowLog.trigger as ExecutionTrigger['type'],
-        startedAt: workflowLog.startedAt.toISOString(),
-        endedAt: workflowLog.endedAt?.toISOString() || workflowLog.startedAt.toISOString(),
-        totalDurationMs: workflowLog.totalDurationMs || 0,
-        executionData: workflowLog.executionData as WorkflowExecutionLog['executionData'],
-        createdAt: workflowLog.createdAt.toISOString(),
-      },
-      snapshot: snapshotResult.snapshot,
-    }
+      )
   }
 
   /**
@@ -813,7 +770,17 @@ export class ExecutionLogger implements IExecutionLoggerService {
     // the log's large values must get the logs policy applied like inline content
     // does. Masking is idempotent, so already-masked spans are unaffected; a ref
     // that can't be materialized/re-stored falls back to a marker.
-    const working = await redactLargeValueRefs(payload, {
+    // A completed run hands over live execution state rather than a JSON clone;
+    // normalize it (Dates to strings, undefined dropped) so masking sees the
+    // same shapes the persisted state will have. Other states are JSON already.
+    const normalizedPayload = !isLiveExecutionState(payload.executionState)
+      ? payload
+      : {
+          ...payload,
+          // utils-lint-allow: JSON normalization of the state, not a deep clone
+          executionState: JSON.parse(JSON.stringify(payload.executionState)),
+        }
+    const working = await redactLargeValueRefs(normalizedPayload, {
       entityTypes: config.entityTypes,
       language: config.language,
       customPatterns: config.customPatterns,
@@ -832,18 +799,19 @@ export class ExecutionLogger implements IExecutionLoggerService {
     })
   }
 
-  /** Restores server-only lifecycle metadata after broad execution-state PII masking. */
+  /**
+   * Restores server-only lifecycle metadata after broad execution-state PII masking. The masker
+   * walks every string leaf, so it can rewrite a substring of an encrypted provenance entry or an
+   * id and make it unusable; these fields carry no user content, so the originals go back verbatim.
+   */
   private preservePrivateExecutionStateMetadata(
     redactedState: SerializableExecutionState | undefined,
     originalState: SerializableExecutionState | undefined
   ): SerializableExecutionState | undefined {
-    if (!redactedState) return redactedState
+    if (!redactedState || !originalState) return redactedState
 
-    const provenance = originalState?.resolvedSecretTraceProvenance
-    const provenanceCheckpointVersion = originalState?.resolvedSecretTraceCheckpointVersion
-    const trustedLargeValueAccess = originalState?.trustedLargeValueAccess
     const blockStates = { ...redactedState.blockStates }
-    for (const [blockId, originalBlockState] of Object.entries(originalState?.blockStates ?? {})) {
+    for (const [blockId, originalBlockState] of Object.entries(originalState.blockStates)) {
       const redactedBlockState = blockStates[blockId]
       if (redactedBlockState && originalBlockState.resolvedSecretTraceProvenance) {
         blockStates[blockId] = {
@@ -853,8 +821,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       }
     }
     const blockLogs = redactedState.blockLogs.map((log, index) => {
-      const displayProvenance =
-        originalState?.blockLogs[index]?.displayResolvedSecretTraceProvenance
+      const displayProvenance = originalState.blockLogs[index]?.displayResolvedSecretTraceProvenance
       return displayProvenance
         ? { ...log, displayResolvedSecretTraceProvenance: displayProvenance }
         : log
@@ -864,17 +831,26 @@ export class ExecutionLogger implements IExecutionLoggerService {
       ...redactedState,
       blockStates,
       blockLogs,
-      ...(provenance !== undefined ? { resolvedSecretTraceProvenance: provenance } : {}),
-      ...(originalState?.workflowVariableResolvedSecretTraceProvenance !== undefined
-        ? {
-            workflowVariableResolvedSecretTraceProvenance:
-              originalState.workflowVariableResolvedSecretTraceProvenance,
-          }
-        : {}),
-      ...(provenanceCheckpointVersion !== undefined
-        ? { resolvedSecretTraceCheckpointVersion: provenanceCheckpointVersion }
-        : {}),
-      ...(trustedLargeValueAccess !== undefined ? { trustedLargeValueAccess } : {}),
+      ...filterUndefined({
+        loopExecutions: restoreSubflowScopeProvenance(
+          redactedState.loopExecutions,
+          originalState.loopExecutions
+        ),
+        parallelExecutions: restoreSubflowScopeProvenance(
+          redactedState.parallelExecutions,
+          originalState.parallelExecutions
+        ),
+        sourceExecutionId: originalState.sourceExecutionId,
+        trustedLargeValueAccess: originalState.trustedLargeValueAccess,
+        resolvedSecretTraceProvenance: originalState.resolvedSecretTraceProvenance,
+        workflowVariableResolvedSecretTraceProvenance:
+          originalState.workflowVariableResolvedSecretTraceProvenance,
+        workflowInputResolvedSecretTraceProvenance:
+          originalState.workflowInputResolvedSecretTraceProvenance,
+        finalOutputResolvedSecretTraceProvenance:
+          originalState.finalOutputResolvedSecretTraceProvenance,
+        resolvedSecretTraceCheckpointVersion: originalState.resolvedSecretTraceCheckpointVersion,
+      }),
     }
   }
 
@@ -929,8 +905,31 @@ export class ExecutionLogger implements IExecutionLoggerService {
     return pii.traceSpans as TraceSpan[]
   }
 
+  /**
+   * Which of a run's scopes no longer exists, read by primary key: the workspace first, since
+   * deleting it also deletes the workflow. `null` when both still exist.
+   */
+  async findDeletedExecutionScope(params: {
+    workspaceId: string
+    workflowId: string
+  }): Promise<ExecutionScope | null> {
+    if (!(await workspaceRowExists(execDb, params.workspaceId))) return 'workspace'
+    const [workflowRow] = await execDb
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.id, params.workflowId))
+      .limit(1)
+    return workflowRow ? null : 'workflow'
+  }
+
+  /**
+   * Writes the run's terminal log state. Throws {@link ExecutionScopeDeletedError} when the log
+   * row is gone because `workspaceId` was deleted, before any redaction, storage, or billing work.
+   */
   async completeWorkflowExecution(params: {
     executionId: string
+    /** The run's workspace, checked only when its log row is missing. */
+    workspaceId?: string
     endedAt: string
     totalDurationMs: number
     costSummary: {
@@ -996,6 +995,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
         workflowId: existingLog.workflowId ?? undefined,
         workspaceId: existingLog.workspaceId ?? undefined,
       })
+    } else {
+      await assertExecutionWorkspaceExists(execDb, executionId, params.workspaceId)
     }
     const existingExecutionData = existingLog?.executionData as
       | WorkflowExecutionLog['executionData']
@@ -1197,6 +1198,102 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
     const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(storedExecutionData)
 
+    const exactBillingContext = billingAttribution
+      ? toBillingContext(billingAttribution)
+      : undefined
+
+    /**
+     * The usage ledger is written before the terminal status commits, so a reader that
+     * sees a finished run also sees its itemized cost: `buildCostLedger` reads a run with
+     * no ledger rows as one that has no ledger at all. Skipped without a log row, whose
+     * completion below throws before this boundary could bill anything.
+     */
+    let usageRecording = NO_USAGE_RECORDED
+    let emailContext: UsageThresholdEmailContext | undefined
+    if (existingLog) {
+      try {
+        // Skip workflow lookup if workflow was deleted.
+        const wf = existingLog.workflowId
+          ? (await db.select().from(workflow).where(eq(workflow.id, existingLog.workflowId)))[0]
+          : undefined
+
+        const payerContactUserId = billingAttribution?.billedAccountUserId ?? actorUserId
+        const usr =
+          wf && payerContactUserId
+            ? (
+                await db
+                  .select({ id: userTable.id, email: userTable.email, name: userTable.name })
+                  .from(userTable)
+                  .where(eq(userTable.id, payerContactUserId))
+                  .limit(1)
+              )[0]
+            : undefined
+
+        /**
+         * The pre-increment usage for the threshold email is read BEFORE recording. The
+         * organization read is the soft one: the email is level-triggered and claimed
+         * once per period, so a lagging sum only delays it.
+         */
+        if (
+          billingAttribution?.billingEntity.type === 'organization' &&
+          billingAttribution.payerSubscription &&
+          exactBillingContext
+        ) {
+          const organizationId = billingAttribution.billingEntity.id
+          const payerSubscription = billingAttribution.payerSubscription
+          const [{ getDisplayPlanName }, { limit: orgLimit }, orgUsageBefore] = await Promise.all([
+            import('@/lib/billing/plan-helpers'),
+            getOrgUsageLimit(organizationId, payerSubscription.plan, payerSubscription.seats),
+            readSoftGateUsageCost(
+              billingAttribution.billingEntity,
+              exactBillingContext.billingPeriod
+            ),
+          ])
+          emailContext = {
+            scope: 'organization',
+            organizationId,
+            planName: getDisplayPlanName(payerSubscription.plan),
+            periodStart: exactBillingContext.billingPeriod.start,
+            orgLimit,
+            orgUsageBefore,
+          }
+        } else if (
+          billingAttribution?.billingEntity.type === 'user' &&
+          exactBillingContext &&
+          usr?.email
+        ) {
+          const sub = await getHighestPriorityPersonalSubscription(usr.id)
+          const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+          emailContext = {
+            scope: 'user',
+            userId: usr.id,
+            userEmail: usr.email,
+            userName: usr.name,
+            planName: getDisplayPlanName(sub?.plan),
+            periodStart: exactBillingContext.billingPeriod.start,
+            before: await checkResolvedUsageStatus(usr.id, sub, exactBillingContext),
+          }
+        }
+      } catch (e) {
+        execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
+      }
+
+      // Record usage exactly once for every path; a failed threshold read above must
+      // never leave the run unbilled. The recorded increment is the amount billed at
+      // this boundary, not the cumulative run total — so resumed runs don't
+      // double-count pre-pause cost in the threshold email.
+      usageRecording = await this.recordExecutionUsage(
+        existingLog.workflowId,
+        costSummary,
+        existingLog.trigger as ExecutionTrigger['type'],
+        executionId,
+        actorUserId,
+        exactBillingContext,
+        status !== 'pending',
+        existingLog.workspaceId
+      )
+    }
+
     const { updatedLog, completionPersisted } = await execDb.transaction(async (tx) => {
       await setExecutionLogWriteTimeouts(tx)
 
@@ -1215,8 +1312,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
           // resumes into an empty-span error/cancel/cost-only fallback produces a
           // base-only summary. GREATEST keeps the higher cumulative cost_total,
           // and models_used is overwritten only when this boundary actually has
-          // models — so both stay == SUM(usage_log) on every monotonic path.
-          costTotal: sql`GREATEST(COALESCE(${workflowExecutionLogs.costTotal}, 0), ${costSummary.totalCost.toString()}::numeric)`,
+          // models — so both stay == SUM(usage_log) on every monotonic path. When
+          // this boundary's ledger write already set the exact reconciled sum, that
+          // value stands.
+          ...(usageRecording.costTotalRefined
+            ? {}
+            : {
+                costTotal: sql`GREATEST(COALESCE(${workflowExecutionLogs.costTotal}, 0), ${costSummary.totalCost.toString()}::numeric)`,
+              }),
           ...(Object.keys(costSummary.models).length > 0
             ? { modelsUsed: Object.keys(costSummary.models) }
             : {}),
@@ -1251,6 +1354,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
         if (competingTerminalStateWon) {
           return { updatedLog: currentLog, completionPersisted: false }
         }
+        if (!currentLog) {
+          await assertExecutionWorkspaceExists(
+            tx,
+            executionId,
+            existingLog?.workspaceId ?? params.workspaceId
+          )
+        }
         throw new Error(`Workflow log not found for execution ${executionId}`)
       }
 
@@ -1269,164 +1379,38 @@ export class ExecutionLogger implements IExecutionLoggerService {
     })
 
     if (progressMarkers !== null) void clearProgressMarkers(executionId)
-    const exactBillingContext = billingAttribution
-      ? toBillingContext(billingAttribution)
-      : undefined
 
-    try {
-      // Skip workflow lookup if workflow was deleted.
-      const wf = updatedLog.workflowId
-        ? (await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId)))[0]
-        : undefined
-
-      const payerContactUserId = billingAttribution?.billedAccountUserId ?? actorUserId
-      const usr =
-        wf && payerContactUserId
-          ? (
-              await db
-                .select({ id: userTable.id, email: userTable.email, name: userTable.name })
-                .from(userTable)
-                .where(eq(userTable.id, payerContactUserId))
-                .limit(1)
-            )[0]
-          : undefined
-
-      // Resolve the billing context + the pre-increment usage snapshot for the
-      // threshold email BEFORE recording, so currentUsageAfter = before +
-      // costDelta doesn't double-count this boundary's own increment.
-      type EmailContext =
-        | {
-            scope: 'user'
-            userId: string
-            userEmail: string
-            userName: string | null
-            planName: string
-            before: Awaited<ReturnType<typeof checkResolvedUsageStatus>>
-          }
-        | {
-            scope: 'organization'
-            organizationId: string
-            planName: string
-            orgLimit: number
-            orgUsageBefore: number
-          }
-      const billingContext = exactBillingContext
-      let emailContext: EmailContext | undefined
-
-      if (
-        billingAttribution?.billingEntity.type === 'organization' &&
-        billingAttribution.payerSubscription &&
-        exactBillingContext
-      ) {
-        const organizationId = billingAttribution.billingEntity.id
-        const payerSubscription = billingAttribution.payerSubscription
-        const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
-        const { limit: orgLimit } = await getOrgUsageLimit(
-          organizationId,
-          payerSubscription.plan,
-          payerSubscription.seats
-        )
-        const { getBillingPeriodUsageCost } = await import('@/lib/billing/core/usage-log')
-        const orgLedger = await getBillingPeriodUsageCost(
-          billingAttribution.billingEntity,
-          exactBillingContext.billingPeriod
-        )
-        emailContext = {
-          scope: 'organization',
-          organizationId,
-          planName: getDisplayPlanName(payerSubscription.plan),
-          orgLimit,
-          orgUsageBefore: orgLedger,
-        }
-      } else if (billingAttribution?.billingEntity.type === 'user' && usr?.email) {
-        const sub = await getHighestPriorityPersonalSubscription(usr.id)
-        const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
-        emailContext = {
-          scope: 'user',
-          userId: usr.id,
-          userEmail: usr.email,
-          userName: usr.name,
-          planName: getDisplayPlanName(sub?.plan),
-          before: await checkResolvedUsageStatus(usr.id, sub),
-        }
-      }
-
-      // Record usage exactly once for every path. costDelta is the amount
-      // actually recorded at this boundary (the increment), not the cumulative
-      // run total — so resumed runs don't double-count pre-pause cost below.
-      const costDelta = await this.recordExecutionUsage(
-        updatedLog.workflowId,
-        costSummary,
-        updatedLog.trigger as ExecutionTrigger['type'],
-        executionId,
-        actorUserId,
-        billingContext,
-        status !== 'pending'
-      )
-
-      // Best-effort usage-threshold email.
-      if (emailContext?.scope === 'user') {
-        const limit = emailContext.before.limit
-        const percentBefore = emailContext.before.percentUsed
-        const percentAfter =
-          limit > 0 ? Math.min(100, percentBefore + (costDelta / limit) * 100) : percentBefore
-        const currentUsageAfter = emailContext.before.currentUsage + costDelta
-
-        await maybeSendUsageThresholdEmail({
-          scope: 'user',
-          userId: emailContext.userId,
-          userEmail: emailContext.userEmail,
-          userName: emailContext.userName || undefined,
-          planName: emailContext.planName,
-          workspaceId: updatedLog.workspaceId,
-          percentBefore,
-          percentAfter,
-          currentUsageAfter,
-          limit,
-        })
-      } else if (emailContext?.scope === 'organization') {
-        const { orgLimit, orgUsageBefore } = emailContext
-        const percentBefore = orgLimit > 0 ? Math.min(100, (orgUsageBefore / orgLimit) * 100) : 0
-        const percentAfter =
-          orgLimit > 0 ? Math.min(100, percentBefore + (costDelta / orgLimit) * 100) : percentBefore
-        const currentUsageAfter = orgUsageBefore + costDelta
-
-        await maybeSendUsageThresholdEmail({
-          scope: 'organization',
-          organizationId: emailContext.organizationId,
-          planName: emailContext.planName,
-          workspaceId: updatedLog.workspaceId,
-          percentBefore,
-          percentAfter,
-          currentUsageAfter,
-          limit: orgLimit,
-        })
-      }
-    } catch (e) {
-      // Safety net: if a step above threw BEFORE the single record call, ensure
-      // the run is still billed. Reconciliation is idempotent, so re-recording
-      // after a successful call is a no-op.
+    if (emailContext) {
+      const costDelta = usageRecording.recordedIncrement
       try {
-        await this.recordExecutionUsage(
-          updatedLog.workflowId,
-          costSummary,
-          updatedLog.trigger as ExecutionTrigger['type'],
-          executionId,
-          actorUserId,
-          exactBillingContext,
-          status !== 'pending'
-        )
-      } catch (recordError) {
-        /* The safety net is the last thing between a completed run and an unbilled
-           one. Swallowing it left the only emitted line saying a notification check
-           had failed and was non-fatal. */
-        execLog.error('Failed to record execution usage — this run may be unbilled', {
-          error: recordError,
-          executionId,
-          workflowId: updatedLog.workflowId,
-        })
+        if (emailContext.scope === 'user') {
+          await maybeSendUsageThresholdEmail({
+            scope: 'user',
+            userId: emailContext.userId,
+            userEmail: emailContext.userEmail,
+            userName: emailContext.userName || undefined,
+            planName: emailContext.planName,
+            periodStart: emailContext.periodStart,
+            workspaceId: updatedLog.workspaceId,
+            usageBefore: emailContext.before.currentUsage,
+            costDelta,
+            limit: emailContext.before.limit,
+          })
+        } else {
+          await maybeSendUsageThresholdEmail({
+            scope: 'organization',
+            organizationId: emailContext.organizationId,
+            planName: emailContext.planName,
+            periodStart: emailContext.periodStart,
+            workspaceId: updatedLog.workspaceId,
+            usageBefore: emailContext.orgUsageBefore,
+            costDelta,
+            limit: emailContext.orgLimit,
+          })
+        }
+      } catch (e) {
+        execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
       }
-      execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
     }
 
     if (completionPersisted) {
@@ -1559,8 +1543,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
      * reconcile across boundaries, so they are written once — at the terminal
      * boundary, where the summary already holds the run's cumulative tokens.
      */
-    isTerminalBoundary = true
-  ): Promise<number> {
+    isTerminalBoundary = true,
+    /** The run's workspace, read only to explain a missing workflow. */
+    workspaceId?: string | null
+  ): Promise<ExecutionUsageRecording> {
     const statsLog = logger.withMetadata({ workflowId: workflowId ?? undefined, executionId })
 
     // The usage ledger (recordUsage below) is written regardless of
@@ -1572,10 +1558,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     if (!workflowId) {
       statsLog.debug('Workflow was deleted, skipping usage recording')
-      return 0
+      return NO_USAGE_RECORDED
     }
 
     let recordedIncrement = 0
+    let costTotalRefined = false
     try {
       const [workflowRecord] = await db
         .select()
@@ -1584,8 +1571,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
         .limit(1)
 
       if (!workflowRecord) {
-        statsLog.error('Workflow not found for usage recording')
-        return 0
+        if (await isWorkspaceDeleted(workspaceId)) {
+          statsLog.info("Skipped usage recording: the run's workspace was deleted")
+        } else {
+          statsLog.error('Workflow not found for usage recording')
+        }
+        return NO_USAGE_RECORDED
       }
 
       const userId = actorUserId?.trim() || null
@@ -1593,7 +1584,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         statsLog.error('Missing actor in execution context; skipping usage recording', {
           trigger,
         })
-        return 0
+        return NO_USAGE_RECORDED
       }
 
       // Build the run's *cumulative* target ledger lines from the cost summary.
@@ -1694,7 +1685,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // error for a charge that does not exist.
       if (targets.length === 0 && !canRecordUnbilled) {
         statsLog.debug('No cost to record')
-        return 0
+        return NO_USAGE_RECORDED
       }
 
       if (workflowRecord.workspaceId && !billingContext) {
@@ -1782,11 +1773,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
         // flow and only matters under a cross-process double-completion of the
         // same execution, where it stops a stale already-billed read from
         // dropping the larger delta.
-        await db.transaction(async (tx) => {
+        await dbFor('billing').transaction(async (tx) => {
           await tx.execute(
             sql`select set_config('lock_timeout', ${`${USAGE_RECONCILE_LOCK_TIMEOUT_MS}ms`}, true)`
           )
-          await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${executionId}, 0))`)
+          await acquireAdvisoryXactLock(tx, 'execution_usage_reconcile', executionId)
 
           // Already-billed for this execution, scoped to the rows this path owns
           // (source='workflow') so a same-executionId row from another source
@@ -1846,6 +1837,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
                 .update(workflowExecutionLogs)
                 .set({ costTotal: displayedCostTotal.toString() })
                 .where(eq(workflowExecutionLogs.executionId, executionId))
+              costTotalRefined = true
             }
           }
         })
@@ -1890,7 +1882,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       )
     }
 
-    return recordedIncrement
+    return { recordedIncrement, costTotalRefined }
   }
 
   /**

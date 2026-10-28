@@ -1,3 +1,8 @@
+import {
+  type OAuthClientCapabilityField,
+  type OAuthClientCapabilityId,
+  requireOAuthClientCapability,
+} from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
@@ -15,6 +20,7 @@ import {
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
+  FivetranIcon,
   GithubIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -31,9 +37,12 @@ import {
   GoogleSheetsIcon,
   GoogleTasksIcon,
   GoogleVaultIcon,
+  GreenhouseIcon,
   HarmonicIcon,
+  HelpScoutIcon,
   HubspotIcon,
   InstagramIcon,
+  IntuneIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -49,9 +58,12 @@ import {
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
+  OracleIcon,
   OutlookIcon,
   PipedriveIcon,
+  PowerBIIcon,
   QuickBooksIcon,
+  RampIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -60,6 +72,7 @@ import {
   SpotifyIcon,
   TikTokIcon,
   TrelloIcon,
+  VantaIcon,
   VertexIcon,
   WealthboxIcon,
   WebflowIcon,
@@ -69,11 +82,6 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
-import {
-  type OAuthClientCapabilityField,
-  type OAuthClientCapabilityId,
-  requireOAuthClientCapability,
-} from '@/lib/core/config/env-capabilities'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import {
@@ -86,10 +94,16 @@ import {
   GITHUB_TOKEN_URL,
   parseGitHubRepositoriesTokenResponse,
 } from '@/lib/oauth/github-repositories'
+import {
+  GREENHOUSE_TOKEN_URL,
+  getGreenhouseRefreshErrorCode,
+  parseGreenhouseTokens,
+} from '@/lib/oauth/greenhouse'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { QUICKBOOKS_TOKEN_URL } from '@/lib/oauth/quickbooks-constants'
+import { isCredentialRevocationError } from '@/lib/oauth/refresh-error-codes'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
   SALESFORCE_LOGIN_HOSTS,
@@ -113,6 +127,70 @@ export function getSlackApprovalGatedScopes(enabled: boolean): readonly string[]
 const SLACK_APPROVAL_GATED_SCOPES = getSlackApprovalGatedScopes(isSlackExtendedScopesEnabled)
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  greenhouse: {
+    name: 'Greenhouse',
+    icon: GreenhouseIcon,
+    services: {
+      greenhouse: {
+        name: 'Greenhouse',
+        description: 'Manage recruiting candidates, applications, jobs, and hiring activity.',
+        providerId: 'greenhouse',
+        serviceAccountProviderId: 'greenhouse-service-account',
+        icon: GreenhouseIcon,
+        baseProviderIcon: GreenhouseIcon,
+        scopes: [
+          'harvest:application_stages:list',
+          'harvest:applications:convert_to_candidate',
+          'harvest:applications:create',
+          'harvest:applications:destroy',
+          'harvest:applications:hire',
+          'harvest:applications:list',
+          'harvest:applications:move',
+          'harvest:applications:reject',
+          'harvest:applications:unreject',
+          'harvest:applications:update',
+          'harvest:applied_candidate_tags:create',
+          'harvest:applied_candidate_tags:destroy',
+          'harvest:applied_candidate_tags:list',
+          'harvest:attachments:create',
+          'harvest:attachments:destroy',
+          'harvest:attachments:list',
+          'harvest:candidate_educations:list',
+          'harvest:candidate_employments:list',
+          'harvest:candidate_tags:create',
+          'harvest:candidate_tags:list',
+          'harvest:candidates:create',
+          'harvest:candidates:destroy',
+          'harvest:candidates:list',
+          'harvest:candidates:update',
+          'harvest:close_reasons:list',
+          'harvest:custom_field_options:list',
+          'harvest:custom_fields:list',
+          'harvest:departments:list',
+          'harvest:email_templates:list',
+          'harvest:interviews:list',
+          'harvest:job_hiring_managers:list',
+          'harvest:job_interview_stages:list',
+          'harvest:job_owners:list',
+          'harvest:jobs:list',
+          'harvest:notes:create',
+          'harvest:notes:list',
+          'harvest:offers:list',
+          'harvest:offices:list',
+          'harvest:openings:list',
+          'harvest:prospect_pool_stages:list',
+          'harvest:prospect_pools:list',
+          'harvest:referrers:list',
+          'harvest:rejection_reasons:list',
+          'harvest:scorecards:list',
+          'harvest:sources:list',
+          'harvest:users:list',
+        ],
+      },
+    },
+    defaultService: 'greenhouse',
+  },
+
   'github-repositories': {
     name: 'GitHub',
     icon: GithubIcon,
@@ -427,7 +505,31 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-excel',
         icon: MicrosoftExcelIcon,
         baseProviderIcon: MicrosoftIcon,
-        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Files.Read',
+          'Files.ReadWrite',
+          'Sites.Read.All',
+          'offline_access',
+        ],
+      },
+      'microsoft-intune': {
+        name: 'Microsoft Intune',
+        description: 'Read managed devices and policies, and request remote device actions.',
+        providerId: 'microsoft-intune',
+        icon: IntuneIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'DeviceManagementManagedDevices.Read.All',
+          'DeviceManagementConfiguration.Read.All',
+          'DeviceManagementManagedDevices.PrivilegedOperations.All',
+          'offline_access',
+        ],
       },
       'microsoft-planner': {
         name: 'Microsoft Planner',
@@ -442,6 +544,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Group.ReadWrite.All',
           'Group.Read.All',
           'Tasks.ReadWrite',
+          'offline_access',
+        ],
+      },
+      'microsoft-powerbi': {
+        name: 'Power BI',
+        description: 'Connect to Power BI and query semantic models, reports, and refresh history.',
+        providerId: 'microsoft-powerbi',
+        icon: PowerBIIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
+          'https://analysis.windows.net/powerbi/api/Report.Read.All',
+          'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All',
+          'openid',
+          'profile',
+          'email',
           'offline_access',
         ],
       },
@@ -1055,6 +1173,74 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'netsuite',
   },
+  oracledb: {
+    name: 'Oracle Database',
+    icon: OracleIcon,
+    services: {
+      oracledb: {
+        name: 'Oracle Database',
+        description: 'Query and manage Oracle Database with a saved connection.',
+        providerId: 'oracledb',
+        serviceAccountProviderId: 'oracledb-service-account',
+        authType: 'service_account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'oracledb',
+  },
+  oci: {
+    name: 'Oracle Cloud Infrastructure',
+    icon: OracleIcon,
+    services: {
+      oci: {
+        name: 'Oracle Cloud Infrastructure',
+        description: 'Connect OCI services with an API signing key.',
+        providerId: 'oci',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci',
+  },
+  'oracle-epm': {
+    name: 'Oracle EPM',
+    icon: OracleIcon,
+    services: {
+      'oracle-epm': {
+        name: 'Oracle EPM',
+        description: 'Connect an EPM environment with an integration user.',
+        providerId: 'oracle-epm',
+        serviceAccountProviderId: 'oracle-epm-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-epm',
+  },
+  'oracle-fusion': {
+    name: 'Oracle Fusion',
+    icon: OracleIcon,
+    services: {
+      'oracle-fusion': {
+        name: 'Oracle Fusion',
+        description: 'Connect Fusion Applications with an integration user.',
+        providerId: 'oracle-fusion',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle-fusion',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
@@ -1283,6 +1469,85 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'quickbooks',
   },
+  ramp: {
+    name: 'Ramp',
+    icon: RampIcon,
+    services: {
+      ramp: {
+        name: 'Ramp',
+        description:
+          'Read company spending, cards, bills, and reimbursements, and manage transaction memos.',
+        providerId: 'ramp',
+        serviceAccountProviderId: 'ramp-service-account',
+        authType: 'oauth',
+        icon: RampIcon,
+        baseProviderIcon: RampIcon,
+        scopes: [
+          'business:read',
+          'users:read',
+          'transactions:read',
+          'cards:read',
+          'vendors:read',
+          'bills:read',
+          'reimbursements:read',
+          'memos:read',
+          'memos:write',
+        ],
+      },
+    },
+    defaultService: 'ramp',
+  },
+  fivetran: {
+    name: 'Fivetran',
+    icon: FivetranIcon,
+    services: {
+      fivetran: {
+        name: 'Fivetran',
+        description: 'Manage Fivetran connections, syncs, and transformations.',
+        providerId: 'fivetran',
+        serviceAccountProviderId: 'fivetran-service-account',
+        authType: 'service_account',
+        icon: FivetranIcon,
+        baseProviderIcon: FivetranIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'fivetran',
+  },
+  vanta: {
+    name: 'Vanta',
+    icon: VantaIcon,
+    services: {
+      vanta: {
+        name: 'Vanta',
+        description: 'Read compliance data and manage evidence in Vanta.',
+        providerId: 'vanta',
+        serviceAccountProviderId: 'vanta-service-account',
+        authType: 'service_account',
+        icon: VantaIcon,
+        baseProviderIcon: VantaIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'vanta',
+  },
+  helpscout: {
+    name: 'Help Scout',
+    icon: HelpScoutIcon,
+    services: {
+      helpscout: {
+        name: 'Help Scout',
+        description: 'Manage Help Scout conversations, replies, notes, and customers.',
+        providerId: 'helpscout',
+        serviceAccountProviderId: 'helpscout-service-account',
+        authType: 'oauth',
+        icon: HelpScoutIcon,
+        baseProviderIcon: HelpScoutIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'helpscout',
+  },
   hubspot: {
     name: 'HubSpot',
     icon: HubspotIcon,
@@ -1421,38 +1686,20 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         serviceAccountProviderId: 'zoho-desk-service-account',
         icon: ZohoDeskIcon,
         baseProviderIcon: ZohoDeskIcon,
-        // Kept to what the tools and the webhook trigger exercise. NOTE: Zoho
-        // lists `Desk.organization.READ , Desk.basic.READ` for GET /organizations
-        // and `Desk.departments.READ , Desk.basic.READ` for GET /departments, and
-        // does not document whether that comma means AND or OR. Both bootstrap
-        // endpoints are assumed covered by Desk.basic.READ alone - verify against
-        // a live Desk org and widen here if either returns SCOPE_MISMATCH.
-        // tickets (incl. threads/comments), contacts (get_contact), basic
-        // (list_organizations), agents (the `assigneeId` picker lists agents),
-        // webhook create/delete (the trigger provisions and tears down its own
-        // subscription), and profile (OAuth getUserInfo).
-        // Desk.search.READ, Desk.webhooks.READ and Desk.webhooks.UPDATE were
-        // requested but unused - no tool searches, and the provider never lists
-        // or edits a subscription.
         scopes: [
-          // READ + UPDATE rather than tickets.ALL: no tool creates or deletes a
-          // ticket, and ALL additionally grants ticket DELETE. Threads, comments
-          // and attachments live under the tickets module and are covered by
-          // these two. NOTE: Zoho publishes no scope line for the attachment
-          // content sub-path - verify attachment download against a live account
-          // before merge and widen here if it returns SCOPE_MISMATCH.
           'Desk.tickets.READ',
+          'Desk.tickets.CREATE',
           'Desk.tickets.UPDATE',
           'Desk.contacts.READ',
-          // READ only: the knowledge base connector syncs Help Center articles
-          // via GET /articles and GET /articles/{id}; nothing authors one.
+          'Desk.contacts.CREATE',
+          'Desk.contacts.UPDATE',
+          'Desk.accounts.READ',
+          'Desk.accounts.CREATE',
+          'Desk.accounts.UPDATE',
+          'Desk.search.READ',
+          'Desk.departments.READ',
           'Desk.articles.READ',
-          // GET /organizations documents `Desk.organization.READ , Desk.basic.READ`.
-          // Sibling endpoints spell the same construction "requires X and Y"
-          // (dependencyMappings, roles), so the comma is AND, not OR.
           'Desk.organization.READ',
-          // READ only: the agent picker for `assigneeId` lists agents, and no
-          // tool creates, edits or deletes one.
           'Desk.agents.READ',
           'Desk.basic.READ',
           'Desk.webhooks.CREATE',
@@ -1569,6 +1816,8 @@ interface ProviderAuthConfig {
    * TikTok requires `client_key` instead.
    */
   clientIdParamName?: string
+  /** Greenhouse requires grant parameters in the query string, with credentials in Basic auth. */
+  refreshParamsInQuery?: boolean
 }
 
 function getConfiguredClientCredentials<const TCapabilityId extends OAuthClientCapabilityId>(
@@ -1594,6 +1843,21 @@ function getProviderAuthConfig(
     throw new Error(`OAuth client override is not supported for provider ${provider}`)
   }
   switch (provider) {
+    case 'greenhouse': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'greenhouse',
+        'GREENHOUSE_CLIENT_ID',
+        'GREENHOUSE_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: GREENHOUSE_TOKEN_URL,
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+        refreshParamsInQuery: true,
+      }
+    }
     case 'google': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'google',
@@ -1875,6 +2139,34 @@ function getProviderAuthConfig(
         },
       }
     }
+    case 'ramp': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'ramp',
+        'RAMP_CLIENT_ID',
+        'RAMP_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.ramp.com/developer/v1/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'helpscout': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'helpscout',
+        'HELPSCOUT_CLIENT_ID',
+        'HELPSCOUT_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: 'https://api.helpscout.net/v2/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     case 'wealthbox': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'wealthbox',
@@ -2005,22 +2297,8 @@ function getProviderAuthConfig(
         supportsRefreshTokenRotation: true,
       }
     }
-    case 'shopify': {
-      // Shopify access tokens don't expire and don't support refresh tokens
-      // This configuration is provided for completeness but won't be used for token refresh
-      const { clientId, clientSecret } = getConfiguredClientCredentials(
-        'shopify',
-        'SHOPIFY_CLIENT_ID',
-        'SHOPIFY_CLIENT_SECRET'
-      )
-      return {
-        tokenEndpoint: 'https://accounts.shopify.com/oauth/token',
-        clientId,
-        clientSecret,
-        useBasicAuth: false,
-        supportsRefreshTokenRotation: false,
-      }
-    }
+    case 'shopify':
+      throw new Error('Shopify refresh requires its persisted installation context')
     case 'zoom': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'zoom',
@@ -2270,6 +2548,13 @@ function oauthResponseRecord(value: unknown): Record<string, unknown> | undefine
 
 const OAUTH_RESPONSE_OMITTED = '[token endpoint response omitted]'
 
+/** A revoked grant is its owner's to reconnect, not a fault of ours, so it logs at WARN. */
+function logRefreshRejection(errorCode: string | undefined, providerId: string) {
+  return isCredentialRevocationError(errorCode, providerId)
+    ? logger.warn.bind(logger)
+    : logger.error.bind(logger)
+}
+
 async function refreshInstagramLongLivedToken(
   config: ProviderAuthConfig,
   longLivedToken: string,
@@ -2294,7 +2579,7 @@ async function refreshInstagramLongLivedToken(
   if (!response.ok) {
     const exactSecrets = [longLivedToken, config.clientSecret ?? '']
     const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
-    logger.error('Instagram long-lived token refresh failed:', {
+    logRefreshRejection(errorCode, providerId)('Instagram long-lived token refresh failed:', {
       status: response.status,
       error: OAUTH_RESPONSE_OMITTED,
       errorCode,
@@ -2346,10 +2631,23 @@ export async function refreshOAuthToken(
 
     const { headers, bodyParams, useJsonBody } = buildAuthRequest(config, refreshToken)
 
-    const response = await fetch(config.tokenEndpoint, {
+    // Microsoft refresh tokens are resource-independent. Keep the Power BI audience explicit.
+    if (providerId === 'microsoft-powerbi') {
+      bodyParams.scope = OAUTH_PROVIDERS.microsoft.services['microsoft-powerbi'].scopes.join(' ')
+    }
+
+    const tokenUrl = new URL(config.tokenEndpoint)
+    if (config.refreshParamsInQuery) {
+      tokenUrl.search = new URLSearchParams(bodyParams).toString()
+    }
+    const response = await fetch(tokenUrl.toString(), {
       method: 'POST',
       headers,
-      body: useJsonBody ? JSON.stringify(bodyParams) : new URLSearchParams(bodyParams).toString(),
+      body: config.refreshParamsInQuery
+        ? undefined
+        : useJsonBody
+          ? JSON.stringify(bodyParams)
+          : new URLSearchParams(bodyParams).toString(),
       redirect: 'error',
       signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
@@ -2361,9 +2659,11 @@ export async function refreshOAuthToken(
     const responseData = parseOAuthResponse(responseText)
 
     if (!response.ok) {
-      const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
+      const errorCode =
+        (provider === 'greenhouse' ? getGreenhouseRefreshErrorCode(responseData) : undefined) ??
+        safeOAuthErrorCode(responseData, exactSecrets)
 
-      logger.error('Token refresh failed:', {
+      logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
         error: OAUTH_RESPONSE_OMITTED,
         errorCode,
@@ -2391,7 +2691,7 @@ export async function refreshOAuthToken(
       (provider === 'github-repositories' && typeof data.error === 'string')
     ) {
       const errorCode = safeOAuthErrorCode(data, exactSecrets)
-      logger.error('Token refresh failed:', {
+      logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
         error: OAUTH_RESPONSE_OMITTED,
         errorCode,
@@ -2405,6 +2705,23 @@ export async function refreshOAuthToken(
         ok: false,
         errorCode,
         message: `Failed to refresh token: ${OAUTH_RESPONSE_OMITTED}`,
+      }
+    }
+
+    if (provider === 'greenhouse') {
+      const tokens = parseGreenhouseTokens(data)
+      return {
+        ok: true,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: Math.max(
+          1,
+          Math.ceil((tokens.accessTokenExpiresAt.getTime() - Date.now()) / 1000)
+        ),
+        refreshTokenExpiresIn: Math.max(
+          1,
+          Math.ceil((tokens.refreshTokenExpiresAt.getTime() - Date.now()) / 1000)
+        ),
       }
     }
 

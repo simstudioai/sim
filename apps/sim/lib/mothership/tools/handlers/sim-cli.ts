@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type {
   ToolExecutionContext,
@@ -40,6 +40,11 @@ export async function executeSimCli(
       signal: context.abortSignal,
       toolCallId: context.toolCallId,
       copilotToolExecution: context.copilotToolExecution,
+      copilotResourceAdmission: context.copilotResourceAdmission,
+      copilotInteractionMode: context.copilotInteractionMode,
+      executorDelegationOrigin: context.executorDelegationOrigin,
+      mcpBlockId: context.mcpBlockId,
+      boundWorkflowExecutionId: context.boundWorkflowExecutionId,
       requestMode: context.requestMode,
       searchSurface: context.searchSurface,
       assistantSearch: context.assistantSearch,
@@ -48,6 +53,7 @@ export async function executeSimCli(
       messageId: context.messageId,
       parentToolCallId: context.parentToolCallId,
       userPermission: context.userPermission,
+      secretActorUserId: context.secretActorUserId,
       resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
       readOnly: context.benchmark === 'distill',
     })

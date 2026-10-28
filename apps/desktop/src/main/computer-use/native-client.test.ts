@@ -62,6 +62,33 @@ describe('native computer use transport', () => {
     expect(results).toEqual([JSON.parse(status), JSON.parse(status)])
   })
 
+  it('accepts a maximum-sized frame followed by another valid frame', async () => {
+    const { client, reset } = helper(`let first; ${reader}
+      if (!first) { first = request; return; }
+      const a = JSON.stringify({id:first.id,result:${status}});
+      const b = JSON.stringify({id:request.id,result:${status}});
+      process.stdout.write(a.padEnd(16 * 1024 * 1024, ' ') + '\\n' + b + '\\n');
+    });`)
+    const results = await Promise.all([client.request('status', {}), client.request('status', {})])
+    expect(results).toEqual([JSON.parse(status), JSON.parse(status)])
+    expect(reset).not.toHaveBeenCalled()
+  })
+
+  it.each(['\u0000', '漢'])(
+    'rejects requests above the native byte limit without disrupting the helper (%j)',
+    async (character) => {
+      const { client, reset } = helper(`let count = 0; ${reader}
+        count++;
+        process.stdout.write(JSON.stringify({id:request.id,result:{...${status},accessibility:count===2}})+'\\n');
+      });`)
+      await client.request('status', {})
+      const params = { text: character.repeat(character === '\u0000' ? 32_000 : 48_000) }
+      await expect(client.request('type_text', params)).rejects.toThrow('exceeds 128 KiB')
+      await expect(client.request('status', {})).resolves.toMatchObject({ accessibility: true })
+      expect(reset).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects malformed output and can start a fresh helper afterward', async () => {
     const { client, reset } = helper(`${reader}
       process.stdout.write(request.method==='bad'?'not json\\n':JSON.stringify({id:request.id,result:${status}})+'\\n');

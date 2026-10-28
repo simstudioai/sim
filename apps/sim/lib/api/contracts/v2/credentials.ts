@@ -168,7 +168,7 @@ export const v2CredentialProviderSchema = z
   ])
   .meta({
     id: 'V2CredentialProvider',
-    title: 'Credential Provider',
+    title: 'Credential provider',
     description: 'An OAuth or service-account connection method available to a workspace.',
   })
 export type V2CredentialProvider = z.output<typeof v2CredentialProviderSchema>
@@ -233,6 +233,7 @@ export const v2ListCredentialProvidersContract = defineRouteContract({
 })
 
 export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
+  'greenhouse',
   'github-repositories',
   'google-email',
   'google-drive',
@@ -252,7 +253,9 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'microsoft-ad',
   'microsoft-dataverse',
   'microsoft-excel',
+  'microsoft-intune',
   'microsoft-planner',
+  'microsoft-powerbi',
   'microsoft-teams',
   'microsoft-word',
   'outlook',
@@ -283,6 +286,8 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'docusign',
   'pipedrive',
   'quickbooks',
+  'ramp',
+  'helpscout',
   'hubspot',
   'linkedin',
   'instagram',
@@ -374,7 +379,7 @@ export const v2CredentialConnectionAuthorizationSchema = z
   })
   .meta({
     id: 'V2CredentialConnectionAuthorization',
-    title: 'Credential Connection Authorization',
+    title: 'Credential connection authorization',
     description: 'A short-lived browser entrypoint for an OAuth connection flow.',
   })
 export type V2CredentialConnectionAuthorization = z.output<
@@ -399,14 +404,20 @@ export const v2CreateCredentialConnectionContract = defineRouteContract({
   },
 })
 
+const MAX_SERVICE_ACCOUNT_JSON_CHARS = 2 * 1024 * 1024
+// JSON escaping can double the configuration; retain room for the other credential fields.
+const MAX_CREDENTIALS_JSON_CHARS = 2 * MAX_SERVICE_ACCOUNT_JSON_CHARS + 128 * 1024
+
 const v2ServiceAccountCredentialFieldsSchema = z
   .object({
     serviceAccountJson: z
       .string()
       .min(1)
-      .max(65_536)
+      .max(MAX_SERVICE_ACCOUNT_JSON_CHARS)
       .optional()
-      .describe('Write-only Google service-account JSON key.')
+      .describe(
+        'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
+      )
       .meta({ writeOnly: true }),
     apiToken: z
       .string()
@@ -441,7 +452,6 @@ const v2ServiceAccountCredentialFieldsSchema = z
     clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
     clientSecret: z
       .string()
-      .trim()
       .min(1)
       .max(1024)
       .optional()
@@ -456,6 +466,13 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Provider certificate mapping identifier.'),
     orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
     dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+    scope: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe('Provider permissions; preserved on reconnect when omitted.'),
     authMethod: z
       .string()
       .trim()
@@ -472,6 +489,16 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only PEM private key.')
       .meta({ writeOnly: true }),
     username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+    tenancyOcid: z.string().trim().min(1).max(255).optional().describe('OCI tenancy OCID.'),
+    userOcid: z.string().trim().min(1).max(255).optional().describe('OCI user OCID.'),
+    fingerprint: z.string().trim().min(1).max(128).optional().describe('OCI API-key fingerprint.'),
+    privateKeyPassphrase: z
+      .string()
+      .max(4096)
+      .optional()
+      .describe('Write-only OCI private-key passphrase.')
+      .meta({ writeOnly: true }),
+    region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
   })
   .strict()
 
@@ -480,7 +507,10 @@ type V2ServiceAccountCredentialFields = z.output<typeof v2ServiceAccountCredenti
 const v2ServiceAccountCredentialsJsonSchema = z
   .string({ error: missingFieldError('credentials is required') })
   .min(1, 'credentials cannot be empty')
-  .max(131_072, 'credentials must be at most 131072 characters')
+  .max(
+    MAX_CREDENTIALS_JSON_CHARS,
+    `credentials must be at most ${MAX_CREDENTIALS_JSON_CHARS} characters`
+  )
   .describe(
     'Write-only JSON object string containing the fields declared by credential-provider discovery.'
   )
@@ -653,9 +683,11 @@ const v2ServiceAccountSecretFieldsShape = {
   serviceAccountJson: z
     .string()
     .min(1)
-    .max(65_536)
+    .max(MAX_SERVICE_ACCOUNT_JSON_CHARS)
     .optional()
-    .describe('Write-only Google service-account JSON key.')
+    .describe(
+      'Write-only provider service-account JSON configuration, including Oracle Database connection fields.'
+    )
     .meta({ writeOnly: true }),
   apiToken: z
     .string()
@@ -690,7 +722,6 @@ const v2ServiceAccountSecretFieldsShape = {
   clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
   clientSecret: z
     .string()
-    .trim()
     .min(1)
     .max(1024)
     .optional()
@@ -705,6 +736,13 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Provider certificate mapping identifier.'),
   orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
   dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+  scope: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .optional()
+    .describe('Provider permissions; preserved on reconnect when omitted.'),
   authMethod: z
     .string()
     .trim()
@@ -721,6 +759,16 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only PEM private key.')
     .meta({ writeOnly: true }),
   username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+  tenancyOcid: z.string().trim().min(1).max(255).optional().describe('OCI tenancy OCID.'),
+  userOcid: z.string().trim().min(1).max(255).optional().describe('OCI user OCID.'),
+  fingerprint: z.string().trim().min(1).max(128).optional().describe('OCI API-key fingerprint.'),
+  privateKeyPassphrase: z
+    .string()
+    .max(4096)
+    .optional()
+    .describe('Write-only OCI private-key passphrase.')
+    .meta({ writeOnly: true }),
+  region: z.string().trim().min(1).max(128).optional().describe('OCI home region.'),
 } as const
 
 export const v2UpdateCredentialBodySchema = z
@@ -774,5 +822,107 @@ export const v2DeleteCredentialContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2CredentialDeleteDataSchema),
+  },
+})
+
+const v2CredentialMemberParamsSchema = z
+  .object({
+    credentialId: nonEmptyIdSchema
+      .max(255)
+      .describe('Credential whose sharing grants are managed.'),
+  })
+  .strict()
+
+const v2CredentialMemberScopeSchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace expected to own the credential.'),
+  })
+  .strict()
+
+const v2CredentialMemberSchema = z.object({
+  id: nonEmptyIdSchema.describe(
+    'Membership identifier; inherited grants have a derived identifier.'
+  ),
+  userId: nonEmptyIdSchema.describe('User holding the credential grant.'),
+  role: workspaceCredentialRoleSchema.describe('Effective credential role.'),
+  status: z
+    .enum(['active', 'pending', 'revoked'])
+    .describe('Explicit grant status, or active for inherited administrators.'),
+  joinedAt: v2TimestampSchema
+    .nullable()
+    .describe('When the explicit grant started; null for an inherited-only grant.'),
+  userName: z.string().nullable().describe('Member display name.'),
+  userEmail: z.string().nullable().describe('Member email.'),
+  userImage: z.string().nullable().describe('Member avatar URL.'),
+  roleSource: z
+    .enum(['explicit', 'workspace-admin'])
+    .describe('Whether workspace administrator access supplies the grant.'),
+})
+
+const v2ListCredentialMembersQuerySchema = v2CredentialMemberScopeSchema
+  .extend({
+    ...v2PaginationFields({ description: 'Maximum credential members to return per page.' }),
+    ...v2SortFields(['email', 'name'], { sortBy: 'email', sortOrder: 'asc' }),
+  })
+  .strict()
+
+export const v2ListCredentialMembersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/credentials/[credentialId]/members',
+  params: v2CredentialMemberParamsSchema,
+  query: v2ListCredentialMembersQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2CredentialMemberSchema) },
+})
+
+const v2UpsertCredentialMemberBodySchema = z
+  .object({
+    userId: nonEmptyIdSchema
+      .max(255)
+      .describe('Existing workspace member to grant or change access for.'),
+    role: workspaceCredentialRoleSchema.describe(
+      'Credential role to grant; workspace administrators cannot be demoted.'
+    ),
+  })
+  .strict()
+
+export const v2UpsertCredentialMemberContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/credentials/[credentialId]/members',
+  params: v2CredentialMemberParamsSchema,
+  query: v2CredentialMemberScopeSchema,
+  body: v2UpsertCredentialMemberBodySchema,
+  response: {
+    mode: 'json',
+    status: [200, 201],
+    schema: v2DataResponse(
+      z.object({
+        userId: nonEmptyIdSchema.describe('User whose explicit grant was saved.'),
+        role: workspaceCredentialRoleSchema.describe('Saved explicit credential role.'),
+        created: z.boolean().describe('Whether a new explicit grant was created.'),
+      })
+    ),
+  },
+})
+
+const v2RemoveCredentialMemberParamsSchema = v2CredentialMemberParamsSchema
+  .extend({
+    userId: nonEmptyIdSchema.max(255).describe('User whose explicit grant will be revoked.'),
+  })
+  .strict()
+export const v2RemoveCredentialMemberContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/credentials/[credentialId]/members/[userId]',
+  params: v2RemoveCredentialMemberParamsSchema,
+  query: v2CredentialMemberScopeSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(
+      z.object({
+        userId: nonEmptyIdSchema.describe('User whose explicit grant was revoked.'),
+        revoked: z
+          .literal(true)
+          .describe('The grant is revoked; inherited workspace administrator access is preserved.'),
+      })
+    ),
   },
 })

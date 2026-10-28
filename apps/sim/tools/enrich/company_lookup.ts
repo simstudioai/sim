@@ -6,7 +6,7 @@ export const companyLookupTool: ToolConfig<EnrichCompanyLookupParams, EnrichComp
     id: 'enrich_company_lookup',
     name: 'Enrich Company Lookup',
     description:
-      'Look up comprehensive company information by name or domain including funding, location, and social profiles.',
+      'Look up company information by name or domain, including funding, location, and social profiles.',
     version: '1.0.0',
 
     params: {

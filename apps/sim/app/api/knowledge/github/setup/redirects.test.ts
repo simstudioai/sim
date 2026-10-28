@@ -1,19 +1,17 @@
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
-  authenticate: vi.fn(),
   parse: vi.fn(),
-  limit: vi.fn(),
   complete: vi.fn(),
   resume: vi.fn(),
 }))
 vi.mock('@/lib/api/server', () => ({ parseRequest: m.parse }))
-vi.mock('@/lib/api/server/routes', () => ({
-  internalSessionAuth: { authenticate: m.authenticate },
-  internalRateLimits: { user: () => ({ enforce: m.limit }) },
-  InternalUnauthenticatedError: class extends Error {},
-}))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 vi.mock('@/lib/knowledge/application/github-setup', () => ({
   completeGitHubSearchSetup: { execute: m.complete },
   continueGitHubSearchSetup: { execute: m.resume },
@@ -21,14 +19,15 @@ vi.mock('@/lib/knowledge/application/github-setup', () => ({
 
 import { GET as callback } from '@/app/api/knowledge/github/setup/callback/route'
 
+const { mockInternalSessionAuthenticate } = apiServerRoutesMockFns
+
 const principal = { kind: 'session', userId: 'admin', sessionId: 'browser' }
 const setupId = '550e8400-e29b-41d4-a716-446655440000'
 const state = '660e8400-e29b-41d4-a716-446655440000'
 const completeUrl = `https://sim.example/credential-groups/complete?completionId=${setupId}`
 
 beforeEach(() => {
-  m.authenticate.mockResolvedValue(principal)
-  m.limit.mockResolvedValue(null)
+  mockInternalSessionAuthenticate.mockResolvedValue(principal)
   m.complete.mockResolvedValue({ url: completeUrl })
   m.resume.mockResolvedValue({ url: 'https://github.com/apps/test/installations/new?state=opaque' })
 })

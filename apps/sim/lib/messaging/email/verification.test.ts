@@ -1,15 +1,12 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockHasEmailService } = vi.hoisted(() => ({
-  mockHasEmailService: vi.fn<() => boolean>(),
-}))
-
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  hasEmailService: mockHasEmailService,
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
+
+const mockHasEmailService = emailMailerMockFns.mockHasEmailService
 
 describe('isEmailVerificationEffectivelyEnabled', () => {
   beforeEach(() => {

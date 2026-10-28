@@ -15,7 +15,12 @@ import type {
 import { createLogger } from '@sim/logger'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { env } from './lib/core/config/env'
-import { parseOtlpHeaders } from './lib/monitoring/otlp'
+import {
+  ANONYMOUS_TELEMETRY_ENDPOINT,
+  isTelemetryDisabled,
+  normalizeOtlpTracesUrl,
+  resolveOtlpTarget,
+} from './lib/monitoring/otlp'
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
 
@@ -27,7 +32,7 @@ const SPAN_NAME_PREFIX = `${MOTHERSHIP_ORIGIN}: `
 const SERVICE_INSTANCE_SLUG = 'sim' as const
 
 const DEFAULT_TELEMETRY_CONFIG = {
-  endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
+  endpoint: ANONYMOUS_TELEMETRY_ENDPOINT,
   serviceName: 'mothership',
   serviceVersion: '0.1.0',
   serverSide: { enabled: true },
@@ -47,21 +52,6 @@ const ALLOWED_SPAN_PREFIXES = ['gen_ai.', 'copilot.', 'sim →', 'sim.', 'tool.e
 
 function isBusinessSpan(spanName: string): boolean {
   return ALLOWED_SPAN_PREFIXES.some((prefix) => spanName.startsWith(prefix))
-}
-
-// Append `/v1/traces` to the OTLP base URL unless already present.
-// The HTTP exporter doesn't auto-suffix the signal path even though
-// the spec says the env var is a base URL.
-function normalizeOtlpTracesUrl(url: string): string {
-  if (!url) return url
-  try {
-    const u = new URL(url)
-    if (u.pathname.endsWith('/v1/traces')) return url
-    const base = url.replace(/\/$/, '')
-    return `${base}/v1/traces`
-  } catch {
-    return url
-  }
 }
 
 // Metrics counterpart to `normalizeOtlpTracesUrl`. Operates on the parsed
@@ -151,7 +141,7 @@ class MothershipOriginSpanProcessor implements SpanProcessor {
 
 async function initializeOpenTelemetry() {
   try {
-    if (env.NEXT_TELEMETRY_DISABLED === '1' || process.env.NEXT_TELEMETRY_DISABLED === '1') {
+    if (isTelemetryDisabled()) {
       logger.info('OpenTelemetry disabled via NEXT_TELEMETRY_DISABLED=1')
       return
     }
@@ -163,15 +153,10 @@ async function initializeOpenTelemetry() {
       telemetryConfig = DEFAULT_TELEMETRY_CONFIG
     }
 
-    // Prefer the OTel spec env var, fall back to legacy TELEMETRY_ENDPOINT.
-    const resolvedEndpoint =
-      process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
-      process.env.TELEMETRY_ENDPOINT ||
-      env.TELEMETRY_ENDPOINT ||
-      telemetryConfig.endpoint
+    const target = resolveOtlpTarget(telemetryConfig.endpoint)
     telemetryConfig = {
       ...telemetryConfig,
-      endpoint: resolvedEndpoint,
+      endpoint: target.endpoint,
       serviceName: 'mothership',
     }
 
@@ -244,7 +229,7 @@ async function initializeOpenTelemetry() {
       },
     })
 
-    const otlpHeaders = parseOtlpHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS || '')
+    const otlpHeaders = target.headers
     const exporterUrl = normalizeOtlpTracesUrl(telemetryConfig.endpoint)
 
     const exporter = new OTLPTraceExporter({
@@ -259,8 +244,7 @@ async function initializeOpenTelemetry() {
     exporter.export = (spans, resultCallback) => {
       origExport(spans, (result) => {
         if (result?.code !== 0) {
-          // eslint-disable-next-line no-console
-          console.error('[OTEL] exporter export failed', {
+          logger.error('Exporter export failed', {
             endpoint: telemetryConfig.endpoint,
             resultCode: result?.code,
             error: result?.error?.message,
@@ -280,28 +264,33 @@ async function initializeOpenTelemetry() {
 
     // Metrics (hosted-key counters/histograms) share the trace endpoint and
     // headers — only the signal path differs. Unlike spans these aren't sampled.
-    const metricReader = new PeriodicExportingMetricReader({
-      exporter: new OTLPMetricExporter({
-        url: normalizeOtlpMetricsUrl(telemetryConfig.endpoint),
-        headers: otlpHeaders,
-        timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
-        keepAlive: false,
-      }),
-      exportIntervalMillis: 60000,
-    })
+    // Neither metrics nor logs go to the anonymous collector, which takes traces only.
+    const metricReader = target.anonymous
+      ? undefined
+      : new PeriodicExportingMetricReader({
+          exporter: new OTLPMetricExporter({
+            url: normalizeOtlpMetricsUrl(telemetryConfig.endpoint),
+            headers: otlpHeaders,
+            timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
+            keepAlive: false,
+          }),
+          exportIntervalMillis: 60000,
+        })
 
     // Logs share the trace endpoint and headers as well (signal path
     // /v1/logs). Every @sim/logger line fans out through the global Logs API
     // (see packages/logger), which the NodeSDK wires to this processor — the
     // stdout JSON lines continue to CloudWatch unchanged.
-    const logRecordProcessor = new BatchLogRecordProcessor({
-      exporter: new OTLPLogExporter({
-        url: normalizeOtlpLogsUrl(telemetryConfig.endpoint),
-        headers: otlpHeaders,
-        timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
-        keepAlive: false,
-      }),
-    })
+    const logRecordProcessor = target.anonymous
+      ? undefined
+      : new BatchLogRecordProcessor({
+          exporter: new OTLPLogExporter({
+            url: normalizeOtlpLogsUrl(telemetryConfig.endpoint),
+            headers: otlpHeaders,
+            timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
+            keepAlive: false,
+          }),
+        })
 
     // Must be unique per process: replicas sharing one instance id collapse
     // into a single Prometheus series, so their independent cumulative
@@ -351,8 +340,9 @@ async function initializeOpenTelemetry() {
       resource,
       spanProcessors,
       sampler,
-      metricReader,
-      logRecordProcessors: [logRecordProcessor],
+      // Explicit empty lists: left undefined, NodeSDK builds default OTLP exporters from env.
+      metricReaders: metricReader ? [metricReader] : [],
+      logRecordProcessors: logRecordProcessor ? [logRecordProcessor] : [],
     })
 
     sdk.start()
@@ -388,6 +378,9 @@ export async function register() {
 
   await initializeOpenTelemetry()
 
+  const { reportAccountTokenSealing } = await import('@sim/db/sealed-text')
+  reportAccountTokenSealing()
+
   const shutdownPostHog = async () => {
     try {
       const { getPostHogClient } = await import('@/lib/posthog/server')
@@ -404,6 +397,9 @@ export async function register() {
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
 
+  const { startEventLoopTelemetry } = await import('@/lib/monitoring/event-loop-telemetry')
+  startEventLoopTelemetry()
+
   // Not awaited: the connection is warmed in the background so the first request
   // that needs Redis does not pay the handshake inside its own command deadline,
   // but boot never waits on Redis to serve requests that do not touch it.
@@ -415,4 +411,9 @@ export async function register() {
 
   const { startServiceUsageReplay } = await import('./lib/mothership/billing/service-delivery')
   startServiceUsageReplay()
+
+  const { startAbandonedRunTakeover } = await import(
+    '@/lib/mothership/request/application/abandoned-runs'
+  )
+  startAbandonedRunTakeover()
 }

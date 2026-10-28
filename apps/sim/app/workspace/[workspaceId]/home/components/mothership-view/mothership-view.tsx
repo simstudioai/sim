@@ -5,14 +5,18 @@ import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
-import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import {
+  getChatResourceSelectionId,
+  getChatResourceWorkspaceId,
+} from '@/lib/mothership/resources/types'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension } from '@/lib/uploads/utils/file'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
   isMarkdownFile,
+  isPreviewable,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
@@ -26,7 +30,6 @@ import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/m
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
-  GenericResourceData,
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
@@ -34,7 +37,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
-import { ResourceActions, ResourceContent, ResourceTabs } from './components'
+import { EmbeddedProjectFile, ResourceActions, ResourceContent, ResourceTabs } from './components'
 
 /**
  * Panels that are kept mounted across resource switches rather than rebuilt.
@@ -104,7 +107,6 @@ interface MothershipViewProps {
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
-  genericResourceData?: GenericResourceData
   /** Claims the current resource selection after direct panel interaction. */
   onUserInteraction?: () => void
 }
@@ -125,14 +127,13 @@ export const MothershipView = memo(
       className,
       previewSession,
       isAgentResponding,
-      genericResourceData,
       onSummarize,
       onUserInteraction,
     }: MothershipViewProps,
     ref
   ) {
     const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
-    const activeWorkspaceId = active?.workspaceId ?? workspaceId
+    const activeWorkspaceId = active ? getChatResourceWorkspaceId(active, workspaceId) : workspaceId
     const inheritedPermissions = useUserPermissionsContext()
     const permissions = useWorkspacePermissionsQuery(organizationId ? activeWorkspaceId : undefined)
     const scopedPermissions = useUserPermissions(
@@ -205,13 +206,17 @@ export const MothershipView = memo(
     const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
     const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
-    const isActivePreviewable =
+    const isActiveFilePreviewable =
       canEdit &&
       active?.type === 'file' &&
-      RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title)) &&
+      Boolean(activeWorkspaceId) &&
+      // Dashboards store extensionless names, so the record's type decides once it loads.
+      (activeFile
+        ? isPreviewable(activeFile)
+        : RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))) &&
       // Markdown renders in the single-surface inline editor (streamed preview → editable in place),
       // so it has no raw/split/preview toggle to offer.
-      !isMarkdownFile({ type: '', name: active.title }) &&
+      !isMarkdownFile(activeFile ?? { type: '', name: active.title }) &&
       // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (html, svg, …) on the file list loading.
@@ -220,6 +225,8 @@ export const MothershipView = memo(
       // A Sim page is locked to its rendered view (the pdf model — the raw
       // source is not a mode this surface offers), so no toggle either.
       activeFile?.type !== SIM_PAGE_CONTENT_TYPE
+    // A test shows its source, its results, or both, like an HTML file; the viewer enforces edits.
+    const isActivePreviewable = isActiveFilePreviewable || active?.type === 'test'
 
     return (
       <ChatPanelContent
@@ -312,9 +319,10 @@ export const MothershipView = memo(
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
                 isAgentResponding={isAgentResponding}
-                genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
-                onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
+                onNotFound={(resourceId) =>
+                  removeResource({ type: 'log', id: resourceId, workspaceId: active.workspaceId })
+                }
               />
             )}
             {!active && (
@@ -343,9 +351,12 @@ function ScopedResourceContent({
 }) {
   if (props.resource.type === 'search')
     return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
+  if (props.resource.type === 'file' && props.resource.owner?.entityType === 'project')
+    return (
+      <EmbeddedProjectFile projectId={props.resource.owner.entityId} fileId={props.resource.id} />
+    )
   if (!workspaceId) {
-    if (props.resource.type === 'generic')
-      return <GenericResourceContent data={props.genericResourceData ?? { entries: [] }} />
+    if (props.resource.type === 'generic') return <GenericResourceContent />
     if (props.resource.type === 'browser')
       return (
         <BrowserSession

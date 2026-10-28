@@ -34,7 +34,7 @@ export interface AgiloftUpdateRecordParams extends AgiloftBaseParams {
 }
 
 /** Strategies EWDelete accepts for records that depend on the one being deleted. */
-export type AgiloftDeleteRule =
+type AgiloftDeleteRule =
   | 'ERROR_IF_DEPENDANTS'
   | 'APPLY_DELETE_WHERE_POSSIBLE'
   | 'DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK'

@@ -7,38 +7,18 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 
-const { mockIsOrganizationOnEnterprisePlan, mockGetWorkspaceWithOwner, mockGetProviderFromModel } =
-  vi.hoisted(() => ({
-    mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
-    mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
-    mockGetProviderFromModel: vi.fn<(model: string) => string>(),
-  }))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
-  /**
-   * The same knob drives both: these tests ask whether the organization is entitled at all, and
-   * permission resolution reads the governance axis, which only differs from the feature gate
-   * while a payment is failing.
-   */
-  isOrganizationGovernanceActive: mockIsOrganizationOnEnterprisePlan,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
-
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: mockGetProviderFromModel,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -59,6 +39,20 @@ import {
   validateModelProvider,
   validatePublicFileSharing,
 } from '@/ee/access-control/utils/permission-check'
+
+const mockIsOrganizationOnEnterprisePlan =
+  billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
+const mockGetProviderFromModel = providersUtilsMockFns.mockGetProviderFromModel
+
+/**
+ * The same knob drives both: these tests ask whether the organization is entitled at all, and
+ * permission resolution reads the governance axis, which only differs from the feature gate
+ * while a payment is failing.
+ */
+billingSubscriptionMockFns.mockIsOrganizationGovernanceActive.mockImplementation((...args) =>
+  mockIsOrganizationOnEnterprisePlan(...args)
+)
 
 /** Default an org-backed, enterprise-entitled workspace so resolution reaches the group queries. */
 function setEnterpriseOrgWorkspace() {

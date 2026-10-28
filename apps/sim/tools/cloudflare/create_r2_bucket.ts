@@ -1,9 +1,17 @@
+import { isRecordLike } from '@sim/utils/object'
+import { R2_BUCKET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateR2BucketParams,
   CloudflareR2BucketResponse,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  mapCloudflareFields,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createR2BucketTool: ToolConfig<
   CloudflareCreateR2BucketParams,
@@ -58,7 +66,7 @@ export const createR2BucketTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/r2/buckets`,
     method: 'POST',
     headers: (params) => {
       const headers = cloudflareHeaders(params.apiKey)
@@ -74,52 +82,13 @@ export const createR2BucketTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: {
-          name: '',
-          creation_date: null,
-          location: null,
-          storage_class: null,
-          jurisdiction: null,
-        },
-        error: cloudflareErrorMessage(data, 'Failed to create R2 bucket'),
-      }
-    }
-
-    const bucket = data.result
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
-      success: true,
-      output: {
-        name: bucket?.name ?? '',
-        creation_date: bucket?.creation_date ?? null,
-        location: bucket?.location ?? null,
-        storage_class: bucket?.storage_class ?? null,
-        jurisdiction: bucket?.jurisdiction ?? null,
-      },
+      success,
+      output: mapCloudflareFields(data.result, R2_BUCKET_OUTPUTS),
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to create r2 bucket') } : {}),
     }
   },
-
-  outputs: {
-    name: { type: 'string', description: 'Created bucket name' },
-    creation_date: { type: 'string', description: 'Creation timestamp', optional: true },
-    location: {
-      type: 'string',
-      description: 'Location the bucket was created in',
-      optional: true,
-    },
-    storage_class: {
-      type: 'string',
-      description: 'Default storage class (Standard or InfrequentAccess)',
-      optional: true,
-    },
-    jurisdiction: {
-      type: 'string',
-      description: 'Data-residency jurisdiction (default, eu, or fedramp)',
-      optional: true,
-    },
-  },
+  outputs: R2_BUCKET_OUTPUTS,
 }

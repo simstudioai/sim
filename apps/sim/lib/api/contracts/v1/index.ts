@@ -1,6 +1,5 @@
 export * from '@/lib/api/contracts/v1/admin'
 export * from '@/lib/api/contracts/v1/audit-logs'
-export * from '@/lib/api/contracts/v1/copilot'
 export * from '@/lib/api/contracts/v1/files'
 export * from '@/lib/api/contracts/v1/knowledge'
 export * from '@/lib/api/contracts/v1/logs'

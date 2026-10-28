@@ -1,13 +1,14 @@
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockGetEdgeMappingRows, mockAcquireLock } = vi.hoisted(() => ({
-  mockGetEdgeMappingRows: vi.fn(),
+const { mockAcquireLock } = vi.hoisted(() => ({
   mockAcquireLock: vi.fn(),
 }))
 
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  getEdgeMappingRows: mockGetEdgeMappingRows,
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/lib/mcp/server-locks', () => ({
   acquireWorkflowMcpServerLock: mockAcquireLock,
 }))
@@ -17,6 +18,8 @@ import {
   copyForkWorkflowMcpAttachments,
   reconcileForkWorkflowMcpAttachments,
 } from '@/ee/workspace-forking/lib/copy/workflow-mcp-attachments'
+
+const mockGetEdgeMappingRows = workspaceForkingMappingStoreMockFns.mockGetEdgeMappingRows
 
 /** Sequenced select mock + captured inserts/updates. */
 function makeTx(selectResults: unknown[][]) {

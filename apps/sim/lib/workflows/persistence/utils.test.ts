@@ -20,13 +20,13 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { generateLoopBlocks } from '@sim/workflow-persistence/subflow-helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import type {
   BlockState as AppBlockState,
   WorkflowState as AppWorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
@@ -49,12 +49,9 @@ function asAppBlocks<T>(blocks: T): Record<string, AppBlockState> {
  * These tests intentionally use old SubBlockTypes (textarea, select, messages-input, input)
  * to verify the migration logic converts them to new types.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function legacySubBlocks(subBlocks: Record<string, any>): any {
   return subBlocks
 }
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 const { mockSanitizeAgentToolsInBlocks } = vi.hoisted(() => ({
   mockSanitizeAgentToolsInBlocks: vi.fn(),

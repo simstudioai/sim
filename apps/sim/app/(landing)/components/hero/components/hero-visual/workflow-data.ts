@@ -162,7 +162,7 @@ export const BLOCKS: BlockDef[] = [
     bgColor: 'var(--text-primary)',
     sentence: {
       segments: ['Prompt', { subBlockId: 'model', noun: 'a model' }],
-      values: { model: 'claude-sonnet-5' },
+      values: { model: 'claude-sonnet-5-5' },
     },
     rows: [],
     x: 300,

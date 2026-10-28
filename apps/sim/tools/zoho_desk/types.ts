@@ -1,4 +1,10 @@
 import type { ToolOutputProperty, ToolResponse } from '@/tools/types'
+import {
+  ZOHO_DESK_COMMENT_ADDITIONAL_PROPERTIES,
+  ZOHO_DESK_CONTACT_ADDITIONAL_PROPERTIES,
+  ZOHO_DESK_THREAD_ADDITIONAL_PROPERTIES,
+  ZOHO_DESK_TICKET_ADDITIONAL_PROPERTIES,
+} from '@/tools/zoho_desk/outputs'
 
 /**
  * Params shared by every Zoho Desk tool. `accessToken` and `apiDomain` are
@@ -23,6 +29,9 @@ export interface ZohoDeskListTicketsParams extends ZohoDeskBaseParams {
   receivedInDays?: number
   sortBy?: string
   include?: string
+  viewId?: string
+  teamIds?: string
+  selectedFields?: string
 }
 
 export interface ZohoDeskGetTicketParams extends ZohoDeskBaseParams {
@@ -44,6 +53,20 @@ export interface ZohoDeskUpdateTicketParams extends ZohoDeskBaseParams {
   resolution?: string
   classification?: string
   customFields?: Record<string, unknown>
+  ticketContactId?: string
+  contact?: Record<string, unknown> | string
+  productId?: string
+  uploads?: unknown[] | string
+  email?: string
+  phone?: string
+  language?: string
+  channel?: string
+  webUrl?: string
+  sharedDepartments?: unknown[] | string
+  teamId?: string
+  secondaryContacts?: unknown[] | string
+  entitySkills?: unknown[] | string
+  disableClosureNotification?: boolean
 }
 
 export interface ZohoDeskListCommentsParams extends ZohoDeskBaseParams {
@@ -51,6 +74,7 @@ export interface ZohoDeskListCommentsParams extends ZohoDeskBaseParams {
   from?: number
   limit?: number
   sortBy?: string
+  commentInclude?: string
 }
 
 export interface ZohoDeskAddCommentParams extends ZohoDeskBaseParams {
@@ -58,6 +82,7 @@ export interface ZohoDeskAddCommentParams extends ZohoDeskBaseParams {
   content: string
   contentType?: string
   isPublic?: boolean
+  attachmentIds?: unknown[] | string
 }
 
 export interface ZohoDeskListThreadsParams extends ZohoDeskBaseParams {
@@ -101,6 +126,7 @@ export const ZOHO_DESK_ATTACHMENT_PROPERTIES: Record<string, ToolOutputProperty>
 }
 
 export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
+  ...ZOHO_DESK_TICKET_ADDITIONAL_PROPERTIES,
   id: { type: 'string', description: 'Ticket ID' },
   ticketNumber: { type: 'string', description: 'Human-readable ticket number', optional: true },
   subject: { type: 'string', description: 'Ticket subject', optional: true },
@@ -175,6 +201,7 @@ export const ZOHO_DESK_TICKET_PROPERTIES: Record<string, ToolOutputProperty> = {
 }
 
 export const ZOHO_DESK_COMMENT_PROPERTIES: Record<string, ToolOutputProperty> = {
+  ...ZOHO_DESK_COMMENT_ADDITIONAL_PROPERTIES,
   id: { type: 'string', description: 'Comment ID' },
   content: { type: 'string', description: 'Comment content (raw; may be HTML)', optional: true },
   contentType: { type: 'string', description: 'Content type (plainText/html)', optional: true },
@@ -215,6 +242,7 @@ export const ZOHO_DESK_COMMENT_PROPERTIES: Record<string, ToolOutputProperty> = 
 }
 
 export const ZOHO_DESK_THREAD_PROPERTIES: Record<string, ToolOutputProperty> = {
+  ...ZOHO_DESK_THREAD_ADDITIONAL_PROPERTIES,
   id: { type: 'string', description: 'Thread ID' },
   channel: { type: 'string', description: 'Thread channel', optional: true },
   direction: { type: 'string', description: 'Direction (in/out)', optional: true },
@@ -307,6 +335,7 @@ export const ZOHO_DESK_THREAD_PROPERTIES: Record<string, ToolOutputProperty> = {
 }
 
 export const ZOHO_DESK_CONTACT_PROPERTIES: Record<string, ToolOutputProperty> = {
+  ...ZOHO_DESK_CONTACT_ADDITIONAL_PROPERTIES,
   id: { type: 'string', description: 'Contact ID' },
   firstName: { type: 'string', description: 'First name', optional: true, nullable: true },
   lastName: { type: 'string', description: 'Last name', optional: true },
@@ -339,4 +368,401 @@ export const ZOHO_DESK_CONTACT_PROPERTIES: Record<string, ToolOutputProperty> = 
     description: 'Custom field values, keyed by custom field API name',
     optional: true,
   },
+}
+
+export interface ZohoDeskCreateTicketParams extends ZohoDeskBaseParams {
+  productId?: string
+  phone?: string
+  subject: string
+  dueDate?: string
+  channel?: string
+  language?: string
+  priority?: string
+  assigneeId?: string
+  email?: string
+  subCategory?: string
+  customFields?: Record<string, unknown> | string
+  description?: string
+  classification?: string
+  category?: string
+  status?: string
+  ticketContactId?: string
+  departmentId: string
+  contact?: Record<string, unknown> | string
+  uploads?: unknown[] | string
+  resolution?: string
+  webUrl?: string
+  sharedDepartments?: unknown[] | string
+  teamId?: string
+  secondaryContacts?: unknown[] | string
+  entitySkills?: unknown[] | string
+}
+
+export interface ZohoDeskCreateTicketResponse extends ToolResponse {
+  output: { ticket: Record<string, unknown> }
+}
+
+export interface ZohoDeskSearchTicketsParams extends ZohoDeskBaseParams {
+  searchEmail?: string
+  searchPhone?: string
+  ticketNumber?: string
+  searchAccountName?: string
+  searchSubject?: string
+  searchDepartmentId?: string
+  productName?: string
+  _all?: string
+  limit?: number
+  from?: number
+  dueDateRange?: string
+  ticketSearchIds?: string
+  searchProductId?: string
+  searchContactId?: string
+  createdTimeRange?: string
+  searchPriority?: string
+  searchAssigneeId?: string
+  searchAccountId?: string
+  modifiedTimeRange?: string
+  searchStatus?: string
+  ticketSearchCustomField1?: string
+  ticketSearchCustomField2?: string
+  ticketSearchCustomField3?: string
+  ticketSearchCustomField4?: string
+  ticketSearchCustomField5?: string
+  ticketSearchCustomField6?: string
+  ticketSearchCustomField7?: string
+  ticketSearchCustomField8?: string
+  ticketSearchCustomField9?: string
+  ticketSearchCustomField10?: string
+  searchChannel?: string
+  customerResponseTimeRange?: string
+  searchDescription?: string
+  ticketSearchSortBy?: string
+  tag?: string
+  contactName?: string
+  searchCategory?: string
+}
+
+export interface ZohoDeskSearchTicketsResponse extends ToolResponse {
+  output: {
+    tickets: Record<string, unknown>[]
+    count: number
+    nextFrom: number | null
+    totalCount: number | null
+  }
+}
+
+export interface ZohoDeskMoveTicketParams extends ZohoDeskBaseParams {
+  ticketId: string
+  departmentId: string
+  forumId?: string
+}
+
+export interface ZohoDeskMoveTicketResponse extends ToolResponse {
+  output: { completed: boolean }
+}
+
+export interface ZohoDeskSendReplyParams extends ZohoDeskBaseParams {
+  isPrivate?: boolean
+  sendImmediately?: boolean
+  ticketId: string
+  replyContent: string
+  replyContentType?: string
+  inReplyToThreadId?: string
+  replyDirection?: string
+  cc?: string
+  bcc?: string
+  hasAttach?: boolean
+  ticketStatus?: string
+  replyAttachmentIds?: unknown[] | string
+  to?: string
+  fromEmailAddress: string
+  isForward?: boolean
+}
+
+export interface ZohoDeskSendReplyResponse extends ToolResponse {
+  output: { thread: Record<string, unknown> }
+}
+
+export interface ZohoDeskListContactsParams extends ZohoDeskBaseParams {
+  contactSelectedFields?: string
+  contactViewId?: string
+  limit?: number
+  from?: number
+  contactListInclude?: string
+  contactListSortBy?: string
+}
+
+export interface ZohoDeskListContactsResponse extends ToolResponse {
+  output: { contacts: Record<string, unknown>[]; count: number; nextFrom: number | null }
+}
+
+export interface ZohoDeskCreateContactParams extends ZohoDeskBaseParams {
+  contactLastName: string
+  contactAccountId?: string
+  contactFirstName?: string
+  contactSecondaryEmail?: string
+  contactPhone?: string
+  contactMobile?: string
+  contactOwnerId?: string
+  contactType?: string
+  contactEmail?: string
+  contactZip?: string
+  contactCountry?: string
+  contactTwitter?: string
+  contactCustomFields?: Record<string, unknown> | string
+  contactCity?: string
+  contactStreet?: string
+  contactFacebook?: string
+  contactDescription?: string
+  contactState?: string
+  contactTitle?: string
+  contactLanguage?: string
+}
+
+export interface ZohoDeskCreateContactResponse extends ToolResponse {
+  output: { contact: Record<string, unknown> }
+}
+
+export interface ZohoDeskUpdateContactParams extends ZohoDeskBaseParams {
+  contactId: string
+  contactLastName?: string
+  contactAccountId?: string
+  contactFirstName?: string
+  contactSecondaryEmail?: string
+  contactPhone?: string
+  contactMobile?: string
+  contactOwnerId?: string
+  contactType?: string
+  contactEmail?: string
+  contactZip?: string
+  contactCountry?: string
+  contactTwitter?: string
+  contactCustomFields?: Record<string, unknown> | string
+  contactCity?: string
+  contactStreet?: string
+  contactFacebook?: string
+  contactDescription?: string
+  contactState?: string
+  contactTitle?: string
+  contactLanguage?: string
+}
+
+export interface ZohoDeskUpdateContactResponse extends ToolResponse {
+  output: { contact: Record<string, unknown> }
+}
+
+export interface ZohoDeskSearchContactsParams extends ZohoDeskBaseParams {
+  searchEmail?: string
+  searchPhone?: string
+  searchMobile?: string
+  searchAccountName?: string
+  createdTimeRange?: string
+  limit?: number
+  from?: number
+  modifiedTimeRange?: string
+  contactSearchIds?: string
+  _all?: string
+  contactSearchCustomField1?: string
+  contactSearchCustomField2?: string
+  contactSearchCustomField3?: string
+  contactSearchCustomField4?: string
+  contactSearchCustomField5?: string
+  contactSearchCustomField6?: string
+  contactSearchCustomField7?: string
+  contactSearchCustomField8?: string
+  contactSearchCustomField9?: string
+  contactSearchCustomField10?: string
+  searchLastName?: string
+  searchFirstName?: string
+  fullName?: string
+  contactSearchSortBy?: string
+}
+
+export interface ZohoDeskSearchContactsResponse extends ToolResponse {
+  output: {
+    contacts: Record<string, unknown>[]
+    count: number
+    nextFrom: number | null
+    totalCount: number | null
+  }
+}
+
+export interface ZohoDeskListAccountsParams extends ZohoDeskBaseParams {
+  accountViewId?: string
+  limit?: number
+  from?: number
+  accountListSortBy?: string
+  accountSelectedFields?: string
+}
+
+export interface ZohoDeskListAccountsResponse extends ToolResponse {
+  output: { accounts: Record<string, unknown>[]; count: number; nextFrom: number | null }
+}
+
+export interface ZohoDeskCreateAccountParams extends ZohoDeskBaseParams {
+  accountWebsite?: string
+  accountName: string
+  accountPhone?: string
+  accountEmail?: string
+  accountCountry?: string
+  accountCode?: string
+  accountCustomFields?: Record<string, unknown> | string
+  accountCity?: string
+  accountStreet?: string
+  accountAnnualrevenue?: number
+  accountDescription?: string
+  accountIndustry?: string
+  accountState?: string
+  accountOwnerId?: string
+  accountFax?: string
+  accountAssociatedSLAIds?: unknown[] | string
+}
+
+export interface ZohoDeskCreateAccountResponse extends ToolResponse {
+  output: { account: Record<string, unknown> }
+}
+
+export interface ZohoDeskUpdateAccountParams extends ZohoDeskBaseParams {
+  accountId: string
+  accountWebsite?: string
+  accountName?: string
+  accountPhone?: string
+  accountEmail?: string
+  accountCountry?: string
+  accountCode?: string
+  accountCustomFields?: Record<string, unknown> | string
+  accountCity?: string
+  accountStreet?: string
+  accountAnnualrevenue?: number
+  accountDescription?: string
+  accountIndustry?: string
+  accountState?: string
+  accountOwnerId?: string
+  accountFax?: string
+  accountAssociatedSLAIds?: unknown[] | string
+}
+
+export interface ZohoDeskUpdateAccountResponse extends ToolResponse {
+  output: { account: Record<string, unknown> }
+}
+
+export interface ZohoDeskSearchAccountsParams extends ZohoDeskBaseParams {
+  searchAccountName?: string
+  createdTimeRange?: string
+  limit?: number
+  from?: number
+  modifiedTimeRange?: string
+  accountSearchIds?: string
+  _all?: string
+  accountSearchCustomField1?: string
+  accountSearchCustomField2?: string
+  accountSearchCustomField3?: string
+  accountSearchCustomField4?: string
+  accountSearchCustomField5?: string
+  accountSearchCustomField6?: string
+  accountSearchCustomField7?: string
+  accountSearchCustomField8?: string
+  accountSearchCustomField9?: string
+  accountSearchCustomField10?: string
+  accountSearchSortBy?: string
+}
+
+export interface ZohoDeskSearchAccountsResponse extends ToolResponse {
+  output: {
+    accounts: Record<string, unknown>[]
+    count: number
+    nextFrom: number | null
+    totalCount: number | null
+  }
+}
+
+export interface ZohoDeskGetAccountParams extends ZohoDeskBaseParams {
+  accountInclude?: string
+  accountId: string
+}
+
+export interface ZohoDeskGetAccountResponse extends ToolResponse {
+  output: { account: Record<string, unknown> }
+}
+
+export interface ZohoDeskListDepartmentsParams extends ZohoDeskBaseParams {
+  chatStatus?: string
+  searchStr?: string
+  isEnabled?: boolean
+  limit?: number
+  from?: number
+}
+
+export interface ZohoDeskListDepartmentsResponse extends ToolResponse {
+  output: { departments: Record<string, unknown>[]; count: number; nextFrom: number | null }
+}
+
+export interface ZohoDeskGetDepartmentParams extends ZohoDeskBaseParams {
+  lookupDepartmentId: string
+}
+
+export interface ZohoDeskGetDepartmentResponse extends ToolResponse {
+  output: { department: Record<string, unknown> }
+}
+
+export interface ZohoDeskListAgentsParams extends ZohoDeskBaseParams {
+  agentListInclude?: string
+  roleIds?: string
+  searchStr?: string
+  cfSearchStr?: string
+  cfFieldName?: string
+  fieldName?: string
+  isLightAgent?: boolean
+  sortOrder?: string
+  limit?: number
+  rolePermissionType?: string
+  profileIds?: string
+  from?: number
+  isConfirmed?: boolean
+  departmentIds?: string
+  agentStatus?: string
+}
+
+export interface ZohoDeskListAgentsResponse extends ToolResponse {
+  output: { agents: Record<string, unknown>[]; count: number; nextFrom: number | null }
+}
+
+export interface ZohoDeskGetAgentParams extends ZohoDeskBaseParams {
+  agentInclude?: string
+  agentId: string
+}
+
+export interface ZohoDeskGetAgentResponse extends ToolResponse {
+  output: { agent: Record<string, unknown> }
+}
+
+export interface ZohoDeskGetCommentParams extends ZohoDeskBaseParams {
+  commentInclude?: string
+  commentId: string
+  ticketId: string
+}
+
+export interface ZohoDeskGetCommentResponse extends ToolResponse {
+  output: { comment: Record<string, unknown> }
+}
+
+export interface ZohoDeskUpdateCommentParams extends ZohoDeskBaseParams {
+  commentId: string
+  ticketId: string
+  content?: string
+  attachmentIds?: unknown[] | string
+  contentType?: string
+}
+
+export interface ZohoDeskUpdateCommentResponse extends ToolResponse {
+  output: { comment: Record<string, unknown> }
+}
+
+export interface ZohoDeskDeleteCommentParams extends ZohoDeskBaseParams {
+  commentId: string
+  ticketId: string
+}
+
+export interface ZohoDeskDeleteCommentResponse extends ToolResponse {
+  output: { completed: boolean }
 }

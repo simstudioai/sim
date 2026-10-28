@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { SnowflakeBlock } from '@/blocks/blocks/snowflake'
 import { prepareToolRequest } from '@/tools/request-transport'
@@ -17,13 +18,6 @@ import {
   SNOWFLAKE_MAX_RESPONSE_BYTES,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function jsonResponse(body: unknown, status = 200, headers?: HeadersInit) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...headers },
-  })
-}
 
 function registeredSnowflakeTools(): ToolConfig[] {
   return Object.values(snowflakeTools).filter(
@@ -63,6 +57,8 @@ describe('Snowflake integration contracts', () => {
       matchColumns: '["id"]',
       filters: '{"id":1}',
       procedureArguments: '[{"type":"TEXT","value":"x"}]',
+      semanticModels: '[{"semantic_view":"DB.SCHEMA.VIEW"}]',
+      history: '[{"role":"user","content":[{"type":"text","text":"x"}]}]',
       onError: 'CONTINUE',
       onErrorThreshold: '1',
       maxFileSizeBytes: '16000000',
@@ -96,7 +92,7 @@ describe('Snowflake integration contracts', () => {
       }
     }
 
-    expect(coveredCoercions, 'coercion fixture must exercise every coerced tool param').toBe(54)
+    expect(coveredCoercions, 'coercion fixture must exercise every coerced tool param').toBe(58)
 
     expect(
       mapParams({ operation: 'load_data', onError: 'SKIP_FILE_PERCENT', onErrorThreshold: '5' })
@@ -263,9 +259,11 @@ describe('Snowflake SQL API transport', () => {
           partitionInfo: [{ rowCount: 3 }, { rowCount: 2 }],
         },
       },
-      200,
       {
-        Link: '</api/v2/statements/handle?partition=1>; rel="next"',
+        status: 200,
+        headers: {
+          Link: '</api/v2/statements/handle?partition=1>; rel="next"',
+        },
       }
     )
     const transformed = await getStatementTool.transformResponse?.(response, {
@@ -334,8 +332,10 @@ describe('Snowflake SQL API transport', () => {
           data: [['1']],
           resultSetMetaData: { numRows: 1, partitionInfo: [{ rowCount: 1 }] },
         },
-        200,
-        { Link: '</api/v2/statements/single-partition?partition=1>; rel="next"' }
+        {
+          status: 200,
+          headers: { Link: '</api/v2/statements/single-partition?partition=1>; rel="next"' },
+        }
       )
     )
     expect(linked.result).toMatchObject({ nextPartition: null, truncated: false })
@@ -544,9 +544,12 @@ describe('Snowflake SQL API transport', () => {
 
     await expect(
       readSnowflakeResult(
-        jsonResponse({ statementHandle: 'huge' }, 200, {
-          'Content-Length': String(SNOWFLAKE_MAX_RESPONSE_BYTES + 1),
-        })
+        jsonResponse(
+          { statementHandle: 'huge' },
+          {
+            headers: { 'Content-Length': String(SNOWFLAKE_MAX_RESPONSE_BYTES + 1) },
+          }
+        )
       )
     ).rejects.toThrow('Snowflake response body exceeds maximum size')
 
@@ -633,8 +636,7 @@ describe('Snowflake common result contract', () => {
             rowType: ['FILE', 'STATUS', 'ROWS_LOADED'].map((name) => ({ name, type: 'text' })),
           },
         },
-        200,
-        { Link: '</api/v2/statements/copy?partition=1>; rel="next"' }
+        { status: 200, headers: { Link: '</api/v2/statements/copy?partition=1>; rel="next"' } }
       )
     )
 

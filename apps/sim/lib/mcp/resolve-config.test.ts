@@ -1,14 +1,9 @@
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { findMissingMcpConfigEnvVars, resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 
-const { mockGetEffectiveEnvironmentSnapshot } = vi.hoisted(() => ({
-  mockGetEffectiveEnvironmentSnapshot: vi.fn(),
-}))
-
-vi.mock('@/lib/environment/utils', () => ({
-  getEffectiveEnvironmentSnapshot: mockGetEffectiveEnvironmentSnapshot,
-}))
-
-import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
+const mockGetEffectiveEnvironmentSnapshot =
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 const BASE_CONFIG = {
   id: 'server-1',
@@ -174,5 +169,65 @@ describe('resolveMcpConfigEnvVars secret provenance', () => {
       { name: 'MCP_HOST', encryptedValue: 'old-host-ciphertext' },
       { name: 'MCP_TOKEN', encryptedValue: 'old-token-ciphertext' },
     ])
+  })
+})
+
+describe('findMissingMcpConfigEnvVars', () => {
+  it('names the variables this requester has no value for, without reading env for literal configs', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockReset()
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: { MCP_HOST: 'api.example.com' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+
+    expect(await findMissingMcpConfigEnvVars(BASE_CONFIG, 'user-b', 'workspace-1')).toEqual([
+      'MCP_TOKEN',
+    ])
+    expect(
+      await findMissingMcpConfigEnvVars(
+        { ...BASE_CONFIG, url: 'https://api.example.com/mcp', headers: {} },
+        'user-b',
+        'workspace-1'
+      )
+    ).toEqual([])
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts a variable that failed to decrypt as missing', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: { MCP_HOST: 'host-encrypted', MCP_TOKEN: 'token-encrypted' },
+      workspaceEncrypted: {},
+      personalDecrypted: { MCP_HOST: 'api.example.com', MCP_TOKEN: '' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: ['MCP_TOKEN'],
+    })
+
+    expect(await findMissingMcpConfigEnvVars(BASE_CONFIG, 'user-b', 'workspace-1')).toEqual([
+      'MCP_TOKEN',
+    ])
+  })
+
+  it('counts an intentionally empty value as present', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: { MCP_PATH_PREFIX: 'prefix-encrypted' },
+      workspaceEncrypted: {},
+      personalDecrypted: { MCP_PATH_PREFIX: '' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+
+    expect(
+      await findMissingMcpConfigEnvVars(
+        { ...BASE_CONFIG, url: 'https://example.com{{MCP_PATH_PREFIX}}/mcp', headers: {} },
+        'user-b',
+        'workspace-1'
+      )
+    ).toEqual([])
   })
 })

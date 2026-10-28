@@ -1,3 +1,4 @@
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import {
@@ -17,18 +18,13 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
+
 vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
   useFeatureFlag: () => false,
 }))
 
-vi.mock('next/navigation', () => ({
-  usePathname: () => '/workspace/workspace-1/home',
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    refresh: vi.fn(),
-  }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 describe('selectDeletedWorkflowResources', () => {
   const resource = (id: string) => ({ type: 'workflow' as const, id, title: id })

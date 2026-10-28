@@ -3,6 +3,7 @@ import type {
   GreenhouseGetApplicationResponse,
 } from '@/tools/greenhouse/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const greenhouseGetApplicationTool: ToolConfig<
   GreenhouseGetApplicationParams,
@@ -31,7 +32,7 @@ export const greenhouseGetApplicationTool: ToolConfig<
 
   request: {
     url: (params: GreenhouseGetApplicationParams) =>
-      `https://harvest.greenhouse.io/v1/applications/${params.applicationId.trim()}`,
+      `https://harvest.greenhouse.io/v1/applications/${safeUrlPathSegment(params.applicationId, 'applicationId')}`,
     method: 'GET',
     headers: (params: GreenhouseGetApplicationParams) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,

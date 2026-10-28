@@ -28,6 +28,13 @@ export class OrganizationMembershipNotFoundError extends OrchestrationError {
   }
 }
 
+/** The caller's organization delegation is expired or out of scope, not the member's access. */
+export class OrganizationDelegationAuthorizationError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Organization delegation is no longer valid')
+  }
+}
+
 export interface OrganizationAuthorizationContext {
   organizationId: string
 }
@@ -63,7 +70,8 @@ export async function requireOrganizationMembership(
   )
 }
 
-async function requireOrganizationSubjectMembership(
+/** Rechecks membership for a subject whose principal and delegation were already validated. */
+export async function requireOrganizationSubjectMembership(
   userId: string,
   organizationId: string,
   minimumRole: 'member' | 'admin',
@@ -128,7 +136,7 @@ export async function authorizeOrganizationOperation(
         ? !principal.resourceScope.chatId
         : !principal.resourceScope.installationId || !principal.resourceScope.eventId)
     ) {
-      throw new OrchestrationError('forbidden', 'Organization delegation is no longer valid')
+      throw new OrganizationDelegationAuthorizationError()
     }
     return requireOrganizationSubjectMembership(
       principal.subjectUserId,

@@ -1,5 +1,4 @@
 import {
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
@@ -14,8 +13,6 @@ const mockAuthorizeWorkflowByWorkspacePermission =
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 
@@ -54,6 +51,9 @@ function insertedValuesFor(table: unknown): unknown[] {
 describe('duplicateWorkflow ordering', () => {
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      { archivedAt: null, forkSyncNewWorkflowsExcluded: false },
+    ])
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('new-workflow-id'),

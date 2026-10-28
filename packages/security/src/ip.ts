@@ -7,7 +7,7 @@ interface TrustedNetwork {
   prefixLength: number
 }
 
-export interface ForwardedIpHeaders {
+interface ForwardedIpHeaders {
   get(name: string): string | null
 }
 

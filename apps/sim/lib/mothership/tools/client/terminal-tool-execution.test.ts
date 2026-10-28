@@ -52,4 +52,41 @@ describe('terminal client execution', () => {
     window.dispatchEvent(new Event('pagehide'))
     expect(beacon).toHaveBeenCalledOnce()
   })
+
+  it('reports a call delivered too late as never started instead of dropping it', async () => {
+    const emittedAt = new Date(Date.now() - 5 * 60_000).toISOString()
+
+    executeTerminalToolOnClient(
+      'terminal-stale',
+      { operation: 'run', args: { command: 'bun run test' } },
+      'chat-1',
+      emittedAt
+    )
+    await sleep(0)
+
+    expect(reportClientToolCompletion).toHaveBeenCalledWith(
+      'terminal-stale',
+      'error',
+      expect.stringContaining('never started'),
+      expect.objectContaining({ notStarted: true })
+    )
+  })
+
+  it('tells the model the code of a generic terminal failure', async () => {
+    const reported: Array<{ status: string; data: unknown }> = []
+    reportClientToolCompletion.mockImplementation(
+      async (_id: string, status: string, _message: string, data: unknown) => {
+        reported.push({ status, data })
+      }
+    )
+    executeTerminalTool.mockRejectedValue(new Error('The terminal went away'))
+
+    executeTerminalToolOnClient('terminal-generic', { operation: 'read', args: {} }, 'chat-1')
+
+    await vi.waitFor(() => expect(reported).toHaveLength(1))
+    expect(reported[0]).toEqual({
+      status: 'error',
+      data: { error: 'The terminal went away', code: 'Error' },
+    })
+  })
 })

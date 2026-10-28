@@ -1,102 +1,68 @@
 ---
 title: Parallel
-description: The Parallel block is a container that runs the block inside it concurrently — once per item or a fixed number of times.
+description: Run copies of a contained flow concurrently, in bounded batches.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
 import { WorkflowPreview, PARALLEL_WORKFLOW } from '@/components/workflow-preview'
 
-The **Parallel block** is a container that runs the block inside it concurrently — once per item in a collection, or a fixed number of times. It is the concurrent counterpart to a [Loop](/workflows/blocks/loop): reach for it when the work is independent and order doesn't matter.
+The **Parallel** container runs its blocks for multiple items or instances concurrently. Use it when the work is independent; use [Loop](/workflows/blocks/loop) when iterations must run in sequence.
 
-## Parallel Types
-
-<Tabs items={['Count-based', 'Collection-based']}>
-  <Tab>
-    Runs a fixed number of identical instances at once. If the count is larger than the batch size, Sim runs serial batches and preserves the original result order.
-
-    <div className="flex justify-center">
-      <Image src="/static/blocks/parallel-1.png" alt="Count-based parallel execution" width={500} height={231} className="my-6" />
-    </div>
-  </Tab>
-  <Tab>
-    Distributes a collection across instances — each one processes a single item as `<parallel.currentItem>`. Large collections run in serial batches, preserving each item's index.
-
-    <div className="flex justify-center">
-      <Image src="/static/blocks/parallel-2.png" alt="Collection-based parallel execution" width={500} height={220} className="my-6" />
-    </div>
-  </Tab>
-</Tabs>
-
-## Configuration
-
-Set the parallel type, then the value it needs:
-
-- **Count** — how many instances to run (count-based)
-- **Collection** — the array or object to distribute (collection-based)
-- **Batch size** — how many branches run at once, from 1 to 20 (default 20). Lower it to ease off rate-limited APIs
-
-## Referencing parallel data
-
-References differ inside the parallel and after it.
-
-<Tabs items={['Inside parallel', 'After parallel']}>
-  <Tab>
-    Inside, read this instance's context with `<parallel.*>`:
-
-    - `<parallel.index>` — the instance number, starting at 0
-    - `<parallel.currentItem>` — this instance's item (collection-based only)
-    - `<parallel.items>` — the full collection (collection-based only)
-
-    <Callout type="info">
-      These are only available to blocks inside the parallel container.
-    </Callout>
-  </Tab>
-  <Tab>
-    After it finishes, read the collected results by the block's name — not `<parallel.*>`:
-
-    ```javascript
-    // a parallel named "Process Tasks"
-    const all = <processtasks.results>; // [result1, result2, ...]
-    ```
-
-    For large result sets, reference just the entry or field you need, like `<processtasks.results[10][0].id>` — Sim keeps results indexable and hydrates oversized entries only when an indexed path is referenced.
-  </Tab>
-</Tabs>
-
-Each instance runs in isolation: a separate variable scope, no shared state, and a failure in one instance doesn't stop the others.
-
-## Examples
+## Process tasks in batches
 
 <WorkflowPreview workflow={PARALLEL_WORKFLOW} height={340} />
 
-A collection-based Parallel calls an endpoint for each task at the same time, and a Function aggregates `<parallel.results>` after they finish. The same container holds the block for either type:
+Name the container **Process Tasks** and distribute a task array. The inner API reads `<parallel.currentItem>`. After every batch finishes, the Function reads `<processtasks.results>`.
 
-- **Batch API processing** — `Parallel (Collection) → API (Call Endpoint) → Function (Aggregate)`
-- **Multi-model processing** — `Parallel (["model-a", "model-b", "model-c"]) → Agent → Evaluator (Select best)`
+## Configuration
 
-## Parallel vs Loop
+| Setting | Behavior |
+| --- | --- |
+| **Parallel Count** | Run a configured number of copies of the contained flow. |
+| **Parallel Each** | Distribute an array or object across instances. |
+| **Parallel Batch Size** | Concurrent branches, from 1 to 20; default 20. |
 
-| Feature | Parallel | Loop |
-| --- | --- | --- |
-| **Execution** | Concurrent | Sequential |
-| **Completion order** | Not guaranteed | Sequential |
-| **Result order** | Input/instance order | Iteration order |
-| **Best for** | Independent work | Dependent steps |
-| **Resource use** | Higher | Lower |
+Counts or collections larger than Parallel Batch Size run in serial batches. Lower Parallel Batch Size for rate-limited APIs. A Wait within each branch spaces that branch's work, but does not impose a global request rate across all branches or runs.
 
-## Nesting and limits
+## References and outputs
 
-<Callout type="info">
-  Containers nest. You can place parallels inside parallels, loops inside parallels, and any combination, to build multi-dimensional workflows.
+Inside the container:
+
+| Reference | Value |
+| --- | --- |
+| `<parallel.index>` | Instance index, starting at 0 |
+| `<parallel.currentItem>` | Current item, for collection-based execution |
+| `<parallel.items>` | Full collection, for collection-based execution |
+
+Arrays yield their values as `currentItem`. Objects yield `[key, value]` pairs, so `<parallel.currentItem[0]>` is the key and `<parallel.currentItem[1]>` is its value.
+
+After completion, use the container's normalized name: `<processtasks.results>`. Generic `<parallel.*>` references select an enclosing parallel context, not a completed container outside it.
+
+Results retain input/instance order, even when branches finish out of order. Each entry contains that branch's block outputs. For a single API per branch, read a field with `<processtasks.results[10][0].data.id>`. Indexed paths hydrate oversized entries only when needed.
+
+## State and failures
+
+Each branch has its own item, index, and block outputs. Workflow variables are shared across branches; they are not an isolated per-branch store.
+
+<Callout type="warn">
+Avoid concurrent writes to the same workflow variable. An unhandled branch error fails the run and stops new work from starting, though already-running branches may finish. Connect an error path inside the container when other items should continue.
 </Callout>
 
-A Parallel runs up to **20 branches at a time**. Larger counts or collections run in serial batches once the current batch finishes. Because instances run concurrently, watch for API rate limits and memory use on large datasets.
+An empty collection skips the body and returns empty results. Parallel and Loop containers can nest in either direction; use the reference picker to select the intended scope.
 
-## Best Practices
+## Parallel or Loop
 
-- **Use it for independent work only.** Instances can't share state, so each one must stand alone.
-- **Mind rate limits.** Lower the batch size, or add a [Wait](/workflows/blocks/wait), for API-heavy work.
-- **Handle errors per instance.** One failure won't stop the others, so each instance should handle its own.
-- **Separate result order from completion order.** Results retain input/instance order even when branches finish out of order. Use Loop when the work itself must happen sequentially.
+| Behavior | Parallel | Loop |
+| --- | --- | --- |
+| Execution | Concurrent within each batch | Sequential |
+| Completion order | Can differ from input order | Iteration order |
+| Result order | Input/instance order | Iteration order |
+| Use when | Each item can stand alone | Later iterations depend on earlier work |
+
+A Parallel can compare the same prompt across several models or call an API for each record. Bound concurrency and collection size according to provider limits and the workflow's execution budget.
+
+## Related docs
+
+- [Loop](/workflows/blocks/loop)
+- [Wait](/workflows/blocks/wait)
+- [Variables](/workflows/blocks/variables)

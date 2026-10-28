@@ -14,7 +14,6 @@ import {
   inferSchemaFromCsv,
   MAX_REJECTED_SAMPLES,
   parseCsvBuffer,
-  parseFileRows,
   validateMapping,
 } from '@/lib/table/import'
 import { createCsvParser } from '@/lib/table/import-stream'
@@ -252,14 +251,6 @@ describe('import', () => {
       expect(rows).toHaveLength(1)
       expect(rejections.rowsRejected).toBeGreaterThan(0)
       expect(rejections.rejectedSamples[0]).toMatchObject({ code: 'CSV_QUOTE_NOT_CLOSED' })
-    })
-
-    it('threads the summary through parseFileRows for CSV', async () => {
-      const { rejections } = await parseFileRows(
-        Buffer.from('name\nOk\nBroken,"unterminated\nAnother\n'),
-        'rows.csv'
-      )
-      expect(rejections.rowsRejected).toBeGreaterThan(0)
     })
 
     /**

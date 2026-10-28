@@ -1,36 +1,37 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadContext: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   requireCredentialAccess: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveToken: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  loadManagedOAuthCredentialApplicationContext: mocks.loadContext,
-  resolveManagedOAuthToken: mocks.resolveToken,
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 vi.mock('@/lib/credential-groups/application/authorization', () => ({
-  requireCredentialGroupCredentialAccess: mocks.requireCredentialAccess,
+  requireCredentialGroupCredentialAccess: hoisted.requireCredentialAccess,
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CREDENTIAL_ACCESSED: 'credential.accessed' },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
+
+const mocks = {
+  ...hoisted,
+  loadContext: credentialsManagedOauthMockFns.mockLoadManagedOAuthCredentialApplicationContext,
+  resolveToken: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const context = {
   credentialId: 'credential-1',
@@ -48,28 +49,21 @@ const input = {
   toolId: 'gmail_read',
 }
 
-function executorPrincipal(credentialId = 'credential-1'): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'delegation-1',
+function executorPrincipal(credentialId = 'credential-1') {
+  return createExecutorPrincipal({
     audience: 'sim:managed-oauth-credentials',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
     resourceScope: { credentialId },
     delegationContext: {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       currentWorkflow: {
         workflowId: 'workflow-1',
         mode: 'deployment',
         deploymentVersionId: 'version-1',
       },
     },
-  }
+  })
 }
 
 describe('resolveManagedOAuthCredentialToken', () => {

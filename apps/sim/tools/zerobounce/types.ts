@@ -25,5 +25,3 @@ export interface ZeroBounceGetCreditsResponse extends ToolResponse {
     credits: number
   }
 }
-
-export type ZeroBounceResponse = ZeroBounceVerifyEmailResponse | ZeroBounceGetCreditsResponse

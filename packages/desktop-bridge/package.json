@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -18,6 +18,14 @@
       "types": "./src/local-filesystem-limits.ts",
       "default": "./src/local-filesystem-limits.ts"
     },
+    "./local-filesystem-tools": {
+      "types": "./src/local-filesystem-tools.ts",
+      "default": "./src/local-filesystem-tools.ts"
+    },
+    "./tool-results": {
+      "types": "./src/tool-results.ts",
+      "default": "./src/tool-results.ts"
+    },
     "./computer-use": {
       "types": "./src/computer-use.generated.ts",
       "default": "./src/computer-use.generated.ts"
@@ -25,6 +33,7 @@
   },
   "scripts": {
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
@@ -34,10 +43,13 @@
     "@sim/browser-protocol": "workspace:*",
     "@sim/terminal-protocol": "workspace:*",
     "@sim/utils": "workspace:*",
+    "micromatch": "4.0.8",
     "zod": "4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^7.0.2"
+    "@types/micromatch": "4.0.10",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
   }
 }

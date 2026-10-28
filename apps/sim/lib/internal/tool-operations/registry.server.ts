@@ -17,6 +17,43 @@ const STS_TOOL_IDS = [
   'sts_get_access_key_info',
 ] as const
 
+const EC2_TOOL_IDS = [
+  'ec2_describe_instances',
+  'ec2_describe_instance_status',
+  'ec2_start_instances',
+  'ec2_stop_instances',
+  'ec2_reboot_instances',
+  'ec2_terminate_instances',
+  'ec2_describe_addresses',
+  'ec2_allocate_address',
+  'ec2_associate_address',
+  'ec2_disassociate_address',
+  'ec2_release_address',
+  'ec2_describe_nat_gateways',
+  'ec2_describe_route_tables',
+  'ec2_describe_vpcs',
+  'ec2_describe_subnets',
+  'ec2_describe_security_groups',
+  'ec2_describe_internet_gateways',
+  'ec2_describe_network_interfaces',
+  'ec2_describe_volumes',
+  'ec2_describe_snapshots',
+  'ec2_create_snapshot',
+  'ec2_create_tags',
+  'ec2_delete_tags',
+  'ec2_describe_regions',
+  'ec2_describe_availability_zones',
+  'ec2_describe_network_acls',
+  'ec2_describe_vpc_endpoints',
+  'ec2_describe_vpc_peering_connections',
+  'ec2_describe_images',
+  'ec2_describe_key_pairs',
+  'ec2_authorize_security_group_ingress',
+  'ec2_revoke_security_group_ingress',
+  'ec2_delete_volume',
+  'ec2_delete_snapshot',
+] as const
+
 const APPCONFIG_TOOL_IDS = [
   'appconfig_create_application',
   'appconfig_create_configuration_profile',
@@ -481,6 +518,54 @@ const MSSQL_TOOL_IDS = [
   'mssql_update',
   'mssql_delete',
   'mssql_introspect',
+] as const
+
+const ORACLE_FUSION_FINANCIALS_TOOL_IDS = [
+  'oracle_fusion_financials_apply_receivables_receipt',
+  'oracle_fusion_financials_approve_receivables_invoice',
+  'oracle_fusion_financials_create_expense_line',
+  'oracle_fusion_financials_create_expense_report',
+  'oracle_fusion_financials_create_receivables_credit_memo',
+  'oracle_fusion_financials_create_receivables_invoice',
+  'oracle_fusion_financials_create_receivables_receipt',
+  'oracle_fusion_financials_get_expense_line',
+  'oracle_fusion_financials_get_expense_report',
+  'oracle_fusion_financials_get_gl_journal_batch',
+  'oracle_fusion_financials_get_gl_ledger',
+  'oracle_fusion_financials_get_payables_invoice',
+  'oracle_fusion_financials_get_payables_invoice_line',
+  'oracle_fusion_financials_get_payables_payment',
+  'oracle_fusion_financials_get_receivables_credit_memo',
+  'oracle_fusion_financials_get_receivables_invoice',
+  'oracle_fusion_financials_get_receivables_invoice_installment',
+  'oracle_fusion_financials_get_receivables_invoice_line',
+  'oracle_fusion_financials_get_receivables_receipt',
+  'oracle_fusion_financials_list_expense_lines',
+  'oracle_fusion_financials_list_expense_reports',
+  'oracle_fusion_financials_list_gl_balances',
+  'oracle_fusion_financials_list_gl_journal_batches',
+  'oracle_fusion_financials_list_gl_ledgers',
+  'oracle_fusion_financials_list_payables_invoice_lines',
+  'oracle_fusion_financials_list_payables_invoices',
+  'oracle_fusion_financials_list_payables_payments',
+  'oracle_fusion_financials_list_receivables_credit_memos',
+  'oracle_fusion_financials_list_receivables_invoice_installments',
+  'oracle_fusion_financials_list_receivables_invoice_lines',
+  'oracle_fusion_financials_list_receivables_invoices',
+  'oracle_fusion_financials_list_receivables_receipts',
+  'oracle_fusion_financials_submit_expense_report',
+  'oracle_fusion_financials_update_expense_line',
+  'oracle_fusion_financials_update_expense_report',
+  'oracle_fusion_financials_update_receivables_invoice',
+] as const
+
+const ORACLEDB_TOOL_IDS = [
+  'oracledb_query',
+  'oracledb_execute',
+  'oracledb_insert',
+  'oracledb_update',
+  'oracledb_delete',
+  'oracledb_introspect',
 ] as const
 
 const KNOWLEDGE_TOOL_IDS = [
@@ -1410,6 +1495,9 @@ registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, STS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/sts/execute-tool')).executeStsTool
 })
+registerFamily(handlerLoaders, EC2_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/ec2/execute-tool')).executeEc2Tool
+})
 registerFamily(handlerLoaders, APPCONFIG_TOOL_IDS, async () => {
   return (await import('@/lib/internal/appconfig/execute-tool')).executeAppConfigTool
 })
@@ -1484,6 +1572,13 @@ registerFamily(handlerLoaders, JUPYTER_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, MSSQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/mssql/execute-tool')).executeMssqlTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_FINANCIALS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-financials/execute-tool'))
+    .executeOracleFusionFinancialsTool
+})
+registerFamily(handlerLoaders, ORACLEDB_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracledb/execute-tool')).executeOracledbTool
 })
 registerFamily(handlerLoaders, KNOWLEDGE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/knowledge/execute-tool')).executeKnowledgeTool

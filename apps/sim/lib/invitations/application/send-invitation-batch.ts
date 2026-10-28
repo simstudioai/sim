@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import {
+  type ApplicationOperation,
   assertOperationPrincipal,
   defineAuthorizedWorkspaceUseCase,
   ForbiddenOperationError,
@@ -21,7 +22,6 @@ import {
   authorizeWorkspaceOperation,
   requireAllowedWorkspacePrincipal,
 } from '@/lib/core/application/workspace-authorization'
-import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -29,6 +29,7 @@ import {
 import {
   invitationAuthorityOperations,
   invitationOperations,
+  workspaceInvitationOperations,
 } from '@/lib/invitations/application/operations'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { prepareOrganizationInvitationContext } from '@/lib/invitations/organization-invitations'
@@ -41,7 +42,7 @@ import {
 } from '@/lib/invitations/workspace-invitations'
 import { createOrganizationInvitation } from '@/lib/organizations/application/invitations'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import { InvitationsNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
@@ -78,13 +79,14 @@ export const sendInvitationBatch: OperationUseCase<
   async execute({ principal, input, request }) {
     requireAllowedWorkspacePrincipal(principal, invitationAuthorityOperations.workspace)
     assertOperationPrincipal(principal, invitationOperations.sendBatch)
-    return executeInvitationBatch(principal, input, request)
+    return executeInvitationBatch(principal, input, invitationOperations.sendBatch, request)
   },
 }
 
 async function executeInvitationBatch(
   principal: Principal,
   input: SendInvitationBatchInput,
+  operation: Pick<ApplicationOperation, 'id'>,
   request?: OrchestrationRequestContext
 ): Promise<SendInvitationBatchResult> {
   const actorId = requirePrincipalSubjectUserId(principal)
@@ -151,7 +153,7 @@ async function executeInvitationBatch(
             email: inviter.email,
             metadata: {
               actor: toPrincipalActor(principal),
-              operation: invitationOperations.sendBatch.id,
+              operation: operation.id,
             },
           },
         }
@@ -307,18 +309,12 @@ async function executeInvitationBatch(
   return result
 }
 
-export const workspaceInvitationSendOperation = defineWorkspaceOperation({
-  id: 'workspace_invitations.send_batch',
-  minimumRole: 'admin',
-  capability: 'invitations.send',
-  workspaceApiKey: 'deny',
-  principalKinds: ['session', 'delegated'],
-  delegatedServices: ['copilot'],
-})
-
-/** Workspace batches retain per-target admission checks and per-email outcomes. */
+/**
+ * One workspace's batch, shared by the public v2 command and Chat. Every target
+ * keeps its admission checks and every email its own outcome.
+ */
 export const sendWorkspaceInvitationBatch = defineAuthorizedWorkspaceUseCase({
-  operation: workspaceInvitationSendOperation,
+  operation: workspaceInvitationOperations.sendBatch,
   resolveContext: ({
     principal,
     input,
@@ -339,11 +335,13 @@ export const sendWorkspaceInvitationBatch = defineAuthorizedWorkspaceUseCase({
     return resolveActiveWorkspaceApplicationContext(input.workspaceIds[0])
   },
   authorizationOptions: { delegation: { audience: 'sim:settings', isWithinScope: () => true } },
-  execute: ({ principal, input, request }) => executeInvitationBatch(principal, input, request),
+  execute: ({ principal, input, request }) =>
+    executeInvitationBatch(principal, input, workspaceInvitationOperations.sendBatch, request),
 })
 
 const organizationInvitationSendOperation = defineOrganizationOperation({
   id: 'organization_invitations.send_batch',
+  contentDelivery: 'none',
   minimumRole: 'admin',
   capability: 'invitations.send',
   principalKinds: ['session', 'organization_delegated'],
@@ -367,6 +365,6 @@ export const sendOrganizationInvitationBatch: OperationUseCase<
     await authorizeOrganizationOperation(principal, organizationInvitationSendOperation, {
       organizationId: input.organizationId,
     })
-    return executeInvitationBatch(principal, input, request)
+    return executeInvitationBatch(principal, input, organizationInvitationSendOperation, request)
   },
 }

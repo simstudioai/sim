@@ -1,24 +1,29 @@
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipClientToolWaiterMock,
+  mothershipClientToolWaiterMockFns,
+} from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { waitForWorkflowToolCompletion, claimWorkflowToolExecution, recordDegraded } = vi.hoisted(
-  () => ({
-    waitForWorkflowToolCompletion: vi.fn(),
-    claimWorkflowToolExecution: vi.fn(),
-    recordDegraded: vi.fn(),
-  })
-)
+const { recordDegraded } = vi.hoisted(() => ({
+  recordDegraded: vi.fn(),
+}))
 
 vi.mock('@/lib/mothership/request/metrics', () => ({ recordDegraded }))
 
-vi.mock('@/lib/mothership/request/tools/client', () => ({
-  waitForWorkflowToolCompletion,
-}))
+vi.mock('@/lib/mothership/request/tools/client', () => mothershipClientToolWaiterMock)
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  claimWorkflowToolExecution,
-}))
+const waitForWorkflowToolCompletion =
+  mothershipClientToolWaiterMockFns.mockWaitForWorkflowToolCompletion
+
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { raceWorkflowToolClientPickup } from '@/lib/mothership/request/tools/workflow-client-fallback'
+
+const claimWorkflowToolExecution = mothershipAsyncRunsMockFns.mockClaimWorkflowToolExecution
 
 const GRACE_MS = 30_000
 const TIMEOUT_MS = 3_600_000
@@ -95,6 +100,29 @@ describe('raceWorkflowToolClientPickup', () => {
     // The client waiter must be torn down before the server runs, or the sim
     // path's own confirmation would wake it and emit a duplicate result.
     expect(waiterSignals.at(0)?.aborted).toBe(true)
+  })
+
+  it('does not take a call over on the server once its deadline has passed', async () => {
+    waitForWorkflowToolCompletion.mockResolvedValue(null)
+    claimWorkflowToolExecution.mockResolvedValue({ toolCallId: 'tool-1' })
+    const params = baseParams({ timeoutMs: 0, deadlineAt: Date.now() })
+
+    const outcome = await raceWorkflowToolClientPickup(params as never)
+
+    expect(outcome).toEqual({ winner: 'client', completion: null })
+    expect(claimWorkflowToolExecution).not.toHaveBeenCalled()
+    expect(params.runOnServer).not.toHaveBeenCalled()
+  })
+
+  it('does not take a call over with less than a minute of its deadline left', async () => {
+    waitForWorkflowToolCompletion.mockResolvedValue(null)
+    claimWorkflowToolExecution.mockResolvedValue({ toolCallId: 'tool-1' })
+    const params = baseParams({ timeoutMs: 0, deadlineAt: Date.now() + 30_000 })
+
+    await raceWorkflowToolClientPickup(params as never)
+
+    expect(claimWorkflowToolExecution).not.toHaveBeenCalled()
+    expect(params.runOnServer).not.toHaveBeenCalled()
   })
 
   it('claims immediately when the caller declared no client pickup (graceMs 0)', async () => {

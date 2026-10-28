@@ -23,7 +23,6 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
 import { ResumeWorkflowExecutionError } from '@/lib/workflows/executor/resume-execution'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
-import { classifyExecutionError } from '@/executor/utils/errors'
 
 const logger = createLogger('V2WorkflowResumeAPI')
 
@@ -86,6 +85,7 @@ export const POST = withRouteHandler(
           runId,
           contextId,
           resumeInput: input === undefined ? {} : input,
+          surface: 'v2',
         },
         request,
       })
@@ -114,10 +114,7 @@ export const POST = withRouteHandler(
           output: result.output ?? null,
           // Resume has no request body to name selectors in, so selection never applies here.
           blockOutputs: null,
-          error:
-            typeof result.error === 'string'
-              ? classifyExecutionError(new Error(result.error))
-              : null,
+          error: result.structuredError,
           startedAt: result.metadata?.startTime,
           endedAt: result.metadata?.endTime,
           durationMs: result.metadata?.duration,

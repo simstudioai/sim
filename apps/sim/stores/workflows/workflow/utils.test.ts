@@ -1,30 +1,10 @@
 import { createAgentBlock, createLoopBlock } from '@sim/testing'
+import {
+  isWorkflowBlockAncestorLocked,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-import {
-  convertLoopBlockToLoop,
-  isAncestorProtected,
-  isBlockProtected,
-} from '@/stores/workflows/workflow/utils'
-
-describe('convertLoopBlockToLoop', () => {
-  it.concurrent('should keep string as-is if not valid JSON', () => {
-    const blocks: Record<string, BlockState> = {
-      loop1: createLoopBlock({
-        id: 'loop1',
-        name: 'Test Loop',
-        loopType: 'forEach',
-        count: 5,
-        data: { collection: '<blockName.items>' },
-      }),
-    }
-
-    const result = convertLoopBlockToLoop('loop1', blocks)
-
-    expect(result).toBeDefined()
-    expect(result?.forEachItems).toBe('<blockName.items>')
-  })
-})
 
 describe('block lock protection', () => {
   it.concurrent('treats deeply nested blocks inside locked containers as protected', () => {
@@ -46,8 +26,8 @@ describe('block lock protection', () => {
       }),
     }
 
-    expect(isAncestorProtected('child', blocks)).toBe(true)
-    expect(isBlockProtected('child', blocks)).toBe(true)
+    expect(isWorkflowBlockAncestorLocked('child', blocks)).toBe(true)
+    expect(isWorkflowBlockProtected('child', blocks)).toBe(true)
   })
 
   it.concurrent(
@@ -66,8 +46,8 @@ describe('block lock protection', () => {
         }),
       }
 
-      expect(isAncestorProtected('first', blocks)).toBe(false)
-      expect(isBlockProtected('first', blocks)).toBe(false)
+      expect(isWorkflowBlockAncestorLocked('first', blocks)).toBe(false)
+      expect(isWorkflowBlockProtected('first', blocks)).toBe(false)
     }
   )
 })

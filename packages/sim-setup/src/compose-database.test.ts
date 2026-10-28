@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { choosePostgresPassword, LEGACY_POSTGRES_PASSWORD } from './compose-database'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -23,10 +23,6 @@ function serviceBlock(file: string, service: string): string {
   const end = lines.findIndex((line, index) => index > start && /^ {0,2}[A-Za-z0-9_-]+:/.test(line))
   return lines.slice(start, end === -1 ? undefined : end).join('\n')
 }
-
-afterEach(() => {
-  vi.unstubAllEnvs()
-})
 
 describe('choosePostgresPassword', () => {
   const noShell = {}

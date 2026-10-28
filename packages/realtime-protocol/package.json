@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -33,6 +33,10 @@
     "./table-presence": {
       "types": "./src/table-presence.ts",
       "default": "./src/table-presence.ts"
+    },
+    "./file-doc-target": {
+      "types": "./src/file-doc-target.ts",
+      "default": "./src/file-doc-target.ts"
     }
   },
   "scripts": {
@@ -50,6 +54,6 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

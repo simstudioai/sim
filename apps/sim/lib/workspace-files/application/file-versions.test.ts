@@ -1,70 +1,73 @@
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  ContentVersionConflictError: class extends Error {},
-  loadActive: vi.fn(),
-  getFile: vi.fn(),
-  fetchBuffer: vi.fn(),
-  updateContent: vi.fn(),
-  deleteStored: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getVersion: vi.fn(),
   getCurrentVersion: vi.fn(),
   getProvenance: vi.fn(),
   streamRecord: vi.fn(),
-  recordAudit: vi.fn(),
-  notify: vi.fn(),
-  resolvePermission: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    FILE_DOWNLOADED: 'FILE_DOWNLOADED',
-    FILE_REVERTED: 'FILE_REVERTED',
-    FILE_VERSION_DELETED: 'FILE_VERSION_DELETED',
-  },
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.notify }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadActiveWorkspaceFileContext: mocks.loadActive,
-  loadWorkspaceFileLifecycleContext: vi.fn(),
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  ContentVersionConflictError: mocks.ContentVersionConflictError,
-  deleteWorkspaceFileVersion: mocks.deleteStored,
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-  getWorkspaceFile: mocks.getFile,
-  updateWorkspaceFileContent: mocks.updateContent,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
-  getCurrentWorkspaceFileVersion: mocks.getCurrentVersion,
-  getWorkspaceFileVersion: mocks.getVersion,
-  getWorkspaceFileVersionProvenance: mocks.getProvenance,
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-version-store', () => ({
+  getCurrentWorkspaceFileVersion: hoisted.getCurrentVersion,
+  getWorkspaceFileVersion: hoisted.getVersion,
+  getWorkspaceFileVersionProvenance: hoisted.getProvenance,
   queryWorkspaceFileVersions: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
-  streamWorkspaceFileRecord: mocks.streamRecord,
+  streamWorkspaceFileRecord: hoisted.streamRecord,
 }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-text', () => ({
   extractWorkspaceFileRecordText: vi.fn(),
 }))
-vi.mock('@/lib/uploads', () => ({ getServePathPrefix: () => '/api/files/serve/' }))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import {
   deleteWorkspaceFileVersion,
+  downloadWorkspaceFileVersion,
   revertWorkspaceFileVersion,
 } from '@/lib/workspace-files/application/file-versions'
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  deleteStored: workspaceUploadsMockFns.mockDeleteWorkspaceFileVersion,
+  fetchBuffer: workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer,
+  getFile: workspaceUploadsMockFns.mockGetWorkspaceFile,
+  updateContent: workspaceUploadsMockFns.mockUpdateWorkspaceFileContent,
+  loadActive: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  notify: realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged,
+  recordAudit: auditMockFns.mockRecordAudit,
+  ...hoisted,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createSessionPrincipal()
 
 const context = {
   fileId: 'file-1',
@@ -134,6 +137,16 @@ describe('file version use cases', () => {
     mocks.notify.mockResolvedValue(undefined)
   })
 
+  it('rejects Copilot version downloads before storage because the operation accepts direct principals only', async () => {
+    await expect(
+      downloadWorkspaceFileVersion.execute({
+        principal: createDelegatedPrincipal({ audience: 'sim:workspace-files' }),
+        input: { fileId: file.id, version: 2 },
+      })
+    ).rejects.toMatchObject({ name: 'PrincipalKindAuthorizationError' })
+    expect(mocks.streamRecord).not.toHaveBeenCalled()
+  })
+
   describe('revertWorkspaceFileVersion', () => {
     it('writes the version as a new revert version carrying its provenance snapshot', async () => {
       mocks.getVersion.mockImplementation(getVersionAfterRevert)
@@ -165,7 +178,7 @@ describe('file version use cases', () => {
       })
       expect(mocks.recordAudit).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: 'FILE_REVERTED',
+          action: 'file.reverted',
           metadata: expect.objectContaining({
             previousVersion: 3,
             restoredVersion: 2,

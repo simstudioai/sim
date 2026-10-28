@@ -27,7 +27,7 @@ vi.mock('../../context', () => ({
  * command reads its deadline from, so a `--wait-timeout 3600` test costs
  * nothing and the poll schedule is exactly what the assertions say it is.
  */
-vi.mock('../../helpers', () => ({
+vi.mock('@sim/utils/helpers', () => ({
   sleep: (ms: number) => {
     sleeps.push(ms)
     clock.now += ms
@@ -43,7 +43,6 @@ const stderr = process.stderr as unknown as { isTTY: boolean }
 const realIsTTY = stderr.isTTY
 
 beforeEach(() => {
-  vi.restoreAllMocks()
   mockRequest.mockReset()
   sleeps.length = 0
   clock.now = 1_000_000
@@ -68,7 +67,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
   stderr.isTTY = realIsTTY
   process.exitCode = undefined
 })

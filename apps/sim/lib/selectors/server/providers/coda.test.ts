@@ -1,13 +1,14 @@
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveCredentialBundle: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mockResolveCredentialBundle,
-}))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorContextUnavailableError } from '@/lib/selectors/server/errors'
@@ -15,6 +16,9 @@ import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-
 import { codaSelectorAttachments } from '@/lib/selectors/server/providers/coda'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 import type { SelectorContext, SelectorRequest } from '@/lib/selectors/types'
+
+const mockResolveCredentialBundle =
+  selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
 
 function args(
   selectorKey: ServerSelectorKey,

@@ -1,30 +1,54 @@
 import { Readable } from 'node:stream'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  ContentRefusedError,
+  observeContentDelivery,
+} from '@/lib/core/application/content-delivery'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
-const { mockLoadContext, mockGetWorkspaceFile, mockGetMetadataByKey, mockDownloadFileStream } =
-  vi.hoisted(() => ({
-    mockLoadContext: vi.fn(),
-    mockGetWorkspaceFile: vi.fn(),
-    mockGetMetadataByKey: vi.fn(),
-    mockDownloadFileStream: vi.fn(),
-  }))
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('admin'),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
-  loadActiveWorkspaceFileContext: mockLoadContext,
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: mockGetMetadataByKey }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mockDownloadFileStream,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
 
-const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
+const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
+
+const mockGetMetadataByKey = uploadsMetadataMockFns.mockGetFileMetadataByKey
+
+const mockGetWorkspaceFile = workspaceFileManagerMockFns.mockGetWorkspaceFile
+const mockLoadContext = workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext
+
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+
+const principal = createSessionPrincipal({ userId: 'u1', sessionId: 's1' })
 const file = {
   id: 'f1',
   workspaceId: 'ws-1',
@@ -44,6 +68,28 @@ describe('readWorkspaceInlineFile', () => {
     })
     mockGetWorkspaceFile.mockResolvedValue(file)
     mockDownloadFileStream.mockResolvedValue(Readable.from(Buffer.from('png')))
+  })
+
+  it('refuses bytes when final receipt provenance changes after storage opens', async () => {
+    const chat = createDelegatedPrincipal({
+      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+      workspaceId: 'ws-1',
+    })
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue(
+      { status: 'exact', entries: [] }
+    )
+    vi.mocked(recheckFileReadReceipt).mockResolvedValueOnce({ status: 'unknown' })
+    await expect(
+      observeContentDelivery(
+        { admit: async (sources) => sources.map((source) => source.provenance.status === 'exact') },
+        () =>
+          readWorkspaceInlineFile.execute({
+            principal: chat,
+            input: { workspaceId: 'ws-1', fileId: 'f1' },
+          })
+      )
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mockDownloadFileStream).toHaveBeenCalled()
   })
 
   it('authorizes a file-id reference against the asserted workspace before reading bytes', async () => {

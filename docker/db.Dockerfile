@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Alpine Linux with Bun
 # ========================================
-FROM oven/bun:1.4.1-alpine AS base
+FROM oven/bun:1.4.4-alpine AS base
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -12,9 +12,10 @@ WORKDIR /app
 # Copy only package files needed for migrations (these change less frequently)
 COPY package.json bun.lock turbo.json ./
 COPY patches ./patches
-RUN mkdir -p packages/db packages/logger packages/tsconfig packages/utils
+RUN mkdir -p packages/db packages/logger packages/security packages/tsconfig packages/utils
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
+COPY packages/security/package.json ./packages/security/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
 
@@ -51,6 +52,9 @@ COPY --chown=nextjs:nodejs packages/utils ./packages/utils
 
 # Copy logger package (needed by @sim/db's tx-tripwire at import time)
 COPY --chown=nextjs:nodejs packages/logger ./packages/logger
+
+# Copy security package (the schema's sealed columns import its encryption)
+COPY --chown=nextjs:nodejs packages/security ./packages/security
 
 # Copy database package source code (changes most frequently - placed last)
 COPY --chown=nextjs:nodejs packages/db ./packages/db

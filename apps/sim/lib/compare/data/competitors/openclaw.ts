@@ -16,6 +16,27 @@ export const openClawProfile: CompetitorProfile = {
   },
   oneLiner:
     "OpenClaw is a free, open-source, self-hosted personal AI agent that runs on a user's own machine or server and connects to messaging platforms (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Microsoft Teams, and others) as its primary interface, extensible via a Skills plugin system and the ClawHub marketplace. It is not a visual workflow/automation builder like Sim, n8n, or Power Automate.",
+  leadAnswer: [
+    'OpenClaw is a free, MIT-licensed personal AI agent that runs as a single self-hosted Gateway process on your own machine or server and is operated through chat apps such as WhatsApp, Telegram, Slack, and Discord. Sim is an open-source AI workspace where teams build, deploy, and manage agents on a visual canvas, in natural language, or with code, on Sim Cloud or a self-hosted Docker or Kubernetes deployment. Choose OpenClaw for a single-operator assistant you message from your existing chat apps, using your own model keys and keeping state on your own hardware. Choose Sim when a team needs shared workspaces with role-based permissions, per-block execution traces, and scheduled or webhook-triggered runs that execute server-side without depending on one machine staying on.',
+  ],
+  faqs: [
+    {
+      question:
+        'What is the best alternative to OpenClaw for teams that need production reliability?',
+      answer:
+        'Sim is an OpenClaw alternative where scheduled, webhook, and chat-triggered runs execute as background jobs on the Sim server, whether Sim Cloud or your own self-hosted deployment, so no personal machine has to stay on. OpenClaw automations run inside its self-hosted Gateway process, and its docs state the Gateway must be running for schedules to fire. Sim also records a per-block trace of every run (duration, cost, tokens) and can alert Slack, email, or a webhook on failures or cost and latency spikes. OpenClaw keeps automation run history for 7 days and, by default, sends a failure alert after 2 consecutive failures.',
+    },
+    {
+      question: 'What is a good OpenClaw alternative for building production AI agents?',
+      answer:
+        'Sim is an OpenClaw alternative for teams that build agents as workflows and publish them as REST APIs, MCP servers, scheduled jobs, or chat interfaces. OpenClaw is a personal assistant configured through a JSON file and Markdown Skills and operated by messaging it, with no visual builder. In Sim, any block can route to an error branch so one failing step does not halt the run, and on the Enterprise plan a workspace can be forked into dev, QA, and prod copies and promoted between them.',
+    },
+    {
+      question: 'Sim vs OpenClaw for building AI agents: which should I use?',
+      answer:
+        "Use OpenClaw if you want one personal agent that you message from WhatsApp, Telegram, Slack, Discord, or another chat app, running on your own hardware with your own model keys. Use Sim if several people need to build and run agents together: Sim has admin, write, and read workspace permissions and live multiplayer editing of the same workflow, while OpenClaw's security docs assume one trusted boundary per gateway and state it is not a hostile multi-tenant security boundary. OpenClaw is free under the MIT license; Sim's core is Apache 2.0, with a Free plan and a Pro plan at $25 per user per month.",
+    },
+  ],
   standoutFeatures: [
     {
       title: '22+ messaging channels as the primary interface',
@@ -197,14 +218,19 @@ export const openClawProfile: CompetitorProfile = {
         value:
           "Yes: self-hosting is the only deployment model. OpenClaw runs as a single Gateway process on the user's own machine or server. There is no OpenClaw-operated hosted/SaaS version.",
         detail:
-          'Docs describe the Gateway as running locally and being "the single source of truth for sessions, routing, and channel connections," with a local workspace at ~/.openclaw/workspace.',
+          'The docs say you "run a single Gateway process on your own machine (or a server)" with "No hosted service in the middle", and the homepage says "State lives on your machine, not a vendor cloud." OpenClaw Enterprise (announced September 2026) is also self-hosted only, deployed with docker-compose or Kubernetes on the organization\'s own infrastructure.',
         shortValue: 'Yes, self-hosting only, no vendor-hosted SaaS option',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/',
             label: 'OpenClaw Docs home',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://openclaw.ai/blog/openclaw-enterprise/',
+            label: 'OpenClaw blog: OpenClaw Enterprise',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -242,19 +268,24 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'MIT License (permissive open source), stewarded by the independent, non-profit OpenClaw Foundation, not a single vendor company',
         detail:
-          "The GitHub repository's LICENSE file confirms MIT licensing. Governance passed from creator Peter Steinberger to a community-elected Foundation board after he joined OpenAI in February 2026. OpenAI is a Foundation sponsor (inference support and Codex Security scanning) but does not own the project.",
+          'The LICENSE file reads "MIT License, Copyright (c) 2026 OpenClaw Foundation." The homepage describes the Foundation as "an independent US 501(c)(3) non-profit" that keeps "the whole product MIT licensed". Its institutional donors include Microsoft, NVIDIA, OpenAI, Red Hat, and the University of Michigan.',
         shortValue: 'MIT license, non-profit Foundation governance',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/openclaw/openclaw/blob/main/LICENSE',
             label: 'openclaw/openclaw LICENSE file',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
           {
-            url: 'https://openclaw.ai/ecosystem/',
-            label: 'OpenClaw Ecosystem page',
-            asOf: '2026-07-02',
+            url: 'https://openclaw.ai/',
+            label: 'OpenClaw homepage',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://openclaw.org/donors',
+            label: 'OpenClaw Foundation donors',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -763,7 +794,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://github.com/openclaw/openclaw/blob/main/LICENSE',
             label: 'openclaw/openclaw LICENSE file',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -778,7 +809,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://github.com/openclaw/openclaw/blob/main/LICENSE',
             label: 'openclaw/openclaw LICENSE file',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -793,22 +824,27 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://github.com/openclaw/openclaw/blob/main/LICENSE',
             label: 'openclaw/openclaw LICENSE file',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
       byok: {
         value:
-          'Yes, and mandatory: OpenClaw requires the operator to supply their own API credentials/OAuth login for whichever model provider(s) they configure (Anthropic, OpenAI, Google, or any OpenAI-compatible endpoint); there is no OpenClaw-hosted model access.',
+          'Yes, and it is the only option: model access always comes from the operator, via their own provider API key, a provider OAuth login (e.g. OpenAI ChatGPT/Codex), a third-party gateway such as OpenRouter, or a local runtime (Ollama, LM Studio, vLLM, llama.cpp). OpenClaw provides no hosted model access of its own.',
         detail:
-          'Onboarding documentation walks through provider-specific auth flows (e.g. `openclaw models auth paste-token --provider anthropic`, `openclaw models auth login --provider openai-codex`). BYOK is the only supported model-access model.',
-        shortValue: 'Yes, mandatory; no OpenClaw-hosted model access',
+          'The model-providers docs cover multiple API keys with rotation under Settings -> Models, provider OAuth login, and onboarding commands such as `openclaw onboard --auth-choice opencode-zen`. The homepage states "No subscription. No hosted tier. No token."',
+        shortValue: 'Yes, only option; own keys, OAuth, gateway, or local model',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/concepts/model-providers',
             label: 'OpenClaw Docs: Model providers',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://openclaw.ai/',
+            label: 'OpenClaw homepage',
+            asOf: '2026-10-15',
           },
         ],
       },

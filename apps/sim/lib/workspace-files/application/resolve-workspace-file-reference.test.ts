@@ -1,30 +1,30 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  fetchBuffer: vi.fn(),
-  getByName: vi.fn(),
-  loadContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveStoredReference: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-  getWorkspaceFileByName: mocks.getByName,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-  resolveWorkspaceFileReference: mocks.resolveStoredReference,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 import { defineWorkspaceOperation } from '@/lib/core/application'
+import { fileReadFailure } from '@/lib/mothership/agent-cli/engines/file-view'
+import { decodeVfsPathSegments } from '@/lib/vfs/path'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const mocks = {
+  fetchBuffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
+  getByName: workspaceFileManagerMockFns.mockGetWorkspaceFileByName,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  resolveStoredReference: workspaceFileManagerMockFns.mockResolveWorkspaceFileReference,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createSessionPrincipal()
 const file = {
   id: 'file-1',
   workspaceId: 'workspace-1',
@@ -49,6 +49,25 @@ describe('workspace file reference application service', () => {
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('source'))
   })
 
+  it('rejects a reference that is not a VFS path, such as a URL, as a validation error the model sees', async () => {
+    const reference = 'https://example.com/report.pdf'
+    mocks.resolveStoredReference.mockImplementation(async (_workspaceId, value: string) => {
+      decodeVfsPathSegments(value)
+      return file
+    })
+    const failure = await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.readContent,
+      workspaceId: file.workspaceId,
+      reference,
+    }).catch((error: unknown) => error)
+    expect(failure).toMatchObject({ name: 'OrchestrationError', code: 'validation' })
+    expect(fileReadFailure(failure).stderr).toBe(
+      `Error: "${reference}" is not a valid workspace file path or ID: VFS path segment cannot be empty or a dot segment`
+    )
+    expect(mocks.loadContext).not.toHaveBeenCalled()
+  })
+
   it('carries trusted chat scope into an authorized upload lookup', async () => {
     await resolveWorkspaceFileReference({
       principal,
@@ -60,14 +79,30 @@ describe('workspace file reference application service', () => {
     expect(mocks.resolveStoredReference).toHaveBeenCalledWith(
       file.workspaceId,
       'uploads/source.txt',
-      { includeChatUploads: true, chatId: 'current-chat' }
+      {
+        includeChatUploads: true,
+        includeOwnedFiles: true,
+        chatId: 'current-chat',
+      }
     )
     expect(mocks.resolvePermission).toHaveBeenCalled()
   })
 
+  it('admits a test file but never a chat upload for files.update_content', async () => {
+    await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.updateContent,
+      workspaceId: 'workspace-1',
+      reference: 'uploads/photo.png',
+    })
+
+    expect(mocks.resolveStoredReference).toHaveBeenCalledWith('workspace-1', 'uploads/photo.png', {
+      includeOwnedFiles: true,
+    })
+  })
+
   it.each([
     fileOperations.rename,
-    fileOperations.updateContent,
     fileOperations.move,
     fileOperations.delete,
     fileOperations.updateShare,

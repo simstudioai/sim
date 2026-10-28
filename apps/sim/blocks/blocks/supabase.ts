@@ -1,22 +1,18 @@
-import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { SupabaseResponse } from '@/tools/supabase/types'
-
-const logger = createLogger('SupabaseBlock')
 
 /** Canonical basic/advanced pair for the storage upload payload. */
 const FILE_DATA_FIELD = ['file', 'fileContent'] as const
 
-export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
+export const SupabaseBlock: BlockConfig = {
   type: 'supabase',
   name: 'Supabase',
   description: 'Use Supabase database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
+    'Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
   docsLink: 'https://docs.sim.ai/integrations/supabase',
   category: 'tools',
   integrationType: IntegrationType.Databases,

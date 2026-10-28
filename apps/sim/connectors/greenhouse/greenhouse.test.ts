@@ -1,16 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { greenhouseConnector } from '@/connectors/greenhouse/greenhouse'
 
 const ACCESS_TOKEN = 'test-key'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...headers },
-  })
-}
 
 /** A `Link` header advertising another page, exactly as Harvest emits it. */
 const NEXT_PAGE_LINK = {
@@ -46,14 +40,12 @@ beforeEach(() => {
   vi.stubGlobal('fetch', mockFetch)
 })
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
-
 describe('greenhouseConnector.listDocuments pagination', () => {
   it('keeps per_page constant across pages so page-number paging cannot slide', async () => {
     const fullPage = Array.from({ length: 500 }, (_, i) => candidateFixture(i + 1))
-    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(fullPage, 200, NEXT_PAGE_LINK)))
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(jsonResponse(fullPage, { headers: NEXT_PAGE_LINK }))
+    )
     const syncContext: Record<string, unknown> = {}
 
     const first = await greenhouseConnector.listDocuments(
@@ -97,7 +89,7 @@ describe('greenhouseConnector listingCapped', () => {
 
   it('flags listingCapped when the cap stops paging while a next page exists', async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse([candidateFixture(1), candidateFixture(2)], 200, NEXT_PAGE_LINK)
+      jsonResponse([candidateFixture(1), candidateFixture(2)], { headers: NEXT_PAGE_LINK })
     )
     const syncContext: Record<string, unknown> = {}
 

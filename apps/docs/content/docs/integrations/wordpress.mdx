@@ -1,31 +1,42 @@
 ---
 title: WordPress
 description: Manage WordPress content
+integration:
+  type: "wordpress"
+  color: "#21759B"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="wordpress"
-  color="#21759B"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [WordPress.com](https://wordpress.com/) hosts sites and their content. Connect a WordPress.com site through OAuth to create and manage posts, pages, media, comments, categories, tags, and users. Use the search operation to find content before reading or updating it.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a WordPress account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/wordpress` |
+| Environment variables | `WORDPRESS_CLIENT_ID`, `WORDPRESS_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `global` | Full access to every WordPress.com site the account can manage |
+
+## Use the block [#usage-instructions]
 
 Integrate with WordPress.com to create, update, and manage posts, pages, media, comments, categories, tags, and users. Connects to WordPress.com sites via OAuth.
-
-
 
 ## Actions
 
 ### WordPress Create Post
 
 Create a new blog post in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +72,13 @@ Create a new blog post in WordPress.com
 |   ↳ `categories` | array | Category IDs |
 |   ↳ `tags` | array | Tag IDs |
 
+</ReferenceDetails>
+
 ### WordPress Update Post
 
 Update an existing blog post in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -100,9 +115,13 @@ Update an existing blog post in WordPress.com
 |   ↳ `categories` | array | Category IDs |
 |   ↳ `tags` | array | Tag IDs |
 
+</ReferenceDetails>
+
 ### WordPress Delete Post
 
 Delete a blog post from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -133,9 +152,13 @@ Delete a blog post from WordPress.com
 |   ↳ `categories` | array | Category IDs |
 |   ↳ `tags` | array | Tag IDs |
 
+</ReferenceDetails>
+
 ### WordPress Get Post
 
 Get a single blog post from WordPress.com by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +187,13 @@ Get a single blog post from WordPress.com by ID
 |   ↳ `categories` | array | Category IDs |
 |   ↳ `tags` | array | Tag IDs |
 
+</ReferenceDetails>
+
 ### WordPress List Posts
 
 List blog posts from WordPress.com with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +232,13 @@ List blog posts from WordPress.com with optional filters
 | `total` | number | Total number of posts |
 | `totalPages` | number | Total number of pages |
 
+</ReferenceDetails>
+
 ### WordPress Create Page
 
 Create a new page in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -243,9 +274,13 @@ Create a new page in WordPress.com
 |   ↳ `parent` | number | Parent page ID |
 |   ↳ `menu_order` | number | Menu order |
 
+</ReferenceDetails>
+
 ### WordPress Update Page
 
 Update an existing page in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -282,9 +317,13 @@ Update an existing page in WordPress.com
 |   ↳ `parent` | number | Parent page ID |
 |   ↳ `menu_order` | number | Menu order |
 
+</ReferenceDetails>
+
 ### WordPress Delete Page
 
 Delete a page from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,9 +354,13 @@ Delete a page from WordPress.com
 |   ↳ `parent` | number | Parent page ID |
 |   ↳ `menu_order` | number | Menu order |
 
+</ReferenceDetails>
+
 ### WordPress Get Page
 
 Get a single page from WordPress.com by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -346,9 +389,13 @@ Get a single page from WordPress.com by ID
 |   ↳ `parent` | number | Parent page ID |
 |   ↳ `menu_order` | number | Menu order |
 
+</ReferenceDetails>
+
 ### WordPress List Pages
 
 List pages from WordPress.com with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -385,9 +432,13 @@ List pages from WordPress.com with optional filters
 | `total` | number | Total number of pages |
 | `totalPages` | number | Total number of result pages |
 
+</ReferenceDetails>
+
 ### WordPress Upload Media
 
 Upload a media file (image, video, document) to WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -419,9 +470,13 @@ Upload a media file (image, video, document) to WordPress.com
 |   ↳ `source_url` | string | Direct URL to the media file |
 |   ↳ `media_details` | object | Media details \(dimensions, etc.\) |
 
+</ReferenceDetails>
+
 ### WordPress Get Media
 
 Get a single media item from WordPress.com by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -448,9 +503,13 @@ Get a single media item from WordPress.com by ID
 |   ↳ `source_url` | string | Direct URL to the media file |
 |   ↳ `media_details` | object | Media details \(dimensions, etc.\) |
 
+</ReferenceDetails>
+
 ### WordPress List Media
 
 List media items from the WordPress.com media library
+
+<ReferenceDetails>
 
 #### Input
 
@@ -485,9 +544,13 @@ List media items from the WordPress.com media library
 | `total` | number | Total number of media items |
 | `totalPages` | number | Total number of result pages |
 
+</ReferenceDetails>
+
 ### WordPress Delete Media
 
 Delete a media item from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -515,9 +578,13 @@ Delete a media item from WordPress.com
 |   ↳ `source_url` | string | Direct URL to the media file |
 |   ↳ `media_details` | object | Media details \(dimensions, etc.\) |
 
+</ReferenceDetails>
+
 ### WordPress Create Comment
 
 Create a new comment on a WordPress.com post
+
+<ReferenceDetails>
 
 #### Input
 
@@ -548,9 +615,13 @@ Create a new comment on a WordPress.com post
 |   ↳ `link` | string | Comment permalink |
 |   ↳ `status` | string | Comment status |
 
+</ReferenceDetails>
+
 ### WordPress List Comments
 
 List comments from WordPress.com with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -584,9 +655,13 @@ List comments from WordPress.com with optional filters
 | `total` | number | Total number of comments |
 | `totalPages` | number | Total number of result pages |
 
+</ReferenceDetails>
+
 ### WordPress Update Comment
 
 Update a comment in WordPress.com (content or status)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -614,9 +689,13 @@ Update a comment in WordPress.com (content or status)
 |   ↳ `link` | string | Comment permalink |
 |   ↳ `status` | string | Comment status |
 
+</ReferenceDetails>
+
 ### WordPress Delete Comment
 
 Delete a comment from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -644,9 +723,13 @@ Delete a comment from WordPress.com
 |   ↳ `link` | string | Comment permalink |
 |   ↳ `status` | string | Comment status |
 
+</ReferenceDetails>
+
 ### WordPress Create Category
 
 Create a new category in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -672,9 +755,13 @@ Create a new category in WordPress.com
 |   ↳ `taxonomy` | string | Taxonomy name |
 |   ↳ `parent` | number | Parent category ID |
 
+</ReferenceDetails>
+
 ### WordPress List Categories
 
 List categories from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -702,9 +789,13 @@ List categories from WordPress.com
 | `total` | number | Total number of categories |
 | `totalPages` | number | Total number of result pages |
 
+</ReferenceDetails>
+
 ### WordPress Get Category
 
 Get a single category from WordPress.com by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -727,9 +818,13 @@ Get a single category from WordPress.com by ID
 |   ↳ `taxonomy` | string | Taxonomy name |
 |   ↳ `parent` | number | Parent category ID |
 
+</ReferenceDetails>
+
 ### WordPress Update Category
 
 Update an existing category in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -756,9 +851,13 @@ Update an existing category in WordPress.com
 |   ↳ `taxonomy` | string | Taxonomy name |
 |   ↳ `parent` | number | Parent category ID |
 
+</ReferenceDetails>
+
 ### WordPress Delete Category
 
 Delete a category from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -782,9 +881,13 @@ Delete a category from WordPress.com
 |   ↳ `taxonomy` | string | Taxonomy name |
 |   ↳ `parent` | number | Parent category ID |
 
+</ReferenceDetails>
+
 ### WordPress Create Tag
 
 Create a new tag in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -808,9 +911,13 @@ Create a new tag in WordPress.com
 |   ↳ `slug` | string | Tag slug |
 |   ↳ `taxonomy` | string | Taxonomy name |
 
+</ReferenceDetails>
+
 ### WordPress List Tags
 
 List tags from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -837,9 +944,13 @@ List tags from WordPress.com
 | `total` | number | Total number of tags |
 | `totalPages` | number | Total number of result pages |
 
+</ReferenceDetails>
+
 ### WordPress Get Tag
 
 Get a single tag from WordPress.com by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -861,9 +972,13 @@ Get a single tag from WordPress.com by ID
 |   ↳ `slug` | string | Tag slug |
 |   ↳ `taxonomy` | string | Taxonomy name |
 
+</ReferenceDetails>
+
 ### WordPress Update Tag
 
 Update an existing tag in WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -888,9 +1003,13 @@ Update an existing tag in WordPress.com
 |   ↳ `slug` | string | Tag slug |
 |   ↳ `taxonomy` | string | Taxonomy name |
 
+</ReferenceDetails>
+
 ### WordPress Delete Tag
 
 Delete a tag from WordPress.com
+
+<ReferenceDetails>
 
 #### Input
 
@@ -913,9 +1032,13 @@ Delete a tag from WordPress.com
 |   ↳ `slug` | string | Tag slug |
 |   ↳ `taxonomy` | string | Taxonomy name |
 
+</ReferenceDetails>
+
 ### WordPress Get Current User
 
 Get information about the currently authenticated WordPress.com user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -941,9 +1064,13 @@ Get information about the currently authenticated WordPress.com user
 |   ↳ `roles` | array | User roles |
 |   ↳ `avatar_urls` | object | Avatar URLs at different sizes |
 
+</ReferenceDetails>
+
 ### WordPress List Users
 
 List users from WordPress.com (requires admin privileges)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -976,9 +1103,13 @@ List users from WordPress.com (requires admin privileges)
 | `total` | number | Total number of users |
 | `totalPages` | number | Total number of result pages |
 
+</ReferenceDetails>
+
 ### WordPress Get User
 
 Get a specific user from WordPress.com by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1005,9 +1136,13 @@ Get a specific user from WordPress.com by ID
 |   ↳ `roles` | array | User roles |
 |   ↳ `avatar_urls` | object | Avatar URLs at different sizes |
 
+</ReferenceDetails>
+
 ### WordPress Search Content
 
 Search across all content types in WordPress.com (posts, pages, media)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1032,5 +1167,7 @@ Search across all content types in WordPress.com (posts, pages, media)
 |   ↳ `subtype` | string | Subtype within the content type \(e.g., post, page\) |
 | `total` | number | Total number of results |
 | `totalPages` | number | Total number of result pages |
+
+</ReferenceDetails>
 
 

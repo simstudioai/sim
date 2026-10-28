@@ -5,7 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
  *
  * Deliberately dependency-free. `@/triggers` imports this module, so anything reachable
  * from here becomes reachable from the trigger barrel — and reaching `@/blocks` (directly,
- * or via `trigger-utils`) recreates the `triggers` <-> `blocks` initialization cycle that
+ * or via `triggers/utils`) recreates the `triggers` <-> `blocks` initialization cycle that
  * `scripts/check-trigger-block-cycle.ts` guards against.
  */
 

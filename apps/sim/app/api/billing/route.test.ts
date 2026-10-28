@@ -1,32 +1,24 @@
 import { authMockFns, createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetCreditBalanceForEntity,
-  mockGetOrganizationBillingData,
-  mockGetOrganizationSubscription,
-  mockGetPersonalBillingSummary,
-  mockResolveBillingInterval,
-} = vi.hoisted(() => ({
+const { mockGetCreditBalanceForEntity } = vi.hoisted(() => ({
   mockGetCreditBalanceForEntity: vi.fn(),
-  mockGetOrganizationBillingData: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockGetPersonalBillingSummary: vi.fn(),
-  mockResolveBillingInterval: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-  getPersonalBillingSummary: mockGetPersonalBillingSummary,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/organization', () => ({
-  getOrganizationBillingData: mockGetOrganizationBillingData,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  resolveBillingInterval: mockResolveBillingInterval,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/billing/credits/balance', () => ({
   getCreditBalanceForEntity: mockGetCreditBalanceForEntity,
@@ -35,6 +27,10 @@ vi.mock('@/lib/billing/credits/balance', () => ({
 import { GET } from '@/app/api/billing/route'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockGetOrganizationBillingData = billingOrganizationMockFns.mockGetOrganizationBillingData
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const mockGetPersonalBillingSummary = billingCoreMockFns.mockGetPersonalBillingSummary
+const mockResolveBillingInterval = billingSubscriptionMockFns.mockResolveBillingInterval
 
 const PERSONAL_SUMMARY = {
   type: 'individual',

@@ -1,33 +1,56 @@
 ---
 title: Zoom
 description: Create and manage Zoom meetings and recordings
+integration:
+  type: "zoom"
+  color: "#2D8CFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="zoom"
-  color="#2D8CFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Zoom](https://zoom.us/) to manage meetings, retrieve invitations and recordings, and list past participants. Meeting and recording webhooks can start workflows.
 
-To connect, add a Zoom block and select **Connect**. Manage or disconnect the account in **Settings > Integrations**.
+Connect a Zoom account from the block or **Integrations** in your workspace sidebar. For account-level authentication, follow the [Server-to-Server OAuth setup](/integrations/zoom-service-account). Manage or disconnect the saved credential from **Integrations**.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Server-to-server OAuth apps](/integrations/zoom-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.
+Sim requests these scopes when someone connects a Zoom account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/zoom` |
+| Environment variables | `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `user:read:user` | View Zoom profile information |
+| `meeting:write:meeting` | Create Zoom meetings |
+| `meeting:read:meeting` | View Zoom meeting details |
+| `meeting:read:list_meetings` | List Zoom meetings |
+| `meeting:update:meeting` | Update Zoom meetings |
+| `meeting:delete:meeting` | Delete Zoom meetings |
+| `meeting:read:invitation` | View Zoom meeting invitations |
+| `meeting:read:list_past_participants` | View past meeting participants |
+| `cloud_recording:read:list_user_recordings` | List Zoom cloud recordings |
+| `cloud_recording:read:list_recording_files` | View recording files |
+| `cloud_recording:delete:recording_file` | Delete individual cloud recording files |
+
+## Use the block [#usage-instructions]
+
+Create, read, update, or delete meetings; retrieve invitations, cloud recordings, and past participants; or delete recordings. Meeting and recording webhooks can start workflows.
 
 ## Actions
 
 ### Zoom Create Meeting
 
 Create a new Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +120,13 @@ Create a new Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
+</ReferenceDetails>
+
 ### Zoom List Meetings
 
 List all meetings for a Zoom user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -133,9 +160,13 @@ List all meetings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
+</ReferenceDetails>
+
 ### Zoom Get Meeting
 
 Get details of a specific Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -194,9 +225,13 @@ Get details of a specific Zoom meeting
 |     ↳ `duration` | number | Duration in minutes |
 |     ↳ `status` | string | Occurrence status |
 
+</ReferenceDetails>
+
 ### Zoom Update Meeting
 
 Update an existing Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -223,9 +258,13 @@ Update an existing Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was updated successfully |
 
+</ReferenceDetails>
+
 ### Zoom Delete Meeting
 
 Delete or cancel a Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -242,9 +281,13 @@ Delete or cancel a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the meeting was deleted successfully |
 
+</ReferenceDetails>
+
 ### Zoom Get Meeting Invitation
 
 Get the meeting invitation text for a Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -258,9 +301,13 @@ Get the meeting invitation text for a Zoom meeting
 | --------- | ---- | ----------- |
 | `invitation` | string | The meeting invitation text |
 
+</ReferenceDetails>
+
 ### Zoom List Recordings
 
 List all cloud recordings for a Zoom user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -308,9 +355,13 @@ List all cloud recordings for a Zoom user
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
+</ReferenceDetails>
+
 ### Zoom Get Meeting Recordings
 
 Get all recordings for a specific Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -351,9 +402,13 @@ Get all recordings for a specific Zoom meeting
 |     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 | `files` | file[] | Downloaded recording files |
 
+</ReferenceDetails>
+
 ### Zoom Delete Recording
 
 Delete cloud recordings for a Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +424,13 @@ Delete cloud recordings for a Zoom meeting
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the recording was deleted successfully |
 
+</ReferenceDetails>
+
 ### Zoom List Past Participants
 
 List participants from a past Zoom meeting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -401,16 +460,20 @@ List participants from a past Zoom meeting
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Zoom Meeting Ended
 
 Trigger workflow when a Zoom meeting ends
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -423,7 +486,7 @@ Trigger workflow when a Zoom meeting ends
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.started\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
 |     ↳ `id` | number | Meeting ID |
@@ -442,13 +505,14 @@ Trigger workflow when a Zoom meeting ends
 |     ↳ `status` | string | Meeting status \(e.g. waiting, started; when provided\) |
 |     ↳ `created_at` | string | Creation timestamp in ISO 8601 format \(when provided\) |
 
-
----
+</ReferenceDetails>
 
 ### Zoom Meeting Started
 
 Trigger workflow when a Zoom meeting starts
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -461,7 +525,7 @@ Trigger workflow when a Zoom meeting starts
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.started\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
 |     ↳ `id` | number | Meeting ID |
@@ -480,8 +544,7 @@ Trigger workflow when a Zoom meeting starts
 |     ↳ `status` | string | Meeting status \(e.g. waiting, started; when provided\) |
 |     ↳ `created_at` | string | Creation timestamp in ISO 8601 format \(when provided\) |
 
-
----
+</ReferenceDetails>
 
 ### Zoom Participant Joined
 
@@ -499,7 +562,7 @@ Trigger workflow when a participant joins a Zoom meeting
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting and participant details |
 |     ↳ `id` | number | Meeting ID |
@@ -535,7 +598,7 @@ Trigger workflow when a participant leaves a Zoom meeting
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Meeting and participant details |
 |     ↳ `id` | number | Meeting ID |
@@ -571,7 +634,7 @@ Trigger workflow when a Zoom cloud recording is completed
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(recording.completed\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `account_id` | string | Zoom account ID |
 |   ↳ `object` | object | Cloud recording details \(aligns with Zoom cloud recording objects\) |
 |     ↳ `id` | number | Meeting ID |

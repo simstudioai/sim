@@ -1,33 +1,33 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const { mockAppendTableEvent, mockDecryptSecret, mockUpdateRow, mockWriteExecutionsPatch } =
-  vi.hoisted(() => ({
-    mockAppendTableEvent: vi.fn(),
-    mockDecryptSecret: vi.fn(),
-    mockUpdateRow: vi.fn(),
-    mockWriteExecutionsPatch: vi.fn(),
-  }))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
+const { mockWriteExecutionsPatch } = vi.hoisted(() => ({
+  mockWriteExecutionsPatch: vi.fn(),
 }))
 
-vi.mock('@/lib/table/events', () => ({
-  appendTableEvent: mockAppendTableEvent,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 vi.mock('@/lib/table/rows/executions', () => ({
   writeExecutionsPatch: mockWriteExecutionsPatch,
 }))
 
-vi.mock('@/lib/table/rows/service', () => ({
-  updateRow: mockUpdateRow,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
 import { createWorkflowCellProgressWriter, writeWorkflowGroupState } from '@/lib/table/cell-write'
+
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
+const mockUpdateRow = tableRowsServiceMockFns.mockUpdateRow
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
 const TABLE: TableDefinition = {
   id: 'table-1',

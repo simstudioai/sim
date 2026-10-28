@@ -1,31 +1,23 @@
 import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckAccess, mockFindRowMatches, mockTableFilterError } = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockFindRowMatches: vi.fn(),
-  mockTableFilterError: vi.fn(),
-}))
-
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    tableFilterError: mockTableFilterError,
-    checkAccess: mockCheckAccess,
-    accessError: (result: { status: number }) =>
-      NextResponse.json(
-        { error: result.status === 404 ? 'Table not found' : 'Access denied' },
-        { status: result.status }
-      ),
-  }
-})
-
-vi.mock('@/lib/table/rows/service', () => ({
-  findRowMatches: mockFindRowMatches,
-}))
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
 import { GET } from '@/app/api/table/[tableId]/rows/find/route'
+
+const mockCheckAccess = tableRouteUtilsMockFns.mockCheckAccess
+const mockTableFilterError = tableRouteUtilsMockFns.mockTableFilterError
+const mockFindRowMatches = tableRowsServiceMockFns.mockFindRowMatches
 
 function callGet(
   query: Record<string, string>,

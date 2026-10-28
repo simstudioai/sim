@@ -1,22 +1,22 @@
 import { encryptionMockFns } from '@sim/testing'
+import { toolsUtilsMock } from '@sim/testing/mocks/blocks.mock'
+import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockTransformBlockTool, mockExecuteTool } = vi.hoisted(() => ({
-  mockTransformBlockTool: vi.fn(),
-  mockExecuteTool: vi.fn(),
-}))
-
-vi.mock('@/providers/utils', () => ({ transformBlockTool: mockTransformBlockTool }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-vi.mock('@/tools/utils', () => ({ getTool: vi.fn() }))
+vi.mock('@/providers/utils', () => providersUtilsMock)
+vi.mock('@/tools', () => toolsMock)
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 vi.mock('@/tools/utils.server', () => ({ getToolAsync: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockTransformBlockTool = providersUtilsMockFns.mockTransformBlockTool
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 function executionContext(registry: ResolvedSecretTraceRegistry | undefined): ExecutionContext {
   return {

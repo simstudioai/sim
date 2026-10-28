@@ -102,7 +102,7 @@ export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm'] a
  */
 export const SUPPORTED_ARCHIVE_EXTENSIONS = ['zip'] as const
 
-export const SUPPORTED_IMAGE_EXTENSIONS = [
+const SUPPORTED_IMAGE_EXTENSIONS = [
   'png',
   'jpg',
   'jpeg',
@@ -164,25 +164,6 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
   jsonl: ['application/jsonl', 'application/x-jsonlines', 'text/jsonl', 'application/octet-stream'],
   yaml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
   yml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
-}
-
-export const SUPPORTED_AUDIO_MIME_TYPES: Record<SupportedAudioExtension, string[]> = {
-  mp3: ['audio/mpeg', 'audio/mp3'],
-  m4a: ['audio/mp4', 'audio/x-m4a', 'audio/m4a'],
-  wav: ['audio/wav', 'audio/wave', 'audio/x-wav'],
-  webm: ['audio/webm'],
-  ogg: ['audio/ogg', 'audio/vorbis'],
-  flac: ['audio/flac', 'audio/x-flac'],
-  aac: ['audio/aac', 'audio/x-aac'],
-  opus: ['audio/opus'],
-}
-
-export const SUPPORTED_VIDEO_MIME_TYPES: Record<SupportedVideoExtension, string[]> = {
-  mp4: ['video/mp4', 'video/mpeg'],
-  mov: ['video/quicktime', 'video/x-quicktime'],
-  avi: ['video/x-msvideo', 'video/avi'],
-  mkv: ['video/x-matroska'],
-  webm: ['video/webm'],
 }
 
 export const ACCEPTED_FILE_TYPES = Object.values(SUPPORTED_MIME_TYPES).flat()

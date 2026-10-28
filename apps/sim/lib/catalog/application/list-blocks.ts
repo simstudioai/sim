@@ -1,18 +1,18 @@
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
-  isBlockVisibleToCaller,
-  loadCatalogWorkspaceContext,
-  resolveCatalogGate,
-  withCatalogBlockScope,
-} from '@/lib/catalog/application/catalog-context'
-import {
   type CatalogPage,
   matchesCatalogSearch,
   normalizeCatalogSearch,
   sortCatalogEntries,
   takeCatalogPage,
 } from '@/lib/catalog/application/catalog-page'
+import {
+  isBlockVisibleToCaller,
+  loadCatalogWorkspaceContext,
+  resolveCatalogGate,
+  withCatalogBlockScope,
+} from '@/lib/catalog/application/context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import {
   type CatalogBlockSummary,

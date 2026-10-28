@@ -31,23 +31,24 @@ import {
   REPO_DIR,
   raceAbort,
   scrubGitSecrets,
+  toolResultError,
 } from '@/executor/handlers/pi/cloud/shared'
 import type { PiBackendRun, PiCloudReviewRunParams } from '@/executor/handlers/pi/core/backend'
 import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
 import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/core/events'
 import { mapThinkingLevel } from '@/executor/handlers/pi/core/keys'
 import {
+  createScrubbedPiError,
+  getScrubbedPiErrorMessage,
+  scrubPiEvent,
+} from '@/executor/handlers/pi/core/redaction'
+import {
   createPiModelRuntime,
   createSealedPiResourceLoader,
   loadPiSdk,
   resolvePiSdkModel,
   toPiTool,
-} from '@/executor/handlers/pi/core/pi-sdk'
-import {
-  createScrubbedPiError,
-  getScrubbedPiErrorMessage,
-  scrubPiEvent,
-} from '@/executor/handlers/pi/core/redaction'
+} from '@/executor/handlers/pi/core/sdk'
 import {
   PI_SEARCH_TOOL_NAME,
   PI_SEARCH_UNTRUSTED_SENTENCE,
@@ -186,9 +187,7 @@ async function submitReview(
   )
 
   if (!result.success) {
-    throw new Error(
-      `Failed to submit review for PR #${params.pullNumber}: ${result.error ?? 'unknown error'}`
-    )
+    throw toolResultError(`Failed to submit review for PR #${params.pullNumber}`, result)
   }
 
   const output: unknown = result.output
@@ -300,7 +299,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
             )
           }
 
-          const settingsManager = sdk.SettingsManager.inMemory()
+          const settingsManager = sdk.SettingsManager.inMemory({ cacheWarming: 'off' })
           const resourceLoader = createSealedPiResourceLoader(
             sdk,
             buildReviewSystemPrompt(Boolean(searchTool))

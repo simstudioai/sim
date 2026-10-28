@@ -37,7 +37,7 @@ import {
   type SystemPackageIssue,
   validateDependencies,
   validateSystemPackages,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+} from '@/lib/execution/remote-sandbox/spec'
 import type { SandboxDependencyStrategy } from '@/lib/execution/remote-sandbox/types'
 
 /**
@@ -291,12 +291,6 @@ export async function listWorkspaceSandboxesPage(params: {
 
   const page = keysetPage(keys, rows, limit)
   return { data: await attachBuildStatus(page.data), nextCursorKeys: page.nextCursorKeys }
-}
-
-/** The whole set, name-ordered, for the surfaces that render every sandbox at once. */
-export async function listWorkspaceSandboxes(workspaceId: string): Promise<Sandbox[]> {
-  const page = await listWorkspaceSandboxesPage({ workspaceId })
-  return page.data
 }
 
 /**

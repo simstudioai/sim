@@ -1,31 +1,29 @@
 ---
 title: Upstash
 description: Serverless Redis with Upstash
+integration:
+  type: "upstash"
+  color: "#181C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="upstash"
-  color="#181C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Upstash](https://upstash.com/) Redis through its REST API to manage keys, hashes, lists, counters, and expiry. The Command action accepts a Redis command for operations beyond the dedicated actions.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect to Upstash Redis to perform key-value, hash, list, and utility operations via the REST API.
-
-
 
 ## Actions
 
 ### Upstash Redis Get
 
 Get the value of a key from Upstash Redis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -42,9 +40,13 @@ Get the value of a key from Upstash Redis.
 | `key` | string | The key that was retrieved |
 | `value` | json | The value of the key \(string\), or null if not found |
 
+</ReferenceDetails>
+
 ### Upstash Redis Set
 
 Set the value of a key in Upstash Redis with an optional expiration time in seconds.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -63,9 +65,13 @@ Set the value of a key in Upstash Redis with an optional expiration time in seco
 | `key` | string | The key that was set |
 | `result` | string | The result of the SET operation \(typically "OK"\) |
 
+</ReferenceDetails>
+
 ### Upstash Redis Delete
 
 Delete a key from Upstash Redis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -82,9 +88,13 @@ Delete a key from Upstash Redis.
 | `key` | string | The key that was deleted |
 | `deletedCount` | number | Number of keys deleted \(0 if key did not exist, 1 if deleted\) |
 
+</ReferenceDetails>
+
 ### Upstash Redis Keys
 
 List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -102,9 +112,13 @@ List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*).
 | `keys` | array | List of keys matching the pattern |
 | `count` | number | Number of keys found |
 
+</ReferenceDetails>
+
 ### Upstash Redis Command
 
 Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., ["HSET", "myhash", "field1", "value1"]).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -121,9 +135,13 @@ Execute an arbitrary Redis command against Upstash Redis. Pass the full command 
 | `command` | string | The command that was executed |
 | `result` | json | The result of the Redis command |
 
+</ReferenceDetails>
+
 ### Upstash Redis HSET
 
 Set a field in a hash stored at a key in Upstash Redis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +161,13 @@ Set a field in a hash stored at a key in Upstash Redis.
 | `field` | string | The field that was set |
 | `result` | number | Number of new fields added \(0 if field was updated, 1 if new\) |
 
+</ReferenceDetails>
+
 ### Upstash Redis HGET
 
 Get the value of a field in a hash stored at a key in Upstash Redis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +186,13 @@ Get the value of a field in a hash stored at a key in Upstash Redis.
 | `field` | string | The field that was retrieved |
 | `value` | json | The value of the hash field \(string\), or null if not found |
 
+</ReferenceDetails>
+
 ### Upstash Redis HGETALL
 
 Get all fields and values of a hash stored at a key in Upstash Redis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -184,9 +210,13 @@ Get all fields and values of a hash stored at a key in Upstash Redis.
 | `fields` | object | All field-value pairs in the hash, keyed by field name |
 | `fieldCount` | number | Number of fields in the hash |
 
+</ReferenceDetails>
+
 ### Upstash Redis INCR
 
 Atomically increment the integer value of a key by one in Upstash Redis. If the key does not exist, it is set to 0 before incrementing.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -203,9 +233,13 @@ Atomically increment the integer value of a key by one in Upstash Redis. If the 
 | `key` | string | The key that was incremented |
 | `value` | number | The new value after incrementing |
 
+</ReferenceDetails>
+
 ### Upstash Redis EXPIRE
 
 Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -223,9 +257,13 @@ Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted.
 | `key` | string | The key that expiration was set on |
 | `result` | number | 1 if the timeout was set, 0 if the key does not exist |
 
+</ReferenceDetails>
+
 ### Upstash Redis TTL
 
 Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key has no expiration, -2 if the key does not exist.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -242,9 +280,13 @@ Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key 
 | `key` | string | The key checked |
 | `ttl` | number | Remaining TTL in seconds. Positive integer if the key has a TTL set, -1 if the key exists with no expiration, -2 if the key does not exist. |
 
+</ReferenceDetails>
+
 ### Upstash Redis LPUSH
 
 Prepend a value to the beginning of a list in Upstash Redis. Creates the list if it does not exist.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -262,9 +304,13 @@ Prepend a value to the beginning of a list in Upstash Redis. Creates the list if
 | `key` | string | The list key |
 | `length` | number | The length of the list after the push |
 
+</ReferenceDetails>
+
 ### Upstash Redis LRANGE
 
 Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and stop to get all elements.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -284,9 +330,13 @@ Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and
 | `values` | array | List of elements in the specified range |
 | `count` | number | Number of elements returned |
 
+</ReferenceDetails>
+
 ### Upstash Redis EXISTS
 
 Check if a key exists in Upstash Redis. Returns true if the key exists, false otherwise.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -303,9 +353,13 @@ Check if a key exists in Upstash Redis. Returns true if the key exists, false ot
 | `key` | string | The key that was checked |
 | `exists` | boolean | Whether the key exists \(true\) or not \(false\) |
 
+</ReferenceDetails>
+
 ### Upstash Redis SETNX
 
 Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -323,9 +377,13 @@ Set the value of a key only if it does not already exist. Returns true if the ke
 | `key` | string | The key that was attempted to set |
 | `wasSet` | boolean | Whether the key was set \(true\) or already existed \(false\) |
 
+</ReferenceDetails>
+
 ### Upstash Redis INCRBY
 
 Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -342,5 +400,7 @@ Increment the integer value of a key by a given amount. Use a negative value to 
 | --------- | ---- | ----------- |
 | `key` | string | The key that was incremented |
 | `value` | number | The new value after incrementing |
+
+</ReferenceDetails>
 
 

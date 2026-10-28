@@ -80,7 +80,7 @@ export const deletePlanTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async () => {
     logger.info('Plan deleted successfully')
 
     const result: MicrosoftPlannerDeletePlanResponse = {

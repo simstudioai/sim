@@ -18,7 +18,6 @@ import { wizaProspectSearchTool } from '@/tools/wiza/prospect_search'
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, unknown>) {

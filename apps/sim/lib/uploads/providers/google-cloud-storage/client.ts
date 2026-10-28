@@ -21,10 +21,7 @@ import type {
   MultipartCompletionPolicy,
   StoredObjectInfo,
 } from '@/lib/uploads/shared/types'
-import {
-  sanitizeFilenameForMetadata,
-  sanitizeStorageMetadata,
-} from '@/lib/uploads/utils/file-utils'
+import { sanitizeFilenameForMetadata, sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 
 const logger = createLogger('GcsClient')
@@ -224,16 +221,6 @@ export async function uploadToGcs(
     size: fileSize,
     type: contentType,
   }
-}
-
-/**
- * Generate a presigned URL for direct file access
- * @param key GCS object key
- * @param expiresIn Time in seconds until URL expires
- * @returns Presigned URL
- */
-export async function getPresignedUrl(key: string, expiresIn = 3600) {
-  return getPresignedUrlWithConfig(key, { bucket: GCS_CONFIG.bucket }, expiresIn)
 }
 
 /**
@@ -545,8 +532,11 @@ async function gcsXmlApiRequest(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '')
-    throw new Error(
-      `GCS XML API ${method} ${query.split('&')[0]} failed for ${key}: ${response.status} ${response.statusText}${errorBody ? ` – ${errorBody.slice(0, 500)}` : ''}`
+    throw Object.assign(
+      new Error(
+        `GCS XML API ${method} ${query.split('&')[0]} failed for ${key}: ${response.status} ${response.statusText}${errorBody ? ` – ${errorBody.slice(0, 500)}` : ''}`
+      ),
+      { statusCode: response.status }
     )
   }
 

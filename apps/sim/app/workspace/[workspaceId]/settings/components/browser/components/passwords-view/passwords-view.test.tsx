@@ -3,6 +3,7 @@
  */
 import { act, type ReactNode } from 'react'
 import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,7 +42,7 @@ vi.mock('@sim/emcn', () => ({
   toast: mockToast,
 }))
 
-vi.mock('@/lib/desktop', () => ({ getDesktopBridge: () => mockBridge.current }))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/use-settings-search', () => ({
   useSettingsSearch: () => [mockSearch.value, vi.fn()],
@@ -107,6 +108,8 @@ vi.mock(
 
 import { PasswordsView } from '@/app/workspace/[workspaceId]/settings/components/browser/components/passwords-view/passwords-view'
 
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() => mockBridge.current ?? undefined)
+
 function credential(id: string, origin: string, username: string): BrowserCredentialMetadata {
   return { id, origin, username, createdAt: '', updatedAt: '', source: 'chrome' }
 }
@@ -170,7 +173,6 @@ describe('PasswordsView', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('never shows a password in the list', async () => {

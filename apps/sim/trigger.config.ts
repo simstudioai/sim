@@ -2,6 +2,8 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http'
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
+import { createLogger } from '@sim/logger'
+import { distrustCompromisedRoots } from '@sim/security/tls-trust'
 import {
   additionalFiles,
   additionalPackages,
@@ -87,7 +89,7 @@ const grafanaTelemetry = grafanaFullyConfigured
 export default defineConfig({
   project: env.TRIGGER_PROJECT_ID!,
   runtime: 'node-24',
-  logLevel: 'log',
+  logLevel: 'info',
   maxDuration: 5400,
   retries: {
     enabledInDev: false,
@@ -97,7 +99,18 @@ export default defineConfig({
   },
   dirs: ['./background'],
   /**
-   * Runs before any task run, in the run process. Marks the process so that
+   * Every file under `dirs` is imported as a task file at deploy time, so any
+   * test co-located there must be excluded or its top-level `vi.mock()` throws
+   * outside Vitest and fails the whole deploy. Setting this replaces the CLI's
+   * defaults (`*.test.*` and `*.spec.*`), which are restated here alongside
+   * the `*.integration.*` suffix used for suites that run against real
+   * Postgres/Redis, across every extension task discovery matches.
+   */
+  ignorePatterns: ['**/*.{test,spec,integration}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
+  /**
+   * Runs before any task run, in the run process. First drops the compromised
+   * eMudhra roots from the default CA set, before the run opens any TLS
+   * connection (see `@sim/security/tls-trust`). Then marks the process so that
    * dispatch decisions further down the call graph stop inferring from
    * environment variables whether Trigger.dev is available: a process that
    * Trigger.dev is executing has Trigger.dev available by definition.
@@ -115,7 +128,13 @@ export default defineConfig({
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
   init: async () => {
+    const tlsTrust = distrustCompromisedRoots()
+    if (tlsTrust.unsupported || tlsTrust.error) {
+      createLogger('TriggerInit').error('Could not distrust compromised CA roots', tlsTrust)
+    }
     markInsideTriggerRun()
+    const { reportAccountTokenSealing } = await import('@sim/db/sealed-text')
+    reportAccountTokenSealing()
     const { warmRedisConnection } = await import('./lib/core/config/redis')
     await warmRedisConnection()
   },
@@ -136,6 +155,8 @@ export default defineConfig({
       // breaks inside the worker bundle; it must load from node_modules.
       'pdfjs-dist',
       '@napi-rs/canvas',
+      // Native libvips binding; knowledge processing reads and downscales images with it.
+      'sharp',
     ],
     extensions: [
       syncEnvVars(() => [
@@ -155,6 +176,10 @@ export default defineConfig({
           './lib/execution/sandbox/bundles/pptxgenjs.cjs',
           './lib/execution/sandbox/bundles/docx.cjs',
           './lib/execution/sandbox/bundles/pdf-lib.cjs',
+          './lib/internal/oracledb/oracle-worker.cjs',
+          './scripts/oracledb-patch-self-test.cjs',
+          './scripts/verify-oracledb-patch.cjs',
+          '../../node_modules/oracledb/**/*',
         ],
       }),
       additionalPackages({
@@ -168,6 +193,7 @@ export default defineConfig({
           '@daytona/sdk',
           'pdfjs-dist',
           '@napi-rs/canvas',
+          'sharp',
         ],
       }),
     ],

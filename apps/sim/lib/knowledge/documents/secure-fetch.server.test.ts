@@ -1,4 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   route: vi.fn(),
@@ -8,13 +12,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/core/network/context.server', () => ({
   resolveCurrentOutboundRoute: mocks.route,
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createSsrfGuardedFetchWithDispatcher: () => ({ fetch: mocks.gatewayFetch }),
-  secureFetchWithValidation: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+
+inputValidationMockFns.mockCreateSsrfGuardedFetchWithDispatcher.mockImplementation(() => ({
+  fetch: mocks.gatewayFetch,
+}))
 
 const url = 'https://api.example.invalid/items'
 const noRetries = { maxRetries: 0, retryBudgetMs: 1_000 }
@@ -25,7 +30,6 @@ beforeEach(() => {
   mocks.directFetch.mockImplementation(async () => new Response('direct'))
   mocks.gatewayFetch.mockImplementation(async () => new Response('gateway'))
 })
-afterEach(() => vi.unstubAllGlobals())
 
 describe('connector request routing', () => {
   it('reads policy after provider admission and never bypasses a revoked route', async () => {

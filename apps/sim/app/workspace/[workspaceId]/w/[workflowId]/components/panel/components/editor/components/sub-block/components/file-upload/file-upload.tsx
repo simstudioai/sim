@@ -8,18 +8,18 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { Progress } from '@/components/ui/progress'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
-import { formatFileSize, getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize, getExtensionFromMimeType } from '@/lib/uploads/utils/file'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection'
 import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
@@ -128,13 +128,11 @@ interface SingleFileSelectorProps {
   file: UploadedFile
   options: Array<{ label: string; value: string; disabled?: boolean }>
   selectedValue: string
-  inputValue: string
   onInputChange: (value: string) => void
   onClear: (e: React.MouseEvent) => void
   onOpenChange: (open: boolean) => void
   disabled: boolean
   isLoading: boolean
-  formatFileSize: (bytes: number) => string
   truncateMiddle: (text: string, start?: number, end?: number) => string
   isDeleting: boolean
   workflowSearchHighlight?: ReturnType<typeof getWorkflowSearchLabelHighlight>
@@ -149,13 +147,11 @@ function SingleFileSelector({
   file,
   options,
   selectedValue,
-  inputValue,
   onInputChange,
   onClear,
   onOpenChange,
   disabled,
   isLoading,
-  formatFileSize,
   truncateMiddle,
   isDeleting,
   workflowSearchHighlight,
@@ -276,8 +272,7 @@ export function FileUpload({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const {
     data: workspaceFiles = [],
@@ -964,7 +959,6 @@ export function FileUpload({
           file={filesArray[0]}
           options={singleFileOptions}
           selectedValue={selectedFileId}
-          inputValue={inputValue}
           onInputChange={handleComboboxChange}
           onClear={(e) => handleRemoveFile(filesArray[0], e)}
           onOpenChange={(open) => {
@@ -972,7 +966,6 @@ export function FileUpload({
           }}
           disabled={disabled}
           isLoading={loadingWorkspaceFiles}
-          formatFileSize={formatFileSize}
           truncateMiddle={truncateMiddle}
           isDeleting={deletingFiles[filesArray[0]?.path || '']}
           workflowSearchHighlight={getWorkflowSearchLabelHighlight({

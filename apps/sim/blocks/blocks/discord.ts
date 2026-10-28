@@ -2,7 +2,6 @@ import { DiscordIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DiscordResponse } from '@/tools/discord/types'
 
 /**
  * Canonical basic/advanced pair, shared by the card sentences below. Listing
@@ -11,13 +10,13 @@ import type { DiscordResponse } from '@/tools/discord/types'
  */
 const ATTACHMENTS_FIELD = ['attachmentFiles', 'files'] as const
 
-export const DiscordBlock: BlockConfig<DiscordResponse> = {
+export const DiscordBlock: BlockConfig = {
   type: 'discord',
   name: 'Discord',
   description: 'Interact with Discord',
   authMode: AuthMode.BotToken,
   longDescription:
-    'Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.',
+    'Manage Discord messages, threads, channels, roles, members, invites, and webhooks.',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#5865F2',

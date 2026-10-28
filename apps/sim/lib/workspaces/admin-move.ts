@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  copilotChats,
   foldedEmail,
   invitation,
   invitationWorkspaceGrant,
@@ -20,7 +21,6 @@ import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, gt, ilike, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
-import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   hasPaidSubscriptionStatus,
@@ -41,8 +41,11 @@ import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { PENDING_INVITATION_UNIQUE_INDEX, sendInvitationEmail } from '@/lib/invitations/send'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { deleteCustomBlock } from '@/lib/workflows/custom-blocks/operations'
+import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import {
   type CrossOrgForkEdge,
   cleanupSourceOrganizationArtifactsTx,
@@ -50,10 +53,12 @@ import {
   countRetentionRulesForWorkspace,
   findAttachedPermissionGroups,
   findCrossOrgForkEdges,
+  findInboundSourceOrgCustomBlockUsage,
   findRetainedCollaboratorCaps,
   findSourceOrgCustomBlocksForWorkspace,
   findUnpublishableCustomBlocks,
   getSourceOrganization,
+  type InboundSourceOrgCustomBlock,
   resolveMoveEntitlements,
   willBrandingChange,
 } from '@/lib/workspaces/admin-move-source-impact'
@@ -112,10 +117,10 @@ export class WorkspaceMoveError extends Error {
       | 'seat-capacity-exceeded'
       | 'invitation-volume-exceeded'
       | 'source-equals-destination'
-      | 'move-operation-parameter-mismatch'
       | 'destination-entitlement-downgrade'
       | 'fork-lineage-conflict'
       | 'pending-invitations-present'
+      | 'project-conflict'
   ) {
     super(message)
     this.name = 'WorkspaceMoveError'
@@ -171,6 +176,11 @@ export interface WorkspaceMoveSourceImpact {
     movingWorkspaceUsage: { live: number; deployed: number }
     sourceOrgElsewhereUsage: { live: number; deployed: number }
   }>
+  /**
+   * See {@link findInboundSourceOrgCustomBlockUsage}. Advisory, never blocking; a preflight
+   * projection, so empty on an applied or replayed move.
+   */
+  inboundCustomBlocks: InboundSourceOrgCustomBlock[]
   /** Fork edges crossing the org boundary. Non-empty blocks the move. */
   blockingForkEdges: Array<{
     workspaceId: string
@@ -191,6 +201,7 @@ export interface WorkspaceMoveSourceImpact {
   /** Rows omitted to stay inside the contract's array bounds, or `null`. */
   truncated: {
     customBlocks: number
+    inboundCustomBlocks: number
     permissionGroups: number
     collaboratorCaps: number
     forkEdges: number
@@ -314,7 +325,6 @@ interface MoveTransactionResult {
   summary: WorkspaceMovePreflight
 }
 
-export const MIGRATED_INVITATION_EMAIL_EVENT_TYPE = 'invitation.send-migrated-link'
 export const ADMIN_WORKSPACE_MOVE_OPERATION_EVENT_TYPE = 'admin.workspace-move-operation'
 
 interface AdminWorkspaceMoveOperationRequest {
@@ -457,28 +467,61 @@ async function resolveRecordedSourceOrganization(
 }
 
 /**
- * The truncation record for an applied summary, merging what the move's own
- * lists dropped with what the credential summary dropped — the same merge
- * preflight performs, so a partial applied review is never presented as a
- * complete one.
+ * What a completed move did to the source organization, for its applied and replayed
+ * summaries. Usage counts are zero rather than measured: they describe how much breaks in the
+ * source organization, the reads that produce them are not transaction-safe, and preflight
+ * carries the real numbers. Lists are bounded like preflight's, with the same truncation merge,
+ * so a partial review is never presented as a complete one.
  */
-function buildAppliedTruncation(params: {
-  unpublishedCustomBlocks: number
-  detachedPermissionGroups: number
+function buildAppliedSourceImpact(params: {
+  unpublishedCustomBlocks: Array<{ id: string; type: string; name: string }>
+  detachedPermissionGroupIds: string[]
   credentials: WorkspaceMoveCredentialSummary
-}): WorkspaceMoveSourceImpact['truncated'] {
+}): WorkspaceMoveSourceImpact {
+  const blocks = boundList(params.unpublishedCustomBlocks, PREFLIGHT_LIST_LIMITS.customBlocks)
+  const groups = boundList(
+    params.detachedPermissionGroupIds,
+    PREFLIGHT_LIST_LIMITS.permissionGroups
+  )
   const truncated = {
-    customBlocks: Math.max(params.unpublishedCustomBlocks - PREFLIGHT_LIST_LIMITS.customBlocks, 0),
-    permissionGroups: Math.max(
-      params.detachedPermissionGroups - PREFLIGHT_LIST_LIMITS.permissionGroups,
-      0
-    ),
+    customBlocks: blocks.dropped,
+    inboundCustomBlocks: 0,
+    permissionGroups: groups.dropped,
     collaboratorCaps: 0,
     forkEdges: 0,
     credentials: params.credentials.truncatedCredentials,
     environmentVariableKeys: params.credentials.truncatedEnvironmentVariableKeys,
   }
-  return Object.values(truncated).some((dropped) => dropped > 0) ? truncated : null
+  return {
+    unpublishedCustomBlocks: blocks.items.map(({ id, type, name }) => ({
+      id,
+      type,
+      name,
+      movingWorkspaceUsage: { live: 0, deployed: 0 },
+      sourceOrgElsewhereUsage: { live: 0, deployed: 0 },
+    })),
+    detachedPermissionGroups: groups.items.map((permissionGroupId) => ({
+      permissionGroupId,
+      name: '',
+    })),
+    /** The remaining fields project the pre-move state, which is gone once the move lands. */
+    inboundCustomBlocks: [],
+    blockingForkEdges: [],
+    strippedRetentionRules: { piiRedactionRules: 0, retentionOverrides: 0 },
+    retainedCollaboratorCaps: [],
+    brandingChanges: false,
+    truncated: Object.values(truncated).some((dropped) => dropped > 0) ? truncated : null,
+  }
+}
+
+/**
+ * A completed move passed the downgrade fence, so it lost no capabilities; the plan flags it
+ * was checked against are not recorded, so a replay cannot report them.
+ */
+const REPLAYED_MOVE_ENTITLEMENTS: WorkspaceMoveEntitlements = {
+  sourceIsEnterprise: false,
+  destinationIsEnterprise: false,
+  capabilitiesLost: [],
 }
 
 function workspaceMoveOperationMatches(
@@ -547,7 +590,7 @@ export async function searchWorkspaceMoveCandidates(search: string, limit = 20, 
     .from(workspace)
     .innerJoin(user, eq(user.id, workspace.ownerId))
     .leftJoin(organization, eq(organization.id, workspace.organizationId))
-    .where(and(or(eq(workspace.id, query), ilike(workspace.name, `%${query}%`)), undefined))
+    .where(or(eq(workspace.id, query), ilike(workspace.name, `%${query}%`)))
     .orderBy(asc(workspace.name))
     .limit(Math.min(Math.max(limit, 1), 50))
     .offset(Math.max(offset, 0))
@@ -686,6 +729,7 @@ export async function getWorkspaceMovePreflight(
    */
   const droppedTotal =
     (sourceImpact.truncated?.customBlocks ?? 0) +
+    (sourceImpact.truncated?.inboundCustomBlocks ?? 0) +
     (sourceImpact.truncated?.permissionGroups ?? 0) +
     (sourceImpact.truncated?.collaboratorCaps ?? 0) +
     boundedForkEdges.dropped +
@@ -695,6 +739,7 @@ export async function getWorkspaceMovePreflight(
     droppedTotal > 0
       ? {
           customBlocks: sourceImpact.truncated?.customBlocks ?? 0,
+          inboundCustomBlocks: sourceImpact.truncated?.inboundCustomBlocks ?? 0,
           permissionGroups: sourceImpact.truncated?.permissionGroups ?? 0,
           collaboratorCaps: sourceImpact.truncated?.collaboratorCaps ?? 0,
           forkEdges: boundedForkEdges.dropped,
@@ -795,7 +840,7 @@ function buildMoveNotices(params: {
   if (params.sourceImpact.truncated) {
     const t = params.sourceImpact.truncated
     notices.push(
-      `This review is incomplete — some lists were truncated to stay within response limits: ${t.customBlocks} custom block(s), ${t.permissionGroups} permission group(s), ${t.collaboratorCaps} collaborator cap(s), ${t.forkEdges} fork edge(s), ${t.credentials} credential(s) and ${t.environmentVariableKeys} environment variable(s) not shown.`
+      `This review is incomplete — some lists were truncated to stay within response limits: ${t.customBlocks} custom block(s), ${t.inboundCustomBlocks} custom block(s) used from elsewhere, ${t.permissionGroups} permission group(s), ${t.collaboratorCaps} collaborator cap(s), ${t.forkEdges} fork edge(s), ${t.credentials} credential(s) and ${t.environmentVariableKeys} environment variable(s) not shown.`
     )
   }
   if (!params.sourceOrganization) return notices
@@ -810,6 +855,12 @@ function buildMoveNotices(params: {
     )
     notices.push(
       `${params.sourceImpact.unpublishedCustomBlocks.length} custom block${params.sourceImpact.unpublishedCustomBlocks.length === 1 ? '' : 's'} will be unpublished from ${params.sourceOrganization.name}${strandedDeployments > 0 ? `, breaking ${strandedDeployments} deployed workflow${strandedDeployments === 1 ? '' : 's'} that stay behind` : ''}.`
+    )
+  }
+  const inboundBlocks = params.sourceImpact.inboundCustomBlocks.length
+  if (inboundBlocks > 0) {
+    notices.push(
+      `${inboundBlocks} custom block${inboundBlocks === 1 ? '' : 's'} published elsewhere in ${params.sourceOrganization.name} ${inboundBlocks === 1 ? 'is' : 'are'} used by this workspace's workflows and will stop resolving after the move. Publish ${inboundBlocks === 1 ? 'it' : 'them'} in ${params.destinationOrganization.name} or remove ${inboundBlocks === 1 ? 'it' : 'them'} from those workflows.`
     )
   }
   const sourceBackedCredentials = params.credentials.items.filter(
@@ -877,6 +928,7 @@ async function collectSourceOrganizationImpact(
   if (!sourceOrganizationId) {
     return {
       unpublishedCustomBlocks: [],
+      inboundCustomBlocks: [],
       detachedPermissionGroups: [],
       strippedRetentionRules: { piiRedactionRules: 0, retentionOverrides: 0 },
       retainedCollaboratorCaps: [],
@@ -885,27 +937,36 @@ async function collectSourceOrganizationImpact(
     }
   }
 
-  const [customBlocks, permissionGroups, retentionSettings, collaboratorCaps, brandingChanges] =
-    await Promise.all([
-      findUnpublishableCustomBlocks(workspaceId, sourceOrganizationId),
-      findAttachedPermissionGroups(workspaceId),
-      db
-        .select({ dataRetentionSettings: organization.dataRetentionSettings })
-        .from(organization)
-        .where(eq(organization.id, sourceOrganizationId))
-        .limit(1),
-      findRetainedCollaboratorCaps(workspaceId, sourceOrganizationId),
-      willBrandingChange(sourceOrganizationId, destinationOrganizationId),
-    ])
+  const [
+    customBlocks,
+    inboundCustomBlocks,
+    permissionGroups,
+    retentionSettings,
+    collaboratorCaps,
+    brandingChanges,
+  ] = await Promise.all([
+    findUnpublishableCustomBlocks(workspaceId, sourceOrganizationId),
+    findInboundSourceOrgCustomBlockUsage(workspaceId, sourceOrganizationId),
+    findAttachedPermissionGroups(workspaceId),
+    db
+      .select({ dataRetentionSettings: organization.dataRetentionSettings })
+      .from(organization)
+      .where(eq(organization.id, sourceOrganizationId))
+      .limit(1),
+    findRetainedCollaboratorCaps(workspaceId, sourceOrganizationId),
+    willBrandingChange(sourceOrganizationId, destinationOrganizationId),
+  ])
 
   const boundedBlocks = boundList(customBlocks.items, PREFLIGHT_LIST_LIMITS.customBlocks)
   /** Enrichment already capped the slice, so the gap comes from the true total. */
   const droppedBlocks = Math.max(customBlocks.total - boundedBlocks.items.length, 0)
+  const boundedInbound = boundList(inboundCustomBlocks, PREFLIGHT_LIST_LIMITS.customBlocks)
   const boundedGroups = boundList(permissionGroups, PREFLIGHT_LIST_LIMITS.permissionGroups)
   const boundedCaps = boundList(collaboratorCaps, PREFLIGHT_LIST_LIMITS.collaboratorCaps)
 
   return {
     unpublishedCustomBlocks: boundedBlocks.items,
+    inboundCustomBlocks: boundedInbound.items,
     detachedPermissionGroups: boundedGroups.items,
     strippedRetentionRules: countRetentionRulesForWorkspace(
       retentionSettings[0]?.dataRetentionSettings,
@@ -914,9 +975,10 @@ async function collectSourceOrganizationImpact(
     retainedCollaboratorCaps: boundedCaps.items,
     brandingChanges,
     truncated:
-      droppedBlocks + boundedGroups.dropped + boundedCaps.dropped > 0
+      droppedBlocks + boundedInbound.dropped + boundedGroups.dropped + boundedCaps.dropped > 0
         ? {
             customBlocks: droppedBlocks,
+            inboundCustomBlocks: boundedInbound.dropped,
             permissionGroups: boundedGroups.dropped,
             collaboratorCaps: boundedCaps.dropped,
             forkEdges: 0,
@@ -956,15 +1018,6 @@ export async function moveWorkspaceToOrganization(params: {
    * retry through the existing loop when it moved underneath us.
    */
   let candidateSourceOrganizationId = await readWorkspaceOrganizationId(params.workspaceId)
-  /**
-   * Resolved outside the transaction on purpose — see the entitlement check
-   * inside it for why. Recomputed per attempt so a retry after a source-org
-   * change re-evaluates against the organization actually being left.
-   */
-  let entitlements = await resolveMoveEntitlements(
-    candidateSourceOrganizationId,
-    params.destinationOrganizationId
-  )
   let result: MoveTransactionResult | undefined
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -1067,8 +1120,6 @@ export async function moveWorkspaceToOrganization(params: {
           throw new SourceOrganizationChangedError(workspaceRow.organizationId)
         }
         const sourceOrganizationId = workspaceRow.organizationId
-        /** Set by the in-transaction fence; the summary reports this, not the optimistic read. */
-        let fencedEntitlements: WorkspaceMoveEntitlements | undefined
         const moveState = classifyWorkspaceMoveState(workspaceRow, params.destinationOrganizationId)
 
         const destination = await getDestinationOrganization(params.destinationOrganizationId, tx)
@@ -1124,20 +1175,13 @@ export async function moveWorkspaceToOrganization(params: {
             invitationEvents: [],
             summary: await getMovedWorkspaceSummary(tx, params.workspaceId, destination, {
               sourceOrganization: recordedSource.organization,
-              sourceOrganizationImpact: {
-                ...EMPTY_SOURCE_IMPACT,
-                truncated: buildAppliedTruncation({
-                  unpublishedCustomBlocks: 0,
-                  detachedPermissionGroups: 0,
-                  credentials: replayedCredentials,
-                }),
-              },
+              sourceOrganizationImpact: buildAppliedSourceImpact({
+                unpublishedCustomBlocks: recordedAudit?.unpublishedCustomBlocks ?? [],
+                detachedPermissionGroupIds: recordedAudit?.detachedPermissionGroupIds ?? [],
+                credentials: replayedCredentials,
+              }),
               credentials: replayedCredentials,
-              entitlements: {
-                sourceIsEnterprise: false,
-                destinationIsEnterprise: false,
-                capabilitiesLost: [],
-              },
+              entitlements: REPLAYED_MOVE_ENTITLEMENTS,
               notices: recordedSource.unknown
                 ? [
                     'This workspace was already in the destination organization, so the organization it originally came from is no longer recoverable.',
@@ -1187,19 +1231,11 @@ export async function moveWorkspaceToOrganization(params: {
         }
 
         /**
-         * The three org-to-org blockers, re-checked under the locks. Preflight
-         * evaluated them too, but a subscription can lapse, a fork can be
-         * created, and an invitation can arrive in between — and each of these
-         * either violates a cross-org invariant or silently rewrites a promise
-         * the source organization made.
-         */
-        /**
-         * The fork check is NOT gated on an organization source. A personal
-         * workspace whose parent has since moved into an organization still
-         * produces a cross-organization edge when it lands in a different one,
-         * and the invariant admits no exceptions. Preflight already reports it
-         * unconditionally; gating it here would let the transaction accept a
-         * move preflight had refused.
+         * Preflight's blockers, re-checked under the locks: a fork can be created, a
+         * subscription can lapse, and an invitation can arrive in between. The fork check is
+         * not gated on an organization source: a personal workspace whose parent has since
+         * joined an organization still yields a cross-organization edge when it lands in a
+         * different one, and preflight reports it unconditionally too.
          */
         const forkEdges = await findCrossOrgForkEdges(
           params.workspaceId,
@@ -1241,52 +1277,25 @@ export async function moveWorkspaceToOrganization(params: {
           )
         }
 
-        if (sourceOrganizationId) {
-          /**
-           * Entitlements are resolved BEFORE the transaction, not here.
-           * `isOrganizationOnEnterprisePlan` reads through the global client
-           * with no executor seam, so calling it inside the transaction trips
-           * the transaction tripwire outside production and reserves a second
-           * pool connection in it. The check is a precondition, not an
-           * invariant: a plan lapsing in the seconds between the read and the
-           * commit lands the workspace in an organization that just lost its
-           * entitlements, which is recoverable by moving it back — unlike a
-           * cross-organization artifact, which is not.
-           */
-          /**
-           * Evaluate BOTH organizations under the locks when entitlement is
-           * subscription-backed, rather than trusting the pre-transaction
-           * verdict. That verdict is still what preflight reports, but as a
-           * blocker it is stale in both directions: a destination that lapsed
-           * after it was read, and a source that GAINED entitlement after it
-           * was read, which would otherwise skip the fence entirely.
-           *
-           * `isSubscriptionBackedEntitlement` is exported from the same module
-           * as `resolveOrganizationEnterprisePlan`'s short-circuits, so the two
-           * modes where entitlement is granted by deployment configuration —
-           * and no `subscription` row need exist — cannot drift away from this.
-           */
-          /**
-           * Re-run the SAME resolver under the locks, on `tx`. The
-           * pre-transaction verdict is stale in both directions — a destination
-           * that lapsed after it was read, and a source that gained Enterprise
-           * after it was read, which would otherwise skip the check entirely.
-           * Reusing `resolveMoveEntitlements` rather than re-deriving the
-           * predicate here is what keeps the fence and preflight from ever
-           * disagreeing about what counts as a downgrade.
-           */
-          fencedEntitlements = await resolveMoveEntitlements(
-            sourceOrganizationId,
-            params.destinationOrganizationId,
-            tx
+        /**
+         * The downgrade fence, re-resolved under the locks with the same resolver preflight
+         * uses, so the two never disagree about what counts as a downgrade and a plan change
+         * since preflight (a destination that lapsed, a source that gained Enterprise) is
+         * caught here. A personal source has nothing to lose and resolves without a query.
+         */
+        const entitlements = await resolveMoveEntitlements(
+          sourceOrganizationId,
+          params.destinationOrganizationId,
+          tx
+        )
+        if (entitlements.capabilitiesLost.length > 0) {
+          throw new WorkspaceMoveError(
+            `The destination organization is not on Enterprise, so this workspace would lose ${entitlements.capabilitiesLost.join(', ')}`,
+            'destination-entitlement-downgrade'
           )
-          if (fencedEntitlements.capabilitiesLost.length > 0) {
-            throw new WorkspaceMoveError(
-              `The destination organization is not on Enterprise, so this workspace would lose ${fencedEntitlements.capabilitiesLost.join(', ')}`,
-              'destination-entitlement-downgrade'
-            )
-          }
+        }
 
+        if (sourceOrganizationId) {
           const pendingInvitations = await getPendingInvitationSummaries(params.workspaceId, tx)
           if (pendingInvitations.length > 0) {
             throw new WorkspaceMoveError(
@@ -1332,9 +1341,8 @@ export async function moveWorkspaceToOrganization(params: {
         /**
          * Enforce the cross-org invariants before the payer moves, while the
          * source organization is still the one on the row. Unpublishing a
-         * custom block is the product's own `deleteCustomBlock`; the usage
-         * counts are captured first so the source org's audit entry can say how
-         * much it cost.
+         * custom block is the product's own `deleteCustomBlock`; the blocks are
+         * read first so the source org's audit entry can name them.
          */
         const sourceOrganization = sourceOrganizationId
           ? await getSourceOrganization(sourceOrganizationId, tx)
@@ -1356,15 +1364,34 @@ export async function moveWorkspaceToOrganization(params: {
             })
           : { detachedPermissionGroupIds: [] }
 
-        await changeWorkspaceStoragePayerInTx(tx, {
-          workspaceId: params.workspaceId,
-          organizationId: params.destinationOrganizationId,
-          billedAccountUserId: destination.ownerId,
-          expectedCurrentPayer: {
-            organizationId: workspaceRow.organizationId,
-            billedAccountUserId: workspaceRow.billedAccountUserId,
-          },
-        })
+        await transferWorkspaceProjects(
+          tx,
+          [params.workspaceId],
+          params.destinationOrganizationId,
+          undefined,
+          [
+            {
+              workspaceId: params.workspaceId,
+              organizationId: params.destinationOrganizationId,
+              billedAccountUserId: destination.ownerId,
+              expectedCurrentPayer: {
+                organizationId: workspaceRow.organizationId,
+                billedAccountUserId: workspaceRow.billedAccountUserId,
+              },
+            },
+          ]
+        )
+
+        // Private graph contents stay with their original organization when a workspace moves.
+        await tx
+          .update(copilotChats)
+          .set({ memorySpaceId: null })
+          .where(
+            and(
+              eq(copilotChats.workspaceId, params.workspaceId),
+              isNotNull(copilotChats.memorySpaceId)
+            )
+          )
 
         await tx
           .update(workspace)
@@ -1450,62 +1477,28 @@ export async function moveWorkspaceToOrganization(params: {
             : null,
           summary: await getMovedWorkspaceSummary(tx, params.workspaceId, destination, {
             sourceOrganization,
-            /**
-             * What the move actually did, not what preflight projected. The
-             * rest of the impact described the pre-move state and is not
-             * recoverable — or meaningful — once the workspace has landed.
-             */
-            sourceOrganizationImpact: {
-              ...EMPTY_SOURCE_IMPACT,
-              /**
-               * Usage counts are zero here rather than measured: they describe
-               * how much breaks in the source organization, and the reads that
-               * produce them are not transaction-safe. Preflight carries the
-               * real numbers; this reports which blocks were unpublished.
-               */
-              unpublishedCustomBlocks: boundList(
-                unpublishedCustomBlocks,
-                PREFLIGHT_LIST_LIMITS.customBlocks
-              ).items.map((block) => ({
-                ...block,
-                movingWorkspaceUsage: { live: 0, deployed: 0 },
-                sourceOrgElsewhereUsage: { live: 0, deployed: 0 },
-              })),
-              detachedPermissionGroups: boundList(
-                cleanup.detachedPermissionGroupIds,
-                PREFLIGHT_LIST_LIMITS.permissionGroups
-              ).items.map((permissionGroupId) => ({ permissionGroupId, name: '' })),
-              /** The applied response is bounded by the same limits as preflight. */
-              truncated: buildAppliedTruncation({
-                unpublishedCustomBlocks: unpublishedCustomBlocks.length,
-                detachedPermissionGroups: cleanup.detachedPermissionGroupIds.length,
-                credentials: movedCredentials,
-              }),
-            },
+            sourceOrganizationImpact: buildAppliedSourceImpact({
+              unpublishedCustomBlocks,
+              detachedPermissionGroupIds: cleanup.detachedPermissionGroupIds,
+              credentials: movedCredentials,
+            }),
             credentials: movedCredentials,
-            /**
-             * The fenced result, not the optimistic one: the response must
-             * describe the entitlement state the move was actually allowed
-             * against, or a destination that gained Enterprise between the two
-             * reads is reported as a downgrade it no longer is.
-             */
-            entitlements: fencedEntitlements ?? entitlements,
+            entitlements,
             notices: [],
           }),
         } satisfies MoveTransactionResult
       })
       break
     } catch (error) {
+      if (error instanceof ProjectConflictError) {
+        throw new WorkspaceMoveError(error.message, 'project-conflict')
+      }
       if (error instanceof InvitationSetChangedError) {
         candidateInvitationIds = error.invitationIds
         continue
       }
       if (error instanceof SourceOrganizationChangedError) {
         candidateSourceOrganizationId = error.organizationId
-        entitlements = await resolveMoveEntitlements(
-          candidateSourceOrganizationId,
-          params.destinationOrganizationId
-        )
         continue
       }
       if (isConcurrentPendingInvitationInsert(error)) {
@@ -1935,20 +1928,13 @@ export async function getWorkspaceMoveOperation(
   return toWorkspaceMoveOperationView(
     await getMovedWorkspaceSummary(db, workspaceId, destination, {
       sourceOrganization: recordedSource.organization,
-      sourceOrganizationImpact: {
-        ...EMPTY_SOURCE_IMPACT,
-        truncated: buildAppliedTruncation({
-          unpublishedCustomBlocks: 0,
-          detachedPermissionGroups: 0,
-          credentials,
-        }),
-      },
+      sourceOrganizationImpact: buildAppliedSourceImpact({
+        unpublishedCustomBlocks: operationPayload.audit.unpublishedCustomBlocks ?? [],
+        detachedPermissionGroupIds: operationPayload.audit.detachedPermissionGroupIds ?? [],
+        credentials,
+      }),
       credentials,
-      entitlements: {
-        sourceIsEnterprise: false,
-        destinationIsEnterprise: false,
-        capabilitiesLost: [],
-      },
+      entitlements: REPLAYED_MOVE_ENTITLEMENTS,
       /**
        * A recorded `null` means the workspace came from a personal source and
        * there is nothing to name — not that the record is defective.
@@ -2729,7 +2715,7 @@ async function getMovedWorkspaceSummary(
   executor: DbOrTx,
   workspaceId: string,
   destination: WorkspaceMoveDestination,
-  appliedContext?: AppliedMoveContext
+  appliedContext: AppliedMoveContext
 ): Promise<WorkspaceMovePreflight> {
   const [movedRow] = await executor
     .select({
@@ -2777,7 +2763,7 @@ async function getMovedWorkspaceSummary(
       sourceMember,
       and(
         eq(sourceMember.userId, permissions.userId),
-        appliedContext?.sourceOrganization
+        appliedContext.sourceOrganization
           ? eq(sourceMember.organizationId, appliedContext.sourceOrganization.id)
           : sql`false`
       )
@@ -2786,7 +2772,7 @@ async function getMovedWorkspaceSummary(
 
   return {
     workspace: workspaceRow,
-    sourceOrganization: appliedContext?.sourceOrganization ?? null,
+    sourceOrganization: appliedContext.sourceOrganization,
     destinationOrganization: destination,
     collaborators: collaboratorRows.map((row) => ({
       userId: row.userId,
@@ -2799,37 +2785,13 @@ async function getMovedWorkspaceSummary(
     invitations: (await getPendingInvitationSummaries(workspaceId, executor)).map(
       ({ organizationId: _organizationId, ...row }) => row
     ),
-    sourceOrganizationImpact: appliedContext?.sourceOrganizationImpact ?? EMPTY_SOURCE_IMPACT,
-    credentials: appliedContext?.credentials ?? EMPTY_CREDENTIAL_SUMMARY,
-    entitlements: appliedContext?.entitlements ?? {
-      sourceIsEnterprise: false,
-      destinationIsEnterprise: false,
-      capabilitiesLost: [],
-    },
+    sourceOrganizationImpact: appliedContext.sourceOrganizationImpact,
+    credentials: appliedContext.credentials,
+    entitlements: appliedContext.entitlements,
     blockers: [],
-    notices: appliedContext?.notices ?? [],
+    notices: appliedContext.notices,
     warning: null,
   }
-}
-
-/** A move that is already applied has no source-org context to report. */
-const EMPTY_SOURCE_IMPACT: WorkspaceMoveSourceImpact = {
-  unpublishedCustomBlocks: [],
-  blockingForkEdges: [],
-  detachedPermissionGroups: [],
-  strippedRetentionRules: { piiRedactionRules: 0, retentionOverrides: 0 },
-  retainedCollaboratorCaps: [],
-  brandingChanges: false,
-  truncated: null,
-}
-
-const EMPTY_CREDENTIAL_SUMMARY: WorkspaceMoveCredentialSummary = {
-  items: [],
-  credentialGroupCount: 0,
-  environmentVariableKeys: [],
-  byokKeyCount: 0,
-  truncatedCredentials: 0,
-  truncatedEnvironmentVariableKeys: 0,
 }
 
 /**

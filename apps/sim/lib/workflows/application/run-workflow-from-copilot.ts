@@ -4,13 +4,13 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { prepareWorkflowExecutionAdmission } from '@/lib/workflows/execution-admission'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
@@ -94,20 +94,10 @@ interface SnapshotCopilotRunInput extends BaseCopilotRunInput {
 export interface RunFromBlockFromCopilotInput extends SnapshotCopilotRunInput {}
 export interface RunBlockFromCopilotInput extends SnapshotCopilotRunInput {}
 
-function resolveContext<I extends BaseCopilotRunInput>({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: I
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
-}
-
-async function loadDefinition(input: BaseCopilotRunInput, workspaceId: string) {
+async function loadDefinition(
+  input: Pick<BaseCopilotRunInput, 'workflowId' | 'useDraftState'>,
+  workspaceId: string
+) {
   if (input.useDraftState) return loadWorkflowFromNormalizedTables(input.workflowId)
   try {
     return await loadDeployedWorkflowState(input.workflowId, workspaceId)
@@ -117,8 +107,20 @@ async function loadDefinition(input: BaseCopilotRunInput, workspaceId: string) {
   }
 }
 
-async function resolveTriggerExecution(params: {
-  input: TriggerCopilotRunInput
+export type TriggerExecutionRequest = Pick<
+  TriggerCopilotRunInput,
+  | 'workflowId'
+  | 'useDraftState'
+  | 'triggerBlockId'
+  | 'workflowInput'
+  | 'hasWorkflowInput'
+  | 'useMockPayload'
+  | 'inputFromExecutionId'
+>
+
+/** Picks the workflow's runnable trigger and validates the run input against it. */
+export async function resolveTriggerExecution(params: {
+  input: TriggerExecutionRequest
   workspaceId: string
 }): Promise<{ triggerBlockId: string; input: unknown }> {
   const state = await loadDefinition(params.input, params.workspaceId)
@@ -129,7 +131,7 @@ async function resolveTriggerExecution(params: {
     )
   }
   const merged = mergeSubblockStateWithValues(state.blocks)
-  const options = resolveTriggerRunOptions(merged, state.edges)
+  const options = resolveTriggerRunOptions(merged)
   if (options.length === 0) {
     throw new OrchestrationError(
       'validation',
@@ -240,7 +242,7 @@ async function resolveSourceSnapshot(input: SnapshotCopilotRunInput): Promise<{
 async function executeCopilotRun(params: {
   principal: Principal
   input: BaseCopilotRunInput
-  context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
+  context: ActiveWorkflowApplicationContext
   executionInput: unknown
   triggerBlockId?: string
   stopAfterBlockId?: string
@@ -252,6 +254,7 @@ async function executeCopilotRun(params: {
   }
 }): Promise<ExecutionResult> {
   if (
+    params.principal.kind === 'resource_delegated' ||
     params.principal.kind === 'organization_delegated' ||
     params.principal.kind === 'slack_app' ||
     params.principal.kind === 'slack_installation' ||
@@ -428,7 +431,7 @@ function defineTriggerRunUseCase<I extends TriggerCopilotRunInput & { stopAfterB
 ) {
   return defineAuthorizedWorkflowUseCase({
     operation,
-    resolveContext: resolveContext<I>,
+    resolveContext: resolvePrincipalWorkflowContext<I>,
     async execute({ principal, input, context }) {
       const prepared = await resolveTriggerExecution({ input, workspaceId: context.workspaceId })
       return executeCopilotRun({
@@ -460,7 +463,7 @@ function defineSnapshotRunUseCase<I extends SnapshotCopilotRunInput>(
 ) {
   return defineAuthorizedWorkflowUseCase({
     operation,
-    resolveContext: resolveContext<I>,
+    resolveContext: resolvePrincipalWorkflowContext<I>,
     async execute({ principal, input, context }) {
       const state = await loadDefinition(input, context.workspaceId)
       if (!state?.blocks) {

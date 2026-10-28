@@ -44,7 +44,7 @@ export const discordDeleteWebhookTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

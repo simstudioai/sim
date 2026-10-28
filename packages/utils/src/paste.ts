@@ -37,7 +37,7 @@ export interface TextPasteAdmissionInput {
   maxResultCharacters?: number
 }
 
-export type TextPasteRejectionReason =
+type TextPasteRejectionReason =
   | 'pasted-bytes'
   | 'pasted-characters'
   | 'result-bytes'

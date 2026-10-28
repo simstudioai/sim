@@ -1,56 +1,26 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialsManagedOauthMock,
+  credentialsManagedOauthMockFns,
+} from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  requireResourcePolicy: vi.fn(),
-  writeResourcePolicy: vi.fn(),
-  loadBinding: vi.fn(),
-  listOptionCredentials: vi.fn(),
-  resolveManagedOAuthToken: vi.fn(),
-  rejectManagedOAuthToken: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    CREDENTIAL_ACCESSED: 'credential.accessed',
-    CREDENTIAL_UPDATED: 'credential.updated',
-    CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
-  },
-  AuditResourceType: { CREDENTIAL: 'credential', CREDENTIAL_GROUP: 'credential_group' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
-vi.mock('@/lib/resource-policies/repository', async () => {
-  class ResourcePolicyNotFoundError extends Error {}
-  class ResourcePolicyRevisionConflictError extends Error {}
-  return {
-    ResourcePolicyNotFoundError,
-    ResourcePolicyRevisionConflictError,
-    requireResourcePolicy: mocks.requireResourcePolicy,
-    writeResourcePolicy: mocks.writeResourcePolicy,
-  }
-})
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadManagedCredentialGroupBinding: mocks.loadBinding,
-  listCredentialGroupOptionCredentialReferences: mocks.listOptionCredentials,
-  isManagedCredentialGroupBindingLive: (binding: {
-    managedOauthStatus: string
-    enrollmentStatus: string
-    groupStatus: string
-    optionStatus: string | null
-  }) =>
-    binding.managedOauthStatus === 'active' &&
-    (binding.enrollmentStatus === 'in_progress' || binding.enrollmentStatus === 'completed') &&
-    binding.groupStatus === 'active' &&
-    binding.optionStatus === 'active',
-}))
-
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  resolveManagedOAuthToken: mocks.resolveManagedOAuthToken,
-  rejectManagedOAuthToken: mocks.rejectManagedOAuthToken,
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
@@ -66,6 +36,16 @@ import {
   validateKnowledgeConnectorMembersBinding,
 } from '@/lib/knowledge/connectors/member-access'
 import { ResourcePolicyRevisionConflictError } from '@/lib/resource-policies/repository'
+
+const mocks = {
+  requireResourcePolicy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  writeResourcePolicy: resourcePolicyRepositoryMockFns.mockWriteResourcePolicy,
+  loadBinding: credentialGroupsCredentialsMockFns.mockLoadManagedCredentialGroupBinding,
+  listOptionCredentials:
+    credentialGroupsCredentialsMockFns.mockListCredentialGroupOptionCredentialReferences,
+  resolveManagedOAuthToken: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
+  rejectManagedOAuthToken: credentialsManagedOauthMockFns.mockRejectManagedOAuthToken,
+}
 
 const GROUP_ID = 'group-1'
 const BINDING = {
@@ -225,7 +205,7 @@ describe('knowledge connector member access', () => {
         KnowledgeConnectorMemberAccessDeniedError
       )
       expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     })
 
     it('denies a credential collected under a different option', async () => {

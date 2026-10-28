@@ -1,46 +1,35 @@
 ---
 title: LaunchDarkly
-description: Manage feature flags with LaunchDarkly.
+description: Manage feature flags with LaunchDarkly
+integration:
+  type: "launchdarkly"
+  color: "#191919"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="launchdarkly"
-  color="#191919"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[LaunchDarkly](https://launchdarkly.com/) is a feature management platform that enables teams to safely deploy, control, and measure their software features at scale.
+Use [LaunchDarkly](https://launchdarkly.com/) to list, create, update, toggle, and delete feature flags, and inspect their environment-specific status. Toggling uses LaunchDarkly's semantic patch API.
 
-With the LaunchDarkly integration in Sim, you can:
-
-- **Feature flag management** — List, create, update, toggle, and delete feature flags programmatically. Toggle flags on or off in specific environments using LaunchDarkly's semantic patch API.
-- **Flag status monitoring** — Check whether a flag is active, inactive, new, or launched in a given environment. Track the last time a flag was evaluated.
-- **Project and environment management** — List all projects and their environments to understand your LaunchDarkly organization structure.
-- **User segments** — List user segments within a project and environment to understand how your audience is organized for targeting.
-- **Team visibility** — List account members and their roles for auditing and access management workflows.
-- **Audit log** — Retrieve recent audit log entries to track who changed what, when. Filter entries by resource type for targeted monitoring.
-
-In Sim, the LaunchDarkly integration enables your agents to automate feature flag operations as part of their workflows. This allows for automation scenarios such as toggling flags on/off based on deployment pipeline events, monitoring flag status and alerting on stale or unused flags, auditing flag changes by querying the audit log after deployments, syncing flag metadata with your project management tools, and listing all feature flags across projects for governance.
+Read projects, environments, segments, members, and audit logs to find targeting context or review changes. For example, toggle a flag after a deployment, then inspect its status and the resulting audit entry.
 
 ## Authentication
 
-This integration uses a LaunchDarkly API key. You can create personal access tokens or service tokens in the LaunchDarkly dashboard under **Account Settings > Authorization**. The API key is passed directly in the `Authorization` header (no `Bearer` prefix).
+Create a personal access token or service token under **Organization settings > Authorization > Tokens** in LaunchDarkly. Sim sends it directly in the `Authorization` header, without a `Bearer` prefix. Grant only the access the workflow needs. [Service tokens are available on selected plans](https://launchdarkly.com/docs/home/account/api); SDK keys cannot authenticate REST API requests.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.
-
-
+List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs. Requires an API key.
 
 ## Actions
 
 ### LaunchDarkly Create Flag
 
 Create a new feature flag in a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +63,13 @@ Create a new feature flag in a LaunchDarkly project.
 | `maintainerId` | string | The ID of the member who maintains this flag |
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Delete Flag
 
 Delete a feature flag from a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -92,9 +85,13 @@ Delete a feature flag from a LaunchDarkly project.
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the flag was successfully deleted |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Get Audit Log
 
 List audit log entries from your LaunchDarkly account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,9 +117,13 @@ List audit log entries from your LaunchDarkly account.
 |   ↳ `targetKind` | string | Resource specifier of the target \(e.g. proj/default:env/production:flag/my-flag\) |
 | `totalCount` | number | Total number of audit log entries |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Get Flag
 
 Get a single feature flag by key from a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -154,9 +155,13 @@ Get a single feature flag by key from a LaunchDarkly project.
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 | `on` | boolean | Whether the flag is on in the requested environment \(null when the flag spans multiple environments and no environment key was provided\) |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Get Flag Status
 
 Get the status of a feature flag across environments (active, inactive, launched, etc.).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -175,9 +180,13 @@ Get the status of a feature flag across environments (active, inactive, launched
 | `lastRequested` | string | Timestamp of the last evaluation |
 | `defaultVal` | string | The default variation value |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Environments
 
 List environments in a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -201,9 +210,13 @@ List environments in a LaunchDarkly project.
 |   ↳ `tags` | array | Tags applied to the environment |
 | `totalCount` | number | Total number of environments |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Flags
 
 List feature flags in a LaunchDarkly project.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -237,9 +250,13 @@ List feature flags in a LaunchDarkly project.
 |   ↳ `maintainerEmail` | string | The email of the member who maintains this flag |
 | `totalCount` | number | Total number of flags |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Members
 
 List account members in your LaunchDarkly organization.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -263,9 +280,13 @@ List account members in your LaunchDarkly organization.
 |   ↳ `verified` | boolean | Whether the member email is verified |
 | `totalCount` | number | Total number of members |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Projects
 
 List all projects in your LaunchDarkly account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -285,9 +306,13 @@ List all projects in your LaunchDarkly account.
 |   ↳ `tags` | array | Tags applied to the project |
 | `totalCount` | number | Total number of projects |
 
+</ReferenceDetails>
+
 ### LaunchDarkly List Segments
 
 List user segments in a LaunchDarkly project and environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -313,9 +338,13 @@ List user segments in a LaunchDarkly project and environment.
 |   ↳ `excluded` | array | User keys explicitly excluded from the segment |
 | `totalCount` | number | Total number of segments |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Toggle Flag
 
 Toggle a feature flag on or off in a specific LaunchDarkly environment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -348,9 +377,13 @@ Toggle a feature flag on or off in a specific LaunchDarkly environment.
 | `maintainerEmail` | string | The email of the member who maintains this flag |
 | `on` | boolean | Whether the flag is now on in the target environment |
 
+</ReferenceDetails>
+
 ### LaunchDarkly Update Flag
 
 Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -385,5 +418,7 @@ Update feature flag metadata (name, description, tags, temporary, archived) usin
 |   ↳ `description` | string | The variation description |
 | `maintainerId` | string | The ID of the member who maintains this flag |
 | `maintainerEmail` | string | The email of the member who maintains this flag |
+
+</ReferenceDetails>
 
 

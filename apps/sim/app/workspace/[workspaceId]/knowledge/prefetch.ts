@@ -12,10 +12,10 @@ import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/pr
 import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 /**
- * Prefetches the workspace's knowledge-bases list AND its knowledge-base folder tree — plus
- * the pinned ids and members {@link prefetchResourceListChrome} covers — under
- * the same query keys the client `useKnowledgeBasesQuery` / `useFolders` hooks use (scope
- * `active`), so the list paints populated on first render.
+ * Prefetches the workspace's knowledge-bases list with its document totals AND its
+ * knowledge-base folder tree — plus the pinned ids and members {@link prefetchResourceListChrome}
+ * covers — under the same query keys the Knowledge page's `useKnowledgeBasesQuery` (scope
+ * `active`, counted) and `useFolders` hooks use, so the list paints populated on first render.
  *
  * Both are needed: a base row is only placed correctly relative to the folder rows it sits
  * beside, so prefetching one without the other still flashes an ungrouped list — and a
@@ -45,12 +45,12 @@ export async function prefetchKnowledgeBases(
 
   await Promise.all([
     queryClient.prefetchQuery({
-      queryKey: knowledgeKeys.list(workspaceId, 'active'),
+      queryKey: knowledgeKeys.countedList(workspaceId, 'active'),
       queryFn: async () => {
         const principal = await internalSessionAuth.authenticate()
         const result = await listInternalKnowledgeBases.execute({
           principal,
-          input: { workspaceId, scope: 'active' },
+          input: { workspaceId, scope: 'active', includeCounts: true },
         })
         return listKnowledgeBasesContract.response.schema.parse(
           internalKnowledgePresenters.list(result)

@@ -357,7 +357,8 @@ export const completePublicCredentialGroupMcpOAuth =
         context.oauth,
         input.attempt.codeVerifier,
         input.code,
-        input.attempt.invitationToken
+        input.attempt.invitationToken,
+        input.attempt.configurationFingerprint
       )
       if (context.organizationId)
         await fireCredentialGroupTrigger({

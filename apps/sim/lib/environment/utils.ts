@@ -493,37 +493,66 @@ export async function getExecutionEnvironment(
   /**
    * A suspended account lends nothing, from any path.
    *
-   * Checked before the single-identity shortcut below rather than alongside the
-   * access lookups, because "the caller already cleared this identity" does not
-   * hold everywhere: a custom-block child is admitted by
-   * `admitCustomBlockChildExecution`, which checks usage limits and nothing
-   * else, and a provider URL-validation challenge resolves with no admission at
-   * all. Behind the shortcut, a publisher who is also their workspace's billing
-   * account made both identities equal and skipped the gate entirely — the one
-   * arrangement where suspension was silently ignored.
+   * Applied on every path, including the single-identity shortcut below, because
+   * "the caller already cleared this identity" does not hold everywhere: a
+   * custom-block child is admitted by `admitCustomBlockChildExecution`, which checks
+   * usage limits and nothing else, and a provider URL-validation challenge resolves
+   * with no admission at all. Behind the shortcut, a publisher who is also their
+   * workspace's billing account made both identities equal and skipped the gate
+   * entirely — the one arrangement where suspension was silently ignored.
    *
    * Only the personal namespace is withheld. Workspace variables belong to the
    * workspace rather than to a person, so they keep resolving and the runs a
    * suspended member's teammates depend on keep working — which is the whole
    * reason admission stopped blocking on this identity in the first place.
+   *
+   * The lookup depends on nothing the reads below produce, so it runs alongside
+   * them, and a suspended identity's personal slice is dropped from their result.
+   * The one exception is two distinct identities with no workspace: the personal
+   * read there is not needed once suspension is known, so it waits for the answer.
    */
-  if ((await getActivelyBannedUserIds([personalUserId])).length > 0) {
+  const personalIdentitySuspended = getActivelyBannedUserIds([personalUserId]).then(
+    (bannedUserIds) => bannedUserIds.length > 0
+  )
+  const withholdPersonalSlice = (snapshot: EnvironmentResolutionSnapshot) => {
     logger.error('Personal-environment identity is suspended; resolving workspace variables only', {
       personalUserId,
       workspaceUserId,
       workspaceId,
     })
-    return toWorkspaceOnlySnapshot(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
+    return toWorkspaceOnlySnapshot(snapshot)
   }
 
-  if (!workspaceId || workspaceUserId === personalUserId) {
+  if (workspaceUserId === personalUserId) {
+    const [suspended, snapshot] = await Promise.all([
+      personalIdentitySuspended,
+      getPersonalAndWorkspaceEnv(personalUserId, workspaceId),
+    ])
+    return suspended ? withholdPersonalSlice(snapshot) : snapshot
+  }
+
+  if (!workspaceId) {
+    if (await personalIdentitySuspended) {
+      return withholdPersonalSlice(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
+    }
     return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
   }
 
-  const [actorAccess, personalAccess] = await Promise.all([
+  const personalAccessRead = checkWorkspaceAccess(workspaceId, personalUserId)
+  personalAccessRead.catch(() => {})
+  const [suspended, actorAccess] = await Promise.all([
+    personalIdentitySuspended,
     checkWorkspaceAccess(workspaceId, workspaceUserId),
-    checkWorkspaceAccess(workspaceId, personalUserId),
   ])
+  // A suspended identity's access is never consulted, so its read cannot fail the run.
+  if (suspended) {
+    return withholdPersonalSlice(
+      await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId, {
+        workspaceAccess: actorAccess,
+      })
+    )
+  }
+  const personalAccess = await personalAccessRead
 
   /**
    * A workspace that no longer exists and one an identity may not read are

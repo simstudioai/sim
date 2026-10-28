@@ -1,31 +1,50 @@
 ---
 title: Pipedrive
-description: Interact with Pipedrive CRM
+description: Manage Pipedrive deals, leads, activities, and projects
+integration:
+  type: "pipedrive"
+  color: "#2E6936"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="pipedrive"
-  color="#2E6936"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Pipedrive](https://www.pipedrive.com) to manage deals, leads, activities, and projects, inspect pipelines, and retrieve CRM files and mail threads.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [API tokens](/integrations/pipedrive-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.
+Sim requests these scopes when someone connects a Pipedrive account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/pipedrive` |
+| Environment variables | `PIPEDRIVE_CLIENT_ID`, `PIPEDRIVE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `base` | Basic access to Pipedrive account |
+| `deals:full` | Full access to manage Pipedrive deals |
+| `contacts:full` | Full access to manage Pipedrive contacts |
+| `leads:full` | Full access to manage Pipedrive leads |
+| `activities:full` | Full access to manage Pipedrive activities |
+| `mail:full` | Full access to manage Pipedrive emails |
+| `projects:full` | Full access to manage Pipedrive projects |
+
+## Use the block [#usage-instructions]
+
+Create, read, and update deals and activities, and create, read, update, or delete leads. List, retrieve, or create projects, inspect pipelines, and retrieve files and mail threads through the connected account.
 
 ## Actions
 
 ### Get All Deals from Pipedrive
 
 Retrieve all deals from Pipedrive with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -67,9 +86,13 @@ Retrieve all deals from Pipedrive with optional filters
 |   ↳ `next_start` | number | Offset for fetching the next page \(v1 endpoints\) |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Deal Details from Pipedrive
 
 Retrieve detailed information about a specific deal
+
+<ReferenceDetails>
 
 #### Input
 
@@ -84,9 +107,13 @@ Retrieve detailed information about a specific deal
 | `deal` | object | Deal object with full details |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Deal in Pipedrive
 
 Create a new deal in Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +136,13 @@ Create a new deal in Pipedrive
 | `deal` | object | The created deal object |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Deal in Pipedrive
 
 Update an existing deal in Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -131,9 +162,13 @@ Update an existing deal in Pipedrive
 | `deal` | object | The updated deal object |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Files from Pipedrive
 
 Retrieve files from Pipedrive with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -165,9 +200,13 @@ Retrieve files from Pipedrive with optional filters
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Mail Threads from Pipedrive
 
 Retrieve mail threads from Pipedrive mailbox
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +226,13 @@ Retrieve mail threads from Pipedrive mailbox
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Mail Thread Messages from Pipedrive
 
 Retrieve all messages from a specific mail thread
+
+<ReferenceDetails>
 
 #### Input
 
@@ -205,9 +248,13 @@ Retrieve all messages from a specific mail thread
 | `metadata` | object | Thread and pagination metadata |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Pipelines from Pipedrive
 
 Retrieve all pipelines from Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +283,13 @@ Retrieve all pipelines from Pipedrive
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Pipeline Deals from Pipedrive
 
 Retrieve all deals in a specific pipeline
+
+<ReferenceDetails>
 
 #### Input
 
@@ -257,9 +308,13 @@ Retrieve all deals in a specific pipeline
 | `metadata` | object | Pipeline and pagination metadata |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Projects from Pipedrive
 
 Retrieve all projects or a specific project from Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -281,9 +336,13 @@ Retrieve all projects or a specific project from Pipedrive
 | `next_cursor` | string | Cursor for fetching the next page |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Project in Pipedrive
 
 Create a new project in Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -301,9 +360,13 @@ Create a new project in Pipedrive
 | `project` | object | The created project object |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Activities from Pipedrive
 
 Retrieve activities (tasks) from Pipedrive with optional filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -338,9 +401,13 @@ Retrieve activities (tasks) from Pipedrive with optional filters
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Activity in Pipedrive
 
 Create a new activity (task) in Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -363,9 +430,13 @@ Create a new activity (task) in Pipedrive
 | `activity` | object | The created activity object |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Activity in Pipedrive
 
 Update an existing activity (task) in Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -386,9 +457,13 @@ Update an existing activity (task) in Pipedrive
 | `activity` | object | The updated activity object |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Leads from Pipedrive
 
 Retrieve all leads or a specific lead from Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -439,9 +514,13 @@ Retrieve all leads or a specific lead from Pipedrive
 | `next_start` | number | Offset for fetching the next page |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Lead in Pipedrive
 
 Create a new lead in Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -463,9 +542,13 @@ Create a new lead in Pipedrive
 | `lead` | object | The created lead object |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Lead in Pipedrive
 
 Update an existing lead in Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -488,9 +571,13 @@ Update an existing lead in Pipedrive
 | `lead` | object | The updated lead object |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete Lead from Pipedrive
 
 Delete a specific lead from Pipedrive
+
+<ReferenceDetails>
 
 #### Input
 
@@ -504,5 +591,7 @@ Delete a specific lead from Pipedrive
 | --------- | ---- | ----------- |
 | `data` | object | Deletion confirmation data |
 | `success` | boolean | Operation success status |
+
+</ReferenceDetails>
 
 

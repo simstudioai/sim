@@ -81,7 +81,7 @@ export const ColumnsMenu = memo(function ColumnsMenu({
       <DropdownMenuTrigger asChild>
         {/* `active` alone signals that something is hidden — the label stays fixed
             so the bar doesn't reflow as columns are toggled. */}
-        <Chip active={hiddenCount > 0} leftIcon={Columns3}>
+        <Chip active={hiddenCount > 0} leftIcon={Columns3} mobileIconOnly>
           Columns
         </Chip>
       </DropdownMenuTrigger>

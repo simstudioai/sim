@@ -1,7 +1,6 @@
 import { OktaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { OktaResponse } from '@/tools/okta/types'
 
 /**
  * Coerces a numeric subBlock value, dropping anything that is not a real number.
@@ -44,12 +43,12 @@ function blankToUndefined(value: unknown): unknown {
   return value === null || value === '' ? undefined : value
 }
 
-export const OktaBlock: BlockConfig<OktaResponse> = {
+export const OktaBlock: BlockConfig = {
   type: 'okta',
   name: 'Okta',
   description: 'Manage users, groups, apps, and MFA in Okta',
   longDescription:
-    'Integrate Okta identity management into your workflow. Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.',
+    'Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.',
   docsLink: 'https://docs.sim.ai/integrations/okta',
   category: 'tools',
   authMode: AuthMode.ApiKey,

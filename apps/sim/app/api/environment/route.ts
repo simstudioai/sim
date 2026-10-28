@@ -115,7 +115,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   }
 })
 
-export const GET = withRouteHandler(async (request: Request) => {
+export const GET = withRouteHandler(async () => {
   const requestId = generateRequestId()
 
   try {

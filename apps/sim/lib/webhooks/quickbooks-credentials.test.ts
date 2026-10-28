@@ -1,13 +1,9 @@
 import { account, credential } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: vi.fn(),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { createQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import {
@@ -20,6 +16,8 @@ import {
   getQuickBooksWebhookClientConfigByCredentialId,
   streamQuickBooksWebhookVerifierTokensByAppKey,
 } from '@/lib/webhooks/quickbooks-credentials'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
 async function collectVerifierTokens(appKey: string): Promise<string[]> {
   const tokens: string[] = []

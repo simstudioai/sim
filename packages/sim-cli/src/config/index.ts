@@ -1,6 +1,7 @@
 export { configDir, configPath, credentialsPath, telemetryStatePath } from './paths'
 export {
   DEFAULT_ENDPOINT,
+  DEFAULT_OUTPUT_FORMAT,
   DEFAULT_PROFILE,
   deleteProfile,
   FORBIDDEN_IN_VALUE,

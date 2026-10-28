@@ -12,10 +12,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -49,9 +49,10 @@ export const POST = withRouteHandler(
         )
       )
     } catch (error) {
-      if (error instanceof EnterpriseProvisioningError) return badRequestResponse(error.message)
+      if (error instanceof EnterpriseProvisioningError)
+        return adminBadRequestResponse(error.message)
       logger.error('Failed to enqueue Enterprise provisioning', { error })
-      return internalErrorResponse(getErrorMessage(error, 'Failed to issue Enterprise plan'))
+      return adminInternalErrorResponse(getErrorMessage(error, 'Failed to issue Enterprise plan'))
     }
   })
 )

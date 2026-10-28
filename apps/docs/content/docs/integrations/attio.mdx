@@ -1,31 +1,52 @@
 ---
 title: Attio
 description: Manage records, notes, tasks, lists, comments, and more in Attio CRM
+integration:
+  type: "attio"
+  color: "#1D1E20"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="attio"
-  color="#1D1E20"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Attio](https://www.attio.com/) in Sim to manage records for people, companies, and custom objects; work with lists, notes, tasks, and comments; and configure webhooks. Attio event triggers can start workflows when records or related resources change.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [API keys](/integrations/attio-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects an Attio account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/attio` |
+| Environment variables | `ATTIO_CLIENT_ID`, `ATTIO_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `record_permission:read-write` | Read and write CRM records |
+| `object_configuration:read-write` | Read and manage object schemas |
+| `list_configuration:read-write` | Read and manage list configurations |
+| `list_entry:read-write` | Read and write list entries |
+| `note:read-write` | Read and write notes |
+| `task:read-write` | Read and write tasks |
+| `comment:read-write` | Read and write comments and threads |
+| `user_management:read` | View workspace members |
+| `webhook:read-write` | Manage webhooks |
+
+## Use the block [#usage-instructions]
 
 Connect to Attio to manage CRM records (people, companies, custom objects), notes, tasks, lists, list entries, comments, workspace members, and webhooks.
-
-
 
 ## Actions
 
 ### Attio List Records
 
 Query and list records for a given object type (e.g. people, companies)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -51,9 +72,13 @@ Query and list records for a given object type (e.g. people, companies)
 |   ↳ `values` | json | The record attribute values |
 | `count` | number | Number of records returned |
 
+</ReferenceDetails>
+
 ### Attio Get Record
 
 Get a single record by ID from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -77,9 +102,13 @@ Get a single record by ID from Attio
 | `recordId` | string | The record ID |
 | `webUrl` | string | URL to view the record in Attio |
 
+</ReferenceDetails>
+
 ### Attio Create Record
 
 Create a new record in Attio for a given object type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +132,13 @@ Create a new record in Attio for a given object type
 | `recordId` | string | The ID of the created record |
 | `webUrl` | string | URL to view the record in Attio |
 
+</ReferenceDetails>
+
 ### Attio Update Record
 
 Update an existing record in Attio (appends multiselect values)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -130,9 +163,13 @@ Update an existing record in Attio (appends multiselect values)
 | `recordId` | string | The ID of the updated record |
 | `webUrl` | string | URL to view the record in Attio |
 
+</ReferenceDetails>
+
 ### Attio Delete Record
 
 Delete a record from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -147,9 +184,13 @@ Delete a record from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the record was deleted |
 
+</ReferenceDetails>
+
 ### Attio Search Records
 
 Fuzzy search for records across object types in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,9 +212,13 @@ Fuzzy search for records across object types in Attio
 |   ↳ `recordImage` | string | Image URL for the record |
 | `count` | number | Number of results returned |
 
+</ReferenceDetails>
+
 ### Attio Assert Record
 
 Upsert a record in Attio — creates it if no match is found, updates it if a match exists
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,9 +243,13 @@ Upsert a record in Attio — creates it if no match is found, updates it if a ma
 | `recordId` | string | The record ID |
 | `webUrl` | string | URL to view the record in Attio |
 
+</ReferenceDetails>
+
 ### Attio List Notes
 
 List notes in Attio, optionally filtered by parent record
+
+<ReferenceDetails>
 
 #### Input
 
@@ -234,9 +283,13 @@ List notes in Attio, optionally filtered by parent record
 |   ↳ `createdAt` | string | When the note was created |
 | `count` | number | Number of notes returned |
 
+</ReferenceDetails>
+
 ### Attio Get Note
 
 Get a single note by ID from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -265,9 +318,13 @@ Get a single note by ID from Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the note was created |
 
+</ReferenceDetails>
+
 ### Attio Create Note
 
 Create a note on a record in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -302,9 +359,13 @@ Create a note on a record in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the note was created |
 
+</ReferenceDetails>
+
 ### Attio Delete Note
 
 Delete a note from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,9 +379,13 @@ Delete a note from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the note was deleted |
 
+</ReferenceDetails>
+
 ### Attio List Tasks
 
 List tasks in Attio, optionally filtered by record, assignee, or completion status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -356,9 +421,13 @@ List tasks in Attio, optionally filtered by record, assignee, or completion stat
 |   ↳ `createdAt` | string | When the task was created |
 | `count` | number | Number of tasks returned |
 
+</ReferenceDetails>
+
 ### Attio Get Task
 
 Get a single task by ID from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -386,9 +455,13 @@ Get a single task by ID from Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
+</ReferenceDetails>
+
 ### Attio Create Task
 
 Create a task in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -420,9 +493,13 @@ Create a task in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
+</ReferenceDetails>
+
 ### Attio Update Task
 
 Update a task in Attio (deadline, completion status, linked records, assignees)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -454,9 +531,13 @@ Update a task in Attio (deadline, completion status, linked records, assignees)
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
+</ReferenceDetails>
+
 ### Attio Delete Task
 
 Delete a task from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -470,9 +551,13 @@ Delete a task from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the task was deleted |
 
+</ReferenceDetails>
+
 ### Attio List Objects
 
 List all objects (system and custom) in the Attio workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -491,9 +576,13 @@ List all objects (system and custom) in the Attio workspace
 |   ↳ `createdAt` | string | When the object was created |
 | `count` | number | Number of objects returned |
 
+</ReferenceDetails>
+
 ### Attio Get Object
 
 Get a single object by ID or slug
+
+<ReferenceDetails>
 
 #### Input
 
@@ -511,9 +600,13 @@ Get a single object by ID or slug
 | `pluralNoun` | string | Plural display name |
 | `createdAt` | string | When the object was created |
 
+</ReferenceDetails>
+
 ### Attio Create Object
 
 Create a custom object in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -533,9 +626,13 @@ Create a custom object in Attio
 | `pluralNoun` | string | Plural display name |
 | `createdAt` | string | When the object was created |
 
+</ReferenceDetails>
+
 ### Attio Update Object
 
 Update a custom object in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -556,9 +653,13 @@ Update a custom object in Attio
 | `pluralNoun` | string | Plural display name |
 | `createdAt` | string | When the object was created |
 
+</ReferenceDetails>
+
 ### Attio List Lists
 
 List all lists in the Attio workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -582,9 +683,13 @@ List all lists in the Attio workspace
 |   ↳ `createdAt` | string | When the list was created |
 | `count` | number | Number of lists returned |
 
+</ReferenceDetails>
+
 ### Attio Get List
 
 Get a single list by ID or slug
+
+<ReferenceDetails>
 
 #### Input
 
@@ -607,9 +712,13 @@ Get a single list by ID or slug
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
+</ReferenceDetails>
+
 ### Attio Create List
 
 Create a new list in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -636,9 +745,13 @@ Create a new list in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
+</ReferenceDetails>
+
 ### Attio Update List
 
 Update a list in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -665,9 +778,13 @@ Update a list in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
+</ReferenceDetails>
+
 ### Attio Query List Entries
 
 Query entries in an Attio list with optional filter, sort, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -692,9 +809,13 @@ Query entries in an Attio list with optional filter, sort, and pagination
 |   ↳ `entryValues` | json | The entry attribute values \(dynamic per list\) |
 | `count` | number | Number of entries returned |
 
+</ReferenceDetails>
+
 ### Attio Get List Entry
 
 Get a single list entry by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -714,9 +835,13 @@ Get a single list entry by ID
 | `createdAt` | string | When the entry was created |
 | `entryValues` | json | The entry attribute values \(dynamic per list\) |
 
+</ReferenceDetails>
+
 ### Attio Create List Entry
 
 Add a record to an Attio list as a new entry
+
+<ReferenceDetails>
 
 #### Input
 
@@ -738,9 +863,13 @@ Add a record to an Attio list as a new entry
 | `createdAt` | string | When the entry was created |
 | `entryValues` | json | The entry attribute values \(dynamic per list\) |
 
+</ReferenceDetails>
+
 ### Attio Update List Entry
 
 Update entry attribute values on an Attio list entry (appends multiselect values)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -761,9 +890,13 @@ Update entry attribute values on an Attio list entry (appends multiselect values
 | `createdAt` | string | When the entry was created |
 | `entryValues` | json | The entry attribute values \(dynamic per list\) |
 
+</ReferenceDetails>
+
 ### Attio Delete List Entry
 
 Remove an entry from an Attio list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -778,9 +911,13 @@ Remove an entry from an Attio list
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the entry was deleted |
 
+</ReferenceDetails>
+
 ### Attio List Members
 
 List all workspace members in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -801,9 +938,13 @@ List all workspace members in Attio
 |   ↳ `createdAt` | string | When the member was added |
 | `count` | number | Number of members returned |
 
+</ReferenceDetails>
+
 ### Attio Get Member
 
 Get a single workspace member by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -823,9 +964,13 @@ Get a single workspace member by ID
 | `accessLevel` | string | Access level \(admin, member, suspended\) |
 | `createdAt` | string | When the member was added |
 
+</ReferenceDetails>
+
 ### Attio Create Comment
 
 Create a comment on a list entry in Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -864,9 +1009,13 @@ Create a comment on a list entry in Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the comment was created |
 
+</ReferenceDetails>
+
 ### Attio Get Comment
 
 Get a single comment by ID from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -896,9 +1045,13 @@ Get a single comment by ID from Attio
 |   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the comment was created |
 
+</ReferenceDetails>
+
 ### Attio Delete Comment
 
 Delete a comment in Attio (if head of thread, deletes entire thread)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -912,9 +1065,13 @@ Delete a comment in Attio (if head of thread, deletes entire thread)
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the comment was deleted |
 
+</ReferenceDetails>
+
 ### Attio List Threads
 
 List comment threads in Attio, optionally filtered by record or list entry
+
+<ReferenceDetails>
 
 #### Input
 
@@ -943,9 +1100,13 @@ List comment threads in Attio, optionally filtered by record or list entry
 |   ↳ `createdAt` | string | When the thread was created |
 | `count` | number | Number of threads returned |
 
+</ReferenceDetails>
+
 ### Attio Get Thread
 
 Get a single comment thread by ID from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -959,13 +1120,21 @@ Get a single comment thread by ID from Attio
 | --------- | ---- | ----------- |
 | `threadId` | string | The thread ID |
 | `comments` | array | Comments in the thread |
-|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
-|   ↳ `id` | string | The actor ID |
+|   ↳ `commentId` | string | The comment ID |
+|   ↳ `contentPlaintext` | string | Comment content as plaintext |
+|   ↳ `author` | object | The comment author |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
+|   ↳ `createdAt` | string | When the comment was created |
 | `createdAt` | string | When the thread was created |
+
+</ReferenceDetails>
 
 ### Attio List Webhooks
 
 List all webhooks in the Attio workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -988,9 +1157,13 @@ List all webhooks in the Attio workspace
 |   ↳ `createdAt` | string | When the webhook was created |
 | `count` | number | Number of webhooks returned |
 
+</ReferenceDetails>
+
 ### Attio Get Webhook
 
 Get a single webhook by ID from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1010,9 +1183,13 @@ Get a single webhook by ID from Attio
 | `status` | string | Webhook status \(active, degraded, inactive\) |
 | `createdAt` | string | When the webhook was created |
 
+</ReferenceDetails>
+
 ### Attio Create Webhook
 
 Create a webhook in Attio to receive event notifications
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1034,9 +1211,13 @@ Create a webhook in Attio to receive event notifications
 | `createdAt` | string | When the webhook was created |
 | `secret` | string | The webhook signing secret \(only returned on creation\) |
 
+</ReferenceDetails>
+
 ### Attio Update Webhook
 
 Update a webhook in Attio (target URL and/or subscriptions)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1058,9 +1239,13 @@ Update a webhook in Attio (target URL and/or subscriptions)
 | `status` | string | Webhook status \(active, degraded, inactive\) |
 | `createdAt` | string | When the webhook was created |
 
+</ReferenceDetails>
+
 ### Attio Delete Webhook
 
 Delete a webhook from Attio
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1074,9 +1259,13 @@ Delete a webhook from Attio
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the webhook was deleted |
 
+</ReferenceDetails>
+
 ### Attio List Attributes
 
 List the attributes (schema fields) defined on an Attio object or list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1111,9 +1300,13 @@ List the attributes (schema fields) defined on an Attio object or list
 |   ↳ `createdAt` | string | When the attribute was created |
 | `count` | number | Number of attributes returned |
 
+</ReferenceDetails>
+
 ### Attio Get Attribute
 
 Get a single attribute (schema field) on an Attio object or list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1144,9 +1337,13 @@ Get a single attribute (schema field) on an Attio object or list
 | `config` | json | Type-dependent attribute configuration |
 | `createdAt` | string | When the attribute was created |
 
+</ReferenceDetails>
+
 ### Attio Create Attribute
 
 Create a new attribute (schema field) on an Attio object or list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1184,9 +1381,13 @@ Create a new attribute (schema field) on an Attio object or list
 | `config` | json | Type-dependent attribute configuration |
 | `createdAt` | string | When the attribute was created |
 
+</ReferenceDetails>
+
 ### Attio Update Attribute
 
 Update an attribute (schema field) on an Attio object or list
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1224,16 +1425,20 @@ Update an attribute (schema field) on an Attio object or list
 | `config` | json | Type-dependent attribute configuration |
 | `createdAt` | string | When the attribute was created |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Attio Comment Created
 
 Trigger workflow when a new comment is created in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1253,13 +1458,14 @@ Trigger workflow when a new comment is created in Attio
 | `listId` | string | The list ID \(if comment is on a list entry\) |
 | `entryId` | string | The list entry ID \(if comment is on a list entry\) |
 
-
----
+</ReferenceDetails>
 
 ### Attio Comment Deleted
 
 Trigger workflow when a comment is deleted in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1279,13 +1485,14 @@ Trigger workflow when a comment is deleted in Attio
 | `listId` | string | The list ID \(if comment is on a list entry\) |
 | `entryId` | string | The list entry ID \(if comment is on a list entry\) |
 
-
----
+</ReferenceDetails>
 
 ### Attio Comment Resolved
 
 Trigger workflow when a comment thread is resolved in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1305,13 +1512,14 @@ Trigger workflow when a comment thread is resolved in Attio
 | `listId` | string | The list ID \(if comment is on a list entry\) |
 | `entryId` | string | The list entry ID \(if comment is on a list entry\) |
 
-
----
+</ReferenceDetails>
 
 ### Attio Comment Unresolved
 
 Trigger workflow when a comment thread is unresolved in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1331,13 +1539,14 @@ Trigger workflow when a comment thread is unresolved in Attio
 | `listId` | string | The list ID \(if comment is on a list entry\) |
 | `entryId` | string | The list entry ID \(if comment is on a list entry\) |
 
-
----
+</ReferenceDetails>
 
 ### Attio List Created
 
 Trigger workflow when a list is created in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1352,13 +1561,14 @@ Trigger workflow when a list is created in Attio
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio List Deleted
 
 Trigger workflow when a list is deleted in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1373,13 +1583,14 @@ Trigger workflow when a list is deleted in Attio
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio List Entry Created
 
 Trigger workflow when a new list entry is created in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1395,13 +1606,14 @@ Trigger workflow when a new list entry is created in Attio
 | `listId` | string | The list ID |
 | `entryId` | string | The list entry ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio List Entry Deleted
 
 Trigger workflow when a list entry is deleted in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1417,12 +1629,13 @@ Trigger workflow when a list entry is deleted in Attio
 | `listId` | string | The list ID |
 | `entryId` | string | The list entry ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio List Entry Updated
 
 Trigger workflow when a list entry is updated in Attio
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1440,12 +1653,13 @@ Trigger workflow when a list entry is updated in Attio
 | `entryId` | string | The list entry ID |
 | `attributeId` | string | The ID of the attribute that was updated on the list entry |
 
-
----
+</ReferenceDetails>
 
 ### Attio List Updated
 
 Trigger workflow when a list is updated in Attio
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1461,13 +1675,14 @@ Trigger workflow when a list is updated in Attio
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Note Created
 
 Trigger workflow when a new note is created in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1484,13 +1699,14 @@ Trigger workflow when a new note is created in Attio
 | `parentObjectId` | string | The parent object type ID |
 | `parentRecordId` | string | The parent record ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Note Deleted
 
 Trigger workflow when a note is deleted in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1507,13 +1723,14 @@ Trigger workflow when a note is deleted in Attio
 | `parentObjectId` | string | The parent object type ID |
 | `parentRecordId` | string | The parent record ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Note Updated
 
 Trigger workflow when a note is updated in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1530,13 +1747,14 @@ Trigger workflow when a note is updated in Attio
 | `parentObjectId` | string | The parent object type ID |
 | `parentRecordId` | string | The parent record ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Record Created
 
 Trigger workflow when a new record is created in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1552,13 +1770,14 @@ Trigger workflow when a new record is created in Attio
 | `objectId` | string | The object type ID \(e.g. people, companies\) |
 | `recordId` | string | The record ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Record Deleted
 
 Trigger workflow when a record is deleted in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1574,12 +1793,13 @@ Trigger workflow when a record is deleted in Attio
 | `objectId` | string | The object type ID \(e.g. people, companies\) |
 | `recordId` | string | The record ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Record Merged
 
 Trigger workflow when two records are merged in Attio
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1598,12 +1818,13 @@ Trigger workflow when two records are merged in Attio
 | `duplicateObjectId` | string | The object type ID of the merged-away record |
 | `duplicateRecordId` | string | The record ID that was merged away |
 
-
----
+</ReferenceDetails>
 
 ### Attio Record Updated
 
 Trigger workflow when a record is updated in Attio
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1621,13 +1842,14 @@ Trigger workflow when a record is updated in Attio
 | `recordId` | string | The record ID |
 | `attributeId` | string | The ID of the attribute that was updated on the record |
 
-
----
+</ReferenceDetails>
 
 ### Attio Task Created
 
 Trigger workflow when a new task is created in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1642,13 +1864,14 @@ Trigger workflow when a new task is created in Attio
 | `workspaceId` | string | The workspace ID |
 | `taskId` | string | The task ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Task Deleted
 
 Trigger workflow when a task is deleted in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1663,13 +1886,14 @@ Trigger workflow when a task is deleted in Attio
 | `workspaceId` | string | The workspace ID |
 | `taskId` | string | The task ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Task Updated
 
 Trigger workflow when a task is updated in Attio
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1684,12 +1908,13 @@ Trigger workflow when a task is updated in Attio
 | `workspaceId` | string | The workspace ID |
 | `taskId` | string | The task ID |
 
-
----
+</ReferenceDetails>
 
 ### Attio Webhook (All Events)
 
 Trigger workflow on any Attio webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1706,12 +1931,13 @@ Trigger workflow on any Attio webhook event
 | `parentObjectId` | string | The parent object type ID \(if applicable\) |
 | `parentRecordId` | string | The parent record ID \(if applicable\) |
 
-
----
+</ReferenceDetails>
 
 ### Attio Workspace Member Created
 
 Trigger workflow when a new member is added to the Attio workspace
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1726,4 +1952,6 @@ Trigger workflow when a new member is added to the Attio workspace
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `workspaceMemberId` | string | The workspace member ID |
+
+</ReferenceDetails>
 

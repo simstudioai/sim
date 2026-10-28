@@ -62,7 +62,7 @@ export const kalshiGetSeriesListTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_series_list')
+      handleKalshiError(data, 'get_series_list')
     }
 
     return {
@@ -127,8 +127,7 @@ export const kalshiGetSeriesListV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_series_list_v2',
   name: 'Get Series List from Kalshi V2',
-  description:
-    'Retrieve a list of market series from Kalshi with optional filtering (V2 - exact API response)',
+  description: 'Retrieve a list of market series from Kalshi with optional filtering',
   version: '2.0.0',
 
   params: {
@@ -189,7 +188,7 @@ export const kalshiGetSeriesListV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_series_list_v2')
+      handleKalshiError(data, 'get_series_list_v2')
     }
 
     const series = (data.series || []).map((s: Record<string, unknown>) => {

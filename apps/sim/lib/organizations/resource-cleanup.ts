@@ -8,9 +8,9 @@ import { env } from '@/lib/core/config/env'
 import { enqueueOutboxEvent, type OutboxHandlerRegistry } from '@/lib/core/outbox/service'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
+import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
-export const ORGANIZATION_RESOURCE_CLEANUP_EVENT = 'organization.resources.cleanup'
 const CLEANUP_BATCH_SIZE = 100
 const FILE_DELETE_CONCURRENCY = 10
 

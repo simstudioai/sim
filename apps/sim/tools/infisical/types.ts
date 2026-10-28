@@ -137,10 +137,3 @@ export interface InfisicalDeleteSecretResponse extends ToolResponse {
     secret: InfisicalSecret
   }
 }
-
-export type InfisicalResponse =
-  | InfisicalListSecretsResponse
-  | InfisicalGetSecretResponse
-  | InfisicalCreateSecretResponse
-  | InfisicalUpdateSecretResponse
-  | InfisicalDeleteSecretResponse

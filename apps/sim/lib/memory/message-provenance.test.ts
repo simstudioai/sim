@@ -2,25 +2,21 @@ import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import type { DurableSecretProvenanceEntry } from '@sim/db/schema'
 import { memory } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getAllMockLoggers } from '@sim/testing/mocks/logger.mock'
+import { piiRedactionMock } from '@sim/testing/mocks/pii-redaction.mock'
+import { tokenizationAccurateMock } from '@sim/testing/mocks/tokenization-accurate.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import { toArray, toRecord } from '@sim/utils/object'
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  decrypt: vi.fn(),
-  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-  loadWorkspace: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({ createLogger: () => mocks.logger }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({
-  redactObjectStrings: vi.fn(async (value: unknown) => value),
-}))
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: (text: string) => text.length,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import {
   hashDurableSecretProvenanceValue,
@@ -43,6 +39,16 @@ import type { AgentInputs, FileNameProjection, Message } from '@/executor/handle
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { memoryAddTool } from '@/tools/memory/add'
+
+/** Error calls across every module's logger, in the order each logger received them. */
+function loggedErrors(): unknown[][] {
+  return getAllMockLoggers().flatMap((logger) => logger.error.mock.calls)
+}
+
+const mocks = {
+  decrypt: encryptionMockFns.mockDecryptSecret,
+  loadWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
 
 const SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 const SECRET = 'known-secret-value'
@@ -67,8 +73,8 @@ function queueStoredMemory(data: Message[], entries: readonly DurableSecretProve
       data,
       secretProvenanceVersion: 1,
       provenanceContentHash: hashDurableSecretProvenanceValue(data),
-      provenanceStatus: 'exact',
-      provenanceEntries: entries,
+      status: 'exact',
+      entries,
     },
   ])
 }
@@ -155,7 +161,7 @@ describe('memory message provenance', () => {
     })
 
     const sidecar = dbChainMockFns.values.mock.calls
-      .map(([value]) => value)
+      .map(([value]) => toRecord(value))
       .find((value) => value.memoryId === 'memory-1')
     expect(sidecar).toMatchObject({
       status: 'exact',
@@ -164,10 +170,11 @@ describe('memory message provenance', () => {
     expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.select.mock.invocationCallOrder[0]
     )
-    queueStoredMemory(data, sidecar.entries)
+    assert.isDefined(sidecar)
+    queueStoredMemory(data, toArray<DurableSecretProvenanceEntry>(sidecar.entries))
     const result = await new Memory().fetchMemoryMessages(executionContext(), INPUTS)
     expect(result[0].content).toBe('{{TOKEN}}')
-    expect(mocks.logger.error).not.toHaveBeenCalled()
+    expect(loggedErrors()).toEqual([])
   })
 
   it.each(['append', 'seed'] as const)(
@@ -237,7 +244,7 @@ describe('memory message provenance', () => {
       expect(replayed.content).toBe('{{TOKEN}}')
       expect(replayed.files?.[0].name).toBe(`${SECRET}.txt`)
       expect(projectedNames.get(replayed.files![0])).toEqual({ name: '{{TOKEN}}.txt' })
-      expect(mocks.logger.error).not.toHaveBeenCalled()
+      expect(loggedErrors()).toEqual([])
     }
   )
 
@@ -259,16 +266,18 @@ describe('memory message provenance', () => {
       const context = executionContext()
       expect((await new Memory().fetchMemoryMessages(context, INPUTS))[0].content).toBe('{{TOKEN}}')
       expect(context.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
-      expect(mocks.logger.error).toHaveBeenCalledExactlyOnceWith(
-        'Validated historical memory secret provenance',
-        {
-          surface: 'memory',
-          cause: binding === 'unbound' ? 'unbound-message-entry' : 'unmatched-message-hash',
-          entryCount: 1,
-          workspaceId: SCOPE.workspaceId,
-        }
-      )
-      const telemetry = JSON.stringify(mocks.logger.error.mock.calls)
+      expect(loggedErrors()).toEqual([
+        [
+          'Validated historical memory secret provenance',
+          {
+            surface: 'memory',
+            cause: binding === 'unbound' ? 'unbound-message-entry' : 'unmatched-message-hash',
+            entryCount: 1,
+            workspaceId: SCOPE.workspaceId,
+          },
+        ],
+      ])
+      const telemetry = JSON.stringify(loggedErrors())
       expect(telemetry).not.toContain(SECRET)
       expect(telemetry).not.toContain(ENTRY.encryptedValue)
       expect(telemetry).not.toContain(ENTRY.name)
@@ -359,7 +368,7 @@ describe('memory message provenance', () => {
     ).toBe(true)
     expect(readerRegistry.exportProvenance().entries).toHaveLength(1)
     expect(readerRegistry.isComplete()).toBe(true)
-    expect(mocks.logger.error).not.toHaveBeenCalled()
+    expect(loggedErrors()).toEqual([])
   })
 
   it('still rejects more than ten thousand distinct secrets', async () => {
@@ -387,9 +396,9 @@ describe('memory message provenance', () => {
       entries: [{ ...ENTRY, encryptedValue: 'ciphertext'.repeat(120) }],
     })
     expect(provenance).toEqual({ status: 'unknown' })
-    expect(mocks.logger.error).toHaveBeenCalledWith(
+    expect(loggedErrors()).toContainEqual([
       'Memory message secret provenance could not be bound',
-      { surface: 'memory', cause: 'entries-unnormalizable' }
-    )
+      { surface: 'memory', cause: 'entries-unnormalizable' },
+    ])
   })
 })

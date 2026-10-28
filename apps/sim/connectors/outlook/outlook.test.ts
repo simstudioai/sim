@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   isCurrentMessage,
   outlookConnector,
@@ -9,17 +10,6 @@ const DELETED_ITEMS_ID = 'deleted-items-id'
 const DELETED_SUBFOLDER_ID = 'deleted-subfolder-id'
 const INBOX_ID = 'inbox-id'
 const JUNK_EMAIL_ID = 'junk-email-id'
-
-interface JsonResponseInit {
-  status?: number
-}
-
-function jsonResponse(body: unknown, init: JsonResponseInit = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status: init.status ?? 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 /**
  * Minimal Graph message payload, defaulting to fields the connector requires
@@ -42,10 +32,6 @@ const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => P
 beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 /**

@@ -4,7 +4,7 @@
  * guarded UPDATE, so asserting on it also pins the behavior of the trigger.dev
  * call sites that go through the same helper.
  */
-import { databaseMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyMock } = vi.hoisted(() => ({
@@ -17,7 +17,6 @@ vi.mock('@/lib/workflows/schedules/disable-notifications', () => ({
 
 // This module imports its tables from `@sim/db` directly, which the global mock
 // does not re-export. Widen it rather than rewriting the source's imports.
-vi.mock('@sim/db', () => ({ ...databaseMock, ...schemaMock }))
 
 import {
   applyScheduleFailureUpdate,

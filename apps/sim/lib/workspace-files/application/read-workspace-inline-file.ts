@@ -6,11 +6,14 @@ import {
   getWorkspaceFile,
   loadActiveWorkspaceFileContext,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { createFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 export interface ReadWorkspaceInlineFileInput {
   workspaceId: string
@@ -37,6 +40,7 @@ export interface ReadWorkspaceInlineFileResult {
 async function executeReadWorkspaceInlineFile({
   input,
   context,
+  principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
   ReadWorkspaceInlineFileInput,
@@ -46,11 +50,28 @@ async function executeReadWorkspaceInlineFile({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'Not found')
+  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
 
-  const stream = await downloadFileStream({ key: file.key, context: 'workspace' })
+  const stream = nodeReadableToWebStream(
+    await downloadFileStream({ key: file.key, context: 'workspace' })
+  )
+  const provenance = await finishFileDelivery({
+    principal,
+    authorize: () => readWorkspaceInlineFile.authorize({ principal, input }),
+    receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
+      { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
+    ]),
+    stream,
+  })
+  try {
+    await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque', provenance)
+  } catch (error) {
+    await stream.cancel(error).catch(() => undefined)
+    throw error
+  }
   return {
     file,
-    stream: nodeReadableToWebStream(stream),
+    stream,
     contentAddressed: input.key !== undefined && input.key === file.key,
   }
 }

@@ -1,7 +1,10 @@
 import { BlockType, LOOP } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import { createSubflowSentinelNode } from '@/executor/dag/construction/sentinels'
-import { buildSentinelEndId, buildSentinelStartId } from '@/executor/utils/subflow-utils'
+import {
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
+} from '@/executor/utils/subflow-node-id-codec'
 
 export class LoopConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {
@@ -22,8 +25,8 @@ export class LoopConstructor {
   }
 
   private createSentinelPair(dag: DAG, loopId: string): void {
-    const startId = buildSentinelStartId(loopId)
-    const endId = buildSentinelEndId(loopId)
+    const startId = buildLoopSentinelStartId(loopId)
+    const endId = buildLoopSentinelEndId(loopId)
 
     dag.nodes.set(
       startId,

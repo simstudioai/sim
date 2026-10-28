@@ -1,12 +1,15 @@
+import type { Principal } from '@sim/auth/principal'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { workspaceFileProvenanceIdentity } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileSecretProvenanceInput {
   fileId: string
@@ -17,19 +20,27 @@ export interface ReadWorkspaceFileSecretProvenanceInput {
 
 export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }: { input: ReadWorkspaceFileSecretProvenanceInput }) =>
-    resolveActiveWorkspaceFileContext(input),
-  async execute({ input, context }): Promise<{
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadWorkspaceFileSecretProvenanceInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
+  async execute({ input, context, principal }): Promise<{
     provenance: WorkspaceFileSecretProvenance
     ownerUserId: string
   }> {
-    const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
+    const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+      throwOnError: true,
+      includeOwnedFiles: true,
+    })
     if (!file) throw new OrchestrationError('not_found', 'File not found')
+    /** A classification names secrets by ciphertext only and returns none of the file's content. */
+    await admitContent(principal, [])
     return {
       provenance: await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
-        fileId: file.id,
-        key: file.key,
-        context: 'workspace',
+        ...workspaceFileProvenanceIdentity(file),
         contentUpdatedAt: input.expectedContentUpdatedAt,
       }),
       ownerUserId: file.uploadedBy,

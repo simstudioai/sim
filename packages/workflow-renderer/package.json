@@ -4,12 +4,12 @@
   "private": true,
   "sideEffects": [
     "**/*.css",
-    "**/note-block-view.tsx"
+    "**/note/block-view.tsx"
   ],
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -22,12 +22,12 @@
       "default": "./src/dimensions.ts"
     },
     "./note-colors": {
-      "types": "./src/note/note-colors.ts",
-      "default": "./src/note/note-colors.ts"
+      "types": "./src/note/colors.ts",
+      "default": "./src/note/colors.ts"
     },
     "./note-content": {
-      "types": "./src/note/note-content.ts",
-      "default": "./src/note/note-content.ts"
+      "types": "./src/note/content.ts",
+      "default": "./src/note/content.ts"
     },
     "./formatted-text": {
       "types": "./src/formatted-text.tsx",
@@ -65,11 +65,11 @@
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-types": "workspace:*",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@types/hast": "^3.0.4",
+    "@testing-library/jest-dom": "^6.10.0",
+    "@types/hast": "3.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@xyflow/react": "12.11.3",
+    "@xyflow/react": "12.12.0",
     "jsdom": "^26.0.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -77,6 +77,6 @@
     "remark-gfm": "^4.0.1",
     "streamdown": "2.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

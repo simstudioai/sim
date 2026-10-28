@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   ContentVersionConflictError,
@@ -10,12 +11,13 @@ import {
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import { prepareOwnedFileContentWrite } from '@/lib/workspace-files/application/owned-file-content'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
 const logger = createLogger('UpdateWorkspaceFileContent')
@@ -64,6 +66,7 @@ async function updateAuthorizedWorkspaceFileContent({
   const expectedUpdatedAt = input.expectedRevision
     ? parseWorkspaceFileRevision(input.expectedRevision, canonical.fileId)
     : input.expectedUpdatedAt
+  const commitOwner = await prepareOwnedFileContentWrite(canonical, content)
   let file: VersionedWorkspaceFileRecord
   try {
     file = await updateStoredWorkspaceFileContent(
@@ -76,6 +79,7 @@ async function updateAuthorizedWorkspaceFileContent({
         version: resolveWorkspaceFileVersionWrite(principal),
         ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
         syncLiveDoc: input.syncLiveDoc,
+        commitOwner,
         secretProvenancePolicy: {
           ...(input.provenanceMode === 'preserve'
             ? { mode: 'preserve' as const }
@@ -115,9 +119,12 @@ function projectUpdateWorkspaceFileContentAudit(result: UpdateWorkspaceFileConte
 
 const admitUpdateWorkspaceFileContentUseCase = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: { fileId: string } }) =>
-    resolveActiveWorkspaceFileContext(input),
-  async execute() {},
+  resolveContext: ({ principal, input }: { principal: Principal; input: { fileId: string } }) =>
+    resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
+  /** Admission only; nothing is read. */
+  async execute({ principal }) {
+    await admitContent(principal, [])
+  },
 })
 
 export async function admitUpdateWorkspaceFileContent(
@@ -129,9 +136,16 @@ export async function admitUpdateWorkspaceFileContent(
 
 export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateWorkspaceFileContentInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileContentResult> {
+    /** A replacement writes the caller's bytes and returns the file's metadata, never its content. */
+    await admitContent(principal, [])
     const content = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf-8')
     if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
       throw new OrchestrationError(
@@ -151,14 +165,21 @@ export const updateWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
 
 export const updateWorkspaceFileContentFromBuffer = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.updateContent,
-  resolveContext: ({ input }: { input: UpdateWorkspaceFileContentBufferInput }) =>
-    resolveActiveWorkspaceFileContext(input),
-  execute: ({ principal, input, context }) =>
-    updateAuthorizedWorkspaceFileContent({
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateWorkspaceFileContentBufferInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
+  async execute({ principal, input, context }) {
+    await admitContent(principal, [])
+    return updateAuthorizedWorkspaceFileContent({
       principal,
       input,
       content: input.content,
       canonical: context,
-    }),
+    })
+  },
   projectAudit: ({ result }) => projectUpdateWorkspaceFileContentAudit(result),
 })

@@ -1,11 +1,14 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { db } from '@sim/db'
+import { compareStrings } from '@sim/utils/string'
 import {
   type AuthorizedWorkspaceUseCaseContext,
+  ContentRefusedError,
   capabilityGovernedPrincipalUserId,
 } from '@/lib/core/application'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { parseFolderPath } from '@/lib/folders/paths'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import {
   buildWorkspaceFileFolderPathMap,
@@ -14,21 +17,30 @@ import {
   loadWorkspaceFileOperationContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import { mergeWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import {
   formatFileSize,
   MAX_RENDERED_DOCUMENT_BYTES,
   needsRenderedArtifact,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
+import {
+  admitContributors,
+  admitWorkspaceFiles,
+} from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
-
-export const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
-const MAX_REQUESTED_FILE_IDS = 1_000
-const MAX_REQUESTED_FOLDER_IDS = 1_000
+import {
+  expandFileDownloadFolders,
+  normalizeFileDownloadSelection,
+} from '@/lib/workspace-files/download-selection'
+import { MAX_ZIP_DOWNLOAD_BYTES, MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
+import {
+  createFileReadReceipt,
+  type FileReadReceipt,
+  recheckFileReadReceipt,
+} from '@/lib/workspace-files/read-receipt'
 
 export interface DownloadWorkspaceFileItemsInput {
   workspaceId: string
@@ -47,81 +59,29 @@ export interface DownloadWorkspaceFileItemsResult {
   folderPaths: Map<string, string>
   renderedDocuments: Map<string, Buffer>
   declaredBytes: number
-}
-
-function collectDescendantFolderIds(
-  selectedFolderIds: string[],
-  folders: Array<{ id: string; parentId: string | null }>
-): Set<string> {
-  const folderIds = new Set(selectedFolderIds)
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const folder of folders) {
-      if (folder.parentId && folderIds.has(folder.parentId) && !folderIds.has(folder.id)) {
-        folderIds.add(folder.id)
-        changed = true
-      }
-    }
-  }
-  return folderIds
-}
-
-/**
- * Maps canonical folder paths onto the ids the selection walk uses.
- *
- * Resolved against the folder set the download already loads rather than by a
- * separate path query, and a path that matches nothing is rejected rather than
- * silently dropped — a caller that misspells a folder should not receive a zip
- * of whatever else it happened to select.
- */
-function resolveFolderIdsFromPaths(
-  paths: string[],
-  folders: Array<{ id: string }>,
-  displayPathById: Map<string, string>
-): string[] {
-  if (paths.length === 0) return []
-  const idByPath = new Map<string, string>()
-  for (const folder of folders) {
-    const displayPath = displayPathById.get(folder.id)
-    if (!displayPath) continue
-    idByPath.set(parseWorkspaceFileFolderDisplayPath(displayPath).join('\u0000'), folder.id)
-  }
-  return paths.map((path) => {
-    const id = idByPath.get(parseFolderPath(path).join('\u0000'))
-    if (!id) validationError(`Folder not found: ${path}`)
-    return id
-  })
+  excludedFileIds: string[]
 }
 
 function validationError(message: string): never {
   throw new OrchestrationError('validation', message)
 }
 
-async function executeDownloadWorkspaceFileItems({
-  input,
+function validateDeclaredBytes(bytes: number): void {
+  if (bytes > MAX_ZIP_DOWNLOAD_BYTES) {
+    validationError(
+      `Selected files total ${formatFileSize(bytes)}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`
+    )
+  }
+}
+
+async function requireDownloadCapability({
   context,
   principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.download,
   DownloadWorkspaceFileItemsInput,
   Awaited<ReturnType<typeof resolveDownloadContext>>
->): Promise<DownloadWorkspaceFileItemsResult> {
-  const fileIds = [...new Set(input.fileIds)]
-  const folderIds = [...new Set(input.folderIds)]
-  const requestedFolderPaths = [...new Set(input.folderPaths ?? [])]
-  if (fileIds.length > MAX_REQUESTED_FILE_IDS) {
-    validationError(`Too many file IDs selected. Select ${MAX_REQUESTED_FILE_IDS} or fewer files.`)
-  }
-  if (folderIds.length + requestedFolderPaths.length > MAX_REQUESTED_FOLDER_IDS) {
-    validationError(
-      `Too many folders selected. Select ${MAX_REQUESTED_FOLDER_IDS} or fewer folders.`
-    )
-  }
-  if (fileIds.length === 0 && folderIds.length === 0 && requestedFolderPaths.length === 0) {
-    validationError('No files selected for download')
-  }
-
+>) {
   /**
    * permission-group-enforced: files.bulk_download — one operation serves both
    * a single file and a whole folder tree, and only the archive is what the key
@@ -146,60 +106,86 @@ async function executeDownloadWorkspaceFileItems({
       )
     }
   }
+}
+
+async function executeDownloadWorkspaceFileItems({
+  input,
+  context,
+  principal,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.download,
+  DownloadWorkspaceFileItemsInput,
+  Awaited<ReturnType<typeof resolveDownloadContext>>
+>): Promise<DownloadWorkspaceFileItemsResult> {
+  const selection = normalizeFileDownloadSelection(input)
 
   const [files, folders] = await Promise.all([
     listWorkspaceFiles(context.workspaceId, { hydrateFolderPaths: false, throwOnError: true }),
     listWorkspaceFileFolders(context.workspaceId),
   ])
   const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-  const selectedFolderIds = collectDescendantFolderIds(
-    [...folderIds, ...resolveFolderIdsFromPaths(requestedFolderPaths, folders, folderPaths)],
-    folders
-  )
-  const requestedFileIds = new Set(fileIds)
-  const filesToZip = files.filter(
+  const selectedFolderIds = expandFileDownloadFolders(selection, folders, folderPaths)
+  const requestedFileIds = new Set(selection.fileIds)
+  const selectedFiles = files.filter(
     (file) =>
       requestedFileIds.has(file.id) ||
       (file.folderId != null && selectedFolderIds.has(file.folderId))
   )
 
-  if (filesToZip.length === 0) validationError('No files selected for download')
-  if (filesToZip.length > MAX_ZIP_DOWNLOAD_FILES) {
+  if (selectedFiles.length === 0) validationError('No files selected for download')
+  if (selectedFiles.length > MAX_ZIP_DOWNLOAD_FILES) {
     validationError(
       `Too many files selected for download. Select ${MAX_ZIP_DOWNLOAD_FILES} or fewer files.`
     )
   }
-
-  const declaredBytes = filesToZip.reduce((sum, file) => sum + file.size, 0)
-  if (declaredBytes > MAX_ZIP_DOWNLOAD_BYTES) {
-    validationError(
-      `Selected files total ${formatFileSize(declaredBytes)}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`
-    )
-  }
+  /** An archive is opaque to redaction, so each file enters it only when its gate admits it. */
+  let filesToZip = await admitWorkspaceFiles(
+    principal,
+    context.workspaceId,
+    selectedFiles,
+    'opaque'
+  )
 
   const reservedForStreamed = filesToZip
     .filter((file) => !needsRenderedArtifact(file.type, file.name))
     .reduce((sum, file) => sum + file.size, 0)
+  let declaredBytes = reservedForStreamed
+  validateDeclaredBytes(declaredBytes)
   const renderedDocuments = new Map<string, Buffer>()
+  const receipts: FileReadReceipt[] = []
   const pendingNames: string[] = []
   let renderedBytes = 0
 
   for (const file of filesToZip) {
     if (!needsRenderedArtifact(file.type, file.name)) continue
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
-    const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {
-      const { buffer } = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
-        maxBytes: allowance,
-      })
+      const { buffer, contributingFiles, receipt } =
+        await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
+          maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
+        })
+      if (!(await admitContributors(principal, context.workspaceId, contributingFiles, 'opaque'))) {
+        filesToZip = filesToZip.filter((admitted) => admitted.id !== file.id)
+        continue
+      }
+      if (buffer.length > remaining) {
+        validationError(
+          `The selected files exceed the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit once documents are rendered. Select fewer files.`
+        )
+      }
+      declaredBytes += file.size
+      validateDeclaredBytes(declaredBytes)
+      receipts.push(receipt)
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {
+      if (error instanceof ContentRefusedError) {
+        filesToZip = filesToZip.filter((admitted) => admitted.id !== file.id)
+        continue
+      }
       if (error instanceof PayloadSizeLimitError) {
         validationError(
-          allowance === MAX_RENDERED_DOCUMENT_BYTES
-            ? `"${file.name}" renders to more than ${formatFileSize(MAX_RENDERED_DOCUMENT_BYTES)} and is too large to include in a zip; download it on its own instead.`
-            : `The selected files exceed the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit once documents are rendered. Select fewer files.`
+          `"${file.name}" renders to more than ${formatFileSize(MAX_RENDERED_DOCUMENT_BYTES)} and is too large to include in a zip; download it on its own instead.`
         )
       }
       if (!isDocNotReadyError(error)) throw error
@@ -210,8 +196,80 @@ async function executeDownloadWorkspaceFileItems({
   if (pendingNames.length > 0) {
     throw new OrchestrationError('conflict', docNotReadyMessage(pendingNames))
   }
+  if (filesToZip.length === 0) {
+    throw new ContentRefusedError('workspace-file')
+  }
 
-  return { filesToZip, folderPaths, renderedDocuments, declaredBytes }
+  await downloadWorkspaceFileItems.authorize({ principal, input })
+  if (context.fileId === undefined) {
+    const actingUserId = capabilityGovernedPrincipalUserId(principal)
+    if (actingUserId) {
+      // permission-group-enforced: files.bulk_download — publication must use the current archive capability.
+      await assertWorkspaceCapability(
+        actingUserId,
+        context.workspaceId,
+        'files.bulk_download',
+        context.workspaceOrganizationId
+      )
+    }
+  }
+  const [currentFiles, currentFolders] = await Promise.all([
+    listWorkspaceFiles(context.workspaceId, { hydrateFolderPaths: false, throwOnError: true }),
+    listWorkspaceFileFolders(context.workspaceId),
+  ])
+  const currentPaths = buildWorkspaceFileFolderPathMap(currentFolders)
+  const currentSelection = expandFileDownloadFolders(selection, currentFolders, currentPaths)
+  const currentSelectedFiles = currentFiles.filter(
+    (file) =>
+      requestedFileIds.has(file.id) ||
+      (file.folderId != null && currentSelection.has(file.folderId))
+  )
+  const identity = (selected: WorkspaceFileRecord[], paths: Map<string, string>) =>
+    JSON.stringify(
+      [...selected]
+        .sort((a, b) => compareStrings(a.id, b.id))
+        .map((file) => [
+          file.id,
+          file.key,
+          file.name,
+          file.folderId,
+          file.folderId ? paths.get(file.folderId) : null,
+        ])
+    )
+  if (identity(currentSelectedFiles, currentPaths) !== identity(selectedFiles, folderPaths))
+    throw new OrchestrationError('conflict', 'File selection changed while preparing the download')
+  receipts.push(
+    createFileReadReceipt(
+      { entityType: 'workspace', entityId: context.workspaceId },
+      filesToZip.map((file) => ({
+        ...file,
+        contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt,
+      }))
+    )
+  )
+  const provenance = await db.transaction(
+    async (tx) => {
+      const evidence = []
+      for (const receipt of receipts) evidence.push(await recheckFileReadReceipt(tx, receipt))
+      return mergeWorkspaceFileSecretProvenance(...evidence)
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' }
+  )
+  await requireAdmittedContent(principal, {
+    kind: 'workspace-file',
+    id: context.workspaceId,
+    provenance,
+    view: 'opaque',
+  })
+  const included = new Set(filesToZip.map((file) => file.id))
+  return {
+    excludedFileIds: selectedFiles.filter((file) => !included.has(file.id)).map((file) => file.id),
+    filesToZip,
+    folderPaths,
+    renderedDocuments,
+    /** Counted over what is zipped, after any rendered document whose contributors were refused. */
+    declaredBytes,
+  }
 }
 
 async function resolveDownloadContext({ input }: { input: DownloadWorkspaceFileItemsInput }) {
@@ -236,6 +294,7 @@ async function resolveDownloadContext({ input }: { input: DownloadWorkspaceFileI
 export const downloadWorkspaceFileItems = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.download,
   resolveContext: resolveDownloadContext,
+  authorizeResource: requireDownloadCapability,
   execute: executeDownloadWorkspaceFileItems,
   projectAudit({ result }) {
     return {

@@ -2,6 +2,7 @@ import type {
   DatabricksGetClusterParams,
   DatabricksGetClusterResponse,
 } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGetClusterResponse> =
@@ -35,11 +36,7 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
 
     request: {
       url: (params) => {
-        const host = params.host
-          .trim()
-          .replace(/^https?:\/\//, '')
-          .replace(/\/$/, '')
-        const url = new URL(`https://${host}/api/2.0/clusters/get`)
+        const url = new URL(databricksUrl(params.host, '/api/2.1/clusters/get'))
         url.searchParams.set('cluster_id', params.clusterId.trim())
         return url.toString()
       },
@@ -61,6 +58,11 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
         success: true,
         output: {
           cluster: {
+            policyId: data.policy_id ?? null,
+            dataSecurityMode: data.data_security_mode ?? null,
+            terminatedTime: data.terminated_time ?? null,
+            customTags: data.custom_tags ?? null,
+            terminationReason: data.termination_reason ?? null,
             clusterId: data.cluster_id ?? '',
             clusterName: data.cluster_name ?? '',
             state: data.state ?? 'UNKNOWN',
@@ -89,6 +91,27 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
         type: 'object',
         description: 'Cluster detail',
         properties: {
+          policyId: { type: 'string', nullable: true, description: 'Compute policy identifier' },
+          dataSecurityMode: { type: 'string', nullable: true, description: 'Cluster access mode' },
+          terminatedTime: {
+            type: 'number',
+            nullable: true,
+            description: 'Cluster termination time in epoch milliseconds',
+          },
+          customTags: { type: 'object', nullable: true, description: 'Custom cluster tags' },
+          terminationReason: {
+            type: 'object',
+            nullable: true,
+            description: 'Reason for termination (code, type, parameters)',
+            properties: {
+              code: { type: 'string' },
+              type: { type: 'string' },
+              parameters: {
+                type: 'object',
+                description: 'Provider-specific termination parameters',
+              },
+            },
+          },
           clusterId: { type: 'string', description: 'Unique cluster identifier' },
           clusterName: { type: 'string', description: 'Cluster display name' },
           state: {
@@ -107,12 +130,12 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
           numWorkers: {
             type: 'number',
             description: 'Number of worker nodes (for fixed-size clusters)',
-            optional: true,
+            nullable: true,
           },
           autoscale: {
             type: 'object',
             description: 'Autoscaling configuration (null for fixed-size clusters)',
-            optional: true,
+            nullable: true,
             properties: {
               minWorkers: { type: 'number', description: 'Minimum number of workers' },
               maxWorkers: { type: 'number', description: 'Maximum number of workers' },
@@ -129,7 +152,7 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
           startTime: {
             type: 'number',
             description: 'Cluster start timestamp (epoch ms)',
-            optional: true,
+            nullable: true,
           },
         },
       },

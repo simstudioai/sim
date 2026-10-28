@@ -1,0 +1,131 @@
+---
+slug: best-vellum-alternatives-2026
+title: 'Best Vellum Alternatives in 2026 for Non-Engineers'
+description: 'Compare Vellum alternatives for non-engineers across visual building, evaluation, deployment, self-hosting, and pricing.'
+date: 2026-10-19
+updated: 2026-10-19
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, Vellum Alternatives, AI Tools, Sim]
+ogImage: /library/best-vellum-alternatives-2026/cover.jpg
+draft: false
+faq:
+  - q: "What makes an AI builder friendly to non-engineers?"
+    a: "You should be able to connect steps visually, test outputs, and deploy a workflow without writing code. Sim also lets you build and edit workflows through plain-language requests."
+  - q: "Does Vellum have a free plan?"
+    a: "Vellum does not publish pricing for its AI development platform on vellum.ai. The vellum.ai pricing page covers only its Personal Assistant product, which offers a free start with your first tasks included, then Mighty at $30 per month, Super at $100, Ultra at $200, and a configurable Custom plan. A banner on that page says the Personal Assistant platform shuts down on November 2, 2026."
+  - q: "Is Sim really free to self-host?"
+    a: "Yes. Sim's Apache 2.0-licensed core has no self-hosting license fee, and you can run it with Docker Compose or Kubernetes. You still pay for your infrastructure and any model usage. Enterprise features such as single sign-on (SSO), which lets people log in with their company account, need an Enterprise subscription for production use under the Sim Enterprise License."
+  - q: "How does evaluation tooling differ?"
+    a: "Vellum runs Test Suites of test cases with expected outputs, scored by metrics from 0 to 1, for regression testing before you deploy a change to a Prompt or Workflow. Sim offers an Evaluator block for scoring workflow outputs and a Guardrails block for validation. Relevance AI lists agent evaluations on Enterprise, Gumloop has an Evaluations view on each agent's Performance page, and Dify and Langflow focus on debugging tools such as run history, Playground testing, and traces."
+  - q: "How can I migrate from Vellum?"
+    a: "Rebuild your workflows in Sim, transfer your prompts and test cases, and compare outputs before switching live traffic. Check the Sim and Vellum comparison for differences in building and deployment options."
+---
+
+## TL;DR
+
+- **Sim** ranks first. It is an open-source AI workspace for teams, where non-engineers can build and deploy AI agents in the visual builder or ask Sim in Chat to create and edit workflows. Sim Cloud has a free plan, and [Sim's Apache 2.0 core can be self-hosted, with enterprise features covered by a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). See the [Sim and Vellum comparison](https://www.sim.ai/comparisons/vellum).
+- **Gumloop** is best for business teams that want an AI agent builder that starts from a description of the job.
+- **Relevance AI** is best for go-to-market teams that want self-serve agent plans and an enterprise upgrade path.
+- **Dify** is best for teams that want a visual builder with a free, self-hostable Community edition.
+- **Langflow** is best for experimenting with visual AI flows under an MIT license.
+
+## Why non-engineers look past Vellum
+
+[Vellum's documentation describes an end-to-end AI development platform](https://docs.vellum.ai/home/getting-started/overview) where technical and non-technical team members work together. Its [Agent Builder](https://docs.vellum.ai/product/agent-builder/agent-builder-sme) builds Workflows from plain-language instructions. The friction for non-engineers shows up elsewhere.
+
+First, the platform is organized around a release process. Vellum separates [Prompt Sandboxes, Workflow Sandboxes, Test Suites, Deployments, and Environments](https://docs.vellum.ai/product/deployments/environments), and supports [Release Reviews](https://docs.vellum.ai/product/deployments/release-reviews) modeled on pull request reviews. Its Workflows documentation describes the end goal as deploying a Workflow and calling [an API to invoke it from an application](https://docs.vellum.ai/product/workflows/introduction). That model serves teams shipping AI features inside an existing product.
+
+Second, it is hard to evaluate the AI development platform from Vellum's public website. As of October 2026, the [vellum.ai pricing page](https://www.vellum.ai/pricing) lists plans for Vellum's personal assistant product, while a separate notice says that the [Personal Assistant platform will shut down on November 2, 2026](https://www.vellum.ai/vellum-assistant-platform-shutdown). The AI development platform described in the docs has no published price on vellum.ai, and [self-hosted Vellum](https://docs.vellum.ai/self-hosting/getting-started/introduction) is arranged by contacting the team.
+
+The alternatives below are compared on how you build, evaluation and testing tools, deployment options, self-hosting, and published pricing. For a broader market view, see the guides to [AI agent platforms](https://www.sim.ai/library/best-ai-agent-platforms-2026) and [AI agent workflow builders](https://www.sim.ai/library/best-ai-workflow-builders).
+
+## Comparison table
+
+| Rank and tool | How you build | Evaluation and testing | Deployment | Self-hosting | Starting price |
+|---|---|---|---|---|---|
+| 1. [Sim](https://www.sim.ai/comparisons/vellum) | Visual builder, plus Chat for creating and editing workflows in plain language | [Evaluator](https://docs.sim.ai/workflows/blocks/evaluator) and [Guardrails](https://docs.sim.ai/workflows/blocks/guardrails) blocks | [API, chat interface, scheduled or webhook trigger, or MCP server tool](https://docs.sim.ai/workflows/deployment) (MCP is a protocol that lets AI apps call tools) | [Apache 2.0 core via Docker Compose or Kubernetes; enterprise features are separately licensed](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) | [Free; Pro from $25 per user per month](https://www.sim.ai/pricing) |
+| 2. [Gumloop](https://www.gumloop.com/pricing) | Agent builder that starts by asking what the agent should handle | [Evaluations and Insights on an agent Performance page](https://docs.gumloop.com/core-concepts/agent_performance) | Gumloop cloud, or [VPC deployment on Enterprise](https://www.gumloop.com/enterprise) (a VPC is a private network in your own cloud account) | [VPC deployment in your AWS, Azure, or Google Cloud environment](https://www.gumloop.com/enterprise) | [Pro from $37 per month after a 14-day trial](https://www.gumloop.com/pricing) |
+| 3. [Relevance AI](https://relevanceai.com/pricing) | [Invent, an AI solutions engineer that helps teams decide what to automate and turn their expertise into agents](https://relevanceai.com/) | [Agent evaluations on Enterprise](https://relevanceai.com/docs/get-started/pricing) | [Agents receive tasks through native app triggers, webhooks, and cron schedules](https://relevanceai.com/enterprise) | [No self-hosted edition is listed](https://relevanceai.com/docs/get-started/pricing) | [Pricing docs list Pro from $19 per month billed annually](https://relevanceai.com/docs/get-started/pricing); the [pricing page](https://relevanceai.com/pricing) lists only custom Enterprise |
+| 4. [Dify](https://dify.ai/pricing) | [Workflow Studio visual builder](https://dify.ai/workflows) for agentic workflows | [Node-level testing and run history](https://docs.dify.ai/en/cloud/use-dify/debug/history-and-logs) | [Web app, API, or embed](https://docs.dify.ai/en/cloud/use-dify/publish/README) | [Community edition under a modified Apache 2.0 license](https://github.com/langgenius/dify/blob/main/LICENSE) | [Sandbox free; Professional $59 per workspace per month or $590 annually](https://dify.ai/pricing) |
+| 5. [Langflow](https://www.langflow.org/) | Low-code visual builder aimed at technical teams | [Playground testing and built-in traces](https://docs.langflow.org/traces) | [API, embedded chat widget, or MCP server](https://docs.langflow.org/concepts-publish) | [MIT-licensed; Desktop, Docker, or Python package](https://github.com/langflow-ai/langflow/blob/main/LICENSE) | [Free and open source; you host it](https://github.com/langflow-ai/langflow/blob/main/LICENSE) |
+
+### Sim
+
+Sim is an open-source AI workspace for teams. It gives non-engineers two ways to build an agent without writing code. You can describe a workflow in Chat and ask Sim to create or edit it, or connect blocks in the visual builder. Developers can also extend workflows with code. [Compared with Vellum's release-oriented platform](https://www.sim.ai/comparisons/vellum), Sim offers a more direct starting point for people who need to build without dedicated engineering help.
+
+Sim also puts testing controls in the workflow builder. An [Evaluator block](https://docs.sim.ai/workflows/blocks/evaluator) asks a model for numeric scores against metrics you define. A [Guardrails block](https://docs.sim.ai/workflows/blocks/guardrails) validates content and reports whether the check passed; connect a downstream Condition when the result should change the execution path.
+
+You can deploy a finished workflow through an [API, chat interface, scheduled or webhook trigger, or MCP server tool](https://docs.sim.ai/workflows/deployment). [Sim's Apache 2.0 core can be self-hosted with Docker Compose or Kubernetes, while `apps/sim/ee` is governed by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Enterprise features such as single sign-on (SSO), which lets people log in with their company account, and audit logs require an active Enterprise subscription for production use.
+
+**Best for:** Non-engineer teams that want to build, test, and deploy agents visually while retaining a self-hosting option.
+
+**Pros:** Chat can draft or edit workflows, and built-in blocks let teams configure output checks without code.
+
+**Cons:** Sim no longer offers a pre-built workflow template gallery. On Sim Cloud, [Free credits do not refresh and synchronous runs on the Free plan time out after five minutes](https://www.sim.ai/pricing).
+
+**Pricing:** As of October 2026, [Sim Cloud Free includes 1,000 one-time credits; Pro costs $25 per user per month with 6,000 included credits and a 2,000-credit weekly refresh; Max costs $100 per user per month with 25,000 included credits and a 4,000-credit weekly refresh](https://www.sim.ai/pricing). [Self-hosting Sim's core has no license fee, but enterprise features have separate terms](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), and you pay for infrastructure and model usage.
+
+### Gumloop
+
+Gumloop describes itself as a [multiplayer AI agent builder](https://www.gumloop.com/) that lets business teams build agents while administrators control access. Its [guided setup asks what a new agent should take care of and configures the agent from the answer](https://docs.gumloop.com/core-concepts/profile_settings).
+
+**Best for:** Business teams that want to build agents by describing the job rather than wiring each step.
+
+**Pros:** The agent builder starts from a plain description of the job, while [Evaluations and Insights sit on the agent's Performance page](https://docs.gumloop.com/core-concepts/agent_performance).
+
+**Cons:** There is no self-hosted edition on the pricing page. Data-residency control instead comes through [VPC deployment on Enterprise in an AWS, Azure, or Google Cloud environment](https://www.gumloop.com/enterprise).
+
+**Pricing:** As of October 2026, [Pro starts at $37 per month after a free 14-day trial](https://www.gumloop.com/pricing). Enterprise uses custom pricing.
+
+### Relevance AI
+
+Relevance AI positions itself around an "AI Workforce," and its [enterprise page](https://relevanceai.com/enterprise) pitches the platform to domain experts as well as technical teams.
+
+**Best for:** Go-to-market teams that want self-serve agent building with an enterprise upgrade path.
+
+**Pros:** [Pro includes unlimited agents and tools, while Enterprise adds agent evaluations, enterprise triggers, SSO, role-based access control (RBAC, which sets permissions by role), and audit logs](https://relevanceai.com/docs/get-started/pricing). The platform also lists [more than 2,000 integrations](https://relevanceai.com/integrations).
+
+**Cons:** [The Free plan is retired for new and existing accounts](https://relevanceai.com/docs/get-started/pricing), and organization-wide controls are reserved for the custom Enterprise tier.
+
+**Pricing:** Relevance AI's two official pricing pages disagree. As of October 2026, its [pricing page](https://relevanceai.com/pricing) lists only an Enterprise plan with custom pricing, while its [pricing documentation](https://relevanceai.com/docs/get-started/pricing) lists Pro from $19 per month billed annually ($29 monthly) and Team from $234 per month billed annually ($349 monthly), and says the Free plan is retired. Confirm current plans with Relevance AI before you buy.
+
+### Dify
+
+Dify is a platform for building AI applications with [Workflow Studio](https://dify.ai/workflows), a visual builder for agentic workflows. You can test nodes and review [run history](https://docs.dify.ai/en/cloud/use-dify/debug/history-and-logs), then [deploy an app](https://docs.dify.ai/en/cloud/use-dify/publish/README) as a web app, API, or embed.
+
+**Best for:** Teams that want a visual LLM application builder with a self-hosting option.
+
+**Pros:** [Dify Cloud has a free Sandbox plan, and the Community edition can be self-deployed](https://dify.ai/pricing).
+
+**Cons:** Dify's [license](https://github.com/langgenius/dify/blob/main/LICENSE) is a modified Apache 2.0 license. It requires a commercial license for specified multi-tenant use and restricts removing or changing logo and copyright information in the frontend, so review the terms before adopting it.
+
+**Pricing:** As of October 2026, [Dify Cloud's Sandbox plan is free, Professional costs $59 per workspace per month or $590 per year, and Team costs $159 per workspace per month or $1,590 per year](https://dify.ai/pricing). Enterprise is custom-priced.
+
+### Langflow
+
+Langflow is a [low-code builder for agentic and retrieval-augmented generation (RAG) applications](https://www.langflow.org/), meaning apps that answer from your own documents. Its [source code is MIT-licensed](https://github.com/langflow-ai/langflow/blob/main/LICENSE), and its documentation is aimed at developers, data scientists, and teams building retrieval and multi-agent applications.
+
+**Best for:** Teams that want a freely licensed starting point for testing AI flow ideas and can manage the technical setup.
+
+**Pros:** You can [install Langflow Desktop, use Docker, or install a Python package](https://docs.langflow.org/get-started-installation), test flows in the Playground, and review [execution traces](https://docs.langflow.org/traces). Flows can run through an [API, an embedded chat widget, or an MCP server](https://docs.langflow.org/concepts-publish).
+
+**Cons:** The [deployment guide](https://docs.langflow.org/deployment-overview) focuses on running Langflow on your own infrastructure. Someone on your team needs to manage that infrastructure.
+
+**Pricing:** Langflow is free and open source under the [MIT license](https://github.com/langflow-ai/langflow/blob/main/LICENSE). You pay for the infrastructure and models you use.
+
+## Choosing the right alternative
+
+- If you need to self-host on a budget, choose Sim. [Sim's core is Apache 2.0 and can be self-hosted, while enterprise features use a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); [self-hosted Vellum](https://docs.vellum.ai/self-hosting/getting-started/introduction) is arranged through Vellum's team.
+- If you want self-serve plans for go-to-market agents, consider Relevance AI. Its [pricing documentation lists Pro and Team prices](https://relevanceai.com/docs/get-started/pricing), while its [pricing page](https://relevanceai.com/pricing) shows only custom Enterprise.
+- If your team wants to describe an agent's job and let the builder set it up, consider Gumloop.
+- If you want source-code access, compare Dify and Langflow. Dify combines a hosted cloud with a self-deployable Community edition under [additional license conditions](https://github.com/langgenius/dify/blob/main/LICENSE), while Langflow uses the [MIT license](https://github.com/langflow-ai/langflow/blob/main/LICENSE) and is self-hosted.
+
+The related comparisons of [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) and [AI agent evaluation platforms](https://www.sim.ai/library/best-ai-agent-evaluation-platforms-2026) go deeper on licensing and testing.
+
+## Conclusion
+
+For a team without dedicated engineers, the useful test is whether non-technical people can build, evaluate, and deploy an agent without a sales call. Sim ranks first here because Chat and the visual builder support building, its Evaluator and Guardrails blocks support testing, and workflows can deploy through chat interfaces, APIs, triggers, or MCP server tools. [Sim's Apache 2.0 core can also be self-hosted at no license cost, with enterprise features governed by separate terms](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+
+[Try Sim](https://www.sim.ai) or read the [full Vellum comparison](https://www.sim.ai/comparisons/vellum).

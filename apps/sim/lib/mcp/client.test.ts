@@ -1,32 +1,22 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
-  mockLogger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
+const { mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
   mockSdkConnect: vi.fn().mockResolvedValue(undefined),
   mockSdkListTools: vi.fn().mockResolvedValue({ tools: [] }),
   mockPinnedClose: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
 }))
 
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
   createGuardedMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
   createPinnedPrivateMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
 }))
-
-/**
- * Capture the notification handler registered via `client.setNotificationHandler()`.
- * This lets us simulate the MCP SDK delivering a `tools/list_changed` notification.
- */
-let capturedNotificationHandler: (() => Promise<void>) | null = null
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
   Client: vi.fn().mockImplementation(
@@ -37,11 +27,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
           close: vi.fn().mockResolvedValue(undefined),
           getServerVersion: vi.fn().mockReturnValue('2025-06-18'),
           getServerCapabilities: vi.fn().mockReturnValue({ tools: { listChanged: true } }),
-          setNotificationHandler: vi
-            .fn()
-            .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
-              capturedNotificationHandler = handler
-            }),
+          setNotificationHandler: vi.fn(),
           listTools: mockSdkListTools,
         })
       }
@@ -62,13 +48,16 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
   ToolListChangedNotificationSchema: { method: 'notifications/tools/list_changed' },
 }))
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  getMaxExecutionTimeout: vi.fn().mockReturnValue(30000),
-  DEFAULT_EXECUTION_TIMEOUT_MS: 30000,
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  resolveCurrentOutboundRoute,
+  runWithOutboundOrganization,
+} from '@/lib/core/network/context.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { McpClient } from '@/lib/mcp/client'
 import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
@@ -76,6 +65,10 @@ import {
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
 } from '@/lib/mcp/types'
+
+executionLimitsMockFns.mockGetMaxExecutionTimeout.mockReturnValue(30000)
+
+const mockLogger = getMockLogger('McpClient')
 
 function createConfig(): McpServerConfig {
   return {
@@ -88,8 +81,6 @@ function createConfig(): McpServerConfig {
 
 describe('McpClient notification handler', () => {
   beforeEach(() => {
-    capturedNotificationHandler = null
-    vi.clearAllMocks()
     mockSdkConnect.mockResolvedValue(undefined)
     mockSdkListTools.mockResolvedValue({ tools: [] })
     // clearAllMocks resets call history but not implementations; re-establish the
@@ -202,7 +193,7 @@ describe('McpClient notification handler', () => {
     expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain('also-secret')
   })
 
-  it('keeps the transport on the SSRF guard when no validated address is supplied', () => {
+  it('keeps the transport on the SSRF guard when no validated address is supplied', async () => {
     new McpClient({
       config: createConfig(),
       securityPolicy: { requireConsent: false, auditLevel: 'basic' },
@@ -211,12 +202,14 @@ describe('McpClient notification handler', () => {
     const guarded = vi.mocked(createGuardedMcpFetch).mock.results.at(-1)?.value
     expect(createGuardedMcpFetch).toHaveBeenCalledWith('https://test.example.com/mcp')
     expect(createPinnedPrivateMcpFetch).not.toHaveBeenCalled()
-    expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]?.fetch).toBe(
-      guarded.fetch
-    )
+    await vi
+      .mocked(StreamableHTTPClientTransport)
+      .mock.calls.at(-1)?.[1]
+      ?.fetch?.('https://test.example.com/mcp')
+    expect(guarded.fetch).toHaveBeenCalledWith('https://test.example.com/mcp', undefined)
   })
 
-  it('pins the transport to a validated private address', () => {
+  it('pins the transport to a validated private address', async () => {
     new McpClient({
       config: createConfig(),
       securityPolicy: { requireConsent: false, auditLevel: 'basic' },
@@ -229,9 +222,11 @@ describe('McpClient notification handler', () => {
       'https://test.example.com/mcp'
     )
     expect(createGuardedMcpFetch).not.toHaveBeenCalled()
-    expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]?.fetch).toBe(
-      pinned.fetch
-    )
+    await vi
+      .mocked(StreamableHTTPClientTransport)
+      .mock.calls.at(-1)?.[1]
+      ?.fetch?.('https://test.example.com/mcp')
+    expect(pinned.fetch).toHaveBeenCalledWith('https://test.example.com/mcp', undefined)
   })
 
   it('closes the pinned transport Agent when connect fails', async () => {
@@ -278,7 +273,7 @@ describe('McpClient notification handler', () => {
 
     await expect(client.connect()).rejects.toBeInstanceOf(UnauthorizedError)
 
-    expect(mockLogger.error).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Failed to connect'),
       expect.objectContaining({ outcome: 'unauthorized' })
     )
@@ -336,5 +331,58 @@ describe('McpClient notification handler', () => {
     expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]).not.toHaveProperty(
       'requestInit'
     )
+  })
+})
+
+describe('McpClient outbound scope', () => {
+  beforeEach(() => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(async (organizationId) => {
+      if (organizationId === undefined) throw new OutboundRoutingError('MISSING_SCOPE')
+      return { kind: 'direct', organizationId }
+    })
+    vi.mocked(createGuardedMcpFetch).mockReturnValue({
+      fetch: vi.fn(async () => Response.json(await resolveCurrentOutboundRoute())),
+      close: mockPinnedClose,
+    })
+  })
+
+  afterEach(() => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
+    networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(async () => ({
+      kind: 'direct',
+    }))
+    vi.mocked(createGuardedMcpFetch).mockImplementation(() => ({
+      fetch: vi.fn(),
+      close: mockPinnedClose,
+    }))
+  })
+
+  function constructedTransportFetch() {
+    const fetch = vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]?.fetch
+    if (!fetch) throw new Error('transport was constructed without a fetch')
+    return async () => (await fetch('https://test.example.com/mcp')).json()
+  }
+
+  it('routes a request the SDK sends from outside any scope under the constructing organization', async () => {
+    runWithOutboundOrganization('org_a', () => new McpClient({ config: createConfig() }))
+    const transportFetch = constructedTransportFetch()
+
+    await expect(transportFetch()).resolves.toEqual({ kind: 'direct', organizationId: 'org_a' })
+    await expect(runWithOutboundOrganization('org_b', transportFetch)).resolves.toEqual({
+      kind: 'direct',
+      organizationId: 'org_b',
+    })
+  })
+
+  it('still fails closed when the client was constructed outside any scope', async () => {
+    new McpClient({ config: createConfig() })
+    const transportFetch = constructedTransportFetch()
+
+    await expect(transportFetch()).rejects.toMatchObject({ code: 'MISSING_SCOPE' })
+    await expect(runWithOutboundOrganization('org_b', transportFetch)).resolves.toEqual({
+      kind: 'direct',
+      organizationId: 'org_b',
+    })
   })
 })

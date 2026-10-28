@@ -1,13 +1,15 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnterprisePlan } = vi.hoisted(() => ({ mockEnterprisePlan: vi.fn() }))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockEnterprisePlan,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
+
+const mockEnterprisePlan = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
 
 afterEach(resetEnvFlagsMock)
 

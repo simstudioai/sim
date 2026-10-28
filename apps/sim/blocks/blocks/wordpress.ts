@@ -3,12 +3,11 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { WordPressResponse } from '@/tools/wordpress/types'
 
 /** The media file to upload, whichever mode the user is in. */
 const MEDIA_FILE_FIELD = ['fileUpload', 'file'] as const
 
-export const WordPressBlock: BlockConfig<WordPressResponse> = {
+export const WordPressBlock: BlockConfig = {
   type: 'wordpress',
   name: 'WordPress',
   description: 'Manage WordPress content',
@@ -139,57 +138,47 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     },
   },
   subBlocks: [
-    // Operation Selection
     {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Posts
         { label: 'Create Post', id: 'wordpress_create_post' },
         { label: 'Update Post', id: 'wordpress_update_post' },
         { label: 'Delete Post', id: 'wordpress_delete_post' },
         { label: 'Get Post', id: 'wordpress_get_post' },
         { label: 'List Posts', id: 'wordpress_list_posts' },
-        // Pages
         { label: 'Create Page', id: 'wordpress_create_page' },
         { label: 'Update Page', id: 'wordpress_update_page' },
         { label: 'Delete Page', id: 'wordpress_delete_page' },
         { label: 'Get Page', id: 'wordpress_get_page' },
         { label: 'List Pages', id: 'wordpress_list_pages' },
-        // Media
         { label: 'Upload Media', id: 'wordpress_upload_media' },
         { label: 'Get Media', id: 'wordpress_get_media' },
         { label: 'List Media', id: 'wordpress_list_media' },
         { label: 'Delete Media', id: 'wordpress_delete_media' },
-        // Comments
         { label: 'Create Comment', id: 'wordpress_create_comment' },
         { label: 'List Comments', id: 'wordpress_list_comments' },
         { label: 'Update Comment', id: 'wordpress_update_comment' },
         { label: 'Delete Comment', id: 'wordpress_delete_comment' },
-        // Categories
         { label: 'Create Category', id: 'wordpress_create_category' },
         { label: 'Update Category', id: 'wordpress_update_category' },
         { label: 'Delete Category', id: 'wordpress_delete_category' },
         { label: 'Get Category', id: 'wordpress_get_category' },
         { label: 'List Categories', id: 'wordpress_list_categories' },
-        // Tags
         { label: 'Create Tag', id: 'wordpress_create_tag' },
         { label: 'Update Tag', id: 'wordpress_update_tag' },
         { label: 'Delete Tag', id: 'wordpress_delete_tag' },
         { label: 'Get Tag', id: 'wordpress_get_tag' },
         { label: 'List Tags', id: 'wordpress_list_tags' },
-        // Users
         { label: 'Get Current User', id: 'wordpress_get_current_user' },
         { label: 'List Users', id: 'wordpress_list_users' },
         { label: 'Get User', id: 'wordpress_get_user' },
-        // Search
         { label: 'Search Content', id: 'wordpress_search_content' },
       ],
       value: () => 'wordpress_create_post',
     },
 
-    // Credential selector for OAuth
     {
       id: 'credential',
       title: 'WordPress Account',
@@ -211,7 +200,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       required: true,
     },
 
-    // Site ID for WordPress.com (required for OAuth)
     {
       id: 'siteId',
       title: 'Site ID or Domain',
@@ -221,7 +209,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       required: true,
     },
 
-    // Post Operations - Post ID
     {
       id: 'postId',
       title: 'Post ID',
@@ -237,7 +224,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Post/Page Title
     {
       id: 'title',
       title: 'Title',
@@ -258,7 +244,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Post/Page Content
     {
       id: 'content',
       title: 'Content',
@@ -275,7 +260,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Post/Page Status
     {
       id: 'status',
       title: 'Status',
@@ -298,7 +282,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Excerpt (for posts and pages)
     {
       id: 'excerpt',
       title: 'Excerpt',
@@ -316,7 +299,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Slug (for posts and pages)
     {
       id: 'slug',
       title: 'Slug',
@@ -334,7 +316,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Categories (for posts)
     {
       id: 'categories',
       title: 'Categories',
@@ -347,7 +328,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Tags (for posts)
     {
       id: 'tags',
       title: 'Tags',
@@ -360,7 +340,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // List Posts: Author filter
     {
       id: 'listAuthor',
       title: 'Author ID',
@@ -370,7 +349,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       condition: { field: 'operation', value: 'wordpress_list_posts' },
     },
 
-    // Featured Media ID
     {
       id: 'featuredMedia',
       title: 'Featured Image ID',
@@ -388,7 +366,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Page-specific: Page ID
     {
       id: 'pageId',
       title: 'Page ID',
@@ -404,7 +381,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Page-specific: Parent Page
     {
       id: 'parent',
       title: 'Parent Page ID',
@@ -417,7 +393,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Page-specific: Menu Order
     {
       id: 'menuOrder',
       title: 'Menu Order',
@@ -430,7 +405,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Media Operations - File upload (basic mode)
     {
       id: 'fileUpload',
       title: 'Upload File',
@@ -442,7 +416,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       multiple: false,
       required: false,
     },
-    // Variable reference (advanced mode) - for referencing files from previous blocks
     {
       id: 'file',
       title: 'File Reference',
@@ -523,7 +496,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       condition: { field: 'operation', value: 'wordpress_list_media' },
     },
 
-    // Comment Operations
     {
       id: 'commentPostId',
       title: 'Post ID',
@@ -607,7 +579,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       condition: { field: 'operation', value: 'wordpress_update_comment' },
     },
 
-    // Category Operations
     {
       id: 'categoryId',
       title: 'Category ID',
@@ -667,7 +638,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Tag Operations
     {
       id: 'tagId',
       title: 'Tag ID',
@@ -716,7 +686,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // User Operations
     {
       id: 'userId',
       title: 'User ID',
@@ -734,7 +703,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       condition: { field: 'operation', value: 'wordpress_list_users' },
     },
 
-    // Search Operations
     {
       id: 'query',
       title: 'Search Query',
@@ -757,7 +725,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       condition: { field: 'operation', value: 'wordpress_search_content' },
     },
 
-    // List Operations - Common Parameters
     {
       id: 'perPage',
       title: 'Results Per Page',
@@ -864,7 +831,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // List Posts - Status filter
     {
       id: 'listStatus',
       title: 'Status Filter',
@@ -884,7 +850,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
       },
     },
 
-    // Delete Operations - Force delete
     {
       id: 'force',
       title: 'Force Delete',
@@ -934,7 +899,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     config: {
       tool: (params) => params.operation || 'wordpress_create_post',
       params: (params) => {
-        // OAuth authentication for WordPress.com
         const baseParams: Record<string, any> = {
           credential: params.oauthCredential,
           siteId: params.siteId,
@@ -1242,7 +1206,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'WordPress OAuth credential' },
     siteId: { type: 'string', description: 'WordPress.com site ID or domain' },
-    // Post inputs
     postId: { type: 'number', description: 'Post ID' },
     title: { type: 'string', description: 'Post or page title' },
     content: { type: 'string', description: 'Post or page content' },
@@ -1253,11 +1216,9 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     tags: { type: 'string', description: 'Tag IDs (comma-separated)' },
     listAuthor: { type: 'number', description: 'Filter posts by author ID' },
     featuredMedia: { type: 'number', description: 'Featured media ID' },
-    // Page inputs
     pageId: { type: 'number', description: 'Page ID' },
     parent: { type: 'number', description: 'Parent page ID' },
     menuOrder: { type: 'number', description: 'Menu order' },
-    // Media inputs
     file: { type: 'json', description: 'File to upload (UserFile)' },
     filename: { type: 'string', description: 'Optional filename override' },
     mediaTitle: { type: 'string', description: 'Media title' },
@@ -1266,7 +1227,6 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     mediaDescription: { type: 'string', description: 'Media description' },
     mediaId: { type: 'number', description: 'Media ID' },
     mediaType: { type: 'string', description: 'Media type filter' },
-    // Comment inputs
     commentPostId: { type: 'number', description: 'Post ID for comment' },
     commentContent: { type: 'string', description: 'Comment content' },
     commentParent: { type: 'number', description: 'Parent comment ID for replies' },
@@ -1275,27 +1235,22 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     commentAuthorUrl: { type: 'string', description: 'Comment author URL' },
     commentId: { type: 'number', description: 'Comment ID' },
     commentStatus: { type: 'string', description: 'Comment status' },
-    // Category inputs
     categoryId: { type: 'number', description: 'Category ID' },
     categoryName: { type: 'string', description: 'Category name' },
     categoryDescription: { type: 'string', description: 'Category description' },
     categoryParent: { type: 'number', description: 'Parent category ID' },
     categorySlug: { type: 'string', description: 'Category slug' },
-    // Tag inputs
     tagId: { type: 'number', description: 'Tag ID' },
     tagName: { type: 'string', description: 'Tag name' },
     tagDescription: { type: 'string', description: 'Tag description' },
     tagSlug: { type: 'string', description: 'Tag slug' },
-    // User inputs
     userId: { type: 'number', description: 'User ID' },
     roles: { type: 'string', description: 'User roles filter' },
-    // Search inputs
     query: { type: 'string', description: 'Search query' },
     searchType: {
       type: 'string',
       description: 'Content subtype filter (post, page) — maps to the API subtype param',
     },
-    // List inputs
     perPage: { type: 'number', description: 'Results per page' },
     page: { type: 'number', description: 'Page number' },
     search: { type: 'string', description: 'Search filter' },
@@ -1305,29 +1260,20 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     force: { type: 'boolean', description: 'Force delete' },
   },
   outputs: {
-    // Post outputs
     post: { type: 'json', description: 'Post data' },
     posts: { type: 'json', description: 'List of posts' },
-    // Page outputs
     page: { type: 'json', description: 'Page data' },
     pages: { type: 'json', description: 'List of pages' },
-    // Media outputs
     media: { type: 'json', description: 'Media data' },
-    // Comment outputs
     comment: { type: 'json', description: 'Comment data' },
     comments: { type: 'json', description: 'List of comments' },
-    // Category outputs
     category: { type: 'json', description: 'Category data' },
     categories: { type: 'json', description: 'List of categories' },
-    // Tag outputs
     tag: { type: 'json', description: 'Tag data' },
     tags: { type: 'json', description: 'List of tags' },
-    // User outputs
     user: { type: 'json', description: 'User data' },
     users: { type: 'json', description: 'List of users' },
-    // Search outputs
     results: { type: 'json', description: 'Search results' },
-    // Common outputs
     deleted: { type: 'boolean', description: 'Deletion status' },
     total: { type: 'number', description: 'Total count' },
     totalPages: { type: 'number', description: 'Total pages' },

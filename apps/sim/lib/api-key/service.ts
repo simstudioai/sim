@@ -3,26 +3,12 @@ import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
 import { createLogger, setRequestAuth } from '@sim/logger'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { getAuthPool } from '@/lib/auth/database-context'
+import { createDetachedTouch } from '@/lib/core/utils/background'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/lib/workspaces/utils'
 
 const logger = createLogger('ApiKeyService')
-
-export async function listApiKeys(workspaceId: string) {
-  return db
-    .select({
-      id: apiKeyTable.id,
-      name: apiKeyTable.name,
-      type: apiKeyTable.type,
-      lastUsed: apiKeyTable.lastUsed,
-      createdAt: apiKeyTable.createdAt,
-      expiresAt: apiKeyTable.expiresAt,
-      createdBy: apiKeyTable.createdBy,
-    })
-    .from(apiKeyTable)
-    .where(and(eq(apiKeyTable.workspaceId, workspaceId), eq(apiKeyTable.type, 'workspace')))
-    .orderBy(apiKeyTable.createdAt)
-}
 
 export interface ApiKeyAuthOptions {
   userId?: string
@@ -70,14 +56,14 @@ export async function authenticateApiKeyFromHeader(
     let workspaceSettings: WorkspaceBillingSettings | null = null
 
     if (options.workspaceId) {
-      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId)
+      workspaceSettings = await getWorkspaceBillingSettings(options.workspaceId, getAuthPool())
       if (!workspaceSettings) {
         return { success: false, error: 'Workspace not found' }
       }
     }
 
     const keyHash = hashApiKey(apiKeyHeader)
-    const rows: HashCandidate[] = await db
+    const rows: HashCandidate[] = await getAuthPool()
       .select({
         id: apiKeyTable.id,
         userId: apiKeyTable.userId,
@@ -152,17 +138,26 @@ export async function authenticateApiKeyFromHeader(
 
 const LAST_USED_STALENESS_WINDOW_MS = 10 * 60 * 1000
 
+const touchApiKeyLastUsed = createDetachedTouch({
+  label: 'API key last used',
+  write: writeLastUsed,
+  debounce: { intervalMs: LAST_USED_STALENESS_WINDOW_MS, maxKeys: 10_000 },
+})
+
 /**
- * Update the last used timestamp for an API key.
+ * Record that an API key was used, without delaying the request.
  *
- * `lastUsed` is display-only, so the write uses a staleness window: it only
- * fires when the stored value is older than
- * {@link LAST_USED_STALENESS_WINDOW_MS}. High-traffic keys otherwise rewrite
- * the same row on every request, serializing concurrent requests behind row
- * locks. The 10-minute window matches GitLab's personal-access-token
- * last-used tracking.
+ * `lastUsed` is display-only, so the write is detached (see {@link createDetachedTouch}): a
+ * commit waiting on the database must never hold up an authenticated request. Across processes
+ * the write only fires when the stored value is older than {@link LAST_USED_STALENESS_WINDOW_MS},
+ * so high-traffic keys do not rewrite the same row on every request. The 10-minute window matches
+ * GitLab's personal-access-token last-used tracking.
  */
-export async function updateApiKeyLastUsed(keyId: string): Promise<void> {
+export function updateApiKeyLastUsed(keyId: string): void {
+  touchApiKeyLastUsed(keyId)
+}
+
+async function writeLastUsed(keyId: string): Promise<void> {
   try {
     const staleBefore = new Date(Date.now() - LAST_USED_STALENESS_WINDOW_MS)
     await db

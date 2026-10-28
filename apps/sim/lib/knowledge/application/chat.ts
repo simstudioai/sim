@@ -10,7 +10,7 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
-import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/attribution'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -148,26 +148,23 @@ export const organizationSearchChat: OperationUseCase<
     try {
       controller.signal.throwIfAborted()
       running = true
-      const payload = await buildCopilotRequestPayload(
-        {
-          message: query,
-          userMessageId: messageId,
+      const payload = await buildCopilotRequestPayload({
+        message: query,
+        userMessageId: messageId,
+        userId,
+        organizationId,
+        chatId,
+        mode: 'assistant',
+        model: '',
+        assistantSearch: filters,
+        workspaceContext: await loadCopilotSearchIntegrations({
           userId,
           organizationId,
           chatId,
-          mode: 'assistant',
-          model: '',
-          assistantSearch: filters,
-          workspaceContext: await loadCopilotSearchIntegrations({
-            userId,
-            organizationId,
-            chatId,
-            messageId,
-            signal: controller.signal,
-          }),
-        },
-        { selectedModel: '' }
-      )
+          messageId,
+          signal: controller.signal,
+        }),
+      })
       const result = await runHeadlessCopilotLifecycle(payload, {
         userId,
         organizationId,

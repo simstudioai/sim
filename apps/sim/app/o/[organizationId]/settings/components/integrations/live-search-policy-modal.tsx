@@ -26,7 +26,7 @@ import {
   type LiveSearchPolicy,
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
-import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/search-params'
+import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/params'
 import { SearchSourcePagination } from '@/app/o/[organizationId]/settings/components/integrations/search-source-pagination'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
@@ -179,7 +179,7 @@ export function LiveSearchPolicyModal({
         onCancel={close}
         primaryAction={{
           label: update.isPending
-            ? 'Saving…'
+            ? 'Saving'
             : needsServiceSetup
               ? provider === 'github'
                 ? 'Add repository'
@@ -242,7 +242,7 @@ function ServiceAccountSource({
             options={options}
             value={sourceId}
             onChange={onChange}
-            placeholder={sources.isPending ? 'Loading connections…' : 'Select a connection'}
+            placeholder={sources.isPending ? 'Loading connections' : 'Select a connection'}
             displayLabel={
               sourceId && !options.some((option) => option.value === sourceId)
                 ? 'Configured connection'

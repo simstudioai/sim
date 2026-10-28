@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -48,7 +49,7 @@ const DCR_UNSUPPORTED_MESSAGE =
 /**
  * The MCP SDK throws a plain `Error` (no typed class or code) when an auth server lacks a
  * `registration_endpoint`, so this string-match is the only available signal. Pinned to
- * `@modelcontextprotocol/sdk` v1.29.0 `registerClient` (client/auth.js): "Incompatible auth
+ * `@modelcontextprotocol/sdk` v1.32.1 `registerClient` (client/auth.js): "Incompatible auth
  * server: does not support dynamic client registration". If a version bump rephrases this, the
  * 422 branch silently stops firing (users get a generic 500) — update the substring here.
  */
@@ -61,7 +62,7 @@ function isDynamicClientRegistrationUnsupported(error: unknown): boolean {
 export function surfaceOauthError(error: unknown): string {
   // Spec-compliant OAuth servers throw typed subclasses with clean RFC 6749 fields.
   if (error instanceof OAuthError && !(error instanceof ServerError)) {
-    return truncate(`${error.errorCode}: ${error.message}`)
+    return truncateSurfacedError(`${error.errorCode}: ${error.message}`)
   }
 
   // ServerError wraps non-spec response bodies as "HTTP N: Invalid OAuth error
@@ -76,18 +77,16 @@ export function surfaceOauthError(error: unknown): string {
           (typeof body.message === 'string' && body.message) ||
           (typeof body.error === 'string' && body.error) ||
           null
-        if (vendorMessage) return truncate(`Authorization server: ${vendorMessage}`)
+        if (vendorMessage) return truncateSurfacedError(`Authorization server: ${vendorMessage}`)
       } catch {}
     }
-    return truncate(error.message.split('\n')[0] || 'Failed to start OAuth flow')
+    return truncateSurfacedError(error.message.split('\n')[0] || 'Failed to start OAuth flow')
   }
   return 'Failed to start OAuth flow'
 }
 
-function truncate(message: string): string {
-  return message.length > MAX_SURFACED_ERROR_LENGTH
-    ? `${message.slice(0, MAX_SURFACED_ERROR_LENGTH)}…`
-    : message
+function truncateSurfacedError(message: string): string {
+  return truncate(message, MAX_SURFACED_ERROR_LENGTH, '…')
 }
 
 export const dynamic = 'force-dynamic'
@@ -171,43 +170,53 @@ export const GET = withRouteHandler(
       )
       const provider = new SimMcpOauthProvider({ row, preregistered })
 
-      try {
-        // OAuth discovery + DCR through the guarded fetch, bounded so a transient stall fails
-        // fast with a labeled log instead of hanging the popup. `McpOauthRedirectRequired` is
-        // the SUCCESS signal (a throw carrying the authorize URL), so we catch it INSIDE the
-        // bounded step and return it as a normal value — otherwise timedStep would error-log
-        // every successful authorize. Only a real error or a timeout escapes as a throw.
-        const authOutcome = await timedStep('mcpAuthGuarded', MCP_AUTH_STEP_MS, async () => {
-          try {
-            return { kind: 'result' as const, value: await mcpAuthGuarded(provider, { serverUrl }) }
-          } catch (e) {
-            if (e instanceof McpOauthRedirectRequired) {
-              return { kind: 'redirect' as const, authorizationUrl: e.authorizationUrl }
-            }
-            throw e
+      // OAuth discovery + DCR through the guarded fetch, bounded so a transient stall fails
+      // fast with a labeled log instead of hanging the popup. `McpOauthRedirectRequired` is
+      // the SUCCESS signal (a throw carrying the authorize URL), and an authorization-server
+      // refusal is an expected outcome rather than a Sim fault, so both are caught INSIDE the
+      // bounded step and returned as values — otherwise timedStep would error-log them. Only
+      // a real error or a timeout escapes as a throw.
+      const authOutcome = await timedStep('mcpAuthGuarded', MCP_AUTH_STEP_MS, async () => {
+        try {
+          return { kind: 'result' as const, value: await mcpAuthGuarded(provider, { serverUrl }) }
+        } catch (e) {
+          if (e instanceof McpOauthRedirectRequired) {
+            return { kind: 'redirect' as const, authorizationUrl: e.authorizationUrl }
           }
+          if (isDynamicClientRegistrationUnsupported(e)) {
+            return {
+              kind: 'rejected' as const,
+              error: toError(e),
+              message: DCR_UNSUPPORTED_MESSAGE,
+            }
+          }
+          if (e instanceof OAuthError) {
+            return { kind: 'rejected' as const, error: e, message: surfaceOauthError(e) }
+          }
+          throw e
+        }
+      })
+      if (authOutcome.kind === 'redirect') {
+        logger.info(`OAuth redirect for server ${serverId}`)
+        return NextResponse.json({
+          status: 'redirect',
+          authorizationUrl: authOutcome.authorizationUrl,
         })
-        if (authOutcome.kind === 'redirect') {
-          logger.info(`OAuth redirect for server ${serverId}`)
-          return NextResponse.json({
-            status: 'redirect',
-            authorizationUrl: authOutcome.authorizationUrl,
-          })
-        }
-        if (authOutcome.value === 'AUTHORIZED') {
-          return NextResponse.json({ status: 'already_authorized' })
-        }
-        return createMcpErrorResponse(
-          new Error('Provider did not capture redirect URL'),
-          'Failed to start OAuth flow',
-          500
-        )
-      } catch (e) {
-        if (isDynamicClientRegistrationUnsupported(e)) {
-          return createMcpErrorResponse(toError(e), DCR_UNSUPPORTED_MESSAGE, 422)
-        }
-        throw e
       }
+      if (authOutcome.kind === 'rejected') {
+        logger.warn(`Authorization server refused the MCP OAuth flow for server ${serverId}`, {
+          error: authOutcome.error.message,
+        })
+        return createMcpErrorResponse(authOutcome.error, authOutcome.message, 422)
+      }
+      if (authOutcome.value === 'AUTHORIZED') {
+        return NextResponse.json({ status: 'already_authorized' })
+      }
+      return createMcpErrorResponse(
+        new Error('Provider did not capture redirect URL'),
+        'Failed to start OAuth flow',
+        500
+      )
     } catch (error) {
       // Any bounded step timing out (DB reads or the auth step) is a stall, not a bug —
       // surface it as a fast 504 so the popup closes with a clear "try again" rather than a
@@ -224,11 +233,7 @@ export const GET = withRouteHandler(
         )
       }
       logger.error('Error starting MCP OAuth flow:', error)
-      // Only surface OAuth-flow errors verbatim; everything else (DB, decryption,
-      // network) gets a generic message to avoid leaking internal details.
-      const userMessage =
-        error instanceof OAuthError ? surfaceOauthError(error) : 'Failed to start OAuth flow'
-      return createMcpErrorResponse(toError(error), userMessage, 500)
+      return createMcpErrorResponse(toError(error), 'Failed to start OAuth flow', 500)
     }
   })
 )

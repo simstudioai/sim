@@ -5,8 +5,7 @@ export const MemoryBlock: BlockConfig = {
   type: 'memory',
   name: 'Memory',
   description: 'Add memory store',
-  longDescription:
-    'Integrate Memory into the workflow. Can add, get a memory, get all memories, and delete memories.',
+  longDescription: 'Add, get a memory, get all memories, and delete memories.',
   bgColor: '#F64F9E',
   bestPractices: `
   - Do not use this block unless the user explicitly asks for it.

@@ -1,21 +1,14 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
+import type { ReactNode } from 'react'
+import { Avatar, AvatarFallback, AvatarImage, cn } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FAQ } from '@/lib/content/faq'
 import type { ContentMeta, ContentPost } from '@/lib/content/schema'
 import { BackLink } from '@/app/(landing)/components/back-link'
+import { ContentRelatedPosts } from '@/app/(landing)/components/content-post-page/content-related-posts'
+import { formatPostDate } from '@/app/(landing)/components/content-utils'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { ShareButton } from '@/app/(landing)/components/share-button'
-
-/** Renders an ISO date as "Jul 1, 2026". Pinned to UTC so the day matches the frontmatter date in every reader's timezone. */
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
 
 interface ContentPostPageProps {
   /** Route base path, e.g. `/blog` or `/library`. */
@@ -25,7 +18,8 @@ interface ContentPostPageProps {
   post: ContentPost
   related: ContentMeta[]
   graphJsonLd: Record<string, unknown>
-  shareUrl: string
+  /** Section-specific content rendered below the article body, above related posts. */
+  afterArticle?: ReactNode
 }
 
 /**
@@ -39,14 +33,14 @@ export function ContentPostPage({
   post,
   related,
   graphJsonLd,
-  shareUrl,
+  afterArticle,
 }: ContentPostPageProps) {
   const Article = post.Content
   const modifiedIso = post.updated ?? post.date
   const showUpdated = modifiedIso.slice(0, 10) !== post.date.slice(0, 10)
 
   return (
-    <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/BlogPosting'>
+    <article className='w-full bg-[var(--bg)]'>
       <JsonLd data={graphJsonLd} />
       <header className='mx-auto w-full max-w-[1728px] px-10 pt-[112px] max-sm:pt-20 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='mb-6'>
@@ -65,7 +59,6 @@ export function ContentPostPage({
                 sizes='(max-width: 1023px) calc(100vw - 64px), 450px'
                 priority
                 fetchPriority='high'
-                itemProp='image'
                 unoptimized
               />
             </div>
@@ -74,13 +67,13 @@ export function ContentPostPage({
             <div>
               <h1
                 className='text-balance text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] sm:text-[36px] md:text-[44px] lg:text-[52px]'
-                itemProp='headline'
+                data-speakable='headline'
               >
                 {post.title}
               </h1>
               <p
                 className='mt-4 text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg sm:leading-7'
-                itemProp='description'
+                data-speakable='description'
               >
                 {post.description}
               </p>
@@ -90,11 +83,10 @@ export function ContentPostPage({
                 <time
                   className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'
                   dateTime={post.date}
-                  itemProp='datePublished'
                 >
-                  {formatDate(post.date)}
+                  {formatPostDate(post.date)}
                 </time>
-                {showUpdated ? (
+                {showUpdated && (
                   <>
                     <span aria-hidden='true' className='text-[var(--text-secondary)] text-xs'>
                       ·
@@ -102,13 +94,10 @@ export function ContentPostPage({
                     <time
                       className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'
                       dateTime={modifiedIso}
-                      itemProp='dateModified'
                     >
-                      Updated {formatDate(modifiedIso)}
+                      Updated {formatPostDate(modifiedIso)}
                     </time>
                   </>
-                ) : (
-                  <meta itemProp='dateModified' content={modifiedIso} />
                 )}
               </div>
               <div className='flex items-center gap-3'>
@@ -124,17 +113,14 @@ export function ContentPostPage({
                       href={`${basePath}/authors/${encodeURIComponent(a?.id ?? '')}`}
                       rel='author'
                       className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] hover:text-[var(--text-primary)]'
-                      itemProp='author'
-                      itemScope
-                      itemType='https://schema.org/Person'
                     >
-                      <span itemProp='name'>{a?.name}</span>
+                      {a?.name}
                     </Link>
                   </div>
                 ))}
               </div>
               <div className='ml-auto'>
-                <ShareButton url={shareUrl} title={post.title} />
+                <ShareButton url={post.canonical} title={post.title} />
               </div>
             </div>
           </div>
@@ -145,59 +131,36 @@ export function ContentPostPage({
 
       <div className='mx-auto w-full max-w-[1728px] px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='border-[var(--border)] border-x'>
-          <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
-            <div className='prose prose-lg max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-secondary)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>
+          <div className='mx-auto max-w-[900px] px-6 py-16'>
+            <div
+              className={cn(
+                'prose prose-lg max-w-none prose-headings:font-season prose-headings:tracking-[-0.02em]',
+                '[--tw-prose-body:var(--text-body)] [--tw-prose-headings:var(--text-primary)] [--tw-prose-lead:var(--text-body)]',
+                '[--tw-prose-bold:var(--text-primary)] [--tw-prose-bullets:var(--text-primary)] [--tw-prose-counters:var(--text-primary)] [--tw-prose-links:var(--text-primary)]',
+                '[--tw-prose-captions:var(--text-secondary)] [--tw-prose-hr:var(--border)] [--tw-prose-quote-borders:var(--border)] [--tw-prose-quotes:var(--text-secondary)]',
+                '[--tw-prose-code:var(--text-primary)] [--tw-prose-pre-bg:var(--surface-5)] [--tw-prose-pre-code:var(--text-primary)]',
+                '[--tw-prose-td-borders:var(--border)] [--tw-prose-th-borders:var(--border)]'
+              )}
+            >
               <Article />
               {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
             </div>
           </div>
 
+          {afterArticle ? (
+            <div className='mx-auto max-w-[900px] px-6 pb-16'>{afterArticle}</div>
+          ) : null}
+
           {related.length > 0 && (
             <>
               <div className='h-px w-full bg-[var(--border)]' />
-              <nav aria-label='Related posts' className='flex flex-col sm:flex-row'>
-                {related.map((p) => (
-                  <Link
-                    key={p.slug}
-                    href={`${basePath}/${p.slug}`}
-                    className='group flex flex-1 flex-col gap-4 border-[var(--border)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--surface-hover)] sm:border-t-0 sm:border-l sm:first:border-l-0'
-                  >
-                    <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
-                      <Image
-                        src={p.ogImage}
-                        alt={p.title}
-                        fill
-                        sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
-                        className='object-cover'
-                        loading='lazy'
-                        unoptimized
-                      />
-                    </div>
-                    <div className='flex flex-col gap-2'>
-                      <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'>
-                        {formatDate(p.date)}
-                      </span>
-                      <h3 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
-                        {p.title}
-                      </h3>
-                      <p className='line-clamp-2 text-[var(--text-secondary)] text-sm leading-[150%]'>
-                        {p.description}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </nav>
+              <ContentRelatedPosts basePath={basePath} posts={related} />
             </>
           )}
         </div>
       </div>
 
       <div className='-mt-px h-px w-full bg-[var(--border)]' />
-
-      <meta itemProp='publisher' content='Sim' />
-      <meta itemProp='inLanguage' content='en-US' />
-      <meta itemProp='keywords' content={post.tags.join(', ')} />
-      {post.wordCount && <meta itemProp='wordCount' content={String(post.wordCount)} />}
     </article>
   )
 }

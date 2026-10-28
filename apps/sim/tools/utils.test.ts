@@ -1,5 +1,14 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { prepareToolRequest } from '@/tools/request-transport'
@@ -15,9 +24,12 @@ const mockGetQueryData = vi.fn()
  * module, so patching the shared namespace is the only wiring that always
  * applies.
  */
-const getQueryClientSpy = vi
-  .spyOn(getQueryClientModule, 'getQueryClient')
-  .mockImplementation(() => ({ getQueryData: mockGetQueryData }) as unknown as QueryClient)
+let getQueryClientSpy: MockInstance<typeof getQueryClientModule.getQueryClient>
+beforeEach(() => {
+  getQueryClientSpy = vi
+    .spyOn(getQueryClientModule, 'getQueryClient')
+    .mockImplementation(() => ({ getQueryData: mockGetQueryData }) as unknown as QueryClient)
+})
 
 afterAll(() => {
   getQueryClientSpy.mockRestore()
@@ -37,8 +49,6 @@ beforeEach(() => {
 
 afterEach(() => {
   global.window = originalWindow
-
-  vi.clearAllMocks()
 })
 
 describe('transformTable', () => {

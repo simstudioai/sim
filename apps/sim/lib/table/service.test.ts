@@ -5,25 +5,14 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableSchema } from '@/lib/table/types'
 
-const { mockAssertTableRowTtlEnabled } = vi.hoisted(() => ({
-  mockAssertTableRowTtlEnabled: vi.fn(),
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceTablesChanged: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@/lib/table/billing', () => ({
-  assertRowCapacity: vi.fn().mockResolvedValue(undefined),
-  notifyTableRowUsage: vi.fn(),
-}))
-
-vi.mock('@/lib/table/ttl-availability', () => ({
-  assertTableRowTtlEnabled: mockAssertTableRowTtlEnabled,
-}))
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 
 import { createTable, getTableById } from '@/lib/table/service'
 
@@ -39,16 +28,6 @@ function create(schema: TableSchema) {
 describe('createTable schema invariants', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
-  })
-
-  it('rejects a TTL schema before persistence when the feature is disabled', async () => {
-    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
-
-    await expect(
-      create({ columns: [{ name: 'expires_at', type: 'ttl' }] } as TableSchema)
-    ).rejects.toThrow('Expiration columns are not enabled')
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   /**

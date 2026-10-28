@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeAddUserAppRoleAssignmentOperation } from '@/lib/internal/microsoft-ad/operations/add-user-app-role-assignment'
 
 const OBJECT_ID = 'cde330e5-2150-4c11-9c5b-14bfdc948c79'
@@ -8,24 +9,12 @@ const UPN = 'jdoe@contoso.com'
 
 const run = executeAddUserAppRoleAssignmentOperation
 
-function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }): Response {
-  return {
-    ok: init?.ok ?? true,
-    status: init?.status ?? 200,
-    json: async () => body,
-  } as Response
-}
-
 describe('addUserAppRoleAssignmentTool principalId', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   /**
@@ -94,7 +83,7 @@ describe('addUserAppRoleAssignmentTool principalId', () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         { error: { code: 'Request_ResourceNotFound', message: 'Resource does not exist.' } },
-        { ok: false, status: 404 }
+        404
       )
     )
 
@@ -118,7 +107,7 @@ describe('addUserAppRoleAssignmentTool principalId', () => {
       .mockResolvedValueOnce(
         jsonResponse(
           { error: { code: 'Request_BadRequest', message: 'Invalid value specified.' } },
-          { ok: false, status: 400 }
+          400
         )
       )
 

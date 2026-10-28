@@ -1,9 +1,11 @@
+import { listSearchSourcesContract } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type OrganizationSearchSourcesInput,
   type OrganizationSearchSourcesOutput,
   organizationSearchSourcesInputSchema,
   organizationSearchSourcesOutputSchema,
 } from '@/lib/api/contracts/mothership-search-sources'
+import { cursorRoute } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import {
@@ -21,7 +23,7 @@ import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organ
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { canConnectPersonally, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
-import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/search-params'
+import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/params'
 
 /** Organization Search controls reuse the product operations and its credential collection UI. */
 export const organizationSearchSourcesServerTool: BaseServerTool<
@@ -31,6 +33,7 @@ export const organizationSearchSourcesServerTool: BaseServerTool<
   name: 'search_sources',
   inputSchema: organizationSearchSourcesInputSchema,
   outputSchema: organizationSearchSourcesOutputSchema,
+  writes: (args) => args.action === 'approve',
   async execute(args, context) {
     if (context?.requestMode !== 'agent' && context?.requestMode !== 'plan')
       throw new OrchestrationError('forbidden', 'Search source controls require Mothership')
@@ -47,18 +50,23 @@ export const organizationSearchSourcesServerTool: BaseServerTool<
     context?.userStopSignal?.throwIfAborted()
     const input = organizationSearchSourcesInputSchema.parse(args)
     const owner = { organizationId: trusted.organizationId }
+    // Shares the Search page's cursor namespace, so a page cursor stays valid on either surface.
+    const sourcesCursorRoute = cursorRoute(listSearchSourcesContract)
     switch (input.action) {
       case 'list': {
         const { action, ...filters } = input
         return {
           action,
-          ...(await listSearchSources.execute({ principal, input: { ...owner, ...filters } })),
+          ...(await listSearchSources.execute({
+            principal,
+            input: { ...owner, ...filters, cursorRoute: sourcesCursorRoute },
+          })),
         }
       }
       case 'get': {
         const page = await listSearchSources.execute({
           principal,
-          input: { ...owner, connectorId: input.connectorId },
+          input: { ...owner, connectorId: input.connectorId, cursorRoute: sourcesCursorRoute },
         })
         const source = page.sources[0]
         if (!source) throw new OrchestrationError('not_found', 'Search source not found')

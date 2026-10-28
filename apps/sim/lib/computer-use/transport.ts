@@ -18,7 +18,7 @@ export async function executeComputerUseTool(
   if (!bridge) throw new Error('Computer use requires the macOS desktop app')
   const status = await bridge.getStatus()
   signal?.throwIfAborted()
-  if (!status.supported || !status.enabled)
+  if (!status?.supported || !status.enabled)
     throw new Error('Enable Computer Use in Desktop settings first')
   const reply = await bridge.executeTool(toolCallId, input)
   if (reply?.kind === 'error')

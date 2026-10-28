@@ -6,7 +6,7 @@ import {
   embeddingSecretProvenance,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
-import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   bindDurableSecretProvenanceToValue,
@@ -184,6 +184,8 @@ interface KnowledgeEmbeddingSecretProvenanceRow {
 
 const KNOWLEDGE_DOCUMENT_PROVENANCE_SELECTION = {
   id: document.id,
+  knowledgeBaseId: document.knowledgeBaseId,
+  storageKey: document.storageKey,
   secretProvenanceVersion: document.secretProvenanceVersion,
   filename: document.filename,
   fileUrl: document.fileUrl,
@@ -222,9 +224,18 @@ const KNOWLEDGE_EMBEDDING_PROVENANCE_SELECTION = {
   entries: embeddingSecretProvenance.entries,
 }
 
-function selectKnowledgeDocumentProvenanceRows(where: SQL<unknown> | undefined) {
+function selectKnowledgeDocumentProvenanceRows(
+  where: SQL<unknown> | undefined,
+  deferInlineContent = false
+) {
   return db
-    .select(KNOWLEDGE_DOCUMENT_PROVENANCE_SELECTION)
+    .select({
+      ...KNOWLEDGE_DOCUMENT_PROVENANCE_SELECTION,
+      fileUrl: deferInlineContent
+        ? sql<string>`CASE WHEN ${document.fileUrl} LIKE 'data:%' THEN '' ELSE ${document.fileUrl} END`
+        : document.fileUrl,
+      hasInlineFile: sql<boolean>`${document.fileUrl} LIKE 'data:%'`,
+    })
     .from(document)
     .leftJoin(documentSecretProvenance, eq(documentSecretProvenance.documentId, document.id))
     .where(where)
@@ -439,8 +450,180 @@ export async function loadKnowledgeDocumentSecretRegistry(
   return { registry, provenance, tracked: true }
 }
 
+/**
+ * Metadata fields a person can edit in place that can hold text, which a returned snapshot is
+ * checked against. Date and boolean slots are typed columns no secret text can occupy.
+ */
+const EDITABLE_DOCUMENT_FIELDS = [
+  'filename',
+  'sourceUrl',
+  'tag1',
+  'tag2',
+  'tag3',
+  'tag4',
+  'tag5',
+  'tag6',
+  'tag7',
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+] as const satisfies readonly (keyof KnowledgeDocumentSourceValue)[]
+
+/** What a result shows of a document's metadata by stored field name, to bind its class to. */
+export type KnowledgeDocumentSnapshot = Readonly<Record<string, unknown>>
+
+const isEditableField = (field: string): boolean =>
+  (EDITABLE_DOCUMENT_FIELDS as readonly string[]).includes(field)
+
+function comparableField(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null
+  return String(value)
+}
+
+/** A number slot is compared by value, since its text form can differ from its stored form. */
+function sameField(stored: unknown, shown: unknown): boolean {
+  const left = comparableField(stored)
+  const right = comparableField(shown)
+  if (left === right) return true
+  if (left === null || right === null) return false
+  return typeof stored === 'number' && Number(right) === stored
+}
+
+function matchesDocumentSnapshot(
+  source: KnowledgeDocumentSourceValue,
+  snapshot: KnowledgeDocumentSnapshot
+): boolean {
+  return Object.entries(snapshot).every(
+    ([field, shown]) => !isEditableField(field) || sameField(Reflect.get(source, field), shown)
+  )
+}
+
+/** Picks the editable metadata a returned value shows, when it shows any. */
+export function knowledgeDocumentSnapshot(value: unknown): KnowledgeDocumentSnapshot | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const snapshot: Record<string, unknown> = {}
+  let shown = false
+  for (const field of EDITABLE_DOCUMENT_FIELDS) {
+    if (Object.hasOwn(value, field)) {
+      snapshot[field] = Reflect.get(value, field)
+      shown = true
+    }
+  }
+  return shown ? snapshot : undefined
+}
+
+/**
+ * Classifies the rendered metadata of each document. A document whose stored metadata no longer
+ * matches a snapshot the result shows reads as unknown: a concurrent edit must not pair the old
+ * values, which the result still carries, with the new row's classification. Inline originals
+ * needed for tracked bindings are loaded one at a time, never materialized as a metadata page.
+ */
+export async function classifyKnowledgeDocumentMetadata(
+  documentIds: readonly string[],
+  snapshots?: ReadonlyMap<string, readonly KnowledgeDocumentSnapshot[]>
+): Promise<Map<string, DurableSecretProvenance>> {
+  const ids = [...new Set(documentIds)]
+  const rows = ids.length
+    ? await selectKnowledgeDocumentProvenanceRows(inArray(document.id, ids), true)
+    : []
+  const result = new Map<string, DurableSecretProvenance>()
+  for (const metadata of rows) {
+    const row =
+      metadata.hasInlineFile && metadata.secretProvenanceVersion !== null
+        ? (await selectKnowledgeDocumentProvenanceRows(eq(document.id, metadata.id)).limit(1))[0]
+        : metadata
+    if (!row) {
+      result.set(metadata.id, { status: 'unknown' })
+      continue
+    }
+    const source = createKnowledgeDocumentSourceValue(row)
+    const stale = (snapshots?.get(row.id) ?? []).some(
+      (snapshot) => !matchesDocumentSnapshot(source, snapshot)
+    )
+    result.set(
+      row.id,
+      stale
+        ? { status: 'unknown' }
+        : filterKnowledgeDocumentMetadataSecretProvenance(
+            readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
+            source
+          )
+    )
+  }
+  for (const id of ids) if (!result.has(id)) result.set(id, { status: 'unknown' })
+  return result
+}
+
+interface KnowledgeChunkContentSnapshot {
+  id: string
+  documentId: string
+  content: string
+}
+
+/** Classifies chunk bytes against their current stored identity and content binding. */
+export async function classifyKnowledgeChunkContent(
+  chunks: readonly KnowledgeChunkContentSnapshot[]
+): Promise<Map<string, DurableSecretProvenance>> {
+  const ids = [...new Set(chunks.map((chunk) => chunk.id))]
+  const rows = ids.length
+    ? await selectKnowledgeEmbeddingProvenanceRows(inArray(embedding.id, ids))
+    : []
+  const rowById = new Map(rows.map((row) => [row.id, row]))
+  return new Map(
+    chunks.map((chunk): [string, DurableSecretProvenance] => {
+      const row = rowById.get(chunk.id)
+      return [
+        chunk.id,
+        !row || row.documentId !== chunk.documentId || row.content !== chunk.content
+          ? { status: 'unknown' }
+          : readBoundKnowledgeEmbeddingSecretProvenance(row),
+      ]
+    })
+  )
+}
+
+/**
+ * Classifies a result's chunk bytes and the document metadata it displays. Both are bound to
+ * the returned snapshots; tracked inline originals are loaded individually for metadata bindings.
+ */
+export async function classifyKnowledgeChunks(
+  chunks: readonly (KnowledgeChunkContentSnapshot & { snapshot?: KnowledgeDocumentSnapshot })[]
+): Promise<Map<string, DurableSecretProvenance>> {
+  const snapshots = new Map<string, KnowledgeDocumentSnapshot[]>()
+  for (const chunk of chunks) {
+    if (chunk.snapshot) {
+      const current = snapshots.get(chunk.documentId)
+      if (current) current.push(chunk.snapshot)
+      else snapshots.set(chunk.documentId, [chunk.snapshot])
+    }
+  }
+  const [contents, documents] = await Promise.all([
+    classifyKnowledgeChunkContent(chunks),
+    classifyKnowledgeDocumentMetadata(
+      chunks.map((chunk) => chunk.documentId),
+      snapshots
+    ),
+  ])
+  return new Map(
+    chunks.map((chunk): [string, DurableSecretProvenance] => [
+      chunk.id,
+      mergeDurableSecretProvenance(
+        contents.get(chunk.id) ?? { status: 'unknown' },
+        documents.get(chunk.documentId) ?? { status: 'unknown' }
+      ),
+    ])
+  )
+}
+
 /** Loads the bound document classification for copy/re-entry callers that do not need a registry. */
-export async function loadKnowledgeDocumentDurableSecretProvenance(documentId: string): Promise<{
+export async function loadKnowledgeDocumentDurableSecretProvenance(
+  documentId: string,
+  snapshot?: KnowledgeDocumentSnapshot
+): Promise<{
+  knowledgeBaseId: string
+  storageKey: string | null
   source: KnowledgeDocumentSourceValue
   provenance: DurableSecretProvenance
   tracked: boolean
@@ -449,8 +632,13 @@ export async function loadKnowledgeDocumentDurableSecretProvenance(documentId: s
   if (!row) throw new Error('Document not found')
   const source = createKnowledgeDocumentSourceValue(row)
   return {
+    knowledgeBaseId: row.knowledgeBaseId,
+    storageKey: row.storageKey,
     source,
-    provenance: readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
+    provenance:
+      snapshot && !matchesDocumentSnapshot(source, snapshot)
+        ? { status: 'unknown' }
+        : readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
     tracked: row.secretProvenanceVersion === 1,
   }
 }

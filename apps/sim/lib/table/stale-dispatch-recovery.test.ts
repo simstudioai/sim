@@ -1,19 +1,15 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendTableEvent, mockGetTableById } = vi.hoisted(() => ({
-  mockAppendTableEvent: vi.fn(),
-  mockGetTableById: vi.fn(),
-}))
-
-vi.mock('@/lib/table/events', () => ({
-  appendTableEvent: mockAppendTableEvent,
-}))
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 import { cancelStaleDispatches, dispatcherStep } from '@/lib/table/dispatcher'
+
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
+const mockGetTableById = tableServiceMockFns.mockGetTableById
 
 const STALE_BEFORE = new Date('2026-08-21T17:00:00.000Z')
 

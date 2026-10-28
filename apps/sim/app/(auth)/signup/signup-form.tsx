@@ -1,18 +1,19 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { trackFreebuffConversion } from '@/lib/analytics/freebuff'
 import { trackGoogleEvent } from '@/lib/analytics/google'
-import { client, useSession } from '@/lib/auth/auth-client'
+import { client, useSession } from '@/lib/auth/client'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
+import { captureEvent } from '@/lib/posthog/client'
 import {
   buildAuthCrossLink,
   DEFAULT_POST_AUTH_ROUTE,
@@ -34,6 +35,7 @@ import {
   SocialLoginButtons,
   SSOLoginButton,
 } from '@/app/(auth)/components'
+import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 
 const logger = createLogger('SignupForm')
 
@@ -109,12 +111,10 @@ function SignupFormContent({
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
   const posthog = usePostHog()
-  const { measurement } = useTrackingConsent()
+  const { measurement, marketing } = useTrackingConsent()
+  useCaptureWhenReady('signup_page_viewed', {})
   const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    captureClientEvent('signup_page_viewed', {})
-  }, [])
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
@@ -348,6 +348,7 @@ function SignupFormContent({
       }
 
       if (measurement) trackGoogleEvent('sign_up', { method: 'email' })
+      if (marketing) trackFreebuffConversion('signup_completed', response.data.user.id)
 
       try {
         await refetchSession()
@@ -483,6 +484,7 @@ function SignupFormContent({
 
       {showBottomSection && (
         <SocialLoginButtons
+          view='signup'
           githubAvailable={githubAvailable}
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}

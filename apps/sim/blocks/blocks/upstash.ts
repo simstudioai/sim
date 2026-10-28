@@ -1,44 +1,8 @@
 import { UpstashIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  UpstashRedisCommandResponse,
-  UpstashRedisDeleteResponse,
-  UpstashRedisExistsResponse,
-  UpstashRedisExpireResponse,
-  UpstashRedisGetResponse,
-  UpstashRedisHGetAllResponse,
-  UpstashRedisHGetResponse,
-  UpstashRedisHSetResponse,
-  UpstashRedisIncrbyResponse,
-  UpstashRedisIncrResponse,
-  UpstashRedisKeysResponse,
-  UpstashRedisLPushResponse,
-  UpstashRedisLRangeResponse,
-  UpstashRedisSetnxResponse,
-  UpstashRedisSetResponse,
-  UpstashRedisTtlResponse,
-} from '@/tools/upstash/types'
 
-type UpstashResponse =
-  | UpstashRedisGetResponse
-  | UpstashRedisSetResponse
-  | UpstashRedisDeleteResponse
-  | UpstashRedisKeysResponse
-  | UpstashRedisCommandResponse
-  | UpstashRedisHSetResponse
-  | UpstashRedisHGetResponse
-  | UpstashRedisHGetAllResponse
-  | UpstashRedisIncrResponse
-  | UpstashRedisIncrbyResponse
-  | UpstashRedisExpireResponse
-  | UpstashRedisTtlResponse
-  | UpstashRedisLPushResponse
-  | UpstashRedisLRangeResponse
-  | UpstashRedisExistsResponse
-  | UpstashRedisSetnxResponse
-
-export const UpstashBlock: BlockConfig<UpstashResponse> = {
+export const UpstashBlock: BlockConfig = {
   type: 'upstash',
   name: 'Upstash',
   description: 'Serverless Redis with Upstash',
@@ -291,21 +255,6 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
     ],
     config: {
       tool: (params) => {
-        if (params.ex) {
-          params.ex = Number(params.ex)
-        }
-        if (params.seconds !== undefined) {
-          params.seconds = Number(params.seconds)
-        }
-        if (params.start !== undefined) {
-          params.start = Number(params.start)
-        }
-        if (params.stop !== undefined) {
-          params.stop = Number(params.stop)
-        }
-        if (params.increment !== undefined) {
-          params.increment = Number(params.increment)
-        }
         switch (params.operation) {
           case 'get':
             return 'upstash_redis_get'
@@ -342,6 +291,25 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
           default:
             throw new Error(`Unknown operation: ${params.operation}`)
         }
+      },
+      params: (params) => {
+        const coerced: Record<string, number> = {}
+        if (params.ex) {
+          coerced.ex = Number(params.ex)
+        }
+        if (params.seconds !== undefined) {
+          coerced.seconds = Number(params.seconds)
+        }
+        if (params.start !== undefined) {
+          coerced.start = Number(params.start)
+        }
+        if (params.stop !== undefined) {
+          coerced.stop = Number(params.stop)
+        }
+        if (params.increment !== undefined) {
+          coerced.increment = Number(params.increment)
+        }
+        return coerced
       },
     },
   },

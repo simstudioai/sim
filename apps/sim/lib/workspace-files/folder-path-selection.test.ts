@@ -19,10 +19,10 @@ const folders = [
 
 describe('resolveFolderIdsForPaths', () => {
   /*
-   * A per-user memory tree makes the scope an isolation boundary rather than a
-   * filter, so the sibling cases below are the ones that matter: `user-a` and
-   * `user-a-2` share a prefix, and a resolver comparing raw strings instead of
-   * decoded segments would hand one user the other's notes.
+   * In a per-user memory tree the scope is what picks one user's notes, so the
+   * sibling cases below are the ones that matter: `user-a` and `user-a-2` share
+   * a prefix, and a resolver comparing raw strings instead of decoded segments
+   * would read the other user's notes.
    */
   const memory = [
     { id: 'memory', parentId: null, path: 'memory' },
@@ -38,33 +38,33 @@ describe('resolveFolderIdsForPaths', () => {
   it("keeps one user's subtree out of another's scope", () => {
     const result = resolveFolderIdsForPaths(memory, ['/memory/user-a'])
 
-    expect([...(result.folderIds ?? [])].sort()).toEqual(['a', 'a-commitments', 'a-people'])
+    expect([...(result.scope?.folderIds ?? [])].sort()).toEqual(['a', 'a-commitments', 'a-people'])
   })
 
   it('does not let a shared name prefix widen the scope', () => {
     const result = resolveFolderIdsForPaths(memory, ['/memory/user-a'])
 
-    expect(result.folderIds?.has('a2')).toBe(false)
-    expect(result.folderIds?.has('a2-people')).toBe(false)
+    expect(result.scope?.folderIds.has('a2')).toBe(false)
+    expect(result.scope?.folderIds.has('a2-people')).toBe(false)
   })
 
   it('never climbs to a parent of the requested folder', () => {
     const result = resolveFolderIdsForPaths(memory, ['/memory/user-a/people'])
 
-    expect([...(result.folderIds ?? [])]).toEqual(['a-people'])
+    expect([...(result.scope?.folderIds ?? [])]).toEqual(['a-people'])
   })
 
   it('matches a folder whose name contains a slash', () => {
     const result = resolveFolderIdsForPaths(folders, ['/Reports/Q3%2FQ4'])
 
-    expect([...(result.folderIds ?? [])]).toEqual(['slashy'])
+    expect([...(result.scope?.folderIds ?? [])]).toEqual(['slashy'])
   })
 
   it('reports a path that matches nothing rather than reading less', () => {
     const result = resolveFolderIdsForPaths(folders, ['/Reports', '/Nope'])
 
     expect(result.missingPath).toBe('/Nope')
-    expect(result.folderIds).toBeUndefined()
+    expect(result.scope?.folderIds).toBeUndefined()
   })
 })
 
@@ -84,7 +84,7 @@ describe('either path spelling resolves', () => {
 
   it('still tells a slash in a name from a level separator', () => {
     expect([
-      ...(resolveFolderIdsForPaths(canonical, ['/Reports/Q3%2FQ4']).folderIds ?? []),
+      ...(resolveFolderIdsForPaths(canonical, ['/Reports/Q3%2FQ4']).scope?.folderIds ?? []),
     ]).toEqual(['slashy'])
   })
 })
@@ -116,16 +116,27 @@ describe('isFileInFolderScope', () => {
  */
 describe('the workspace root', () => {
   it('selects files that carry no folder id', () => {
-    const result = resolveFolderIdsForPaths(folders, ['/'])
+    const result = resolveFolderIdsForPaths(folders, ['/'], { includeSubfolders: false })
 
     expect(result.missingPath).toBeUndefined()
-    expect(result.includeRootItems).toBe(true)
+    expect(result.scope?.includeRootItems).toBe(true)
+  })
+
+  it('with its subfolders is the whole workspace, not a list of every folder', () => {
+    const result = resolveFolderIdsForPaths(folders, ['/', '/Reports'])
+
+    expect(result.missingPath).toBeUndefined()
+    expect(result.scope).toBeUndefined()
+  })
+
+  it('still reports a missing path listed beside it', () => {
+    expect(resolveFolderIdsForPaths(folders, ['/', '/Nope']).missingPath).toBe('/Nope')
   })
 
   it('is not implied by an ordinary folder scope', () => {
     const result = resolveFolderIdsForPaths(folders, ['/Reports'])
 
-    expect(result.includeRootItems).toBe(false)
+    expect(result.scope?.includeRootItems).toBe(false)
   })
 })
 
@@ -138,8 +149,8 @@ describe('isFileInFolderScope and the root', () => {
   it('agrees with the id resolver for the same scope', () => {
     const shallowRoot = resolveFolderIdsForPaths(folders, ['/'], { includeSubfolders: false })
 
-    expect(shallowRoot.includeRootItems).toBe(true)
-    expect([...(shallowRoot.folderIds ?? [])]).toEqual([])
+    expect(shallowRoot.scope?.includeRootItems).toBe(true)
+    expect([...(shallowRoot.scope?.folderIds ?? [])]).toEqual([])
     expect(isFileInFolderScope('Reports', '/', { includeSubfolders: false })).toBe(false)
   })
 })

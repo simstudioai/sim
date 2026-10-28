@@ -1,45 +1,31 @@
 ---
 title: Rocketlane
 description: Manage client onboarding projects, tasks, time tracking, and invoices
+integration:
+  type: "rocketlane"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="rocketlane"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Rocketlane](https://www.rocketlane.com/) is a professional-services automation platform for customer onboarding and project delivery. It keeps projects, phases, tasks, templates, time tracking, and billing in one system so services teams and their customers work from the same plan.
+Use [Rocketlane](https://www.rocketlane.com/) to manage projects, members, phases, tasks, assignees, followers, and dependencies. Import project templates and assign their placeholders; configure custom fields and options; and manage time entries, time-off records, spaces, and documents.
 
-With the Rocketlane integration in Sim, you can:
-
-- **Manage projects**: Create, get, list, update, archive, and delete projects, and add or remove project members
-- **Work with templates**: Import a template into a project, then list, assign, and unassign its placeholders
-- **Manage tasks**: Create, get, list, update, and delete tasks, move them between phases, and manage assignees, followers, and dependencies
-- **Structure delivery**: Create, get, list, update, and delete project phases
-- **Configure custom fields**: Create, get, list, update, and delete fields, and add or update their options
-- **Track time**: Create, get, list, search, update, and delete time entries, and list time-entry categories
-- **Handle time-off**: Create, get, list, and delete time-off records
-- **Organize knowledge**: Create, get, list, update, and delete spaces and space documents
-- **Review capacity and billing**: List resource allocations, and retrieve invoices with their line items and payments
-
-In Sim, the Rocketlane integration enables your agents to run onboarding as an automated process. An agent can spin up a project from a signed deal, apply the right template, assign placeholders to real people, keep tasks and phases moving, log time, and pull invoice and allocation data for reporting.
+Reporting actions list resource allocations and retrieve invoices, line items, and payments. For example, create an onboarding project from a signed deal, apply a template, assign its people, and inspect its progress in later workflow runs.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Rocketlane into your workflow. Rocketlane is a professional-services automation platform for client onboarding and project delivery. Create and manage projects, tasks, phases, custom fields, time entries, time-offs, spaces, documents, resource allocations, and invoices.
-
-
+Rocketlane is a professional-services automation platform for client onboarding and project delivery. Create and manage projects, tasks, phases, custom fields, time entries, time-offs, spaces, documents, resource allocations, and invoices.
 
 ## Actions
 
 ### Rocketlane Create Project
 
 Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -187,9 +173,13 @@ Create a new Rocketlane project with a customer, owner, dates, team members, tem
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Project
 
 Retrieve a Rocketlane project by its unique identifier
+
+<ReferenceDetails>
 
 #### Input
 
@@ -307,9 +297,13 @@ Retrieve a Rocketlane project by its unique identifier
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
+</ReferenceDetails>
+
 ### Rocketlane List Projects
 
 List Rocketlane projects with optional filters, sorting, and token-based pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -450,9 +444,13 @@ List Rocketlane projects with optional filters, sorting, and token-based paginat
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Project
 
 Update a Rocketlane project by ID, including name, dates, visibility, owner, status, and custom fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -583,9 +581,13 @@ Update a Rocketlane project by ID, including name, dates, visibility, owner, sta
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
+</ReferenceDetails>
+
 ### Rocketlane Archive Project
 
 Archive a Rocketlane project by ID, making it dormant while preserving its details and history
+
+<ReferenceDetails>
 
 #### Input
 
@@ -601,9 +603,13 @@ Archive a Rocketlane project by ID, making it dormant while preserving its detai
 | `archived` | boolean | Whether the project was archived |
 | `projectId` | number | Unique identifier of the archived project |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Project
 
 Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -619,9 +625,13 @@ Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super 
 | `deleted` | boolean | Whether the project was deleted |
 | `projectId` | number | Unique identifier of the deleted project |
 
+</ReferenceDetails>
+
 ### Rocketlane Add Project Members
 
 Add team members and customer stakeholders to a Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -741,9 +751,13 @@ Add team members and customer stakeholders to a Rocketlane project
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
+</ReferenceDetails>
+
 ### Rocketlane Remove Project Members
 
 Remove team members from a Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -861,9 +875,13 @@ Remove team members from a Rocketlane project
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
+</ReferenceDetails>
+
 ### Rocketlane Import Template
 
 Import a project template into an existing Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -982,9 +1000,13 @@ Import a project template into an existing Rocketlane project
 |   ↳ `customersJoined` | number | Number of customers who joined the project |
 |   ↳ `externalReferenceId` | string | Identifier linking the project to an external system |
 
+</ReferenceDetails>
+
 ### Rocketlane List Placeholders
 
 List the placeholders of a Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1015,9 +1037,13 @@ List the placeholders of a Rocketlane project
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Assign Placeholders
 
 Assign a placeholder in a Rocketlane project to a user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1151,9 +1177,13 @@ Assign a placeholder in a Rocketlane project to a user
 |   ↳ `hourlyBillRate` | number | Latest hourly bill rate for the placeholder |
 |   ↳ `billRateCurrency` | string | Currency for the bill rate |
 
+</ReferenceDetails>
+
 ### Rocketlane Unassign Placeholders
 
 Unassign a placeholder from its user in a Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1285,9 +1315,13 @@ Unassign a placeholder from its user in a Rocketlane project
 |   ↳ `hourlyBillRate` | number | Latest hourly bill rate for the placeholder |
 |   ↳ `billRateCurrency` | string | Currency for the bill rate |
 
+</ReferenceDetails>
+
 ### Rocketlane Create Task
 
 Create a new task in a Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1353,24 +1387,40 @@ Create a new task in a Rocketlane project
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1382,9 +1432,13 @@ Create a new task in a Rocketlane project
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Task
 
 Retrieve detailed information about a Rocketlane task by its unique identifier
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1432,24 +1486,40 @@ Retrieve detailed information about a Rocketlane task by its unique identifier
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1461,9 +1531,13 @@ Retrieve detailed information about a Rocketlane task by its unique identifier
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane List Tasks
 
 Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1526,24 +1600,40 @@ Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1560,9 +1650,13 @@ Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Task
 
 Update the properties of an existing Rocketlane task by its unique identifier
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1622,24 +1716,40 @@ Update the properties of an existing Rocketlane task by its unique identifier
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1651,9 +1761,13 @@ Update the properties of an existing Rocketlane task by its unique identifier
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Task
 
 Permanently delete a Rocketlane task by its unique identifier
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1669,9 +1783,13 @@ Permanently delete a Rocketlane task by its unique identifier
 | `deleted` | boolean | Whether the task was deleted |
 | `taskId` | number | ID of the deleted task |
 
+</ReferenceDetails>
+
 ### Rocketlane Move Task To Phase
 
 Move a Rocketlane task to a given phase, associating the task with that phase
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1718,24 +1836,40 @@ Move a Rocketlane task to a given phase, associating the task with that phase
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1747,9 +1881,13 @@ Move a Rocketlane task to a given phase, associating the task with that phase
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Add Task Assignees
 
 Add members as assignees to a Rocketlane task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1797,24 +1935,40 @@ Add members as assignees to a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1826,9 +1980,13 @@ Add members as assignees to a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Remove Task Assignees
 
 Remove assignees from a Rocketlane task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1876,24 +2034,40 @@ Remove assignees from a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1905,9 +2079,13 @@ Remove assignees from a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Add Task Followers
 
 Add members as followers to a Rocketlane task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1955,24 +2133,40 @@ Add members as followers to a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -1984,9 +2178,13 @@ Add members as followers to a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Remove Task Followers
 
 Remove followers from a Rocketlane task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2034,24 +2232,40 @@ Remove followers from a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -2063,9 +2277,13 @@ Remove followers from a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Add Task Dependencies
 
 Add finish-to-start dependencies between a Rocketlane task and other tasks
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2112,24 +2330,40 @@ Add finish-to-start dependencies between a Rocketlane task and other tasks
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -2141,9 +2375,13 @@ Add finish-to-start dependencies between a Rocketlane task and other tasks
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Remove Task Dependencies
 
 Remove dependencies from a Rocketlane task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2190,24 +2428,40 @@ Remove dependencies from a Rocketlane task
 |     ↳ `phaseId` | number | Unique identifier of the phase |
 |     ↳ `phaseName` | string | Name of the phase |
 |   ↳ `status` | object | Status of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `priority` | object | Priority of the task \(value and label\) |
+|     ↳ `value` | number | Unique identifier of the choice |
+|     ↳ `label` | string | Label of the choice |
 |   ↳ `fields` | array | Custom field values set on the task |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field \(string, number, or array\) |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 |   ↳ `assignees` | object | Assignees of the task \(members and placeholders\) |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers assigned to the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
+|     ↳ `placeholders` | array | Placeholders assigned to the task |
+|       ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|       ↳ `placeholderName` | string | Name of the placeholder |
+|       ↳ `role` | object | Role associated with the placeholder |
+|         ↳ `roleId` | number | Unique identifier of the role |
+|         ↳ `roleName` | string | Name of the role |
 |   ↳ `followers` | object | Followers of the task |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `members` | array | Team members and customers following the task |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `dependencies` | array | Tasks this task depends on \(finish-to-start dependencies\) |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `parent` | object | Parent task of the task |
+|     ↳ `taskId` | number | Unique identifier of the task |
+|     ↳ `taskName` | string | Name of the task |
 |   ↳ `externalReferenceId` | string | External reference identifier linking the task to an external system |
 |   ↳ `billable` | boolean | Whether the task is billable |
 |   ↳ `timeEntryCategory` | object | Category in which the task time entries are added |
@@ -2219,9 +2473,13 @@ Remove dependencies from a Rocketlane task
 |   ↳ `csatEnabled` | boolean | Whether a CSAT survey is sent on completion \(milestone tasks\) |
 |   ↳ `private` | boolean | Whether the task is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Create Phase
 
 Create a new phase in a Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2268,9 +2526,13 @@ Create a new phase in a Rocketlane project
 |     ↳ `label` | string | Display label of the status |
 |   ↳ `private` | boolean | Whether the phase is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Phase
 
 Retrieve a single Rocketlane phase by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2312,9 +2574,13 @@ Retrieve a single Rocketlane phase by ID
 |     ↳ `label` | string | Display label of the status |
 |   ↳ `private` | boolean | Whether the phase is private |
 
+</ReferenceDetails>
+
 ### Rocketlane List Phases
 
 List phases of a Rocketlane project, with optional filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2367,9 +2633,13 @@ List phases of a Rocketlane project, with optional filters, sorting, and paginat
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Phase
 
 Update the name, dates, status, or privacy of an existing Rocketlane phase
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2416,9 +2686,13 @@ Update the name, dates, status, or privacy of an existing Rocketlane phase
 |     ↳ `label` | string | Display label of the status |
 |   ↳ `private` | boolean | Whether the phase is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Phase
 
 Permanently delete a Rocketlane phase by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2434,9 +2708,13 @@ Permanently delete a Rocketlane phase by ID
 | `deleted` | boolean | Whether the phase was deleted |
 | `phaseId` | number | ID of the deleted phase |
 
+</ReferenceDetails>
+
 ### Rocketlane Create Field
 
 Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE and MULTIPLE_CHOICE field types
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2484,9 +2762,13 @@ Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE
 |   ↳ `enabled` | boolean | Whether the field is enabled |
 |   ↳ `private` | boolean | Whether the field is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Field
 
 Retrieve a single Rocketlane field by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2527,9 +2809,13 @@ Retrieve a single Rocketlane field by ID
 |   ↳ `enabled` | boolean | Whether the field is enabled |
 |   ↳ `private` | boolean | Whether the field is private |
 
+</ReferenceDetails>
+
 ### Rocketlane List Fields
 
 List fields in your Rocketlane account, with optional filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2583,9 +2869,13 @@ List fields in your Rocketlane account, with optional filters, sorting, and pagi
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Field
 
 Update the label, description, enabled state, or privacy of an existing Rocketlane field
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2630,9 +2920,13 @@ Update the label, description, enabled state, or privacy of an existing Rocketla
 |   ↳ `enabled` | boolean | Whether the field is enabled |
 |   ↳ `private` | boolean | Whether the field is private |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Field
 
 Permanently delete a Rocketlane field by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2648,9 +2942,13 @@ Permanently delete a Rocketlane field by ID
 | `deleted` | boolean | Whether the field was deleted |
 | `fieldId` | number | ID of the deleted field |
 
+</ReferenceDetails>
+
 ### Rocketlane Add Field Option
 
 Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2670,9 +2968,13 @@ Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane fiel
 |   ↳ `optionLabel` | string | Display label of the option |
 |   ↳ `optionColor` | string | Color of the option \(RED, YELLOW, GREEN, TEAL, CYAN, BLUE, PURPLE, MAGENTA, GRAY, COOL_GRAY\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Field Option
 
 Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2693,9 +2995,13 @@ Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_C
 |   ↳ `optionLabel` | string | Display label of the option |
 |   ↳ `optionColor` | string | Color of the option \(RED, YELLOW, GREEN, TEAL, CYAN, BLUE, PURPLE, MAGENTA, GRAY, COOL_GRAY\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Create Time Entry
 
 Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2778,16 +3084,24 @@ Create a time entry in Rocketlane against an adhoc activity, task, project phase
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Time Entry
 
 Get a single Rocketlane time entry by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2860,16 +3174,24 @@ Get a single Rocketlane time entry by ID
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 
+</ReferenceDetails>
+
 ### Rocketlane List Time Entries
 
 List Rocketlane time entries with optional filters, sorting, and cursor-based pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2970,7 +3292,11 @@ List Rocketlane time entries with optional filters, sorting, and cursor-based pa
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -2982,9 +3308,13 @@ List Rocketlane time entries with optional filters, sorting, and cursor-based pa
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Search Time Entries
 
 Search Rocketlane time entries with filters, sorting, and pagination (deprecated by Rocketlane in favor of listing time entries with filters)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3075,7 +3405,11 @@ Search Rocketlane time entries with filters, sorting, and pagination (deprecated
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
@@ -3087,9 +3421,13 @@ Search Rocketlane time entries with filters, sorting, and pagination (deprecated
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Time Entry
 
 Update a Rocketlane time entry by ID. The activityName, notes, billable, and minutes properties can be updated
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3168,16 +3506,24 @@ Update a Rocketlane time entry by ID. The activityName, notes, billable, and min
 |   ↳ `rejectedAt` | number | Rejection timestamp in epoch milliseconds |
 |   ↳ `deleted` | boolean | Whether the time entry is deleted |
 |   ↳ `costRate` | object | Hourly cost rate assigned to the user for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `billRate` | object | Hourly rate billed to the customer for this entry |
+|     ↳ `rate` | number | Hourly monetary rate |
+|     ↳ `currency` | string | Three-letter ISO currency code |
 |   ↳ `fields` | array | Custom fields associated with the time entry |
 |     ↳ `fieldId` | number | Unique identifier of the field |
 |     ↳ `fieldLabel` | string | Label of the field |
 |     ↳ `fieldValue` | json | Value of the field |
 |     ↳ `fieldValueLabel` | string | String representation of the field value |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Time Entry
 
 Permanently delete a Rocketlane time entry by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3193,9 +3539,13 @@ Permanently delete a Rocketlane time entry by ID
 | `deleted` | boolean | Whether the time entry was deleted |
 | `timeEntryId` | number | ID of the deleted time entry |
 
+</ReferenceDetails>
+
 ### Rocketlane List Time Entry Categories
 
 List the time entry categories configured in Rocketlane
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3218,9 +3568,13 @@ List the time entry categories configured in Rocketlane
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Create Time-Off
 
 Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3257,10 +3611,12 @@ Create a time-off for a team member in Rocketlane. Holidays and weekends within 
 |   ↳ `durationInMinutes` | number | Duration in minutes per day for the time-off interval |
 |   ↳ `type` | string | Type of the time-off \(FULL_DAY, HALF_DAY, or CUSTOM\) |
 |   ↳ `notifyUsers` | object | Users notified about the time-off |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `projectOwners` | boolean | Whether project owners of projects the user is part of are notified |
+|     ↳ `others` | array | Other users notified about the time-off |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `createdAt` | number | Timestamp when the time-off was created \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the time-off |
 |     ↳ `userId` | number | Unique identifier of the user |
@@ -3268,9 +3624,13 @@ Create a time-off for a team member in Rocketlane. Holidays and weekends within 
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Time-Off
 
 Retrieve a Rocketlane time-off by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3298,10 +3658,12 @@ Retrieve a Rocketlane time-off by its ID
 |   ↳ `durationInMinutes` | number | Duration in minutes per day for the time-off interval |
 |   ↳ `type` | string | Type of the time-off \(FULL_DAY, HALF_DAY, or CUSTOM\) |
 |   ↳ `notifyUsers` | object | Users notified about the time-off |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `projectOwners` | boolean | Whether project owners of projects the user is part of are notified |
+|     ↳ `others` | array | Other users notified about the time-off |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `createdAt` | number | Timestamp when the time-off was created \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the time-off |
 |     ↳ `userId` | number | Unique identifier of the user |
@@ -3309,9 +3671,13 @@ Retrieve a Rocketlane time-off by its ID
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 
+</ReferenceDetails>
+
 ### Rocketlane List Time-Offs
 
 List time-offs in Rocketlane with optional date, type, and user filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3362,10 +3728,12 @@ List time-offs in Rocketlane with optional date, type, and user filters, sorting
 |   ↳ `durationInMinutes` | number | Duration in minutes per day for the time-off interval |
 |   ↳ `type` | string | Type of the time-off \(FULL_DAY, HALF_DAY, or CUSTOM\) |
 |   ↳ `notifyUsers` | object | Users notified about the time-off |
-|     ↳ `userId` | number | Unique identifier of the user |
-|     ↳ `firstName` | string | First name of the user |
-|     ↳ `lastName` | string | Last name of the user |
-|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `projectOwners` | boolean | Whether project owners of projects the user is part of are notified |
+|     ↳ `others` | array | Other users notified about the time-off |
+|       ↳ `userId` | number | Unique identifier of the user |
+|       ↳ `firstName` | string | First name of the user |
+|       ↳ `lastName` | string | Last name of the user |
+|       ↳ `emailId` | string | Email address of the user |
 |   ↳ `createdAt` | number | Timestamp when the time-off was created \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the time-off |
 |     ↳ `userId` | number | Unique identifier of the user |
@@ -3378,9 +3746,13 @@ List time-offs in Rocketlane with optional date, type, and user filters, sorting
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Time-Off
 
 Permanently delete a Rocketlane time-off by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3396,9 +3768,13 @@ Permanently delete a Rocketlane time-off by its ID
 | `deleted` | boolean | Whether the time-off was deleted |
 | `timeOffId` | number | ID of the deleted time-off |
 
+</ReferenceDetails>
+
 ### Rocketlane Get User
 
 Retrieve a Rocketlane user by their ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3452,9 +3828,13 @@ Retrieve a Rocketlane user by their ID
 |     ↳ `lastName` | string | Last name of the user |
 |     ↳ `emailId` | string | Email address of the user |
 
+</ReferenceDetails>
+
 ### Rocketlane List Users
 
 List users in your Rocketlane account, with optional filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3552,9 +3932,13 @@ List users in your Rocketlane account, with optional filters, sorting, and pagin
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Create Space
 
 Create a new space in a Rocketlane project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3589,9 +3973,13 @@ Create a new space in a Rocketlane project
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space is private or shared |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Space
 
 Retrieve a Rocketlane space by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3624,9 +4012,13 @@ Retrieve a Rocketlane space by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space is private or shared |
 
+</ReferenceDetails>
+
 ### Rocketlane List Spaces
 
 List spaces in a Rocketlane project, with optional filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3682,9 +4074,13 @@ List spaces in a Rocketlane project, with optional filters, sorting, and paginat
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Space
 
 Update a Rocketlane space by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3718,9 +4114,13 @@ Update a Rocketlane space by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space is private or shared |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Space
 
 Permanently delete a Rocketlane space by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3736,9 +4136,13 @@ Permanently delete a Rocketlane space by its ID
 | `deleted` | boolean | Whether the space was deleted |
 | `spaceId` | number | ID of the deleted space |
 
+</ReferenceDetails>
+
 ### Rocketlane Create Space Document
 
 Create a new space document in a Rocketlane space
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3780,9 +4184,13 @@ Create a new space document in a Rocketlane space
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space document is private or shared |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Space Document
 
 Retrieve a Rocketlane space document by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3820,9 +4228,13 @@ Retrieve a Rocketlane space document by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space document is private or shared |
 
+</ReferenceDetails>
+
 ### Rocketlane List Space Documents
 
 List space documents in a Rocketlane project, with optional filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3884,9 +4296,13 @@ List space documents in a Rocketlane project, with optional filters, sorting, an
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Update Space Document
 
 Update a Rocketlane space document by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3926,9 +4342,13 @@ Update a Rocketlane space document by its ID
 |     ↳ `emailId` | string | Email address of the user |
 |   ↳ `private` | boolean | Whether the space document is private or shared |
 
+</ReferenceDetails>
+
 ### Rocketlane Delete Space Document
 
 Permanently delete a Rocketlane space document by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3944,9 +4364,13 @@ Permanently delete a Rocketlane space document by its ID
 | `deleted` | boolean | Whether the space document was deleted |
 | `spaceDocumentId` | number | ID of the deleted space document |
 
+</ReferenceDetails>
+
 ### Rocketlane List Resource Allocations
 
 List resource allocations in Rocketlane within a date range, with optional member, project, and placeholder filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3996,7 +4420,19 @@ List resource allocations in Rocketlane within a date range, with optional membe
 |     ↳ `taskId` | number | Unique identifier of the task |
 |     ↳ `taskName` | string | Name of the task |
 |   ↳ `member` | object | The team member allocated when allocationFor is TEAM_MEMBER |
+|     ↳ `userId` | number | Unique identifier of the user |
+|     ↳ `firstName` | string | First name of the user |
+|     ↳ `lastName` | string | Last name of the user |
+|     ↳ `emailId` | string | Email address of the user |
+|     ↳ `role` | object | Role of the member |
+|       ↳ `roleId` | number | Unique identifier of the role |
+|       ↳ `roleName` | string | Name of the role |
 |   ↳ `placeholder` | object | The placeholder allocated when allocationFor is PLACEHOLDER |
+|     ↳ `placeholderId` | number | Unique identifier of the placeholder |
+|     ↳ `placeholderName` | string | Name of the placeholder |
+|     ↳ `role` | object | Role of the placeholder |
+|       ↳ `roleId` | number | Unique identifier of the role |
+|       ↳ `roleName` | string | Name of the role |
 |   ↳ `createdAt` | number | Timestamp when the allocation was created \(epoch milliseconds\) |
 |   ↳ `updatedAt` | number | Timestamp when the allocation was last updated \(epoch milliseconds\) |
 |   ↳ `createdBy` | object | The team member who created the allocation |
@@ -4015,9 +4451,13 @@ List resource allocations in Rocketlane within a date range, with optional membe
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Invoice
 
 Retrieve a Rocketlane invoice by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4078,9 +4518,13 @@ Retrieve a Rocketlane invoice by its ID
 |     ↳ `thumbLocation` | string | Thumbnail URL of the attachment |
 |     ↳ `visibility` | boolean | Visibility of the attachment |
 
+</ReferenceDetails>
+
 ### Rocketlane List Invoices
 
 Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4194,9 +4638,13 @@ Search invoices in Rocketlane with date, amount, company, invoice-number, and st
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Invoice Line Items
 
 List line items of a Rocketlane invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4236,9 +4684,13 @@ List line items of a Rocketlane invoice
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
 
+</ReferenceDetails>
+
 ### Rocketlane Get Invoice Payments
 
 List payments recorded against a Rocketlane invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -4265,5 +4717,7 @@ List payments recorded against a Rocketlane invoice
 |   ↳ `hasMore` | boolean | Whether more results are available |
 |   ↳ `totalRecordCount` | number | Total number of records matching the request |
 |   ↳ `nextPageToken` | string | Token for fetching the next page \(valid for 15 minutes\) |
+
+</ReferenceDetails>
 
 

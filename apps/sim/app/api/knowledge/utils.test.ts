@@ -11,8 +11,8 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import * as billingAttributionModule from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import * as workspacesUtilsModule from '@/lib/workspaces/utils'
@@ -47,9 +47,12 @@ afterAll(() => {
  * `@/lib/knowledge/embeddings` module may be cached bound to the real module,
  * so patching the namespace is the only wiring that always applies.
  */
-const retrySpy = vi
-  .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
-  .mockImplementation(((fn: () => unknown) => fn()) as never)
+let retrySpy: MockInstance<typeof documentsUtilsModule.retryWithExponentialBackoff>
+beforeEach(() => {
+  retrySpy = vi
+    .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
+    .mockImplementation(((fn: () => unknown) => fn()) as never)
+})
 
 const BILLING_ATTRIBUTION_FIXTURE = {
   actorUserId: 'billing-user-1',
@@ -91,7 +94,7 @@ function applyBillingSpies() {
  */
 applyBillingSpies()
 
-vi.mock('@/lib/knowledge/documents/document-processor', () => ({
+vi.mock('@/lib/knowledge/documents/processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
     chunks: [
       {
@@ -143,8 +146,6 @@ function createEmbeddingFetchMock() {
   return vi.fn().mockResolvedValue(createEmbeddingResponse([0.1, 0.3], 'base64'))
 }
 
-vi.stubGlobal('fetch', createEmbeddingFetchMock())
-
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 
 describe('Knowledge Utils', () => {
@@ -153,8 +154,6 @@ describe('Knowledge Utils', () => {
     // The document claim gates on the row it writes back, so an unstubbed
     // `returning()` would abort processing before any completion write.
     dbChainMockFns.returning.mockResolvedValue([{ id: 'doc1' }])
-    // `unstubGlobals: true` removes the module-scope fetch stub after the
-    // first test in the worker; re-stub it per test.
     vi.stubGlobal('fetch', createEmbeddingFetchMock())
     // Under `isolate: false` the shared `@/lib/knowledge/embeddings` module may
     // be cached bound to the REAL env module, so reset the real `env` object

@@ -73,27 +73,6 @@ async function fetchUsageLimitData(signal?: AbortSignal) {
   })
 }
 
-interface UseUsageLimitDataOptions {
-  /** Whether to enable the query (defaults to true) */
-  enabled?: boolean
-}
-
-/**
- * Hook to fetch usage limit metadata
- * Returns: currentLimit, minimumLimit, canEdit, plan, updatedAt
- * Use this for editing usage limits, not for displaying current usage
- */
-export function useUsageLimitData(options: UseUsageLimitDataOptions = {}) {
-  const { enabled = true } = options
-
-  return useQuery({
-    queryKey: subscriptionKeys.usage(),
-    queryFn: ({ signal }) => fetchUsageLimitData(signal),
-    staleTime: USAGE_LIMIT_STALE_TIME,
-    enabled,
-  })
-}
-
 /**
  * Fetch finalized invoices for the active billing customer (personal or
  * organization-scoped).

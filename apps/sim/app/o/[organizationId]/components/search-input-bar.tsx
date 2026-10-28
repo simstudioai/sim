@@ -1,5 +1,6 @@
 import {
   type ClipboardEventHandler,
+  type KeyboardEventHandler,
   type ReactNode,
   type RefObject,
   useLayoutEffect,
@@ -18,6 +19,7 @@ interface SearchInputBarProps {
   onChange: (value: string) => void
   onSubmit: () => void
   onPaste?: ClipboardEventHandler<HTMLTextAreaElement>
+  onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>
   placeholder?: string
   'aria-label'?: string
   leadingControls?: ReactNode
@@ -37,6 +39,7 @@ export function SearchInputBar({
   onChange,
   onSubmit,
   onPaste,
+  onKeyDown,
   placeholder = 'Search your sources',
   'aria-label': ariaLabel = 'Search your sources',
   selectionControl,
@@ -108,6 +111,8 @@ export function SearchInputBar({
             maxHeight={200}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={(event) => {
+              onKeyDown?.(event)
+              if (event.defaultPrevented) return
               if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault()
                 onSubmit()
@@ -121,7 +126,7 @@ export function SearchInputBar({
           />
         }
       />
-      <div aria-hidden className='pointer-events-none absolute h-0 w-0 overflow-hidden'>
+      <div aria-hidden className='pointer-events-none absolute size-0 overflow-hidden'>
         <span ref={textMeasureRef} className={cn(PROMPT_TEXT_CLASSES, 'whitespace-pre')}>
           {value}
         </span>

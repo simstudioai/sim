@@ -1,11 +1,11 @@
 import { createHash, createPublicKey } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainSnowflakeDestination')
@@ -193,8 +193,8 @@ function quoteIdentifier(name: string): string {
 function buildStatement(config: SnowflakeDestinationConfig, rowCount: number): string {
   const column = quoteIdentifier(config.column ?? 'DATA')
   const target = `${quoteIdentifier(config.database)}.${quoteIdentifier(config.schema)}.${quoteIdentifier(config.table)}`
-  const placeholders = Array.from({ length: rowCount }, () => '(PARSE_JSON(?))').join(', ')
-  return `INSERT INTO ${target} (${column}) VALUES ${placeholders}`
+  const placeholders = Array.from({ length: rowCount }, () => '(?)').join(', ')
+  return `INSERT INTO ${target} (${column}) SELECT PARSE_JSON(column1) FROM VALUES ${placeholders}`
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -261,10 +261,9 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
       lastError = error
       logger.warn('Snowflake request failed', {
         attempt,
-        error: toError(error).message,
       })
       if (input.signal.aborted || attempt === EXECUTE_MAX_ATTEMPTS) throw error
-      await sleepUntilAborted(
+      await interruptibleSleep(
         backoffWithJitter(attempt, null, {
           baseMs: EXECUTE_RETRY_BASE_DELAY_MS,
           maxMs: EXECUTE_RETRY_MAX_DELAY_MS,
@@ -318,7 +317,7 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
       status: response.status,
       delayMs: delay,
     })
-    await sleepUntilAborted(delay, input.signal)
+    await interruptibleSleep(delay, input.signal)
   }
   throw lastError ?? new Error('Snowflake request failed after retries')
 }
@@ -341,7 +340,7 @@ async function pollStatement(input: PollInput): Promise<void> {
   while (Date.now() < deadline) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     if (!skipIntervalSleep) {
-      await sleepUntilAborted(interval, input.signal)
+      await interruptibleSleep(interval, input.signal)
     }
     skipIntervalSleep = false
     const jwt = await input.getJwt()
@@ -367,9 +366,8 @@ async function pollStatement(input: PollInput): Promise<void> {
       logger.warn('Snowflake poll request failed, retrying', {
         attempt: retryAttempt,
         delayMs: delay,
-        error: toError(error).message,
       })
-      await sleepUntilAborted(delay, input.signal)
+      await interruptibleSleep(delay, input.signal)
       skipIntervalSleep = true
       continue
     }
@@ -401,7 +399,7 @@ async function pollStatement(input: PollInput): Promise<void> {
       })
       /** Drain the body so undici can return the socket to the keep-alive pool between retries. */
       await response.text().catch(() => '')
-      await sleepUntilAborted(delay, input.signal)
+      await interruptibleSleep(delay, input.signal)
       skipIntervalSleep = true
       continue
     }

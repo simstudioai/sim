@@ -2,26 +2,24 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBrowserTimezone, mockIsValidTimezone, mockUseQuery } = vi.hoisted(() => ({
+const { mockGetBrowserTimezone, mockIsValidTimezone } = vi.hoisted(() => ({
   mockGetBrowserTimezone: vi.fn(),
   mockIsValidTimezone: vi.fn(),
-  mockUseQuery: vi.fn(),
 }))
 
-vi.mock('@tanstack/react-query', () => ({
-  useMutation: vi.fn(),
-  useQuery: mockUseQuery,
-  useQueryClient: vi.fn(),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/lib/core/utils/timezone', () => ({
   getBrowserTimezone: mockGetBrowserTimezone,
   isValidTimezone: mockIsValidTimezone,
 }))
 
 import { useTimezone, useTimezoneState } from '@/hooks/queries/general-settings'
+
+const mockUseQuery = reactQueryMockFns.mockUseQuery
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = []
 
@@ -43,7 +41,6 @@ function renderHookResult<T>(useHook: () => T): T {
 describe('useTimezone', () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    vi.clearAllMocks()
     mockGetBrowserTimezone.mockReturnValue('America/Los_Angeles')
     mockIsValidTimezone.mockReturnValue(true)
   })

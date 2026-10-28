@@ -213,27 +213,6 @@ export async function restoreFolderChildren(
 }
 
 /**
- * Restores a folder subtree and the resources inside it, via the default row-update path.
- *
- * Only valid for resources without a {@link FolderResourceConfig.restoreChildren} hook —
- * those hooks call canonical single-resource restores that open their own transactions and
- * therefore must not run nested inside this one. `restoreFolder` sequences that case itself.
- */
-export async function restoreFolderCascade(
-  tx: DbOrTx,
-  config: FolderResourceConfig,
-  workspaceId: string,
-  folderIds: string[],
-  timestamp: Date,
-  now: Date
-): Promise<FolderCascadeCounts> {
-  const folders = await restoreFolderRows(tx, config, workspaceId, folderIds, timestamp, now)
-  const children = await restoreFolderChildren(tx, config, workspaceId, folderIds, timestamp, now)
-
-  return { folders, children }
-}
-
-/**
  * Maps internal cascade counts onto the per-resourceType shape the API returns, so a
  * `knowledge_base` folder reports `knowledgeBases` and a `table` folder reports `tables`.
  */

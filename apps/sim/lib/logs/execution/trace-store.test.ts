@@ -1,29 +1,14 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  decryptSecretMock,
-  materializeLargeValueRefMock,
-  storeExecutionTraceArchiveMock,
-  mockLogger,
-} = vi.hoisted(() => ({
-  decryptSecretMock: vi.fn(),
-  materializeLargeValueRefMock: vi.fn(),
-  storeExecutionTraceArchiveMock: vi.fn(),
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: decryptSecretMock,
-}))
-
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: materializeLargeValueRefMock,
-  storeExecutionTraceArchive: storeExecutionTraceArchiveMock,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
 import {
   copyTraceSpansWithoutCosts,
@@ -38,6 +23,13 @@ import {
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan } from '@/lib/logs/types'
+
+const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
+const storeExecutionTraceArchiveMock = executionPayloadStoreMockFns.mockStoreExecutionTraceArchive
+
+const mockLogger = getMockLogger('TraceStore')
+
+const decryptSecretMock = encryptionMockFns.mockDecryptSecret
 
 const CONTEXT = {
   workspaceId: 'workspace-1',
@@ -167,6 +159,42 @@ describe('execution data storage', () => {
       expect(metadata.hasHandledErrors).toBe(expected)
     }
   )
+})
+
+describe('bounded drain archive reads', () => {
+  it('rejects a drain archive whose authorization scope cannot be resolved', async () => {
+    const data = {
+      [TRACE_STORE_REF_KEY]: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_bbbbbbbbbbbb',
+        kind: 'object',
+        size: 128,
+        key: 'execution/execution-1/large-value-lv_bbbbbbbbbbbb.json',
+        executionId: 'execution-1',
+      },
+    }
+    await expect(
+      materializeExecutionData(data, { ...CONTEXT, workflowId: null, maxBytes: 1024 })
+    ).rejects.toThrow(/scope|workflow/i)
+  })
+
+  it('rejects an archive above the caller budget instead of returning an incomplete success', async () => {
+    const data = {
+      [TRACE_STORE_REF_KEY]: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_bbbbbbbbbbbb',
+        kind: 'object',
+        size: 2048,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_bbbbbbbbbbbb.json',
+        executionId: 'execution-1',
+      },
+    }
+    await expect(materializeExecutionData(data, { ...CONTEXT, maxBytes: 1024 })).rejects.toThrow(
+      /record.*(bytes|size|limit)/i
+    )
+  })
 })
 
 describe('projectExecutionDataForDisplay', () => {

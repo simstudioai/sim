@@ -1,5 +1,11 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { attempts, redis } = vi.hoisted(() => {
   const attempts = new Map<string, string>()
@@ -21,37 +27,9 @@ const { attempts, redis } = vi.hoisted(() => {
   }
 })
 
-const shared = vi.hoisted(() => ({
-  env: {
-    SLACK_SEARCH_APP_ID: '',
-    SLACK_SEARCH_CLIENT_ID: 'environment-client',
-    SLACK_SEARCH_CLIENT_SECRET: 'environment-secret',
-    SLACK_SEARCH_SIGNING_SECRET: 'environment-signing',
-  },
-  flag: vi.fn(),
-}))
-vi.mock('@/lib/core/config/env', () => ({ env: shared.env }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: shared.flag }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: vi.fn(async (value: string) => ({
-    encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
-  })),
-  decryptSecret: vi.fn(async (value: string) => ({
-    decrypted:
-      value === 'encrypted-bot'
-        ? JSON.stringify({
-            type: 'slack_custom_bot',
-            signingSecret: 'signing-secret',
-            botToken: 'xoxb-token',
-            teamId: 'T123',
-          })
-        : Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
-  })),
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.ai' }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
@@ -66,6 +44,37 @@ import {
   loadSlackManagedUsersAttempt,
 } from '@/lib/credential-groups/slack-managed-users'
 
+const shared = { flag: featureFlagsMockFns.mockIsFeatureEnabled }
+
+setEnv({
+  SLACK_SEARCH_APP_ID: '',
+  SLACK_SEARCH_CLIENT_ID: 'environment-client',
+  SLACK_SEARCH_CLIENT_SECRET: 'environment-secret',
+  SLACK_SEARCH_SIGNING_SECRET: 'environment-signing',
+})
+setEnvFlags({ isHosted: true })
+redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.ai')
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: `encrypted:${Buffer.from(value).toString('base64')}`,
+}))
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+  decrypted:
+    value === 'encrypted-bot'
+      ? JSON.stringify({
+          type: 'slack_custom_bot',
+          signingSecret: 'signing-secret',
+          botToken: 'xoxb-token',
+          teamId: 'T123',
+        })
+      : Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
+}))
+afterAll(() => {
+  resetEnvMock()
+  resetEnvFlagsMock()
+  resetUrlsMock()
+})
+
 function slackResponse(value: Record<string, unknown>): Response {
   return new Response(JSON.stringify(value), {
     status: 200,
@@ -77,18 +86,15 @@ describe('Slack managed-user authorization', () => {
   beforeEach(() => {
     resetDbChainMock()
     attempts.clear()
-    shared.env.SLACK_SEARCH_APP_ID = ''
-    shared.env.SLACK_SEARCH_CLIENT_SECRET = 'environment-secret'
+    setEnv({ SLACK_SEARCH_APP_ID: '' })
+    setEnv({ SLACK_SEARCH_CLIENT_SECRET: 'environment-secret' })
     shared.flag.mockResolvedValue(true)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('stores exact organization ownership in the encrypted setup attempt and rejects ambiguous ownership', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           app: {
@@ -139,10 +145,11 @@ describe('Slack managed-user authorization', () => {
   it.each(['rotation', 'disabled', 'success'] as const)(
     'keeps shared setup state secret-free and rechecks configuration on %s',
     async (outcome) => {
-      shared.env.SLACK_SEARCH_APP_ID = 'ASHARED'
+      setEnv({ SLACK_SEARCH_APP_ID: 'ASHARED' })
       shared.flag.mockImplementation(async (_flag, context) => context?.orgId === 'org-1')
       dbChainMockFns.limit
         .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
           {
             app: {
@@ -170,7 +177,7 @@ describe('Slack managed-user authorization', () => {
       expect(JSON.stringify(stored)).not.toContain('environment-secret')
       expect(shared.flag).toHaveBeenCalledWith('slack-search-shared-app', { orgId: 'org-1' })
       if (outcome === 'rotation') {
-        shared.env.SLACK_SEARCH_CLIENT_SECRET = 'rotated'
+        setEnv({ SLACK_SEARCH_CLIENT_SECRET: 'rotated' })
         await expect(consumeSlackManagedUsersAttempt(created.state)).rejects.toThrow('changed')
       } else if (outcome === 'disabled') {
         shared.flag.mockResolvedValue(false)
@@ -194,6 +201,7 @@ describe('Slack managed-user authorization', () => {
       existingScopes: undefined,
       requestedScopes: SLACK_MANAGED_USER_SCOPES,
       scopes: SLACK_SEARCH_USER_SCOPES,
+      upgradesSearchPolicy: false,
     },
     {
       name: 'legacy workflow pool without explicit scopes',
@@ -201,6 +209,7 @@ describe('Slack managed-user authorization', () => {
       existingScopes: undefined,
       requestedScopes: SLACK_SEARCH_USER_SCOPES,
       scopes: SLACK_MANAGED_USER_SCOPES,
+      upgradesSearchPolicy: false,
     },
     {
       name: 'existing Search pool',
@@ -208,10 +217,30 @@ describe('Slack managed-user authorization', () => {
       existingScopes: SLACK_SEARCH_USER_SCOPES,
       requestedScopes: SLACK_MANAGED_USER_SCOPES,
       scopes: SLACK_SEARCH_USER_SCOPES,
+      upgradesSearchPolicy: false,
+    },
+    {
+      name: 'legacy Search pool',
+      existing: true,
+      existingScopes: [
+        'channels:history',
+        'channels:read',
+        'groups:history',
+        'groups:read',
+        'im:history',
+        'im:read',
+        'mpim:history',
+        'mpim:read',
+        'users:read',
+        'users:read.email',
+      ],
+      requestedScopes: SLACK_MANAGED_USER_SCOPES,
+      scopes: SLACK_SEARCH_USER_SCOPES,
+      upgradesSearchPolicy: true,
     },
   ])(
-    'verifies an organization $name without replacing its scope policy or disconnecting members',
-    async ({ existing, existingScopes, requestedScopes, scopes }) => {
+    'verifies an organization $name with its explicit Search or workflow scope policy',
+    async ({ existing, existingScopes, requestedScopes, scopes, upgradesSearchPolicy }) => {
       const updatedAt = new Date('2026-08-12T00:00:00Z')
       const group = {
         id: 'group-1',
@@ -227,7 +256,9 @@ describe('Slack managed-user authorization', () => {
                 required: true,
                 authorizationAppId: 'slack:A123:T123',
                 requiredScopes: existingScopes,
-                scopeVersion: credentialGroupScopePolicyVersion([...scopes]),
+                scopeVersion: credentialGroupScopePolicyVersion([
+                  ...(existingScopes ?? SLACK_MANAGED_USER_SCOPES),
+                ]),
               },
             ]
           : [],
@@ -243,6 +274,7 @@ describe('Slack managed-user authorization', () => {
       }
       dbChainMockFns.limit
         .mockResolvedValueOnce([group])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ app, teamId: 'T123' }])
 
       const created = await createSlackManagedUsersAttempt({
@@ -259,7 +291,6 @@ describe('Slack managed-user authorization', () => {
       const attempt = await consumeSlackManagedUsersAttempt(created.state)
       expect(attempt?.requiredScopes).toEqual([...scopes])
       if (!attempt) throw new Error('Expected an organization authorization attempt')
-      if (!existing) expect(attempt.requiredScopes).toHaveLength(10)
 
       queueTableRows(schemaMock.slackApp, [app])
       queueTableRows(schemaMock.credentialGroup, [group])
@@ -296,9 +327,10 @@ describe('Slack managed-user authorization', () => {
           options: [expect.objectContaining({ requiredScopes: [...scopes] })],
         })
       )
-      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
-        expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
-      )
+      if (!upgradesSearchPolicy)
+        expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+          expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
+        )
     }
   )
 

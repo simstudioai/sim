@@ -1,25 +1,21 @@
 ---
 title: Mailgun
 description: Send emails and manage mailing lists with Mailgun
+integration:
+  type: "mailgun"
+  color: "#C12126"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mailgun"
-  color="#C12126"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Mailgun](https://www.mailgun.com) to send text or HTML emails, retrieve messages and delivery events, manage mailing lists, and inspect sending domains. Tags help associate sent messages with a workflow or campaign.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.
-
-
+Send text or HTML emails, manage mailing lists and members, inspect domains, and track email events with tags.
 
 ## Actions
 
@@ -27,11 +23,14 @@ Integrate Mailgun into your workflow. Send transactional emails, manage mailing 
 
 Send an email using Mailgun API
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Mailgun sending domain \(e.g., mg.example.com\) |
 | `from` | string | Yes | Sender email address \(e.g., sender@example.com or "Name &lt;sender@example.com&gt;"\) |
 | `to` | string | Yes | Recipient email address \(e.g., user@example.com\). Use comma-separated values for multiple recipients |
@@ -50,15 +49,20 @@ Send an email using Mailgun API
 | `id` | string | Message ID |
 | `message` | string | Response message from Mailgun |
 
+</ReferenceDetails>
+
 ### Mailgun Get Message
 
 Retrieve a stored message by its key
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Mailgun domain for retrieving messages \(e.g., mg.example.com\) |
 | `messageKey` | string | Yes | Message storage key |
 
@@ -80,15 +84,20 @@ Retrieve a stored message by its key
 | `messageHeaders` | json | Message headers |
 | `contentIdMap` | json | Content ID map |
 
+</ReferenceDetails>
+
 ### Mailgun List Messages
 
 List events (logs) for messages sent through Mailgun
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Mailgun domain for listing events \(e.g., mg.example.com\) |
 | `event` | string | No | Filter by event type \(accepted, delivered, failed, opened, clicked, etc.\) |
 | `limit` | number | No | Maximum number of events to return \(default: 100\) |
@@ -101,15 +110,20 @@ List events (logs) for messages sent through Mailgun
 | `items` | json | Array of event items |
 | `paging` | json | Paging information |
 
+</ReferenceDetails>
+
 ### Mailgun Create Mailing List
 
 Create a new mailing list
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `address` | string | Yes | Mailing list address \(e.g., newsletter@mg.example.com\) |
 | `name` | string | No | Mailing list name |
 | `description` | string | No | Mailing list description |
@@ -123,15 +137,20 @@ Create a new mailing list
 | `message` | string | Response message |
 | `list` | json | Created mailing list details |
 
+</ReferenceDetails>
+
 ### Mailgun Get Mailing List
 
 Get details of a mailing list
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `address` | string | Yes | Mailing list address to retrieve \(e.g., newsletter@mg.example.com\) |
 
 #### Output
@@ -141,15 +160,20 @@ Get details of a mailing list
 | `success` | boolean | Whether the request was successful |
 | `list` | json | Mailing list details |
 
+</ReferenceDetails>
+
 ### Mailgun Add List Member
 
 Add a member to a mailing list
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `listAddress` | string | Yes | Mailing list address \(e.g., list@mg.example.com\) |
 | `address` | string | Yes | Member email address to add \(e.g., user@example.com\) |
 | `name` | string | No | Member name |
@@ -164,15 +188,20 @@ Add a member to a mailing list
 | `message` | string | Response message |
 | `member` | json | Added member details |
 
+</ReferenceDetails>
+
 ### Mailgun List Domains
 
 List all domains for your Mailgun account
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -182,15 +211,20 @@ List all domains for your Mailgun account
 | `totalCount` | number | Total number of domains |
 | `items` | json | Array of domain objects |
 
+</ReferenceDetails>
+
 ### Mailgun Get Domain
 
 Get details of a specific domain
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Domain name to retrieve details for \(e.g., mg.example.com\) |
 
 #### Output
@@ -199,5 +233,7 @@ Get details of a specific domain
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the request was successful |
 | `domain` | json | Domain details |
+
+</ReferenceDetails>
 
 

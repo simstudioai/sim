@@ -55,7 +55,7 @@ export const kalshiGetEventTool: ToolConfig<KalshiGetEventParams, KalshiGetEvent
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_event')
+      handleKalshiError(data, 'get_event')
     }
 
     return {
@@ -135,7 +135,7 @@ export interface KalshiGetEventV2Response {
 export const kalshiGetEventV2Tool: ToolConfig<KalshiGetEventV2Params, KalshiGetEventV2Response> = {
   id: 'kalshi_get_event_v2',
   name: 'Get Event from Kalshi V2',
-  description: 'Retrieve details of a specific event by ticker (V2 - exact API response)',
+  description: 'Retrieve details of a specific event by ticker',
   version: '2.0.0',
 
   params: {
@@ -173,7 +173,7 @@ export const kalshiGetEventV2Tool: ToolConfig<KalshiGetEventV2Params, KalshiGetE
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_event_v2')
+      handleKalshiError(data, 'get_event_v2')
     }
 
     const event = data.event || {}

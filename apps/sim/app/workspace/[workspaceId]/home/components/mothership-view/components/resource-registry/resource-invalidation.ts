@@ -1,13 +1,15 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type { MothershipResourceType } from '@/lib/mothership/resources/types'
+import { dashboardKeys } from '@/hooks/queries/dashboards'
 import { deploymentKeys, invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { logKeys } from '@/hooks/queries/logs'
-import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { mothershipChatKeys, refreshMothershipChatDetail } from '@/hooks/queries/mothership-chats'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import { workflowTestKeys } from '@/hooks/queries/workflow-tests'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
@@ -25,6 +27,11 @@ const RESOURCE_INVALIDATORS: Record<
     invalidate(qc, tableKeys.lists())
     invalidate(qc, id ? tableKeys.detail(id) : tableKeys.details())
     invalidate(qc, id ? tableKeys.views(id) : tableKeys.viewsRoot())
+  },
+  dashboard: (qc, wId) => invalidate(qc, dashboardKeys.workspace(wId)),
+  test: (qc) => {
+    invalidate(qc, workflowTestKeys.lists())
+    invalidate(qc, workflowTestKeys.details())
   },
   file: (qc, wId, id) => {
     invalidate(qc, workspaceFilesKeys.lists())
@@ -52,7 +59,7 @@ const RESOURCE_INVALIDATORS: Record<
   },
   task: (qc, wId, id) => {
     invalidate(qc, mothershipChatKeys.workspaceLists(wId))
-    if (id) invalidate(qc, mothershipChatKeys.detail(id))
+    if (id) refreshMothershipChatDetail(qc, id)
   },
   log: (qc, wId, id) => {
     invalidate(qc, [...logKeys.lists(), wId])

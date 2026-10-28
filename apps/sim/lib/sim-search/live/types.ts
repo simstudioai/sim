@@ -4,6 +4,7 @@ import type {
   NativeSearchQuery,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import type { TextMatch } from '@/lib/sim-search/live/text-match'
 
 export interface LiveAccount {
   id: string
@@ -20,7 +21,20 @@ export interface LiveAccount {
   scopes: string[]
 }
 
+export type NativeAccessReference = Pick<NativeDocument, 'id' | 'container' | 'kind'>
+
+export interface NativeReadOptions {
+  policy: LiveSearchPolicy
+  filters?: WorkspaceSearchFilters
+  signal: AbortSignal
+  verify(
+    reference: NativeAccessReference & Pick<NativeDocument, 'accessMetadata'>
+  ): Promise<boolean>
+}
+
 export interface NativeDocument {
+  /** Server-only references whose content must pass a fresh check before projection. */
+  accessDependencies?: readonly NativeAccessReference[]
   /**
    * Server-only permission evidence from the same response as the content. Only a verifier
    * bound to the client that produced it may consume it; it is never projected to callers.
@@ -48,6 +62,8 @@ export interface NativeDocument {
 
 export interface NativePage {
   documents: NativeDocument[]
+  /** Provider folder references are navigation hints, not readable document identities. */
+  folders?: { id: string; name: string }[]
   /** Continues this exact query and account; implies more results exist. */
   nextCursor?: string
   /** More matches exist beyond this page but cannot be continued through it. */
@@ -66,9 +82,12 @@ export interface NativeClient {
       googleService?: 'sheets'
       /** Reuse this client's earlier response to the same GET instead of requesting it again. */
       memo?: boolean
+      /** Cancels this request alongside the client's own signal. */
+      signal?: AbortSignal
     }
   ): Promise<unknown>
   text(path: string, query?: Record<string, string>): Promise<string>
+  bytes(path: string, query?: Record<string, string>): Promise<Buffer>
 }
 
 export interface NativeSearchInput {
@@ -78,4 +97,11 @@ export interface NativeSearchInput {
   native?: NativeSearchQuery
   limit: number
   scopes: readonly string[]
+  /** How a plain query's words must match; providers without full-text search ignore it. */
+  textMatch?: TextMatch
+  /**
+   * Cancels this search's provider requests alongside the client's own signal. Honored by the
+   * providers that run the any-term fallback, so its budget stops the request itself.
+   */
+  signal?: AbortSignal
 }

@@ -7,7 +7,6 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
-import type { DataverseResponse } from '@/tools/microsoft_dynamics_365/types'
 
 const DATAVERSE_GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -161,7 +160,7 @@ function getCommonParams(params: Record<string, unknown>) {
   }
 }
 
-export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
+export const MicrosoftDynamics365Block: BlockConfig = {
   type: 'microsoft_dynamics_365',
   name: 'Microsoft Dynamics 365 CRM',
   description: 'Manage customers, sales pipelines, and support cases in Dynamics 365 CRM',

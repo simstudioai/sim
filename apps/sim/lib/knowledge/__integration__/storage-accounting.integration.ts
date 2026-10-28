@@ -1,4 +1,6 @@
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /** Real PostgreSQL coverage for storage ownership changes and document lifecycle accounting. */
+
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -14,6 +16,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -24,8 +27,10 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
-import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/deletion'
-import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/detachment'
+import {
+  KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
+  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+} from '@/lib/knowledge/connectors/outbox-events'
 import { createContentSyncLease, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
 import {
@@ -126,7 +131,7 @@ afterAll(async () => {
         )
       )
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }
@@ -432,13 +437,11 @@ describe('knowledge document storage ledgers', () => {
       '../../packages/db/scripts/reconcile-workspace-storage.ts'
     )
     const run = promisify(execFile)
-    const databaseUrl = process.env.TEST_DATABASE_URL
-    if (!databaseUrl) throw new Error('Missing isolated reconciliation database')
     for (let attempt = 0; attempt < 2; attempt++) {
       await run('bun', [script], {
         env: {
           ...process.env,
-          MIGRATION_DATABASE_URL: databaseUrl,
+          MIGRATION_DATABASE_URL: readTestDatabaseUrl(),
           WORKSPACE_STORAGE_RECONCILE_ACK: 'old-apps-drained',
         },
         timeout: 30_000,

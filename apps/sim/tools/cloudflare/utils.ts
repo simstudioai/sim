@@ -1,29 +1,30 @@
-/**
- * Shared request/response helpers for the Cloudflare API tools.
- *
- * Every Cloudflare v4 endpoint answers with the same envelope:
- * `{ success, errors, messages, result }`. A `200 OK` carrying
- * `success: false` is a failure, so callers must always branch on
- * `data.success` rather than on the HTTP status.
- */
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import { RULESET_OUTPUTS } from '@/tools/cloudflare/outputs'
+import type { CloudflareEnvelope } from '@/tools/cloudflare/types'
+import type { ToolOutputProperty } from '@/tools/types'
 
-import type {
-  CloudflareEnvelope,
-  CloudflareRawAccessApplication,
-  CloudflareRawAccessPolicy,
-  CloudflareRawRuleset,
-} from '@/tools/cloudflare/types'
-
-/**
- * Reads a Cloudflare v4 response body into the shared envelope shape, so the
- * caller branches on a typed `success` flag and reads `result` through a checked
- * payload type instead of an implicitly-`any` `response.json()`. Used by the
- * tools whose `result` has a payload type in `types.ts`.
- */
+/** Reads a Cloudflare response envelope; endpoints with no content handle 204 before calling. */
 export async function readCloudflareResponse<TResult>(
-  response: Response
+  response: Response,
+  options?: { allowEmptySuccess: boolean }
 ): Promise<CloudflareEnvelope<TResult>> {
-  return (await response.json()) as CloudflareEnvelope<TResult>
+  let data: unknown
+  if (options?.allowEmptySuccess) {
+    const body = await response.text()
+    if (body.trim() === '') {
+      return response.ok
+        ? { success: true }
+        : {
+            success: false,
+            errors: [{ message: `Cloudflare returned HTTP ${response.status} with an empty body` }],
+          }
+    }
+    data = JSON.parse(body)
+  } else {
+    data = await response.json()
+  }
+  if (!isRecordLike(data)) throw new Error('Cloudflare returned an invalid response envelope')
+  return data as CloudflareEnvelope<TResult>
 }
 
 /** Standard bearer-token headers for the Cloudflare v4 API. */
@@ -69,15 +70,23 @@ export function parseJsonObjectParam(
 ): Record<string, unknown> | undefined {
   const parsed = parseJsonParam(value, fieldName)
   if (parsed === undefined) return undefined
-  if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+  if (!isRecordLike(parsed)) {
     throw new Error(`${fieldName} must be a JSON object`)
   }
   return parsed as Record<string, unknown>
 }
 
-/** Splits a comma-separated string param into a trimmed, non-empty list. */
+/** Reads a comma-separated list or an explicit JSON string array, including [] to clear a list. */
 export function parseCsvParam(value: unknown): string[] | undefined {
-  if (typeof value !== 'string' || value.trim() === '') return undefined
+  if (value === undefined || value === null || value === '') return undefined
+  if (Array.isArray(value) || (typeof value === 'string' && value.trim().startsWith('['))) {
+    const items = parseJsonArrayParam(value, 'List')
+    if (!items?.every((item) => typeof item === 'string'))
+      throw new Error('List must contain strings')
+    return items
+  }
+  if (typeof value !== 'string')
+    throw new Error('List must be comma-separated text or a JSON string array')
   const items = value
     .split(',')
     .map((item) => item.trim())
@@ -85,147 +94,42 @@ export function parseCsvParam(value: unknown): string[] | undefined {
   return items.length > 0 ? items : undefined
 }
 
-/**
- * Maps a Cloudflare ruleset `result` payload onto the flat ruleset output shape
- * shared by the get-ruleset, phase-entrypoint, and rule mutation tools — every
- * one of those endpoints answers with the full ruleset object.
- */
-export function mapRuleset(ruleset: CloudflareRawRuleset | undefined) {
-  return {
-    id: ruleset?.id ?? '',
-    name: ruleset?.name ?? '',
-    description: ruleset?.description ?? '',
-    kind: ruleset?.kind ?? '',
-    phase: ruleset?.phase ?? '',
-    version: ruleset?.version ?? null,
-    last_updated: ruleset?.last_updated ?? null,
-    rules: Array.isArray(ruleset?.rules)
-      ? ruleset.rules.map((rule) => ({
-          id: rule.id ?? '',
-          version: rule.version ?? null,
-          action: rule.action ?? '',
-          action_parameters: rule.action_parameters ?? null,
-          expression: rule.expression ?? '',
-          description: rule.description ?? '',
-          enabled: rule.enabled ?? false,
-          ref: rule.ref ?? null,
-          last_updated: rule.last_updated ?? null,
-          categories: rule.categories ?? [],
-          logging: rule.logging ?? null,
-          ratelimit: rule.ratelimit ?? null,
-        }))
-      : [],
-  }
+type CloudflareValue<T> = T extends { type: 'string' }
+  ? string
+  : T extends { type: 'number' }
+    ? number
+    : T extends { type: 'boolean' }
+      ? boolean
+      : T extends { type: 'array'; items: infer I }
+        ? CloudflareValue<I>[]
+        : T extends { properties: infer P }
+          ? { [K in keyof P]?: CloudflareValue<P[K]> | null }
+          : unknown
+
+export type CloudflareOutput<T extends Record<string, ToolOutputProperty>> = {
+  [K in keyof T]: T[K] extends { type: 'array' }
+    ? CloudflareValue<T[K]>
+    : CloudflareValue<T[K]> | null
 }
 
-/** The empty ruleset payload returned alongside an error. */
-export function emptyRuleset() {
-  return {
-    id: '',
-    name: '',
-    description: '',
-    kind: '',
-    phase: '',
-    version: null,
-    last_updated: null,
-    rules: [],
-  }
+/** Projects documented provider fields, retaining absent arrays as empty lists and scalars as null. */
+export function mapCloudflareFields<T extends Record<string, ToolOutputProperty>>(
+  value: unknown,
+  outputs: T
+): CloudflareOutput<T> {
+  const record = toRecord(value)
+  return Object.fromEntries(
+    Object.entries(outputs).map(([key, field]) => [
+      key,
+      field.type === 'array'
+        ? Array.isArray(record[key])
+          ? record[key]
+          : []
+        : (record[key] ?? null),
+    ])
+  ) as CloudflareOutput<T>
 }
 
-/** Maps a Cloudflare Access application `result` payload onto the flat output shape. */
-export function mapAccessApplication(app: CloudflareRawAccessApplication | undefined) {
-  return {
-    id: app?.id ?? '',
-    name: app?.name ?? null,
-    domain: app?.domain ?? null,
-    type: app?.type ?? null,
-    aud: app?.aud ?? null,
-    session_duration: app?.session_duration ?? null,
-    allowed_idps: app?.allowed_idps ?? null,
-    app_launcher_visible: app?.app_launcher_visible ?? null,
-    auto_redirect_to_identity: app?.auto_redirect_to_identity ?? null,
-    custom_deny_message: app?.custom_deny_message ?? null,
-    custom_deny_url: app?.custom_deny_url ?? null,
-    logo_url: app?.logo_url ?? null,
-    self_hosted_domains: app?.self_hosted_domains ?? null,
-    destinations: app?.destinations ?? null,
-    tags: app?.tags ?? null,
-    policies: app?.policies ?? null,
-  }
-}
-
-/** The empty Access application payload returned alongside an error. */
-export function emptyAccessApplication() {
-  return {
-    id: '',
-    name: null,
-    domain: null,
-    type: null,
-    aud: null,
-    session_duration: null,
-    allowed_idps: null,
-    app_launcher_visible: null,
-    auto_redirect_to_identity: null,
-    custom_deny_message: null,
-    custom_deny_url: null,
-    logo_url: null,
-    self_hosted_domains: null,
-    destinations: null,
-    tags: null,
-    policies: null,
-  }
-}
-
-/** Maps a Cloudflare Access policy `result` payload onto the flat output shape. */
-export function mapAccessPolicy(policy: CloudflareRawAccessPolicy | undefined) {
-  return {
-    id: policy?.id ?? '',
-    name: policy?.name ?? null,
-    decision: policy?.decision ?? null,
-    precedence: policy?.precedence ?? null,
-    include: policy?.include ?? null,
-    exclude: policy?.exclude ?? null,
-    require: policy?.require ?? null,
-    session_duration: policy?.session_duration ?? null,
-    approval_required: policy?.approval_required ?? null,
-    isolation_required: policy?.isolation_required ?? null,
-    purpose_justification_required: policy?.purpose_justification_required ?? null,
-    purpose_justification_prompt: policy?.purpose_justification_prompt ?? null,
-    created_at: policy?.created_at ?? null,
-    updated_at: policy?.updated_at ?? null,
-  }
-}
-
-/** The empty Access policy payload returned alongside an error. */
-export function emptyAccessPolicy() {
-  return {
-    id: '',
-    name: null,
-    decision: null,
-    precedence: null,
-    include: null,
-    exclude: null,
-    require: null,
-    session_duration: null,
-    approval_required: null,
-    isolation_required: null,
-    purpose_justification_required: null,
-    purpose_justification_prompt: null,
-    created_at: null,
-    updated_at: null,
-  }
-}
-
-/**
- * The zone settings "Get Zone Settings" reads when the caller names none.
- *
- * Cloudflare deprecated the batch `GET /zones/{zone_id}/settings` endpoint,
- * which reaches end of life on 2027-03-31, and directs integrations at the
- * per-setting `GET /zones/{zone_id}/settings/{setting_id}` endpoint. "Read the
- * zone's settings" is therefore a fan-out over an explicit, bounded list rather
- * than one request.
- * https://developers.cloudflare.com/fundamentals/api/reference/deprecations/
- */
 export const DEFAULT_ZONE_SETTING_IDS = [
   'ssl',
   'always_use_https',
@@ -256,4 +160,24 @@ export function requestedZoneSettingIds(settingIds: unknown): string[] {
 export function appendParam(url: URL, key: string, value: unknown): void {
   if (value === undefined || value === null || value === '') return
   url.searchParams.append(key, String(value))
+}
+
+/** Preserves the existing per-rule defaults while exposing the documented ruleset fields. */
+export function mapCloudflareRuleset(value: unknown) {
+  const output = mapCloudflareFields(value, RULESET_OUTPUTS)
+  return {
+    ...output,
+    rules: output.rules.map((rule) => {
+      const fields = mapCloudflareFields(rule, RULESET_OUTPUTS.rules.items.properties)
+      return {
+        ...fields,
+        id: fields.id ?? '',
+        action: fields.action ?? '',
+        expression: fields.expression ?? '',
+        description: fields.description ?? '',
+        enabled: fields.enabled ?? false,
+        categories: fields.categories ?? [],
+      }
+    }),
+  }
 }

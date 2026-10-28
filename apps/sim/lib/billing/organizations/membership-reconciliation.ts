@@ -1,8 +1,6 @@
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import {
-  MEMBER_BILLING_RECONCILIATION_EVENT_TYPE,
-  restoreUserProSubscription,
-} from '@/lib/billing/organizations/membership'
+import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
+import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 
 interface MemberBillingReconciliationPayload {

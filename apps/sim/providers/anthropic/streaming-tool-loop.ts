@@ -180,11 +180,8 @@ export function createAnthropicStreamingToolLoopStream(
             turnPayload.tool_choice = { type: 'none' }
           }
 
-          // Forced tool_choice vs thinking — same rules as silent loop.
-          const thinkingEnabled = !!payload.thinking
           if (
             !finalSynthesis &&
-            !thinkingEnabled &&
             typeof originalToolChoice === 'object' &&
             hasUsedForcedTool &&
             forcedToolNames.length > 0
@@ -197,7 +194,6 @@ export function createAnthropicStreamingToolLoopStream(
             }
           } else if (
             !finalSynthesis &&
-            !thinkingEnabled &&
             hasUsedForcedTool &&
             typeof originalToolChoice === 'object'
           ) {
@@ -480,16 +476,7 @@ export function createAnthropicStreamingToolLoopStream(
             const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = []
 
             for (const value of orderedResults) {
-              const {
-                toolUse,
-                toolName,
-                toolArgs,
-                toolParams,
-                result,
-                startTime,
-                endTime,
-                duration,
-              } = value
+              const { toolUse, toolName, toolParams, result, startTime, endTime, duration } = value
               const modelResult = 'modelResult' in value ? value.modelResult : result
 
               timeSegments.push({
@@ -598,8 +585,8 @@ export function createAnthropicStreamingToolLoopStream(
           aborted: loopAbortController.signal.aborted,
           consumerCancelled,
           error,
-          onUnexpectedError: (cause) =>
-            logger.error('Anthropic streaming tool loop failed', {
+          onUnexpectedError: (cause, level) =>
+            logger[level]('Anthropic streaming tool loop failed', {
               error: toError(cause).message,
             }),
         })

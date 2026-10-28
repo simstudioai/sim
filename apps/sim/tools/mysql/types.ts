@@ -42,11 +42,6 @@ interface MySQLBaseResponse extends ToolResponse {
   error?: string
 }
 
-interface MySQLQueryResponse extends MySQLBaseResponse {}
-interface MySQLInsertResponse extends MySQLBaseResponse {}
-interface MySQLUpdateResponse extends MySQLBaseResponse {}
-interface MySQLDeleteResponse extends MySQLBaseResponse {}
-interface MySQLExecuteResponse extends MySQLBaseResponse {}
 export interface MySQLResponse extends MySQLBaseResponse {}
 
 export interface MySQLIntrospectParams extends MySQLConnectionConfig {}

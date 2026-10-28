@@ -9,7 +9,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { HUMAN_IN_THE_LOOP_BLOCK_TYPES } from '@/executor/constants'
 
 /**

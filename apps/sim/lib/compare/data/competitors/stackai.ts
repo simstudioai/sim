@@ -5,6 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const stackaiProfile: CompetitorProfile = {
   id: 'stack-ai',
   name: 'StackAI',
+  mentions: ['StackAI', 'Stack AI'],
   website: 'https://www.stackai.com',
   brand: {
     icon: StackAIIcon,

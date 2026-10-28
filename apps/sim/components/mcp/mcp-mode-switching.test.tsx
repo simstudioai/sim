@@ -1,10 +1,14 @@
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
+import {
+  resetWorkflowRegistryMockState,
+  workflowRegistryStoreMock,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const values: Record<string, unknown> = {}
   const modes: Record<string, 'basic' | 'advanced'> = {}
   const workflowState = { blocks: { mcp: { type: 'mcp', data: { canonicalModes: modes } } } }
-  const registryState = { activeWorkflowId: 'workflow' }
   const subBlockState = {
     workflowValues: { workflow: { mcp: values } },
     getValue: (_blockId: string, field: string) => values[field],
@@ -13,7 +17,6 @@ const mocks = vi.hoisted(() => {
     values,
     modes,
     workflowState,
-    registryState,
     subBlockState,
     setValue: vi.fn(),
     setMode: vi.fn(),
@@ -26,19 +29,14 @@ vi.mock('@/hooks/use-collaborative-workflow', () => ({
     collaborativeSetBlockCanonicalMode: mocks.setMode,
   }),
 }))
-vi.mock('@/providers/utils', () => ({ getProviderFromModel: vi.fn() }))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: Object.assign(
     (selector: (state: typeof mocks.workflowState) => unknown) => selector(mocks.workflowState),
     { getState: () => mocks.workflowState }
   ),
 }))
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: Object.assign(
-    (selector: (state: typeof mocks.registryState) => unknown) => selector(mocks.registryState),
-    { getState: () => mocks.registryState }
-  ),
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: { getState: () => mocks.subBlockState },
 }))
@@ -56,6 +54,8 @@ import { buildSelectorRawContext } from '@/lib/selectors/context'
 import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/dependencies'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getBlock } from '@/blocks/registry'
+
+resetWorkflowRegistryMockState({ activeWorkflowId: 'workflow' })
 
 describe('MCP server mode switching', () => {
   beforeEach(() => {

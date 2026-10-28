@@ -6,15 +6,12 @@ const { mockReadBillingSummary } = vi.hoisted(() => ({
   mockReadBillingSummary: vi.fn(),
 }))
 
-vi.mock(
-  '@/lib/billing/application/organization-billing-summary/get-organization-billing-summary',
-  () => ({
-    getOrganizationBillingSummary: {
-      operation: { id: 'organization_billing.summary.read' },
-      execute: mockReadBillingSummary,
-    },
-  })
-)
+vi.mock('@/lib/billing/application/organization-billing/get-organization-billing-summary', () => ({
+  getOrganizationBillingSummary: {
+    operation: { id: 'organization_billing.summary.read' },
+    execute: mockReadBillingSummary,
+  },
+}))
 
 import { GET } from '@/app/api/organizations/[id]/billing-summary/route'
 

@@ -5,12 +5,10 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  ConnectorSyncDeletionGuardError: class ConnectorSyncDeletionGuardError extends Error {},
-  hardDeleteDocuments: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 import { db } from '@sim/db'
 import { inArray } from 'drizzle-orm'
@@ -24,6 +22,7 @@ import {
   sweepStaleMemberObservations,
   writeProjectionPages,
 } from '@/lib/knowledge/connectors/member-observations'
+import { windowScan } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import { type LeaseTransaction, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -341,7 +340,8 @@ describe('applyMemberDocumentLifecycle', () => {
   it('reports a reclaimed lease during a purge batch as the run being superseded', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
     queueTableRows(schemaMock.document, [])
-    queueTableRows(schemaMock.document, [])
+    /** The resurrection walk's only window, read through `db.execute`, is empty. */
+    dbChainMockFns.execute.mockResolvedValueOnce(windowScan([]))
     queueTableRows(schemaMock.document, [{ id: 'd-1' }])
     vi.mocked(hardDeleteDocuments).mockRejectedValueOnce(
       new ConnectorSyncDeletionGuardError('lease reclaimed')

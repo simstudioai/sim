@@ -1,4 +1,6 @@
 import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { ManagedMcpOauthProvider } from '@/lib/mcp/oauth/managed-provider'
+import { SimMcpOauthProvider } from '@/lib/mcp/oauth/provider'
 import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 
 type McpAuthOptions = Parameters<typeof auth>[1]
@@ -17,6 +19,10 @@ export function mcpAuthGuarded(
 ): ReturnType<typeof auth> {
   return auth(provider, {
     ...options,
+    ...((provider instanceof ManagedMcpOauthProvider || provider instanceof SimMcpOauthProvider) &&
+    provider.authorizationScope
+      ? { scope: provider.authorizationScope }
+      : {}),
     fetchFn: options.fetchFn ?? createSsrfGuardedMcpFetch({ serverUrl: String(options.serverUrl) }),
   })
 }

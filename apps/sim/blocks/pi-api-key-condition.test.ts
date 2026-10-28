@@ -2,7 +2,7 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { PiBlock } from '@/blocks/blocks/pi'
-import { getHostedModels } from '@/providers/utils'
+import { getHostedModels } from '@/providers/models'
 
 const apiKeySubBlock = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'apiKey')
 const hostedModel = getHostedModels()[0]

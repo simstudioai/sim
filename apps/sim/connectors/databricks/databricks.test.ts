@@ -9,6 +9,7 @@
  * bulk of what is asserted here, alongside the stub/`getDocument` hash equality
  * that keeps every sync from re-indexing every notebook.
  */
+import { jsonResponse } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { databricksConnector } from '@/connectors/databricks/databricks'
 
@@ -20,13 +21,6 @@ const NOTEBOOK_CONFIG = { workspaceHost: HOST, contentType: 'notebooks', rootPat
 const QUERY_CONFIG = { workspaceHost: HOST, contentType: 'queries' }
 
 const fetchMock = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function dir(path: string) {
   return { object_type: 'DIRECTORY', path, object_id: path.length }
@@ -105,7 +99,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 

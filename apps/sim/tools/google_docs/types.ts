@@ -145,20 +145,3 @@ export interface GoogleDocsToolParams {
   namedRangeId?: string
   namedRangeName?: string
 }
-
-export type GoogleDocsResponse =
-  | GoogleDocsReadResponse
-  | GoogleDocsWriteResponse
-  | GoogleDocsCreateResponse
-  | GoogleDocsInsertTextResponse
-  | GoogleDocsReplaceTextResponse
-  | GoogleDocsInsertTableResponse
-  | GoogleDocsInsertImageResponse
-  | GoogleDocsInsertPageBreakResponse
-  | GoogleDocsUpdateTextStyleResponse
-  | GoogleDocsDeleteContentRangeResponse
-  | GoogleDocsUpdateParagraphStyleResponse
-  | GoogleDocsCreateParagraphBulletsResponse
-  | GoogleDocsDeleteParagraphBulletsResponse
-  | GoogleDocsCreateNamedRangeResponse
-  | GoogleDocsDeleteNamedRangeResponse

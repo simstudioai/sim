@@ -1,37 +1,15 @@
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { mockEnvObject, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
-const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
-  envRef: {
-    APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
-    KNOWLEDGE_PROJECTION_FILL: undefined as boolean | undefined,
-    KNOWLEDGE_ASYNC_PROJECTION: undefined as boolean | undefined,
-    APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
-    TABLES_V2_API: undefined as boolean | undefined,
-    TABLE_ROW_TTL: undefined as boolean | undefined,
-    MSHIP_MODEL_SELECTOR: undefined as boolean | undefined,
-    MSHIP_PLAN_MODE: undefined as boolean | undefined,
-    MSHIP_COMPUTER_USE: undefined as boolean | undefined,
-    AGENT_MEMORY_HISTORY: undefined as boolean | undefined,
-    CREDENTIAL_GROUPS: undefined as boolean | undefined,
-    KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
-    KNOWLEDGE_TIN_KEYWORD: undefined as boolean | undefined,
-    SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
-  },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
   fetchAppConfigProfile: mockFetch,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  isTruthy: (v: unknown) => Boolean(v),
-  get env() {
-    return envRef
-  },
 }))
 
 vi.mock('@/lib/permissions/super-user', () => ({
@@ -56,6 +34,18 @@ import {
   getFeatureFlags,
   isFeatureEnabled,
 } from '@/lib/core/config/feature-flags?feature-flags-test'
+
+const envRef = mockEnvObject
+setEnv({
+  APPCONFIG_APPLICATION: 'sim-staging',
+  APPCONFIG_ENVIRONMENT: 'staging',
+  DASHBOARDS: undefined,
+  MSHIP_MODEL_SELECTOR: undefined,
+  MSHIP_COMPUTER_USE: undefined,
+  AGENT_MEMORY_HISTORY: undefined,
+  KNOWLEDGE_MEMBER_ACCESS: undefined,
+  SLACK_SEARCH_SHARED_APP: undefined,
+})
 
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
 function withAppConfig(doc: unknown) {
@@ -89,6 +79,35 @@ describe('getFeatureFlags', () => {
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.AGENT_MEMORY_HISTORY = undefined
+    envRef.DASHBOARDS = undefined
+    envRef.PROJECTS = undefined
+  })
+
+  it('rolls dashboards out globally or by organization and defaults off locally', async () => {
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
+    envRef.DASHBOARDS = true
+    expect(await isFeatureEnabled('dashboards')).toBe(true)
+    withAppConfig({ dashboards: { orgIds: ['org-a'] } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-a' })).toBe(true)
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-b' })).toBe(false)
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
+    withAppConfig({ dashboards: { enabled: true } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-b' })).toBe(true)
+    withAppConfig({ dashboards: { enabled: false } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-a' })).toBe(false)
+    envRef.DASHBOARDS = undefined
+  })
+
+  it('uses the projects AppConfig flag with PROJECTS only as an off-AppConfig fallback', async () => {
+    expect(await isFeatureEnabled('projects')).toBe(false)
+    envRef.PROJECTS = true
+    expect(await isFeatureEnabled('projects')).toBe(true)
+    withAppConfig({ projects: { enabled: false } })
+    expect(await isFeatureEnabled('projects')).toBe(false)
+    envRef.PROJECTS = false
+    withAppConfig({ projects: { enabled: true } })
+    expect(await isFeatureEnabled('projects')).toBe(true)
+    envRef.PROJECTS = undefined
   })
 
   it('rolls Agent history out by workspace and retains a global capture switch', async () => {
@@ -113,9 +132,6 @@ describe('getFeatureFlags', () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
-    expect(flags['tables-v2-api']).toEqual({ enabled: false })
-    expect(flags['table-row-ttl']).toEqual({ enabled: false })
-    expect(flags['credential-groups']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
@@ -132,7 +148,8 @@ describe('getFeatureFlags', () => {
     expect(flags.c).toBeUndefined()
     expect(mockFetch).toHaveBeenCalledWith(
       { application: 'sim-staging', environment: 'staging', profile: 'feature-flags' },
-      expect.any(Function)
+      expect.any(Function),
+      { shareWithTriggerRuns: true }
     )
   })
 
@@ -141,9 +158,6 @@ describe('getFeatureFlags', () => {
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
-    expect(flags['tables-v2-api']).toEqual({ enabled: false })
-    expect(flags['table-row-ttl']).toEqual({ enabled: false })
-    expect(flags['credential-groups']).toEqual({ enabled: false })
   })
 
   it('degrades gracefully on a malformed document', async () => {
@@ -157,11 +171,7 @@ describe('getFeatureFlags', () => {
 describe('isFeatureEnabled', () => {
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
-    envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
-    envRef.KNOWLEDGE_TIN_KEYWORD = undefined
-    envRef.KNOWLEDGE_ASYNC_PROJECTION = undefined
-    envRef.KNOWLEDGE_PROJECTION_FILL = undefined
     envRef.SLACK_SEARCH_SHARED_APP = undefined
   })
 
@@ -198,45 +208,6 @@ describe('isFeatureEnabled', () => {
     })
   })
 
-  describe('knowledge-tin-keyword flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(false)
-      envRef.KNOWLEDGE_TIN_KEYWORD = true
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-tin-keyword': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-tin-keyword')).toBe(true)
-    })
-  })
-
-  describe('knowledge-async-projection flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(false)
-      envRef.KNOWLEDGE_ASYNC_PROJECTION = true
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-async-projection': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-async-projection')).toBe(true)
-    })
-  })
-
-  describe('knowledge-projection-fill flag', () => {
-    it('is a global switch', async () => {
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(false)
-      envRef.KNOWLEDGE_PROJECTION_FILL = true
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(true)
-    })
-
-    it('follows an AppConfig global rule', async () => {
-      withAppConfig({ 'knowledge-projection-fill': { enabled: true } })
-      expect(await isFeatureEnabled('knowledge-projection-fill')).toBe(true)
-    })
-  })
-
   describe('knowledge-member-access flag', () => {
     it('uses a global fallback switch off AppConfig', async () => {
       expect(await isFeatureEnabled('knowledge-member-access')).toBe(false)
@@ -267,32 +238,6 @@ describe('isFeatureEnabled', () => {
         await isFeatureEnabled('knowledge-member-access', { workspaceId: 'ws-2', userId: 'u1' })
       ).toBe(false)
       expect(await isFeatureEnabled('knowledge-member-access', { workspaceId: 'ws-2' })).toBe(false)
-    })
-  })
-
-  describe('credential-groups flag', () => {
-    it('uses a global fallback switch off AppConfig', async () => {
-      expect(await isFeatureEnabled('credential-groups')).toBe(false)
-
-      envRef.CREDENTIAL_GROUPS = true
-      expect(await isFeatureEnabled('credential-groups')).toBe(true)
-    })
-
-    it('uses the global AppConfig clause', async () => {
-      withAppConfig({ 'credential-groups': { enabled: true } })
-      expect(await isFeatureEnabled('credential-groups')).toBe(true)
-    })
-
-    it('opens for an allowlisted organization only', async () => {
-      withAppConfig({ 'credential-groups': { orgIds: ['org-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(true)
-      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-2' })).toBe(false)
-      expect(await isFeatureEnabled('credential-groups')).toBe(false)
-    })
-
-    it('a legacy workspace allowlist does not enable the organization gate', async () => {
-      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(false)
     })
   })
 
@@ -366,64 +311,16 @@ describe('isFeatureEnabled', () => {
   })
 })
 
-describe('tables-v2-api flag', () => {
-  beforeEach(() => {
-    setEnvFlags({ isAppConfigEnabled: false })
-    envRef.TABLES_V2_API = undefined
-  })
-
-  it('is off by default off-AppConfig, on when the fallback secret is set', async () => {
-    expect(await isFeatureEnabled('tables-v2-api')).toBe(false)
-    envRef.TABLES_V2_API = true
-    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
-  })
-
-  it('gates by org cohort via AppConfig', async () => {
-    withAppConfig({ 'tables-v2-api': { orgIds: ['org-1'] } })
-    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-1' })).toBe(true)
-    expect(await isFeatureEnabled('tables-v2-api', { orgId: 'org-2' })).toBe(false)
-    expect(await isFeatureEnabled('tables-v2-api', { userId: 'u1' })).toBe(false)
-  })
-
-  it('global enabled turns it on for everyone', async () => {
-    withAppConfig({ 'tables-v2-api': { enabled: true } })
-    expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
-  })
-})
-
-describe('table-row-ttl flag', () => {
-  beforeEach(() => {
-    setEnvFlags({ isAppConfigEnabled: false })
-    envRef.TABLE_ROW_TTL = undefined
-  })
-
-  it('uses a global fallback switch off AppConfig', async () => {
-    expect(await isFeatureEnabled('table-row-ttl')).toBe(false)
-
-    envRef.TABLE_ROW_TTL = true
-    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
-  })
-
-  it('uses the global AppConfig clause', async () => {
-    withAppConfig({ 'table-row-ttl': { enabled: true } })
-    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
-  })
-})
-
-describe('Mothership model and Plan flags', () => {
+describe('Mothership model selector flag', () => {
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.MSHIP_MODEL_SELECTOR = undefined
-    envRef.MSHIP_PLAN_MODE = undefined
   })
 
   it('defaults off without AppConfig and accepts explicit self-hosted settings', async () => {
     expect(await isFeatureEnabled('mothership-model-selector')).toBe(false)
-    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(false)
     envRef.MSHIP_MODEL_SELECTOR = true
-    envRef.MSHIP_PLAN_MODE = true
     expect(await isFeatureEnabled('mothership-model-selector')).toBe(true)
-    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(true)
   })
 
   it.each(['sim-dev', 'sim-staging', 'sim-production'])(
@@ -435,10 +332,8 @@ describe('Mothership model and Plan flags', () => {
         for (const value of [true, false]) {
           withAppConfig({
             'mothership-model-selector': { enabled: value },
-            'mothership-plan-mode': { enabled: value },
           })
           expect(await isFeatureEnabled('mothership-model-selector')).toBe(value)
-          expect(await isFeatureEnabled('mothership-plan-mode')).toBe(value)
         }
       } finally {
         envRef.APPCONFIG_APPLICATION = previous

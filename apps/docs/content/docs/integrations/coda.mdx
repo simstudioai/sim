@@ -1,14 +1,13 @@
 ---
 title: Coda
 description: Read and write Coda docs, pages, tables, and rows
+integration:
+  type: "coda"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="coda"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Coda](https://coda.io/) (now Superhuman Docs) combines documents, tables, and automations in one doc. The Coda block lets your agents read and write that doc: create and publish docs, write pages in Markdown or HTML, read and update table rows, push row buttons, read formulas and controls, trigger automations, and manage sharing, folders, and analytics.
@@ -30,18 +29,17 @@ This integration uses a reusable Coda **API token** connection, not OAuth. In Co
 - **Rate limits:** Coda limits requests per user, with tighter limits on writes and on listing docs. Sim automatically retries reads, updates, and deletes when Coda returns HTTP 429 or a transient server error. Inserts and creates are not retried, so space out bulk writes.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Coda (Superhuman Docs) into your workflow with a reusable API-token credential. Create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.
-
-
+Use a reusable API-token credential to create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.
 
 ## Actions
 
 ### Coda Add Custom Domain
 
 Connect a custom domain to a published Coda doc. Requires a Coda plan with custom domains.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -57,9 +55,13 @@ Connect a custom domain to a published Coda doc. Requires a Coda plan with custo
 | `docId` | string | ID of the doc |
 | `customDocDomain` | string | The custom domain that was added |
 
+</ReferenceDetails>
+
 ### Coda Share Doc
 
 Share a Coda doc with a user, group, domain, workspace, or anyone with the link. Sharing with an email sends a notification unless suppressed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +81,13 @@ Share a Coda doc with a user, group, domain, workspace, or anyone with the link.
 | `access` | string | Access level granted |
 | `principalType` | string | Type of principal the doc was shared with |
 
+</ReferenceDetails>
+
 ### Coda Change User Role
 
 Change the workspace role of a Coda user. Requires Admin access in a workspace that belongs to an organization.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +105,13 @@ Change the workspace role of a Coda user. Requires Admin access in a workspace t
 | `newRole` | string | Role assigned |
 | `roleChangedAt` | string | When the role change took effect |
 
+</ReferenceDetails>
+
 ### Coda Create Doc
 
 Create a Coda doc, optionally copying an existing doc and setting up its first page with Markdown, HTML, an embed, or a sync page. Requires Doc Maker access in the workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -132,9 +142,13 @@ Create a Coda doc, optionally copying an existing doc and setting up its first p
 | `doc` | object | The created doc |
 | `requestId` | string | Coda request ID for the doc creation |
 
+</ReferenceDetails>
+
 ### Coda Create Folder
 
 Create a folder in a Coda workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -150,9 +164,13 @@ Create a folder in a Coda workspace
 | --------- | ---- | ----------- |
 | `folder` | object | The created folder |
 
+</ReferenceDetails>
+
 ### Coda Create Page
 
 Create a page in a Coda doc, optionally as a subpage, with Markdown or HTML content, a full-page embed, or a sync page from another doc. The page is created asynchronously. Requires Doc Maker access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -180,9 +198,13 @@ Create a page in a Coda doc, optionally as a subpage, with Markdown or HTML cont
 | --------- | ---- | ----------- |
 | `pageId` | string | ID of the created page |
 
+</ReferenceDetails>
+
 ### Coda Delete Custom Domain
 
 Remove a custom domain from a published Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -198,9 +220,13 @@ Remove a custom domain from a published Coda doc
 | `docId` | string | ID of the doc |
 | `customDocDomain` | string | The custom domain that was removed |
 
+</ReferenceDetails>
+
 ### Coda Delete Doc
 
 Delete a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -214,9 +240,13 @@ Delete a Coda doc
 | --------- | ---- | ----------- |
 | `docId` | string | ID of the deleted doc |
 
+</ReferenceDetails>
+
 ### Coda Delete Folder
 
 Delete an empty Coda folder (it must contain no docs)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -230,9 +260,13 @@ Delete an empty Coda folder (it must contain no docs)
 | --------- | ---- | ----------- |
 | `folderId` | string | ID of the deleted folder |
 
+</ReferenceDetails>
+
 ### Coda Delete Page
 
 Delete a page from a Coda doc. Applied asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -247,9 +281,13 @@ Delete a page from a Coda doc. Applied asynchronously.
 | --------- | ---- | ----------- |
 | `pageId` | string | ID of the deleted page |
 
+</ReferenceDetails>
+
 ### Coda Delete Page Content
 
 Delete specific content elements from a Coda page, or all of its content when no element IDs are given. Applied asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +304,13 @@ Delete specific content elements from a Coda page, or all of its content when no
 | --------- | ---- | ----------- |
 | `pageId` | string | ID of the page whose content was deleted |
 
+</ReferenceDetails>
+
 ### Coda Remove Permission
 
 Revoke a sharing permission on a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -284,9 +326,13 @@ Revoke a sharing permission on a Coda doc
 | `docId` | string | ID of the doc |
 | `permissionId` | string | ID of the removed permission |
 
+</ReferenceDetails>
+
 ### Coda Delete Row
 
 Delete a row from a Coda table or view. Applied asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -302,9 +348,13 @@ Delete a row from a Coda table or view. Applied asynchronously.
 | --------- | ---- | ----------- |
 | `rowId` | string | ID of the deleted row |
 
+</ReferenceDetails>
+
 ### Coda Delete Rows
 
 Delete multiple rows from a Coda table or view by ID. Applied asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -320,9 +370,13 @@ Delete multiple rows from a Coda table or view by ID. Applied asynchronously.
 | --------- | ---- | ----------- |
 | `rowIds` | array | IDs of the rows queued for deletion |
 
+</ReferenceDetails>
+
 ### Coda Export Page
 
 Start exporting a Coda page as HTML or Markdown. Poll Get Page Export Status with the returned export ID for the download link.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -340,9 +394,13 @@ Start exporting a Coda page as HTML or Markdown. Poll Get Page Export Status wit
 | `status` | string | Export status \(inProgress, failed, complete\) |
 | `href` | string | API link that reports the export status |
 
+</ReferenceDetails>
+
 ### Coda Get Sharing Settings
 
 Get the sharing settings of a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -424,9 +482,13 @@ Get the sharing settings of a Coda doc
 | `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Coda Get Analytics Last Updated
 
 Get the dates (Pacific time) Coda analytics were last refreshed, to know how current analytics data is
+
+<ReferenceDetails>
 
 #### Input
 
@@ -441,9 +503,13 @@ Get the dates (Pacific time) Coda analytics were last refreshed, to know how cur
 | `packAnalyticsLastUpdated` | string | Date Pack analytics last updated |
 | `packFormulaAnalyticsLastUpdated` | string | Date Pack formula analytics last updated |
 
+</ReferenceDetails>
+
 ### Coda Get Column
 
 Get details about a column in a Coda table, including its full format settings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -459,9 +525,13 @@ Get details about a column in a Coda table, including its full format settings
 | --------- | ---- | ----------- |
 | `column` | object | Column details |
 
+</ReferenceDetails>
+
 ### Coda Get Control
 
 Get the type and current value of a control in a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -475,12 +545,14 @@ Get the type and current value of a control in a Coda doc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `control` | object | Control details |
-|   ↳ `controlType` | string | Control type \(aiBlock, button, checkbox, datePicker, dateRangePicker, dateTimePicker, lookup, multiselect, select, scale, slider, reaction, textbox, timePicker\) |
-|   ↳ `value` | json | Current value \(string, number, boolean, or array of these\) |
+
+</ReferenceDetails>
 
 ### Coda Get Custom Domain Provider
 
 Look up the DNS provider (GoDaddy, Namecheap, Hover, Network Solutions, Google Domains, or Other) of a custom domain
+
+<ReferenceDetails>
 
 #### Input
 
@@ -495,9 +567,13 @@ Look up the DNS provider (GoDaddy, Namecheap, Hover, Network Solutions, Google D
 | `customDocDomain` | string | The custom domain |
 | `provider` | string | DNS provider of the domain |
 
+</ReferenceDetails>
+
 ### Coda Get Doc
 
 Get metadata for a Coda doc, including its owner, workspace, folder, size, and publishing settings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -511,9 +587,13 @@ Get metadata for a Coda doc, including its owner, workspace, folder, size, and p
 | --------- | ---- | ----------- |
 | `doc` | object | Doc metadata |
 
+</ReferenceDetails>
+
 ### Coda Get Doc Analytics Summary
 
 Get the total number of sessions across the Coda docs the user can access
+
+<ReferenceDetails>
 
 #### Input
 
@@ -530,9 +610,13 @@ Get the total number of sessions across the Coda docs the user can access
 | --------- | ---- | ----------- |
 | `totalSessions` | number | Total sessions across all matching docs |
 
+</ReferenceDetails>
+
 ### Coda Get Folder
 
 Get details about a Coda folder
+
+<ReferenceDetails>
 
 #### Input
 
@@ -546,9 +630,13 @@ Get details about a Coda folder
 | --------- | ---- | ----------- |
 | `folder` | object | Folder details |
 
+</ReferenceDetails>
+
 ### Coda Get Formula
 
 Get the current computed value of a named formula in a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -562,11 +650,14 @@ Get the current computed value of a named formula in a Coda doc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `formula` | object | Formula details |
-|   ↳ `value` | json | Computed value \(string, number, boolean, or array of these\) |
+
+</ReferenceDetails>
 
 ### Coda Get Mutation Status
 
 Check whether a queued Coda change (row, page, publish, or automation request) has been applied. Status is kept for about a day.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -581,9 +672,13 @@ Check whether a queued Coda change (row, page, publish, or automation request) h
 | `completed` | boolean | Whether the change has been applied |
 | `warning` | string | Warning if the change completed with caveats |
 
+</ReferenceDetails>
+
 ### Coda Get Page
 
 Get metadata for a page in a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -598,9 +693,13 @@ Get metadata for a page in a Coda doc
 | --------- | ---- | ----------- |
 | `page` | object | Page metadata |
 
+</ReferenceDetails>
+
 ### Coda Get Page Content
 
 Read the content of a Coda canvas page as plain-text lines with their styles (headings, paragraphs, lists, quotes, code) and element IDs
+
+<ReferenceDetails>
 
 #### Input
 
@@ -623,9 +722,13 @@ Read the content of a Coda canvas page as plain-text lines with their styles (he
 |   ↳ `content` | string | Element text |
 |   ↳ `lineLevel` | number | Indentation level for paragraphs, quotes, and list items |
 
+</ReferenceDetails>
+
 ### Coda Get Page Export Status
 
 Check a Coda page export and get its download link once complete. Download links expire shortly after they are issued.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -645,9 +748,13 @@ Check a Coda page export and get its download link once complete. Download links
 | `downloadLink` | string | Short-lived download link for the exported file, once complete |
 | `exportError` | string | Error message if the export failed |
 
+</ReferenceDetails>
+
 ### Coda Get Row
 
 Get a single row from a Coda table, including all of its cell values
+
+<ReferenceDetails>
 
 #### Input
 
@@ -665,9 +772,13 @@ Get a single row from a Coda table, including all of its cell values
 | --------- | ---- | ----------- |
 | `row` | object | Row details and values |
 
+</ReferenceDetails>
+
 ### Coda Get Sharing Metadata
 
 Check whether the connected user can share or copy a Coda doc, and whether they can share it with the workspace or organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -684,9 +795,13 @@ Check whether the connected user can share or copy a Coda doc, and whether they 
 | `canShareWithOrg` | boolean | Whether the user can share the doc with the organization |
 | `canCopy` | boolean | Whether the user can copy the doc |
 
+</ReferenceDetails>
+
 ### Coda Get Table
 
 Get details about a table or view in a Coda doc, including its row count, sorts, layout, and filter
+
+<ReferenceDetails>
 
 #### Input
 
@@ -702,9 +817,13 @@ Get details about a table or view in a Coda doc, including its row count, sorts,
 | --------- | ---- | ----------- |
 | `table` | object | Table details |
 
+</ReferenceDetails>
+
 ### Coda List Doc Categories
 
 List the categories that can be applied to a published Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -717,9 +836,13 @@ List the categories that can be applied to a published Coda doc
 | --------- | ---- | ----------- |
 | `categories` | array | Category names usable when publishing a doc |
 
+</ReferenceDetails>
+
 ### Coda List Columns
 
 List the columns of a Coda table with their IDs, formats, and formulas. Use column IDs when reading and writing rows.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -737,9 +860,13 @@ List the columns of a Coda table with their IDs, formats, and formulas. Use colu
 | --------- | ---- | ----------- |
 | `columns` | array | Columns in the table |
 
+</ReferenceDetails>
+
 ### Coda List Controls
 
 List the controls (sliders, selects, checkboxes, date pickers, buttons, etc.) in a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -756,9 +883,13 @@ List the controls (sliders, selects, checkboxes, date pickers, buttons, etc.) in
 | --------- | ---- | ----------- |
 | `controls` | array | Controls in the doc |
 
+</ReferenceDetails>
+
 ### Coda List Custom Domains
 
 List the custom domains connected to a published Coda doc and their setup status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -778,9 +909,13 @@ List the custom domains connected to a published Coda doc and their setup status
 |   ↳ `domainStatus` | string | connected or notConnected |
 |   ↳ `lastVerifiedTimestamp` | string | When the DNS settings were last checked |
 
+</ReferenceDetails>
+
 ### Coda List Doc Analytics
 
 Get per-day or cumulative analytics (views, copies, likes, sessions by device, AI credits) for Coda docs
+
+<ReferenceDetails>
 
 #### Input
 
@@ -820,9 +955,13 @@ Get per-day or cumulative analytics (views, copies, likes, sessions by device, A
 |     ↳ `aiCreditsReviewer` | number | AI credits used by the reviewer |
 |     ↳ `aiCredits` | number | Total AI credits used |
 
+</ReferenceDetails>
+
 ### Coda List Docs
 
 List Coda docs the user has opened, most recently used first, filtered by search, owner, publishing, stars, workspace, folder, or source doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -845,9 +984,13 @@ List Coda docs the user has opened, most recently used first, filtered by search
 | --------- | ---- | ----------- |
 | `docs` | array | Docs matching the filters |
 
+</ReferenceDetails>
+
 ### Coda List Subfolders
 
 List the direct subfolders of a Coda folder. Subfolders you cannot access but manage the parent of are returned with only an ID and restricted visibility.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -864,9 +1007,13 @@ List the direct subfolders of a Coda folder. Subfolders you cannot access but ma
 | `children` | array | Direct subfolders |
 |   ↳ `visibility` | string | visible, or restricted when only the ID is returned because you cannot access the subfolder |
 
+</ReferenceDetails>
+
 ### Coda List Folders
 
 List the Coda folders the user can access, optionally within one workspace
+
+<ReferenceDetails>
 
 #### Input
 
@@ -883,9 +1030,13 @@ List the Coda folders the user can access, optionally within one workspace
 | --------- | ---- | ----------- |
 | `folders` | array | Folders the user can access |
 
+</ReferenceDetails>
+
 ### Coda List Formulas
 
 List the named formulas in a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -902,9 +1053,13 @@ List the named formulas in a Coda doc
 | --------- | ---- | ----------- |
 | `formulas` | array | Named formulas in the doc |
 
+</ReferenceDetails>
+
 ### Coda List Page Analytics
 
 Get daily analytics (views, sessions, users, time viewed) for each page of a Coda doc. Only available for docs in Enterprise workspaces.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -931,9 +1086,13 @@ Get daily analytics (views, sessions, users, time viewed) for each page of a Cod
 |     ↳ `medianSecondsViewed` | number | Median seconds the page was viewed |
 |     ↳ `tabs` | number | Unique tabs that opened the doc |
 
+</ReferenceDetails>
+
 ### Coda List Pages
 
 List the pages in a Coda doc, including their hierarchy
+
+<ReferenceDetails>
 
 #### Input
 
@@ -949,9 +1108,13 @@ List the pages in a Coda doc, including their hierarchy
 | --------- | ---- | ----------- |
 | `pages` | array | Pages in the doc |
 
+</ReferenceDetails>
+
 ### Coda List Permissions
 
 List who a Coda doc is shared with and their access levels
+
+<ReferenceDetails>
 
 #### Input
 
@@ -967,9 +1130,13 @@ List who a Coda doc is shared with and their access levels
 | --------- | ---- | ----------- |
 | `permissions` | array | Permissions granted on the doc |
 
+</ReferenceDetails>
+
 ### Coda List Rows
 
 List rows in a Coda table or view, optionally filtered by a column value, sorted, or limited to rows changed since a sync token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -993,9 +1160,13 @@ List rows in a Coda table or view, optionally filtered by a column value, sorted
 | `rows` | array | Rows in the table |
 | `nextSyncToken` | string | Token to pass as syncToken later to fetch only rows changed after this call |
 
+</ReferenceDetails>
+
 ### Coda List Tables
 
 List the tables and views in a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1013,9 +1184,13 @@ List the tables and views in a Coda doc
 | --------- | ---- | ----------- |
 | `tables` | array | Tables and views in the doc |
 
+</ReferenceDetails>
+
 ### Coda List Workspace Members
 
 List the members of a Coda workspace with their roles and doc activity, requesting user first. The workspace must belong to an organization.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1044,9 +1219,13 @@ List the members of a Coda workspace with their roles and doc activity, requesti
 |   ↳ `totalDocsLastActiveAt` | string | Date anyone last accessed a doc the user owns or contributed to |
 |   ↳ `totalDocCollaboratorsLast90Days` | number | Unique viewers of docs the user owns, manages, or added pages to |
 
+</ReferenceDetails>
+
 ### Coda List Workspace Role Activity
 
 Get monthly counts of active and inactive Admins, Doc Makers, and Editors in a workspace. The workspace must belong to an organization.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1067,9 +1246,13 @@ Get monthly counts of active and inactive Admins, Doc Makers, and Editors in a w
 |   ↳ `inactiveDocMakerCount` | number | Inactive Doc Makers |
 |   ↳ `inactiveEditorCount` | number | Inactive Editors |
 
+</ReferenceDetails>
+
 ### Coda Publish Doc
 
 Publish a Coda doc or update its publishing settings: URL slug, discoverability, categories, and interaction mode. The doc owner needs a Coda maker profile.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1155,9 +1338,13 @@ Publish a Coda doc or update its publishing settings: URL slug, discoverability,
 | `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Coda Push Button
 
 Push a button column on a row of a Coda table, running its action. The button can perform any action in the doc.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1175,9 +1362,13 @@ Push a button column on a row of a Coda table, running its action. The button ca
 | `rowId` | string | ID of the row containing the button |
 | `columnId` | string | ID of the button column |
 
+</ReferenceDetails>
+
 ### Coda Resolve Browser Link
 
 Resolve a Coda browser URL (doc, page, table, row, etc.) into its resource type and ID for use in other Coda operations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1197,9 +1388,13 @@ Resolve a Coda browser URL (doc, page, table, row, etc.) into its resource type 
 |   ↳ `name` | string | Resource name |
 |   ↳ `href` | string | API link to the resource |
 
+</ReferenceDetails>
+
 ### Coda Search Principals
 
 Search for users and groups a Coda doc can be shared with (up to 20 of each). Returns nothing without a query.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1220,9 +1415,13 @@ Search for users and groups a Coda doc can be shared with (up to 20 of each). Re
 |   ↳ `groupId` | string | Group ID |
 |   ↳ `groupName` | string | Group name |
 
+</ReferenceDetails>
+
 ### Coda Trigger Automation
 
 Trigger a webhook-invoked automation in a Coda doc, optionally passing a JSON payload the automation can read
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1306,9 +1505,13 @@ Trigger a webhook-invoked automation in a Coda doc, optionally passing a JSON pa
 | `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Coda Unpublish Doc
 
 Unpublish a Coda doc
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1322,9 +1525,13 @@ Unpublish a Coda doc
 | --------- | ---- | ----------- |
 | `docId` | string | ID of the unpublished doc |
 
+</ReferenceDetails>
+
 ### Coda Update Sharing Settings
 
 Update who can change permissions, copy, or request edit access on a Coda doc; unset settings are left unchanged
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1409,9 +1616,13 @@ Update who can change permissions, copy, or request edit access on a Coda doc; u
 | `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Coda Update Doc
 
 Rename a Coda doc or change its icon. Renaming requires Doc Maker access in the workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1427,9 +1638,13 @@ Rename a Coda doc or change its icon. Renaming requires Doc Maker access in the 
 | --------- | ---- | ----------- |
 | `docId` | string | ID of the updated doc |
 
+</ReferenceDetails>
+
 ### Coda Update Folder
 
 Rename a Coda folder or change its description. Coda can return the folder as it was before the change; read it again to confirm.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1445,9 +1660,13 @@ Rename a Coda folder or change its description. Coda can return the folder as it
 | --------- | ---- | ----------- |
 | `folder` | object | The updated folder |
 
+</ReferenceDetails>
+
 ### Coda Update Page
 
 Update a Coda page: rename it, change its subtitle, icon, cover, or visibility, and append, prepend, or replace content with Markdown or HTML. Applied asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1471,9 +1690,13 @@ Update a Coda page: rename it, change its subtitle, icon, cover, or visibility, 
 | --------- | ---- | ----------- |
 | `pageId` | string | ID of the updated page |
 
+</ReferenceDetails>
+
 ### Coda Update Row
 
 Update cell values in a row of a Coda table. Applied asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1491,9 +1714,13 @@ Update cell values in a row of a Coda table. Applied asynchronously.
 | --------- | ---- | ----------- |
 | `rowId` | string | ID of the updated row |
 
+</ReferenceDetails>
+
 ### Coda Insert or Upsert Rows
 
 Insert rows into a Coda base table, or update matching rows when key columns are given. Only works on base tables, not views. Applied asynchronously.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1511,9 +1738,13 @@ Insert rows into a Coda base table, or update matching rows when key columns are
 | --------- | ---- | ----------- |
 | `addedRowIds` | array | IDs of rows that will be added \(only returned when no key columns are set\) |
 
+</ReferenceDetails>
+
 ### Coda Get Current User
 
 Get the user and default workspace behind the connected Coda API token
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1530,5 +1761,7 @@ Get the user and default workspace behind the connected Coda API token
 | `scoped` | boolean | Whether the token is restricted to specific docs or tables |
 | `tokenName` | string | Name of the API token |
 | `workspace` | object | Default workspace of the user |
+
+</ReferenceDetails>
 
 

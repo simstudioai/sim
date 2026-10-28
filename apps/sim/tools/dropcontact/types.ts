@@ -1,6 +1,6 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export interface DropcontactBaseParams {
+interface DropcontactBaseParams {
   apiKey: string
 }
 
@@ -122,6 +122,3 @@ export interface DropcontactEnrichContactResponse extends ToolResponse {
     company_results: string | null
   }
 }
-
-/** Discriminated union of all Dropcontact tool responses */
-export type DropcontactResponse = DropcontactEnrichContactResponse

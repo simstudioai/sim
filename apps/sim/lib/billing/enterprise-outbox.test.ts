@@ -1,22 +1,5 @@
 import type Stripe from 'stripe'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db/schema', () => ({
-  outboxEvent: {
-    id: 'id',
-    eventType: 'eventType',
-    payload: 'payload',
-    status: 'status',
-    createdAt: 'createdAt',
-  },
-}))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(() => 'and'),
-  desc: vi.fn(() => 'desc'),
-  eq: vi.fn(() => 'eq'),
-  sql: vi.fn(() => 'sql'),
-}))
-
+import { describe, expect, it } from 'vitest'
 import {
   assertNoCompetingEnterpriseIssuance,
   assertNoUnresolvedEnterpriseIssuance,

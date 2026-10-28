@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { encryptionMock, redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createCoordinatedMcpOauthFetch,
@@ -15,14 +16,6 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 const SERVER = 'https://mcp.example.com/mcp'
 const TOKEN_URL = 'https://auth.example.com/token'
-
-function deferred() {
-  let resolve!: () => void
-  const promise = new Promise<void>((r) => {
-    resolve = r
-  })
-  return { promise, resolve }
-}
 
 function createGrant() {
   let persisted: OAuthTokens | undefined = {
@@ -98,7 +91,6 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
 
   beforeEach(() => {
     resetRedisConfigMock()
-    vi.clearAllMocks()
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
     redisConfigMockFns.mockExtendLock.mockResolvedValue(true)
@@ -148,8 +140,8 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
 
   it('allows two tool calls to run concurrently without acquiring the OAuth mutex', async () => {
     const grant = createGrant()
-    const bothStarted = deferred()
-    const finish = deferred()
+    const bothStarted = createDeferred<void>()
+    const finish = createDeferred<void>()
     let started = 0
     const request: FetchLike = async (_url, init) => {
       if (++started === 2) bothStarted.resolve()
@@ -210,15 +202,15 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
 
   it('holds the mutex through token persistence and reuses the committed token', async () => {
     const grant = createGrant()
-    const saving = deferred()
-    const finishSave = deferred()
+    const saving = createDeferred<void>()
+    const finishSave = createDeferred<void>()
     const persist = grant.save.getMockImplementation()!
     grant.save.mockImplementationOnce(async (tokens) => {
       saving.resolve()
       await finishSave.promise
       await persist(tokens)
     })
-    const rejected = deferred()
+    const rejected = createDeferred<void>()
     let requests = 0
     const request: FetchLike = async (_url, init) => {
       if (new Headers(init?.headers).get('authorization') === 'Bearer access-1') {
@@ -244,8 +236,8 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
   it('does not block another credential while one credential refreshes', async () => {
     const slowGrant = createGrant()
     const otherGrant = createGrant()
-    const refreshing = deferred()
-    const finish = deferred()
+    const refreshing = createDeferred<void>()
+    const finish = createDeferred<void>()
     const exchange = slowGrant.tokenRequest.getMockImplementation()!
     slowGrant.tokenRequest.mockImplementationOnce(async (url, init) => {
       refreshing.resolve()
@@ -392,14 +384,14 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
   })
 
   it('rejects promptly without refreshing when cancelled while waiting for the lock', async () => {
-    const entered = deferred()
-    const finish = deferred()
+    const entered = createDeferred<void>()
+    const finish = createDeferred<void>()
     const holder = withMcpOauthRefreshLock('shared-grant', async () => {
       entered.resolve()
       await finish.promise
     })
     await entered.promise
-    const rejected = deferred()
+    const rejected = createDeferred<void>()
     const grant = createGrant()
     const request = vi.fn<FetchLike>(async () => {
       rejected.resolve()

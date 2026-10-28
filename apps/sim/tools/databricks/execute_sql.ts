@@ -2,6 +2,8 @@ import type {
   DatabricksExecuteSqlParams,
   DatabricksExecuteSqlResponse,
 } from '@/tools/databricks/types'
+import { GENIE_QUERY_RESULT_OUTPUTS } from '@/tools/databricks/types'
+import { databricksUrl, mapStatementResult, parseDatabricksJson } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksExecuteSqlResponse> =
@@ -55,6 +57,25 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
         visibility: 'user-or-llm',
         description: 'Maximum number of rows to return',
       },
+      sqlParameters: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Named parameters as [{name, value, type}]; null or omitted value represents SQL NULL',
+      },
+      byteLimit: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Maximum result size in bytes; truncation is reported in the output',
+      },
+      onWaitTimeout: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'CONTINUE (default) or CANCEL execution when the wait timeout expires',
+      },
       waitTimeout: {
         type: 'string',
         required: false,
@@ -65,13 +86,7 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
     },
 
     request: {
-      url: (params) => {
-        const host = params.host
-          .trim()
-          .replace(/^https?:\/\//, '')
-          .replace(/\/$/, '')
-        return `https://${host}/api/2.0/sql/statements/`
-      },
+      url: (params) => databricksUrl(params.host, '/api/2.0/sql/statements/'),
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/json',
@@ -87,7 +102,11 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
         }
         if (params.catalog) body.catalog = params.catalog
         if (params.schema) body.schema = params.schema
-        if (params.rowLimit) body.row_limit = params.rowLimit
+        if (params.rowLimit != null) body.row_limit = params.rowLimit
+        if (params.byteLimit != null) body.byte_limit = params.byteLimit
+        if (params.onWaitTimeout) body.on_wait_timeout = params.onWaitTimeout
+        const parameters = parseDatabricksJson(params.sqlParameters, 'sqlParameters', 'array')
+        if (parameters) body.parameters = parameters
         return body
       },
     },
@@ -99,80 +118,8 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
         throw new Error(data.message || data.error?.message || 'Failed to execute SQL statement')
       }
 
-      const status = data.status?.state ?? 'UNKNOWN'
-      if (status === 'FAILED') {
-        throw new Error(
-          data.status?.error?.message ||
-            `SQL statement execution failed: ${data.status?.error?.error_code ?? 'UNKNOWN'}`
-        )
-      }
-
-      const columns =
-        data.manifest?.schema?.columns?.map(
-          (col: { name: string; position: number; type_name: string }) => ({
-            name: col.name ?? '',
-            position: col.position ?? 0,
-            typeName: col.type_name ?? '',
-          })
-        ) ?? null
-
-      return {
-        success: true,
-        output: {
-          statementId: data.statement_id ?? '',
-          status,
-          columns,
-          data: data.result?.data_array ?? null,
-          totalRows: data.manifest?.total_row_count ?? null,
-          truncated: data.manifest?.truncated ?? false,
-        },
-      }
+      return { success: true, output: mapStatementResult(data) }
     },
 
-    outputs: {
-      statementId: {
-        type: 'string',
-        description: 'Unique identifier for the executed statement',
-      },
-      status: {
-        type: 'string',
-        description: 'Execution status (SUCCEEDED, PENDING, RUNNING, FAILED, CANCELED, CLOSED)',
-      },
-      columns: {
-        type: 'array',
-        description: 'Column schema of the result set',
-        optional: true,
-        items: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'Column name' },
-            position: { type: 'number', description: 'Column position (0-based)' },
-            typeName: {
-              type: 'string',
-              description:
-                'Column type (STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.)',
-            },
-          },
-        },
-      },
-      data: {
-        type: 'array',
-        description:
-          'Result rows as a 2D array of strings where each inner array is a row of column values',
-        optional: true,
-        items: {
-          type: 'array',
-          description: 'A single row of column values as strings',
-        },
-      },
-      totalRows: {
-        type: 'number',
-        description: 'Total number of rows in the result',
-        optional: true,
-      },
-      truncated: {
-        type: 'boolean',
-        description: 'Whether the result set was truncated due to row_limit or byte_limit',
-      },
-    },
+    outputs: GENIE_QUERY_RESULT_OUTPUTS,
   }

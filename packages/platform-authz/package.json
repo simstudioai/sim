@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -41,11 +41,11 @@
   "dependencies": {
     "@sim/db": "workspace:*",
     "@sim/realtime-protocol": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@types/node": "24.2.1",
+    "@types/node": "24.19.2",
     "typescript": "^7.0.2"
   }
 }

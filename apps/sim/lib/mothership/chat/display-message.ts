@@ -1,4 +1,12 @@
 import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { isStoredAssistantMessage } from '@/lib/mothership/chat/live-message-id'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import {
+  copyPersistedMessageContext,
+  isUnsettledToolState,
+  withBlockTiming,
+} from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -6,7 +14,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
-import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
+import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
 import {
   type ChatContextKind,
   type ChatMessage,
@@ -17,9 +25,6 @@ import {
   type ToolCallInfo,
   ToolCallStatus,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { getMothershipAttachmentPreviewUrl } from './attachment-preview'
-import type { PersistedMessage } from './persisted-message'
-import { withBlockTiming } from './persisted-message'
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   [MothershipStreamV1ToolOutcome.success]: ToolCallStatus.success,
@@ -35,11 +40,15 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   awaiting_approval: ToolCallStatus.awaiting_approval,
 }
 
-function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined {
+function toToolCallInfo(block: PersistedContentBlock, stored: boolean): ToolCallInfo | undefined {
   const tc = block.toolCall
   if (!tc) return undefined
   if (isToolHiddenInUi(tc.name)) return undefined
-  const status: ToolCallStatus = STATE_TO_STATUS[tc.state] ?? ToolCallStatus.error
+  // A stored turn has ended, so a row it left unfinished did not finish.
+  const status: ToolCallStatus =
+    stored && isUnsettledToolState(tc.state)
+      ? ToolCallStatus.interrupted
+      : (STATE_TO_STATUS[tc.state] ?? ToolCallStatus.error)
   const activityDescription = normalizeToolActivityDescription(tc.activityDescription)
   return {
     id: tc.id,
@@ -47,14 +56,15 @@ function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined 
     status,
     displayTitle: status === ToolCallStatus.cancelled ? 'Stopped by user' : tc.display?.title,
     ...(activityDescription ? { activityDescription } : {}),
+    ...(tc.activity ? { activity: tc.activity } : {}),
     params: tc.params,
     calledBy: tc.calledBy,
     result: tc.result,
   }
 }
 
-function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined {
-  const displayed = toDisplayBlockBody(block)
+function toDisplayBlock(block: PersistedContentBlock, stored: boolean): ContentBlock | undefined {
+  const displayed = toDisplayBlockBody(block, stored)
   if (!displayed) return undefined
   if (block.parentToolCallId && displayed.parentToolCallId === undefined) {
     displayed.parentToolCallId = block.parentToolCallId
@@ -68,7 +78,10 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined 
   return withBlockTiming(displayed, block)
 }
 
-function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefined {
+function toDisplayBlockBody(
+  block: PersistedContentBlock,
+  stored: boolean
+): ContentBlock | undefined {
   switch (block.type) {
     case 'task':
       return block.task ? { type: ContentBlockType.task, task: block.task } : undefined
@@ -91,9 +104,10 @@ function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefi
         return { type: ContentBlockType.thinking, content: block.content }
       }
       return { type: ContentBlockType.text, content: block.content }
-    case MothershipStreamV1EventType.tool:
-      if (!toToolCallInfo(block)) return undefined
-      return { type: ContentBlockType.tool_call, toolCall: toToolCallInfo(block) }
+    case MothershipStreamV1EventType.tool: {
+      const toolCall = toToolCallInfo(block, stored)
+      return toolCall ? { type: ContentBlockType.tool_call, toolCall } : undefined
+    }
     case MothershipStreamV1EventType.span:
       if (block.lifecycle === MothershipStreamV1SpanLifecycleEvent.end) {
         return {
@@ -132,25 +146,10 @@ function toDisplayContexts(
   contexts: PersistedMessage['contexts']
 ): ChatMessageContext[] | undefined {
   if (!contexts || contexts.length === 0) return undefined
-  return contexts.map((c) => ({
-    kind: c.kind as ChatContextKind,
-    label: c.label,
-    ...(c.workflowId ? { workflowId: c.workflowId } : {}),
-    ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-    ...(c.tableId ? { tableId: c.tableId } : {}),
-    ...(c.viewId ? { viewId: c.viewId } : {}),
-    ...(c.fileId ? { fileId: c.fileId } : {}),
-    ...(c.folderId ? { folderId: c.folderId } : {}),
-    ...(c.chatId ? { chatId: c.chatId } : {}),
-    ...(c.blockType ? { blockType: c.blockType } : {}),
-    ...(c.skillId ? { skillId: c.skillId } : {}),
-    ...(c.serverId ? { serverId: c.serverId } : {}),
-    ...(c.fileName ? { fileName: c.fileName } : {}),
-    ...(c.tableName ? { tableName: c.tableName } : {}),
-    ...(c.tabId ? { tabId: c.tabId } : {}),
-    ...(c.terminalId ? { terminalId: c.terminalId } : {}),
-    ...(c.selection ? { selection: { ...c.selection } } : {}),
-  }))
+  return contexts.map((c) => {
+    const copy = copyPersistedMessageContext(c)
+    return { ...copy, kind: copy.kind as ChatContextKind }
+  })
 }
 
 const WORKSPACE_FILE_TOOL = 'prepare_file_edit'
@@ -218,8 +217,9 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
   }
 
   if (msg.contentBlocks && msg.contentBlocks.length > 0) {
+    const stored = isStoredAssistantMessage(msg)
     const displayBlocks = msg.contentBlocks
-      .map(toDisplayBlock)
+      .map((block) => toDisplayBlock(block, stored))
       .filter((block): block is ContentBlock => !!block)
     display.contentBlocks = foldFileWriteBlocks(displayBlocks)
   }
@@ -227,6 +227,7 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
   const attachments = toDisplayAttachment(msg.fileAttachments)
   if (attachments.length > 0) {
     display.attachments = attachments
+    display.fileAttachments = msg.fileAttachments
   }
 
   display.contexts = toDisplayContexts(msg.contexts)

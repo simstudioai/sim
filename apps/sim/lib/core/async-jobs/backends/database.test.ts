@@ -1,4 +1,10 @@
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { asyncJobs } from '@sim/db'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,19 +16,8 @@ vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordExecutionCancellationBackendResult: mockRecordCancellationResult,
 }))
 
-vi.mock('@sim/db', () => ({
-  asyncJobs: {
-    attempts: 'attempts',
-    id: 'id',
-    metadata: 'metadata',
-    payload: 'payload',
-    status: 'status',
-    type: 'type',
-  },
-  db: dbChainMock.db,
-}))
-
 import { DatabaseJobQueue } from '@/lib/core/async-jobs/backends/database'
+import { buildRecordedJobFailureResult } from '@/lib/core/async-jobs/recorded-failure'
 import { AsyncJobEnqueueError, MAX_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs/types'
 
 const EXISTING_JOB = {
@@ -460,5 +455,123 @@ describe('DatabaseJobQueue cancellation', () => {
       backend: 'database',
       result: 'cancelled',
     })
+  })
+})
+
+describe('DatabaseJobQueue a workflow job that completed with a recorded failure', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  const settledJob = {
+    ...EXISTING_JOB,
+    startedAt: new Date('2026-07-10T00:00:01.000Z'),
+    completedAt: new Date('2026-07-10T00:00:04.000Z'),
+    attempts: 1,
+  }
+
+  it('reads exactly as the row markJobFailed wrote before the runner stopped throwing', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { ...settledJob, status: 'failed', error: 'No start block found', output: null },
+    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        ...settledJob,
+        status: 'completed',
+        error: null,
+        output: buildRecordedJobFailureResult({
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          error: 'No start block found',
+        }),
+      },
+    ])
+    const queue = new DatabaseJobQueue()
+
+    const failedJob = await queue.getJob('workflow:1')
+    const recordedFailure = await queue.getJob('workflow:1')
+
+    expect(failedJob).toMatchObject({ status: 'failed', error: 'No start block found' })
+    expect(recordedFailure).toStrictEqual(failedJob)
+  })
+
+  it('leaves a completed webhook job that reported an unsuccessful execution completed', async () => {
+    const output = { success: false, workflowId: 'workflow-1', executionId: 'execution-1' }
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { ...settledJob, type: 'webhook-execution', status: 'completed', output },
+    ])
+    const queue = new DatabaseJobQueue()
+
+    await expect(queue.getJob('workflow:1')).resolves.toMatchObject({
+      status: 'completed',
+      error: undefined,
+      output,
+    })
+  })
+})
+
+describe('DatabaseJobQueue workspace cancellation', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('cancels only workflow job types, so the workspace’s other jobs keep running', async () => {
+    await new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 1000 })
+
+    const typeFilter = flattenMockConditions(dbChainMockFns.where.mock.calls[0][0]).find(
+      (node) => node.type === 'inArray' && node.column === asyncJobs.type
+    )
+    expect(typeFilter?.values).toEqual([
+      'workflow-execution',
+      'schedule-execution',
+      'webhook-execution',
+      'resume-execution',
+      'workflow-group-cell',
+    ])
+  })
+
+  const ids = (count: number, offset = 0) =>
+    Array.from({ length: count }, (_, index) => ({ id: `job-${offset + index}` }))
+
+  it('keeps cancelling in batches until a short batch shows none are left', async () => {
+    dbChainMockFns.returning
+      .mockResolvedValueOnce(ids(100))
+      .mockResolvedValueOnce(ids(100, 100))
+      .mockResolvedValueOnce(ids(30, 200))
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 1000 })
+    ).resolves.toEqual({ cancelledJobs: 230, complete: true })
+  })
+
+  it('reports a short batch incomplete while matching jobs remain', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce(ids(99))
+    queueTableRows(asyncJobs, [{ id: 'job-100' }])
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 1000 })
+    ).resolves.toEqual({ cancelledJobs: 99, complete: false })
+  })
+
+  it('stops at its run cap and reports the sweep incomplete', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce(ids(100)).mockResolvedValueOnce(ids(50, 100))
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 150 })
+    ).resolves.toEqual({ cancelledJobs: 150, complete: false })
+    expect(dbChainMockFns.returning).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels nothing once its caller’s time is up', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', {
+        maxRuns: 1000,
+        signal: controller.signal,
+      })
+    ).resolves.toEqual({ cancelledJobs: 0, complete: false })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

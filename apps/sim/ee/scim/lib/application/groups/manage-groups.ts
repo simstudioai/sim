@@ -4,7 +4,9 @@ import { scimGroup } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   defineAuthorizedScimUseCase,
   type ScimUseCaseArgs,
@@ -50,16 +52,19 @@ import {
 /**
  * Every group write runs in one transaction under the organization lock, which
  * heads the documented lock order, so two full-membership PATCHes cannot both
- * compute from the same stale membership and keep members from both.
+ * compute from the same stale membership and keep members from both. The runs
+ * its projection stopped are delivered once that transaction commits.
  */
-function withGroupWrite<T>(
+async function withGroupWrite<T extends { stoppedRuns: StoppedRun[] }>(
   context: ScimUseCaseContext,
-  work: (tx: DbOrTx) => Promise<T>
-): Promise<T> {
-  return db.transaction(async (tx) => {
+  work: (tx: DbTransaction) => Promise<T>
+): Promise<Omit<T, 'stoppedRuns'>> {
+  const { stoppedRuns, ...result } = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, context.organizationId)
     return work(tx)
   })
+  deliverRunStops(stoppedRuns)
+  return result
 }
 
 async function assertDisplayNameAvailable(
@@ -205,7 +210,7 @@ export const createScimGroup = defineAuthorizedScimUseCase({
           })
         : 'no-match'
 
-      await reconcileUsersProjection(tx, {
+      const projection = await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: memberIds,
@@ -225,6 +230,7 @@ export const createScimGroup = defineAuthorizedScimUseCase({
         resource: toGroupResource({ ...created, members }, context.baseUrl),
         touchedUserIds: memberIds,
         renamed: true,
+        stoppedRuns: projection.stoppedRuns,
       }
     })
   },
@@ -295,7 +301,7 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
       await assertMemberCount(tx, current.id)
       if (touched.size > 0) await touchScimGroup(tx, current.id)
 
-      await reconcileUsersProjection(tx, {
+      const projection = await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: [...touched],
@@ -317,6 +323,7 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         resource: toGroupResource({ ...refreshed, members }, context.baseUrl),
         touchedUserIds: [...touched],
         renamed: renamed || (current.externalId ?? null) !== (refreshed.externalId ?? null),
+        stoppedRuns: projection.stoppedRuns,
       }
     })
   },
@@ -428,7 +435,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
       await assertMemberCount(tx, current.id)
       if (touched.size > 0) await touchScimGroup(tx, current.id)
 
-      await reconcileUsersProjection(tx, {
+      const projection = await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: [...touched],
@@ -447,6 +454,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
           patch.kind === 'full' ? (patch.displayName ?? current.displayName) : current.displayName,
         touchedUserIds: [...touched],
         renamed,
+        stoppedRuns: projection.stoppedRuns,
       }
     })
   },
@@ -481,7 +489,7 @@ export const deleteScimGroup = defineAuthorizedScimUseCase({
        */
       const memberIds = await loadGroupMemberIds(tx, current.id)
       await deleteScimGroupRow(tx, current.id)
-      await reconcileUsersProjection(tx, {
+      const projection = await reconcileUsersProjection(tx, {
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: memberIds,
@@ -491,6 +499,7 @@ export const deleteScimGroup = defineAuthorizedScimUseCase({
         groupId: current.id,
         displayName: current.displayName,
         memberCount: memberIds.length,
+        stoppedRuns: projection.stoppedRuns,
       }
     })
   },

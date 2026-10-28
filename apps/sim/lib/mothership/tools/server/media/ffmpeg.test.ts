@@ -1,21 +1,16 @@
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const {
-  createWorkspaceFileSecretProvenanceFromRegistryMock,
-  fetchWorkspaceFileBufferMock,
-  getBoundWorkspaceFileSecretProvenanceMock,
-  mergeWorkspaceFileSecretProvenanceMock,
-  resolveWorkspaceFileReferenceMock,
-  runFfmpegOperationMock,
-  writeWorkspaceFileByPathMock,
-} = vi.hoisted(() => ({
-  createWorkspaceFileSecretProvenanceFromRegistryMock: vi.fn(),
-  fetchWorkspaceFileBufferMock: vi.fn(),
-  getBoundWorkspaceFileSecretProvenanceMock: vi.fn(),
-  mergeWorkspaceFileSecretProvenanceMock: vi.fn(),
-  resolveWorkspaceFileReferenceMock: vi.fn(),
+const { runFfmpegOperationMock, writeWorkspaceFileByPathMock } = vi.hoisted(() => ({
   runFfmpegOperationMock: vi.fn(),
   writeWorkspaceFileByPathMock: vi.fn(),
 }))
@@ -32,29 +27,37 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
   executeCopilotFileUseCase: async () => ({
     file,
-    content: await fetchWorkspaceFileBufferMock(file),
+    content: await workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer(file),
+    secretProvenance:
+      await workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance(),
   }),
   resolveCopilotWorkspaceFileReference: (...args: unknown[]) =>
-    resolveWorkspaceFileReferenceMock(...args),
+    workspaceFileManagerMockFns.mockResolveWorkspaceFileReference(...args),
 }))
 
 vi.mock('@/lib/media/ffmpeg', () => ({
   runFfmpegOperation: runFfmpegOperationMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
-  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  createWorkspaceFileSecretProvenanceFromRegistry:
-    createWorkspaceFileSecretProvenanceFromRegistryMock,
-  getBoundWorkspaceFileSecretProvenance: getBoundWorkspaceFileSecretProvenanceMock,
-  mergeWorkspaceFileSecretProvenance: mergeWorkspaceFileSecretProvenanceMock,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { ffmpegServerTool } from '@/lib/mothership/tools/server/media/ffmpeg'
+
+const {
+  mockFetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
+  mockResolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+} = workspaceFileManagerMockFns
+const {
+  mockCreateWorkspaceFileSecretProvenanceFromRegistry:
+    createWorkspaceFileSecretProvenanceFromRegistryMock,
+  mockGetBoundWorkspaceFileSecretProvenance: getBoundWorkspaceFileSecretProvenanceMock,
+  mockMergeWorkspaceFileSecretProvenance: mergeWorkspaceFileSecretProvenanceMock,
+} = workspaceFileSecretProvenanceMockFns
 
 const EXACT_EMPTY = { status: 'exact' as const, entries: [] }
 const TRACKED = {
@@ -250,22 +253,6 @@ describe('ffmpeg server tool secret provenance', () => {
       success: false,
       message: 'ffmpeg convert failed: The media operation failed safely',
     })
-  })
-
-  it('does not expose storage errors after learning that an input has tracked provenance', async () => {
-    getBoundWorkspaceFileSecretProvenanceMock.mockResolvedValue(TRACKED)
-    fetchWorkspaceFileBufferMock.mockRejectedValue(new Error('storage echoed private bytes'))
-
-    const result = await ffmpegServerTool.execute(
-      { operation: 'convert', inputs: { files: [{ path: 'files/input.mp4' }] } },
-      context
-    )
-
-    expect(result).toEqual({
-      success: false,
-      message: 'ffmpeg convert failed: The media operation failed safely',
-    })
-    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
   })
 
   it('projects dynamic parser errors before returning them', async () => {

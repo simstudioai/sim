@@ -275,11 +275,11 @@ export function LogsHeroLoop() {
 
   return (
     <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeItem='Logs'>
-      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+      <div className='size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           key={cycleId}
           className={cn(
-            'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
+            'flex size-full flex-col transition-opacity duration-300 ease-out',
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >

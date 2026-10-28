@@ -1,40 +1,31 @@
 ---
 title: Square
 description: Process payments and manage Square commerce data
+integration:
+  type: "square"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="square"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Square](https://squareup.com/) is a commerce platform that provides payment processing, point-of-sale, and business management tools for businesses of all sizes. It offers APIs for accepting payments, managing customers, and handling orders, invoices, and catalog data across online and in-person sales channels.
+Use [Square](https://squareup.com/) to take, retrieve, list, cancel, complete, or refund payments; manage customer profiles; create, retrieve, search, or pay for orders; and create, publish, cancel, or delete invoices.
 
-With Square, you can:
-
-- **Process payments and refunds**: Take, retrieve, list, cancel, complete, and refund payments
-- **Manage customers**: Create, retrieve, list, search, update, and delete customer profiles
-- **Manage orders and invoices**: Create, retrieve, search, and pay for orders, and create, publish, cancel, and delete invoices
-- **Manage catalog and inventory**: Upsert, retrieve, list, and search catalog objects, upload catalog images, and check inventory counts
-
-In Sim, the Square integration allows your agents to take and refund payments, manage customer profiles, look up business locations, create and track orders and invoices, and manage catalog items and inventory — all programmatically through API calls. This enables agents to handle real commerce operations such as charging a customer, issuing a refund, keeping customer records up to date, sending invoices, and maintaining product catalog and stock data, directly from a workflow.
+The actions also manage catalog objects and images, read inventory counts, and look up locations. Configure a Square access token and the target environment. Payment and refund actions change live commerce records; use the correct environment and the action's idempotency fields before running them.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Square into the workflow. Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).
-
-
+Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).
 
 ## Actions
 
 ### Square Create Payment
 
 Take a payment using a payment source such as a card nonce or a card on file
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,7 +47,7 @@ Take a payment using a payment source such as a card nonce or a card on file
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The created payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -96,9 +87,13 @@ Take a payment using a payment source such as a card nonce or a card on file
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
+</ReferenceDetails>
+
 ### Square Get Payment
 
 Retrieve details for a single payment by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -111,7 +106,7 @@ Retrieve details for a single payment by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The retrieved payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -151,9 +146,13 @@ Retrieve details for a single payment by its ID
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
+</ReferenceDetails>
+
 ### Square List Payments
 
 List payments taken by the account, optionally filtered by location and time range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -209,9 +208,13 @@ List payments taken by the account, optionally filtered by location and time ran
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Cancel Payment
 
 Cancel (void) an authorized payment that has not been captured
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,7 +227,7 @@ Cancel (void) an authorized payment that has not been captured
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The canceled payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -264,9 +267,13 @@ Cancel (void) an authorized payment that has not been captured
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
+</ReferenceDetails>
+
 ### Square Complete Payment
 
 Capture (complete) a payment that was authorized with delayed capture
+
+<ReferenceDetails>
 
 #### Input
 
@@ -280,7 +287,7 @@ Capture (complete) a payment that was authorized with delayed capture
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The completed payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -320,9 +327,13 @@ Capture (complete) a payment that was authorized with delayed capture
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
+</ReferenceDetails>
+
 ### Square Refund Payment
 
 Refund all or part of a completed payment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -339,7 +350,7 @@ Refund all or part of a completed payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `refund` | object | The created refund object |
+| `refund` | object | Square PaymentRefund object |
 |   ↳ `id` | string | Unique ID for the refund |
 |   ↳ `status` | string | Refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -357,9 +368,13 @@ Refund all or part of a completed payment
 |   ↳ `status` | string | Current refund status |
 |   ↳ `payment_id` | string | Refunded payment ID |
 
+</ReferenceDetails>
+
 ### Square Get Refund
 
 Retrieve a single payment refund by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,7 +387,7 @@ Retrieve a single payment refund by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `refund` | object | The retrieved refund object |
+| `refund` | object | Square PaymentRefund object |
 |   ↳ `id` | string | Unique ID for the refund |
 |   ↳ `status` | string | Refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -390,9 +405,13 @@ Retrieve a single payment refund by its ID
 |   ↳ `status` | string | Current refund status |
 |   ↳ `payment_id` | string | Refunded payment ID |
 
+</ReferenceDetails>
+
 ### Square List Refunds
 
 List payment refunds, optionally filtered by location, status, and time range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -427,9 +446,13 @@ List payment refunds, optionally filtered by location, status, and time range
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Create Customer
 
 Create a new customer profile in the Square customer directory
+
+<ReferenceDetails>
 
 #### Input
 
@@ -452,7 +475,7 @@ Create a new customer profile in the Square customer directory
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The created customer object |
+| `customer` | object | Square Customer object |
 |   ↳ `id` | string | Unique ID for the customer |
 |   ↳ `given_name` | string | First name of the customer |
 |   ↳ `family_name` | string | Last name of the customer |
@@ -487,9 +510,13 @@ Create a new customer profile in the Square customer directory
 |   ↳ `given_name` | string | Customer first name |
 |   ↳ `family_name` | string | Customer last name |
 
+</ReferenceDetails>
+
 ### Square Get Customer
 
 Retrieve a single customer profile by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -502,7 +529,7 @@ Retrieve a single customer profile by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The retrieved customer object |
+| `customer` | object | Square Customer object |
 |   ↳ `id` | string | Unique ID for the customer |
 |   ↳ `given_name` | string | First name of the customer |
 |   ↳ `family_name` | string | Last name of the customer |
@@ -537,9 +564,13 @@ Retrieve a single customer profile by its ID
 |   ↳ `given_name` | string | Customer first name |
 |   ↳ `family_name` | string | Customer last name |
 
+</ReferenceDetails>
+
 ### Square List Customers
 
 List customer profiles in the Square customer directory
+
+<ReferenceDetails>
 
 #### Input
 
@@ -588,9 +619,13 @@ List customer profiles in the Square customer directory
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Search Customers
 
 Search customer profiles using filters such as email, phone, or creation date
+
+<ReferenceDetails>
 
 #### Input
 
@@ -638,9 +673,13 @@ Search customer profiles using filters such as email, phone, or creation date
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Update Customer
 
 Update fields on an existing customer profile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -663,7 +702,7 @@ Update fields on an existing customer profile
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The updated customer object |
+| `customer` | object | Square Customer object |
 |   ↳ `id` | string | Unique ID for the customer |
 |   ↳ `given_name` | string | First name of the customer |
 |   ↳ `family_name` | string | Last name of the customer |
@@ -698,9 +737,13 @@ Update fields on an existing customer profile
 |   ↳ `given_name` | string | Customer first name |
 |   ↳ `family_name` | string | Customer last name |
 
+</ReferenceDetails>
+
 ### Square Delete Customer
 
 Delete a customer profile from the Square customer directory
+
+<ReferenceDetails>
 
 #### Input
 
@@ -716,9 +759,13 @@ Delete a customer profile from the Square customer directory
 | `deleted` | boolean | Whether the customer was deleted |
 | `id` | string | ID of the deleted customer |
 
+</ReferenceDetails>
+
 ### Square List Locations
 
 List all locations associated with the Square account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -760,9 +807,13 @@ List all locations associated with the Square account
 | `metadata` | json | List metadata |
 |   ↳ `count` | number | Number of locations returned |
 
+</ReferenceDetails>
+
 ### Square Get Location
 
 Retrieve a single location by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -775,7 +826,7 @@ Retrieve a single location by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `location` | object | The retrieved location object |
+| `location` | object | Square Location object |
 |   ↳ `id` | string | Unique ID for the location |
 |   ↳ `name` | string | Name of the location |
 |   ↳ `address` | object | Physical address |
@@ -806,9 +857,13 @@ Retrieve a single location by its ID
 |   ↳ `id` | string | Square location ID |
 |   ↳ `name` | string | Location name |
 
+</ReferenceDetails>
+
 ### Square Create Order
 
 Create an order with line items, taxes, discounts, and fulfillments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -822,7 +877,7 @@ Create an order with line items, taxes, discounts, and fulfillments
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The created order object |
+| `order` | object | Square Order object |
 |   ↳ `id` | string | Unique ID for the order |
 |   ↳ `location_id` | string | ID of the location for the order |
 |   ↳ `reference_id` | string | Optional external reference for the order |
@@ -857,9 +912,13 @@ Create an order with line items, taxes, discounts, and fulfillments
 |   ↳ `state` | string | Current order state |
 |   ↳ `location_id` | string | Order location ID |
 
+</ReferenceDetails>
+
 ### Square Get Order
 
 Retrieve a single order by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -872,7 +931,7 @@ Retrieve a single order by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The retrieved order object |
+| `order` | object | Square Order object |
 |   ↳ `id` | string | Unique ID for the order |
 |   ↳ `location_id` | string | ID of the location for the order |
 |   ↳ `reference_id` | string | Optional external reference for the order |
@@ -907,9 +966,13 @@ Retrieve a single order by its ID
 |   ↳ `state` | string | Current order state |
 |   ↳ `location_id` | string | Order location ID |
 
+</ReferenceDetails>
+
 ### Square Search Orders
 
 Search orders across one or more locations using filters and sorting
+
+<ReferenceDetails>
 
 #### Input
 
@@ -959,9 +1022,13 @@ Search orders across one or more locations using filters and sorting
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Pay Order
 
 Pay for an order using one or more already-approved payments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -977,7 +1044,7 @@ Pay for an order using one or more already-approved payments
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The paid order object |
+| `order` | object | Square Order object |
 |   ↳ `id` | string | Unique ID for the order |
 |   ↳ `location_id` | string | ID of the location for the order |
 |   ↳ `reference_id` | string | Optional external reference for the order |
@@ -1012,9 +1079,13 @@ Pay for an order using one or more already-approved payments
 |   ↳ `state` | string | Current order state |
 |   ↳ `location_id` | string | Order location ID |
 
+</ReferenceDetails>
+
 ### Square Create Invoice
 
 Create a draft invoice for an existing order and customer
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1028,7 +1099,7 @@ Create a draft invoice for an existing order and customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The created invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1053,9 +1124,13 @@ Create a draft invoice for an existing order and customer
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
+</ReferenceDetails>
+
 ### Square Get Invoice
 
 Retrieve a single invoice by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1068,7 +1143,7 @@ Retrieve a single invoice by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The retrieved invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1093,9 +1168,13 @@ Retrieve a single invoice by its ID
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
+</ReferenceDetails>
+
 ### Square List Invoices
 
 List invoices for a specific location
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1134,9 +1213,13 @@ List invoices for a specific location
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Search Invoices
 
 Search invoices across one or more locations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1175,9 +1258,13 @@ Search invoices across one or more locations
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Publish Invoice
 
 Publish a draft invoice so it is sent to the customer and becomes payable
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1192,7 +1279,7 @@ Publish a draft invoice so it is sent to the customer and becomes payable
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The published invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1217,9 +1304,13 @@ Publish a draft invoice so it is sent to the customer and becomes payable
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
+</ReferenceDetails>
+
 ### Square Cancel Invoice
 
 Cancel a published invoice that is unpaid or partially paid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1233,7 +1324,7 @@ Cancel a published invoice that is unpaid or partially paid
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The canceled invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1258,9 +1349,13 @@ Cancel a published invoice that is unpaid or partially paid
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
+</ReferenceDetails>
+
 ### Square Delete Invoice
 
 Delete a draft invoice
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1277,9 +1372,13 @@ Delete a draft invoice
 | `deleted` | boolean | Whether the invoice was deleted |
 | `id` | string | ID of the deleted invoice |
 
+</ReferenceDetails>
+
 ### Square Upsert Catalog Object
 
 Create or update a catalog object such as an item, variation, or category
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1293,7 +1392,7 @@ Create or update a catalog object such as an item, variation, or category
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `object` | object | The created or updated catalog object |
+| `object` | object | Square CatalogObject |
 |   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
 |   ↳ `id` | string | Unique ID for the catalog object |
 |   ↳ `version` | number | Optimistic concurrency version of the object |
@@ -1309,9 +1408,13 @@ Create or update a catalog object such as an item, variation, or category
 |   ↳ `type` | string | Catalog object type |
 |   ↳ `version` | number | Catalog object version |
 
+</ReferenceDetails>
+
 ### Square Get Catalog Object
 
 Retrieve a single catalog object by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1325,7 +1428,7 @@ Retrieve a single catalog object by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `object` | object | The retrieved catalog object |
+| `object` | object | Square CatalogObject |
 |   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
 |   ↳ `id` | string | Unique ID for the catalog object |
 |   ↳ `version` | number | Optimistic concurrency version of the object |
@@ -1341,9 +1444,13 @@ Retrieve a single catalog object by its ID
 |   ↳ `type` | string | Catalog object type |
 |   ↳ `version` | number | Catalog object version |
 
+</ReferenceDetails>
+
 ### Square List Catalog
 
 List catalog objects, optionally filtered by type
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1372,9 +1479,13 @@ List catalog objects, optionally filtered by type
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Search Catalog Objects
 
 Search catalog objects by type and query filters
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1405,9 +1516,13 @@ Search catalog objects by type and query filters
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### Square Create Catalog Image
 
 Upload an image and attach it to the catalog, optionally to a specific item
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1424,7 +1539,7 @@ Upload an image and attach it to the catalog, optionally to a specific item
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `object` | object | The created catalog image object |
+| `object` | object | Square CatalogObject |
 |   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
 |   ↳ `id` | string | Unique ID for the catalog object |
 |   ↳ `version` | number | Optimistic concurrency version of the object |
@@ -1440,9 +1555,13 @@ Upload an image and attach it to the catalog, optionally to a specific item
 |   ↳ `type` | string | Catalog object type |
 |   ↳ `version` | number | Catalog object version |
 
+</ReferenceDetails>
+
 ### Square Delete Catalog Object
 
 Delete a catalog object and its children (e.g. an item and its variations)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1459,9 +1578,13 @@ Delete a catalog object and its children (e.g. an item and its variations)
 | `deleted_object_ids` | array | IDs of all catalog objects deleted \(including children\) |
 | `deleted_at` | string | Timestamp when the deletion occurred \(RFC 3339\) |
 
+</ReferenceDetails>
+
 ### Square Batch Retrieve Inventory Counts
 
 Retrieve current inventory counts for catalog items across locations
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1489,5 +1612,7 @@ Retrieve current inventory counts for catalog items across locations
 | `metadata` | json | List pagination metadata |
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+</ReferenceDetails>
 
 

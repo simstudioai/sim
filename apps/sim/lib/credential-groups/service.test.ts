@@ -1,4 +1,8 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetPolicy, mockConfiguration } = vi.hoisted(() => ({
@@ -6,9 +10,7 @@ const { mockGetPolicy, mockConfiguration } = vi.hoisted(() => ({
   mockConfiguration: vi.fn(),
 }))
 
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapter: () => ({ getPolicy: mockGetPolicy }),
-}))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 vi.mock('@/lib/credential-groups/provider-configuration', () => ({
   decryptCredentialGroupProviderConfiguration: mockConfiguration,
 }))
@@ -23,6 +25,10 @@ import {
   SLACK_MANAGED_USER_SCOPES,
   SLACK_SEARCH_USER_SCOPES,
 } from '@/lib/credential-groups/slack-managed-user-scopes'
+
+credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue({
+  getPolicy: mockGetPolicy,
+})
 
 describe('Credential Group service', () => {
   beforeEach(() => {

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Chip, ChipCombobox, ChipInput, ChipTextarea } from '@sim/emcn'
 import { useBenchmarkWorkspaces, useCreateBenchmark } from '@/hooks/queries/benchmarks'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface CreateBenchmarkProps {
   organizationId: string
@@ -11,14 +12,26 @@ interface CreateBenchmarkProps {
 }
 
 export function CreateBenchmark({ organizationId, runAsUserId, onCreated }: CreateBenchmarkProps) {
-  const [sourceWorkspaceId, setSourceWorkspaceId] = useState('')
+  const [sourceWorkspace, setSourceWorkspace] = useState<{ value: string; label: string } | null>(
+    null
+  )
+  const [workspaceSearch, setWorkspaceSearch] = useState('')
   const [name, setName] = useState('')
   const [taskBrief, setTaskBrief] = useState('')
-  const workspaces = useBenchmarkWorkspaces(organizationId, runAsUserId)
+  const sourceWorkspaceId = sourceWorkspace?.value ?? ''
+  const workspaces = useBenchmarkWorkspaces(
+    organizationId,
+    runAsUserId,
+    useDebounce(workspaceSearch, 250)
+  )
   const createBenchmark = useCreateBenchmark(organizationId)
-  const options = (workspaces.data?.pages.flatMap((page) => page.workspaces) ?? []).map(
+  const loadedOptions = (workspaces.data?.pages.flatMap((page) => page.workspaces) ?? []).map(
     (workspace) => ({ value: workspace.id, label: workspace.name })
   )
+  const options =
+    sourceWorkspace && !loadedOptions.some((option) => option.value === sourceWorkspace.value)
+      ? [sourceWorkspace, ...loadedOptions]
+      : loadedOptions
 
   return (
     <form
@@ -41,9 +54,12 @@ export function CreateBenchmark({ organizationId, runAsUserId, onCreated }: Crea
           aria-label='Source workspace'
           options={options}
           value={sourceWorkspaceId}
-          onChange={setSourceWorkspaceId}
+          onChange={(value) =>
+            setSourceWorkspace(options.find((option) => option.value === value) ?? null)
+          }
           placeholder='Select a workspace'
           searchable
+          onSearchChange={setWorkspaceSearch}
           isLoading={workspaces.isLoading}
           error={workspaces.error?.message}
           disabled={createBenchmark.isPending}

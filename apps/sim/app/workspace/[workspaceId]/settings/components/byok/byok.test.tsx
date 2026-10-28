@@ -1,8 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,9 +42,7 @@ const mocks = vi.hoisted(() => ({
   mutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }))
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock('nuqs', () => ({
   useQueryState: () => [
@@ -176,6 +176,8 @@ vi.mock('@/hooks/queries/byok-keys', () => ({
 }))
 
 import { BYOK } from '@/app/workspace/[workspaceId]/settings/components/byok/byok'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 describe('BYOK scope access', () => {
   let container: HTMLDivElement

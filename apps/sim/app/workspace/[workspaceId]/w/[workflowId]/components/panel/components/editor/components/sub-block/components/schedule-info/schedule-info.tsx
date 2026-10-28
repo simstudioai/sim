@@ -1,6 +1,6 @@
 import { Badge } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useRedeployWorkflowSchedule, useScheduleQuery } from '@/hooks/queries/schedules'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
@@ -16,21 +16,20 @@ interface ScheduleInfoProps {
  * Schedule creation/deletion is handled during workflow deploy/undeploy.
  */
 export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) {
-  const params = useParams()
-  const workflowId = params.workflowId as string
+  const { workflowId } = useWorkflowScope()
 
   const scheduleTimezone = useSubBlockStore((state) => state.getValue(blockId, 'timezone')) as
     | string
     | undefined
 
-  const { data: schedule, isLoading } = useScheduleQuery(workflowId, blockId, {
+  const { data: schedule, isLoading } = useScheduleQuery(workflowId ?? undefined, blockId, {
     enabled: !isPreview,
   })
 
   const redeployMutation = useRedeployWorkflowSchedule()
 
   const handleRedeploy = () => {
-    if (isPreview || redeployMutation.isPending) return
+    if (isPreview || !workflowId || redeployMutation.isPending) return
     redeployMutation.mutate({ workflowId, blockId })
   }
 

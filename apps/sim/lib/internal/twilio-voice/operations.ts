@@ -14,7 +14,7 @@ import {
 } from '@/lib/internal/tool-operations/file-result'
 import { TwilioVoiceOperationError } from '@/lib/internal/twilio-voice/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { getExtensionFromMimeType } from '@/lib/uploads/utils/file'
 import type { TwilioGetRecordingParams } from '@/tools/twilio_voice/types'
 
 const logger = createLogger('TwilioGetRecordingOperation')

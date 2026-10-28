@@ -1,4 +1,5 @@
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { workspaceOperationReceipt as receiptTable } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
@@ -14,16 +15,10 @@ import {
   type ForkCopyProgress,
 } from '@/ee/workspace-forking/lib/copy/progress'
 
-const { mockRunForkContentCopy, receiptTable } = vi.hoisted(() => ({
+const { mockRunForkContentCopy } = vi.hoisted(() => ({
   mockRunForkContentCopy: vi.fn<typeof runForkContentCopy>(),
-  receiptTable: {
-    id: 'workspaceOperationReceipt.id',
-    workspaceId: 'workspaceOperationReceipt.workspaceId',
-    report: 'workspaceOperationReceipt.report',
-  },
 }))
 
-vi.mock('@sim/db/schema', () => ({ ...schemaMock, workspaceOperationReceipt: receiptTable }))
 vi.mock('@/ee/workspace-forking/lib/copy/content-copy-runner', () => ({
   runForkContentCopy: mockRunForkContentCopy,
 }))

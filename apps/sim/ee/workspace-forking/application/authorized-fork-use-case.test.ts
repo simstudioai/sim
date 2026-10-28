@@ -1,30 +1,32 @@
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { workspaceForkingAuthzMock } from '@sim/testing/mocks/workspace-forking-authz.mock'
+import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  permission: vi.fn(),
-  workspace: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   execute: vi.fn(),
   capability: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 }
-    return rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-  },
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/capability-assertions', () => ({
-  assertWorkspaceCapability: mocks.capability,
+  assertWorkspaceCapability: hoistedMocks.capability,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: mocks.workspace }))
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({ assertForkingEnabled: vi.fn() }))
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({ resolveForkEdge: vi.fn() }))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { defineForkUseCase } from '@/ee/workspace-forking/application/authorized-fork-use-case'
 import { forkOperations } from '@/ee/workspace-forking/application/operations'
+
+const mocks = {
+  ...hoistedMocks,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  workspace: permissionsMockFns.mockGetWorkspaceWithOwner,
+}
 
 const operation = defineForkUseCase({
   operation: forkOperations.sync,

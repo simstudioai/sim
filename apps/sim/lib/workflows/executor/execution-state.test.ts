@@ -1,16 +1,8 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMaterializeExecutionData } = vi.hoisted(() => ({
-  mockMaterializeExecutionData: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionData: mockMaterializeExecutionData,
-  TRACE_STORE_REF_KEY: 'traceStoreRef',
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 import {
   getExecutionInputForWorkflow,
@@ -18,6 +10,8 @@ import {
   getLatestExecutionStateWithExecutionId,
   getTrustedWorkflowToolExecution,
 } from '@/lib/workflows/executor/execution-state'
+
+const { mockMaterializeExecutionData } = traceStoreMockFns
 
 const EXECUTION_STATE = {
   blockStates: {},

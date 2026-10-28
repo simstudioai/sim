@@ -8,7 +8,7 @@ export interface AffinityPagination {
 }
 
 /** Cursor outputs every collection tool declares alongside its rows. */
-export interface AffinityCollectionMeta {
+interface AffinityCollectionMeta {
   count: number
   nextCursor: string | null
   prevCursor: string | null
@@ -26,7 +26,7 @@ export interface AffinityEntityResponse<T extends Record<string, unknown>> exten
 }
 
 /** Every tool authenticates with a workspace API key sent as a bearer token. */
-export interface AffinityAuthParams {
+interface AffinityAuthParams {
   apiKey: string
 }
 
@@ -42,7 +42,7 @@ export interface AffinityFilterParams extends AffinityCursorParams {
 }
 
 /** Collections that can be asked for the total size of the match. */
-export interface AffinityTotalCountParams {
+interface AffinityTotalCountParams {
   totalCount?: boolean
 }
 
@@ -261,7 +261,7 @@ export interface AffinitySearchByKeywordParams extends AffinityAuthParams {
   ids?: string | number[]
 }
 
-export interface AffinityNoteIdParams extends AffinityAuthParams {
+interface AffinityNoteIdParams extends AffinityAuthParams {
   noteId: string
 }
 

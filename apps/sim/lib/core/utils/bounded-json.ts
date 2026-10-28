@@ -1,8 +1,11 @@
 const MAX_JSON_NODES = 100_000
 const MAX_JSON_DEPTH = 64
 
-/** Counts JSON escapes without allocating the escaped string. */
-function quotedStringBytes(value: string, remaining: number): number | undefined {
+/**
+ * UTF-8 byte length of `JSON.stringify(value)` for a string, counted without
+ * allocating the escaped copy. Returns `undefined` once it exceeds `remaining`.
+ */
+export function quotedStringBytes(value: string, remaining: number): number | undefined {
   let bytes = 2
   for (let index = 0; index < value.length && bytes <= remaining; index++) {
     const code = value.charCodeAt(index)
@@ -19,6 +22,98 @@ function quotedStringBytes(value: string, remaining: number): number | undefined
     } else bytes += code >= 0xdc00 && code <= 0xdfff ? 6 : 3
   }
   return bytes <= remaining ? bytes : undefined
+}
+
+/** Measures plain JSON iteratively without serialization, copying, or additional node/depth caps. */
+export function isJsonWithinByteLimit(value: unknown, maxBytes: number): boolean {
+  if (!Number.isFinite(maxBytes) || maxBytes < 0 || value === undefined) return false
+  const invalid = Symbol('invalid JSON')
+  const ancestors = new WeakSet<object>()
+  const stack: {
+    value: object
+    entries: Generator<[string | null, unknown]>
+    count: number
+  }[] = []
+  let bytes = 0
+  const omitted = (item: unknown) =>
+    item === undefined || typeof item === 'function' || typeof item === 'symbol'
+  function* entries(container: object): Generator<[string | null, unknown]> {
+    if (Array.isArray(container)) {
+      const length = Object.getOwnPropertyDescriptor(container, 'length')?.value
+      if (typeof length !== 'number') {
+        yield [null, invalid]
+        return
+      }
+      for (let index = 0; index < length; index++) {
+        const field = Object.getOwnPropertyDescriptor(container, index)
+        if (field && !('value' in field)) {
+          yield [null, invalid]
+          return
+        }
+        yield [null, omitted(field?.value) ? null : field?.value]
+      }
+    } else {
+      for (const key in container) {
+        const field = Object.getOwnPropertyDescriptor(container, key)
+        if (!field?.enumerable) continue
+        if (!('value' in field)) {
+          yield [key, invalid]
+          return
+        }
+        if (!omitted(field.value)) yield [key, field.value]
+      }
+    }
+  }
+  try {
+    let item: unknown = value
+    for (;;) {
+      if (typeof item === 'string') {
+        const count = quotedStringBytes(item, maxBytes - bytes)
+        if (count === undefined) return false
+        bytes += count
+      } else if (item === null) bytes += 4
+      else if (typeof item === 'number') bytes += Number.isFinite(item) ? String(item).length : 4
+      else if (typeof item === 'boolean') bytes += item ? 4 : 5
+      else if (typeof item === 'object') {
+        if (ancestors.has(item)) return false
+        const prototype = Object.getPrototypeOf(item)
+        if (!Array.isArray(item) && prototype !== Object.prototype && prototype !== null)
+          return false
+        for (let owner: object | null = item; owner; owner = Object.getPrototypeOf(owner)) {
+          const serializer = Object.getOwnPropertyDescriptor(owner, 'toJSON')
+          if (!serializer) continue
+          if (!('value' in serializer) || typeof serializer.value === 'function') return false
+          break
+        }
+        bytes += 2
+        ancestors.add(item)
+        stack.push({ value: item, entries: entries(item), count: 0 })
+      } else return false
+      if (bytes > maxBytes) return false
+      for (;;) {
+        const frame = stack[stack.length - 1]
+        if (!frame) return true
+        const next = frame.entries.next()
+        if (next.done) {
+          ancestors.delete(frame.value)
+          stack.pop()
+          continue
+        }
+        if (frame.count++ > 0) bytes++
+        const [key, child] = next.value
+        if (key !== null) {
+          const count = quotedStringBytes(key, maxBytes - bytes)
+          if (count === undefined) return false
+          bytes += count + 1
+        }
+        if (bytes > maxBytes) return false
+        item = child
+        break
+      }
+    }
+  } catch {
+    return false
+  }
 }
 
 /** Captures bounded plain JSON once, without executing accessors or serializing the source graph. */

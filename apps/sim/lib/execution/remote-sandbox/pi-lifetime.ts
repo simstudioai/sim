@@ -4,9 +4,9 @@
  * against the same number without importing the provider SDKs.
  */
 
+import { inspectCapability, SANDBOX_CAPABILITY } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { inspectCapability, SANDBOX_CAPABILITY } from '@/lib/core/config/env-capabilities'
 import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const logger = createLogger('PiSandboxLifetime')

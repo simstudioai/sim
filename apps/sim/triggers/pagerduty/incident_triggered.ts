@@ -1,11 +1,11 @@
 import { PagerDutyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildPagerDutyExtraFields,
   buildPagerDutyIncidentOutputs,
   pagerdutySetupInstructions,
   pagerdutyTriggerOptions,
 } from '@/triggers/pagerduty/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const pagerdutyIncidentTriggeredTrigger: TriggerConfig = {

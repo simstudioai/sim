@@ -59,9 +59,11 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   // correlation: the callback echoes it on every result (even failures that resolve no serverId),
   // so the tab that started this exact flow matches it while other same-origin tabs — and
   // unrelated flows in this tab — ignore the broadcast.
-  const pendingFlowsRef = useRef<
-    Map<string, { serverId: string; timeout: number; poll?: number; labelCleared?: boolean }>
-  >(new Map())
+  const pendingFlowsRef = useRef<Map<
+    string,
+    { serverId: string; timeout: number; poll?: number; labelCleared?: boolean }
+  > | null>(null)
+  const pendingFlows = (pendingFlowsRef.current ??= new Map())
   // serverIds with an in-flight `/oauth/start` request — guards a fast double-click from opening
   // two popups. Cleared once the request settles, so a later click (to reopen an abandoned
   // popup) still starts a fresh flow.
@@ -99,11 +101,11 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   /** End one flow by its `state` nonce, decrementing its server's connecting count exactly once. */
   const settleFlow = useCallback(
     (state: string) => {
-      const flow = pendingFlowsRef.current.get(state)
+      const flow = pendingFlows.get(state)
       if (!flow) return
       window.clearTimeout(flow.timeout)
       if (flow.poll !== undefined) window.clearInterval(flow.poll)
-      pendingFlowsRef.current.delete(state)
+      pendingFlows.delete(state)
       // The popup-closed poll may have already cleared this flow's label share.
       if (!flow.labelCleared) decConnecting(flow.serverId)
     },
@@ -114,7 +116,7 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   const retireFlows = useCallback(
     (serverId: string) => {
       const states: string[] = []
-      for (const [state, flow] of pendingFlowsRef.current) {
+      for (const [state, flow] of pendingFlows) {
         if (flow.serverId === serverId) states.push(state)
       }
       for (const state of states) settleFlow(state)
@@ -123,13 +125,12 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   )
 
   useEffect(() => {
-    const pending = pendingFlowsRef.current
     return () => {
-      for (const { timeout, poll } of pending.values()) {
+      for (const { timeout, poll } of pendingFlows.values()) {
         window.clearTimeout(timeout)
         if (poll !== undefined) window.clearInterval(poll)
       }
-      pending.clear()
+      pendingFlows.clear()
     }
   }, [])
 
@@ -143,7 +144,7 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
       const data = event.data as Partial<McpOauthCallbackMessage> | null
       if (data?.type !== 'mcp-oauth') return
       if (!data.state) return
-      const flow = pendingFlowsRef.current.get(data.state)
+      const flow = pendingFlows.get(data.state)
       if (!flow) return
       const { serverId } = flow
       settleFlow(data.state)
@@ -217,7 +218,7 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           serverId,
           timeout: window.setTimeout(() => settleFlow(state), OAUTH_FLOW_TIMEOUT_MS),
         }
-        pendingFlowsRef.current.set(state, flow)
+        pendingFlows.set(state, flow)
         // Best-effort label clear when the user closes the popup: under COOP `closed` can
         // misreport true, so this only clears the "Waiting for authorization..." share of
         // the count — the flow entry stays registered, and a completion that still arrives
@@ -232,7 +233,7 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
           if (!closed) return
           if (flow.poll !== undefined) window.clearInterval(flow.poll)
           flow.poll = undefined
-          if (!flow.labelCleared && pendingFlowsRef.current.get(state) === flow) {
+          if (!flow.labelCleared && pendingFlows.get(state) === flow) {
             flow.labelCleared = true
             decConnecting(serverId)
           }

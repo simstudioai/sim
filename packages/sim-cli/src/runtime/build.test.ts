@@ -111,7 +111,6 @@ async function run(argv: string[], response: unknown = { data: [], nextCursor: n
 
 describe('commands parsed through commander', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     profileState.workspaceId = 'ws_local'
   })
 
@@ -457,6 +456,21 @@ describe('single-resource rendering', () => {
 })
 
 describe('pagination slot', () => {
+  it('fetches the complete Project file inventory by default', async () => {
+    mockRequest.mockReset()
+    mockRequest
+      .mockResolvedValueOnce({ data: [{ id: 'first' }], nextCursor: 'next' })
+      .mockResolvedValueOnce({ data: [{ id: 'last' }], nextCursor: null })
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => printed.push(line))
+    await program().parseAsync(['node', 'sim', 'projects', 'files', 'list', 'project-1'])
+    expect(mockRequest).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(printed.join('\n'))).toEqual({
+      data: [{ id: 'first' }, { id: 'last' }],
+      nextCursor: null,
+    })
+  })
+
   it.each([
     { argv: ['files', 'list'], cursors: ['c1', 'c1'] },
     { argv: ['files', 'list'], cursors: ['c1', 'c2', 'c1'] },

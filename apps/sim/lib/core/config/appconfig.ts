@@ -6,6 +6,7 @@ import {
 } from '@aws-sdk/client-appconfigdata'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecordOrNull } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import { getAwsCredentialsFromEnv } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
@@ -13,6 +14,35 @@ import { env } from '@/lib/core/config/env'
 const logger = createLogger('AppConfig')
 
 const DEFAULT_TTL_MS = 30_000
+
+/**
+ * Oldest shared snapshot a Trigger.dev run adopts. Long-lived app processes
+ * republish on every poll (at most every 60s each), so a healthy fleet keeps the
+ * snapshot well inside this window; anything older falls back to AppConfig.
+ */
+const SHARED_SNAPSHOT_MAX_AGE_MS = 120_000
+/** Publisher and reader clocks differ; a snapshot this far in the future is still current. */
+const SHARED_SNAPSHOT_CLOCK_SKEW_MS = 5_000
+const SHARED_SNAPSHOT_KEY_TTL_MS = 600_000
+const SHARED_SNAPSHOT_KEY_PREFIX = 'appconfig:snapshot:v1:'
+
+/**
+ * Stores a snapshot only when its `validatedAt` is later than the one already held.
+ * `validatedAt` records when a process last confirmed its document, not which
+ * revision it holds: after a deployment, a process that has not polled yet can
+ * still overwrite the new document, for at most one poll interval.
+ */
+const PUBLISH_SNAPSHOT_SCRIPT = `
+local current = redis.call('GET', KEYS[1])
+if current then
+  local ok, decoded = pcall(cjson.decode, current)
+  if ok and type(decoded) == 'table' and tonumber(decoded.validatedAt) and tonumber(decoded.validatedAt) >= tonumber(ARGV[2]) then
+    return 0
+  end
+end
+redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[3])
+return 1
+`
 
 export interface AppConfigProfileIdentifiers {
   application: string
@@ -23,6 +53,8 @@ export interface AppConfigProfileIdentifiers {
 interface CacheEntry<T> {
   /** Last successfully parsed value, or `null` if the config is empty/unseeded. */
   value: T | null
+  /** Raw document behind `value`, republished so other processes run their own `parse`. */
+  raw: string | null
   /** Token for the next `GetLatestConfiguration` poll, rotated on each call. */
   nextToken: string | undefined
   validatedAt: number | null
@@ -39,6 +71,17 @@ interface PollContext {
   ids: AppConfigProfileIdentifiers
   parse: (json: unknown) => unknown
   strict: boolean
+  shared: boolean
+}
+
+interface AppConfigProfileOptions {
+  /**
+   * Publish this profile to Redis from app processes, and let Trigger.dev runs
+   * adopt it there instead of opening their own AppConfig session. Only for
+   * profiles whose readers tolerate up to {@link SHARED_SNAPSHOT_MAX_AGE_MS}
+   * of extra propagation delay inside runs.
+   */
+  shareWithTriggerRuns?: boolean
 }
 
 const cache = new LRUCache<string, CacheEntry<unknown>, PollContext>({
@@ -51,12 +94,18 @@ const cache = new LRUCache<string, CacheEntry<unknown>, PollContext>({
   fetchMethod: async (_key, stale, { context, options }) => {
     const entry = stale ?? {
       value: null,
+      raw: null,
       nextToken: undefined,
       validatedAt: null,
       remoteMatchesValue: false,
       strict: context.strict,
     }
+    if (!entry.nextToken && context.shared && (await adoptSharedSnapshot(context, entry))) {
+      options.ttl = DEFAULT_TTL_MS
+      return entry
+    }
     options.ttl = await poll(context.ids, context.parse, entry)
+    if (context.shared) publishSharedSnapshot(context.ids, entry)
     return entry
   },
 })
@@ -135,6 +184,7 @@ async function poll<T>(
       }
       const text = new TextDecoder().decode(response.Configuration)
       entry.value = parse(JSON.parse(text))
+      entry.raw = text
       entry.remoteMatchesValue = true
     }
     if (entry.remoteMatchesValue && entry.value !== null) {
@@ -151,6 +201,76 @@ async function poll<T>(
   return Math.max(DEFAULT_TTL_MS, intervalMs)
 }
 
+function sharedSnapshotKey(ids: AppConfigProfileIdentifiers): string {
+  return `${SHARED_SNAPSHOT_KEY_PREFIX}${cacheKey(ids)}`
+}
+
+/**
+ * Every Trigger.dev run starts a fresh process, and each new AppConfig session is
+ * billed for the full configuration it receives. A run therefore adopts the
+ * snapshot the long-lived app processes publish, and opens its own session only
+ * when that snapshot is missing, stale, unreadable, or fails `parse`.
+ */
+async function adoptSharedSnapshot(
+  context: PollContext,
+  entry: CacheEntry<unknown>
+): Promise<boolean> {
+  try {
+    const { isInsideTriggerRun } = await import('@/lib/core/config/trigger-runtime')
+    if (!isInsideTriggerRun()) return false
+    const { getRedisClient } = await import('@/lib/core/config/redis')
+    const redis = getRedisClient()
+    if (!redis) return false
+    const stored = await redis.get(sharedSnapshotKey(context.ids))
+    if (!stored) return false
+    const snapshot = toRecordOrNull(JSON.parse(stored))
+    const raw = snapshot?.raw
+    const validatedAt = snapshot?.validatedAt
+    if (typeof raw !== 'string' || typeof validatedAt !== 'number') return false
+    const age = Date.now() - validatedAt
+    if (age < -SHARED_SNAPSHOT_CLOCK_SKEW_MS || age >= SHARED_SNAPSHOT_MAX_AGE_MS) return false
+    entry.value = context.parse(JSON.parse(raw))
+    entry.raw = raw
+    entry.validatedAt = validatedAt
+    return true
+  } catch (error) {
+    logger.warn('Shared AppConfig snapshot unavailable; polling AppConfig', {
+      profile: cacheKey(context.ids),
+      error: getErrorMessage(error),
+    })
+    return false
+  }
+}
+
+/**
+ * Fire-and-forget: publishing never delays or fails the caller's read. Only app
+ * processes publish, so every stored `validatedAt` comes from one fleet's clock.
+ */
+function publishSharedSnapshot(ids: AppConfigProfileIdentifiers, entry: CacheEntry<unknown>): void {
+  const { raw, validatedAt } = entry
+  if (raw === null || validatedAt === null || !entry.remoteMatchesValue) return
+  void (async () => {
+    const { isInsideTriggerRun } = await import('@/lib/core/config/trigger-runtime')
+    if (isInsideTriggerRun()) return
+    const { getRedisClient } = await import('@/lib/core/config/redis')
+    const redis = getRedisClient()
+    if (!redis) return
+    await redis.eval(
+      PUBLISH_SNAPSHOT_SCRIPT,
+      1,
+      sharedSnapshotKey(ids),
+      JSON.stringify({ raw, validatedAt }),
+      String(validatedAt),
+      String(SHARED_SNAPSHOT_KEY_TTL_MS)
+    )
+  })().catch((error) => {
+    logger.warn('Failed to publish shared AppConfig snapshot', {
+      profile: cacheKey(ids),
+      error: getErrorMessage(error),
+    })
+  })
+}
+
 /**
  * Fetch and cache a single AppConfig configuration profile as JSON.
  *
@@ -161,13 +281,17 @@ async function poll<T>(
  * round trip after the first (cold) fetch. Concurrent callers share one in-flight
  * poll (avoids racing the rotating session token). Returns `null` when the config
  * is empty/unseeded or the first fetch fails.
+ *
+ * With `shareWithTriggerRuns`, a cold cache inside a Trigger.dev run first adopts
+ * the snapshot that app processes publish to Redis (see {@link adoptSharedSnapshot}).
  */
 export async function fetchAppConfigProfile<T>(
   ids: AppConfigProfileIdentifiers,
-  parse: (json: unknown) => T
+  parse: (json: unknown) => T,
+  options: AppConfigProfileOptions = {}
 ): Promise<T | null> {
   const entry = await cache.fetch(cacheKey(ids), {
-    context: { ids, parse, strict: false },
+    context: { ids, parse, strict: false, shared: options.shareWithTriggerRuns === true },
     allowStale: true,
   })
   return (entry?.value ?? null) as T | null
@@ -183,7 +307,7 @@ export async function fetchAppConfigSnapshot<T>(
   parse: (json: unknown) => T
 ): Promise<AppConfigSnapshot<T>> {
   const entry = await cache.fetch(`strict:${cacheKey(ids)}`, {
-    context: { ids, parse, strict: true },
+    context: { ids, parse, strict: true, shared: false },
     allowStale: false,
   })
   return Object.freeze({

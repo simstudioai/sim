@@ -11,9 +11,21 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
   readWorkflowMetadataForTool: workflowMetadataMocks.readWorkflowMetadataForTool,
 }))
 
+import { getParamsForToolOperation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
+import { GreenhouseV2Block } from '@/blocks/blocks/greenhouse'
+import { IntuneBlock } from '@/blocks/blocks/intune'
+import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
+import { RampBlock } from '@/blocks/blocks/ramp'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
+import * as blockRegistry from '@/blocks/registry'
 import { normalizeFileInput } from '@/blocks/utils'
+import {
+  findProviderFromModel,
+  getMaxOutputTokensForModel,
+  getMaxTemperature,
+  supportsTemperature,
+} from '@/providers/models'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
 import type { ProviderToolConfig } from '@/providers/types'
 import {
@@ -21,29 +33,582 @@ import {
   calculateCost,
   describeModelLevel,
   extractAndParseJSON,
-  findProviderFromModel,
   formatCost,
   generateStructuredOutputInstructions,
   getApiKey,
   getBaseModelProviders,
-  getMaxOutputTokensForModel,
-  getMaxTemperature,
   getProvider,
   getProviderFromModel,
-  isGemini3Model,
+  isGemini3OrLaterModel,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   shouldBillModelUsage,
-  supportsTemperature,
   transformBlockTool,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import { greenhouseConvertProspectV2Tool } from '@/tools/greenhouse/convert_prospect_v2'
+import { greenhouseCreateApplicationV2Tool } from '@/tools/greenhouse/create_application_v2'
+import { greenhouseHireApplicationV2Tool } from '@/tools/greenhouse/hire_application_v2'
+import { greenhouseListCandidatesV2Tool } from '@/tools/greenhouse/list_candidates_v2'
+import { greenhouseListJobOwnersV2Tool } from '@/tools/greenhouse/list_job_owners_v2'
+import { greenhouseListJobsV2Tool } from '@/tools/greenhouse/list_jobs_v2'
+import { greenhouseListNotesV2Tool } from '@/tools/greenhouse/list_notes_v2'
+import { greenhouseListOffersV2Tool } from '@/tools/greenhouse/list_offers_v2'
+import type {
+  GreenhouseConvertProspectV2Params,
+  GreenhouseCreateApplicationV2Params,
+  GreenhouseHireApplicationV2Params,
+  GreenhouseListCandidatesV2Params,
+  GreenhouseUpdateApplicationV2Params,
+} from '@/tools/greenhouse/types'
+import { greenhouseUpdateApplicationV2Tool } from '@/tools/greenhouse/update_application_v2'
+import { intuneListDetectedAppsTool } from '@/tools/intune/list-detected-apps'
+import { intuneListDevicesTool } from '@/tools/intune/list-devices'
+import * as toolMetadata from '@/tools/metadata'
+import { clearRangeTool } from '@/tools/microsoft_excel/clear_range'
+import { createTableTool } from '@/tools/microsoft_excel/create_table'
+import { sortRangeTool } from '@/tools/microsoft_excel/sort_range'
+import { getSubBlocksForToolInput } from '@/tools/params'
+import { rampListReimbursementsTool } from '@/tools/ramp/list-reimbursements'
+import { rampListTransactionsTool } from '@/tools/ramp/list-transactions'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
 import { falaiVideoTool } from '@/tools/video/falai'
 import { runwayVideoTool } from '@/tools/video/runway'
 
 const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
+
+describe('integration filters through agent execution', () => {
+  it.each([
+    {
+      operation: 'list_jobs',
+      field: 'status',
+      staleValue: 'active',
+      tool: greenhouseListJobsV2Tool,
+    },
+    {
+      operation: 'list_job_owners',
+      field: 'type',
+      staleValue: 'NOTE',
+      tool: greenhouseListJobOwnersV2Tool,
+    },
+    {
+      operation: 'list_notes',
+      field: 'visibility',
+      staleValue: 'private',
+      tool: greenhouseListNotesV2Tool,
+    },
+    {
+      operation: 'list_candidates',
+      field: 'created_at',
+      staleValue: '2026-01-01',
+      tool: greenhouseListCandidatesV2Tool,
+    },
+  ])(
+    'clears incompatible $field when switching to $operation',
+    async ({ operation, field, staleValue, tool }) => {
+      vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GreenhouseV2Block)
+      const previousParams = {
+        [field]: staleValue,
+        per_page: '25',
+        credential: 'fixture-credential',
+      }
+      const params = getParamsForToolOperation(
+        { type: 'greenhouse_v2', params: previousParams },
+        tool
+      )
+      const providerTool = await transformBlockTool(
+        { type: 'greenhouse_v2', params },
+        {
+          selectedOperation: operation,
+          getAllBlocks: () => [GreenhouseV2Block],
+          getTool: () => tool,
+        }
+      )
+      if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+      const { executionParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+      const url =
+        typeof tool.request.url === 'function'
+          ? tool.request.url({ ...executionParams, accessToken: 'fixture-token' })
+          : tool.request.url
+      expect(new URL(url).searchParams.has(field)).toBe(false)
+      expect(new URL(url).searchParams.get('per_page')).toBe('25')
+      expect(params.credential).toBe('fixture-credential')
+      expect(previousParams[field]).toBe(staleValue)
+    }
+  )
+
+  it('uses the newly supplied application target and fields after leaving candidate operations', async () => {
+    const tool = greenhouseUpdateApplicationV2Tool
+    vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GreenhouseV2Block)
+    const params = getParamsForToolOperation(
+      {
+        type: 'greenhouse_v2',
+        params: {
+          id: '42',
+          custom_fields: '[{"custom_field_id":7,"value":"candidate value"}]',
+          source_id: '81',
+        },
+      },
+      tool
+    )
+    const providerTool = await transformBlockTool(
+      { type: 'greenhouse_v2', params },
+      {
+        selectedOperation: 'update_application',
+        getAllBlocks: () => [GreenhouseV2Block],
+        getTool: () => tool,
+      }
+    )
+    if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+    const { executionParams } = prepareToolExecution(providerTool, { id: 99 }, {}, undefined)
+    const execution = {
+      ...executionParams,
+      accessToken: 'fixture-token',
+    } as GreenhouseUpdateApplicationV2Params
+    const url =
+      typeof tool.request.url === 'function' ? tool.request.url(execution) : tool.request.url
+    expect(new URL(url).pathname).toBe('/v3/applications/99')
+    expect(tool.request.body?.(execution)).toEqual({ source_id: 81 })
+  })
+
+  it('does not carry a list-filter job CSV into a prospect creation', async () => {
+    const tool = greenhouseCreateApplicationV2Tool
+    vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GreenhouseV2Block)
+    const params = getParamsForToolOperation(
+      {
+        type: 'greenhouse_v2',
+        params: {
+          job_ids: '11,12',
+          candidate_id: '42',
+        },
+      },
+      tool
+    )
+    const providerTool = await transformBlockTool(
+      { type: 'greenhouse_v2', params },
+      {
+        selectedOperation: 'create_application',
+        getAllBlocks: () => [GreenhouseV2Block],
+        getTool: () => tool,
+      }
+    )
+    if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { prospect: true, job_ids: [81] },
+      {},
+      undefined
+    )
+    expect(
+      tool.request.body?.({
+        ...executionParams,
+        accessToken: 'fixture-token',
+      } as GreenhouseCreateApplicationV2Params)
+    ).toEqual({ candidate_id: 42, prospect: true, job_ids: [81] })
+  })
+
+  it('uses a newly supplied internal opening ID after leaving opening list filters', async () => {
+    const tool = greenhouseHireApplicationV2Tool
+    vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GreenhouseV2Block)
+    const params = getParamsForToolOperation(
+      { type: 'greenhouse_v2', params: { opening_id: 'external-opening' } },
+      tool
+    )
+    const providerTool = await transformBlockTool(
+      { type: 'greenhouse_v2', params },
+      {
+        selectedOperation: 'hire_application',
+        getAllBlocks: () => [GreenhouseV2Block],
+        getTool: () => tool,
+      }
+    )
+    if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { id: 99, opening_id: 81 },
+      {},
+      undefined
+    )
+    expect(
+      tool.request.body?.({
+        ...executionParams,
+        accessToken: 'fixture-token',
+      } as GreenhouseHireApplicationV2Params)
+    ).toEqual({ opening_id: 81 })
+  })
+
+  it.each(['credential', 'oauthCredential'])(
+    'preserves configured %s but not a resolved token across OAuth operations',
+    (credentialId) => {
+      vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GreenhouseV2Block)
+      const params = getParamsForToolOperation(
+        {
+          type: 'greenhouse_v2',
+          params: {
+            [credentialId]: 'fixture-credential',
+            accessToken: 'expired-resolved-token',
+          },
+        },
+        greenhouseListJobsV2Tool
+      )
+      expect(params[credentialId]).toBe('fixture-credential')
+      expect(params).not.toHaveProperty('accessToken')
+    }
+  )
+
+  it.each([
+    { operation: 'list_jobs', field: 'status', tool: greenhouseListJobsV2Tool },
+    { operation: 'list_offers', field: 'status', tool: greenhouseListOffersV2Tool },
+    { operation: 'list_job_owners', field: 'type', tool: greenhouseListJobOwnersV2Tool },
+    { operation: 'list_notes', field: 'visibility', tool: greenhouseListNotesV2Tool },
+  ])(
+    'sends every offered $operation $field choice to the API',
+    async ({ operation, field, tool }) => {
+      vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+      const control = getSubBlocksForToolInput(
+        tool.id,
+        'greenhouse_v2',
+        { operation },
+        undefined,
+        GreenhouseV2Block
+      )?.subBlocks.find((item) => item.id === field)
+      if (!control) throw new Error('Configured filter control is unavailable')
+      const choices =
+        typeof control.options === 'function' ? control.options({ values: {} }) : control.options
+      if (!choices?.some((choice) => choice.id)) throw new Error('Filter choices are unavailable')
+
+      for (const choice of choices.filter((item) => item.id)) {
+        const providerTool = await transformBlockTool(
+          { type: 'greenhouse_v2', params: { [control.id]: choice.id } },
+          {
+            selectedOperation: operation,
+            getAllBlocks: () => [GreenhouseV2Block],
+            getTool: () => tool,
+          }
+        )
+        if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+        const { executionParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+        const params = { ...executionParams, accessToken: 'fixture-token' }
+        const url =
+          typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+        expect(new URL(url).searchParams.get(field)).toBe(choice.id)
+      }
+    }
+  )
+
+  it('sends configured Greenhouse conversion fields from the offered controls to the API', async () => {
+    const tool = greenhouseConvertProspectV2Tool
+    vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+    const fields = getSubBlocksForToolInput(
+      tool.id,
+      'greenhouse_v2',
+      { operation: 'convert_prospect' },
+      undefined,
+      GreenhouseV2Block
+    )?.subBlocks
+    const idField = fields?.find((field) => field.id === 'id')
+    const jobField = fields?.find((field) => field.id === 'job_id')
+    if (!idField || !jobField) throw new Error('Conversion target controls are unavailable')
+    const providerTool = await transformBlockTool(
+      { type: 'greenhouse_v2', params: { [idField.id]: '42', [jobField.id]: '81' } },
+      {
+        selectedOperation: 'convert_prospect',
+        getAllBlocks: () => [GreenhouseV2Block],
+        getTool: () => tool,
+      }
+    )
+    if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { id: 99, job_id: 98 },
+      {},
+      undefined
+    )
+    const params = {
+      ...executionParams,
+      accessToken: 'fixture-token',
+    } as GreenhouseConvertProspectV2Params
+    const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+    expect(new URL(url).pathname).toBe('/v3/applications/42/convert_to_candidate')
+    expect(tool.request.body?.(params)).toEqual({ job_id: 81 })
+  })
+
+  it.each(['configured', 'model'] as const)(
+    'sends a %s Greenhouse date range without a stored operation',
+    async (source) => {
+      const tool = greenhouseListCandidatesV2Tool
+      vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+      const field = getSubBlocksForToolInput(
+        tool.id,
+        'greenhouse_v2',
+        { operation: 'list_candidates' },
+        undefined,
+        GreenhouseV2Block
+      )?.subBlocks.find((item) => item.id === 'created_at')
+      if (!field) throw new Error('Created-at filter control is unavailable')
+      const range = { gte: '2026-01-01T00:00:00Z' }
+      const providerTool = await transformBlockTool(
+        {
+          type: 'greenhouse_v2',
+          params: source === 'configured' ? { [field.id]: JSON.stringify(range) } : {},
+        },
+        {
+          selectedOperation: 'list_candidates',
+          getAllBlocks: () => [GreenhouseV2Block],
+          getTool: () => tool,
+        }
+      )
+      if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { created_at: range },
+        {},
+        undefined
+      )
+      const params = {
+        ...executionParams,
+        accessToken: 'fixture-token',
+      } as GreenhouseListCandidatesV2Params
+      const url =
+        typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+      expect(new URL(url).searchParams.get('created_at')).toBe('gte|2026-01-01T00:00:00Z')
+    }
+  )
+
+  const rampCases = [
+    {
+      operation: 'list_transactions',
+      tool: rampListTransactionsTool,
+      field: 'transaction_state',
+      staleField: 'reimbursement_state',
+      value: 'CLEARED',
+      staleValue: 'REJECTED',
+    },
+    {
+      operation: 'list_reimbursements',
+      tool: rampListReimbursementsTool,
+      field: 'reimbursement_state',
+      staleField: 'transaction_state',
+      value: 'APPROVED',
+      staleValue: 'DECLINED',
+    },
+  ] as const
+
+  it.each(rampCases)(
+    'sends the model-supplied $operation filter without a stored operation',
+    async ({ operation, tool, field, staleField, value, staleValue }) => {
+      const providerTool = await transformBlockTool(
+        { type: 'ramp', params: { [staleField]: staleValue } },
+        { selectedOperation: operation, getAllBlocks: () => [RampBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Ramp agent tool was not created')
+      const modelField = ['state', field].find((key) =>
+        Object.hasOwn(providerTool.parameters?.properties ?? {}, key)
+      )
+      if (!modelField) throw new Error('Ramp filter is not exposed to the model')
+
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { [modelField]: value },
+        {},
+        undefined
+      )
+      const url =
+        typeof tool.request.url === 'function'
+          ? tool.request.url({ ...executionParams, accessToken: 'fixture-token' })
+          : tool.request.url
+
+      expect(new URL(url).searchParams.get('state')).toBe(value)
+    }
+  )
+
+  it.each(rampCases)(
+    'keeps the configured $operation filter ahead of model arguments',
+    async ({ operation, tool, field, value }) => {
+      const providerTool = await transformBlockTool(
+        { type: 'ramp', params: { [field]: value } },
+        { selectedOperation: operation, getAllBlocks: () => [RampBlock], getTool: () => tool }
+      )
+      if (!providerTool) throw new Error('Ramp agent tool was not created')
+
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { state: 'PENDING', [field]: 'PENDING' },
+        {},
+        undefined
+      )
+      const url =
+        typeof tool.request.url === 'function'
+          ? tool.request.url({ ...executionParams, accessToken: 'fixture-token' })
+          : tool.request.url
+
+      expect(new URL(url).searchParams.get('state')).toBe(value)
+    }
+  )
+
+  it.each(['model', 'configured'] as const)(
+    'sends the %s device filter without a stored operation',
+    async (source) => {
+      const filter = "complianceState eq 'noncompliant'"
+      const providerTool = await transformBlockTool(
+        { type: 'intune', params: source === 'configured' ? { filter } : {} },
+        {
+          selectedOperation: 'intune_list_devices',
+          getAllBlocks: () => [IntuneBlock],
+          getTool: () => intuneListDevicesTool,
+        }
+      )
+      if (!providerTool) throw new Error('Intune agent tool was not created')
+
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { filter: source === 'configured' ? "complianceState eq 'compliant'" : filter },
+        {},
+        undefined
+      )
+      const url =
+        typeof intuneListDevicesTool.request.url === 'function'
+          ? intuneListDevicesTool.request.url({ ...executionParams, accessToken: 'fixture-token' })
+          : intuneListDevicesTool.request.url
+
+      expect(new URL(url).searchParams.get('$filter')).toBe(filter)
+    }
+  )
+
+  it('does not send a stale device filter to the detected-app collection', async () => {
+    const providerTool = await transformBlockTool(
+      { type: 'intune', params: { filter: "complianceState eq 'noncompliant'" } },
+      {
+        selectedOperation: 'intune_list_detected_apps',
+        getAllBlocks: () => [IntuneBlock],
+        getTool: () => intuneListDetectedAppsTool,
+      }
+    )
+    if (!providerTool) throw new Error('Intune agent tool was not created')
+
+    const { executionParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+    const url =
+      typeof intuneListDetectedAppsTool.request.url === 'function'
+        ? intuneListDetectedAppsTool.request.url({
+            ...executionParams,
+            accessToken: 'fixture-token',
+          })
+        : intuneListDetectedAppsTool.request.url
+
+    expect(new URL(url).searchParams.has('$filter')).toBe(false)
+  })
+})
+
+describe('Excel targets through agent execution', () => {
+  it.each(['model', 'configured'] as const)(
+    'clears the %s range after canonical argument mapping',
+    async (source) => {
+      const providerTool = await transformBlockTool(
+        {
+          type: 'microsoft_excel_v2',
+          params: {
+            manualSpreadsheetId: 'workbook1',
+            manualSheetName: 'Sheet1',
+            ...(source === 'configured' ? { cellRange: 'B2:D5' } : {}),
+          },
+        },
+        {
+          selectedOperation: 'clear_range',
+          canonicalModes: { '0:spreadsheetId': 'advanced', '0:sheetName': 'advanced' },
+          toolIndex: 0,
+          getAllBlocks: () => [MicrosoftExcelV2Block],
+          getTool: () => clearRangeTool,
+        }
+      )
+      if (!providerTool) throw new Error('Excel agent tool was not created')
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { range: 'A1:C4' },
+        {},
+        undefined
+      )
+      const params = {
+        ...executionParams,
+        accessToken: 'fixture-token',
+        spreadsheetId: executionParams.spreadsheetId,
+        range: executionParams.range,
+      }
+      const url =
+        typeof clearRangeTool.request.url === 'function'
+          ? clearRangeTool.request.url(params)
+          : clearRangeTool.request.url
+      expect(decodeURIComponent(url)).toContain(
+        `range(address='${source === 'configured' ? 'B2:D5' : 'A1:C4'}')/clear`
+      )
+    }
+  )
+
+  it('sorts the model-supplied table instead of an unused range', async () => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'microsoft_excel_v2',
+        params: { manualSpreadsheetId: 'workbook1', manualSheetName: 'Sheet1', cellRange: 'A1:C4' },
+      },
+      {
+        selectedOperation: 'sort_range',
+        canonicalModes: { '0:spreadsheetId': 'advanced', '0:sheetName': 'advanced' },
+        toolIndex: 0,
+        getAllBlocks: () => [MicrosoftExcelV2Block],
+        getTool: () => sortRangeTool,
+      }
+    )
+    if (!providerTool) throw new Error('Excel agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { tableName: 'Inventory', sortColumn: 0, matchCase: true },
+      {},
+      undefined
+    )
+    const params = {
+      ...executionParams,
+      accessToken: 'fixture-token',
+      spreadsheetId: executionParams.spreadsheetId,
+    }
+    const url =
+      typeof sortRangeTool.request.url === 'function'
+        ? sortRangeTool.request.url(params)
+        : sortRangeTool.request.url
+    expect(decodeURIComponent(url)).toContain("tables('Inventory')/sort/apply")
+    expect(sortRangeTool.request.body?.(params)).toMatchObject({ matchCase: true })
+  })
+
+  it('creates a table without converting an explicit false header flag to true', async () => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'microsoft_excel_v2',
+        params: { manualSpreadsheetId: 'workbook1', manualSheetName: 'Sheet1', cellRange: 'A1:C4' },
+      },
+      {
+        selectedOperation: 'create_table',
+        canonicalModes: { '0:spreadsheetId': 'advanced', '0:sheetName': 'advanced' },
+        toolIndex: 0,
+        getAllBlocks: () => [MicrosoftExcelV2Block],
+        getTool: () => createTableTool,
+      }
+    )
+    if (!providerTool) throw new Error('Excel agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { hasHeaders: false },
+      {},
+      undefined
+    )
+    expect(
+      createTableTool.request.body?.({
+        ...executionParams,
+        accessToken: 'fixture-token',
+        spreadsheetId: executionParams.spreadsheetId,
+        address: executionParams.address,
+      })
+    ).toMatchObject({ hasHeaders: false })
+  })
+})
 
 afterAll(resetEnvFlagsMock)
 
@@ -1233,10 +1798,6 @@ describe('workflow executor metadata delegation', () => {
     })
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('binds cross-workflow metadata reads to the target without attaching the parent run', async () => {
     const result = await transformBlockTool(
       { type: 'workflow', params: { workflowId: 'child-workflow' } },
@@ -1411,7 +1972,7 @@ describe('findProviderFromModel', () => {
   })
 })
 
-describe('isGemini3Model', () => {
+describe('isGemini3OrLaterModel', () => {
   it.each([
     'gemini-3.8-flash',
     'VERTEX/gemini-3.8-flash',
@@ -1419,15 +1980,15 @@ describe('isGemini3Model', () => {
     'vertex/publishers/google/models/gemini-3.8-flash',
     'vertex/projects/test-project/locations/global/publishers/google/models/gemini-3.8-flash',
   ])('recognizes the Gemini family in %s', (model) => {
-    expect(isGemini3Model(model)).toBe(true)
+    expect(isGemini3OrLaterModel(model)).toBe(true)
   })
 
   it.each([
     'vertex/gemini-2.5-pro',
     'vertex/custom-gemini-3-deployment',
     'vertex/publishers/another-provider/models/gemini-3.8-flash',
-  ])('does not infer Gemini 3 behavior from %s', (model) => {
-    expect(isGemini3Model(model)).toBe(false)
+  ])('does not infer modern Gemini behavior from %s', (model) => {
+    expect(isGemini3OrLaterModel(model)).toBe(false)
   })
 })
 

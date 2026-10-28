@@ -78,7 +78,7 @@ function quoteProfileArgument(name: string): string {
 
 export function configureCommand(): Command {
   return new Command('configure')
-    .description("Set a profile's endpoint, default workspace, or output format")
+    .description("Switch a profile's default workspace, or set its endpoint or output format")
     .option('--set-endpoint <url>', 'Sim deployment to talk to')
     .option('--set-workspace <id>', 'Default workspace for workspace-scoped commands')
     .option('--set-output <format>', `Default output format (${OUTPUT_FORMATS.join(' | ')})`)

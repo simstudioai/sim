@@ -1,3 +1,6 @@
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { rateLimiterMock } from '@sim/testing/mocks/rate-limiter.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,17 +9,13 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
 }))
-vi.mock('@/lib/auth', () => ({ getSession: async () => ({ user: { id: 'test-user' } }) }))
-vi.mock('@/lib/core/rate-limiter/route-helpers', () => ({
-  enforceUserRateLimit: async () => null,
-}))
+vi.mock('@/lib/core/rate-limiter/route-helpers', () => rateLimiterMock)
 vi.mock('@/lib/api/server', () => ({
   parseRequest: async () => ({
     success: true,
     data: { query: { url: 'https://example.com/guide' } },
   }),
 }))
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => mocks }))
 vi.mock('@/lib/core/network/context.server', () => ({
   runWithOutboundOrganization: (_organization: null, run: () => unknown) => run(),
 }))
@@ -31,6 +30,8 @@ const complete = { title: 'Guide', description: null, siteName: null }
 
 describe('link preview cache lifetime', () => {
   beforeEach(() => {
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'test-user' } })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(mocks)
     mocks.get.mockResolvedValue(null)
     mocks.set.mockResolvedValue('OK')
   })

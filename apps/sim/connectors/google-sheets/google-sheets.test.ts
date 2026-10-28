@@ -1,9 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/components/icons', () => ({
-  GoogleSheetsIcon: () => null,
-}))
-
+import { describe, expect, it, vi } from 'vitest'
 import { googleSheetsConnector } from '@/connectors/google-sheets/google-sheets'
 
 const SPREADSHEET_ID = 'sheet-abc'
@@ -68,10 +63,6 @@ function stubFetch(responses: FetchStubResponses) {
 }
 
 describe('googleSheetsConnector trashed handling', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   describe('listDocuments', () => {
     it('returns an empty listing when the spreadsheet is trashed', async () => {
       stubFetch({

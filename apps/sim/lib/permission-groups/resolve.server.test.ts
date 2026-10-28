@@ -1,19 +1,15 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 
-const { mockIsOrganizationGovernanceActive, mockGetWorkspaceWithOwner } = vi.hoisted(() => ({
-  mockIsOrganizationGovernanceActive: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationGovernanceActive: mockIsOrganizationGovernanceActive,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   getUserPermissionConfig,
@@ -21,6 +17,9 @@ import {
   isOrganizationPermissionRegimeActive,
   resolveVerifiedUserAccessControlContext,
 } from '@/lib/permission-groups/resolve.server'
+
+const { mockIsOrganizationGovernanceActive } = billingSubscriptionMockFns
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
 
 const ORGANIZATION_ID = 'org-1'
 const USER_ID = 'user-1'

@@ -9,7 +9,7 @@ import {
 } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { omit, toRecord } from '@sim/utils/object'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
@@ -27,6 +27,7 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
+  activateExternalWebhookSubscription,
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
@@ -383,7 +384,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * from the client nor carried forward from a stored row; Gmail and Outlook
      * polling setup derive it again from the credential after the save.
      */
-    const originalProviderConfig: Record<string, unknown> = omit(providerConfig || {}, ['userId'])
+    const originalProviderConfig: Record<string, unknown> = omit(providerConfig || {}, [
+      'userId',
+      'previousSubscription',
+      'subscriptionActivationPending',
+    ])
     let resolvedProviderConfig = await resolveEnvVarsInObject(
       originalProviderConfig,
       userId,
@@ -454,8 +459,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       shouldRecreateExternalWebhookSubscription({
         previousProvider: existingWebhook.provider as string,
         nextProvider: provider,
-        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
-          {}) as Record<string, unknown>,
+        previousConfig: toRecord(existingWebhook.providerConfig),
         nextConfig: resolvedProviderConfig,
       })
 
@@ -472,6 +476,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const credentialIds = [
       originalProviderConfig.credentialId,
       usesStoredCredential ? existingWebhook.providerConfig?.credentialId : undefined,
+      existingWebhook
+        ? toRecord(toRecord(existingWebhook.providerConfig?.previousSubscription).providerConfig)
+            .credentialId
+        : undefined,
     ].filter((id) => id != null && id !== '')
 
     /** The row stores the unresolved text, so only a literal credential id can be authorized. */
@@ -501,6 +509,50 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
+    if (existingWebhook && shouldRecreateSubscription) {
+      const pendingPrevious = toRecord(existingWebhook.providerConfig?.previousSubscription)
+      if (typeof pendingPrevious.provider === 'string') {
+        if (existingWebhook.providerConfig?.subscriptionActivationPending === true) {
+          await activateExternalWebhookSubscription(
+            request,
+            existingWebhook,
+            workflowRecord,
+            userId,
+            requestId
+          )
+          existingWebhook.providerConfig.subscriptionActivationPending = false
+          await db
+            .update(webhook)
+            .set({ providerConfig: existingWebhook.providerConfig })
+            .where(eq(webhook.id, existingWebhook.id))
+        }
+        await cleanupExternalWebhook(
+          {
+            ...existingWebhook,
+            provider: pendingPrevious.provider,
+            providerConfig: pendingPrevious.providerConfig,
+          },
+          workflowRecord,
+          requestId,
+          { throwOnError: true }
+        )
+        const currentConfig = omit(toRecord(existingWebhook.providerConfig), [
+          'previousSubscription',
+        ])
+        await db
+          .update(webhook)
+          .set({ providerConfig: currentConfig })
+          .where(eq(webhook.id, existingWebhook.id))
+        existingWebhook.providerConfig = currentConfig
+      }
+    }
+
+    const deferPreviousCleanup = Boolean(
+      existingWebhook &&
+        shouldRecreateSubscription &&
+        (getProviderHandler(provider).activateSubscription ||
+          getProviderHandler(existingWebhook.provider).activateSubscription)
+    )
     if (!existingWebhook || shouldRecreateSubscription) {
       try {
         const result = await createExternalWebhookSubscription(
@@ -514,6 +566,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         mergeNonUserFields(configToSave, updatedConfig, userProvided)
         resolvedProviderConfig = updatedConfig
         externalSubscriptionCreated = result.externalSubscriptionCreated
+        if (deferPreviousCleanup && existingWebhook) {
+          configToSave.previousSubscription = {
+            provider: existingWebhook.provider,
+            providerConfig: existingWebhook.providerConfig,
+          }
+        }
       } catch (err) {
         logger.error(`[${requestId}] Error creating external webhook subscription`, err)
         return NextResponse.json(
@@ -525,11 +583,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
     } else {
-      mergeNonUserFields(
-        configToSave,
-        (existingWebhook.providerConfig as Record<string, unknown>) || {},
-        userProvided
-      )
+      mergeNonUserFields(configToSave, toRecord(existingWebhook.providerConfig), userProvided)
     }
     configToSave.userId = undefined
 
@@ -588,7 +642,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         logger.error(`[${requestId}] DB save failed, cleaning up external subscription`, dbError)
         try {
           await cleanupExternalWebhook(
-            createTempWebhookData(configToSave),
+            createTempWebhookData(omit(configToSave, ['previousSubscription'])),
             workflowRecord,
             requestId
           )
@@ -602,7 +656,50 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw dbError
     }
 
-    if (existingWebhook && shouldRecreateSubscription) {
+    if (savedWebhook) {
+      if (
+        !existingWebhook ||
+        shouldRecreateSubscription ||
+        configToSave.subscriptionActivationPending === true
+      ) {
+        await activateExternalWebhookSubscription(
+          request,
+          savedWebhook,
+          workflowRecord,
+          userId,
+          requestId
+        )
+        if (configToSave.subscriptionActivationPending === true) {
+          configToSave.subscriptionActivationPending = false
+          await db
+            .update(webhook)
+            .set({ providerConfig: configToSave })
+            .where(eq(webhook.id, savedWebhook.id))
+          savedWebhook.providerConfig = configToSave
+        }
+      }
+      const previousSubscription = toRecord(configToSave.previousSubscription)
+      if (typeof previousSubscription.provider === 'string') {
+        await cleanupExternalWebhook(
+          {
+            ...savedWebhook,
+            provider: previousSubscription.provider,
+            providerConfig: previousSubscription.providerConfig,
+          },
+          workflowRecord,
+          requestId,
+          { throwOnError: true }
+        )
+        configToSave.previousSubscription = undefined
+        await db
+          .update(webhook)
+          .set({ providerConfig: configToSave })
+          .where(eq(webhook.id, savedWebhook.id))
+        savedWebhook.providerConfig = configToSave
+      }
+    }
+
+    if (existingWebhook && shouldRecreateSubscription && !deferPreviousCleanup) {
       try {
         await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
       } catch (cleanupError) {

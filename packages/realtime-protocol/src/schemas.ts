@@ -38,7 +38,7 @@ const AutoConnectEdgeSchema = z.object({
 
 const CanonicalModeSchema = z.enum(['basic', 'advanced'])
 
-export const BlockOperationSchema = z.object({
+const BlockOperationSchema = z.object({
   operation: z.enum([
     BLOCK_OPERATIONS.UPDATE_POSITION,
     BLOCK_OPERATIONS.UPDATE_NAME,
@@ -77,7 +77,7 @@ export const BlockOperationSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchPositionUpdateSchema = z.object({
+const BatchPositionUpdateSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_UPDATE_POSITIONS),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
@@ -92,7 +92,7 @@ export const BatchPositionUpdateSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const EdgeOperationSchema = z.object({
+const EdgeOperationSchema = z.object({
   operation: z.enum([EDGE_OPERATIONS.ADD, EDGE_OPERATIONS.REMOVE]),
   target: z.literal(OPERATION_TARGETS.EDGE),
   payload: z.object({
@@ -106,7 +106,7 @@ export const EdgeOperationSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const SubflowOperationSchema = z.object({
+const SubflowOperationSchema = z.object({
   operation: z.literal(SUBFLOW_OPERATIONS.UPDATE),
   target: z.literal(OPERATION_TARGETS.SUBFLOW),
   payload: z.object({
@@ -118,7 +118,7 @@ export const SubflowOperationSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const VariableOperationSchema = z.union([
+const VariableOperationSchema = z.union([
   z.object({
     operation: z.literal(VARIABLE_OPERATIONS.ADD),
     target: z.literal(OPERATION_TARGETS.VARIABLE),
@@ -143,7 +143,7 @@ export const VariableOperationSchema = z.union([
   }),
 ])
 
-export const WorkflowStateOperationSchema = z.object({
+const WorkflowStateOperationSchema = z.object({
   operation: z.literal(WORKFLOW_OPERATIONS.REPLACE_STATE),
   target: z.literal(OPERATION_TARGETS.WORKFLOW),
   payload: z.object({
@@ -153,7 +153,7 @@ export const WorkflowStateOperationSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const SubblockOperationSchema = z.object({
+const SubblockOperationSchema = z.object({
   operation: z.literal(SUBBLOCK_OPERATIONS.BATCH_UPDATE),
   target: z.literal(OPERATION_TARGETS.SUBBLOCK),
   payload: z.object({
@@ -175,7 +175,7 @@ export const SubblockOperationSchema = z.object({
  * A `tool-input` keys its tools' modes by array position, so a reorder or removal must persist
  * both together or a failure between two separate writes leaves modes on the wrong tools.
  */
-export const SubblockCanonicalModesUpdateSchema = z.object({
+const SubblockCanonicalModesUpdateSchema = z.object({
   operation: z.literal(SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES),
   target: z.literal(OPERATION_TARGETS.SUBBLOCK),
   payload: z.object({
@@ -188,7 +188,7 @@ export const SubblockCanonicalModesUpdateSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchAddBlocksSchema = z.object({
+const BatchAddBlocksSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
@@ -202,7 +202,7 @@ export const BatchAddBlocksSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchRemoveBlocksSchema = z.object({
+const BatchRemoveBlocksSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
@@ -212,7 +212,7 @@ export const BatchRemoveBlocksSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchRemoveEdgesSchema = z.object({
+const BatchRemoveEdgesSchema = z.object({
   operation: z.literal(EDGES_OPERATIONS.BATCH_REMOVE_EDGES),
   target: z.literal(OPERATION_TARGETS.EDGES),
   payload: z.object({
@@ -222,7 +222,7 @@ export const BatchRemoveEdgesSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchAddEdgesSchema = z.object({
+const BatchAddEdgesSchema = z.object({
   operation: z.literal(EDGES_OPERATIONS.BATCH_ADD_EDGES),
   target: z.literal(OPERATION_TARGETS.EDGES),
   payload: z.object({
@@ -240,7 +240,7 @@ export const BatchAddEdgesSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchToggleEnabledSchema = z.object({
+const BatchToggleEnabledSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_TOGGLE_ENABLED),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
@@ -251,7 +251,7 @@ export const BatchToggleEnabledSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchToggleHandlesSchema = z.object({
+const BatchToggleHandlesSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_TOGGLE_HANDLES),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
@@ -262,7 +262,7 @@ export const BatchToggleHandlesSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchToggleLockedSchema = z.object({
+const BatchToggleLockedSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({
@@ -273,7 +273,7 @@ export const BatchToggleLockedSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const BatchUpdateParentSchema = z.object({
+const BatchUpdateParentSchema = z.object({
   operation: z.literal(BLOCKS_OPERATIONS.BATCH_UPDATE_PARENT),
   target: z.literal(OPERATION_TARGETS.BLOCKS),
   payload: z.object({

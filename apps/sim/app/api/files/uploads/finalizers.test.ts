@@ -1,70 +1,29 @@
-import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { uploadSessionMock } from '@sim/testing/mocks/upload-session.mock'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const {
-  mockInsertReturning,
-  mockSelectLimit,
-  mockRecordAudit,
-  mockCaptureServerEvent,
-  mockGetWorkspaceFile,
-  mockRegisterUploadedWorkspaceFile,
-  mockNotifyWorkspaceFilesChanged,
-} = vi.hoisted(() => ({
-  mockInsertReturning: vi.fn(),
-  mockSelectLimit: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
-  mockRegisterUploadedWorkspaceFile: vi.fn(),
-  mockNotifyWorkspaceFilesChanged: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/db', () => ({
-  db: {
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        onConflictDoNothing: vi.fn(() => ({ returning: mockInsertReturning })),
-      })),
-    })),
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          orderBy: vi.fn(() => ({ limit: mockSelectLimit })),
-        })),
-      })),
-    })),
-  },
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPLOADED: 'file.uploaded' },
-  AuditResourceType: { WORKSPACE: 'workspace' },
-  recordAudit: mockRecordAudit,
-}))
-
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
-vi.mock('@/lib/uploads/config', () => ({ getServeStoragePrefix: () => 's3' }))
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  UploadSessionError: class UploadSessionError extends Error {
-    constructor(
-      readonly code: string,
-      message: string
-    ) {
-      super(message)
-    }
-  },
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
-  registerUploadedWorkspaceFile: mockRegisterUploadedWorkspaceFile,
-}))
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceFilesChanged: mockNotifyWorkspaceFilesChanged,
-}))
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: vi.fn(async () => new Map([['user-1', 'ada@example.com']])),
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import {
   bindWorkspaceFileUploadProvenance,
@@ -77,9 +36,21 @@ import {
 } from '@/app/api/files/uploads/finalizers'
 import type { InternalUploadPurpose } from '@/app/api/files/uploads/purposes'
 
+usersQueriesMockFns.mockGetUserEmailsByIds.mockImplementation(
+  async () => new Map([['user-1', 'ada@example.com']])
+)
+
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockNotifyWorkspaceFilesChanged = realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged
+const mockGetWorkspaceFile = workspaceUploadsMockFns.mockGetWorkspaceFile
+const mockRegisterUploadedWorkspaceFile = workspaceUploadsMockFns.mockRegisterUploadedWorkspaceFile
+const mockInsertReturning = dbChainMockFns.returning
+const mockSelectLimit = dbChainMockFns.limit
+
 const now = new Date('2026-08-04T12:00:00.000Z')
 const actor = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
-const principal = { kind: 'session' as const, userId: actor.id, sessionId: 'session-1' }
+const principal = createSessionPrincipal({ userId: actor.id })
 const metadataRow = {
   id: 'file-1',
   key: 'workspace-logos/upload-1-logo.png',
@@ -168,7 +139,9 @@ describe('completion replay contract', () => {
     async (purpose) => {
       mockSelectLimit.mockResolvedValue([])
       mockInsertReturning.mockResolvedValue([metadataRow])
-      const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
+      const request = createMockRequest({
+        url: 'http://localhost/api/files/uploads/upload-1/complete',
+      })
 
       const finalized = await finalizeUploadPurpose({
         session: { ...uploadSession, purpose },
@@ -199,7 +172,9 @@ describe('upload purpose finalizers', () => {
   it('emits workspace-logo side effects only for the metadata insert winner', async () => {
     mockSelectLimit.mockResolvedValueOnce([]).mockResolvedValueOnce([metadataRow])
     mockInsertReturning.mockResolvedValueOnce([metadataRow])
-    const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
+    const request = createMockRequest({
+      url: 'http://localhost/api/files/uploads/upload-1/complete',
+    })
 
     const first = await finalizeUploadPurpose({ session: uploadSession, actor, principal, request })
     const retry = await finalizeUploadPurpose({ session: uploadSession, actor, principal, request })
@@ -224,7 +199,7 @@ describe('upload purpose finalizers', () => {
         session: uploadSession,
         actor,
         principal,
-        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+        request: createMockRequest({ url: 'http://localhost/api/files/uploads/upload-1/complete' }),
       })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(mockRecordAudit).not.toHaveBeenCalled()
@@ -241,7 +216,7 @@ describe('upload purpose finalizers', () => {
         session: uploadSession,
         actor,
         principal,
-        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+        request: createMockRequest({ url: 'http://localhost/api/files/uploads/upload-1/complete' }),
       })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(mockInsertReturning).not.toHaveBeenCalled()
@@ -282,7 +257,7 @@ describe('upload purpose finalizers', () => {
         principal,
         source: 'api',
         authorizeBeforeRegistration: authorize,
-        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+        request: createMockRequest({ url: 'http://localhost/api/files/uploads/upload-1/complete' }),
       })
       expect(authorize).toHaveBeenCalledBefore(mockRegisterUploadedWorkspaceFile)
       expect(mockRegisterUploadedWorkspaceFile).toHaveBeenCalledWith(
@@ -312,7 +287,7 @@ describe('upload purpose finalizers', () => {
       actor,
       principal,
       source: 'api',
-      request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+      request: createMockRequest({ url: 'http://localhost/api/files/uploads/upload-1/complete' }),
     })
     expect(mockRegisterUploadedWorkspaceFile).toHaveBeenCalledWith(
       expect.objectContaining({ secretProvenance: { status: 'unknown' } })
@@ -338,7 +313,7 @@ describe('upload purpose finalizers', () => {
         authorizeBeforeRegistration: async () => {
           throw new Error('Access revoked')
         },
-        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
+        request: createMockRequest({ url: 'http://localhost/api/files/uploads/upload-1/complete' }),
       })
     ).rejects.toThrow('Access revoked')
     expect(mockRegisterUploadedWorkspaceFile).not.toHaveBeenCalled()
@@ -361,16 +336,14 @@ describe('upload purpose finalizers', () => {
       created: true,
     })
     mockGetWorkspaceFile.mockResolvedValue(workspaceFile)
-    const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
+    const request = createMockRequest({
+      url: 'http://localhost/api/files/uploads/upload-1/complete',
+    })
 
     await finalizeUploadPurpose({
       session: workspaceSession,
       actor: { id: 'current-owner' },
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal(),
       request,
     })
 

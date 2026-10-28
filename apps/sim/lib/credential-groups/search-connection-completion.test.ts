@@ -1,3 +1,4 @@
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => {
@@ -14,7 +15,6 @@ const m = vi.hoisted(() => {
     },
   }
 })
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => m.redis }))
 
 import {
   readSearchConnectionCompletion,
@@ -24,6 +24,7 @@ import {
 const scope = { userId: 'person', organizationId: 'org', completionId: 'attempt' }
 beforeEach(() => {
   m.values.clear()
+  redisConfigMockFns.mockGetRedisClient.mockReturnValue(m.redis)
 })
 describe('Search OAuth completion receipts', () => {
   it('isolates people, organizations and concurrent attempts', async () => {

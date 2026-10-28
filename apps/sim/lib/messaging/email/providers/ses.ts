@@ -2,7 +2,7 @@ import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import nodemailer from 'nodemailer'
 import type SESTransport from 'nodemailer/lib/ses-transport'
 import { env } from '@/lib/core/config/env'
-import { sendViaNodemailer } from '@/lib/messaging/email/providers/_nodemailer'
+import { sendViaNodemailer } from '@/lib/messaging/email/providers/send-via-nodemailer'
 import type { MailProvider } from '@/lib/messaging/email/types'
 
 /**
@@ -16,8 +16,7 @@ export function createSesProvider(): MailProvider | null {
 
   const sesClient = new SESv2Client({ region })
   const sesOptions: SESTransport.Options = {
-    // double-cast-allowed: @types/nodemailer bundles a nested @aws-sdk/client-sesv2 whose nominal class types do not unify with the top-level install
-    SES: { sesClient, SendEmailCommand } as unknown as SESTransport.Options['SES'],
+    SES: { sesClient, SendEmailCommand },
   }
   const transporter = nodemailer.createTransport(sesOptions)
 

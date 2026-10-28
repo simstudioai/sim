@@ -1,21 +1,27 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, type ReactNode, useState } from 'react'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
+import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
+import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
+import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
+import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import type { ChatContext } from '@/stores/panel'
 
 function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
@@ -75,11 +81,154 @@ function typeInto(textarea: HTMLTextAreaElement, value: string, caret = value.le
   textarea.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-describe('usePromptEditor context insertion', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
+describe.each([{ workspaceId: 'ws-1' }, { workspaceId: '', organizationId: 'org-1' }])(
+  'mention search in $workspaceId $organizationId',
+  (scope) => {
+    it.each([false, true])(
+      'does not auto-attach an integration after searching (dismissed: %s)',
+      (dismissed) => {
+        const matcher = vi.mocked(getIntegrationMatcher)
+        matcher.mockReturnValue({
+          regex: /Slack/gi,
+          byName: new Map([
+            ['slack', { name: 'Slack', blockType: 'slack', icon: () => null, bgColor: '#fff' }],
+          ]),
+        })
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        try {
+          for (const character of '@Slack') {
+            act(() => {
+              typeInto(textarea, textarea.value + character)
+              result().handleInputChange({
+                target: textarea,
+              } as React.ChangeEvent<HTMLTextAreaElement>)
+            })
+          }
+          if (dismissed) act(() => result().handlePlusMenuClose())
+          for (const character of ' roadmap') {
+            act(() => {
+              typeInto(textarea, textarea.value + character)
+              result().handleInputChange({
+                target: textarea,
+              } as React.ChangeEvent<HTMLTextAreaElement>)
+            })
+          }
+          expect(result().getActiveContexts()).toEqual([])
+          expect(result().mentionQuery).toBe(dismissed ? null : 'Slack roadmap')
+        } finally {
+          unmount()
+          matcher.mockReset()
+        }
+      }
+    )
 
+    it('keeps multiword and punctuated names searchable and replaces the whole query', () => {
+      const { result, textarea, unmount } = renderPromptEditor(scope)
+      try {
+        for (const value of [
+          'Find @Quarterly',
+          'Find @Quarterly ',
+          'Find @Quarterly plan (v2).md',
+        ]) {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+          expect(result().mentionQuery).toBe(value.slice('Find @'.length))
+        }
+        act(() =>
+          result().insertResource({ type: 'file', id: 'plan', title: 'Quarterly plan (v2).md' })
+        )
+        expect(result().getPlainValue()).toBe('Find @Quarterly plan (v2).md ')
+        expect(result().getActiveContexts()).toEqual([
+          { kind: 'file', fileId: 'plan', label: 'Quarterly plan (v2).md' },
+        ])
+      } finally {
+        unmount()
+      }
+    })
+
+    it('keeps a dismissed search closed while typing, but allows a new trigger', () => {
+      const { result, textarea, unmount } = renderPromptEditor(scope)
+      const input = (value: string) => {
+        act(() => {
+          typeInto(textarea, value)
+          result().handleInputChange({ target: textarea } as React.ChangeEvent<HTMLTextAreaElement>)
+        })
+      }
+      try {
+        input('@Quarterly')
+        act(() => result().handlePlusMenuClose())
+        input('@Quarterlyplan')
+        expect(result().mentionQuery).toBeNull()
+        input('@Quarterly plan')
+        expect(result().mentionQuery).toBeNull()
+        input('@Quarterly plan @Roadmap')
+        expect(result().mentionQuery).toBe('Roadmap')
+      } finally {
+        unmount()
+      }
+    })
+
+    it.each(['selection', 'programmatic'])(
+      'opens a fresh search when replacing a dismissed trigger via %s',
+      (replacement) => {
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        const input = (value: string) => {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+        }
+        try {
+          input('@Quarterly')
+          act(() => result().handlePlusMenuClose())
+          if (replacement === 'selection') {
+            act(() => {
+              textarea.setSelectionRange(0, textarea.value.length)
+              result().handleSelectAdjust()
+            })
+            expect(result().mentionQuery).toBeNull()
+            input('@Roadmap')
+          } else {
+            act(() => result().setValue('@Roadmap', { chipify: false }))
+            act(() => {
+              typeInto(textarea, result().getValue())
+              result().handleSelectAdjust()
+            })
+          }
+          expect(result().mentionQuery).toBe('Roadmap')
+        } finally {
+          unmount()
+        }
+      }
+    )
+
+    it.each(['@ ', '@ name', '@Quarterly\n', 'person@example.com'])(
+      'does not search across a dismissed boundary in %j',
+      (value) => {
+        const { result, textarea, unmount } = renderPromptEditor(scope)
+        try {
+          act(() => {
+            typeInto(textarea, value)
+            result().handleInputChange({
+              target: textarea,
+            } as React.ChangeEvent<HTMLTextAreaElement>)
+          })
+          expect(result().mentionQuery).toBeNull()
+        } finally {
+          unmount()
+        }
+      }
+    )
+  }
+)
+
+describe('usePromptEditor context insertion', () => {
   it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
     const context = {
       kind: 'file_selection',
@@ -175,6 +324,80 @@ it('preserves an explicit cross-workspace resource owner in the organization men
   }
 })
 
+it('keeps a copied organization resource chip addressed to its owner workspace on paste', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+  })
+  try {
+    act(() =>
+      result().insertResource({
+        type: 'table',
+        id: 'table-1',
+        title: 'Accounts',
+        workspaceId: 'sales',
+      })
+    )
+    textarea.value = result().value
+    textarea.setSelectionRange(0, textarea.value.length)
+    let copied = ''
+    act(() => {
+      result().handleCopy({
+        currentTarget: textarea,
+        clipboardData: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          },
+        },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    act(() => result().clear())
+    textarea.value = ''
+    textarea.setSelectionRange(0, 0)
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? copied : '') },
+        preventDefault: () => {},
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+
+    expect(result().contexts).toEqual([
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'sales' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('pastes a chip link with a malformed owner as the plain text it is', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+  })
+  let nativePasteCancelled = false
+  try {
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) =>
+            type === 'text/plain' ? '[Notes](sim:file/file-1?workspace=100%)' : '',
+        },
+        preventDefault: () => {
+          nativePasteCancelled = true
+        },
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+    expect(nativePasteCancelled).toBe(false)
+    expect(result().contexts).toEqual([])
+  } finally {
+    unmount()
+  }
+})
+
 it('auto-registers unique organization skill names with their owner but leaves ambiguous names unresolved', () => {
   const skill = {
     id: 'built-in',
@@ -241,3 +464,286 @@ it('inserts a canonical built-in skill globally without inheriting a workspace',
     unmount()
   }
 })
+
+it('keeps text typed into the server-rendered textarea before hydration', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ revision }: { revision: number }) {
+    const editor = usePromptEditor({ workspaceId: 'ws-1' })
+    latest = editor
+    return (
+      <textarea
+        ref={editor.textareaRef}
+        value={editor.value}
+        onChange={editor.handleInputChange}
+        data-revision={revision}
+      />
+    )
+  }
+  const container = document.createElement('div')
+  container.innerHTML = renderToString(<Editor revision={0} />)
+  document.body.appendChild(container)
+  const textarea = container.querySelector('textarea')
+  if (!textarea) throw new Error('The server must render the textarea')
+  textarea.value = 'Typed while the page loaded'
+  let root: Root | undefined
+  try {
+    act(() => {
+      root = hydrateRoot(container, <Editor revision={0} />)
+    })
+    act(() => root?.render(<Editor revision={1} />))
+    expect(latest?.getValue()).toBe('Typed while the page loaded')
+    expect(textarea.value).toBe('Typed while the page loaded')
+  } finally {
+    act(() => root?.unmount())
+    container.remove()
+  }
+})
+
+it('re-chipifies a seeded draft once skills load', () => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const skill = {
+    id: 'review',
+    workspaceId: 'ws-1',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  function Editor({ skills }: { skills: (typeof skill)[] }) {
+    latest = usePromptEditor({ workspaceId: 'ws-1', availableSkills: skills })
+    return null
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    act(() => root.render(<Editor skills={[]} />))
+    act(() => latest?.setValue('/Review the draft', { seed: true }))
+    act(() => root.render(<Editor skills={[skill]} />))
+    expect(latest?.getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'review', label: 'Review' },
+    ])
+  } finally {
+    act(() => root.unmount())
+  }
+})
+
+describe('sent prompt history', () => {
+  it.each([
+    ['workspace ownership', { kind: 'file', fileId: 'file-a', workspaceId: 42 }],
+    [
+      'conflicting file owner',
+      {
+        kind: 'file',
+        fileId: 'file-a',
+        workspaceId: 'ws-1',
+        owner: { entityType: 'workspace', entityId: 'ws-2' },
+      },
+    ],
+    ['saved table view', { kind: 'table', tableId: 'table-a', viewId: ['view-a'] }],
+    ['empty browser selection', { kind: 'browser_tab', tabId: 'tab-a', selection: { text: '' } }],
+    [
+      'terminal selection bounds',
+      {
+        kind: 'terminal_tab',
+        terminalId: 'terminal-a',
+        selection: { text: 'output', startLine: 10_000_001, endLine: 10_000_002 },
+      },
+    ],
+  ])('recalls text and valid chips when saved %s is malformed', (_name, context) => {
+    const valid = { kind: 'file', fileId: 'file-b', label: 'Valid' }
+    const message = toDisplayMessage(
+      normalizeMessage({
+        id: 'stored',
+        role: 'user',
+        content: 'Compare @Invalid and @Valid',
+        contexts: [{ ...context, label: 'Invalid' }, valid],
+      })
+    )
+    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    try {
+      act(() => {
+        expect(
+          result().restorePrompt(message.content, message.contexts).hasUnavailableContexts
+        ).toBe(true)
+      })
+      expect(result().getPlainValue()).toBe('Compare @Invalid and @Valid')
+      expect(result().getActiveContexts()).toEqual([valid])
+    } finally {
+      unmount()
+    }
+  })
+
+  it('recalls only user messages, walks both ways, and returns to the empty composer', () => {
+    const history = renderHistoryEditor([
+      { id: 'first', role: 'user', content: 'first\nsecond line' },
+      { id: 'answer', role: 'assistant', content: 'answer' },
+      { id: 'latest', role: 'user', content: 'latest' },
+      { id: 'task', role: 'user', origin: 'task', content: 'background notification' },
+    ])
+    try {
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('latest')
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('first\nsecond line')
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('first\nsecond line')
+      history.end()
+      history.key('ArrowDown')
+      expect(history.textarea.value).toBe('latest')
+      history.key('ArrowDown')
+      expect(history.textarea.value).toBe('')
+    } finally {
+      history.unmount()
+    }
+  })
+
+  it('round trips saved skills, MCP, resource context and attachments without a loaded picker', () => {
+    const contexts: ChatContext[] = [
+      { kind: 'skill', skillId: 'skill-a', workspaceId: 'workspace-a', label: 'review' },
+      { kind: 'mcp', serverId: 'server-a', label: 'tools' },
+      { kind: 'file', fileId: 'file-a', label: 'Plan.md' },
+    ]
+    const attachment = {
+      id: 'attachment-a',
+      key: 'uploads/file-a',
+      filename: 'image.png',
+      media_type: 'image/png',
+      size: 30,
+    }
+    const content = '(/review), [/tools]! (@Plan.md) and /reviewer and path/review'
+    const history = renderHistoryEditor([
+      { id: 'rich', role: 'user', content, contexts, fileAttachments: [attachment] },
+    ])
+    try {
+      history.key('ArrowUp')
+      expect(history.editor().getPlainValue()).toBe(content)
+      expect(history.editor().getActiveContexts()).toEqual(contexts)
+      expect(history.files()).toMatchObject([
+        { id: attachment.id, key: attachment.key, uploading: false },
+      ])
+      expect(history.textarea.value).toBe(
+        '(\u2003review), [\u2003tools]! (@Plan.md) and /reviewer and path/review'
+      )
+      history.end()
+      history.key('ArrowDown')
+      expect(history.editor().getActiveContexts()).toEqual([])
+      expect(history.files()).toEqual([])
+    } finally {
+      history.unmount()
+    }
+  })
+
+  it('does not replace drafts, selections, composing text, or modified arrow navigation', () => {
+    const history = renderHistoryEditor([{ id: 'first', role: 'user', content: 'sent' }])
+    try {
+      for (const modifiers of [
+        { shiftKey: true },
+        { altKey: true },
+        { ctrlKey: true },
+        { metaKey: true },
+        { isComposing: true },
+      ]) {
+        history.key('ArrowUp', modifiers)
+        expect(history.textarea.value).toBe('')
+      }
+      history.setText('my draft')
+      history.textarea.setSelectionRange(0, 0)
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('my draft')
+      history.setText('')
+      history.key('ArrowUp')
+      history.textarea.setSelectionRange(0, 2)
+      expect(history.key('ArrowUp')).toBe(false)
+      expect(history.textarea.value).toBe('sent')
+      history.setText('edited recalled message')
+      history.end()
+      history.key('ArrowDown')
+      expect(history.textarea.value).toBe('edited recalled message')
+    } finally {
+      history.unmount()
+    }
+  })
+
+  it('preserves multiline movement and follows message identity when older history arrives', () => {
+    const history = renderHistoryEditor([{ id: 'latest', role: 'user', content: 'one\ntwo' }])
+    try {
+      history.key('ArrowUp')
+      history.textarea.setSelectionRange(5, 5)
+      expect(history.key('ArrowUp')).toBe(false)
+      expect(history.textarea.value).toBe('one\ntwo')
+      history.prepend({ id: 'older', role: 'user', content: 'older' })
+      history.textarea.setSelectionRange(0, 0)
+      history.key('ArrowUp')
+      expect(history.textarea.value).toBe('older')
+    } finally {
+      history.unmount()
+    }
+  })
+})
+
+function renderHistoryEditor(initialMessages: ChatMessage[]) {
+  let messages = initialMessages
+  let latest: ReturnType<typeof usePromptEditor> | undefined
+  let currentFiles: AttachedFile[] = []
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  function HistoryProbe() {
+    const editor = usePromptEditor({ workspaceId: 'ws-1' })
+    const [attachedFiles, restoreAttachedFiles] = useState<AttachedFile[]>([])
+    const history = usePromptHistory({
+      editor,
+      attachedFiles,
+      restoreAttachedFiles,
+      getMessages: () => messages,
+    })
+    latest = editor
+    currentFiles = attachedFiles
+    return (
+      <textarea
+        ref={editor.textareaRef}
+        value={editor.value}
+        onChange={editor.handleInputChange}
+        onKeyDown={(event) => editor.handleKeyDown(event, { onNavigateHistory: history.navigate })}
+      />
+    )
+  }
+  act(() => root.render(<HistoryProbe />))
+  const textarea = container.querySelector('textarea')
+  if (!textarea) throw new Error('Missing history textarea')
+  const editor = () => {
+    if (!latest) throw new Error('Missing history editor')
+    return latest
+  }
+  return {
+    textarea,
+    editor,
+    files: () => currentFiles,
+    key: (key: string, options: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key,
+        ...options,
+      })
+      act(() => {
+        textarea.dispatchEvent(event)
+      })
+      return event.defaultPrevented
+    },
+    end: () => textarea.setSelectionRange(textarea.value.length, textarea.value.length),
+    setText: (text: string) => act(() => editor().setValue(text)),
+    prepend: (message: ChatMessage) => {
+      messages = [message, ...messages]
+    },
+    unmount: () => {
+      act(() => root.unmount())
+      container.remove()
+    },
+  }
+}

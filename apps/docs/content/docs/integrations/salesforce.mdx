@@ -1,31 +1,46 @@
 ---
 title: Salesforce
 description: Interact with Salesforce CRM
+integration:
+  type: "salesforce"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="salesforce"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Salesforce](https://www.salesforce.com/) in Sim to manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and create custom fields and objects through the Tooling API.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Integration users](/integrations/salesforce-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.
+Sim requests these scopes when someone connects a Salesforce account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | Production or Developer Edition: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce`<br />Sandbox: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce-sandbox` |
+| Environment variables | `SALESFORCE_CLIENT_ID`, `SALESFORCE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `api` | Access Salesforce API |
+| `refresh_token` | Maintain long-term access to Salesforce account |
+| `openid` | Standard authentication |
+
+## Use the block [#usage-instructions]
+
+Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.
 
 ## Actions
 
 ### Get Accounts from Salesforce
 
 Retrieve accounts from Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -51,9 +66,13 @@ Retrieve accounts from Salesforce CRM
 |   ↳ `accounts` | array | Array of account objects |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Create Account in Salesforce
 
 Create a new account in Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -83,9 +102,13 @@ Create a new account in Salesforce CRM
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Update Account in Salesforce
 
 Update an existing account in Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -115,9 +138,13 @@ Update an existing account in Salesforce CRM
 |   ↳ `id` | string | The Salesforce ID of the updated record |
 |   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Delete Account from Salesforce
 
 Delete an account from Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -134,9 +161,13 @@ Delete an account from Salesforce CRM
 |   ↳ `id` | string | The Salesforce ID of the deleted record |
 |   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Get Contacts from Salesforce
 
 Get contact(s) from Salesforce - single contact if ID provided, or list if not
+
+<ReferenceDetails>
 
 #### Input
 
@@ -165,9 +196,13 @@ Get contact(s) from Salesforce - single contact if ID provided, or list if not
 |   ↳ `singleContact` | boolean | Whether single contact was returned |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Create Contact in Salesforce
 
 Create a new contact in Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -197,9 +232,13 @@ Create a new contact in Salesforce CRM
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Update Contact in Salesforce
 
 Update an existing contact in Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -229,9 +268,13 @@ Update an existing contact in Salesforce CRM
 |   ↳ `id` | string | The Salesforce ID of the updated record |
 |   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Delete Contact from Salesforce
 
 Delete a contact from Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +291,13 @@ Delete a contact from Salesforce CRM
 |   ↳ `id` | string | The Salesforce ID of the deleted record |
 |   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Get Leads from Salesforce
 
 Retrieve lead(s) from Salesforce CRM
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +326,13 @@ Retrieve lead(s) from Salesforce CRM
 |   ↳ `singleLead` | boolean | Whether single lead was returned |
 |   ↳ `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Lead in Salesforce
 
 Create a new lead
+
+<ReferenceDetails>
 
 #### Input
 
@@ -307,9 +358,13 @@ Create a new lead
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Update Lead in Salesforce
 
 Update an existing lead
+
+<ReferenceDetails>
 
 #### Input
 
@@ -335,9 +390,13 @@ Update an existing lead
 |   ↳ `id` | string | The Salesforce ID of the updated record |
 |   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Delete Lead from Salesforce
 
 Delete a lead
+
+<ReferenceDetails>
 
 #### Input
 
@@ -354,9 +413,13 @@ Delete a lead
 |   ↳ `id` | string | The Salesforce ID of the deleted record |
 |   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Get Opportunities from Salesforce
 
 Get opportunity(ies) from Salesforce
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,9 +447,13 @@ Get opportunity(ies) from Salesforce
 |   ↳ `opportunities` | array | Array of opportunity objects \(when listing\) |
 |   ↳ `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Opportunity in Salesforce
 
 Create a new opportunity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -410,9 +477,13 @@ Create a new opportunity
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Update Opportunity in Salesforce
 
 Update an existing opportunity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -436,9 +507,13 @@ Update an existing opportunity
 |   ↳ `id` | string | The Salesforce ID of the updated record |
 |   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Delete Opportunity from Salesforce
 
 Delete an opportunity
+
+<ReferenceDetails>
 
 #### Input
 
@@ -455,9 +530,13 @@ Delete an opportunity
 |   ↳ `id` | string | The Salesforce ID of the deleted record |
 |   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Get Cases from Salesforce
 
 Get case(s) from Salesforce
+
+<ReferenceDetails>
 
 #### Input
 
@@ -485,9 +564,13 @@ Get case(s) from Salesforce
 |   ↳ `cases` | array | Array of case objects \(when listing\) |
 |   ↳ `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Case in Salesforce
 
 Create a new case
+
+<ReferenceDetails>
 
 #### Input
 
@@ -511,9 +594,13 @@ Create a new case
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Update Case in Salesforce
 
 Update an existing case
+
+<ReferenceDetails>
 
 #### Input
 
@@ -537,9 +624,13 @@ Update an existing case
 |   ↳ `id` | string | The Salesforce ID of the updated record |
 |   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Delete Case from Salesforce
 
 Delete a case
+
+<ReferenceDetails>
 
 #### Input
 
@@ -556,9 +647,13 @@ Delete a case
 |   ↳ `id` | string | The Salesforce ID of the deleted record |
 |   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Get Tasks from Salesforce
 
 Get task(s) from Salesforce
+
+<ReferenceDetails>
 
 #### Input
 
@@ -586,9 +681,13 @@ Get task(s) from Salesforce
 |   ↳ `tasks` | array | Array of task objects \(when listing\) |
 |   ↳ `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Task in Salesforce
 
 Create a new task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -612,9 +711,13 @@ Create a new task
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the record was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Update Task in Salesforce
 
 Update an existing task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -638,9 +741,13 @@ Update an existing task
 |   ↳ `id` | string | The Salesforce ID of the updated record |
 |   ↳ `updated` | boolean | Whether the record was updated \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Delete Task from Salesforce
 
 Delete a task
+
+<ReferenceDetails>
 
 #### Input
 
@@ -657,9 +764,13 @@ Delete a task
 |   ↳ `id` | string | The Salesforce ID of the deleted record |
 |   ↳ `deleted` | boolean | Whether the record was deleted \(always true on success\) |
 
+</ReferenceDetails>
+
 ### List Reports from Salesforce
 
 Get a list of up to 200 recently viewed reports for the current user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -673,13 +784,17 @@ Get a list of up to 200 recently viewed reports for the current user
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Reports data |
+|   ↳ `reports` | array | Array of report objects |
 |   ↳ `totalReturned` | number | Number of items returned |
 |   ↳ `success` | boolean | Salesforce operation success |
-|   ↳ `reports` | array | Array of report objects |
+
+</ReferenceDetails>
 
 ### Get Report Metadata from Salesforce
 
 Get the describe (definition and metadata) for a specific report
+
+<ReferenceDetails>
 
 #### Input
 
@@ -697,9 +812,13 @@ Get the describe (definition and metadata) for a specific report
 |   ↳ `reportId` | string | Report ID |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Run Report in Salesforce
 
 Execute a report and retrieve the results
+
+<ReferenceDetails>
 
 #### Input
 
@@ -727,9 +846,13 @@ Execute a report and retrieve the results
 |   ↳ `reportFormat` | string | Report format type \(TABULAR, SUMMARY, MATRIX, JOINED\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### List Report Types from Salesforce
 
 Get a list of available report types
+
+<ReferenceDetails>
 
 #### Input
 
@@ -742,13 +865,17 @@ Get a list of available report types
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Report types data |
+|   ↳ `reportTypes` | array | Array of report type objects |
 |   ↳ `totalReturned` | number | Number of items returned |
 |   ↳ `success` | boolean | Salesforce operation success |
-|   ↳ `reportTypes` | array | Array of report type objects |
+
+</ReferenceDetails>
 
 ### List Dashboards from Salesforce
 
 Get a list of recently used dashboards for the current user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -761,13 +888,17 @@ Get a list of recently used dashboards for the current user
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Dashboards data |
+|   ↳ `dashboards` | array | Array of dashboard objects |
 |   ↳ `totalReturned` | number | Number of items returned |
 |   ↳ `success` | boolean | Salesforce operation success |
-|   ↳ `dashboards` | array | Array of dashboard objects |
+
+</ReferenceDetails>
 
 ### Get Dashboard from Salesforce
 
 Get details and results for a specific dashboard
+
+<ReferenceDetails>
 
 #### Input
 
@@ -789,9 +920,13 @@ Get details and results for a specific dashboard
 |   ↳ `runningUser` | object | User context under which the dashboard data was retrieved |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Refresh Dashboard in Salesforce
 
 Refresh a dashboard to get the latest data
+
+<ReferenceDetails>
 
 #### Input
 
@@ -814,9 +949,13 @@ Refresh a dashboard to get the latest data
 |   ↳ `dashboardMetadata` | object | Structured dashboard metadata \(attributes, component definitions, layout\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Run SOQL Query in Salesforce
 
 Execute a custom SOQL query to retrieve data from Salesforce
+
+<ReferenceDetails>
 
 #### Input
 
@@ -837,9 +976,13 @@ Execute a custom SOQL query to retrieve data from Salesforce
 |     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Get More Query Results from Salesforce
 
 Retrieve additional query results using the nextRecordsUrl from a previous query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -859,9 +1002,13 @@ Retrieve additional query results using the nextRecordsUrl from a previous query
 |     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Describe Salesforce Object
 
 Get metadata and field information for a Salesforce object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -912,9 +1059,13 @@ Get metadata and field information for a Salesforce object
 |   ↳ `fieldCount` | number | Total number of fields on the object |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### List Salesforce Objects
 
 Get a list of all available Salesforce objects
+
+<ReferenceDetails>
 
 #### Input
 
@@ -949,9 +1100,13 @@ Get a list of all available Salesforce objects
 |   ↳ `totalReturned` | number | Number of objects returned |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 ### Create Custom Field in Salesforce
 
 Create a custom field on a Salesforce object (e.g., Account) using the Tooling API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -984,9 +1139,13 @@ Create a custom field on a Salesforce object (e.g., Account) using the Tooling A
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the field was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Update Custom Field in Salesforce
 
 Update an existing custom field on a Salesforce object using the Tooling API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1015,9 +1174,13 @@ Update an existing custom field on a Salesforce object using the Tooling API
 |   ↳ `id` | string | Tooling API Id of the updated custom field |
 |   ↳ `updated` | boolean | Whether the field was updated \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Delete Custom Field in Salesforce
 
 Delete a custom field from a Salesforce object using the Tooling API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1034,9 +1197,13 @@ Delete a custom field from a Salesforce object using the Tooling API
 |   ↳ `id` | string | Tooling API Id of the deleted custom field |
 |   ↳ `deleted` | boolean | Whether the field was deleted \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Create Custom Object in Salesforce
 
 Create a custom object in Salesforce using the Tooling API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1060,9 +1227,13 @@ Create a custom object in Salesforce using the Tooling API
 |   ↳ `success` | boolean | Whether the create operation was successful |
 |   ↳ `created` | boolean | Whether the object was created \(always true on success\) |
 
+</ReferenceDetails>
+
 ### Run Tooling SOQL Query in Salesforce
 
 Execute a SOQL query against the Tooling API to inspect metadata objects
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1083,11 +1254,13 @@ Execute a SOQL query against the Tooling API to inspect metadata objects
 |     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Salesforce Case Status Changed
 
@@ -1108,7 +1281,7 @@ Trigger workflow when a case status changes
 | `objectType` | string | Salesforce object type \(Case\) |
 | `recordId` | string | Case ID |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Case ID |
 |   ↳ `Subject` | string | Case subject |
 |   ↳ `Status` | string | Current case status |
@@ -1143,7 +1316,7 @@ Trigger workflow when an opportunity stage changes
 | `objectType` | string | Salesforce object type \(Opportunity\) |
 | `recordId` | string | Opportunity ID |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Opportunity ID |
 |   ↳ `Name` | string | Opportunity name |
 |   ↳ `StageName` | string | Current stage name |
@@ -1179,7 +1352,7 @@ Trigger workflow when a Salesforce record is created
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
 | `recordId` | string | ID of the affected record |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Record ID |
 |   ↳ `Name` | string | Record name |
 |   ↳ `CreatedDate` | string | Record creation date |
@@ -1212,7 +1385,7 @@ Trigger workflow when a Salesforce record is deleted
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
 | `recordId` | string | ID of the affected record |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Record ID |
 |   ↳ `Name` | string | Record name |
 |   ↳ `CreatedDate` | string | Record creation date |
@@ -1245,7 +1418,7 @@ Trigger workflow when a Salesforce record is updated
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
 | `recordId` | string | ID of the affected record |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Record ID |
 |   ↳ `Name` | string | Record name |
 |   ↳ `CreatedDate` | string | Record creation date |

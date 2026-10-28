@@ -1,29 +1,30 @@
 import { tableRowExecutions, userTableRows, workflowExecutionLogs } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { tableRowsSecretProvenanceMock } from '@sim/testing/mocks/table-rows-secret-provenance.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
-const { mockBatchUpdateRows, mockMaterializeExecutionData, mockGetFunctionalBlockOutput } =
-  vi.hoisted(() => ({
-    mockBatchUpdateRows: vi.fn(),
-    mockMaterializeExecutionData: vi.fn(),
-    mockGetFunctionalBlockOutput: vi.fn(),
-  }))
+const { mockGetFunctionalBlockOutput } = vi.hoisted(() => ({
+  mockGetFunctionalBlockOutput: vi.fn(),
+}))
 
-vi.mock('@/lib/table/rows/service', () => ({
-  batchUpdateRows: mockBatchUpdateRows,
-}))
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionData: mockMaterializeExecutionData,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 vi.mock('@/lib/logs/execution/functional-outputs', () => ({
   getFunctionalBlockOutput: mockGetFunctionalBlockOutput,
 }))
-vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createTableRowSecretProvenanceFromRegistry: () => ({ complete: true, columns: {} }),
-}))
+vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)
 
 import { maybeBackfillGroupOutputs } from '@/lib/table/backfill-runner'
+
+const mockMaterializeExecutionData = traceStoreMockFns.mockMaterializeExecutionData
+
+const mockBatchUpdateRows = tableRowsServiceMockFns.mockBatchUpdateRows
 
 const TABLE = {
   id: 'table-1',

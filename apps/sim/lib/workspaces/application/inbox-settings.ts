@@ -9,13 +9,14 @@ import {
   readInboxSettingsRecord,
   updateInboxSettingsRecord,
 } from '@/lib/mothership/inbox/settings-store'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const inboxSettingsOperations = {
   read: defineWorkspaceOperation({
     id: 'workspace_inbox.read',
     minimumRole: 'read',
     capability: 'inbox.use',
+    contentDelivery: 'none',
     workspaceApiKey: 'deny',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
@@ -24,6 +25,7 @@ export const inboxSettingsOperations = {
     id: 'workspace_inbox.update',
     minimumRole: 'admin',
     capability: 'inbox.use',
+    contentDelivery: 'none',
     workspaceApiKey: 'deny',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],

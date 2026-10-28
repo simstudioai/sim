@@ -2,7 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
-import type { ContractJsonResponse } from '@/lib/api/contracts'
 import { getAllowedProvidersContract } from '@/lib/api/contracts'
 
 /**
@@ -15,26 +14,13 @@ export const allowedProvidersKeys = {
 
 export const BLACKLISTED_PROVIDERS_STALE_TIME = 5 * 60 * 1000
 
-type BlacklistedProvidersResponse = ContractJsonResponse<typeof getAllowedProvidersContract>
-
-async function fetchBlacklistedProviders(
-  signal: AbortSignal
-): Promise<BlacklistedProvidersResponse> {
-  try {
-    return await requestJson(getAllowedProvidersContract, { signal })
-  } catch {
-    return { blacklistedProviders: [] }
-  }
-}
-
 /**
  * Hook to fetch the list of blacklisted provider IDs from the server.
  */
-export function useBlacklistedProviders({ enabled = true }: { enabled?: boolean } = {}) {
+export function useBlacklistedProviders() {
   return useQuery({
     queryKey: allowedProvidersKeys.blacklisted(),
-    queryFn: ({ signal }) => fetchBlacklistedProviders(signal),
+    queryFn: ({ signal }) => requestJson(getAllowedProvidersContract, { signal }),
     staleTime: BLACKLISTED_PROVIDERS_STALE_TIME,
-    enabled,
   })
 }

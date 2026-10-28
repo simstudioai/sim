@@ -1,31 +1,29 @@
 ---
 title: RevenueCat
 description: Manage in-app subscriptions and entitlements
+integration:
+  type: "revenuecat"
+  color: "#F25A5A"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="revenuecat"
-  color="#F25A5A"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [RevenueCat](https://www.revenuecat.com/) in Sim to retrieve subscriber data, manage entitlements and offerings, record purchases, update subscriber attributes, and manage Google Play subscription billing.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate RevenueCat into the workflow. Manage subscribers, entitlements, offerings, and Google Play subscriptions. Retrieve customer subscription status, grant or revoke promotional entitlements, record purchases, update subscriber attributes, and manage Google Play subscription billing.
-
-
+Manage subscribers, entitlements, offerings, and Google Play subscriptions. Retrieve customer subscription status, grant or revoke promotional entitlements, record purchases, update subscriber attributes, and manage Google Play subscription billing.
 
 ## Actions
 
 ### RevenueCat Get Customer
 
 Retrieve subscriber information by app user ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -38,7 +36,7 @@ Retrieve subscriber information by app user ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The subscriber object with subscriptions and entitlements |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -75,9 +73,13 @@ Retrieve subscriber information by app user ID
 |   ↳ `active_entitlements` | number | Number of active entitlements |
 |   ↳ `active_subscriptions` | number | Number of active subscriptions |
 
+</ReferenceDetails>
+
 ### RevenueCat Delete Customer
 
 Permanently delete a subscriber and all associated data
+
+<ReferenceDetails>
 
 #### Input
 
@@ -93,9 +95,13 @@ Permanently delete a subscriber and all associated data
 | `deleted` | boolean | Whether the subscriber was deleted |
 | `app_user_id` | string | The deleted app user ID |
 
+</ReferenceDetails>
+
 ### RevenueCat Create Purchase
 
 Record a purchase (receipt) for a subscriber via the REST API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -120,7 +126,7 @@ Record a purchase (receipt) for a subscriber via the REST API
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customer` | object | Customer object returned at the top level of POST /v1/receipts \(first_seen, last_seen, original_app_user_id, original_application_version, original_sdk_version, management_url, entitlements, original_purchase_date, request_date\). Null when the response uses the `value`-wrapped envelope. |
-| `subscriber` | object | The updated subscriber object after recording the purchase |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -152,9 +158,13 @@ Record a purchase (receipt) for a subscriber via the REST API
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
+</ReferenceDetails>
+
 ### RevenueCat Grant Entitlement
 
 Grant a promotional entitlement to a subscriber
+
+<ReferenceDetails>
 
 #### Input
 
@@ -171,7 +181,7 @@ Grant a promotional entitlement to a subscriber
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after granting the entitlement |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -203,9 +213,13 @@ Grant a promotional entitlement to a subscriber
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
+</ReferenceDetails>
+
 ### RevenueCat Revoke Entitlement
 
 Revoke all promotional entitlements for a specific entitlement identifier
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,7 +233,7 @@ Revoke all promotional entitlements for a specific entitlement identifier
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after revoking the entitlement |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -251,9 +265,13 @@ Revoke all promotional entitlements for a specific entitlement identifier
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
+</ReferenceDetails>
+
 ### RevenueCat List Offerings
 
 List all offerings configured for the project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -278,9 +296,13 @@ List all offerings configured for the project
 |   ↳ `count` | number | Number of offerings returned |
 |   ↳ `current_offering_id` | string | Current offering identifier |
 
+</ReferenceDetails>
+
 ### RevenueCat Update Subscriber Attributes
 
 Update custom subscriber attributes (e.g., $email, $displayName, or custom key-value pairs)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -297,9 +319,13 @@ Update custom subscriber attributes (e.g., $email, $displayName, or custom key-v
 | `updated` | boolean | Whether the subscriber attributes were successfully updated |
 | `app_user_id` | string | The app user ID of the updated subscriber |
 
+</ReferenceDetails>
+
 ### RevenueCat Defer Google Subscription
 
 Defer a Google Play subscription by extending its billing date by a number of days (Google Play only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -315,7 +341,7 @@ Defer a Google Play subscription by extending its billing date by a number of da
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after deferring the Google subscription |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -347,9 +373,13 @@ Defer a Google Play subscription by extending its billing date by a number of da
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
+</ReferenceDetails>
+
 ### RevenueCat Refund Google Subscription
 
 Refund a specific store transaction by its store transaction identifier and revoke access (subscription or non-subscription, last 365 days)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -363,7 +393,7 @@ Refund a specific store transaction by its store transaction identifier and revo
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after refunding the Google subscription |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -395,9 +425,13 @@ Refund a specific store transaction by its store transaction identifier and revo
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
+</ReferenceDetails>
+
 ### RevenueCat Revoke Google Subscription
 
 Immediately revoke access to a Google Play subscription and issue a refund (Google Play only)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -411,7 +445,7 @@ Immediately revoke access to a Google Play subscription and issue a refund (Goog
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subscriber` | object | The updated subscriber object after revoking the Google subscription |
+| `subscriber` | object | RevenueCat subscriber object |
 |   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
 |   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
 |   ↳ `original_app_user_id` | string | Original app user ID |
@@ -443,16 +477,20 @@ Immediately revoke access to a Google Play subscription and issue a refund (Goog
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### RevenueCat Cancellation
 
 Trigger workflow when a subscriber cancels a RevenueCat subscription
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -500,13 +538,14 @@ Trigger workflow when a subscriber cancels a RevenueCat subscription
 | `api_version` | string | RevenueCat webhook API version |
 | `event` | json | Full RevenueCat event object |
 
-
----
+</ReferenceDetails>
 
 ### RevenueCat Expiration
 
 Trigger workflow when a RevenueCat subscription expires
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -554,13 +593,14 @@ Trigger workflow when a RevenueCat subscription expires
 | `api_version` | string | RevenueCat webhook API version |
 | `event` | json | Full RevenueCat event object |
 
-
----
+</ReferenceDetails>
 
 ### RevenueCat Initial Purchase
 
 Trigger workflow when a subscriber makes their first purchase in RevenueCat
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -608,13 +648,14 @@ Trigger workflow when a subscriber makes their first purchase in RevenueCat
 | `api_version` | string | RevenueCat webhook API version |
 | `event` | json | Full RevenueCat event object |
 
-
----
+</ReferenceDetails>
 
 ### RevenueCat Non-Renewing Purchase
 
 Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -662,13 +703,14 @@ Trigger workflow when a subscriber makes a non-renewing purchase in RevenueCat
 | `api_version` | string | RevenueCat webhook API version |
 | `event` | json | Full RevenueCat event object |
 
-
----
+</ReferenceDetails>
 
 ### RevenueCat Product Change
 
 Trigger workflow when a subscriber changes their RevenueCat subscription product
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -716,13 +758,14 @@ Trigger workflow when a subscriber changes their RevenueCat subscription product
 | `api_version` | string | RevenueCat webhook API version |
 | `event` | json | Full RevenueCat event object |
 
-
----
+</ReferenceDetails>
 
 ### RevenueCat Renewal
 
 Trigger workflow when a RevenueCat subscription renews
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -769,4 +812,6 @@ Trigger workflow when a RevenueCat subscription renews
 | `expiration_reason` | string | Reason for expiration \(EXPIRATION events only\) |
 | `api_version` | string | RevenueCat webhook API version |
 | `event` | json | Full RevenueCat event object |
+
+</ReferenceDetails>
 

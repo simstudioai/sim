@@ -1,48 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockFetchGo,
-  mockValidateModelProvider,
-  mockGetMothershipBaseURL,
-  mockGetProviderFromModel,
-} = vi.hoisted(() => ({
-  mockFetchGo: vi.fn(),
-  mockValidateModelProvider: vi.fn(),
-  mockGetMothershipBaseURL: vi.fn(),
-  mockGetProviderFromModel: vi.fn(),
-}))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: true,
-  getCostMultiplier: () => 2,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { COPILOT_API_KEY: 'test-copilot-key' },
-  envBoolean: () => undefined,
-  getEnv: () => undefined,
-}))
-
-vi.mock('@/lib/mothership/request/go/fetch', () => ({
-  fetchGo: mockFetchGo,
-}))
-
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: mockGetMothershipBaseURL,
-}))
-
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateModelProvider: mockValidateModelProvider,
-}))
-
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getProviderFromModel: mockGetProviderFromModel,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import {
   type AutoRoutingSignals,
@@ -51,6 +29,20 @@ import {
 } from '@/lib/model-router/resolve'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockFetchGo = mothershipGoFetchMockFns.mockFetchGo
+const mockGetMothershipBaseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
+
+const mockGetProviderFromModel = providersUtilsMockFns.mockGetProviderFromModel
+const mockValidateModelProvider = permissionCheckMockFns.mockValidateModelProvider
+
+setEnvFlags({ isHosted: true })
+envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
+setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
+afterAll(() => {
+  resetEnvFlagsMock()
+  resetEnvMock()
+})
 
 const ctx = {
   userId: 'user-1',

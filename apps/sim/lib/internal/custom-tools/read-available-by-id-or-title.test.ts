@@ -1,18 +1,19 @@
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
 import type { ExecutionContext } from '@/executor/types'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
-    createPrincipal: vi.fn(),
     executeCopilot: vi.fn(),
     readUseCase: { execute: vi.fn() },
   },
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   readAvailableCustomToolByIdOrTitleUseCase: mocks.readUseCase,
@@ -26,6 +27,8 @@ import {
   readAvailableCustomToolByIdOrTitleAsCopilot,
   readAvailableCustomToolByIdOrTitleAsExecutor,
 } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const principal = {
   kind: 'delegated' as const,
@@ -68,7 +71,7 @@ function executionContext(abortSignal?: AbortSignal): ExecutionContext {
 
 describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
   beforeEach(() => {
-    mocks.createPrincipal.mockResolvedValue(principal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue(principal)
     mocks.readUseCase.execute.mockResolvedValue({ tool })
     mocks.executeCopilot.mockResolvedValue({ tool })
   })
@@ -84,7 +87,7 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
       })
     ).resolves.toEqual(tool)
 
-    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalledWith({
       context,
       audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
     })
@@ -112,7 +115,7 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
         },
       },
     }
-    mocks.createPrincipal.mockResolvedValueOnce(actorlessPrincipal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce(actorlessPrincipal)
 
     await readAvailableCustomToolByIdOrTitleAsExecutor({
       context,

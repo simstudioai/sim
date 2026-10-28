@@ -1,13 +1,11 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  type BillingAttributionSnapshot,
-  toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
 import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -17,6 +15,8 @@ import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-se
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/active-base-reference'
+import { admitKnowledgeChunks } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   KnowledgeUsageLimitExceededError,
@@ -33,20 +33,15 @@ import { instrumentSearchUseCase } from '@/lib/knowledge/application/search-diag
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
-import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { hasRerankerCredential, rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
-import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
+import type { SearchResult } from '@/lib/knowledge/search/candidates'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import { annotateSearchDiagnostics, measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
-import {
-  type RetrievalStatus,
-  retrieveKnowledgeSearch,
-  type SearchResult,
-} from '@/lib/knowledge/search/queries'
+import { type RetrievalStatus, retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { getActiveKnowledgeBaseReferences } from '@/lib/knowledge/service'
 import {
@@ -160,7 +155,7 @@ interface KnowledgeSearchCost {
   rerankerSearchUnits?: number
 }
 
-export interface SearchKnowledgeResult {
+interface SearchKnowledgeResult {
   retrieval: RetrievalStatus
   results: KnowledgeSearchItem[]
   query: string
@@ -475,7 +470,6 @@ export async function runKnowledgeSearch({
           }
         : undefined,
       structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
-      searchIndexOnly: context.knowledgeBases.every((knowledgeBase) => knowledgeBase.isSearchIndex),
     })
   )
 
@@ -485,7 +479,14 @@ export async function runKnowledgeSearch({
   })
   if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
     throw new SearchDeadlineError()
-  let rows = retrieved.rows
+  input.signal?.throwIfAborted()
+  /**
+   * Chat sees each chunk only as its own gate admits it, before the reranker or the result: one
+   * chunk without provenance is left out instead of withholding the search. A result also renders
+   * its document's name and tags, so every secret the chunk and its document hold counts.
+   */
+  const admittedRows = await admitKnowledgeChunks(principal, retrieved.rows)
+  let rows = retrieved.rows.filter((row) => admittedRows.has(row.id))
   input.signal?.throwIfAborted()
   /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */
   const registrySubjectUserId = resolvePrincipalSubjectUserId(principal)
@@ -772,7 +773,7 @@ export async function runKnowledgeSearch({
   }
 }
 
-/** What follows a completed search on every surface: the organization's activity record and the platform event. */
+/** Records the platform event after an authorized knowledge search. */
 export async function afterKnowledgeSearch({
   principal,
   context,
@@ -784,17 +785,6 @@ export async function afterKnowledgeSearch({
   input: Pick<SearchKnowledgeInput, 'surface'>
   result: SearchKnowledgeResult
 }): Promise<void> {
-  const actorUserId = resolvePrincipalSubjectUserId(principal)
-  if (context.organizationId && actorUserId) {
-    await measureSearchStage('activity_recording', () =>
-      recordOrganizationSearchActivity({
-        organizationId: context.organizationId,
-        userId: actorUserId,
-        surface: input.surface ?? 'other',
-        results: result.results,
-      })
-    )
-  }
   PlatformEvents.knowledgeBaseSearched({
     knowledgeBaseId: result.knowledgeBaseId,
     knowledgeBaseIds: result.knowledgeBaseIds,
@@ -822,7 +812,11 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ principal, input }: { principal: Principal; input: SearchKnowledgeInput }) =>
     measureSearchStage('knowledge_context', () => resolveKnowledgeSearchContext(input, principal)),
-  execute: ({ principal, input, context }) => runKnowledgeSearch({ principal, input, context }),
+  async execute({ principal, input, context }) {
+    /** Accounted up front: a search that retrieves nothing returns no chunk to admit. */
+    await admitContent(principal, [])
+    return runKnowledgeSearch({ principal, input, context })
+  },
   afterSuccess: ({ principal, context, input, result }) =>
     afterKnowledgeSearch({ principal, context, input, result }),
 })

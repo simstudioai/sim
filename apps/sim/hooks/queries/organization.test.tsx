@@ -1,85 +1,45 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 
-const {
-  mockGetFullOrganization,
-  mockListOrganizations,
-  mockSetActiveOrganization,
-  mockRefresh,
-  mockRequestJson,
-  featureFlags,
-} = vi.hoisted(() => ({
-  mockGetFullOrganization: vi.fn(),
-  mockListOrganizations: vi.fn(),
-  mockSetActiveOrganization: vi.fn(),
-  mockRefresh: vi.fn(),
-  mockRequestJson: vi.fn(),
-  featureFlags: { organizations: true },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: mockRefresh }),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isOrganizationsEnabled() {
-    return featureFlags.organizations
-  },
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    organization: {
-      getFullOrganization: mockGetFullOrganization,
-      list: mockListOrganizations,
-      setActive: mockSetActiveOrganization,
-    },
-    subscription: {
-      list: vi.fn(),
-    },
-  },
-}))
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 import {
+  getOrganizationPlanSeatsContract,
   getOrganizationRosterContract,
+  type OrganizationPlanSeatsResponse,
   type OrganizationRoster,
 } from '@/lib/api/contracts/organization'
 import {
-  getOrganizationBillingContract,
-  type OrganizationBillingApiResponse,
-} from '@/lib/api/contracts/subscription'
-import {
   organizationKeys,
   useOrganization,
-  useOrganizationBilling,
-  useOrganizationList,
   useOrganizationRoster,
 } from '@/hooks/queries/organization'
-import { shouldRetryOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
+import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
+import { shouldRetrySettingsRead } from '@/hooks/queries/utils/settings-read-retry'
 
-interface Deferred<T> {
-  promise: Promise<T>
-  resolve: (value: T) => void
-}
+const { getFullOrganization: mockGetFullOrganization } = authClientMockFns.mockClient.organization
 
-function createDeferred<T>(): Deferred<T> {
-  let resolvePromise: (value: T) => void = () => undefined
-  const promise = new Promise<T>((resolve) => {
-    resolvePromise = resolve
-  })
-  return { promise, resolve: resolvePromise }
-}
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const ORGANIZATION_A = {
   id: 'org-a',
@@ -107,12 +67,18 @@ const ROSTER_A: { success: true; data: OrganizationRoster } = {
   },
 }
 
-const BILLING_A = {
+const BILLING_A: OrganizationPlanSeatsResponse = {
+  success: true,
   data: {
     organizationId: 'org-a',
     subscriptionPlan: 'enterprise',
+    subscriptionStatus: 'active',
+    totalSeats: 7,
+    usedSeats: 2,
+    membersTotal: 2,
+    hasEnterprisePlan: true,
   },
-} as OrganizationBillingApiResponse
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -121,7 +87,7 @@ let queryClient: QueryClient
 function OrganizationProbe({ organizationId }: { organizationId: string }) {
   const organization = useOrganization(organizationId)
   const roster = useOrganizationRoster(organizationId)
-  const billing = useOrganizationBilling(organizationId)
+  const billing = useOrganizationPlanSeats(organizationId)
   const canManage = Boolean(organization.data && roster.data && billing.data)
 
   return (
@@ -132,11 +98,6 @@ function OrganizationProbe({ organizationId }: { organizationId: string }) {
       {canManage && <button type='button'>Manage organization</button>}
     </div>
   )
-}
-
-function MembershipProbe() {
-  const query = useOrganizationList()
-  return <div>{query.error?.message ?? query.data?.map(({ name }) => name).join(', ')}</div>
 }
 
 function renderOrganization(organizationId: string) {
@@ -164,7 +125,7 @@ describe('organization identity transitions', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    featureFlags.organizations = true
+    setEnvFlags({ isOrganizationsEnabled: true })
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -176,7 +137,6 @@ describe('organization identity transitions', () => {
     act(() => root.unmount())
     queryClient.clear()
     container.remove()
-    vi.clearAllMocks()
   })
 
   it('treats Better Auth failures as errors rather than a missing organization', async () => {
@@ -192,27 +152,10 @@ describe('organization identity transitions', () => {
     expect(container.textContent).not.toContain('Manage organization')
   })
 
-  it('surfaces membership-list errors for retry instead of returning an empty list', async () => {
-    mockListOrganizations.mockResolvedValue({
-      data: null,
-      error: { message: 'Membership service unavailable' },
-    })
-    await act(async () =>
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <MembershipProbe />
-        </QueryClientProvider>
-      )
-    )
-    await flushQueries()
-    expect(container.textContent).toBe('Membership service unavailable')
-    expect(queryClient.getQueryState(organizationKeys.lists())?.status).toBe('error')
-  })
-
   it('clears organization detail, roster, billing, and actions while the next org loads', async () => {
     const organizationB = createDeferred<{ data: typeof ORGANIZATION_A }>()
     const rosterB = createDeferred<typeof ROSTER_A>()
-    const billingB = createDeferred<OrganizationBillingApiResponse>()
+    const billingB = createDeferred<OrganizationPlanSeatsResponse>()
 
     mockGetFullOrganization.mockImplementation(
       ({ query }: { query: { organizationId: string } }) =>
@@ -231,8 +174,8 @@ describe('organization identity transitions', () => {
         if (contract === getOrganizationRosterContract) {
           return input.params?.id === 'org-a' ? Promise.resolve(ROSTER_A) : rosterB.promise
         }
-        if (contract === getOrganizationBillingContract) {
-          return input.query?.id === 'org-a' ? Promise.resolve(BILLING_A) : billingB.promise
+        if (contract === getOrganizationPlanSeatsContract) {
+          return input.params?.id === 'org-a' ? Promise.resolve(BILLING_A) : billingB.promise
         }
         throw new Error('Unexpected contract')
       }
@@ -260,7 +203,7 @@ describe('organization identity transitions', () => {
 
   it('retries one transient billing-summary failure without retrying authorization errors', () => {
     const serverError = new ApiClientError({
-      status: 503,
+      status: 500,
       message: 'Unavailable',
       body: null,
     })
@@ -270,9 +213,15 @@ describe('organization identity transitions', () => {
       body: null,
     })
 
-    expect(shouldRetryOrganizationBillingSummary(0, serverError)).toBe(true)
-    expect(shouldRetryOrganizationBillingSummary(1, serverError)).toBe(false)
-    expect(shouldRetryOrganizationBillingSummary(0, forbiddenError)).toBe(false)
-    expect(shouldRetryOrganizationBillingSummary(0, new TypeError('Network error'))).toBe(true)
+    expect(shouldRetrySettingsRead(0, serverError)).toBe(true)
+    expect(
+      shouldRetrySettingsRead(
+        0,
+        new ApiClientError({ status: 503, message: 'Unavailable', body: null })
+      )
+    ).toBe(false)
+    expect(shouldRetrySettingsRead(1, serverError)).toBe(false)
+    expect(shouldRetrySettingsRead(0, forbiddenError)).toBe(false)
+    expect(shouldRetrySettingsRead(0, new TypeError('Network error'))).toBe(true)
   })
 })

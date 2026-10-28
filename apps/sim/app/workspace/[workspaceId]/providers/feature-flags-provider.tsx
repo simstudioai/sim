@@ -3,10 +3,14 @@
 import { createContext, type ReactNode, useContext } from 'react'
 
 export interface WorkspaceFeatureFlags {
-  'table-row-ttl': boolean
+  dashboards: boolean
+  'workflow-tests': boolean
+  changelog: boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
+  'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
+  projects?: boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)

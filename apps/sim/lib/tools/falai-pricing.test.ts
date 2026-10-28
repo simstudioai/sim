@@ -1,3 +1,4 @@
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FALAI_AUDIO_FALLBACK_PROVIDER_COST_DOLLARS,
@@ -7,9 +8,7 @@ import {
 } from './falai-pricing'
 
 // Avoid the real inter-attempt backoff so the fallback path resolves instantly.
-vi.mock('@sim/utils/helpers', () => ({
-  interruptibleSleep: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 describe('getFalAICostMetadata fallback floor', () => {
   const originalFetch = global.fetch
@@ -27,7 +26,6 @@ describe('getFalAICostMetadata fallback floor', () => {
 
   afterEach(() => {
     global.fetch = originalFetch
-    vi.restoreAllMocks()
   })
 
   it.each([
@@ -47,6 +45,26 @@ describe('getFalAICostMetadata fallback floor', () => {
 
     expect(result.source).toBe('fallback_floor')
     expect(result.costDollars).toBe(expected)
+  })
+
+  it('bills the floor when the pricing estimate answers with an unreadable body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) =>
+        String(url).includes('pricing/estimate')
+          ? new Response('not json', { status: 200 })
+          : new Response('error', { status: 500 })
+      )
+    )
+
+    const result = await getFalAICostMetadata({
+      apiKey: 'test-key',
+      endpointId: 'fal-ai/veo-3.1',
+      requestId: 'req_123',
+    })
+
+    expect(result.source).toBe('fallback_floor')
+    expect(result.costDollars).toBe(FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS)
   })
 
   it('never bills an audio clip at the video floor', () => {

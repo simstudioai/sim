@@ -92,14 +92,19 @@ describe('native computer use authority and lifecycle', () => {
     expect(native.request).not.toHaveBeenCalled()
   })
 
-  it('reports native permissions separately from the opt-in switch', async () => {
-    const { service } = setup(false)
-    expect(await service.getStatus()).toEqual({
-      supported: true,
-      enabled: false,
+  it('keeps the helper dormant until device opt-in and stops it when switched off', async () => {
+    const { service, native } = setup(false)
+    expect(await service.getStatus()).toMatchObject({ enabled: false, activeAction: null })
+    expect(native.request).not.toHaveBeenCalled()
+    expect(await service.setEnabled(true)).toMatchObject({
+      enabled: true,
       permissions: { accessibility: true, screenCapture: false },
-      activeAction: null,
     })
+    expect(native.request).toHaveBeenCalledOnce()
+    native.request.mockClear()
+    expect(await service.setEnabled(false)).toMatchObject({ enabled: false })
+    expect(native.stop).toHaveBeenCalledOnce()
+    expect(native.request).not.toHaveBeenCalled()
   })
 
   it('does not read app state when the user denies app access', async () => {
@@ -291,6 +296,28 @@ describe('native computer use authority and lifecycle', () => {
     await expect(click('s1', 'chat', 'repeat')).rejects.toThrow('stale')
   })
 
+  it('keeps a snapshot usable after an action that sent nothing to the app', async () => {
+    const { state, native, click } = setup()
+    await state()
+    native.request.mockRejectedValueOnce(
+      new ComputerUseError({
+        code: 'window_occluded',
+        message: 'Covered.',
+        dispatchState: 'not_started',
+      })
+    )
+    await expect(click('s1', 'chat', 'refused')).rejects.toThrow('Covered.')
+    await expect(click('s1', 'chat', 'retry')).resolves.toMatchObject({ dispatched: true })
+  })
+
+  it('consumes a snapshot after an action whose dispatch is unknown', async () => {
+    const { state, native, click } = setup()
+    await state()
+    native.request.mockRejectedValueOnce(new Error('Computer Use helper exited.'))
+    await expect(click('s1', 'chat', 'lost')).rejects.toThrow('exited')
+    await expect(click('s1', 'chat', 'repeat')).rejects.toThrow('stale')
+  })
+
   it.each(['app', 'window'])('rejects a follow-up snapshot from a different %s', async (target) => {
     const { state, service, native, click } = setup()
     await state()
@@ -465,8 +492,10 @@ describe('native computer use authority and lifecycle', () => {
     expect(approveApp).toHaveBeenCalledTimes(3)
   })
 
-  it('Stop cancels a tool still waiting on server authorization', async () => {
-    const { service, native } = setup()
+  it('Stop cancels pending authorization without invalidating another chat observation', async () => {
+    const { service, native, state, click } = setup()
+    await state('unrelated-chat')
+    native.request.mockClear()
     let finish: (value: { scopeId: string; input: unknown }) => void = () => {}
     const authorize = vi.fn(
       () =>
@@ -480,6 +509,7 @@ describe('native computer use authority and lifecycle', () => {
     finish({ scopeId: 'chat', input: { action: 'list_apps' } })
     await rejected
     expect(native.request).not.toHaveBeenCalled()
+    await expect(click('s1', 'unrelated-chat')).resolves.toMatchObject({ kind: 'action' })
   })
 
   it('rejects concurrent duplicate claims before contacting the server again', async () => {

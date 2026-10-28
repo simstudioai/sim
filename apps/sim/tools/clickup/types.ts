@@ -149,7 +149,7 @@ export interface ClickUpChecklist {
   items: ClickUpChecklistItem[]
 }
 
-export interface ClickUpTimeEntryLocation {
+interface ClickUpTimeEntryLocation {
   listId: string | null
   folderId: string | null
   spaceId: string | null
@@ -648,28 +648,3 @@ export interface ClickUpGetRunningTimerParams {
   workspaceId: string
   assignee?: number
 }
-
-export type ClickUpResponse =
-  | ClickUpTaskResponse
-  | ClickUpTaskListResponse
-  | ClickUpDeleteResponse
-  | ClickUpCreateCommentResponse
-  | ClickUpCommentListResponse
-  | ClickUpUpdateCommentResponse
-  | ClickUpUploadAttachmentResponse
-  | ClickUpWorkspaceListResponse
-  | ClickUpSpaceListResponse
-  | ClickUpFolderListResponse
-  | ClickUpFolderResponse
-  | ClickUpListListResponse
-  | ClickUpListResponse
-  | ClickUpTagListResponse
-  | ClickUpTaskTagResponse
-  | ClickUpMemberListResponse
-  | ClickUpCustomFieldListResponse
-  | ClickUpCustomFieldValueResponse
-  | ClickUpChecklistResponse
-  | ClickUpUpdateChecklistResponse
-  | ClickUpTimeEntryListResponse
-  | ClickUpTimeEntryResponse
-  | ClickUpUpdateTimeEntryResponse

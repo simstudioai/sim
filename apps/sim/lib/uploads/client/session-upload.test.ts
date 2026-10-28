@@ -1,20 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { describe, expect, it, vi } from 'vitest'
 
 interface UploadClientMockParams<T> {
   complete: () => Promise<T>
 }
 
-const { mockRequestJson, mockUploadFileSession } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
+const { mockUploadFileSession } = vi.hoisted(() => ({
   mockUploadFileSession: vi.fn(),
 }))
 
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/uploads/client/upload-session', () => ({
   uploadFileSession: mockUploadFileSession,
 }))
 
 import { uploadKnowledgeDocumentSession } from '@/lib/uploads/client/session-upload'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 const DOCUMENT = {
   id: 'upload-1',

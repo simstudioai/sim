@@ -31,6 +31,7 @@ import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deploym
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflows, removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
@@ -565,12 +566,21 @@ export function useDeleteWorkflowMutation() {
   })
 }
 
-export function useDeploymentVersionState(workflowId: string | null, version: number | null) {
+export function useDeploymentVersionState(
+  workflowId: string | null,
+  version: number | null,
+  expectedDeploymentVersionId?: string
+) {
   return useQuery({
-    queryKey: workflowKeys.deploymentVersion(workflowId ?? undefined, version ?? undefined),
+    queryKey: workflowKeys.deploymentVersion(
+      workflowId ?? undefined,
+      version ?? undefined,
+      expectedDeploymentVersionId
+    ),
     queryFn:
       workflowId && version !== null
-        ? ({ signal }) => fetchDeploymentVersionState(workflowId, version, signal)
+        ? ({ signal }) =>
+            fetchDeploymentVersionState(workflowId, version, signal, expectedDeploymentVersionId)
         : skipToken,
     staleTime: WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME,
   })
@@ -691,6 +701,7 @@ export function useRestoreWorkflow() {
       return requestJson(restoreWorkflowContract, { params: { id: workflowId } })
     },
     onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() })
       return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
     },
   })

@@ -3,51 +3,36 @@ import { db } from '@sim/db'
 import { member, subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
+import {
+  type CancelAtPeriodEndSyncPayload,
+  cancelAtPeriodEndSyncIdempotencyKey,
+  readRecordedSyncValue,
+  type SubscriptionSeatsSyncPayload,
+} from '@/lib/billing/webhooks/subscription-sync'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 
 const logger = createLogger('BillingOutboxHandlers')
 
-export const OUTBOX_EVENT_TYPES = {
-  /**
-   * Sync a subscription's `cancel_at_period_end` flag from our DB to
-   * Stripe. The handler reads the current DB value at processing time
-   * — so rapid cancel→uncancel→cancel sequences always converge on
-   * the last-committed DB state regardless of outbox ordering. Callers
-   * enqueue this event after every DB change to `cancelAtPeriodEnd`.
-   */
-  STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
-  /** Cancel in Stripe; the verified deletion webhook remains the only DB entitlement authority. */
-  STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY: 'stripe.cancel-subscription-immediately',
-  /**
-   * Sync a Team subscription's price and seat quantity from our DB to
-   * Stripe. The handler reads the current DB plan + seats at processing
-   * time and reconciles the Stripe item's price (e.g. after a Pro→Team
-   * conversion) and quantity, charging the proration via `always_invoice`.
-   * A failed charge surfaces through Stripe dunning and the existing
-   * billing-blocked system, never under the synchronous accept path.
-   */
-  STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
-  STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
-  STRIPE_SYNC_CUSTOMER_CONTACT: 'stripe.sync-customer-contact',
-} as const
+/**
+ * Passes a DB→Stripe sync handler makes before throwing for an outbox retry: each pass re-reads
+ * the row after its Stripe write and goes again when the value moved in the meantime.
+ */
+const MAX_SYNC_ATTEMPTS = 2
 
-interface StripeSyncCancelAtPeriodEndPayload {
-  stripeSubscriptionId: string
-  /** The DB subscription row id — also our source-of-truth pointer. */
-  subscriptionId: string
-  /** Optional: reason this was enqueued — e.g. 'member-joined-paid-org'. */
-  reason?: string
-  /** Correlates Enterprise-issuance follow-up work for Admin progress/retry. */
-  sourceOperationId?: string
-  operationId?: string
-  organizationId?: string
-  requestedBy?: { id: string | null; name: string; email: string | null }
+/**
+ * A fresh key per Stripe write: the SDK reuses it across its own network retries of that call.
+ * A key derived from the pushed value would be replayed, unapplied, once that value comes back.
+ */
+function syncWriteIdempotencyKey(eventId: string): string {
+  return `outbox:${eventId}:${generateShortId()}`
 }
 
 interface StripeCancelSubscriptionImmediatelyPayload {
@@ -85,12 +70,6 @@ async function recordAdminCancellationAudit(params: {
   })
 }
 
-interface StripeSyncSubscriptionSeatsPayload {
-  /** The DB subscription row id — the handler reads current seats from this row. */
-  subscriptionId: string
-  reason?: string
-}
-
 interface StripeSyncCustomerContactPayload {
   /** The DB subscription row id — handler resolves current owner/contact at processing time. */
   subscriptionId: string
@@ -125,42 +104,85 @@ async function getSubscriptionSeatSyncState(subscriptionId: string) {
   return row ?? null
 }
 
-const stripeSyncCancelAtPeriodEnd: OutboxHandler<StripeSyncCancelAtPeriodEndPayload> = async (
+/**
+ * The value this sync should push: the one recorded on its own event, re-read now, which every
+ * commit keeps current on each sync that can still run. The subscription row is not used for
+ * this, because the Stripe plugin can overwrite it with a stale webhook payload before the
+ * reconcile step restores it. An event enqueued before values were recorded falls back to the
+ * row. Null when the subscription no longer exists.
+ */
+async function readDesiredCancelAtPeriodEnd(
+  eventId: string,
+  subscriptionId: string
+): Promise<boolean | null> {
+  const [row] = await db
+    .select({ cancelAtPeriodEnd: subscriptionTable.cancelAtPeriodEnd })
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.id, subscriptionId))
+    .limit(1)
+  if (!row) return null
+  return (await readRecordedSyncValue(eventId))?.cancelAtPeriodEnd ?? Boolean(row.cancelAtPeriodEnd)
+}
+
+/**
+ * Pushes the latest committed value (see `readDesiredCancelAtPeriodEnd`), never the claim-time
+ * payload: racing events for one subscription each converge on it. Stripe is read first and
+ * written only when it differs, and the value is re-read after the write so one committed while
+ * this event's request was in flight is pushed too, even when an earlier event's request lands
+ * in Stripe after a newer one.
+ */
+const stripeSyncCancelAtPeriodEnd: OutboxHandler<CancelAtPeriodEndSyncPayload> = async (
   payload,
   ctx
 ) => {
   await recordAdminCancellationAudit({ ...payload, timing: 'period_end' })
-  // Read the DB value at processing time (not at enqueue time). This
-  // makes the handler idempotent across racing enqueues: multiple
-  // events for the same subscription all push whatever the DB
-  // currently says, converging on the last committed value.
-  const rows = await db
-    .select({ cancelAtPeriodEnd: subscriptionTable.cancelAtPeriodEnd })
-    .from(subscriptionTable)
-    .where(eq(subscriptionTable.id, payload.subscriptionId))
-    .limit(1)
+  const stripe = requireStripeClient()
 
-  if (rows.length === 0) {
-    logger.warn('Subscription not found when syncing cancel_at_period_end', {
+  for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
+    const desiredValue = await readDesiredCancelAtPeriodEnd(ctx.eventId, payload.subscriptionId)
+    if (desiredValue === null) {
+      logger.warn('Subscription not found when syncing cancel_at_period_end', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+      })
+      return
+    }
+
+    const stripeSubscription = await stripe.subscriptions.retrieve(payload.stripeSubscriptionId)
+    const needsUpdate = stripeSubscription.cancel_at_period_end !== desiredValue
+    if (needsUpdate) {
+      await stripe.subscriptions.update(
+        payload.stripeSubscriptionId,
+        { cancel_at_period_end: desiredValue },
+        { idempotencyKey: cancelAtPeriodEndSyncIdempotencyKey(ctx.eventId) }
+      )
+    }
+
+    const latestValue = await readDesiredCancelAtPeriodEnd(ctx.eventId, payload.subscriptionId)
+    if (latestValue !== desiredValue) {
+      logger.info('cancel_at_period_end changed during Stripe sync; retrying latest value', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+        stripeSubscriptionId: payload.stripeSubscriptionId,
+        attemptedValue: desiredValue,
+        latestValue,
+        attempt,
+      })
+      continue
+    }
+
+    logger.info('Synced cancel_at_period_end from DB to Stripe', {
+      eventId: ctx.eventId,
+      stripeSubscriptionId: payload.stripeSubscriptionId,
       subscriptionId: payload.subscriptionId,
+      desiredValue,
+      alreadySynced: !needsUpdate,
+      reason: payload.reason,
     })
     return
   }
 
-  const desiredValue = Boolean(rows[0].cancelAtPeriodEnd)
-  const stripe = requireStripeClient()
-  await stripe.subscriptions.update(
-    payload.stripeSubscriptionId,
-    { cancel_at_period_end: desiredValue },
-    { idempotencyKey: `outbox:${ctx.eventId}` }
-  )
-  logger.info('Synced cancel_at_period_end from DB to Stripe', {
-    eventId: ctx.eventId,
-    stripeSubscriptionId: payload.stripeSubscriptionId,
-    subscriptionId: payload.subscriptionId,
-    desiredValue,
-    reason: payload.reason,
-  })
+  throw new Error(`cancel_at_period_end changed while syncing ${payload.subscriptionId}`)
 }
 
 const stripeCancelSubscriptionImmediately: OutboxHandler<
@@ -183,14 +205,17 @@ const stripeCancelSubscriptionImmediately: OutboxHandler<
   })
 }
 
-const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayload> = async (
+/**
+ * Pushes the seat count recorded on its own event, re-read each pass (falling back to the row
+ * for an event enqueued before values were recorded), for the same reason as the cancel sync.
+ */
+const stripeSyncSubscriptionSeats: OutboxHandler<SubscriptionSeatsSyncPayload> = async (
   payload,
   ctx
 ) => {
   const stripe = requireStripeClient()
-  const maxSyncAttempts = 2
 
-  for (let attempt = 1; attempt <= maxSyncAttempts; attempt++) {
+  for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
     const row = await getSubscriptionSeatSyncState(payload.subscriptionId)
     if (!row) {
       logger.warn('Subscription not found when syncing seats', {
@@ -226,7 +251,7 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
       return
     }
 
-    const desiredSeats = row.seats || 1
+    const desiredSeats = (await readRecordedSyncValue(ctx.eventId))?.seats ?? (row.seats || 1)
     const stripeSubscription = await stripe.subscriptions.retrieve(row.stripeSubscriptionId)
 
     if (!hasPaidSubscriptionStatus(stripeSubscription.status)) {
@@ -271,17 +296,19 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
           ],
           proration_behavior: 'always_invoice',
         },
-        { idempotencyKey: `outbox:${ctx.eventId}:${row.plan}:${desiredSeats}` }
+        { idempotencyKey: syncWriteIdempotencyKey(ctx.eventId) }
       )
     }
 
     const latest = await getSubscriptionSeatSyncState(payload.subscriptionId)
-    const latestSeats = latest?.seats || 1
-    if (latestSeats !== desiredSeats) {
-      logger.info('Subscription seats changed during Stripe sync; retrying latest value', {
+    const latestSeats = (await readRecordedSyncValue(ctx.eventId))?.seats ?? (latest?.seats || 1)
+    if (latestSeats !== desiredSeats || latest?.plan !== row.plan) {
+      logger.info('Subscription plan or seats changed during Stripe sync; retrying latest', {
         eventId: ctx.eventId,
         subscriptionId: payload.subscriptionId,
         stripeSubscriptionId: row.stripeSubscriptionId,
+        attemptedPlan: row.plan,
+        latestPlan: latest?.plan,
         attemptedSeats: desiredSeats,
         latestSeats,
         attempt,
@@ -301,7 +328,7 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
     return
   }
 
-  throw new Error(`Subscription seats changed while syncing ${payload.subscriptionId}`)
+  throw new Error(`Subscription plan or seats changed while syncing ${payload.subscriptionId}`)
 }
 
 const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoicePayload> = async (
@@ -392,33 +419,31 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   })
 }
 
-const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload> = async (
-  payload,
-  ctx
-) => {
+type CustomerContactState =
+  | { status: 'ready'; stripeCustomerId: string; email: string; name: string }
+  | { status: 'skipped'; reason: string; organizationId?: string }
+
+async function readCustomerContact(subscriptionId: string): Promise<CustomerContactState> {
   const [subscriptionRow] = await db
     .select({
       referenceId: subscriptionTable.referenceId,
       stripeCustomerId: subscriptionTable.stripeCustomerId,
     })
     .from(subscriptionTable)
-    .where(eq(subscriptionTable.id, payload.subscriptionId))
+    .where(eq(subscriptionTable.id, subscriptionId))
     .limit(1)
 
   if (!subscriptionRow) {
-    logger.warn('Subscription not found when syncing Stripe customer contact', {
-      eventId: ctx.eventId,
-      subscriptionId: payload.subscriptionId,
-    })
-    return
+    return {
+      status: 'skipped',
+      reason: 'Subscription not found when syncing Stripe customer contact',
+    }
   }
-
   if (!subscriptionRow.stripeCustomerId) {
-    logger.warn('Subscription has no Stripe customer id when syncing contact', {
-      eventId: ctx.eventId,
-      subscriptionId: payload.subscriptionId,
-    })
-    return
+    return {
+      status: 'skipped',
+      reason: 'Subscription has no Stripe customer id when syncing contact',
+    }
   }
 
   const [owner] = await db
@@ -432,29 +457,85 @@ const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload>
     .limit(1)
 
   if (!owner) {
-    logger.warn('Organization owner not found when syncing Stripe customer contact', {
-      eventId: ctx.eventId,
-      subscriptionId: payload.subscriptionId,
+    return {
+      status: 'skipped',
+      reason: 'Organization owner not found when syncing Stripe customer contact',
       organizationId: subscriptionRow.referenceId,
+    }
+  }
+
+  return {
+    status: 'ready',
+    stripeCustomerId: subscriptionRow.stripeCustomerId,
+    email: owner.email,
+    name: owner.name,
+  }
+}
+
+/**
+ * Pushes the organization owner's current contact, re-reading it after the write so an
+ * ownership change committed while this event's request was in flight is pushed too.
+ */
+const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload> = async (
+  payload,
+  ctx
+) => {
+  const stripe = requireStripeClient()
+
+  for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
+    const contact = await readCustomerContact(payload.subscriptionId)
+    if (contact.status === 'skipped') {
+      logger.warn(contact.reason, {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+        ...(contact.organizationId ? { organizationId: contact.organizationId } : {}),
+      })
+      return
+    }
+
+    const customer = await stripe.customers.retrieve(contact.stripeCustomerId)
+    if (customer.deleted) {
+      throw new Error(`Stripe customer ${contact.stripeCustomerId} is deleted`)
+    }
+    const needsUpdate =
+      customer.email !== contact.email || Boolean(contact.name && customer.name !== contact.name)
+    if (needsUpdate) {
+      await stripe.customers.update(
+        contact.stripeCustomerId,
+        {
+          email: contact.email,
+          ...(contact.name ? { name: contact.name } : {}),
+        },
+        { idempotencyKey: syncWriteIdempotencyKey(ctx.eventId) }
+      )
+    }
+
+    const latest = await readCustomerContact(payload.subscriptionId)
+    if (
+      latest.status !== 'ready' ||
+      latest.stripeCustomerId !== contact.stripeCustomerId ||
+      latest.email !== contact.email ||
+      latest.name !== contact.name
+    ) {
+      logger.info('Stripe customer contact changed during sync; retrying latest value', {
+        eventId: ctx.eventId,
+        subscriptionId: payload.subscriptionId,
+        attempt,
+      })
+      continue
+    }
+
+    logger.info('Synced Stripe customer contact', {
+      eventId: ctx.eventId,
+      stripeCustomerId: contact.stripeCustomerId,
+      subscriptionId: payload.subscriptionId,
+      alreadySynced: !needsUpdate,
+      reason: payload.reason,
     })
     return
   }
 
-  const stripe = requireStripeClient()
-  await stripe.customers.update(
-    subscriptionRow.stripeCustomerId,
-    {
-      email: owner.email,
-      ...(owner.name ? { name: owner.name } : {}),
-    },
-    { idempotencyKey: `outbox:${ctx.eventId}` }
-  )
-  logger.info('Synced Stripe customer contact', {
-    eventId: ctx.eventId,
-    stripeCustomerId: subscriptionRow.stripeCustomerId,
-    subscriptionId: payload.subscriptionId,
-    reason: payload.reason,
-  })
+  throw new Error(`Stripe customer contact changed while syncing ${payload.subscriptionId}`)
 }
 
 export const billingOutboxHandlers = {

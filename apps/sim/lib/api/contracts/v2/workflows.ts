@@ -52,6 +52,10 @@ import {
 } from '@/lib/api/contracts/v2/shared'
 import { v2OperationReportSchema } from '@/lib/api/contracts/v2/workspace-operations'
 import {
+  compareWorkflowVersionsDataSchema,
+  compareWorkflowVersionsQuerySchema,
+} from '@/lib/api/contracts/workflow-comparison'
+import {
   portableResourceKindSchema,
   referenceOccurrenceSchema,
   workflowReferenceManifestSchema,
@@ -81,7 +85,7 @@ export const v2WorkflowRunIdSchema = runIdSchema
  * a claimed ID reusable. Reusing a claimed ID returns a conflict, never a replay.
  */
 const X_RUN_ID_DESCRIPTION =
-  'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.'
+  'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get workflow run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.'
 
 const X_SIM_VIA_DESCRIPTION =
   'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.'
@@ -220,7 +224,7 @@ export const v2WorkflowListItemSchema = z
       .int()
       .nonnegative()
       .describe(
-        'Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List Workflow Runs.'
+        'Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List workflow runs.'
       ),
     lastRunAt: z
       .string()
@@ -256,7 +260,7 @@ const v2WorkflowInputFieldSchema = z
   .meta({
     id: 'WorkflowInputField',
     title: 'Workflow input field',
-    description: 'A deployed API trigger input exposed by a workflow.',
+    description: 'An input field from an input-definition trigger in the saved draft.',
   })
 
 export const v2WorkflowDetailSchema = v2WorkflowListItemSchema
@@ -273,12 +277,14 @@ export const v2WorkflowDetailSchema = v2WorkflowListItemSchema
       .describe('Workflow-scoped variables keyed by variable identifier.'),
     inputs: z
       .array(v2WorkflowInputFieldSchema)
-      .describe('Input fields exposed by the workflow API trigger.'),
+      .describe(
+        "Input fields from the saved draft's input-definition trigger; they may differ from the live deployment."
+      ),
   })
   .meta({
     id: 'WorkflowDetail',
     title: 'Workflow detail',
-    description: 'Full workflow summary with variables and API-trigger input fields.',
+    description: 'Workflow metadata, variables, and saved draft trigger input fields.',
   })
 
 export type V2WorkflowDetail = z.output<typeof v2WorkflowDetailSchema>
@@ -333,6 +339,115 @@ export const v2DeploymentVersionOrActiveParamsSchema = deploymentVersionOrActive
       'Workflow and deployment version selected by the request path, where the version may be the literal `active`.',
   })
 
+const v2WorkflowLintBlockRefSchema = z.object({
+  blockId: z.string().describe('Block the finding is about.'),
+  blockName: z.string().nullable().describe('Display name of the block, when it has one.'),
+  blockType: z.string().nullable().describe('Registered type of the block, when it has one.'),
+})
+
+const v2WorkflowLintSchema = z
+  .object({
+    sources: z
+      .array(v2WorkflowLintBlockRefSchema)
+      .describe(
+        'Blocks with no incoming edge. A trigger block is naturally a source; anything else here is unreachable.'
+      ),
+    sinks: z.array(v2WorkflowLintBlockRefSchema).describe('Blocks with no outgoing edge.'),
+    orphanBlocks: z
+      .array(v2WorkflowLintBlockRefSchema)
+      .describe('Blocks with neither an incoming nor an outgoing edge.'),
+    emptyOutgoingPorts: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          handle: z.string().describe('Source handle with nothing connected to it.'),
+          label: z.string().describe('Human-readable name of the port.'),
+        })
+      )
+      .describe('Branch and container ports that lead nowhere.'),
+    invalidBranchPorts: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          sourceHandle: z.string().describe('Source handle that does not match the block.'),
+          reason: z.string().describe('Why the handle is not valid for this block.'),
+        })
+      )
+      .describe('Condition and router edges whose source handle names no real branch.'),
+    invalidConnectionTargets: z
+      .array(
+        z.object({
+          sourceBlockId: z.string().describe('Block the edge leaves.'),
+          sourceBlockName: z.string().nullable().describe('Display name of the source block.'),
+          sourceHandle: z.string().nullable().describe('Handle the edge leaves from.'),
+          targetBlockId: z.string().describe('Block the edge points at.'),
+          reason: z.string().describe('Why the target is not a legal destination.'),
+        })
+      )
+      .describe('Edges pointing at a block that cannot legally receive them.'),
+    fieldIssues: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          missingRequiredFields: z
+            .array(z.string())
+            .describe('Required sub-block fields that resolve empty in the active mode.'),
+          inactiveModeValues: z
+            .array(
+              z.object({
+                canonicalId: z
+                  .string()
+                  .describe('Canonical parameter the two sub-block modes share.'),
+                activeMemberId: z
+                  .string()
+                  .nullable()
+                  .describe('Sub-block the runtime reads, where the value should live.'),
+                inactiveMemberId: z
+                  .string()
+                  .describe('Sub-block holding the stranded value, which the runtime ignores.'),
+                kind: z
+                  .enum(['credential', 'resource', 'other'])
+                  .describe('What kind of value is stranded.'),
+              })
+            )
+            .describe('Values stranded on the inactive member of a canonical pair.'),
+        })
+      )
+      .describe(
+        'Per-block configuration problems. The most actionable part of the report for a headless graph builder: a block missing a required field will fail at run time.'
+      ),
+    unresolvedReferences: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          field: z.string().describe('Sub-block field holding the reference.'),
+          value: z
+            .union([z.string(), z.array(z.string())])
+            .describe('The reference, or references, that did not resolve.'),
+          kind: z
+            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
+            .describe('What kind of entity the reference was expected to name.'),
+          reason: z.string().describe('Why the reference does not resolve.'),
+        })
+      )
+      .describe(
+        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON. These values are still persisted; they are reported, not dropped.'
+      ),
+    tableFieldIssues: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          field: z.string().describe('The filter or sort field that names no column.'),
+          tableName: z.string().describe('Display name of the table the block is bound to.'),
+        })
+      )
+      .describe(
+        "Table block `filter` and `order` fields checked against the bound table's live schema that name no column (nor the implicit `id`, `createdAt`, `updatedAt`). Such a run fails inside the block's error edge. A filter holding a `<block.output>` reference, or one that is not JSON, is not checked."
+      ),
+    notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
+  })
+  .meta({
+    id: 'WorkflowLintReport',
+    title: 'Workflow lint report',
+    description:
+      'Advisory findings about a saved graph. Findings never block a write or a deploy; they tell a caller what will misbehave at run time.',
+  })
+
 export const v2DeploymentStateSchema = z
   .object({
     id: z
@@ -349,7 +464,9 @@ export const v2DeploymentStateSchema = z
       .meta({ format: 'date-time', examples: ['2026-06-12T10:30:00.000Z'] }),
     warnings: z
       .array(z.string())
-      .describe('Non-fatal synchronization warnings. Empty when there is nothing to report.'),
+      .describe(
+        'Non-fatal warnings about deployment side effects, such as notifications that are still queued or failed. Empty when there is nothing to report. Lint findings are never reported here.'
+      ),
     activeDeployment: activeDeploymentSummarySchema
       .nullable()
       .describe('Currently live deployment version, or null while no version is active.'),
@@ -439,12 +556,17 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
       .positive()
       .optional()
       .describe('Deployment version created for this attempt, when available.'),
+    lint: v2WorkflowLintSchema
+      .nullable()
+      .describe(
+        'Advisory lint for the admitted version, checked as the deploying member. Findings never block deployment. Null when lint exceeds its time budget or cannot complete; the deployment proceeds.'
+      ),
   })
   .meta({
     id: 'DeployResult',
     title: 'Deploy result',
     description:
-      'Deployment attempt accepted for asynchronous activation. `latestDeploymentAttempt` identifies the attempt. Poll Get Workflow Deployment for `isDeployed` and `deployedAt`, or List Workflow Versions for `isActive`.',
+      'Deployment accepted for asynchronous activation. Poll Get workflow deployment and match `latestDeploymentAttempt` to this attempt; an older version can remain live while it activates. List workflow versions reports `isActive`.',
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
@@ -620,7 +742,7 @@ export const v2DeleteWorkflowDataSchema = z
     archived: z
       .literal(true)
       .describe(
-        'Whether the workflow was archived. Restore Workflow recovers it and the schedules, webhooks, MCP tools, and chats archived with it.'
+        'Whether the workflow was archived. Restore workflow recovers it and the schedules, webhooks, MCP tools, and chats archived with it.'
       ),
   })
   .meta({
@@ -846,7 +968,7 @@ export const v2WorkflowVersionDetailSchema = z
       .describe('ISO 8601 timestamp when this version was created.')
       .meta({ format: 'date-time' }),
     state: deployedWorkflowStateSchema.describe(
-      'Workflow graph saved with this deployment version. Sensitive values are redacted to null.'
+      'Graph pinned by this version, with registered credential fields and opaque table/tool values cleared. Environment references and ordinary workflow variables remain included; inspect other configuration before sharing.'
     ),
   })
   .meta({
@@ -1284,7 +1406,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
                 .string()
                 .min(1, 'run.entry.sourceRunId cannot be empty')
                 .describe(
-                  'Run ID supplying upstream block results when starting from a selected block.'
+                  'Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404.'
                 ),
             })
             .strict(),
@@ -1292,6 +1414,13 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .optional()
         .describe(
           'Manual entry mode. Omit to enter through the workflow trigger; a block entry requires an exact source run.'
+        ),
+      stopAfterBlockId: z
+        .string()
+        .min(1, 'run.stopAfterBlockId cannot be empty')
+        .optional()
+        .describe(
+          'Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
         ),
     })
     .strict(),
@@ -1325,7 +1454,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .optional()
       .default(false)
       .describe(
-        'Queue the run and return a 202 receipt when true. Requires an OAuth access token or API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).'
+        'Queue the run and return a 202 receipt. Requires an API key or OAuth access token and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).'
       ),
     /**
      * An upper bound on the request, not the effective timeout: the server
@@ -1406,6 +1535,13 @@ export const v2ExecuteWorkflowBodySchema = z
         run: {
           source: 'manual',
           entry: { type: 'block', blockId: 'block_123', sourceRunId: 'run_123' },
+        },
+      },
+      {
+        run: {
+          source: 'manual',
+          entry: { type: 'block', blockId: 'block_123', sourceRunId: 'run_123' },
+          stopAfterBlockId: 'block_123',
         },
       },
     ],
@@ -1561,7 +1697,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
 })
 
 const RUN_STATUS_DESCRIPTION =
-  "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting to be resumed — either held at a human-in-the-loop pause point, or left paused by a resume attempt that did not complete. Only the single-run response distinguishes the two, through `paused.automaticResumeWaitingReason`."
+  "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting at a human or time pause, or a resume attempt did not complete. The single-run response provides the pause kind, resume time, and any automatic-resume waiting reason."
 
 /**
  * The list projection passes `workflow_execution_logs.status` through except where it
@@ -1664,7 +1800,9 @@ export const v2WorkflowRunListItemSchema = z
     cost: z
       .object({ total: z.number().describe('Total credits consumed by the run.') })
       .nullable()
-      .describe('Credit cost, or null when unavailable.'),
+      .describe(
+        'Credits consumed, or null when unavailable or hidden by organization permission groups.'
+      ),
   })
   .meta({
     id: 'WorkflowRunListItem',
@@ -1769,7 +1907,9 @@ export const v2WorkflowRunStatusSchema = z
     cost: z
       .object({ total: z.number().describe('Total credits consumed by the run.') })
       .nullable()
-      .describe('Credit cost, or null when unavailable.'),
+      .describe(
+        'Credits consumed, or null when unavailable or hidden by organization permission groups.'
+      ),
     error: v2ExecutionErrorSchema
       .nullable()
       .describe(
@@ -1780,18 +1920,20 @@ export const v2WorkflowRunStatusSchema = z
       .unknown()
       .describe('Final workflow output value.')
       .nullable()
-      .describe('Final workflow output when requested, otherwise null.'),
+      .describe(
+        'Final output when `includeOutput=true`, or null when not requested or hidden by organization permission groups.'
+      ),
     blockOutputs: z
       .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
       .nullable()
       .describe(
-        'Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only.'
+        'Selected block outputs, or null when none were requested or execution data is hidden by organization permission groups. `selectedOutputs` controls these independently of `includeOutput`.'
       ),
     files: z
       .array(v2RunFileSchema)
       .nullable()
       .describe(
-        'Files this run produced, or null when `includeOutput` is false. Matches the nullability of `output`.'
+        'Run-produced files when `includeOutput=true`, or null when not requested or execution data is hidden by organization permission groups.'
       ),
   })
   .meta({
@@ -2004,14 +2146,14 @@ export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema
       required: undefined,
       additionalProperties: true,
       description:
-        'Secret-sanitized workflow graph, edges, loops, parallels, metadata, and variables.',
+        'Saved graph, edges, containers, metadata, and variables. Registered credential fields are cleared; ordinary variables and unresolved environment references remain included.',
     }),
   })
   .meta({
     id: 'WorkflowExportPayload',
     title: 'Workflow export payload',
     description:
-      'Portable, secret-sanitized workflow export. Workspace-scoped bindings must be selected again after import.',
+      'Portable saved draft with registered credential fields cleared. Workspace bindings are cleared by default and retained when `includeWorkspaceBindings=true`.',
   })
 
 export const v2ImportWorkflowBaseBodySchema = v1ImportWorkflowBodySchema
@@ -2081,7 +2223,7 @@ export const v2ImportWorkflowBaseBodySchema = v1ImportWorkflowBodySchema
       )
       .max(5000)
       .optional()
-      .describe('Mappings keyed by resource type and source identifier.'),
+      .describe('Mapping entries addressed by resource kind and source identifier.'),
     bindings: z
       .array(
         referenceOccurrenceSchema
@@ -2127,7 +2269,7 @@ export const v2ImportWorkflowBaseBodySchema = v1ImportWorkflowBodySchema
       .max(2000)
       .optional()
       .describe(
-        'Destination-dependent choices keyed by source workflow, block, and field identities.'
+        'Destination-specific values addressed by the source block ID and field key, before imported IDs are regenerated.'
       ),
   })
   .strict()
@@ -2153,15 +2295,15 @@ export const v2ImportWorkflowBodySchema = v2ImportWorkflowBaseBodySchema
       .regex(/^[A-Za-z0-9._:-]+$/)
       .optional()
       .describe(
-        'Stable client-generated retry ID. Reuse it after uncertain completion; never submit a fresh ID to retry.'
-      )
-      .describe('Stable client request ID for reconciliation and identical retries.'),
+        'Stable client request ID for mapped import. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can create another workflow.'
+      ),
     previewFingerprint: z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional()
-      .describe('Fingerprint returned by the last import preview.')
-      .describe('Fingerprint of the reviewed preview and its choices.'),
+      .describe(
+        'Fingerprint returned by an import preview with the same choices. A changed plan returns 409; preview again. Do not invent this value.'
+      ),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -2256,11 +2398,13 @@ export const v2PreviewWorkflowImportContract = defineRouteContract({
           previewFingerprint: z
             .string()
             .length(64)
-            .describe('Fingerprint of the reviewed preview and its choices.'),
+            .describe(
+              'Fingerprint to send when applying this import with the same choices. Preview again after changing any choice.'
+            ),
           ready: z
             .boolean()
             .describe(
-              'Whether the operation passes its current apply or deployment readiness checks.'
+              'Whether every required destination binding and configuration field is resolved for import.'
             ),
           bindings: z
             .array(v2ImportBindingResolutionSchema)
@@ -2300,8 +2444,9 @@ export const v2PreviewWorkflowImportContract = defineRouteContract({
         })
         .meta({
           id: 'PreviewWorkflowImportResult',
-          title: 'PreviewWorkflowImportResult',
-          description: 'The PreviewWorkflowImportResult result.',
+          title: 'Workflow import preview',
+          description:
+            'Import readiness, unresolved bindings, and destination discovery instructions.',
         })
     ),
   },
@@ -2361,7 +2506,7 @@ export const v2ImportWorkflowDataSchema = z
     warnings: z
       .array(z.string())
       .describe(
-        'One line per required workspace binding — a table, knowledge base, document, or other selector — that the payload carried empty, as `<block name>: <field> was stripped by export; set it before running`. Export clears those bindings unless `includeWorkspaceBindings=true` was sent, so a round-tripped workflow arrives unable to run until they are set again. Empty when nothing is missing.'
+        'Missing required workspace bindings, such as a table or knowledge base, reported as `<block name>: <field> was stripped by export; set it before running`. Set these fields before execution. Default exports clear workspace bindings; `includeWorkspaceBindings=true` retains non-secret bindings for same-workspace imports. Empty when no required binding is missing.'
       ),
   })
   .extend(v2OperationReportSchema.omit({ workspaceId: true }).partial().shape)
@@ -2381,7 +2526,7 @@ export const v2ExportWorkflowQuerySchema = z
       ),
     includeWorkspaceBindings: booleanQueryFlagSchema
       .describe(
-        'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.'
+        'Keep non-secret table, knowledge base, document, folder, channel, and other workspace bindings for a same-workspace import. Defaults to false, which clears these IDs. Registered credential fields and opaque table/tool values are cleared either way; environment references and ordinary workflow variables remain included.'
       )
       .optional()
       .default(false),
@@ -2809,115 +2954,6 @@ const v2WorkflowGraphWriteResultSchema = z
     id: 'WorkflowGraphWriteResult',
     title: 'Workflow graph write result',
     description: 'Outcome of a write against a workflow draft graph.',
-  })
-
-const v2WorkflowLintBlockRefSchema = z.object({
-  blockId: z.string().describe('Block the finding is about.'),
-  blockName: z.string().nullable().describe('Display name of the block, when it has one.'),
-  blockType: z.string().nullable().describe('Registered type of the block, when it has one.'),
-})
-
-const v2WorkflowLintSchema = z
-  .object({
-    sources: z
-      .array(v2WorkflowLintBlockRefSchema)
-      .describe(
-        'Blocks with no incoming edge. A trigger block is naturally a source; anything else here is unreachable.'
-      ),
-    sinks: z.array(v2WorkflowLintBlockRefSchema).describe('Blocks with no outgoing edge.'),
-    orphanBlocks: z
-      .array(v2WorkflowLintBlockRefSchema)
-      .describe('Blocks with neither an incoming nor an outgoing edge.'),
-    emptyOutgoingPorts: z
-      .array(
-        v2WorkflowLintBlockRefSchema.extend({
-          handle: z.string().describe('Source handle with nothing connected to it.'),
-          label: z.string().describe('Human-readable name of the port.'),
-        })
-      )
-      .describe('Branch and container ports that lead nowhere.'),
-    invalidBranchPorts: z
-      .array(
-        v2WorkflowLintBlockRefSchema.extend({
-          sourceHandle: z.string().describe('Source handle that does not match the block.'),
-          reason: z.string().describe('Why the handle is not valid for this block.'),
-        })
-      )
-      .describe('Condition and router edges whose source handle names no real branch.'),
-    invalidConnectionTargets: z
-      .array(
-        z.object({
-          sourceBlockId: z.string().describe('Block the edge leaves.'),
-          sourceBlockName: z.string().nullable().describe('Display name of the source block.'),
-          sourceHandle: z.string().nullable().describe('Handle the edge leaves from.'),
-          targetBlockId: z.string().describe('Block the edge points at.'),
-          reason: z.string().describe('Why the target is not a legal destination.'),
-        })
-      )
-      .describe('Edges pointing at a block that cannot legally receive them.'),
-    fieldIssues: z
-      .array(
-        v2WorkflowLintBlockRefSchema.extend({
-          missingRequiredFields: z
-            .array(z.string())
-            .describe('Required sub-block fields that resolve empty in the active mode.'),
-          inactiveModeValues: z
-            .array(
-              z.object({
-                canonicalId: z
-                  .string()
-                  .describe('Canonical parameter the two sub-block modes share.'),
-                activeMemberId: z
-                  .string()
-                  .nullable()
-                  .describe('Sub-block the runtime reads, where the value should live.'),
-                inactiveMemberId: z
-                  .string()
-                  .describe('Sub-block holding the stranded value, which the runtime ignores.'),
-                kind: z
-                  .enum(['credential', 'resource', 'other'])
-                  .describe('What kind of value is stranded.'),
-              })
-            )
-            .describe('Values stranded on the inactive member of a canonical pair.'),
-        })
-      )
-      .describe(
-        'Per-block configuration problems. The most actionable part of the report for a headless graph builder: a block missing a required field will fail at run time.'
-      ),
-    unresolvedReferences: z
-      .array(
-        v2WorkflowLintBlockRefSchema.extend({
-          field: z.string().describe('Sub-block field holding the reference.'),
-          value: z
-            .union([z.string(), z.array(z.string())])
-            .describe('The reference, or references, that did not resolve.'),
-          kind: z
-            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
-            .describe('What kind of entity the reference was expected to name.'),
-          reason: z.string().describe('Why the reference does not resolve.'),
-        })
-      )
-      .describe(
-        'Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped.'
-      ),
-    tableFieldIssues: z
-      .array(
-        v2WorkflowLintBlockRefSchema.extend({
-          field: z.string().describe('The filter or sort field that names no column.'),
-          tableName: z.string().describe('Display name of the table the block is bound to.'),
-        })
-      )
-      .describe(
-        "Table block `filter` and `order` fields checked against the bound table's live schema that name no column (nor the implicit `id`, `createdAt`, `updatedAt`). Such a run fails inside the block's error edge. A filter holding a `<block.output>` reference, or one that is not JSON, is not checked."
-      ),
-    notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
-  })
-  .meta({
-    id: 'WorkflowLintReport',
-    title: 'Workflow lint report',
-    description:
-      'Advisory findings about the saved graph. Findings never block the write; they tell a caller what will misbehave at run time.',
   })
 
 /**
@@ -3661,7 +3697,7 @@ export type V2ApplyWorkflowVariablesBody = z.input<typeof v2ApplyWorkflowVariabl
 export const v2ApplyWorkflowVariablesDataSchema = z
   .object({
     id: z.string().describe('Identifier of the workflow whose variables were updated.'),
-    variableCount: z.number().int().nonnegative().describe('Variables the workflow now holds.'),
+    variableCount: z.number().int().nonnegative().describe('Number of variables after the batch.'),
     changed: z
       .boolean()
       .describe('Whether anything actually changed. A no-op batch answers `200` with `false`.'),
@@ -3788,4 +3824,12 @@ export const v2MoveWorkflowsContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2MoveWorkflowsDataSchema),
   },
+})
+
+export const v2CompareWorkflowVersionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/versions/compare',
+  params: v2WorkflowIdParamsSchema,
+  query: compareWorkflowVersionsQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(compareWorkflowVersionsDataSchema) },
 })

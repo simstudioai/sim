@@ -10,7 +10,7 @@ import {
   MIME_TYPE_MAPPING,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   resolveFileType,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 import {
   getNativeConversationMessage,
@@ -35,6 +35,7 @@ export type AttachmentProvider =
   | 'fireworks'
   | 'together'
   | 'baseten'
+  | 'nebius'
   | 'ollama'
   | 'vllm'
   | 'litellm'
@@ -173,6 +174,7 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   fireworks: 'images through image_url message parts on vision models',
   together: 'images through image_url message parts on vision models',
   baseten: 'images through image_url message parts on vision models',
+  nebius: 'images through image_url message parts on vision models',
   ollama: 'images through image_url message parts on vision models',
   vllm: 'images through image_url message parts on multimodal models',
   litellm: 'images through image_url message parts on multimodal models',
@@ -197,6 +199,7 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'fireworks') return 'fireworks'
   if (providerId === 'together') return 'together'
   if (providerId === 'baseten') return 'baseten'
+  if (providerId === 'nebius') return 'nebius'
   if (providerId === 'ollama' || providerId === 'ollama-cloud') return 'ollama'
   if (providerId === 'vllm') return 'vllm'
   if (providerId === 'litellm') return 'litellm'
@@ -411,6 +414,7 @@ function isMimeTypeSupportedByProvider(
     case 'fireworks':
     case 'together':
     case 'baseten':
+    case 'nebius':
     case 'ollama':
     case 'vllm':
     case 'litellm':

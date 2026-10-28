@@ -1,40 +1,34 @@
 ---
 title: Context.dev
 description: Scrape, crawl, search, extract, and enrich web and brand data
+integration:
+  type: "context_dev"
+  color: "#ffffff"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="context_dev"
-  color="#ffffff"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Context.dev](https://context.dev/) is a web data API that scrapes, crawls, searches, and extracts data from the web, and resolves brand and company data from a domain, name, email, ticker, or transaction descriptor.
+Use [Context.dev](https://context.dev/) to retrieve web content and company or brand data.
 
-With Context.dev, you can:
-
-- **Scrape and crawl pages**: Convert URLs to clean markdown or HTML, capture screenshots, discover images, crawl entire sites, and map sitemaps
-- **Search the web**: Run natural language searches with domain filters and optional markdown scraping of results
-- **Extract structured data**: Pull data matching a JSON schema, or detect and extract product details and catalogs from a page or domain
-- **Analyze brand and design data**: Extract a domain's fonts and design system, classify a brand into NAICS/SIC industry codes, and resolve brand data (logos, colors, socials, address) from a domain, company name, email, ticker, or transaction descriptor
-
-In Sim, the Context.dev integration allows your agents to scrape and crawl web pages into markdown or HTML, capture screenshots, search the web, extract structured data and product information, pull a site's fonts and style guide, classify a brand's industry, and look up brand assets and company details by domain, name, email, ticker, or transaction — all through a single set of API calls in your workflow.
+- Scrape URLs to Markdown or HTML, capture screenshots, list images, crawl sites, and map sitemaps.
+- Search with domain filters and optionally scrape results to Markdown.
+- Extract data matching a JSON schema, product details, or product catalogs.
+- Retrieve fonts and design-system data, classify industries with NAICS/SIC codes, and resolve logos, colors, social links, and addresses from a domain, company name, email, ticker, or transaction descriptor.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.
-
-
+Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.
 
 ## Actions
 
 ### Context.dev Scrape Markdown
 
 Scrape any URL and return clean, LLM-ready markdown content.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,10 +50,16 @@ Scrape any URL and return clean, LLM-ready markdown content.
 | --------- | ---- | ----------- |
 | `markdown` | string | Page content as clean markdown |
 | `url` | string | The scraped URL |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Scrape HTML
 
 Scrape any URL and return the raw HTML content of the page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -80,10 +80,16 @@ Scrape any URL and return the raw HTML content of the page.
 | `html` | string | Raw HTML content of the page |
 | `url` | string | The scraped URL |
 | `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf, doc, docx\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Scrape Images
 
 Discover every image asset on a page, with optional dimension and type enrichment.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,10 +116,16 @@ Discover every image asset on a page, with optional dimension and type enrichmen
 |   ↳ `alt` | string | Alt text |
 |   ↳ `enrichment` | json | Optional enrichment \(width, height, mimetype, url, type\) when requested |
 | `url` | string | The scraped URL |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Screenshot
 
 Capture a screenshot of any web page and store it as a downloadable image file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -139,10 +151,16 @@ Capture a screenshot of any web page and store it as a downloadable image file.
 | `domain` | string | Domain that was captured |
 | `width` | number | Screenshot width in pixels |
 | `height` | number | Screenshot height in pixels |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Crawl
 
 Crawl an entire website and return each discovered page as clean markdown.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,10 +188,16 @@ Crawl an entire website and return each discovered page as clean markdown.
 |   ↳ `markdown` | string | Page content as markdown |
 |   ↳ `metadata` | json | Page metadata \(url, title, crawlDepth, statusCode\) |
 | `metadata` | object | Crawl summary \(numUrls, maxCrawlDepth, numSucceeded, numFailed, numSkipped\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Map
 
 Build a sitemap of a domain and return every discovered page URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -192,10 +216,16 @@ Build a sitemap of a domain and return every discovered page URL.
 | `domain` | string | The domain that was mapped |
 | `urls` | array | All page URLs discovered from the sitemap |
 | `meta` | object | Sitemap discovery stats \(sitemapsDiscovered, sitemapsFetched, sitemapsSkipped, errors\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Search
 
 Search the web with natural language and optionally scrape results to markdown.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -223,10 +253,16 @@ Search the web with natural language and optionally scrape results to markdown.
 |   ↳ `relevance` | string | Relevance rating \(high, medium, low\) |
 |   ↳ `markdown` | json | Scraped markdown for the result \(when markdown scraping is enabled\) |
 | `query` | string | The query that was searched |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Extract
 
 Crawl a website and extract structured data matching a provided JSON schema.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -253,10 +289,16 @@ Crawl a website and extract structured data matching a provided JSON schema.
 | `urlsAnalyzed` | array | URLs that were analyzed during extraction |
 | `data` | json | Structured data matching the requested schema |
 | `metadata` | object | Crawl summary \(numUrls, maxCrawlDepth, numSucceeded, numFailed, numSkipped\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Extract Product
 
 Detect and extract structured product details from a single product page URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -288,10 +330,16 @@ Detect and extract structured product details from a single product page URL.
 |   ↳ `image_url` | string | Primary product image URL |
 |   ↳ `images` | json | Product image URLs |
 |   ↳ `sku` | string | Product SKU |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Extract Products
 
 Extract the product catalog from a brand's website by domain (beta).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -322,10 +370,16 @@ Extract the product catalog from a brand's website by domain (beta).
 |   ↳ `image_url` | string | Primary product image URL |
 |   ↳ `images` | json | Product image URLs |
 |   ↳ `sku` | string | Product SKU |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Scrape Fonts
 
 Extract the font families, usage stats, and font files used by a domain.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -351,10 +405,16 @@ Extract the font families, usage stats, and font files used by a domain.
 |   ↳ `percent_words` | number | Percent of words using the font |
 |   ↳ `percent_elements` | number | Percent of elements using the font |
 | `fontLinks` | json | Font family download links keyed by font name \(type, files, category\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Scrape Styleguide
 
 Extract a domain's design system: colors, typography, spacing, shadows, and UI components.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -372,10 +432,16 @@ Extract a domain's design system: colors, typography, spacing, shadows, and UI c
 | `status` | string | Extraction status |
 | `domain` | string | The domain that was analyzed |
 | `styleguide` | json | Design system: mode, colors, typography, elementSpacing, shadows, fontLinks, components |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Classify NAICS
 
 Classify a brand into NAICS industry codes from its domain or company name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -398,10 +464,16 @@ Classify a brand into NAICS industry codes from its domain or company name.
 |   ↳ `code` | string | Industry code |
 |   ↳ `name` | string | Industry name |
 |   ↳ `confidence` | string | Match confidence \(high, medium, low\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Classify SIC
 
 Classify a brand into SIC industry codes from its domain or company name.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -429,10 +501,16 @@ Classify a brand into SIC industry codes from its domain or company name.
 |   ↳ `majorGroup` | string | Major group code \(original_sic only\) |
 |   ↳ `majorGroupName` | string | Major group name \(original_sic only\) |
 |   ↳ `office` | string | SEC office \(latest_sec only\) |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Get Brand
 
 Retrieve brand data for a domain: logos, colors, backdrops, socials, address, and industry.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,10 +545,16 @@ Retrieve brand data for a domain: logos, colors, backdrops, socials, address, an
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Get Brand by Name
 
 Retrieve brand data by company name: logos, colors, socials, address, and industry.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -506,10 +590,16 @@ Retrieve brand data by company name: logos, colors, socials, address, and indust
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Get Brand by Email
 
 Retrieve brand data from a work email address. Free/disposable emails are rejected (422).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -544,10 +634,16 @@ Retrieve brand data from a work email address. Free/disposable emails are reject
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Get Brand by Ticker
 
 Retrieve brand data for a public company by its stock ticker symbol.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -583,10 +679,16 @@ Retrieve brand data for a public company by its stock ticker symbol.
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 ### Context.dev Identify Transaction
 
 Identify the brand behind a raw bank/card transaction descriptor and return its brand data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -625,5 +727,9 @@ Identify the brand behind a raw bank/card transaction descriptor and return its 
 |   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
 |   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing, contact\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+| `creditsConsumed` | number | Credits consumed by this request |
+| `creditsRemaining` | number | Credits remaining on the API key |
+
+</ReferenceDetails>
 
 

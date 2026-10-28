@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')
-const job = workflow.split('  prune-desktop-prereleases:')[1]
+const job = workflow.split('  prerelease-prune:')[1]
 const step = job?.match(/^ {8}run: \|\r?\n((?: {10}.*(?:\r?\n|$)|\r?\n)+)/m)?.[1]
 if (!step) throw new Error('Desktop pruning shell step is missing')
 const script = step.replace(/^ {10}/gm, '')
@@ -103,7 +103,7 @@ describe('desktop release change detection shell', () => {
     ['apps/desktop/src/main/index.ts', true],
     ['packages/desktop-bridge/src/index.ts', true],
     ['packages/browser-protocol/src/index.ts', true],
-    ['.github/workflows/migrations.yml', false],
+    ['.github/workflows/migrate.yml', false],
     ['.github/workflows/ci.yml.backup', false],
     ['apps/sim/app/page.tsx', false],
   ])('classifies %s as desktop change=%s', (path, changed) => {

@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import {
@@ -8,42 +8,60 @@ import {
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { requireAllowedWorkspacePrincipal } from '@/lib/core/application/workspace-authorization'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbClient, DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   type AccessRequestContext,
   authorizeAccessRequestScope,
 } from '@/ee/access-requests/lib/application/authorization'
-import type {
-  AccessRequestOperation,
-  AccessRequestPrincipal,
+import {
+  ACCESS_REQUEST_DELEGATION_AUDIENCE,
+  type AccessRequestOperation,
+  type AccessRequestPrincipal,
 } from '@/ee/access-requests/lib/application/operations'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
 interface AccessRequestPreparationArgs<I> {
   principal: AccessRequestPrincipal
+  /** The person acting: the caller, or the member Chat acts for. */
+  actorUserId: string
   input: I
   context: AccessRequestContext
 }
 
-interface AccessRequestUseCaseArgs<I> extends AccessRequestPreparationArgs<I> {
-  executor: DbOrTx
+/** A mutation executes inside the funnel's transaction; a read runs on the pool-level client. */
+interface AccessRequestUseCaseArgs<I, E extends DbOrTx = DbOrTx>
+  extends AccessRequestPreparationArgs<I> {
+  executor: E
 }
 
 interface AccessRequestUseCaseDefinition<I, R> {
   operation: AccessRequestOperation
   scope(input: I): AccessRequestScope
-  mutation?: boolean
   projectAudit?(args: AccessRequestUseCaseArgs<I> & { result: R }): WorkspaceUseCaseAuditEntry[]
 }
 
-interface PreparedAccessRequestUseCase<I, R, P> extends AccessRequestUseCaseDefinition<I, R> {
+interface PreparedAccessRequestUseCase<I, R, P, E extends DbOrTx>
+  extends AccessRequestUseCaseDefinition<I, R> {
   prepare(args: AccessRequestPreparationArgs<I>): Promise<P>
-  execute(args: AccessRequestUseCaseArgs<I> & { prepared: P }): Promise<R>
+  execute(args: AccessRequestUseCaseArgs<I, E> & { prepared: P }): Promise<R>
 }
 
-interface UnpreparedAccessRequestUseCase<I, R> extends AccessRequestUseCaseDefinition<I, R> {
+interface UnpreparedAccessRequestUseCase<I, R, E extends DbOrTx>
+  extends AccessRequestUseCaseDefinition<I, R> {
   prepare?: never
-  execute(args: AccessRequestUseCaseArgs<I> & { prepared: undefined }): Promise<R>
+  execute(args: AccessRequestUseCaseArgs<I, E> & { prepared: undefined }): Promise<R>
+}
+
+type AccessRequestUseCase<I, R, P, E extends DbOrTx> =
+  | PreparedAccessRequestUseCase<I, R, P, E>
+  | UnpreparedAccessRequestUseCase<I, R, E>
+
+type MutationAccessRequestUseCase<I, R, P> = AccessRequestUseCase<I, R, P, DbTransaction> & {
+  mutation: true
+}
+
+type ReadAccessRequestUseCase<I, R, P> = AccessRequestUseCase<I, R, P, DbClient> & {
+  mutation?: false
 }
 
 function requireAccessRequestPrincipal(
@@ -53,15 +71,33 @@ function requireAccessRequestPrincipal(
   requireAllowedWorkspacePrincipal(principal, operation)
 }
 
+/** Runs preparation before any transaction opens and binds its result to `execute`. */
+async function prepareExecution<I, R, P, E extends DbOrTx>(
+  definition: AccessRequestUseCase<I, R, P, E>,
+  args: AccessRequestPreparationArgs<I>
+): Promise<(args: AccessRequestUseCaseArgs<I, E>) => Promise<R>> {
+  if (definition.prepare) {
+    const prepared = await definition.prepare(args)
+    const executePrepared = definition.execute
+    return (executeArgs) => executePrepared({ ...executeArgs, prepared })
+  }
+  const executeUnprepared = definition.execute
+  return (executeArgs) => executeUnprepared({ ...executeArgs, prepared: undefined })
+}
+
 export function defineAuthorizedAccessRequestUseCase<I, R, P>(
-  definition: PreparedAccessRequestUseCase<I, R, P>
+  definition:
+    | (PreparedAccessRequestUseCase<I, R, P, DbTransaction> & { mutation: true })
+    | (PreparedAccessRequestUseCase<I, R, P, DbClient> & { mutation?: false })
 ): OperationUseCase<AccessRequestOperation, I, R>
 export function defineAuthorizedAccessRequestUseCase<I, R>(
-  definition: UnpreparedAccessRequestUseCase<I, R>
+  definition:
+    | (UnpreparedAccessRequestUseCase<I, R, DbTransaction> & { mutation: true })
+    | (UnpreparedAccessRequestUseCase<I, R, DbClient> & { mutation?: false })
 ): OperationUseCase<AccessRequestOperation, I, R>
 /** Shared human-credential funnel; preparation finishes before any transaction acquires locks. */
 export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
-  definition: PreparedAccessRequestUseCase<I, R, P> | UnpreparedAccessRequestUseCase<I, R>
+  definition: MutationAccessRequestUseCase<I, R, P> | ReadAccessRequestUseCase<I, R, P>
 ): OperationUseCase<AccessRequestOperation, I, R> {
   return {
     operation: definition.operation,
@@ -74,39 +110,44 @@ export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
       const scope = definition.scope(input)
       const initial = await authorizeAccessRequestScope(principal, definition.operation, scope)
       return runWithOutboundOrganization(initial.organizationId, async () => {
-        let execute: (args: AccessRequestUseCaseArgs<I>) => Promise<R>
-        if (definition.prepare) {
-          const prepared = await definition.prepare({ principal, input, context: initial })
-          const executePrepared = definition.execute
-          execute = (args) => executePrepared({ ...args, prepared })
-        } else {
-          const executeUnprepared = definition.execute
-          execute = (args) => executeUnprepared({ ...args, prepared: undefined })
-        }
+        const actorUserId = requirePrincipalSubjectUserId(principal)
+        const preparation = { principal, actorUserId, input, context: initial }
         let context = initial
-        const result = definition.mutation
-          ? await db.transaction(async (executor) => {
-              if (initial.organizationId) {
-                await acquireOrganizationMutationLock(executor, initial.organizationId)
-              }
-              context = await authorizeAccessRequestScope(
-                principal,
-                definition.operation,
-                scope,
-                executor,
-                true,
-                initial
-              )
-              return execute({ principal, input, context, executor })
-            })
-          : await execute({ principal, input, context, executor: db })
+        let result: R
+        if (definition.mutation) {
+          const execute = await prepareExecution(definition, preparation)
+          result = await db.transaction(async (executor) => {
+            if (initial.organizationId) {
+              await acquireOrganizationMutationLock(executor, initial.organizationId)
+            }
+            context = await authorizeAccessRequestScope(
+              principal,
+              definition.operation,
+              scope,
+              executor,
+              true,
+              initial
+            )
+            return execute({ principal, actorUserId, input, context, executor })
+          })
+        } else {
+          const execute = await prepareExecution(definition, preparation)
+          result = await execute({ principal, actorUserId, input, context, executor: db })
+        }
         if (definition.projectAudit) {
           recordProjectedUseCaseAuditEntries(
             definition.operation,
             context.workspaceId,
             principal,
             request,
-            definition.projectAudit({ principal, input, context, executor: db, result }),
+            definition.projectAudit({
+              principal,
+              actorUserId,
+              input,
+              context,
+              executor: db,
+              result,
+            }),
             context.organizationId ?? undefined
           )
         }
@@ -114,4 +155,15 @@ export function defineAuthorizedAccessRequestUseCase<I, R, P = undefined>(
       })
     },
   }
+}
+
+/**
+ * The workspace routes' copy of a member use case. Declaring the audience admits Chat acting for
+ * the requester, pinned to its own workspace; the organization routes keep the shared use case,
+ * so Chat never reaches them.
+ */
+export function admitWorkspaceDelegation<I, R>(
+  useCase: OperationUseCase<AccessRequestOperation, I, R>
+): OperationUseCase<AccessRequestOperation, I, R> {
+  return Object.freeze({ ...useCase, delegationAudience: ACCESS_REQUEST_DELEGATION_AUDIENCE })
 }

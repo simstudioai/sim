@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
@@ -48,14 +47,10 @@ export default async function SelfHostSettingsSectionPage({
   if (parsed === 'chat-keys' && !isHosted) redirect(getSelfHostSettingsHref('general'))
 
   /**
-   * Sections read URL query params via nuqs, so the renderer must sit under a
-   * Suspense boundary. The null fallback preserves the existing chunk-loading UI.
+   * No Suspense boundary: a fallback mounted with the section puts React's 300ms reveal floor
+   * under every switch (see the workspace section layout).
    */
-  const content = (
-    <Suspense fallback={null}>
-      <SelfHostSettingsRenderer section={parsed} />
-    </Suspense>
-  )
+  const content = <SelfHostSettingsRenderer section={parsed} />
 
   if (parsed === 'general') {
     const queryClient = getQueryClient()

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, like } from 'drizzle-orm'
-import { escapeLikePattern } from '@/lib/api/list-query'
 import {
   normalizeQuickBooksRealmId,
   parseQuickBooksAccountId,

@@ -1,7 +1,5 @@
-// Common types for Datadog tools
 import type { ToolResponse } from '@/tools/types'
 
-// Datadog Site/Region options
 /**
  * Regional sites Datadog serves the API from, per the `site` server variable enum.
  *
@@ -24,13 +22,13 @@ export const DATADOG_SITES = [
 
 export type DatadogSite = (typeof DATADOG_SITES)[number]
 
-// Base parameters for write-only operations (only need API key)
+/** Base parameters for write-only operations (only need API key) */
 interface DatadogWriteOnlyParams {
   apiKey: string
   site?: DatadogSite
 }
 
-// Base parameters for read/manage operations (need both API key and Application key)
+/** Base parameters for read/manage operations (need both API key and Application key) */
 interface DatadogBaseParams extends DatadogWriteOnlyParams {
   applicationKey: string
 }
@@ -45,11 +43,9 @@ export interface DatadogV2Resource<TAttributes> {
   attributes?: TAttributes
 }
 
-// METRICS TYPES
+type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
 
-export type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
-
-export interface MetricPoint {
+interface MetricPoint {
   timestamp: number
   value: number
 }
@@ -67,7 +63,8 @@ export interface MetricSeries {
 }
 
 export interface SubmitMetricsParams extends DatadogWriteOnlyParams {
-  series: string // JSON string of MetricSeries[]
+  /** JSON string of MetricSeries[] */
+  series: string
 }
 
 interface SubmitMetricsOutput {
@@ -81,8 +78,10 @@ export interface SubmitMetricsResponse extends ToolResponse {
 
 export interface QueryTimeseriesParams extends DatadogBaseParams {
   query: string
-  from: number // Unix timestamp in seconds
-  to: number // Unix timestamp in seconds
+  /** Unix timestamp in seconds */
+  from: number
+  /** Unix timestamp in seconds */
+  to: number
 }
 
 interface TimeseriesPoint {
@@ -117,8 +116,6 @@ export interface QueryTimeseriesResponse extends ToolResponse {
   output: QueryTimeseriesOutput
 }
 
-// EVENTS TYPES
-
 export type EventAlertType =
   | 'error'
   | 'warning'
@@ -135,13 +132,15 @@ export interface CreateEventParams extends DatadogWriteOnlyParams {
   alertType?: EventAlertType
   priority?: EventPriority
   host?: string
-  tags?: string // Comma-separated tags
+  /** Comma-separated tags */
+  tags?: string
   aggregationKey?: string
   sourceTypeName?: string
-  dateHappened?: number // Unix timestamp
+  /** Unix timestamp */
+  dateHappened?: number
 }
 
-export interface EventData {
+interface EventData {
   id?: number
   title?: string
   text?: string
@@ -160,8 +159,6 @@ interface CreateEventOutput {
 export interface CreateEventResponse extends ToolResponse {
   output: CreateEventOutput
 }
-
-// MONITORS TYPES
 
 export type MonitorType =
   | 'metric alert'
@@ -203,9 +200,12 @@ export interface CreateMonitorParams extends DatadogBaseParams {
   type: MonitorType
   query: string
   message?: string
-  tags?: string // Comma-separated tags
-  priority?: number // 1-5
-  options?: string // JSON string of MonitorOptions
+  /** Comma-separated tags */
+  tags?: string
+  /** 1-5 */
+  priority?: number
+  /** JSON string of MonitorOptions */
+  options?: string
 }
 
 export interface MonitorData {
@@ -233,7 +233,8 @@ export interface CreateMonitorResponse extends ToolResponse {
 
 export interface GetMonitorParams extends DatadogBaseParams {
   monitorId: string
-  groupStates?: string // Comma-separated states: alert, warn, no data
+  /** Comma-separated states: alert, warn, no data */
+  groupStates?: string
   withDowntimes?: boolean
 }
 
@@ -246,10 +247,13 @@ export interface GetMonitorResponse extends ToolResponse {
 }
 
 export interface ListMonitorsParams extends DatadogBaseParams {
-  groupStates?: string // Comma-separated states
-  name?: string // Filter by name
-  tags?: string // Filter by tags (comma-separated)
-  monitorTags?: string // Filter by monitor tags
+  /** Comma-separated states */
+  groupStates?: string
+  name?: string
+  /** Filter by tags (comma-separated) */
+  tags?: string
+  /** Filter by monitor tags */
+  monitorTags?: string
   withDowntimes?: boolean
   idOffset?: number
   page?: number
@@ -297,8 +301,6 @@ export interface UnmuteMonitorResponse extends ToolResponse {
   output: MonitorMuteOutput
 }
 
-// LOGS TYPES
-
 /**
  * One entry for the Datadog log intake. Datadog treats any key beyond the reserved
  * ones as a structured log attribute, so extra properties are carried through.
@@ -313,7 +315,8 @@ export interface LogEntry {
 }
 
 export interface SendLogsParams extends DatadogWriteOnlyParams {
-  logs: string // JSON string of LogEntry[]
+  /** JSON string of LogEntry[] */
+  logs: string
 }
 
 interface SendLogsOutput {
@@ -326,12 +329,15 @@ export interface SendLogsResponse extends ToolResponse {
 
 export interface QueryLogsParams extends DatadogBaseParams {
   query: string
-  from: string // ISO-8601 or relative (now-1h)
-  to: string // ISO-8601 or relative (now)
+  /** ISO-8601 or relative (now-1h) */
+  from: string
+  /** ISO-8601 or relative (now) */
+  to: string
   limit?: number
   cursor?: string
   sort?: 'timestamp' | '-timestamp'
-  indexes?: string // Comma-separated index names
+  /** Comma-separated index names */
+  indexes?: string
 }
 
 /** Attributes of a v2 log event (`LogAttributes` in the Datadog v2 schema). */
@@ -359,16 +365,19 @@ export interface QueryLogsResponse extends ToolResponse {
   output: QueryLogsOutput
 }
 
-// DOWNTIME TYPES
-
 export interface CreateDowntimeParams extends DatadogBaseParams {
-  scope: string // Scope to apply downtime (e.g., "host:myhost" or "*")
+  /** Scope to apply downtime (e.g., "host:myhost" or "*") */
+  scope: string
   message?: string
-  start?: number // Unix timestamp, defaults to now
-  end?: number // Unix timestamp
+  /** Unix timestamp, defaults to now */
+  start?: number
+  /** Unix timestamp */
+  end?: number
   timezone?: string
-  monitorId?: string // Monitor ID to mute
-  monitorTags?: string // Comma-separated tags to match monitors
+  /** Monitor ID to mute */
+  monitorId?: string
+  /** Comma-separated tags to match monitors */
+  monitorTags?: string
   muteFirstRecoveryNotification?: boolean
 }
 
@@ -433,11 +442,10 @@ interface CancelDowntimeOutput {
 export interface CancelDowntimeResponse extends ToolResponse {
   output: CancelDowntimeOutput
 }
-// SLO TYPES
 
-export type SloType = 'metric' | 'monitor' | 'time_slice'
+type SloType = 'metric' | 'monitor' | 'time_slice'
 
-export type SloTimeframe = '7d' | '30d' | '90d' | 'custom'
+type SloTimeframe = '7d' | '30d' | '90d' | 'custom'
 
 interface SloThreshold {
   timeframe: SloTimeframe
@@ -596,9 +604,7 @@ export interface GetSloHistoryResponse extends ToolResponse {
   output: GetSloHistoryOutput
 }
 
-// DASHBOARD TYPES
-
-export type DashboardLayoutType = 'ordered' | 'free'
+type DashboardLayoutType = 'ordered' | 'free'
 
 interface DashboardData {
   id?: string
@@ -690,9 +696,7 @@ export interface DeleteDashboardResponse extends ToolResponse {
   output: DeleteDashboardOutput
 }
 
-// SYNTHETICS TYPES
-
-export type SyntheticsTestPauseStatus = 'live' | 'paused'
+type SyntheticsTestPauseStatus = 'live' | 'paused'
 
 export interface SyntheticsTestData {
   public_id?: string
@@ -826,11 +830,9 @@ export interface UpdateSyntheticsStatusResponse extends ToolResponse {
   output: UpdateSyntheticsStatusOutput
 }
 
-// SECURITY MONITORING TYPES
+type SecuritySignalState = 'open' | 'archived' | 'under_review'
 
-export type SecuritySignalState = 'open' | 'archived' | 'under_review'
-
-export type SecuritySignalArchiveReason =
+type SecuritySignalArchiveReason =
   | 'none'
   | 'false_positive'
   | 'testing_or_maintenance'
@@ -950,8 +952,6 @@ export interface ListSecurityRulesResponse extends ToolResponse {
   output: ListSecurityRulesOutput
 }
 
-// APM / SPANS TYPES
-
 export interface SearchSpansParams extends DatadogBaseParams {
   query?: string
   from?: string
@@ -1027,9 +1027,7 @@ export interface ListServicesResponse extends ToolResponse {
   output: ListServicesOutput
 }
 
-// INCIDENTS TYPES
-
-export type IncidentSeverity = 'UNKNOWN' | 'SEV-0' | 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5'
+type IncidentSeverity = 'UNKNOWN' | 'SEV-0' | 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5'
 
 interface IncidentFieldValue {
   type?: string
@@ -1165,47 +1163,3 @@ interface AddIncidentTodoOutput {
 export interface AddIncidentTodoResponse extends ToolResponse {
   output: AddIncidentTodoOutput
 }
-
-// Union type for all Datadog responses
-export type DatadogResponse =
-  | SubmitMetricsResponse
-  | QueryTimeseriesResponse
-  | CreateEventResponse
-  | CreateMonitorResponse
-  | GetMonitorResponse
-  | ListMonitorsResponse
-  | MuteMonitorResponse
-  | UnmuteMonitorResponse
-  | SendLogsResponse
-  | QueryLogsResponse
-  | CreateDowntimeResponse
-  | ListDowntimesResponse
-  | CancelDowntimeResponse
-  | ListSlosResponse
-  | GetSloResponse
-  | CreateSloResponse
-  | UpdateSloResponse
-  | DeleteSloResponse
-  | GetSloHistoryResponse
-  | ListDashboardsResponse
-  | GetDashboardResponse
-  | CreateDashboardResponse
-  | DeleteDashboardResponse
-  | ListSyntheticsTestsResponse
-  | GetSyntheticsTestResponse
-  | GetSyntheticsResultsResponse
-  | GetBrowserSyntheticsResultsResponse
-  | TriggerSyntheticsTestsResponse
-  | UpdateSyntheticsStatusResponse
-  | ListSecuritySignalsResponse
-  | GetSecuritySignalResponse
-  | UpdateSecuritySignalStateResponse
-  | UpdateSecuritySignalAssigneeResponse
-  | ListSecurityRulesResponse
-  | SearchSpansResponse
-  | ListServicesResponse
-  | ListIncidentsResponse
-  | GetIncidentResponse
-  | CreateIncidentResponse
-  | UpdateIncidentResponse
-  | AddIncidentTodoResponse

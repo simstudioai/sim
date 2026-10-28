@@ -2,17 +2,16 @@ import { WealthboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { WealthboxResponse } from '@/tools/wealthbox/types'
 
 const CONTACT_FIELD = ['contactId', 'manualContactId'] as const
 
-export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
+export const WealthboxBlock: BlockConfig = {
   type: 'wealthbox',
   name: 'Wealthbox',
   description: 'Interact with Wealthbox',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.',
+    'Read or write Wealthbox notes, contacts, and tasks with OAuth or a supported API access token.',
   docsLink: 'https://docs.sim.ai/integrations/wealthbox',
   category: 'tools',
   integrationType: IntegrationType.Sales,

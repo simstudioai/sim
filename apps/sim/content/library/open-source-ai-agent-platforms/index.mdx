@@ -1,194 +1,300 @@
 ---
 slug: open-source-ai-agent-platforms
-title: 'Open-Source AI Agent Platforms: Comparison'
-description: Compare the top open-source AI agent platforms of 2026 - LangGraph, CrewAI, AutoGen, Dify, n8n, and Sim - by architecture, production readiness, and team fit. Find the right one for your use case.
+title: 'Best Open Source AI Agents and Platforms in 2026'
+description: 'The best open source AI agents and platforms in 2026: Sim, LangGraph, CrewAI, Microsoft Agent Framework, AG2, Dify, n8n, and OpenHands compared on license and self-hosting.'
+seoTitle: 'Open Source AI Agents: Best Platforms in 2026'
+seoDescription: 'Open source AI agents compared: Sim, LangGraph, CrewAI, Microsoft Agent Framework, Dify, n8n and more, by exact license, self-hosting, stars and pricing.'
 date: 2026-07-13
-updated: 2026-07-23
+updated: 2026-10-20
 authors:
   - emir
-readingTime: 12
-tags: [Open Source, AI Agents, LangGraph, CrewAI, Dify, Sim]
+readingTime: 16
+tags: [Open Source, AI Agents, Agent Frameworks, LangGraph, CrewAI, Dify, Sim]
 ogImage: /library/open-source-ai-agent-platforms/cover.jpg
-canonical: https://www.sim.ai/library/open-source-ai-agent-platforms
 draft: false
 faq:
+  - q: "What is the best open source AI agent platform?"
+    a: "It depends on who builds the agents: Sim is a strong fit for teams that want an Apache 2.0 core with a visual builder, self-hosting, and deployment in one AI workspace, while LangGraph and CrewAI fit engineering teams that want orchestration in Python code. Dify and n8n are popular too, but both use source-available licenses that are not OSI-approved."
+  - q: "What are the best open source AI agents in 2026?"
+    a: "As of October 2026, the actively maintained OSI-licensed options covered here are Sim (Apache 2.0 core), LangGraph (MIT), CrewAI (MIT), Microsoft Agent Framework (MIT), AG2 (Apache 2.0), and OpenHands (MIT) for coding agents. Dify and n8n publish their source under licenses with extra restrictions, so they are source available rather than open source."
   - q: "What is the difference between an AI agent framework and an AI agent platform?"
-    a: "An AI agent framework is a code library that provides primitives for building agents: tool use, multi-step reasoning, memory, and orchestration. You write code and own everything else. An AI agent platform bundles those primitives with deployment infrastructure, observability, collaboration features, and often a visual interface. The practical difference is how much your team builds versus how much comes out of the box."
+    a: "An AI agent framework is a code library with primitives for tool use, reasoning, memory, and orchestration, and your team owns everything around it. An AI agent platform bundles those primitives with deployment, observability, collaboration, and often a visual builder."
   - q: "Can I self-host all of these open-source AI agent platforms?"
-    a: "Most, but not all, support full self-hosting. LangGraph, CrewAI, Dify, and Sim can all be self-hosted via Docker or Kubernetes. AutoGen is now in maintenance mode and will not receive new features, but remains self-hostable. n8n supports self-hosting under its Sustainable Use License, which has specific commercial-use restrictions worth reviewing. Always check the license terms, since some platforms label enterprise features like RBAC, SSO, and advanced observability as paid add-ons even when the core is open source."
+    a: "Sim, LangGraph, CrewAI, Microsoft Agent Framework, AG2, Dify, n8n, and OpenHands can all run on your own infrastructure, but the license decides what you may do with them: MIT and Apache 2.0 permit commercial self-hosting, Dify bars multi-tenant use without written permission, and n8n's Sustainable Use License restricts some commercial uses. Check which features sit in separately licensed enterprise code before you commit."
   - q: "Which open-source AI agent platform is best for non-developers?"
-    a: "Visual builders like Dify and workspace platforms like Sim are the best starting points for non-developers. Both offer drag-and-drop interfaces that don't require writing code. Code-first frameworks like LangGraph, CrewAI, and AutoGen are a poor fit without engineering support since they require Python proficiency and comfort with infrastructure management. If your team is mixed (some developers, some not), a workspace like Sim lets both groups contribute in the same environment."
+    a: "Visual builders such as Sim and Dify are the practical starting points for non-developers and teams that prefer not to write code, because agents are assembled in a visual editor rather than in Python. Code-first frameworks such as LangGraph, CrewAI, and Microsoft Agent Framework need engineering support."
   - q: "How does LangGraph compare to CrewAI for production use?"
-    a: "LangGraph gives you explicit, stateful control over every decision branch in your agent's workflow, making it the stronger choice for complex conditional logic. Crews provide autonomous agent collaboration ideal for tasks requiring flexible decision-making, while Flows offer precise, event-driven control ideal for managing detailed execution paths and secure state management. The real differentiator in production is the deployment layer: both frameworks leave production infrastructure, monitoring, and team collaboration as exercises for the builder, so your choice may hinge on which ecosystem your team prefers to invest in."
+    a: "LangGraph gives explicit, stateful control over every branch with checkpointing and human-in-the-loop, while CrewAI models work as role-based crews coordinated by event-driven Flows. Both leave production hosting, monitoring, and team collaboration to the builder unless you add LangSmith or CrewAI's paid enterprise tier."
   - q: "What should I look for in an open-source AI agent platform before committing?"
-    a: "Evaluate six things: license type (MIT, Apache 2.0, or a custom license with restrictions), self-hosting support (Docker/Kubernetes readiness and local model compatibility via Ollama), observability (built-in logging and tracing versus requiring a paid add-on like LangSmith), LLM flexibility (multi-provider support so you're not locked into one model vendor), community activity (commit frequency, issue response time, contributor count), and enterprise feature gating (whether RBAC, SSO, and audit logs require a paid tier). That last point matters most: an open-source label doesn't guarantee the features you need in production are in the free tier."
+    a: "Check the exact license, self-hosting support, observability, model flexibility including local models, maintenance activity, and which enterprise features such as SSO, RBAC, and audit logs require a paid tier. An open-source label does not guarantee that the features you need in production are in the free core."
+  - q: "What happened to Flowise?"
+    a: "Flowise froze development on July 29, 2026, its GitHub repository was archived in August 2026, and it reached end of life on August 31, 2026. Existing self-hosted installs keep running but receive no upstream fixes, so new projects should choose an actively maintained visual builder such as Sim or Dify."
+  - q: "Is AutoGen still maintained?"
+    a: "No. As of October 2026, AutoGen's README says the project is no longer actively maintained by Microsoft and receives no bug or security fixes, and it points new users to Microsoft Agent Framework; the community-run AG2 project continues the AutoGen-derived API as AG2 Classic."
+  - q: "Which open-source AI agent platforms support MCP?"
+    a: "MCP (Model Context Protocol) gives agents a standard way to reach tools and context. Sim can call MCP tools and deploy a workflow as an MCP server, Dify can publish apps as an MCP server, CrewAI agents can use MCP servers as tools, and n8n can connect AI agents to MCP servers."
+  - q: "What is an open-source AI workflow builder?"
+    a: "An open-source AI workflow builder is software under an OSI-approved license that lets teams visually create and self-host multi-step workflows connecting AI models, tools, data, logic, and external applications."
+  - q: "What is the best open-source AI workflow builder?"
+    a: "Sim is a strong fit for teams that want an Apache 2.0 core, visual multi-step workflow design, self-hosting, and AI-native model and tool orchestration; apps/sim/ee remains under the separate Sim Enterprise License. Teams whose main need is retrieval over documents often shortlist Dify, keeping its license conditions in mind."
+  - q: "Is Sim an open-source AI workflow builder?"
+    a: "Yes. Sim is the open-source AI workspace with a visual workflow builder; its core is licensed under Apache 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License."
+  - q: "Is n8n open source?"
+    a: "No. n8n is source available under the Sustainable Use License, which is not OSI-approved, and files marked .ee require a separate n8n Enterprise License."
+  - q: "Is Dify open source?"
+    a: "Dify's source is public under a modified Apache 2.0 license that adds conditions, including a ban on operating a multi-tenant service without Dify's written authorization and a commercial-license requirement before removing or modifying the logo or copyright in its frontend. Those added conditions mean it is not an OSI-approved open-source license as modified."
+  - q: "What is the difference between an AI agent platform and an AI workflow builder?"
+    a: "An AI agent platform is the broader environment for building, deploying, and managing agents, while an AI workflow builder specifically emphasizes visually arranging the multi-step logic, tools, models, and integrations those agents use."
+  - q: "Can Sim use local AI models?"
+    a: "Yes. Self-hosted Sim can use Ollama, vLLM, LM Studio, or LiteLLM endpoints; Sim Cloud cannot reach a model server inside your network."
+  - q: "Do local models require Sim Enterprise?"
+    a: "No. Ollama and compatible vLLM, LM Studio, or LiteLLM endpoints work on any self-hosted Sim deployment without Sim Enterprise."
+  - q: "How do Sim and n8n differ?"
+    a: "Sim has an OSI-approved Apache 2.0 core and centers its visual builder on models, tools, and agents, while n8n is a broader workflow-automation product distributed under the source-available Sustainable Use License. n8n is the better pick when you are extending existing automations across many apps; Sim fits when agents are the core of the work."
+  - q: "Is Sim free to self-host?"
+    a: "Sim's Apache 2.0 core can be self-hosted without a license fee, while production use of code in apps/sim/ee requires an active Sim Enterprise subscription under the separate Sim Enterprise License."
+  - q: "What is the best open-source n8n alternative for AI workflows?"
+    a: "Sim is a strong fit for teams that want an Apache 2.0 core and agent-centered visual workflows instead of n8n's source-available license; apps/sim/ee remains under the separate Sim Enterprise License. Code-first teams can also consider LangGraph or CrewAI."
+  - q: "What is the best open source Zapier alternative for AI agents?"
+    a: "Sim is a strong fit when a team wants to build and self-host AI agents with multi-step logic rather than rely only on trigger-and-action automation in a proprietary service. Its core is Apache 2.0, with apps/sim/ee under the separate Sim Enterprise License."
+  - q: "Is Sim open source?"
+    a: "Sim has an open-source core licensed under Apache 2.0, while apps/sim/ee uses the separate Sim Enterprise License and requires an Enterprise subscription for production use."
+  - q: "What is the difference between open source and source available?"
+    a: "Open Source Initiative-approved licenses satisfy the Open Source Definition, while source-available licenses expose code but may restrict commercial use, redistribution, or hosted services."
+  - q: "Can I self-host Sim?"
+    a: "Yes. Sim runs on your own infrastructure with Docker Compose or Kubernetes, with its core under Apache 2.0 and enterprise capabilities in apps/sim/ee under the separate Sim Enterprise License."
+  - q: "Does Sim support bring your own API key?"
+    a: "Yes. Sim supports workspace BYOK keys on every Sim Cloud plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise."
+  - q: "Are open source AI agent platforms free?"
+    a: "The covered code can be used under its license without a software fee, but hosting, models, databases, monitoring, engineering time, and enterprise features can still create costs."
+  - q: "Is Apache 2.0 suitable for commercial use?"
+    a: "Yes. Apache License 2.0 permits commercial use, modification, and redistribution of covered code subject to its notice, attribution, patent, and other license conditions."
+  - q: "Does a public GitHub repository mean a platform is open source?"
+    a: "No. A public repository is open source only when the covered code uses a license that grants the required use, modification, and redistribution rights."
+  - q: "Should I choose an AI agent platform or an agent framework?"
+    a: "A platform such as Sim fits when a team wants a visual workspace for building and operating agents, while a code-first framework fits when developers want orchestration to live inside application code."
+  - q: "What is the difference between Sim and Dify?"
+    a: "Sim is an open-source AI workspace centered on building, deploying, and managing agents, while Dify is commonly evaluated as an LLM application and document-retrieval (RAG) platform under a modified Apache 2.0 license. Dify is the better pick when document retrieval apps are the main job."
+  - q: "What is the difference between Sim and LangGraph?"
+    a: "Sim provides a visual workspace for agent workflows, while LangGraph is a code-first orchestration framework for developers who want graph-based control in application code."
+  - q: "Which open source framework is best for multi-agent systems?"
+    a: "It depends on the coordination model, language, runtime, and observability you need: LangGraph for explicit graphs, CrewAI for role-based crews, and Microsoft Agent Framework or AG2 for conversational multi-agent patterns."
+  - q: "What should enterprises check before adopting an open source AI agent platform?"
+    a: "Enterprises should check the exact license, self-hosting boundary, identity controls, auditability, secrets handling, data retention, model governance, support terms, release cadence, and operational ownership for every platform."
+  - q: "How important are GitHub stars when choosing an AI agent platform?"
+    a: "GitHub stars are a community-interest signal, but they matter less than license clarity, active releases, maintainership, documentation, security practices, and production fit."
+  - q: "Can an open source AI agent platform be used for regulated workflows?"
+    a: "Sim and other agent platforms can support regulated workflows only when the complete deployment, access-control, audit, data-handling, approval, and operational design meets the organization's specific compliance obligations."
+  - q: "Which AI agent platform supports human approval workflows?"
+    a: "Sim's Human block pauses a run until a person submits input, and a downstream Condition must check the submitted approve-or-reject field before any consequential action. LangGraph also treats human-in-the-loop as a first-class feature in code."
+  - q: "How often should an open source AI agent platform comparison be updated?"
+    a: "Whenever licenses, self-hosting boundaries, pricing, major releases, project maintenance, or enterprise feature boundaries materially change, which in this category happens several times a year."
 ---
 
-This guide splits open-source AI agent platforms into three clear categories, compares the leading options within each, and offers a decision framework based on your team's situation rather than by feature count.
+The best open source AI agents in 2026 depend on who builds them. Sim, the open-source AI workspace for building, deploying, and managing AI agents, is a strong fit for teams that want a visual builder and self-hosting on an Apache 2.0 core. LangGraph and CrewAI (both MIT) suit engineers who want orchestration in code. Microsoft Agent Framework (MIT) is the successor to AutoGen, which Microsoft no longer maintains.
 
-## Key Takeaways
+Sim publishes this guide and is one of the products covered. Every license, star count, release, and price below was checked against the vendor's repository or pricing page on October 20, 2026, and each tool gets its limitations stated plainly, Sim included.
 
-- **Three categories, not one:** Code-first frameworks (LangGraph, CrewAI, AutoGen), visual builders (Dify, n8n), and AI workspaces (Sim) serve fundamentally different buyers and require different evaluations.
-- **AutoGen is splintering:** Microsoft's [AutoGen](https://microsoft.github.io/autogen/stable/) has fractured into maintenance mode, a community-led AG2 fork, and the new Microsoft Agent Framework. Teams need to choose the option that will work best for them.
-- **CrewAI Flows changed the game:** CrewAI's Flows feature adds event-driven orchestration alongside crew-style collaboration, giving teams both flexibility and control in one framework.
-- **Dify dominates the visual builder space:** With over [149,000 GitHub stars](https://github.com/langgenius/dify) and a recent $30M raise, Dify is the most-adopted visual AI agent builder, though it still lacks strong team governance features.
-- **Workspace platforms bundle what frameworks leave out:** Sim combines visual building, team collaboration, knowledge management, and deployment infrastructure in a single open-source package, reducing the "glue code" problem.
-- **Self-hosting and licensing vary widely:** "Open source" means different things across these platforms, from fully permissive MIT licenses to open-core models where enterprise features sit behind paid tiers.
+> **Choose a code-first framework when** developers want agent logic to live in Python or TypeScript and your team will own hosting, tracing, and access control. **Choose Dify when** document retrieval apps are the main job and its modified Apache 2.0 terms fit your use. **Choose n8n when** you are adding AI to existing automations and a source-available license is acceptable. **Choose Sim when** a mixed team needs to build agents visually, conversationally, or with code, and then deploy them as an API, a chat, or MCP tools (MCP, the Model Context Protocol, is a standard way for agents to call external tools) from one self-hostable workspace.
 
-## The Three Types of Open-Source AI Agent Platforms
+## What are the best open source AI agents in 2026?
 
-Most "best open-source AI agent platforms" articles rank every tool on the same axis: GitHub stars, LLM support, ease of setup. That ranking ignores the most important question: what kind of tool are you actually looking at?
+The best open source AI agents in 2026 are Sim, LangGraph, CrewAI, Microsoft Agent Framework with AG2, and OpenHands for coding work, with Dify and n8n as widely used source-available alternatives. The quick picks below give the fit and exact license for each; self-hosting details are in the comparison table.
 
-A code-first framework like LangGraph and a visual builder like Dify solve the same problem the way a custom-built kitchen solves the same problem as a meal kit. Technically, yes, both produce dinner. But the skills, time, and team composition they require are completely different. Lumping them into one comparison is unhelpful when you're trying to make a decision.
+| Tool | Best for | License |
+|---|---|---|
+| **Sim** | Teams building, deploying, and managing agents in one AI workspace | Apache 2.0 core (OSI); `apps/sim/ee` under the Sim Enterprise License |
+| **LangGraph** | Engineers who need explicit, stateful control over every branch | MIT (OSI) |
+| **CrewAI** | Role-based multi-agent work in Python | MIT (OSI) |
+| **Microsoft Agent Framework / AG2** | Teams moving off AutoGen | MIT (OSI) / Apache 2.0 (OSI) |
+| **Dify** | Retrieval-heavy LLM apps built visually | Modified Apache 2.0, not OSI-approved as modified |
+| **n8n** | Adding AI steps to existing automations | Sustainable Use License, source available |
+| **OpenHands** | Self-hosted coding agents and engineering automations | MIT (OSI) |
 
-Here's how we would divide open-source AI agent platforms for meaningful comparisons.
+"Open source" in this guide means the [Open Source Initiative definition](https://opensource.org/licenses): the license grants the right to use, modify, and redistribute the code, including commercially. Source-available licenses publish the code but restrict some of those rights. That distinction matters when a team needs redistribution rights, plans to offer a hosted service, or wants to modify the software without field-of-use limits.
 
-| Platform Type | Who It's For | Core Trade-off |
-| --- | --- | --- |
-| Code-first frameworks (LangGraph, CrewAI, AutoGen) | Engineering teams building custom agent logic | Maximum control, but you own the infrastructure and deployment stack |
-| Visual/low-code builders (Dify, n8n) | Mixed technical teams shipping quickly | Fast time-to-value, but limited governance and complex-logic ceilings |
-| Open-source AI workspaces (Sim) | Teams needing build + deploy + collaborate in one place | Broad built-in capability, but newer ecosystem compared to established frameworks |
+Flowise is not on the list. Its maintainers [announced a code freeze on July 29, 2026 and end of life on August 31, 2026](https://flowiseai.com/sunset), and the [GitHub repository](https://github.com/FlowiseAI/Flowise) was archived in August 2026. Existing installs keep running but receive no upstream fixes; [Sim's Flowise comparison](https://www.sim.ai/comparisons/flowise) and the [Flowise alternatives guide](/library/best-flowise-alternatives-2026) cover migration options.
 
-What "open source" means in practice also varies. Code-first frameworks tend to be MIT or Apache 2.0 licensed with full self-hosting, though paid layers (like CrewAI's Enterprise tier or LangSmith for LangGraph observability) sit on top. Visual builders often follow an open-core model with a free community edition and a paid cloud tier for enterprise features. Sim takes the workspace approach with an Apache 2.0-licensed core, self-hosted Docker/Kubernetes deployment, and a managed cloud option.
+## What should you look for in an open source AI agent platform?
 
-## Code-First Frameworks: LangGraph, CrewAI, and AutoGen
+Look at the exact license first, then self-hosting, orchestration, integrations, model connectivity, team usability, and maintenance. Most "best open source AI agent" lists rank every tool on stars and model support, which hides the bigger question of what kind of tool you are looking at.
 
-Code-first frameworks give engineering teams the deepest control over agent logic, state management, and execution flow. They're libraries, not products. You write Python (or TypeScript, in some cases), and you own the deployment, observability, and scaling layers.
+There are three kinds:
 
-That control comes at a cost: these frameworks assume you have engineers who can build and maintain production infrastructure.
+| Type | Examples | Who it fits | Core tradeoff |
+|---|---|---|---|
+| Code-first frameworks | LangGraph, CrewAI, Microsoft Agent Framework, AG2 | Engineering teams building custom agent logic | Maximum control, but you own the infrastructure and deployment stack |
+| Visual builders | Dify, n8n | Mixed technical teams shipping quickly | Fast time to value, but license limits and a ceiling on complex logic |
+| Open-source AI workspaces | Sim | Teams that need to build, deploy, and collaborate in one place | Broad built-in capability, but a younger ecosystem than the established frameworks |
 
-### LangGraph
+Within any type, check these criteria:
 
-[LangGraph](https://langchain-ai.github.io/langgraph/) is the default choice for complex stateful workflows that need explicit control over branching, retries, and human-in-the-loop. It sits on top of the LangChain ecosystem and has seen the largest enterprise adoption among code-first agent frameworks.
+- **License.** Read the core repository's license and any separately licensed enterprise directory. Source visibility alone does not guarantee modification or redistribution rights.
+- **Self-hosting.** Confirm the vendor documents a supported self-hosted deployment and which capabilities need a commercial edition. Self-hosting gives more control over infrastructure, data handling, and model access.
+- **Multi-step orchestration.** Production agents need dependencies, branching, parallel work, retries, and human review, not one prompt followed by one response.
+- **Integrations.** Maintained connectors plus API, webhook, or custom-code escape hatches decide whether an agent can act across your existing systems.
+- **Model connectivity.** Multiple hosted providers and local model servers let you balance capability, cost, latency, and data requirements.
+- **Team usability.** Collaboration, access control, change review, and execution history matter once agents move beyond one developer.
+- **Maintenance.** Check recent releases and the README for archive or maintenance notices. Two well-known projects in this category, AutoGen and Flowise, have stopped active development.
 
-LangGraph does four things excellently: branching logic that lets you define exactly which path an agent takes based on state, human-led approvals and checkpointing that are now integral features rather than add-ons, durable execution that survives process restarts, and detailed control over every step in the agent's decision chain.
+GitHub stars measure community attention, not quality, security, or production readiness, so they are listed for context only.
 
-Where it demands investment: setup isn't trivial, especially for teams new to graph-based agent architecture. LangSmith (LangChain's paid observability platform) is the recommended way to monitor and debug LangGraph workflows in production, which introduces a dependency on a proprietary tool sitting alongside the open-source framework. And LangGraph is fundamentally a developer tool. If your team includes non-engineers who need to build or modify agents, they won't be able to participate without an intermediate layer.
+## Which open source AI agents and platforms are worth evaluating?
 
-**Best for:** Teams with strong engineering resources building complex stateful agents where explicit control over every decision branch matters more than speed to first deployment.
+Eight projects are worth evaluating in October 2026, in seven entries: one AI workspace, four code-first frameworks (with Microsoft Agent Framework and AG2 grouped as AutoGen's successors), two source-available visual builders, and one coding-agent platform. Each entry follows the same order: best for, pricing, strengths, limitations, sources.
 
-### CrewAI
+### 1. Sim
 
-[CrewAI](https://docs.crewai.com/) introduced a mental model that's simple to pick up: instead of defining abstract graph nodes, you define roles. A researcher agent gathers information, a writer agent drafts content, a reviewer agent checks quality. CrewAI is the fastest path from idea to working multi-agent prototype when work decomposes into role-based tasks.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, visually, conversationally, or with code. Frameworks give you agent logic and leave deployment, observability, collaboration, and knowledge management for you to build or buy. Sim puts those layers in one workspace: a visual workflow builder, Chat for building and managing agents in natural language, Tables, Files, and Knowledge Bases for agent context, and run logs for every execution.
 
-The Flows addition lets you create structured, event-driven workflows that provide a way to connect multiple tasks, manage state, and control the flow of execution in your AI applications. This is a meaningful evolution. Flows give you a structured, event-driven execution engine that sits above individual crews and tasks. A Crew is great at parallel collaboration with multiple agents working on a shared goal, but Crews don't give you sequential control. Think of it this way: a Crew is a team, a Flow is the project plan that coordinates multiple teams.
+**Best for:** Teams that need to move from prototype to production without stitching together a separate framework, observability tool, and deployment layer, especially when collaboration and multi-model flexibility are requirements.
 
-The open-core dynamic is worth understanding before you commit. CrewAI is open-source and actively encourages community contributions. The MIT-licensed core gives you the framework for free, but CrewAI's AMP Suite provides tracing and observability, a unified control plane for managing and scaling agents, and enterprise integrations as paid enterprise tooling. Teams that want a UI, role-based access control, and managed deployments will eventually encounter the paid tier.
+**Pricing:** The Apache 2.0 core is free to self-host. On Sim Cloud, the Free plan includes 1,000 one-time credits (worth $5), Pro is $25 per user per month, and Max is $100 per user per month; Enterprise is custom.
 
-**Best for:** Teams automating multi-step workflows where work naturally breaks into distinct role specializations, and where the Flows layer provides enough orchestration to avoid building a custom control plane.
+**Strengths:**
 
-### AutoGen / AG2
+- **Visual builder with code escape hatches:** Agent, API, function, condition, loop, and router blocks, plus 270+ integrations such as Slack, Notion, GitHub, Salesforce, and Stripe.
+- **Many model providers:** Hosted models from OpenAI, Anthropic, Google, Mistral, xAI, and others, and on [self-hosted deployments](https://docs.sim.ai/platform/self-hosting) Ollama, vLLM, LM Studio, or LiteLLM endpoints without Sim Enterprise.
+- **One workflow, several surfaces:** [Deploy the same workflow](https://docs.sim.ai/workflows/deployment) as a REST API, a hosted chat, or a set of MCP tools, and call external MCP servers from agents.
+- **Human review built in:** A Human block pauses a run until someone submits input, and a Condition routes on the decision.
+- **Real-time collaboration:** Write and Admin members edit the same workflow live, with permission controls.
+- **Self-hosting:** Docker Compose or a Helm chart for Kubernetes, both running the same app, realtime service, and background job endpoints.
 
-This is the platform where you need to understand the landscape before you write a single line of code.
+**Limitations:** Sim is younger than the established frameworks, and its community is smaller: its repository has about 29,900 GitHub stars against roughly 43,600 for LangGraph and 208,000 for n8n. Enterprise governance features in `apps/sim/ee`, including SSO, SCIM, access control, audit logs, and data retention, are under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE): free for development, testing, and internal non-production use, but production use requires an Enterprise subscription, and modification and redistribution are not permitted. Sim Cloud cannot reach a model server inside your network, so local models require self-hosting.
 
-In late 2024, the original creators left Microsoft and forked the project into AG2, retaining control of the original PyPI packages and Discord community. Microsoft, meanwhile, rebuilt AutoGen from scratch as version 0.4 with a completely different architecture. Then, in October 2025, Microsoft announced that AutoGen and Semantic Kernel are merging into a new unified "Microsoft Agent Framework," with AutoGen entering maintenance mode.
+Compared with the frameworks below, Sim ships the deployment, logs, and team workspace that LangGraph and CrewAI leave you to build, at the cost of less low-level control than writing the graph in code.
 
-As of March 2026, the original AutoGen project has split into three distinct paths: Microsoft Agent Framework (MAF), the official production-grade successor that merges AutoGen's orchestration with Semantic Kernel's enterprise stability; AutoGen v0.7.x, the "stable" maintenance line using the asynchronous actor-model architecture introduced in v0.4; and AG2, a community-led fork that remains backward-compatible with the legacy v0.2 "GroupChat" style.
+**Sources:** [Sim Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE), [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), [self-hosting docs](https://docs.sim.ai/platform/self-hosting), [deployment docs](https://docs.sim.ai/workflows/deployment), [BYOK and costs](https://docs.sim.ai/platform/costs#bring-your-own-key-byok), [GitHub repository](https://github.com/simstudioai/sim).
 
-The conversational multi-agent model that made AutoGen popular is still its core strength. Agents talk to each other to solve problems, which makes it powerful for research and prototyping scenarios where you want agents to reason together dynamically. AutoGen Studio provides a no-code interface for beginners that lets you prototype visually before moving logic to code.
+### 2. LangGraph
 
-You will, however, need to deal with the fragmentation when you're evaluating AutoGen. This means choosing between the AG2 community fork, Microsoft's transitional 0.4 release, or waiting for Agent Framework 1.0. It's a decision you can't defer, and if you build on the wrong branch, you'll need to consider the migration debt this would incur.
+[LangGraph](https://github.com/langchain-ai/langgraph) is the low-level orchestration library in the LangChain ecosystem. Since LangChain 1.0, [LangChain's `create_agent` runs on LangGraph](https://docs.langchain.com/oss/python/releases/langgraph-v1), so many LangChain agents already use it underneath.
 
-**Best for:** Research teams, rapid prototypers, and organizations already embedded in the Microsoft ecosystem who can commit to a specific fork and accept the ongoing transition.
+**Best for:** Teams with strong engineering resources building complex stateful agents, where explicit control over every decision branch matters more than speed to first deployment.
 
-## Visual Builders: Dify and n8n
+**Pricing:** The library is free under MIT. [LangSmith](https://www.langchain.com/pricing), the commercial tracing, evaluation, and deployment service, has a Developer plan at $0 per seat with up to 5k base traces a month, Plus at $39 per seat per month, and custom Enterprise pricing.
 
-Visual builders trade code-level control for speed. They let teams design agent workflows by connecting blocks on a canvas rather than writing Python. The target user is different: product managers, ops teams, and developers who need to prioritize iteration speed over architectural precision.
+**Strengths:** Branching logic that defines exactly which path an agent takes based on state; durable execution with checkpointing, persistence, streaming, and human-in-the-loop as first-class features; and fine-grained control over each step. It also benefits from LangChain's large set of loaders, tools, and model clients.
 
-### Dify
+**Limitations:** Setup is not trivial for teams new to graph-based agents. LangSmith is the recommended way to monitor LangGraph in production; you do not need it to run graphs, but teams that skip it must assemble their own tracing. Non-engineers cannot build or modify agents without an extra layer. Compared with Sim, LangGraph gives deeper programmatic control but no built-in visual builder, team workspace, or deployment surfaces in the open-source package.
 
-Dify's open-source model with 131k GitHub stars targets production scalability. That star count makes it the most-starred visual AI agent builder in the open-source space by a wide margin, and it reflects genuine production adoption.
+**Sources:** [MIT license](https://github.com/langchain-ai/langgraph/blob/main/LICENSE), [LangGraph v1 release notes](https://docs.langchain.com/oss/python/releases/langgraph-v1), [LangSmith pricing](https://www.langchain.com/pricing), [Sim vs LangChain](https://www.sim.ai/comparisons/langchain).
 
-[Dify](https://dify.ai/pricing) is a production-ready platform for agentic workflow development, handling everything from enterprise QA bots to AI-driven custom assistants. The platform includes a workflow builder for defining tool-using agents, built-in RAG (retrieval-augmented generation) pipeline management, support for multiple AI model providers, and Model Context Protocol (MCP) integration.
+### 3. CrewAI
 
-The RAG pipeline is Dify's standout feature. It's among the best available in an open-source package. If your primary use case involves document retrieval, knowledge bases, and structured Q&A, Dify's built-in tooling eliminates weeks of integration work.
+[CrewAI](https://github.com/crewAIInc/crewAI) uses a mental model that is easy to pick up: instead of abstract graph nodes, you define roles. A researcher agent gathers information, a writer drafts, and a reviewer checks quality. [Flows](https://docs.crewai.com/en/concepts/flows) add "structured, event-driven workflows" that connect tasks, manage state, and control execution. A crew is the team; a flow is the project plan that coordinates several teams.
 
-The self-hosted Community Edition (Docker Compose, single machine or Kubernetes) is free with no significant limitations. [Dify Cloud](https://dify.ai/pricing) starts with a free Sandbox tier at 200 message credits and scales to Professional, Team, and Enterprise plans; the Professional tier lists at $590/year and Team at $1,590/year.
+**Best for:** Teams automating multi-step work that naturally splits into role specializations, where Flows give enough orchestration to avoid building a custom control plane.
 
-Where Dify falls short relative to a purpose-built AI workspace: team governance is limited, agent lifecycle management (versioning, rollback, multi-user editing) lacks depth, and the visual tooling has a ceiling; complex custom logic belongs in code.
+**Pricing:** The core framework is free under MIT. CrewAI's [hosted platform](https://crewai.com/pricing) has a free Basic plan that includes the visual editor, tracing, and deployment on CrewAI cloud with 50 workflow executions a month, and a custom-priced Enterprise plan that adds SSO, RBAC, workload identity, PII redaction, and policies, plus deployment in your own VPC or infrastructure.
 
-**Best for:** Non-technical users who need to ship quickly and enterprises using Dify as an LLM gateway with strong RAG capabilities.
+**Strengths:** A quick path from idea to a working multi-agent prototype when work decomposes into roles; Flows for event-driven pipelines; [many model providers](https://docs.crewai.com/en/concepts/llms) including local models through Ollama; and [MCP servers as tools](https://docs.crewai.com/en/mcp/overview).
 
-### n8n
+**Limitations:** CrewAI is open core. The visual editor, tracing, and managed deployment live in the hosted platform rather than the MIT framework, the free Basic plan caps you at 50 executions a month, and SSO, RBAC, and governance policies require the Enterprise tier. Sim includes a visual builder, run logs, and deployment in its Apache 2.0 core, while CrewAI keeps the core lighter and lets Python teams stay entirely in code.
 
-n8n is a workflow automation platform that has added AI agent capabilities. Think of it as a workflow automation platform with native AI agent nodes and 400+ app integrations, like Zapier, but self-hostable with unlimited executions.
+**Sources:** [MIT license](https://github.com/crewAIInc/crewAI/blob/main/LICENSE), [CrewAI pricing](https://crewai.com/pricing), [Flows docs](https://docs.crewai.com/en/concepts/flows), [Sim vs CrewAI](https://www.sim.ai/comparisons/crewai), [CrewAI alternatives](/library/best-crewai-alternatives-2026).
 
-Its strengths include a mature drag-and-drop interface, the broadest set of service connectors among the tools in this comparison, and proven self-hosting support. n8n crossed 180,000 GitHub stars, reflecting massive community traction in the automation space.
+### 4. Microsoft Agent Framework and AG2
 
-However, it is worth emphasizing that n8n is an AI-augmented workflow tool, not an agent-native platform. Its AI capabilities are additive features on top of an automation engine, not the core architecture. For teams whose primary use case is connecting existing business tools and adding AI reasoning to those connections, it's a great fit. For teams building reasoning-heavy autonomous agents, there are tools that will better suit these needs.
+AutoGen made conversational multi-agent systems popular, but Microsoft no longer maintains it: the [README](https://github.com/microsoft/autogen) says it is "no longer actively maintained by Microsoft," that Microsoft "is not providing bug fixes, security fixes, new features, or support," and advises against production use. Its last release, 0.7.5, shipped on September 30, 2025. Two successors remain.
 
-**Best for:** Teams migrating existing automation workflows toward AI without a full replatform, especially when broad service connectivity matters more than deep agent reasoning.
+[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) is the official successor. Microsoft [introduced it on October 1, 2025](https://devblogs.microsoft.com/foundry/introducing-microsoft-agent-framework-the-open-source-engine-for-agentic-ai-apps/) to combine AutoGen's multi-agent patterns with Semantic Kernel's enterprise stability, and AutoGen's README calls it "the enterprise-ready successor to AutoGen" with a 1.0 production release, migration guides, and support for the A2A (agent-to-agent) protocol and MCP. [AG2](https://github.com/ag2ai/ag2) is a community project maintained by volunteers from several organizations. Since AG2 v1.0, its main package is a new framework imported as `ag2`, while the original AutoGen-derived API (`ConversableAgent`, `GroupChat`) lives on as [AG2 Classic](https://github.com/ag2ai/ag2-classic) in a separate repository.
 
-## Open-Source AI Workspace: Sim
+**Best for:** Organizations in the Microsoft ecosystem (Agent Framework) and teams with existing AutoGen-style GroupChat code (AG2 Classic) that need a maintained path forward.
 
-The gap between a framework and a workspace comes down to what's included in the box. With a code-first framework, you get agent logic. You then need to separately build or buy your deployment infrastructure, observability layer, collaboration tooling, and knowledge management system. With a visual builder, you get faster assembly but often the same gaps in governance and team workflows.
+**Pricing:** Both are free libraries; Agent Framework is MIT and AG2 is Apache 2.0.
 
-[Sim](https://sim.ai) is built around the premise that those layers belong together. It's an open-source AI workspace that combines drag-and-drop agent building, real-time multi-user collaboration, built-in knowledge management, and deployment infrastructure in one environment.
+**Strengths:** Conversational multi-agent patterns where agents reason together, which suits research and prototyping. Agent Framework adds long-term support and multi-provider model support; AG2 Classic keeps a community-led, backward-compatible route for older code (AG2 v1.0 itself is not a drop-in upgrade).
 
-The feature set maps directly to what teams need in a comparison context:
+**Limitations:** The ecosystem has fragmented, and teams must pick a branch and accept migration work. AutoGen Studio, the low-code interface, is "not meant to be a production-ready app" per [its own docs](https://microsoft.github.io/autogen/stable/user-guide/autogenstudio-user-guide/). Compared with Sim, both are libraries: Agent Framework emits OpenTelemetry traces, but the tracing backend, deployment, and team collaboration are yours to run and build.
 
-- **Visual builder:** Drag-and-drop workflow editor with processing blocks (AI agents, API calls, custom functions), logic blocks (conditional branching, loops, routers), and output blocks
-- **1,000+ integrations:** Slack, Notion, GitHub, Salesforce, Stripe, and more, connected through a visual interface
-- **Multi-LLM support:** OpenAI, Claude, Gemini, Mistral, xAI, plus local models via Ollama for teams with cost or privacy constraints
-- **MCP protocol support:** Model Context Protocol for standardized external API and service connections
-- **Real-time collaboration:** Multiple team members building workflows simultaneously with live editing, commenting, and granular permission controls
-- **Deployment flexibility:** Cloud-hosted with managed infrastructure, or self-hosted via Docker Compose or Kubernetes for complete data control
+**Sources:** [AutoGen README](https://github.com/microsoft/autogen/blob/main/README.md), [AutoGen code license (MIT)](https://github.com/microsoft/autogen/blob/main/LICENSE-CODE), [Agent Framework license (MIT)](https://github.com/microsoft/agent-framework/blob/main/LICENSE), [AG2 license (Apache 2.0)](https://github.com/ag2ai/ag2/blob/main/LICENSE), [AG2 README](https://github.com/ag2ai/ag2).
 
-The open-source commitment is backed by community traction: over 100,000 builders, alongside SOC2 compliance as a production trust signal. That certification is important when the conversation moves from "prototype" to "production" and legal needs to sign off.
+### 5. Dify (source available)
 
-Chat, Sim's natural-language interface, lets you talk to Sim to build and manage agents conversationally alongside the visual builder. That dual-interface approach means teams can choose which way of working suits them best, rather than being locked into one process.
+[Dify](https://github.com/langgenius/dify) is a visual builder for LLM applications and agentic workflows, from internal Q&A bots to custom assistants, with a workflow editor, built-in retrieval (RAG) pipeline management, many model providers, and the ability to [publish apps as an MCP server](https://docs.dify.ai/en/self-host/use-dify/publish/publish-mcp). With about 159,000 GitHub stars, it has the second-largest repository in this guide after n8n.
 
-**Best for:** Teams that need to move from prototype to production without stitching together a separate framework, observability tool, and deployment layer, especially when team collaboration and multi-model flexibility are requirements, not nice-to-haves.
+**Best for:** Teams whose main use case is document retrieval, knowledge bases, and structured Q&A, and enterprises using Dify as an LLM gateway.
 
-## Side-by-Side Comparison
+**Pricing:** The self-hosted Community Edition [runs with Docker Compose](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose). [Dify Cloud](https://dify.ai/pricing) has a free Sandbox with 200 message credits, Professional at $590 per workspace per year, and Team at $1,590 per workspace per year; Dify Enterprise is a separate private-deployment edition.
 
-This table surfaces the dimensions that actually affect the build-vs.-buy decision for open source AI agent platforms.
+**Strengths:** The retrieval pipeline is a comprehensive one for a self-hostable package and saves weeks of integration work for document-heavy apps. Workspace members with editor rights can [edit the same workflow at the same time](https://docs.dify.ai/en/self-host/use-dify/build/workflow-collaboration).
 
-| Platform | Type | License | Self-Host | Visual Builder | Multi-LLM Support | Team Collaboration | Production Observability | Best For |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Sim** | AI workspace | Apache 2.0 | Yes (Docker/K8s) | Yes | Yes (OpenAI, Claude, Gemini, Mistral, xAI, Ollama) | Yes (real-time multi-user) | Built-in with cost tracking | End-to-end agent building, collaboration, and deployment |
-| **LangGraph** | Code-first framework | MIT | Yes | No | Yes (via LangChain) | No (code-level only) | Via LangSmith (paid) | Complex stateful agents with engineering teams |
-| **CrewAI** | Code-first framework | MIT | Yes | Enterprise tier only | Yes (via LiteLLM) | Enterprise tier | Enterprise tier | Role-based multi-agent workflows |
-| **AutoGen/AG2** | Code-first framework | MIT | Yes | AutoGen Studio (prototyping) | Yes | No | Limited | Research, prototyping, Microsoft ecosystem |
-| **Dify** | Visual builder | Apache 2.0 | Yes (Docker/K8s) | Yes | Yes (100+ providers) | Limited | Built-in dashboard | RAG apps, LLM gateway, quick deployment |
-| **n8n** | Workflow automation + AI | Sustainable Use License | Yes | Yes | Limited (via AI nodes) | Yes | Built-in | Migrating automation workflows to AI |
+**Limitations:** Dify's [license](https://github.com/langgenius/dify/blob/main/LICENSE) is "a modified version of the Apache License 2.0" that bars operating a multi-tenant environment without written authorization and requires a commercial license to remove or modify the logo or copyright in its frontend, so it is not OSI-approved as modified. Agent lifecycle management is thinner than in a workspace built for it, and complex custom logic belongs in code. Sim's Apache 2.0 core has no multi-tenant or branding conditions; Dify is the better pick when RAG apps are the job and its terms fit.
 
-You should also consider:
+**Sources:** [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE), [Dify pricing](https://dify.ai/pricing), [Docker Compose docs](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose), [Sim vs Dify](/library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform).
 
-- **Pricing:** Most of these platforms are free at the core but diverge sharply at the enterprise tier. CrewAI and LangGraph push production tooling into paid layers. Dify and Sim offer meaningful free tiers with paid cloud options. n8n's license has specific use restrictions worth reading.
-- **Ecosystem maturity:** LangGraph benefits from the broader LangChain ecosystem (documents, loaders, tools). Dify has the largest visual-builder community. CrewAI's developer certification program has grown its user base fast.
-- **Community size:** GitHub stars are a useful comparison point, but don't tell the whole story. n8n's 180k+ stars and Dify's 131k+ stars reflect automation-community momentum. Smaller star counts for newer platforms like Sim don't map directly to capability gaps.
+### 6. n8n (source available)
 
-## How to Choose: A Use-Case Decision Guide
+[n8n](https://github.com/n8n-io/n8n) is a workflow automation product that has added AI agent nodes. Its [AI docs](https://docs.n8n.io/build/integrate-ai) describe workflows that "connect different LLM providers such as OpenAI, Anthropic, and Google, add tools and memory, and combine several models in one workflow." With about 208,000 GitHub stars it has the largest repository in this guide.
 
-Instead of leaving you to reconcile six platforms in a spreadsheet, here are four decision paths based on where your team actually is.
+**Best for:** Teams migrating existing automation workflows toward AI without replatforming, especially when broad service connectivity matters more than deep agent reasoning.
 
-**Path 1: You have strong engineering resources and need maximum control over agent logic.**
+**Pricing:** Self-hosted n8n [runs as the free Community edition without a license key](https://docs.n8n.io/deploy/host-n8n); Business or Enterprise license keys enable those editions. [n8n's pricing page](https://n8n.io/pricing/) lists cloud Starter at €20 per month and Pro at €50 per month, a self-hosted-only Business plan at €667 per month, all billed annually, and custom Enterprise pricing for cloud or self-hosted.
 
-Go with LangGraph or CrewAI. LangGraph if your workflows demand fine-grained state management, explicit branching, and human approvals. CrewAI if your work splits naturally into role-based tasks and you value the Flows layer for event-driven pipelines. Both require your team to own the deployment and infrastructure stack.
+**Strengths:** A mature drag-and-drop editor, proven self-hosting, and a very large connector catalog. n8n's homepage advertises "500+ native integrations," while its [integrations directory](https://n8n.io/integrations/) says "Browse 2,000+ integrations." The two official pages give different counts.
 
-**Path 2: You need to ship agents fast without deep coding investment and have a mixed technical team.**
+**Limitations:** n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source available and not OSI-approved, and files marked `.ee` require a separate n8n Enterprise License. Its AI features sit on top of an automation engine rather than being the core architecture. Sim fits when agents are the main job and an OSI-approved core matters; n8n is the better pick when you are extending automations that already run there.
 
-Look at Sim or Dify. Both provide visual builders that let non-engineers participate in agent design. Dify excels if your primary use case is RAG and document-based workflows. Sim is the stronger fit when you need team collaboration, multi-model flexibility, and deployment infrastructure bundled together.
+**Sources:** [n8n license](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), [n8n pricing](https://n8n.io/pricing/), [hosting docs](https://docs.n8n.io/deploy/host-n8n), [Sim vs n8n](https://www.sim.ai/comparisons/n8n), [Apache 2.0 vs fair-code](/library/apache-2-0-vs-fair-code).
 
-**Path 3: You're migrating existing automation workflows to AI.**
+### 7. OpenHands (coding agents)
 
-n8n is the natural starting point. Your team likely already has automation workflows, and n8n lets you add AI capabilities to those existing pipelines without rebuilding from scratch. The tradeoff is that n8n's AI features are supplementary to its automation engine, not its core architecture.
+[OpenHands](https://github.com/OpenHands/OpenHands) is a coding-agent project, not a general agent builder. Its current release, Agent Canvas, is "the self-hosted developer control center for coding agents and automations." It runs locally by default, can use agent backends in Docker, on VMs, or in company infrastructure, and runs the OpenHands agent or third-party agents such as Claude Code, Codex, and Gemini CLI.
 
-**Path 4: You need production governance, team collaboration, and multi-model flexibility in one place.**
+**Best for:** Software teams that want self-hosted coding agents and engineering automations such as breaking GitHub issues into tasks and posting reports to Slack.
 
-This points toward Sim. When the requirements include real-time multi-user editing, granular permissions, audit-ready observability, and the ability to swap between LLM providers without rearchitecting, a workspace platform eliminates the integration tax that frameworks impose.
+**Pricing:** The repository is MIT-licensed and free to self-host; OpenHands Cloud and OpenHands Enterprise are optional hosted backends.
 
-**Secondary decision layer: self-hosting vs. cloud.** If data sovereignty requirements mandate on-premises deployment, verify that your chosen platform supports full self-hosting. LangGraph, CrewAI, Dify, and Sim all offer Docker/Kubernetes self-hosted paths. For teams with strict cost or privacy constraints, the Ollama integration path (supported by Sim, CrewAI, and Dify) lets you run local models entirely on your own infrastructure.
+**Strengths:** About 91,000 GitHub stars, very frequent releases, any-LLM support, and automations that run on a schedule or on webhook events from tools such as GitHub and Linear.
 
-## Conclusion
+**Limitations:** The project labels its status as beta, and it is built for software delivery rather than business agents that work across CRMs, documents, and support tools. For those, use one of the platforms above; [AI coding agents vs AI workflow agents](/library/ai-coding-agents-vs-ai-workflow-agents) explains the split, and the [agentic AI coding tools comparison](/library/agentic-ai-coding-tools-what-they-are-and-how-the-top-options-compare) covers proprietary options such as Cursor and Claude Code. Sim fits when agents need to act across business systems with 270+ integrations, while OpenHands is the better pick when the agent's job is writing and shipping code.
 
-The open-source AI agent platform you choose depends more on your team's composition and use case than on any feature matrix. Code-first frameworks like LangGraph and CrewAI give engineers deep control but sideline non-technical team members.
+**Sources:** [OpenHands MIT license](https://github.com/OpenHands/OpenHands/blob/main/LICENSE), [OpenHands README](https://github.com/OpenHands/OpenHands).
 
-Visual builders like Dify and n8n lower the barrier to entry but trade away architectural flexibility. Workspace platforms like Sim aim to close the gap between building and deploying by bundling the layers that other frameworks don't offer.
+## How do the open source AI agent platforms compare?
 
-Start with the decision paths above. Identify which category fits your team, then evaluate within that category. Trying to compare a Python framework against a visual workspace on the same checklist is how teams end up six months into a tool that doesn't fit.
+The platforms split cleanly on license and on how much of the production stack they include. All data was checked against each GitHub repository on October 20, 2026; stars show attention, not quality.
 
-If your team needs collaboration, multi-model support, and a visual builder with production-grade deployment, [explore Sim](https://sim.ai) and see whether the workspace model matches how your team actually works.
+| Tool | Type | Exact license | Visual builder | Self-hosting | Latest release (2026 unless noted) | GitHub stars (Oct 20, 2026) |
+|---|---|---|---|---|---|---:|
+| **Sim** | AI workspace | Apache 2.0 core; Sim Enterprise License for `apps/sim/ee` | Yes | Docker Compose or Kubernetes | [v0.9.29, Oct 20](https://github.com/simstudioai/sim/releases) | [29,856](https://github.com/simstudioai/sim) |
+| **LangGraph** | Code-first framework | MIT | No | Library in your infrastructure | [1.2.16, Oct 16](https://github.com/langchain-ai/langgraph/releases) | [43,597](https://github.com/langchain-ai/langgraph) |
+| **CrewAI** | Code-first framework | MIT | In the hosted platform | Core in your infrastructure | [1.15.28, Oct 14](https://github.com/crewAIInc/crewAI/releases) | [59,924](https://github.com/crewAIInc/crewAI) |
+| **Microsoft Agent Framework** | Code-first framework | MIT | No | Library in your infrastructure | [python-1.22.0, Oct 15](https://github.com/microsoft/agent-framework/releases) | [14,235](https://github.com/microsoft/agent-framework) |
+| **AG2** | Code-first framework | Apache 2.0 | No | Library in your infrastructure | [v1.2.0, Oct 11](https://github.com/ag2ai/ag2/releases) | [5,006](https://github.com/ag2ai/ag2) |
+| **AutoGen** (unmaintained) | Code-first framework | MIT code | AutoGen Studio, prototyping only | Library; no longer maintained | [0.7.5, Sep 30, 2025](https://github.com/microsoft/autogen/releases) | [61,501](https://github.com/microsoft/autogen) |
+| **Dify** | Visual LLM app builder | Modified Apache 2.0, not OSI-approved as modified | Yes | Docker Compose; multi-tenant use needs permission | [1.17.1, Sep 10](https://github.com/langgenius/dify/releases) | [159,059](https://github.com/langgenius/dify) |
+| **n8n** | Workflow automation with AI | Sustainable Use License, source available | Yes | Community, Business, or Enterprise editions | [2.44.4, Oct 19](https://github.com/n8n-io/n8n/releases) | [208,154](https://github.com/n8n-io/n8n) |
+| **OpenHands** | Coding-agent platform | MIT | Coding-agent interface | Local, Docker, VMs, or own servers | [v1.29.0, Oct 20](https://github.com/OpenHands/OpenHands/releases) | [91,412](https://github.com/OpenHands/OpenHands) |
+| **Flowise** (end of life) | Visual builder | Apache 2.0 outside commercially licensed enterprise code | Yes | Existing installs only; archived | [3.1.4, Jul 29](https://github.com/FlowiseAI/Flowise/releases) | [55,511](https://github.com/FlowiseAI/Flowise) |
 
-Related reading: [Apache 2.0 vs fair-code](/library/apache-2-0-vs-fair-code) explains why license choice changes what you can build on a self-hosted platform, [LangGraph alternatives](/library/langgraph-alternatives) goes deeper on the code-first category, and [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) widens the field to commercial options alongside these.
+Pricing follows the same split. The frameworks are free libraries that push production tooling into paid services (LangSmith, CrewAI Enterprise). Sim and Dify offer free tiers with paid cloud plans. n8n's self-hosted Community edition is free, but its license has commercial-use limits worth reading before you build a product on it.
+
+## How should you choose an open source AI agent platform?
+
+Choose by team composition and use case first, then compare within that category. Comparing a Python framework against a visual workspace on one checklist is how teams end up six months into a tool that does not fit.
+
+- **Choose LangGraph** if engineers need fine-grained state management, explicit branching, and human approvals in code.
+- **Choose CrewAI** if work splits naturally into role-based tasks and Flows give you enough event-driven control.
+- **Choose Microsoft Agent Framework** if you are migrating from AutoGen or Semantic Kernel or already build on Microsoft's stack; **choose [AG2 Classic](https://github.com/ag2ai/ag2-classic)** if you have AutoGen-style GroupChat code to keep running.
+- **Choose Dify** if retrieval over documents is the primary job and its multi-tenant and branding conditions do not affect you.
+- **Choose n8n** if you already run automations there and want to add AI steps without rebuilding.
+- **Choose OpenHands** if the job is software delivery: coding agents working on repositories, issues, and CI.
+- **Choose Sim** if a mixed team needs real-time collaboration, many model providers, human review, and deployment as an API, chat, or MCP tools in one workspace with an Apache 2.0 core.
+
+**Self-hosting is a second decision.** It gives your team more control over infrastructure and data while making it responsible for availability, backups, security patches, secrets, model endpoints, observability, upgrades, and capacity. Ask three questions separately: can the software run on your infrastructure, does the license permit your intended production or commercial use, and can your team operate it reliably over time.
+
+**Local models need the same care.** Self-hosted Sim connects to Ollama through `OLLAMA_URL` and to vLLM, LM Studio, or LiteLLM through compatible base URLs, without Sim Enterprise; CrewAI also documents Ollama. Before relying on local inference, assess streaming, tool calls, structured output, context limits, and the compute it needs. On Sim Cloud, workspace bring-your-own-key (BYOK) is available on every plan, and organization-level keys need Pro for Teams, Max for Teams, or Enterprise, per [Sim's cost guide](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
+
+## Where can you read more about open source AI agents?
+
+These guides go deeper on the decisions above.
+
+- [Best self-hosted AI workflow automation platforms in 2026](/library/best-self-hosted-ai-workflow-automation-platforms-2026) for deployment choices.
+- [Apache 2.0 vs fair-code](/library/apache-2-0-vs-fair-code) for why license choice changes what you can build on a self-hosted platform.
+- [AI agent orchestration frameworks explained](/library/ai-agent-orchestration-frameworks-explained), [LangGraph alternatives](/library/langgraph-alternatives), and [the best multi-agent frameworks](/library/best-multi-agent-frameworks-2026) for the code-first category.
+- [Best AI workflow builders](/library/best-ai-workflow-builders) and [best no-code AI agent builders](/library/best-no-code-ai-agent-builders-2026) for visual builders.
+- [Sim vs n8n vs OpenAI AgentKit](/library/openai-vs-n8n-vs-sim) for a direct product comparison, and [the best AI agent platforms in 2026](/library/best-ai-agent-platforms-2026) for commercial options alongside these.
+
+If your team needs a visual builder, many model providers, and deployment from one self-hostable workspace, [try Sim](https://www.sim.ai) and see whether the workspace model matches how your team works.

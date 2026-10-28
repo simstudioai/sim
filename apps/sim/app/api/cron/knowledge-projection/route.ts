@@ -11,9 +11,8 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
- * The knowledge projector's periodic sweep: enqueues one pass per window while there is work, and
- * returns once Trigger.dev accepts it. Writers ask for passes as they commit; this converges
- * whatever those requests missed.
+ * The knowledge projector's periodic sweep: enqueues one pass per window while documents are
+ * marked, and returns once Trigger.dev accepts it. It is the only thing that starts a pass.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const authError = verifyCronAuth(request, 'Knowledge projection sweep')

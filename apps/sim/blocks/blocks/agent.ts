@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { omit } from '@sim/utils/object'
 import { AgentIcon } from '@/components/icons'
-import { normalizeFallbackModels } from '@/lib/workflows/blocks/fallback-models'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -29,12 +27,11 @@ import {
   isAutoModel,
   supportsTemperature,
 } from '@/providers/models'
-import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
 
 /** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
-const AGENT_FALLBACK_MODEL = 'claude-sonnet-5'
+const AGENT_FALLBACK_MODEL = 'claude-sonnet-5-5'
 
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
@@ -44,25 +41,6 @@ const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 const EVALUATION_MODELS = getEvaluationModels()
 const MODELS_WITHOUT_CHAT_CONTROLS = [...MODELS_WITH_DEEP_RESEARCH, ...EVALUATION_MODELS]
-
-interface AgentResponse extends ToolResponse {
-  output: {
-    content: string
-    model: string
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
-    }
-    toolCalls?: {
-      list: Array<{
-        name: string
-        arguments: Record<string, any>
-      }>
-      count: number
-    }
-  }
-}
 
 // Helper function to get the tool ID from a block type
 const getToolIdFromBlock = (blockType: string): string | undefined => {
@@ -79,7 +57,7 @@ const getToolIdFromBlock = (blockType: string): string | undefined => {
   }
 }
 
-export const AgentBlock: BlockConfig<AgentResponse> = {
+export const AgentBlock: BlockConfig = {
   type: 'agent',
   name: 'Agent',
   description: 'Build an agent',
@@ -154,7 +132,7 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5',
+      defaultValue: 'claude-sonnet-5-5',
       options: getAgentModelOptions,
       commandSearchable: true,
     },
@@ -490,12 +468,7 @@ Return ONLY the JSON array.`,
       },
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)
-        const withFiles = normalizedFiles ? { ...params, files: normalizedFiles } : params
-        const fallbackModels = normalizeFallbackModels(params.fallbackModels)
-        const baseParams =
-          fallbackModels.length > 0
-            ? { ...withFiles, fallbackModels }
-            : omit(withFiles, ['fallbackModels'])
+        const baseParams = normalizedFiles ? { ...params, files: normalizedFiles } : params
 
         // If tools array is provided, handle tool usage control
         if (params.tools && Array.isArray(params.tools)) {

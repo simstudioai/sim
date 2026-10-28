@@ -35,11 +35,11 @@ import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
   adminInvalidJsonResponse,
+  adminNotFoundResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import {
@@ -75,7 +75,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!userData) {
-        return notFoundResponse('User')
+        return adminNotFoundResponse('User')
       }
 
       const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1)
@@ -133,7 +133,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get user billing', { error, userId })
-      return internalErrorResponse('Failed to get user billing')
+      return adminInternalErrorResponse('Failed to get user billing')
     }
   })
 )
@@ -164,7 +164,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!userData) {
-        return notFoundResponse('User')
+        return adminNotFoundResponse('User')
       }
 
       const [existingStats] = await db
@@ -230,7 +230,7 @@ export const PATCH = withRouteHandler(
       }
 
       if (updated.length === 0) {
-        return badRequestResponse('No valid fields to update')
+        return adminBadRequestResponse('No valid fields to update')
       }
 
       if (existingStats) {
@@ -265,7 +265,7 @@ export const PATCH = withRouteHandler(
       })
     } catch (error) {
       logger.error('Admin API: Failed to update user billing', { error, userId })
-      return internalErrorResponse('Failed to update user billing')
+      return adminInternalErrorResponse('Failed to update user billing')
     }
   })
 )

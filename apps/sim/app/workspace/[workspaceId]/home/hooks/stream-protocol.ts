@@ -25,6 +25,8 @@ export type StreamBatchResponse = {
   previewSessions?: FilePreviewSession[]
   status: string
   chatId?: string
+  /** The desktop app's background executor runs this turn's desktop tools. */
+  desktopToolsOnDevice?: true
 }
 
 const STREAM_SCHEMA_ENFORCEMENT_PREFIX = 'Client stream schema enforcement failed.'
@@ -108,6 +110,7 @@ export function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
     ...(previewSessions ? { previewSessions } : {}),
     status: typeof value.status === 'string' ? value.status : 'unknown',
     ...(typeof value.chatId === 'string' && value.chatId ? { chatId: value.chatId } : {}),
+    ...(value.desktopToolsOnDevice === true ? { desktopToolsOnDevice: true as const } : {}),
   }
 }
 

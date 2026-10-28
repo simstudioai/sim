@@ -1,3 +1,5 @@
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({ authorize: vi.fn(), receive: vi.fn() }))
@@ -10,13 +12,15 @@ vi.mock('@/lib/knowledge/application/slack-search/authorization', () => ({
 vi.mock('@/lib/knowledge/application/slack-search/process-message', () => ({
   receiveSlackSearchMessage: { execute: m.receive },
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://www.sim.ai' }))
 vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
   SEARCH_CONNECTORS: [{ type: 'slack', providerId: 'slack' }],
 }))
 
 import { receiveSlackSearchCommand } from '@/lib/knowledge/application/slack-search/commands'
 import { slackSearchCommandEventId, slackSearchCommandSchema } from '@/lib/slack-search/commands'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://www.sim.ai')
 
 const input = {
   api_app_id: 'A1',

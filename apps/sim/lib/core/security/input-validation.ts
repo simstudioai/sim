@@ -1158,8 +1158,14 @@ function validateVendorHostedUrl(
 
   // These vendors are public SaaS reached over TLS. Enforced here rather than
   // left to the egress policy, which would permit plain HTTP to a host an
-  // operator happened to put in their allowlist.
-  if (/^http:\/\//i.test(candidate)) {
+  // operator happened to put in their allowlist. Checked on the parsed URL:
+  // the parser also reads `http:\\host`, `http:host`, and a scheme split by a
+  // tab or newline as `http://host`.
+  let scheme: string | undefined
+  try {
+    scheme = new URL(candidate).protocol
+  } catch {}
+  if (scheme === 'http:') {
     return { isValid: false, error: `${paramName} must use https://` }
   }
 
@@ -1167,6 +1173,9 @@ function validateVendorHostedUrl(
   if (!urlResult.isValid) return urlResult
 
   const parsed = new URL(candidate)
+  // A trailing FQDN dot names the same host, but TLS hostname verification rejects it.
+  const fullyQualified = parsed.hostname.endsWith('.')
+  if (fullyQualified) parsed.hostname = parsed.hostname.slice(0, -1)
   const hostname = parsed.hostname.toLowerCase()
   const allowed = suffixes.some(
     (suffix) => (allowBareSuffix && hostname === suffix.slice(1)) || hostname.endsWith(suffix)
@@ -1185,7 +1194,8 @@ function validateVendorHostedUrl(
     }
   }
 
-  return { isValid: true, sanitized: sanitize === 'origin' ? parsed.origin : candidate }
+  if (sanitize === 'origin') return { isValid: true, sanitized: parsed.origin }
+  return { isValid: true, sanitized: fullyQualified ? parsed.href : candidate }
 }
 
 /**
@@ -1266,16 +1276,55 @@ export function validateWorkdayTenantUrl(
   })
 }
 
+const SALESFORCE_ALLOWED_HOST_SUFFIXES = [
+  '.salesforce.com',
+  '.force.com',
+  '.cloudforce.com',
+  '.database.com',
+  '.salesforce.mil',
+  '.sfcrmproducts.cn',
+] as const
+
 /**
- * Every production Databricks control-plane DNS zone, mirroring `ALL_ENVS` in the
- * Databricks SDK (`databricks/sdk/environments.py`). The SDK's `.dev.*`/`.staging.*`
- * zones are internal and deliberately omitted; the ones that are subdomains of a
- * zone listed here (e.g. `.staging.cloud.databricks.com`) match by suffix anyway.
+ * Validates a Salesforce org instance URL to prevent SSRF attacks.
+ *
+ * Org API hosts live on Salesforce-owned domains: `*.my.salesforce.com` (including
+ * sandbox, scratch, and legacy `na1.salesforce.com` pods), `*.force.com`, the legacy
+ * `cloudforce.com` and `database.com` hosts, Government Cloud Plus on
+ * `salesforce.mil`, and Salesforce on Alibaba Cloud on `sfcrmproducts.cn`.
+ *
+ * @param url - The instance URL to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult whose `sanitized` value is the https origin
+ */
+export function validateSalesforceInstanceUrl(
+  url: string | null | undefined,
+  paramName = 'instanceUrl'
+): ValidationResult {
+  return validateVendorHostedUrl(url, {
+    suffixes: SALESFORCE_ALLOWED_HOST_SUFFIXES,
+    vendor: 'Salesforce',
+    paramName,
+    sanitize: 'origin',
+    allowBareSuffix: false,
+  })
+}
+
+/**
+ * Every production Databricks control-plane DNS zone. All but `.cloud.databricks.mil` mirror
+ * `ALL_ENVS` in the Databricks SDK (`databricks/sdk/environments.py`); the DoD zone comes from the
+ * Databricks AWS GovCloud docs. The SDK's `.dev.*`/`.staging.*` zones are internal and
+ * deliberately omitted; the ones that are subdomains of a zone listed here (e.g.
+ * `.staging.cloud.databricks.com`) match by suffix anyway. `.databricks.com` admits workspace
+ * custom URLs (`acme.databricks.com`) and subsumes the AWS and GCP zones, which stay listed so
+ * the rejection message names them.
  */
 const DATABRICKS_ALLOWED_HOST_SUFFIXES = [
   '.cloud.databricks.com',
   '.cloud.databricks.us',
+  '.cloud.databricks.mil',
   '.gcp.databricks.com',
+  '.databricks.com',
   '.azuredatabricks.net',
   '.databricks.azure.us',
   '.databricks.azure.cn',
@@ -1288,6 +1337,8 @@ const DATABRICKS_ALLOWED_HOST_SUFFIXES = [
  * every REST call is made against it. Example valid hosts:
  * - dbc-1234abcd-5678.cloud.databricks.com (AWS)
  * - dbc-1234abcd-5678.cloud.databricks.us (AWS GovCloud)
+ * - dbc-1234abcd-5678.cloud.databricks.mil (AWS GovCloud DoD)
+ * - acme.databricks.com (workspace custom URL)
  * - adb-1234567890123456.7.azuredatabricks.net (Azure)
  * - adb-1234567890123456.7.databricks.azure.us (Azure US Government)
  * - adb-1234567890123456.7.databricks.azure.cn (Azure China)

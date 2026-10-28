@@ -1,25 +1,26 @@
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import { envFlagsMockFns } from '@sim/testing/mocks/env-flags.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getBlockVisibility: vi.fn(),
-  getAllowedIntegrationsFromEnv: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   createVisibility: vi.fn(),
-  getAllOAuthServices: vi.fn(),
-  getServiceConfigByServiceId: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mocks.getBlockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getAllowedIntegrationsFromEnv: mocks.getAllowedIntegrationsFromEnv,
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 /**
  * The real helpers canonicalize each side through the generated successor map;
@@ -51,13 +52,10 @@ vi.mock('@/lib/permission-groups/integration-allowlist', () => {
 })
 
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
-  createIntegrationCredentialVisibility: mocks.createVisibility,
+  createIntegrationCredentialVisibility: hoisted.createVisibility,
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getAllOAuthServices: mocks.getAllOAuthServices,
-  getServiceConfigByServiceId: mocks.getServiceConfigByServiceId,
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import {
   listCredentialProviderCatalog,
@@ -65,11 +63,15 @@ import {
   type ServiceAccountCredentialProviderCatalogEntry,
 } from '@/lib/credentials/application/provider-catalog'
 
-const personalPrincipal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
+const mocks = {
+  ...hoisted,
+  getBlockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  getAllOAuthServices: oauthUtilsMockFns.mockGetAllOAuthServices,
+  getServiceConfigByServiceId: oauthUtilsMockFns.mockGetServiceConfigByServiceId,
+  getAllowedIntegrationsFromEnv: envFlagsMockFns.getAllowedIntegrationsFromEnv,
 }
+
+const personalPrincipal = createPersonalApiKeyPrincipal()
 const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -113,7 +115,7 @@ describe('listCredentialProviderCatalog', () => {
      * that never consulted it — which is what this fixture used to look like.
      */
     mocks.getAllowedIntegrationsFromEnv.mockReturnValue(['salesforce', 'trello'])
-    mocks.getUserPermissionConfig.mockResolvedValue({
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue({
       allowedIntegrations: ['salesforce'],
     })
     mocks.getBlockVisibility.mockResolvedValue({
@@ -175,15 +177,11 @@ describe('listCredentialProviderCatalog', () => {
 
   it('does not borrow a human permission group for workspace API keys', async () => {
     await listCredentialProviderCatalog(
-      {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key-1',
-      },
+      createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
       context
     )
 
-    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
+    expect(permissionGroupsResolveMockFns.mockGetUserPermissionConfig).not.toHaveBeenCalled()
     /**
      * The deployment allowlist alone, not the personal caller's narrower group:
      * a workspace API key has no user and therefore no group, and borrowing the

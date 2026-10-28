@@ -96,11 +96,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const webhooks = await findWebhooksByRoutingKey(envelope.user_openid, requestId, 'tiktok')
     let dispatched = 0
     let failed = 0
-    for (const { webhook, workflow } of webhooks) {
+    for (const { webhook, workflow, triggerBlockDeployed } of webhooks) {
       const result = await dispatchResolvedWebhookTarget(webhook, workflow, envelope, request, {
         requestId,
         receivedAt,
         triggerTimestampMs: envelope.create_time * 1000,
+        triggerBlockDeployed,
       })
       if (result.outcome === 'queued') dispatched += 1
       if (result.outcome === 'failed') failed += 1

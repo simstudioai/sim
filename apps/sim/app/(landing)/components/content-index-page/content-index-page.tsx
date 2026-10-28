@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { paginateContentPosts } from '@/lib/content/index-list'
 import type { ContentMeta } from '@/lib/content/schema'
+import { formatPostDate } from '@/app/(landing)/components/content-utils'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 interface ContentIndexPageProps {
@@ -21,8 +22,8 @@ interface ContentIndexPageProps {
  * Shared index/list layout for a content section (blog or library): section
  * header, featured-post row, remaining posts list, and pagination. Both
  * sections render this exact layout, parameterized by `basePath` and copy —
- * see `.claude/rules/landing-seo-geo.md` for the filtered/paginated noindex
- * policy this pairs with (`buildIndexMetadata` in `@/lib/content/seo`).
+ * paginated URLs are indexable, while tag-filtered variants are noindexed
+ * by `buildIndexMetadata` in `@/lib/content/seo`.
  */
 export function ContentIndexPage({
   basePath,
@@ -35,8 +36,12 @@ export function ContentIndexPage({
 }: ContentIndexPageProps) {
   const { featured, remaining, totalPages } = paginateContentPosts(posts, { tag, page })
 
-  const pageHref = (targetPage: number) =>
-    `${basePath}?page=${targetPage}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`
+  const tagQuery = tag ? `tag=${encodeURIComponent(tag)}` : ''
+  const pageHref = (targetPage: number) => {
+    if (targetPage === 1) return tagQuery ? `${basePath}?${tagQuery}` : basePath
+    return `${basePath}?page=${targetPage}${tagQuery ? `&${tagQuery}` : ''}`
+  }
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1)
 
   return (
     <>
@@ -81,12 +86,7 @@ export function ContentIndexPage({
                       </div>
                       <div className='flex flex-col gap-2'>
                         <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em]'>
-                          {new Date(p.date).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            timeZone: 'UTC',
-                          })}
+                          {formatPostDate(p.date)}
                         </span>
                         <h2 className='text-[var(--text-primary)] text-lg leading-tight tracking-[-0.01em]'>
                           {p.title}
@@ -110,22 +110,12 @@ export function ContentIndexPage({
                   className='group flex items-start gap-6 p-6 transition-colors hover:bg-[var(--surface-hover)] md:items-center'
                 >
                   <span className='hidden w-[120px] shrink-0 pt-1 text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:block'>
-                    {new Date(p.date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      timeZone: 'UTC',
-                    })}
+                    {formatPostDate(p.date)}
                   </span>
 
                   <div className='flex min-w-0 flex-1 flex-col gap-1'>
                     <span className='text-[var(--text-secondary)] text-xs uppercase tracking-[0.1em] md:hidden'>
-                      {new Date(p.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        timeZone: 'UTC',
-                      })}
+                      {formatPostDate(p.date)}
                     </span>
                     <h2 className='text-[var(--text-primary)] text-base leading-tight tracking-[-0.01em] lg:text-lg lg:leading-7'>
                       {p.title}
@@ -152,7 +142,7 @@ export function ContentIndexPage({
 
             {totalPages > 1 && (
               <nav aria-label='Pagination' className='px-6 py-8'>
-                <div className='flex items-center justify-center gap-3'>
+                <div className='flex flex-wrap items-center justify-center gap-3'>
                   {page > 1 && (
                     <ChipLink
                       href={pageHref(page - 1)}
@@ -162,9 +152,20 @@ export function ContentIndexPage({
                       Previous
                     </ChipLink>
                   )}
-                  <span className='text-[var(--text-secondary)] text-sm'>
-                    Page {page} of {totalPages}
-                  </span>
+                  <ol className='flex flex-wrap items-center justify-center gap-1'>
+                    {pageNumbers.map((pageNumber) => (
+                      <li key={pageNumber}>
+                        <ChipLink
+                          href={pageHref(pageNumber)}
+                          active={pageNumber === page}
+                          aria-current={pageNumber === page ? 'page' : undefined}
+                          aria-label={`Page ${pageNumber}`}
+                        >
+                          {pageNumber}
+                        </ChipLink>
+                      </li>
+                    ))}
+                  </ol>
                   {page < totalPages && (
                     <ChipLink
                       href={pageHref(page + 1)}

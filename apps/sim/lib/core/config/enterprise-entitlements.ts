@@ -28,6 +28,7 @@
 export type EnterpriseFeature =
   | 'accessControl'
   | 'auditLogs'
+  | 'credentialGroups'
   | 'customBlocks'
   | 'dataDrains'
   | 'dataRetention'
@@ -76,6 +77,7 @@ export type EnterpriseFeature =
 export const ENTERPRISE_FEATURE_LEGACY_DEFAULTS: Readonly<Record<EnterpriseFeature, boolean>> = {
   accessControl: false,
   auditLogs: false,
+  credentialGroups: false,
   customBlocks: false,
   dataDrains: false,
   dataRetention: false,

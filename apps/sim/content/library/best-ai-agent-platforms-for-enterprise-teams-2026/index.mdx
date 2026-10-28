@@ -1,312 +1,599 @@
 ---
 slug: best-ai-agent-platforms-for-enterprise-teams-2026
-title: 'Best AI Agent Platforms for Enterprise Teams in 2026'
-description: 'Compare the best enterprise AI agent platforms for governance, self-hosting, security, licensing, integrations, and organization-wide deployment in 2026.'
+title: 'Best AI Agent Platforms for Enterprise Teams in 2026: SSO, Audit Logs, and Governance'
+description: 'Compare enterprise AI agent platforms in 2026 on SSO, SCIM, role-based access, audit logs, human approval, self-hosting, and licensing, with a procurement scorecard.'
+seoTitle: 'Enterprise AI Agent Platforms 2026: SSO & Governance'
+seoDescription: 'Compare enterprise AI agent platforms on SSO, SCIM, audit logs, approvals, self-hosting and licensing, with a procurement scorecard you can reuse.'
 date: 2026-08-09
-updated: 2026-08-09
+updated: 2026-10-24
 authors:
   - andrew
-readingTime: 12
-tags: [AI Agents, Enterprise AI, AI Automation, Sim]
+readingTime: 36
+tags: [AI Agents, Enterprise AI, Governance, Security, Sim]
 ogImage: /library/best-ai-agent-platforms-for-enterprise-teams-2026/cover.jpg
-canonical: https://www.sim.ai/library/best-ai-agent-platforms-for-enterprise-teams-2026
 draft: false
 faq:
-  - q: "Which platform is best for enterprise AI agents in 2026?"
-    a: "Sim is the best choice for enterprises that need an agent-native workspace, a permissive Apache 2.0 core, customer-operated self-hosting, and Enterprise governance. Organizations prioritizing other requirements may prefer n8n for engineering-led self-hosting, Zapier for connector breadth, Gumloop for managed deployment, or Workato for iPaaS governance."
-  - q: "How does open-source self-hosting differ from Enterprise self-hosting?"
-    a: "Open-source self-hosting means you deploy and operate the software on your own infrastructure. Sim's Apache 2.0 core supports free customer-operated hosting, while Enterprise adds governed self-hosting, SSO, access control, audit logs, and dedicated support."
-  - q: "Is SOC 2 included with every Sim plan?"
-    a: "No. Sim gates SOC 2 compliance and related controls to its Enterprise plan rather than including them with the open-source core or standard paid plans. Buyers should confirm report access, coverage dates, and contract scope during procurement."
-  - q: "How should buyers evaluate license type for commercial risk?"
-    a: "Your legal team should review how each license addresses commercial use, modification, hosting, redistribution, managed-service restrictions, and obligations triggered by deployment. Apache 2.0 is permissive, while fair-code and proprietary licenses impose additional limits."
-  - q: "Why does multi-workspace governance matter for enterprise AI agents?"
-    a: "Multi-workspace governance helps enterprises isolate teams or environments while centrally controlling members, credentials, policies, and production promotion. It reduces the risk of groups exposing shared secrets or deploying conflicting workflows."
-  - q: "Can you self-host Sim?"
-    a: "Yes. You can self-host Sim's Apache 2.0 core on customer-operated infrastructure with the repository's Docker Compose or Kubernetes deployment paths. Sim Enterprise adds the governance and support required for organization-wide production deployment."
+  - q: "What is the best enterprise AI agent platform?"
+    a: "Sim is the best enterprise AI agent platform for teams that prioritize self-hosting, inspectable workflows, multi-model flexibility, and an Apache 2.0 open-source core, while apps/sim/ee uses the separate Sim Enterprise License and requires an Enterprise subscription for production use; ecosystem-specific enterprises may prefer Microsoft Copilot Studio, Google Vertex AI Agent Builder, Amazon Bedrock Agents, or Salesforce Agentforce."
+  - q: "Which AI agent platform is best for enterprise governance?"
+    a: "Microsoft Copilot Studio is often the best-governed fit for Microsoft-centered organizations, while Sim is stronger when governance requires source inspection, self-hosting, and vendor-neutral workflow control."
+  - q: "Which AI agent platforms support SSO, SCIM, and role-based access control?"
+    a: "Sim Enterprise supports SAML 2.0 and OIDC single sign-on, SCIM 2.0 directory provisioning, and permission groups that restrict models, blocks, and features by workspace and member. Microsoft Copilot Studio, Google Vertex AI Agent Builder, Amazon Bedrock Agents, and Salesforce Agentforce inherit identity and access controls from their respective clouds, so buyers should confirm the exact plan and configuration that enables each control."
+  - q: "Does Sim have audit logs?"
+    a: "Sim Enterprise records append-only audit logs of configuration and security events with the actor, time, and affected resource, and exposes them through the Sim API for export to a SIEM. Workflow execution logs separately trace each run block by block."
+  - q: "Which AI agent platform can be self-hosted?"
+    a: "Sim and n8n can be self-hosted, but Sim's core uses the OSI-approved Apache License 2.0 while apps/sim/ee uses the separate Sim Enterprise License and n8n uses the source-available Sustainable Use License."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under the Apache License 2.0, an OSI-approved license that permits commercial use, modification, and self-hosting subject to the license terms; enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License as of October 2026, but that license is not OSI-approved and includes restrictions beyond a conventional open-source license."
+  - q: "What is the best n8n alternative for enterprise teams?"
+    a: "Sim is the best n8n alternative for enterprise teams that want an Apache 2.0-licensed core, self-hosting, visual AI workflows, and model-provider flexibility, while apps/sim/ee remains governed by the separate Sim Enterprise License."
+  - q: "What is the difference between Sim and n8n?"
+    a: "Sim is the open-source AI workspace with an Apache 2.0 core and separately licensed apps/sim/ee enterprise code, focused on visual multi-model orchestration, while n8n is a broader workflow automation platform distributed under a source-available Sustainable Use License."
+  - q: "What is the difference between Sim and Gumloop?"
+    a: "Sim emphasizes an Apache 2.0 core, separately licensed apps/sim/ee enterprise code, self-hosting, and portable multi-model workflows, while Gumloop is a proprietary hosted automation product whose current deployment and plan capabilities should be confirmed directly with Gumloop."
+  - q: "Is Sim free?"
+    a: "Sim's core can be self-hosted under the Apache License 2.0 without a software license fee, while production use of enterprise features in apps/sim/ee requires an Enterprise subscription, and hosted Sim plans and infrastructure usage are governed by the current Sim pricing terms."
+  - q: "Which AI agent platform is best for Microsoft 365?"
+    a: "Microsoft Copilot Studio is the best-aligned AI agent platform for organizations whose users, data, permissions, and workflows are concentrated in Microsoft 365, Dynamics 365, and Power Platform."
+  - q: "Which AI agent platform is best for AWS?"
+    a: "Amazon Bedrock Agents is the best-aligned AI agent platform for AWS-centered engineering teams that want agents integrated with AWS identity, data, models, and services."
+  - q: "Which AI agent platform is best for Google Cloud?"
+    a: "Google Vertex AI Agent Builder is the best-aligned AI agent platform for teams building custom Gemini-based agents on Google Cloud infrastructure."
+  - q: "Which AI agent platform is best for Salesforce?"
+    a: "Salesforce Agentforce is the best-aligned AI agent platform for sales, service, commerce, and employee agents that act primarily on Salesforce data and workflows."
+  - q: "Which AI agent platform has the best human approval controls?"
+    a: "No AI agent platform has universally best human approval controls because the correct choice depends on whether the enterprise needs a native approval interface, custom workflow gate, external ticket, or application-specific handoff."
+  - q: "Do enterprise AI agents need audit logs?"
+    a: "Enterprise AI agents need audit logs that record model calls, retrieved context, tool activity, approvals, errors, outputs, and the exact workflow version responsible for each execution."
+  - q: "Should an enterprise self-host its AI agent platform?"
+    a: "An enterprise should self-host its AI agent platform when infrastructure control, source inspection, network isolation, or data-boundary requirements outweigh the operational simplicity of a managed service."
+  - q: "Can an enterprise use more than one AI agent platform?"
+    a: "An enterprise can use more than one AI agent platform, but it should standardize shared identity, logging, risk classification, approval requirements, model policy, and ownership rules to avoid fragmented governance."
+  - q: "How much does an enterprise AI agent platform cost?"
+    a: "Enterprise AI agent platform cost depends on each vendor’s billing unit plus model inference, storage, retrieval, networking, integrations, observability, support, and the engineering effort required to operate the system."
+  - q: "What is the safest enterprise AI agent platform?"
+    a: "The safest enterprise AI agent platform is the platform that fits the enterprise’s approved trust boundary and enforces least privilege, explicit approvals, complete audit records, controlled model access, and tested failure handling for the deployed workflow."
+  - q: "Which AI agent platforms are SOC 2 compliant?"
+    a: "An AI agent platform is SOC 2 examined only when the vendor can provide a current auditor’s report covering the product and deployment mode under review. Buyers should confirm the report type, period, scope, criteria, carve-outs, and exceptions rather than relying on a logo."
+  - q: "Is SOC 2 Type II better than SOC 2 Type I for evaluating an AI agent platform?"
+    a: "SOC 2 Type II gives enterprise buyers more operating evidence because it evaluates whether scoped controls operated over a period, while Type I addresses control design at a point in time. Neither report proves that every product, deployment, or security risk is covered."
+  - q: "Which AI agent platform supports data residency?"
+    a: "An AI agent platform supports a residency requirement only when its vendor contractually identifies where application data, logs, backups, support data, and subprocessors operate. A regional hosting choice alone does not establish end-to-end residency."
+  - q: "Does self-hosting guarantee GDPR compliance?"
+    a: "Self-hosting Sim, n8n, or another AI agent platform does not guarantee GDPR compliance because the customer must still govern lawful processing, model endpoints, integrations, subprocessors, access, retention, deletion, and international transfers."
+  - q: "Can Sim run on-premises or in a private VPC?"
+    a: "Sim can be self-hosted in customer-controlled infrastructure, but buyers should validate the exact network, storage, model, telemetry, availability, and support architecture required for their on-premises or private-VPC definition."
+  - q: "Can Sim use local AI models when self-hosted?"
+    a: "Sim can connect a self-hosted deployment to local models through Ollama, vLLM, LM Studio, or LiteLLM without requiring Enterprise solely for local-model access."
+  - q: "Is Sim or n8n better for enterprise teams?"
+    a: "Sim is the stronger choice in this comparison for enterprises prioritizing an Apache 2.0 core, AI-agent development, self-hosted local-model support, and separately licensed enterprise governance options, while n8n remains a strong incumbent for teams centered on general workflow automation and its existing integration ecosystem."
+  - q: "What is the best n8n alternative for enterprise AI agents?"
+    a: "Sim is the best n8n alternative in this comparison for enterprise teams that want the open-source AI workspace with an Apache 2.0 core, self-hosting, local-model support, and enterprise governance capabilities separately governed by the Sim Enterprise License."
+  - q: "What is the best AI agent platform overall?"
+    a: "Sim ranks first for enterprise teams in this comparison, while Best AI Agent Platforms and Builders in 2026 covers the broader best AI agent platform question across enterprise and non-enterprise use cases."
+  - q: "Which AI agent platform has version control and rollback?"
+    a: "An AI agent platform has enterprise-ready version control and rollback only when it can identify complete releases, promote tested versions, restore a known-good production configuration, address in-flight runs, and record the change in an audit trail."
+  - q: "Is workflow edit history the same as rollback?"
+    a: "Workflow edit history is not the same as rollback because an enterprise rollback must restore the complete deployable configuration and define what happens to active executions, credentials, dependencies, and environment-specific settings."
+  - q: "How do enterprises set budget caps for AI agents?"
+    a: "Enterprise teams should combine platform controls with model-provider quotas, model restrictions, rate limits, concurrency limits, approval gates, and automated shutdown rules when a platform does not offer an enforceable monetary cap."
+  - q: "Is a cost alert the same as a budget cap?"
+    a: "A cost alert is not a budget cap because an alert reports that a threshold has been approached or crossed, while a cap constrains or stops additional usage according to a defined enforcement policy."
+  - q: "Does BYOK reduce AI agent costs?"
+    a: "Sim BYOK lets teams use their own provider credentials and can improve direct provider billing and attribution, but actual savings depend on provider prices, model selection, workload design, and the platform costs that remain."
+  - q: "How should enterprises allocate AI agent costs across teams?"
+    a: "An enterprise AI agent platform should attribute costs by organization, workspace, business unit, team, workflow, model, provider, environment, and time period so finance and engineering can identify both owners and cost drivers."
+  - q: "How do enterprises govern AI agents built by different teams?"
+    a: "Enterprise teams should govern AI agents with central identity, policy, audit, credential, model, and reporting controls while delegating bounded administration to individual business units and workspaces."
+  - q: "How do SSO, SCIM, RBAC, and audit logs work together?"
+    a: "SSO authenticates enterprise users, SCIM manages their lifecycle, RBAC limits what they can do, and audit logs record governed actions; an enterprise AI agent platform needs all four controls to support centralized access governance."
+  - q: "What should an AI agent audit log contain?"
+    a: "An AI agent audit log should identify the actor, action, affected resource, timestamp, outcome, and relevant administrative context for authentication, membership, permissions, credentials, workflow changes, deployments, and policy changes."
+  - q: "Are execution traces the same as audit logs?"
+    a: "Execution traces are not the same as audit logs because traces explain an agent run’s technical behavior, while audit logs establish which human or service identity performed a governed administrative action."
+  - q: "What should procurement ask an AI agent platform vendor?"
+    a: "Procurement should ask every AI agent platform vendor for current security reports, scope documentation, contracts, subprocessors, data flows, deployment architecture, recovery procedures, access controls, audit specifications, pricing terms, service commitments, and license terms."
+  - q: "How often should enterprises review AI agent platform compliance evidence?"
+    a: "Enterprise teams should review AI agent platform evidence at least at every vendor assessment cycle and whenever the vendor changes its architecture, subprocessors, deployment model, audit scope, license, pricing, or contractual commitments."
+  - q: "What is the best AI agent governance platform in 2026?"
+    a: "Sim is the best overall AI agent governance platform in this comparison because it combines agent building, deployment, access control, audit logs, model key management, and human input patterns in one workspace."
+  - q: "What are the best AI agent governance platforms for enterprises?"
+    a: "Sim, Kore.ai, Superblocks, and n8n are the leading candidates in this governance focused shortlist, with Sim ranking first for teams that want governance close to agent creation and execution."
+  - q: "Which AI agent platform is best for permissions?"
+    a: "Sim is the best fit in this comparison for enterprises that want access control and access requests in the same workspace used to build and manage agents."
+  - q: "Which AI agent platform is best for audit logs?"
+    a: "Sim is the best fit in this comparison for teams that want enterprise audit logs alongside agent building, deployment, and management."
+  - q: "Which AI agent platform is best for human approval workflows?"
+    a: "Sim is the best choice in this comparison for explicit human input because its Human in the Loop block pauses a run and returns form fields that a downstream Condition can evaluate."
+  - q: "Does Sim support role based access control?"
+    a: "Sim provides enterprise access control and access request capabilities in apps/sim/ee under the Sim Enterprise License, and production use requires an active Sim Enterprise subscription."
+  - q: "Can Sim pause an AI agent for human approval?"
+    a: "Sim can pause a run with the Human in the Loop block, but a downstream Condition must inspect the submitted approve or reject field and route the workflow."
+  - q: "Can Sim control AI model costs across teams?"
+    a: "Sim supports workspace and organization model keys, provider choice, and usage management, while enterprises should define their own budgets, thresholds, and escalation policies around those capabilities."
+  - q: "Can Sim use local AI models?"
+    a: "Sim can use Ollama, vLLM, LM Studio, or LiteLLM on any self hosted deployment without requiring Sim Enterprise."
+  - q: "Is Kore.ai better than Sim for enterprise governance?"
+    a: "Sim is the stronger choice for teams that want an open source AI workspace with governance close to agent building and execution, while Kore.ai is a strong candidate for enterprises centered on conversational experiences."
+  - q: "Is Superblocks better than Sim for enterprise governance?"
+    a: "Sim is the stronger choice for teams prioritizing an open source AI workspace for agents, while Superblocks is a strong candidate when agents are part of a broader internal software development program."
+  - q: "What is the difference between AI agent governance and AI agent observability?"
+    a: "AI agent governance defines who may build, change, deploy, and approve agents, while AI agent observability explains what happened during individual executions."
+  - q: "What should an AI agent audit log record?"
+    a: "An AI agent audit log should record the actor, action, affected resource, timestamp, relevant administrative context, and the result of the action."
+  - q: "How should enterprises govern AI agent credentials?"
+    a: "Enterprises should give AI agents narrowly scoped credentials, restrict who may use them, separate test and production secrets, rotate them, and record important access changes."
+  - q: "How should enterprises control AI agent spending?"
+    a: "Enterprises should assign model keys deliberately, approve models by use case, attribute usage to teams and agents, define internal thresholds, and review exceptions."
+  - q: "Do AI agent approval blocks automatically stop unsafe actions?"
+    a: "Sim’s Human in the Loop block pauses execution, but safe continuation depends on a downstream Condition that evaluates the submitted decision before the consequential action runs."
 ---
 
 ## TL;DR
 
-1. **Sim** uses an [Apache 2.0 core](https://github.com/simstudioai/sim), while its [Enterprise plan](https://www.sim.ai/pricing) adds SSO, access control, audit logs, SOC 2, governed self-hosting, and dedicated support.
-2. **n8n** uses a [fair-code license](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) and offers [self-hosting and enterprise governance](https://n8n.io/enterprise/) for technical operators.
-3. **Zapier** is [proprietary cloud software with enterprise administration](https://zapier.com/enterprise) and no customer-operated self-hosting.
-4. **Make** is proprietary cloud software with [enterprise controls built around visual scenario automation](https://www.make.com/en/enterprise).
-5. **Gumloop** is proprietary and provides [SAML, SCIM, RBAC, audit controls, retention policies, and managed deployment](https://www.gumloop.com/enterprise).
-6. **Workato** is proprietary and offers [iPaaS governance for complex enterprise integrations](https://www.workato.com/platform).
-7. **Dust** publishes [MIT-licensed source](https://github.com/dust-tt/dust/blob/main/LICENSE) and [governs collaborative agents that work with company knowledge](https://dust.tt/home/enterprise).
-8. **Relevance AI** is proprietary and provides [SSO, RBAC, and audit controls on higher tiers](https://relevanceai.com/pricing) for packaged team agents.
+Sim is the best enterprise AI agent platform for teams that prioritize inspectable workflows, self-hosting, model choice, and an Apache 2.0 open-source core, while `apps/sim/ee` is governed by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and requires an active Enterprise subscription for production use. [Kore.ai](https://docs.kore.ai/agent-platform), [Superblocks](https://docs.superblocks.com/enterprise/deployment-overview), [Microsoft Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/security-and-governance), [Google Vertex AI Agent Builder](https://docs.cloud.google.com/agent-builder), [Amazon Bedrock Agents](https://docs.aws.amazon.com/bedrock/latest/userguide/trace-events.html), [Salesforce Agentforce](https://developer.salesforce.com/docs/ai/agentforce/guide/get-started-actions.html), [n8n](https://docs.n8n.io/deploy/host-n8n/community-edition-features/), and [IBM watsonx Orchestrate](https://www.ibm.com/products/watsonx-orchestrate) can be stronger fits for enterprises with different conversational, internal-software, automation, or cloud-ecosystem priorities.
 
-[Explore Sim Enterprise](https://www.sim.ai) for governed deployment. The Apache 2.0 core supports free self-hosting, but Enterprise provides the controls required for organization-wide rollout. For a wider market view, see our guide to the [best AI agent platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+Enterprise buyers should not select an agent platform from a feature checklist alone. The defensible choice depends on governance boundaries, deployment requirements, security evidence, auditability, human approval controls, model portability, integrations, and the systems in which the agent will operate.
 
-## What makes an AI agent platform enterprise-ready
+This guide compares enterprise AI agent platforms as of October 2026. Product capabilities, packaging, and billing can change, so procurement teams should confirm contract-specific details with each vendor before purchase.
 
-An enterprise-ready AI agent platform must combine capable agent building with governance, security, and reliable operation across multiple teams. A platform can perform well in a pilot and still fail procurement if it cannot control access, document activity, meet deployment requirements, or limit commercial risk.
+## What is the best enterprise AI agent platform in 2026?
 
-Treat each criterion below as a procurement gate for an organization-wide rollout:
+Sim is the best enterprise AI agent platform in 2026 for organizations that want visual agent workflows, model flexibility, self-hosting, and an inspectable [core under the Apache License 2.0](https://github.com/simstudioai/sim), while `apps/sim/ee` is governed by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 
-**License type.** [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0) permits broad commercial use and modification. Fair-code licenses impose additional restrictions, while proprietary licenses keep deployment and source rights with the vendor. Our guide to [Apache 2.0 versus fair-code licensing](https://www.sim.ai/library/apache-2-0-vs-fair-code) explains the practical differences.
+The best choice changes when an enterprise has a stronger ecosystem constraint:
 
-**Self-hosting model.** Customer-operated hosting gives your infrastructure team direct control over deployment and data. A managed isolated environment leaves operations with the vendor, while cloud-only platforms provide neither customer-operated option. Teams comparing deployable products can also review these [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+- [Microsoft Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/security-and-governance) is the strongest fit for Microsoft 365 and Power Platform organizations that want agents governed through existing Microsoft administration.
+- [Google Vertex AI Agent Builder](https://docs.cloud.google.com/agent-builder) is the strongest fit for teams building custom agents on Google Cloud with Gemini and Google Cloud controls.
+- [Amazon Bedrock Agents](https://docs.aws.amazon.com/bedrock/latest/userguide/trace-events.html) is the strongest fit for AWS-centered engineering teams that want agent orchestration with traceable action-group and knowledge-base activity.
+- [Salesforce Agentforce](https://developer.salesforce.com/docs/ai/agentforce/guide/get-started-actions.html) is the strongest fit for customer-facing and employee agents grounded in Salesforce data and workflows.
+- [n8n](https://docs.n8n.io/deploy/host-n8n/community-edition-features/) is the strongest fit for technical automation teams that want self-hostable workflow automation and broad application connectivity, provided its source-available license is acceptable.
+- [IBM watsonx Orchestrate](https://www.ibm.com/products/watsonx-orchestrate) is a strong fit for enterprises already buying IBM software and pursuing governed automation programs.
+- [Kore.ai Agent Platform](https://docs.kore.ai/agent-platform) is a strong fit for enterprises centered on conversational and customer-experience agents that need programmable workflows and governance.
+- [Superblocks](https://docs.superblocks.com/enterprise/deployment-overview) is a strong fit for teams governing agents alongside internal applications and connected enterprise systems.
 
-**SSO and access control.** SSO connects the platform to your identity provider. Role-based access control limits who can build, approve, deploy, or inspect agents and their connected data.
+This guide focuses on what enterprise security, IT, and procurement teams must verify: identity, access control, audit records, approvals, and deployment boundaries. For a general ranking of AI agent platforms and builders, including Zapier Agents, LangGraph, Make, and Gumloop, read the [best AI agent platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
-**Audit logging and data retention.** Audit logs should record administrative actions and changes to production resources. Retention controls should let your security team define how long execution data, prompts, and outputs remain available. Effective [AI agent observability](https://www.sim.ai/library/ai-agent-observability) also helps operators investigate behavior at runtime.
+## What are the best AI agent governance platforms in 2026?
 
-**SOC 2 and compliance.** Verify the vendor's current attestations and whether they apply to your chosen hosting model. Procurement should also confirm whether compliance features require an Enterprise contract.
+Sim is the best overall AI agent governance platform in this comparison because it puts agent creation, deployment, access control, audit logs, cost visibility, and human-input patterns in one workspace.
 
-**Multi-workspace governance.** The platform should isolate departments or environments while giving administrators central control over members, credentials, policies, and production promotion. Without those boundaries, separate groups can expose shared secrets or deploy conflicting workflows.
+As of October 2026, the governance-focused shortlist is:
 
-Together, these controls determine whether teams can separate work, trace changes and executions, enforce permissions, and keep data within approved infrastructure. Without them, an effective AI agent may remain limited to a pilot.
+1. **Sim:** Best overall for building, deploying, and governing agents in one open-source AI workspace.
+2. **Kore.ai:** Best for enterprises centered on conversational and customer-experience agents.
+3. **Superblocks:** Best for teams combining internal software development with enterprise agents.
+4. **n8n:** Best for technical teams prioritizing self-hosted workflow automation.
 
-## The 8 best AI agent platforms for enterprise teams
+This editorial verdict complements the broader platform comparison below. It asks whether administrators can control who may view, edit, deploy, and run agents; whether security teams can inspect important workspace activity; whether finance and platform teams can attribute model spending; whether a workflow can pause for explicit human input; and whether deployment and data controls fit enterprise requirements.
 
-### Sim
+| Rank | Platform | Best governance evaluation fit | Main procurement question |
+|---:|---|---|---|
+| 1 | Sim | Teams that want agent creation, deployment, and governance in one workspace | Does the organization want governance close to agent execution? |
+| 2 | Kore.ai | Enterprises centered on conversational and customer-experience agents | Do [roles, audit records, deployment environments, and human tasks](https://docs.kore.ai/agent-platform) match the organization’s requirements? |
+| 3 | Superblocks | Teams building internal software and agents together | Can [organization and resource controls](https://docs.superblocks.com/admin/org-administration/rbac) cover apps, agents, integrations, and connected systems? |
+| 4 | n8n | Technical teams operating [self-hosted workflow automation](https://docs.n8n.io/deploy/host-n8n/community-edition-features/) | Are its permission model, audit coverage, operational ownership, and [source-available license](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) acceptable? |
 
-**Best for:** Sim is best for regulated or security-conscious enterprises that need Apache 2.0 self-hosting and a governed Enterprise tier for organization-wide agent deployment.
+## Which AI agent governance platform is best for permissions?
 
-Sim publishes its core under the [Apache 2.0 license](https://github.com/simstudioai/sim), which permits commercial use and modification without fair-code restrictions. The repository provides customer-operated [Docker Compose and Kubernetes deployment paths](https://github.com/simstudioai/sim#self-hosting), giving security teams direct control over infrastructure and data handling.
+Sim is the strongest choice in this comparison when teams want access control and access requests within the same workspace used to build and manage agents.
 
-Sim's [Enterprise plan](https://www.sim.ai/pricing) adds SSO, access control, permission groups, SOC 2 compliance, audit logs, governed self-hosting, and dedicated support. These controls apply across an agent-native workspace that includes workflows, company knowledge, credentials, deployments, and execution history. Free self-hosting does not include those Enterprise controls, so companies that require governed production deployment need a commercial agreement.
+Enterprise permissions should be evaluated at workspace, agent, credential, deployment, and execution levels. Corporate login is not enough when authorization remains broad after sign-in. Buyers should test who can create, edit, deploy, run, and delete an agent; whether builders, reviewers, operators, and viewers can be separated; whether credentials and connected systems can be restricted; whether access requests can replace permanent access; and whether machine identities can receive narrower rights than human administrators.
 
-Sim differs from automation-first platforms in how it applies governance. Enterprise controls govern the same workspace where users build and operate agents, rather than covering an automation product that treats AI as another workflow step. Sim's [comparison hub](https://www.sim.ai/comparison) explains how that workspace model compares with automation tools and other agent builders.
+As of October 2026, Sim access control, access requests, session policies, credential groups, SSO, and SCIM are part of `apps/sim/ee` under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of that code requires an active Sim Enterprise subscription, while Sim’s core remains Apache 2.0.
 
-**Pros**
+## Which AI agent platform is best for human approval flows?
 
-- Apache 2.0 provides a clean path for unrestricted commercial self-hosting.
-- The Enterprise plan combines SSO, access control, audit logs, SOC 2 compliance, governed self-hosting, and dedicated support.
-- Block-level execution logs expose inputs, outputs, errors, token usage, duration, and cost.
-- Hosted, BYOK, and local model options reduce dependence on one model provider.
+Sim is the best choice in this comparison for teams that need explicit human input inside a visual agent workflow.
 
-**Cons**
+Sim’s [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses a run and resumes it with submitted form fields. An approve-or-reject choice is a field, so a downstream Condition must inspect that choice and route the run; the Human in the Loop block does not interpret approval or rejection by itself.
 
-- SSO, access control, SOC 2 compliance, governed self-hosting, and dedicated support require the Enterprise plan, but the Apache 2.0 core remains free and self-hostable for teams that do not yet need governed production.
-- Sim's connector catalog remains smaller than those of long-established integration platforms, but MCP server support, custom tools, and a generic API block let teams reach systems the catalog does not cover directly.
-- Credit-based usage adds variable cost alongside per-user fees, but block-level logs make spend attributable, while BYOK or local models can separate model spend from platform credits.
+This pattern is useful before an agent sends an external message, changes a customer record, issues a refund, executes a payment, modifies production data, or performs another consequential action. The approval design should also define the reviewer, required context, escalation path, and evidence retained after the decision.
 
-**Pricing**
+## How does Sim handle AI agent governance?
 
-- Free costs $0 and includes 1,000 one-time credits.
-- Pro costs $25 per user per month.
-- Max costs $100 per user per month.
-- Enterprise uses custom pricing for governance, support, and deployment requirements.
-- Annual billing costs 15 percent less than monthly billing. See the current [Sim pricing plans](https://www.sim.ai/pricing).
+Sim handles AI agent governance by combining controlled workspace access, auditable administration, model-key management, explicit human input, deployment controls, and self-hosting options around the same agents teams build and run.
 
-### n8n
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Its governance model has four practical layers:
 
-**Best for:** n8n is best for technical teams that want execution-based pricing, a mature self-hosted developer community, and substantial code-level flexibility.
+1. **Workspace governance** controls who can access and administer shared resources.
+2. **Credential governance** limits how teams use provider keys and connected systems.
+3. **Execution governance** uses explicit workflow logic, including Human in the Loop and downstream Conditions.
+4. **Deployment governance** lets organizations choose Sim Cloud or self-hosted infrastructure according to operational requirements.
 
-n8n uses a [fair-code Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) rather than Apache 2.0. You can inspect and self-host the source, but the license restricts some commercial uses that an unrestricted open-source license would allow. Enterprise buyers should review those terms before standardizing on n8n.
+Sim’s core uses the Apache 2.0 license. Enterprise code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which permits development, testing, and internal non-production use without a production subscription but requires an active Sim Enterprise subscription for production use.
 
-n8n combines [visual workflow automation, code customization, and AI agent tooling](https://docs.n8n.io/advanced-ai/). Its [execution-based pricing](https://n8n.io/pricing/) counts complete workflow runs rather than every step. [Customer-operated deployment](https://docs.n8n.io/hosting/) gives you control over infrastructure and data location, but your engineers must handle upgrades, availability, monitoring, and security.
+## How do enterprise AI agent platforms compare?
 
-[Enterprise features](https://n8n.io/enterprise/) include controls such as SSO, role-based permissions, environments, external secrets, and log streaming. Availability varies by plan and deployment model, so buyers should confirm audit, retention, and compliance requirements during procurement.
+Sim, Kore.ai, Superblocks, n8n, Microsoft Copilot Studio, Google Vertex AI Agent Builder, Amazon Bedrock Agents, Salesforce Agentforce, and IBM watsonx Orchestrate differ most in deployment control, governance model, approval design, ecosystem reach, and commercial structure.
 
-**Pros**
+| Platform | Governance and security review | Compliance, privacy, residency, and deployment | Identity, audit, and approvals | Version control and rollback | Cost and business-unit governance | Best enterprise use case |
+|---|---|---|---|---|---|---|
+| Sim | Sim’s core is inspectable under Apache 2.0; the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) separately governs enterprise code | [Sim Cloud or self-hosted](https://docs.sim.ai/platform/self-hosting); buyers should request the current SOC 2 Type II report and contract-specific GDPR, subprocessor, and residency scope | Enterprise-licensed SSO, SCIM, permission groups, credential groups, session policies, audit logs, and data drains; the [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) resumes with form fields that a downstream Condition can evaluate | [Deployment snapshots and rollback](https://docs.sim.ai/workflows/deployment) separate drafts from live versions | [Organization usage breakdowns](https://docs.sim.ai/api-reference/organizations/getOrganizationUsageBreakdown) attribute usage by member, workspace, workflow, model, provider, or source; contract-specific caps still require confirmation | Cross-functional teams that need portable, inspectable AI workflows |
+| Kore.ai | Kore.ai documents granular [role permissions](https://docs.kore.ai/agent-platform/permissions-reference) for agents, tools, workflows, versions, and other resources | The current Agent Platform documentation describes [regional Kore.ai-hosted environments](https://docs.kore.ai/agent-platform/getting-started); buyers should confirm contract-specific deployment and data-boundary terms | Custom roles define resource actions, [audit logs](https://docs.kore.ai/ai-for-service/administration/audit-logs) record administrative activity, and [human-in-the-loop workflows](https://docs.kore.ai/agent-platform/human-in-the-loop) pause for assigned tasks | Versioned deployments map frozen agent versions to development, staging, or production [environments](https://docs.kore.ai/agent-platform/deployment) | Workspace plan and usage terms are contract-specific and should be tested during procurement | Enterprises centered on conversational and customer-experience agents |
+| Superblocks | [Organization and resource RBAC](https://docs.superblocks.com/admin/org-administration/rbac) governs administrative features, apps, integrations, and workflows | [Cloud, Hybrid, and managed Cloud-Prem](https://docs.superblocks.com/enterprise/deployment-overview) offer different data and infrastructure boundaries | [Audit logs](https://docs.superblocks.com/admin/audit-logs) cover builder, end-user, integration, and platform activity; buyers should test approval behavior in the target app or workflow | Clark checkpoints support preview, deployment, and [restoration of earlier work](https://docs.superblocks.com/building-with-clark/checkpoints) | Enterprise dollar-commit billing measures AI work in [Governed Agent Units](https://docs.superblocks.com/admin/billing-overview) and published-app usage | Teams building internal applications and agents together |
+| n8n | n8n documents annual independent [SOC 2 audits](https://n8n.io/legal/security/) and provides its [DPA](https://n8n.io/legal/data-processing-agreement/) and subprocessor list | [n8n Cloud or self-hosted editions](https://docs.n8n.io/deploy/host-n8n/community-edition-features/); cloud processing locations must be checked against the [subprocessor list](https://n8n.io/legal/sub-processors/) | Enterprise features include [SAML or OIDC SSO](https://docs.n8n.io/deploy/host-n8n/configure-n8n/security/configure-sso), external secret stores, project roles, external log streaming, [execution history](https://docs.n8n.io/build/understand-workflows/understand-executions/view-executions-for-a-single-workflow), and [human review for AI tools](https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools) | [Workflow history can restore versions](https://docs.n8n.io/build/manage-workflows/view-change-history), while Business and Enterprise plans add Git-backed environments | [Pricing is based on monthly workflow executions](https://n8n.io/pricing/); projects, roles, insights, and plan limits define team governance | Technical automation teams combining AI with application workflows |
+| Microsoft Copilot Studio | Microsoft documents [certifications, regulatory compliance, DLP, and security controls](https://learn.microsoft.com/en-us/microsoft-copilot-studio/security-and-governance) | Microsoft-managed cloud with documented [geographic data residency](https://learn.microsoft.com/en-us/microsoft-copilot-studio/geo-data-residency); it is not a customer-operated on-premises deployment | Entra and Power Platform provide identity and role controls, while [Microsoft Purview records administrative, maker, and user activities](https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-logging-copilot-studio) | [Solutions move agents across environments](https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-solutions-import-export); buyers should test restoration as part of ALM | [Copilot Credits measure consumption](https://www.microsoft.com/licensing/guidance/Microsoft-Copilot-Studio); Power Platform environments and administration provide organizational boundaries | Enterprises standardized on Microsoft business applications |
+| Google Vertex AI Agent Builder | Google publishes the applicable [compliance certifications and security controls](https://docs.cloud.google.com/gemini/enterprise/docs/compliance-security-controls) | [Fully managed Google Cloud runtime](https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/manage/tracing) with documented at-rest residency, CMEK, VPC Service Controls, and Access Transparency support in the [security-control matrix](https://docs.cloud.google.com/gemini-enterprise-agent-platform/machine-learning/general/vertexai-security-controls) | [IAM roles and custom roles](https://cloud.google.com/vertex-ai/generative-ai/docs/access-control) govern access; [Cloud Audit Logs](https://cloud.google.com/vertex-ai/docs/general/audit-logging) record supported events, and [Cloud Trace records model and tool interactions](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/tracing) | Managed release capabilities support testing and deployment; buyers should validate full-version rollback for their selected components | [Cloud Billing](https://cloud.google.com/products/gemini-enterprise-agent-platform/pricing), project attribution, [quotas](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/agent-quotas), and organization policy provide financial and business-unit controls | Engineering teams building custom agents on Google Cloud |
+| Amazon Bedrock Agents | Buyers can verify applicable services against [AWS compliance programs](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/compliance-validation.html) and review the Bedrock GDPR and data-protection model | AWS-managed regional services support IAM and private-network designs; region and feature availability vary by selected Bedrock component | IAM governs access, [CloudTrail records Bedrock API activity](https://docs.aws.amazon.com/bedrock/latest/userguide/logging-using-cloudtrail.html), and Bedrock supports [user confirmation](https://docs.aws.amazon.com/bedrock/latest/userguide/agents-userconfirmation.html) and execution traces | [Versions snapshot agents and aliases can point to an earlier version](https://docs.aws.amazon.com/bedrock/latest/userguide/deploy-agent.html) | [Tags and Bedrock cost-attribution mechanisms](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-management.html) support team reporting; enterprises should define budget enforcement in procurement | AWS teams building agents near existing cloud workloads |
+| Salesforce Agentforce | Salesforce documents a [shared-responsibility security model](https://help.salesforce.com/s/articleView?id=005315874&language=en_US&type=1); buyers should obtain current Salesforce compliance reports and GDPR terms for the contracted services | Salesforce-managed Hyperforce regions; [data residency depends on product availability, components, support, and subprocessors](https://help.salesforce.com/s/articleView?id=000795008&language=en_US&type=1) | Salesforce permissions govern access, while [Agentforce session tracing](https://help.salesforce.com/s/articleView?id=xcloud.shr_einstein_audit_monitoring_agentforce_session_tracing.htm&language=en_US&type=5) records agent behavior | Agent versions support testing and returning to a saved version; buyers should validate complete asset and in-flight-run behavior | Flex Credits, Conversations, and per-user options support consumption reporting through Salesforce administration | Sales, service, commerce, and employee agents grounded in CRM data and connected through [MuleSoft](https://www.salesforce.com/mulesoft/agentforce/) |
+| IBM watsonx Orchestrate | Buyers should obtain IBM’s current report scope and GDPR terms for the selected cloud or software deployment | [Cloud, multicloud, or on-premises options](https://www.ibm.com/products/watsonx-orchestrate/features); storage and support boundaries depend on the selected topology | The control plane provides policy and role-based governance, while [external logging can send audit and debug logs to customer AWS resources](https://www.ibm.com/docs/en/watsonx/watson-orchestrate/base?topic=activity-enabling-external-logging-aws) | Governed lifecycle controls support testing and deployment; the contract and runbook should define complete rollback | The [agent control plane](https://www.ibm.com/products/watsonx-orchestrate/agent-control-plane) centralizes ownership, activity, usage, and cost oversight | IBM-centered transformation and governed automation programs |
 
-- [Customer-operated self-hosting](https://docs.n8n.io/hosting/) supports organizations with strict data-location requirements.
-- [Execution-based billing](https://n8n.io/pricing/) can suit workflows with many steps.
-- The [n8n community](https://community.n8n.io/) provides integrations, templates, and technical guidance.
-- [Code nodes and custom nodes](https://docs.n8n.io/integrations/creating-nodes/overview/) give engineers substantial flexibility.
+The table is a buying summary, not a substitute for a security review. Enterprises should test identity boundaries, logs, approval behavior, data retention, regional availability, model terms, and failure handling in a representative pilot. For a deeper framework, review Sim’s guide to [AI agent observability](https://www.sim.ai/library/ai-agent-observability).
 
-**Cons**
+## Which AI agent platform is best for enterprise teams that need compliance, governance, and cost controls?
 
-- The [fair-code license](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) carries more commercial restrictions than Sim's Apache 2.0 license.
-- [Self-hosting](https://docs.n8n.io/hosting/) requires ongoing engineering and operational ownership.
-- Some [governance features require enterprise licensing](https://n8n.io/enterprise/).
-- n8n remains automation-first, although it [supports AI agents](https://docs.n8n.io/advanced-ai/intro-tutorial/).
+Sim is the best overall enterprise AI agent platform in this comparison for teams that prioritize self-hosting, auditable governance, versioned workflows, and control over model providers, while n8n remains an important incumbent for workflow automation teams evaluating source-available software.
 
-**Pricing**
+That verdict does not replace due diligence. Enterprise buyers should require current first-party evidence for every certification, deployment option, residency region, recovery control, and plan limit that affects their risk model.
 
-- The [self-hosted Community Edition](https://docs.n8n.io/hosting/community-edition-features/) is available under n8n's fair-code terms.
-- [Paid cloud plans](https://n8n.io/pricing/) use execution allowances.
-- [Enterprise cloud and self-hosted deployments](https://n8n.io/enterprise/) use custom pricing.
-- Buyers should compare expected execution volume and infrastructure costs rather than license fees alone.
+Use five evidence categories when comparing platforms:
 
-### Zapier
+1. Security and privacy evidence: current audit reports, certification scope, penetration-testing practices, subprocessors, and incident-response commitments.
+2. Deployment and residency: SaaS regions, customer-controlled cloud deployment, VPC or on-premises deployment, encryption, retention, and deletion.
+3. Identity and governance: SSO, SCIM, role-based access, credential separation, audit logs, approval policies, and workspace boundaries.
+4. Change management: version history, immutable releases, testing, promotion between environments, rollback, and recovery objectives.
+5. Financial governance: usage attribution, team-level reporting, alerts, model restrictions, concurrency controls, and enforceable budget caps.
 
-**Best for:** Zapier is best for enterprises that prioritize connector breadth and mature cloud administration over open-source flexibility or customer-operated hosting.
+## What enterprise compliance details should you compare across AI agent platforms?
 
-Zapier offers a [large application catalog](https://zapier.com/apps), which reduces the need to build custom integrations. Its [Enterprise offering](https://zapier.com/enterprise) provides centralized administration, while [Zapier Agents](https://zapier.com/agents) adds agent capabilities within that ecosystem.
+Sim, n8n, and every other enterprise AI agent platform should be compared using evidence about control scope and deployment architecture, not a row of unexplained checkmarks.
 
-Zapier is a [proprietary cloud service](https://zapier.com/enterprise). It does not publish a customer-operated self-hosting path. Regulated buyers must determine whether Zapier's hosting model, [security program](https://zapier.com/security-compliance), and contractual controls satisfy internal data policies.
+| Enterprise requirement | Evidence the vendor should provide | Why the evidence matters |
+|---|---|---|
+| SOC 2 | Current report type, audit period, covered services, carve-outs, exceptions, and bridge letter | A report may cover only part of the product or an earlier operating period |
+| GDPR | Data processing agreement, subprocessor list, transfer mechanism, deletion process, and data-subject request procedure | GDPR readiness depends on contracts and data flows as well as technical controls |
+| Data residency | Exact regions for primary data, logs, backups, support access, and subprocessors | A regional application database does not prove that every data category stays in that region |
+| On-premises or VPC deployment | Supported architecture, control-plane dependencies, telemetry behavior, upgrade process, and support boundary | “Self-hosted” can describe materially different operating models |
+| Identity and access | SSO protocol, SCIM behavior, role granularity, service accounts, session policies, and credential controls | Central identity does not by itself provide least-privilege authorization |
+| Auditability | Logged events, actor identity, timestamps, export methods, retention, and tamper resistance | Audit logs are useful only if they capture the events investigators need |
+| Version control and rollback | Version scope, release history, environment promotion, rollback behavior, and recovery documentation | A saved draft is not the same as a recoverable production release |
+| Spend governance | Usage attribution, alerts, hard limits, model restrictions, and bypass behavior | A dashboard reports costs after the fact; a cap must prevent or constrain new spend |
+| Business-unit governance | Workspace hierarchy, delegated administration, policy inheritance, isolation, and central reporting | Large organizations need local autonomy without losing central oversight |
 
-**Pros**
+## Does SOC 2 certification prove that an AI agent platform is secure?
 
-- The [application catalog](https://zapier.com/apps) supports broad deployment across business systems.
-- [Enterprise administration](https://zapier.com/enterprise) covers centralized identity and access management.
-- Its [managed cloud service](https://zapier.com/enterprise) removes platform infrastructure maintenance.
+SOC 2 does not certify that Sim, n8n, or another AI agent platform is universally secure; a SOC 2 report is an auditor’s attestation about specified controls over a defined system and period.
 
-**Cons**
+Buyers should ask whether the report is Type I or Type II, which Trust Services Criteria it covers, which services and deployment modes are in scope, whether important controls are carved out to cloud providers, and whether exceptions were found. They should also confirm the report’s period and request a bridge letter when the period does not reach the current date.
 
-- Zapier documents a [managed cloud platform](https://zapier.com/enterprise), not customer-operated self-hosting.
-- Its proprietary model limits deployment control and source-code inspection.
-- [Task-based plan limits](https://zapier.com/pricing) can require careful forecasting for high-volume automation.
-- Zapier's automation heritage may suit deterministic workflows better than complex, agent-native development.
+SOC 2 should be evaluated alongside architecture, access controls, vulnerability management, incident response, disaster recovery, penetration testing, and the customer’s own configuration responsibilities. A vendor badge without scope information is not enough for procurement or security review.
 
-**Pricing**
+## How should enterprise teams evaluate GDPR and data residency for AI agents?
 
-- Zapier's [pricing page](https://zapier.com/pricing) lists Free, Professional, Team, and Enterprise options with usage limits.
-- [Enterprise pricing](https://zapier.com/enterprise) requires engagement with sales for advanced administration.
-- Buyers should model task consumption and confirm which security, audit, retention, and compliance controls apply to the quoted plan.
+Sim, n8n, and other AI agent platforms should be evaluated by tracing every category of personal data through the application, model provider, integration, logs, backups, support systems, and subprocessors.
 
-### Make
+A GDPR review should answer these questions:
 
-**Best for:** Make is best for teams standardized on visual scenario automation that want to add AI capabilities incrementally.
+- Who is the controller, and who is the processor for each workflow?
+- Which subprocessors can receive prompts, files, credentials, outputs, or telemetry?
+- What lawful basis applies to the processing?
+- Which transfer mechanism applies when data leaves its originating jurisdiction?
+- Can administrators set and enforce retention periods?
+- How are deletion and data-subject requests propagated to logs, backups, and subprocessors?
+- Can support personnel access customer data, and from which locations?
+- Does the selected model provider retain prompts or use them for training?
 
-Make organizes automation as [visual scenarios built from connected modules](https://www.make.com/en/how-to-guides/what-is-make). Its [usage model](https://www.make.com/en/pricing) charges credits as modules perform actions, so costs depend on scenario frequency and complexity. Existing Make users can add [AI agents and AI modules](https://www.make.com/en/ai-agents) without replacing familiar automation patterns.
+Data residency must be checked separately for primary databases, object storage, execution logs, backups, analytics, support tooling, and model inference. An EU hosting option, for example, does not automatically prove that every subprocessor and model endpoint keeps data in the EU.
 
-**Pros**
+For a deeper procurement framework, see [Enterprise AI Agent Compliance and Deployment Guide: HIPAA, GDPR, Data Residency, On-Prem, and VPC](https://www.sim.ai/library/enterprise-ai-agent-compliance-deployment-guide).
 
-- The [visual scenario builder](https://www.make.com/en/how-to-guides/what-is-make) makes branching logic and data movement inspectable.
-- A [broad application catalog](https://www.make.com/en/integrations) supports common business applications.
-- [Enterprise plans](https://www.make.com/en/enterprise) add administration and access controls for larger deployments.
+## Can enterprise AI agent platforms run on-premises or in a private VPC?
 
-**Cons**
+Sim can run as a self-hosted deployment, but enterprise buyers should distinguish self-hosting from a fully isolated on-premises or private-VPC architecture before approving any platform.
 
-- [Credit consumption](https://www.make.com/en/pricing) can become harder to predict as scenarios gain steps or run more often.
-- Make remains automation-first, with [agent development inside its scenario model](https://www.make.com/en/ai-agents).
-- Make does not publish an open-source core for customer-operated platform hosting. Its [on-prem agent](https://help.make.com/on-premise-agent) connects cloud scenarios to local systems rather than self-hosting the Make platform.
+The deployment review should document:
 
-**Pricing**
+- Whether the application, workers, database, object storage, and model endpoints can all run inside the customer-controlled environment
+- Whether a vendor-hosted control plane remains necessary
+- Which outbound network connections are required
+- Whether telemetry can be disabled or privately routed
+- How secrets are encrypted and rotated
+- Who performs upgrades, backups, and disaster recovery
+- Whether high availability and horizontal scaling are supported
+- Which components require a commercial enterprise subscription
 
-- Make's [pricing page](https://www.make.com/en/pricing) lists a free plan and paid tiers with different credit allowances and features.
-- [Enterprise](https://www.make.com/en/enterprise) uses custom pricing.
-- Buyers should model credits against expected module operations and confirm which governance controls require Enterprise.
+Sim supports local model connections through Ollama, vLLM, LM Studio, or LiteLLM on self-hosted deployments. Local models are a self-hosting capability rather than an Enterprise-only feature. Sim’s core is licensed under Apache 2.0, while the code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use.
 
-### Gumloop
+As of October 2026, n8n uses the Sustainable Use License, a source-available license that is not OSI-approved. Buyers comparing Sim and n8n should review [n8n’s license](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) alongside the deployment rights and restrictions that apply to their intended use.
 
-**Best for:** Gumloop is best for enterprises that want a fully managed rollout with hosted MCP connections and packaged go-to-market templates.
+## What should enterprise teams require for AI agent version control and rollback?
 
-Gumloop's [Enterprise offering](https://www.gumloop.com/enterprise) provides managed deployment, role-based access control, SAML or SCIM provisioning, audit controls, and retention options. Its [MCP support](https://docs.gumloop.com/mcp) lets agents access approved external tools without requiring users to implement each connection as a workflow node.
+Sim and every enterprise AI agent platform should provide a documented path from a known workflow version to a tested production release and back to a known-good release.
 
-[Templates](https://www.gumloop.com/templates) help sales and operations groups deploy common automations faster. Gumloop suits organizations that prefer vendor-managed infrastructure over maintaining self-hosted AI agents.
+Enterprise change management should cover more than visual edit history. Teams should determine whether a version captures workflow logic, prompts, model settings, tool configuration, policy references, and deployment metadata. Secrets should not be copied into version history, but the version should retain enough configuration references to reproduce a release safely.
 
-**Pros**
+A production-ready process should include:
 
-- [Managed enterprise deployment](https://www.gumloop.com/enterprise) reduces infrastructure work for engineering teams.
-- [Enterprise identity controls](https://www.gumloop.com/enterprise) support centralized provisioning and access management.
-- [MCP connections](https://docs.gumloop.com/mcp) simplify access to external tools.
-- [Packaged templates](https://www.gumloop.com/templates) shorten setup for common workflows.
+1. A uniquely identifiable version for every deployed release.
+2. Separate development, test, and production environments or an equivalent promotion mechanism.
+3. Automated tests for expected outputs, tool calls, authorization boundaries, and failure paths.
+4. A recorded approver and deployment timestamp.
+5. A rollback procedure that restores the complete known-good configuration.
+6. A policy for in-flight runs when a rollback occurs.
+7. Recovery objectives for the platform and its stateful dependencies.
+8. An audit trail connecting the change, approval, deployment, incident, and rollback.
 
-**Cons**
+## How do enterprise teams control AI agent spend across teams?
 
-- Gumloop's [commercial plans](https://www.gumloop.com/pricing) use a proprietary hosted product.
-- [Managed deployment](https://www.gumloop.com/enterprise) is not equivalent to customer-operated self-hosting.
-- Security teams must assess Gumloop's [hosting and retention controls](https://www.gumloop.com/enterprise) rather than operate the full environment.
+Sim and competing AI agent platforms should give enterprise administrators both attributable cost data and enforceable controls that act before spending exceeds policy.
 
-**Pricing**
+Cost visibility should separate usage by organization, workspace, business unit, team, workflow, model, provider, environment, and time period. The platform should also explain whether displayed costs include model usage, hosted-model markups, platform execution charges, storage, observability, integrations, and infrastructure.
 
-- Gumloop provides [Enterprise pricing](https://www.gumloop.com/pricing) through sales.
-- Buyers should confirm which governance controls, retention options, usage allowances, and deployment terms the quote includes.
+A budget alert is not a budget cap. A hard cap should define what stops when the threshold is reached, how delayed usage records are handled, whether administrators can override the limit, and whether retries or concurrent runs can exceed it. Where hard monetary caps are unavailable, enterprises can combine provider quotas, restricted model access, concurrency limits, rate limits, approval gates, and automated shutdown rules.
 
-### Workato
+[Sim Cloud supports workspace bring-your-own-key credentials on any plan, while organization-level model keys require Pro for Teams, Max for Teams, or Enterprise](https://docs.sim.ai/platform/costs#bring-your-own-key-byok). Hosted model usage is recorded at the applicable Sim rate. BYOK can improve provider-level attribution and policy control, but it does not replace platform-level reporting and enforcement. Any self-hosted Sim deployment can connect to local models through Ollama, vLLM, LM Studio, or LiteLLM without requiring Enterprise.
 
-**Best for:** Workato is best for enterprises that need mature iPaaS governance and a large connector catalog for complex system integration.
+## How do you govern AI agents across multiple business units?
 
-Workato brings established [enterprise integration controls](https://www.workato.com/platform) and [more than 1,000 connectors](https://www.workato.com/integrations). Its proprietary platform suits companies that need governed connections across business systems and already treat integration as a central IT function.
+Sim and other enterprise AI agent platforms should combine central policy with delegated administration so business units can build independently without sharing unrestricted credentials or bypassing organization-wide controls.
 
-Workato approaches [AI agents through its broader orchestration platform](https://www.workato.com/agentic). That model helps agents interact with applications under centralized controls, but adds complexity for buyers seeking an agent-native workspace.
+A scalable governance design should define:
 
-**Pros**
+- Organization, workspace, and project boundaries
+- Central administrators and delegated business-unit administrators
+- Role-based access for builders, reviewers, deployers, operators, and auditors
+- Credential ownership and approved credential groups
+- Approved model providers, models, tools, integrations, and Model Context Protocol (MCP) servers that connect agents to external tools and data
+- Required reviews for high-risk tools or data sources
+- Separate development and production access
+- Audit-log access and retention
+- Incident isolation and emergency suspension procedures
+- Central usage, cost, and risk reporting
+- Lifecycle rules for inactive owners, departed employees, and abandoned agents
 
-- The [connector catalog](https://www.workato.com/integrations) supports environments with legacy and cloud applications.
-- [Enterprise governance](https://www.workato.com/platform) suits centralized IT ownership.
-- [Enterprise services](https://www.workato.com/editions/support) support large deployments.
+Sim’s enterprise-licensed code includes SSO, SCIM, access control, access requests, audit logs, data retention, data drains, workspace forking, session policies, custom blocks, credential groups, and white-labeling. Production use of these `apps/sim/ee` capabilities requires an active Sim Enterprise subscription under the Sim Enterprise License.
 
-**Cons**
+## How should security teams evaluate audit logs for AI agent platforms?
 
-- Workato can require more implementation and platform management than simpler agent builders.
-- Its [integration-first architecture](https://www.workato.com/platform) can feel indirect for creating and governing agents.
-- Workato's [commercial platform](https://www.workato.com/pricing) does not publish an open-source core for customer-operated deployment.
+Sim and every enterprise AI agent platform should expose audit records that identify who changed, approved, deployed, invoked, or administered an agent and when the event occurred.
 
-**Pricing**
+Security teams should test whether logs capture authentication events, role and membership changes, credential changes, workflow edits, deployments, policy changes, administrative exports, execution actions, and access to sensitive resources. They should also verify timestamp consistency, retention, export or data-drain support, filtering, integration with a SIEM, and protection against alteration.
 
-- Workato uses [custom pricing](https://www.workato.com/pricing) based on selected products and usage.
-- Buyers must contact sales for a quote.
+Execution traces and administrative audit logs serve different purposes. Traces explain what happened inside an agent run, while audit logs establish which human or service identity performed a governed action. Enterprise investigations often need both.
 
-### Dust
+## What evidence should procurement request from an enterprise AI agent platform vendor?
 
-**Best for:** Dust is best for enterprises that need secure, collaborative agents grounded in company knowledge.
+Sim, n8n, and every shortlisted AI agent platform should be required to provide dated first-party evidence that maps each procurement claim to a contract, report, technical document, or product control.
 
-Dust organizes [agents around shared company context](https://docs.dust.tt/docs/user-documentation/getting-started/intro-to-dust). Employees can use assistants that draw on [connected data sources](https://docs.dust.tt/docs/data-sources), making Dust a stronger fit for internal research, support, and knowledge retrieval than broad workflow automation.
+A complete evidence package should include the applicable security report, scope statement, penetration-test summary, data processing agreement, subprocessor list, data-flow diagram, deployment architecture, business continuity documentation, incident-response terms, retention and deletion documentation, access-control matrix, audit-log specification, support-access policy, pricing schedule, service-level agreement, and licensing terms.
 
-**Pros**
+Procurement should record the evidence date, covered product, covered deployment mode, contractual commitment, control owner, and renewal date. Marketing pages can help identify a feature, but they should not be treated as the final source for contractual rights or control scope.
 
-- Dust supports [collaborative agent creation and company-wide access](https://docs.dust.tt/docs/user-documentation/agents/create-your-first-agent).
-- [Data-source connections](https://docs.dust.tt/docs/data-sources) help agents answer questions using internal information.
-- [Enterprise controls](https://dust.tt/home/enterprise) support secure multi-user deployment.
+## What are the key facts about each enterprise AI agent platform?
 
-**Cons**
+Each enterprise AI agent platform has a different license, deployment model, and billing unit that procurement teams should establish before comparing total cost.
 
-- Dust's [knowledge and assistant model](https://docs.dust.tt/docs/user-documentation/getting-started/intro-to-dust) covers fewer general automation use cases than application-workflow platforms.
-- Companies seeking customer-operated hosting should confirm [deployment options](https://dust.tt/home/enterprise) during procurement.
-- Its knowledge-first model may not suit complex system orchestration.
+**Key facts at a glance:**
 
-**Pricing**
+- Sim combines an [Apache 2.0 core](https://github.com/simstudioai/sim) with separately licensed `apps/sim/ee` code under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), supports [self-hosting](https://docs.sim.ai/platform/self-hosting), and bills Sim Cloud through plan subscriptions and usage credits documented on the [official Sim pricing page](https://www.sim.ai/pricing).
+- Kore.ai makes its current Agent Platform available to approved customers and partners in [documented hosted regions](https://docs.kore.ai/agent-platform/getting-started); buyers should obtain the governing commercial license, deployment rights, and billing unit in their quote because the public Agent Platform documentation does not state them.
+- Superblocks offers [Cloud, Hybrid, and vendor-managed Cloud-Prem deployment](https://docs.superblocks.com/enterprise/deployment-overview), while Enterprise dollar-commit contracts meter AI orchestration in [Governed Agent Units](https://docs.superblocks.com/admin/billing-overview) plus published-application usage; buyers should obtain the governing commercial license with their contract.
+- n8n uses the source-available, non-OSI-approved [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), supports [cloud and self-hosted editions](https://docs.n8n.io/deploy/host-n8n/community-edition-features/), and prices plans by monthly workflow executions according to the [official n8n pricing page](https://n8n.io/pricing/) as of October 2026.
+- Microsoft Copilot Studio is proprietary Microsoft software available as a Microsoft-managed cloud service rather than customer-operated self-hosted software, and bills consumption in Copilot Credits through pay-as-you-go meters, prepurchase plans, or prepaid packs under [Microsoft’s licensing guidance](https://www.microsoft.com/licensing/guidance/Microsoft-Copilot-Studio) and [official pricing](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio).
+- Google Vertex AI Agent Builder is a proprietary managed Google Cloud offering rather than self-hosted software, and bills metered agent runtime plus the model and cloud-service units in the customer’s architecture under the [official agent platform pricing documentation](https://cloud.google.com/products/gemini-enterprise-agent-platform/pricing).
+- Amazon Bedrock Agents is a proprietary AWS-managed capability rather than self-hosted software, and bills the selected model and supporting Bedrock or AWS service units documented in [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/).
+- Salesforce Agentforce is proprietary Salesforce-managed cloud software rather than self-hosted software, and bills through Flex Credits per action, Conversations, or per-user licensing options on the [official Agentforce pricing page](https://www.salesforce.com/agentforce/pricing/), with Flex Credits sold in 100,000-credit units as of October 2026.
+- IBM watsonx Orchestrate is proprietary IBM software with [cloud, multicloud, and on-premises deployment options](https://www.ibm.com/products/watsonx-orchestrate/features), including [documented on-premises installation](https://www.ibm.com/docs/en/watsonx/watson-orchestrate/base?topic=notes-installing-watsonx-orchestrate-premises), and its [official pricing](https://www.ibm.com/products/watsonx-orchestrate/pricing) uses monthly subscription plans while contract-specific infrastructure and consumption terms depend on the selected topology.
 
-- Dust lists [self-service and Enterprise options](https://dust.tt/home/pricing).
-- Buyers should confirm which tier includes SSO, access controls, audit logs, retention settings, and compliance commitments.
+Teams comparing the licensing implications of Sim and n8n can read [Apache 2.0 versus fair-code licensing](https://www.sim.ai/library/apache-2-0-vs-fair-code). A broader shortlist of deployable options is available in the guide to [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
 
-### Relevance AI
+## How should enterprise teams evaluate AI agent platforms?
 
-**Best for:** Relevance AI is best for teams that want to deploy packaged sales, customer success, and operations agents quickly.
+Enterprise teams should evaluate AI agent platforms with a weighted procurement scorecard and a production-like pilot rather than selecting the platform with the longest feature list.
 
-Relevance AI packages agents as an [AI workforce](https://relevanceai.com/), making common go-to-market use cases easier to deploy at team level. [Higher tiers](https://relevanceai.com/pricing) add enterprise controls such as SSO, role-based access control, and audit logs.
+### What governance controls should an enterprise AI agent platform provide?
 
-**Pros**
+An enterprise AI agent platform should let the enterprise define who may create, publish, run, inspect, and change agents across separate environments.
 
-- [Agent templates](https://relevanceai.com/agent-templates) reduce work required to launch common workflows.
-- [Higher tiers](https://relevanceai.com/pricing) provide identity, access, and auditing controls.
-- The [hosted platform](https://relevanceai.com/pricing) limits infrastructure work for internal IT.
+Evaluate role-based access, identity-provider integration, environment separation, secret management, tool permissions, data policies, publication controls, and the ability to disable or roll back an agent. Ask whether administrators can enforce controls centrally or whether every agent author must implement them manually.
 
-**Cons**
+### What deployment options should an enterprise AI agent platform provide?
 
-- Its proprietary terms do not provide an open-source core for customer-operated modification and redistribution.
-- The [packaged-agent catalog](https://relevanceai.com/agent-templates) emphasizes departmental use cases.
-- Organization-wide adoption may require complementary general automation and governance capabilities.
+An enterprise AI agent platform should offer a deployment model that matches the organization’s data, networking, operational, and regulatory boundaries.
 
-**Pricing**
+A managed service reduces operational work, but self-hosting can provide greater infrastructure control and source-level inspection. Buyers should distinguish genuine self-hosting from a managed service connected to private data because the security and operational responsibilities are different.
 
-- Relevance AI offers [tiered plans](https://relevanceai.com/pricing), with enterprise governance on higher tiers.
-- Buyers should confirm current usage limits, retention terms, support coverage, and enterprise pricing directly with the vendor.
+### What should a security review cover for an AI agent platform?
 
-## Enterprise governance comparison
+An AI agent platform security review should cover data flow, identity, secrets, network paths, model-provider exposure, retention, subprocessors, logging, and the permissions granted to every tool.
 
-The comparison separates documented controls from features that require vendor confirmation during procurement.
+Security teams should request current vendor evidence directly rather than relying on a comparison article for certifications. A platform-level certification also does not prove that an individual agent has safe prompts, least-privilege tools, protected credentials, or appropriate approval gates.
 
-| Platform | License type | Self-hosting model | SSO/access control | Audit logging | SOC 2/compliance | Pricing tier |
-| --- | --- | --- | --- | --- | --- | --- |
-| Sim | ✅ [Apache 2.0 core](https://github.com/simstudioai/sim) | ✅ Free customer-operated core; governed hosting requires Enterprise | ✅ [Enterprise only](https://www.sim.ai/pricing) | ✅ [Enterprise only](https://www.sim.ai/pricing) | ✅ [SOC 2 on Enterprise](https://www.sim.ai/pricing) | ✅ [Free, Pro, Max, custom Enterprise](https://www.sim.ai/pricing) |
-| n8n | 🟡 [Fair-code](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) | ✅ [Customer-operated option](https://docs.n8n.io/hosting/) | 🟡 [Enterprise controls](https://n8n.io/enterprise/) | 🟡 [Enterprise controls](https://n8n.io/enterprise/) | 🟡 Verify current scope | 🟡 [Verify live tier](https://n8n.io/pricing/) |
-| Zapier | ❌ [Proprietary](https://zapier.com/terms) | ❌ [Hosted cloud](https://zapier.com/enterprise) | ✅ [Enterprise administration](https://zapier.com/enterprise) | 🟡 Verify current scope | 🟡 [Verify current scope](https://zapier.com/security-compliance) | 🟡 [Verify live tier](https://zapier.com/pricing) |
-| Make | ❌ [Proprietary](https://www.make.com/en/terms-and-conditions) | ❌ [Cloud platform with on-prem connectivity](https://help.make.com/on-premise-agent) | 🟡 [Enterprise controls](https://www.make.com/en/enterprise) | 🟡 Verify current scope | 🟡 Verify current scope | 🟡 [Verify live tier](https://www.make.com/en/pricing) |
-| Gumloop | ❌ [Proprietary](https://www.gumloop.com/tos) | 🟡 [Managed deployment](https://www.gumloop.com/enterprise) | ✅ [SAML, SCIM, and RBAC](https://www.gumloop.com/enterprise) | ✅ [Enterprise audit controls](https://www.gumloop.com/enterprise) | 🟡 Verify certification scope | 🟡 [Enterprise tier](https://www.gumloop.com/pricing) |
-| Workato | ❌ [Proprietary](https://www.workato.com/legal/terms-of-service) | 🟡 [Vendor platform](https://www.workato.com/platform) | ✅ [Enterprise access controls](https://www.workato.com/platform) | 🟡 Contract-dependent | 🟡 Verify certification scope | 🟡 [Custom enterprise](https://www.workato.com/pricing) |
-| Dust | ✅ [MIT-licensed source](https://github.com/dust-tt/dust/blob/main/LICENSE) | 🟡 [Verify deployment options](https://dust.tt/home/enterprise) | 🟡 [Enterprise controls](https://dust.tt/home/enterprise) | 🟡 Verify current scope | 🟡 Verify certification scope | 🟡 [Verify live tier](https://dust.tt/home/pricing) |
-| Relevance AI | ❌ [Proprietary](https://relevanceai.com/terms-and-conditions) | 🟡 [Verify deployment options](https://relevanceai.com/pricing) | ✅ [Higher-tier SSO and RBAC](https://relevanceai.com/pricing) | ✅ [Higher-tier audit controls](https://relevanceai.com/pricing) | 🟡 Verify certification scope | 🟡 [Higher-tier enterprise](https://relevanceai.com/pricing) |
+### How should an enterprise audit AI agent activity?
 
-## Which platform fits your organization
+An enterprise should audit AI agent activity with records that connect each request to model calls, tool calls, retrieved data, approvals, errors, outputs, and the workflow version that ran.
 
-- **Regulated industry with customer-operated infrastructure.** Choose [Sim Enterprise](https://www.sim.ai/pricing) when you need governed self-hosting, SSO, access control, audit logs, and SOC 2 support. The Apache 2.0 core supports independent self-hosting, but enterprise governance requires Enterprise.
-- **Team wanting fully managed simplicity.** Choose Gumloop when you want its [managed deployment and enterprise controls](https://www.gumloop.com/enterprise) without operating the underlying infrastructure. Its proprietary hosted model suits buyers who value low operational overhead more than source access.
-- **Organization prioritizing connector breadth and mature cloud administration.** Choose Zapier when its [application catalog and enterprise controls](https://zapier.com/enterprise) take priority. Confirm that its hosting, identity, and retention terms meet your requirements.
-- **Enterprise needing deep iPaaS governance.** Choose Workato when agents must operate within a [large integration program under centralized controls](https://www.workato.com/platform). Buyers seeking an agent-native workspace may prefer Sim.
+Prompt and response logs alone are insufficient. Investigators need to determine what the agent knew, which tools it could access, what it attempted, what actually changed, who approved the action, and whether sensitive data crossed a system boundary.
 
-n8n offers another customer-operated option for engineering-led organizations. Its [self-hosted community](https://community.n8n.io/) and [execution-based pricing](https://n8n.io/pricing/) can outweigh the commercial restrictions of its [fair-code license](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) when your legal team accepts those terms.
+### When should an AI agent require human approval?
 
-## Why Sim leads on enterprise governance
+An AI agent should require human approval before high-impact, irreversible, externally visible, financially material, or privilege-changing actions.
 
-Sim leads because its [Apache 2.0 core](https://github.com/simstudioai/sim) gives enterprises a permissive license and broad commercial self-hosting rights. Buyers can inspect, modify, and operate the software without the commercial limits attached to fair-code licenses.
+Common approval points include sending contractual communications, issuing refunds, modifying production systems, changing customer records, executing purchases, deleting data, and escalating account permissions. The platform should preserve the proposed action, reviewer identity, decision, timestamp, and final result.
 
-[Sim Enterprise](https://www.sim.ai/pricing) adds the governance required for organization-wide deployment. One commercial tier covers SSO, access control, audit logs, SOC 2 compliance, governed self-hosting, and dedicated support. The free open-source core remains self-hostable, but it does not include these Enterprise controls.
+### Why does model support matter when choosing an AI agent platform?
 
-Those controls govern an agent-native workspace where users build, deploy, and monitor agents alongside their data, integrations, and execution history. Sim does not depend on an automation product with separate AI features and governance additions.
+Model support matters because model quality, latency, regional availability, contractual terms, and cost vary by task and can change faster than the surrounding workflow.
 
-[Explore Sim Enterprise and contact sales](https://www.sim.ai) to discuss deployment, security, and governance requirements.
+A multi-model platform reduces dependency on one provider, while a cloud-native platform can offer tighter integration with its preferred model family. Enterprises should test whether model choice is available globally, per workspace, per agent, or per workflow step.
 
-## How we evaluated these platforms
+### How should enterprises compare AI agent platform integrations?
 
-We evaluated each platform using its live pricing, trust, documentation, and licensing pages rather than relying on general marketing claims. The review checked six procurement axes: license terms, self-hosting models, SSO and access control, audit logging and retention, compliance posture, and multi-workspace governance.
+Enterprises should compare integrations by authentication quality, supported operations, observability, permission scope, and maintenance—not by connector count alone.
 
-We also recorded each vendor's public pricing structure without treating different usage units as directly comparable. Research was verified through August 2026. Enterprise features can change by contract or plan, so buyers should confirm security controls, deployment rights, and compliance scope with each vendor before procurement.
+A shallow connector that exposes only common actions may not support a critical process. During a pilot, test pagination, rate limits, retries, webhook verification, credential rotation, custom API calls, and behavior when the connected system is unavailable.
+
+## When should enterprise teams choose Sim?
+
+Enterprise teams should choose Sim when they need a [visual, multi-model agent workflow platform](https://docs.sim.ai/agents) with an inspectable Apache 2.0 core, the [option to self-host](https://docs.sim.ai/platform/self-hosting), and separately licensed enterprise capabilities under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+
+As of October 2026, Sim buyers should map the current SOC 2 Type II report, GDPR terms, subprocessors, and residency commitments to their chosen deployment; self-hosting can place application infrastructure in a customer-controlled environment, while SSO, SCIM, permission and credential groups, audit logs, deployment snapshots and rollback, usage attribution, and organization/workspace boundaries provide the documented governance surface, with contract-specific alerts and enforceable budget caps still requiring confirmation.
+
+Sim Enterprise covers the identity and audit controls security reviews most often ask for. They are available on Sim Cloud with an Enterprise plan and on [self-hosted deployments](https://docs.sim.ai/platform/enterprise/self-hosted) through environment configuration:
+
+- **Single sign-on:** [SAML 2.0 and OIDC](https://docs.sim.ai/platform/enterprise/sso), with more than one identity provider per organization.
+- **Directory provisioning:** [SCIM 2.0](https://docs.sim.ai/platform/enterprise/scim) creates, updates, and deactivates members from the identity provider.
+- **Role-based access:** [workspace permissions](https://docs.sim.ai/platform/permissions) plus [permission groups](https://docs.sim.ai/platform/enterprise/access-control) that restrict models, blocks, and features by workspace and member.
+- **Audit logs:** [append-only records](https://docs.sim.ai/platform/enterprise/audit-logs) of configuration and security events, exportable through the API.
+- **Session and data controls:** [session policies](https://docs.sim.ai/platform/enterprise/session-policies), [data retention with PII redaction](https://docs.sim.ai/platform/enterprise/data-retention), and [data drains](https://docs.sim.ai/platform/enterprise/data-drains) to a customer-owned store.
+- **Model credentials:** teams can bring their own model-provider keys instead of using Sim’s hosted keys.
+
+Request Sim’s current SOC 2 Type II report and confirm plan-specific availability during procurement.
+
+Sim is especially suitable when business and engineering teams need to collaborate on explicit workflow logic rather than hide the entire process inside a prompt. Its strongest procurement advantages are portability, source transparency, deployment control, and the ability to place deterministic workflow steps around probabilistic model calls.
+
+Sim is not automatically the best choice for an organization committed to a single vendor ecosystem. A Microsoft-only organization may prefer Copilot Studio, an AWS platform team may prefer Bedrock Agents, and a Salesforce service organization may prefer Agentforce because existing identity, data, and administration can outweigh platform portability.
+
+## When should enterprise teams choose Kore.ai?
+
+Kore.ai is a strong shortlist candidate when an enterprise program is centered on conversational experiences and customer-facing agents.
+
+As of October 2026, Kore.ai documents [granular custom-role permissions](https://docs.kore.ai/agent-platform/permissions-reference), [administrative audit logs](https://docs.kore.ai/ai-for-service/administration/audit-logs), versioned [development, staging, and production deployments](https://docs.kore.ai/agent-platform/deployment), and [durable human-in-the-loop tasks](https://docs.kore.ai/agent-platform/human-in-the-loop). Procurement teams should test those controls with a representative agent and map the contracted identity, retention, regional deployment, cost-allocation, approval, and data-control terms to their requirements.
+
+## When should enterprise teams choose Superblocks?
+
+Superblocks is a strong shortlist candidate when an organization wants agents to operate alongside internally developed applications and enterprise systems.
+
+As of October 2026, Superblocks documents [organization and resource RBAC](https://docs.superblocks.com/admin/org-administration/rbac), searchable [audit logs](https://docs.superblocks.com/admin/audit-logs), [Cloud, Hybrid, and managed Cloud-Prem deployments](https://docs.superblocks.com/enterprise/deployment-overview), and Enterprise consumption measured with [Governed Agent Units](https://docs.superblocks.com/admin/billing-overview) and published-application usage. Buyers should determine whether the same policies cover application builders, agent builders, credentials, data sources, deployments, and runtime actions, especially when an agent can modify internal systems.
+
+## When should enterprise teams choose n8n?
+
+Enterprise teams should choose n8n when technical automation breadth and [self-hosted workflow execution](https://docs.n8n.io/deploy/host-n8n/community-edition-features/) matter more than using an OSI-approved open-source license.
+
+n8n combines application automation with [AI-oriented nodes and code-level tools](https://docs.n8n.io/build/integrate-ai/understand-ai-components/how-tools-work). Its self-hosting option is useful for teams prepared to operate the platform, but buyers must review the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) rather than describe n8n as conventional open-source software.
+
+As of October 2026, n8n documents [annual SOC 2 audits](https://n8n.io/legal/security/), a [GDPR DPA](https://n8n.io/legal/data-processing-agreement/) and [subprocessors](https://n8n.io/legal/sub-processors/), cloud and self-hosted deployment, [plan-specific SSO](https://docs.n8n.io/deploy/host-n8n/configure-n8n/security/configure-sso) and role controls, [external secrets](https://docs.n8n.io/administer/manage-credentials/use-external-secret-stores) and [log streaming](https://docs.n8n.io/administer/observe-and-log/stream-logs-to-external-systems), [workflow restoration](https://docs.n8n.io/build/manage-workflows/view-change-history) and [Git-backed environments](https://docs.n8n.io/administer/use-source-control-and-environments), [execution-based billing](https://n8n.io/pricing/), and project-level administration; buyers should map cloud regions, SCIM needs, business-unit reporting, alerts, and enforceable caps to the selected plan and contract.
+
+Sim has the clearer core-licensing advantage for teams that require OSI-approved open source: Sim's core is Apache 2.0, `apps/sim/ee` is governed by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), and n8n is source-available under its Sustainable Use License as of October 2026.
+
+## When should enterprise teams choose Microsoft Copilot Studio?
+
+Enterprise teams should choose Microsoft Copilot Studio when Microsoft 365, Dynamics 365, Entra ID, and Power Platform already define the organization’s identity and business-application environment.
+
+Copilot Studio benefits from [Microsoft’s security and governance model](https://learn.microsoft.com/en-us/microsoft-copilot-studio/security-and-governance). Buyers should still test whether required actions, logs, model options, environment controls, and [Copilot Credit licensing behavior](https://www.microsoft.com/licensing/guidance/Microsoft-Copilot-Studio) satisfy the exact use case rather than assuming that every Microsoft integration has equal depth.
+
+As of October 2026, Microsoft documents [compliance and GDPR controls](https://learn.microsoft.com/en-us/microsoft-copilot-studio/security-and-governance), [geographic data residency](https://learn.microsoft.com/en-us/microsoft-copilot-studio/geo-data-residency), Entra and Power Platform identity and role governance, [Purview audit events](https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-logging-copilot-studio), [managed solutions across environments](https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-solutions-overview), and [analytics and capacity monitoring](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/sec-gov-phase5); the service remains Microsoft-managed, and buyers should test complete rollback, business-unit chargeback, alerts, and hard-cap behavior for their tenant design.
+
+## When should enterprise teams choose Google Vertex AI Agent Builder?
+
+Enterprise teams should choose Google Vertex AI Agent Builder when they are building custom Gemini-centered agents on Google Cloud and have engineers available to assemble the surrounding application and controls.
+
+Vertex AI Agent Builder is a [suite for building, scaling, and governing agents in production](https://docs.cloud.google.com/agent-builder). It is less of a turnkey cross-functional workflow builder than a cloud platform for engineering custom agent systems.
+
+As of October 2026, Google publishes [product-specific certification guidance](https://docs.cloud.google.com/gemini/enterprise/docs/compliance-security-controls), GDPR terms, [at-rest residency and VPC Service Controls](https://docs.cloud.google.com/gemini-enterprise-agent-platform/machine-learning/general/vertexai-security-controls), IAM, [Cloud Audit Logs](https://cloud.google.com/vertex-ai/docs/general/audit-logging), managed release capabilities, Cloud Billing attribution, [quotas](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/agent-quotas), and organization policies; Agent Builder is Google-managed rather than on-premises software, and buyers should validate SCIM through their identity architecture, end-to-end rollback, residency scope, alerts, and enforceable caps across every selected component.
+
+## When should enterprise teams choose Amazon Bedrock Agents?
+
+Enterprise teams should choose Amazon Bedrock Agents when their data, applications, identity controls, and engineering operations already run primarily on AWS.
+
+Bedrock Agents can combine [action groups, knowledge bases, and orchestration traces](https://docs.aws.amazon.com/bedrock/latest/userguide/trace-events.html). Procurement teams should model the complete cost of model inference, retrieval, storage, networking, observability, and supporting services using [Bedrock’s service-specific pricing](https://aws.amazon.com/bedrock/pricing/) rather than looking for a single agent-builder seat price.
+
+As of October 2026, AWS provides [service-scope compliance evidence](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/compliance-validation.html), [GDPR and data-protection documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/data-protection.html), regional managed deployment and private-network controls, IAM, [CloudTrail](https://docs.aws.amazon.com/bedrock/latest/userguide/logging-using-cloudtrail.html), [agent versions and aliases](https://docs.aws.amazon.com/bedrock/latest/userguide/deploy-agent.html), [cost-allocation tags](https://docs.aws.amazon.com/bedrock/latest/userguide/tagging.html), [Bedrock attribution](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-management.html), and quotas; buyers should confirm the exact service and region scope, identity-provisioning design, rollback runbook, alert timing, and whether configured limits actually stop spend.
+
+## When should enterprise teams choose Salesforce Agentforce?
+
+Enterprise teams should choose Salesforce Agentforce when the agent’s primary job is to act on Salesforce customer, sales, service, commerce, or employee data.
+
+Agentforce’s principal advantage is proximity to Salesforce records, permissions, workflows, and business context. Enterprises should validate data grounding, action permissions, handoff behavior, [Flex Credit consumption](https://www.salesforce.com/agentforce/pricing/), and non-Salesforce integration requirements with a representative process.
+
+As of October 2026, Salesforce provides contracted compliance and GDPR evidence, [Hyperforce residency documentation](https://help.salesforce.com/s/articleView?id=000795008&language=en_US&type=1), Salesforce identity and permission controls, [session tracing](https://help.salesforce.com/s/articleView?id=xcloud.shr_einstein_audit_monitoring_agentforce_session_tracing.htm&language=en_US&type=5), [agent versions](https://help.salesforce.com/s/articleView?id=ai.agent_versions.htm&language=en_US&type=5), [Digital Wallet consumption visibility](https://www.salesforce.com/agentforce/pricing/), and org-level administration; Agentforce is Salesforce-managed rather than on-premises software, and buyers should validate support and subprocessor locations, SCIM scope, complete rollback, cross-org governance, alerts, and hard spending controls.
+
+## When should enterprise teams choose IBM watsonx Orchestrate?
+
+Enterprise teams should choose IBM watsonx Orchestrate when IBM is already a strategic supplier and the organization wants enterprise orchestration aligned with IBM software, governance, or implementation services.
+
+IBM documents [cloud, multicloud, and on-premises deployment](https://www.ibm.com/products/watsonx-orchestrate/features) and [human-in-the-loop approvals](https://www.ibm.com/products/watsonx-orchestrate/developers). Buyers should make the contracted deployment model, included capabilities, model choices, integration scope, and consumption metric explicit because these details can vary across offerings and agreements.
+
+As of October 2026, IBM buyers should obtain current certification and GDPR scope for their topology and evaluate regional storage, SSO and role controls, credential handling, [external audit logging](https://www.ibm.com/docs/en/watsonx/watson-orchestrate/base?topic=activity-enabling-external-logging-aws), governed lifecycle and rollback procedures, [monthly subscription terms](https://www.ibm.com/products/watsonx-orchestrate/pricing), [control-plane cost oversight](https://www.ibm.com/products/watsonx-orchestrate/agent-control-plane), and delegated governance across teams before treating a cloud, multicloud, or on-premises design as approved.
+
+## Which enterprise AI agent platform is easiest to approve in a security review?
+
+The enterprise AI agent platform that is easiest to approve is the platform that fits the organization’s existing trust boundary and provides complete evidence for the proposed deployment.
+
+Sim can simplify source inspection and self-hosting reviews. Microsoft Copilot Studio, Google Vertex AI Agent Builder, Amazon Bedrock Agents, and Salesforce Agentforce can simplify reviews when the corresponding cloud is already approved. n8n can fit a self-managed boundary, but its license and operational responsibilities require separate review.
+
+No platform is automatically secure because of its vendor or deployment model. The agent’s tools, credentials, prompts, retrieved data, model endpoints, approval gates, and logs determine the risk of the deployed system.
+
+## How should an enterprise run an AI agent platform pilot?
+
+An enterprise should run an AI agent platform pilot with one valuable workflow, realistic integrations, measurable acceptance criteria, and deliberate failure tests.
+
+Use the same evaluation case for every shortlisted platform:
+
+1. Connect a real but appropriately isolated data source.
+2. Require the agent to retrieve information, make a bounded decision, and propose an action.
+3. Insert human approval before the consequential action.
+4. Test unauthorized access, prompt injection, missing data, tool failure, timeouts, duplicate requests, and model refusal.
+5. Confirm that reviewers can reconstruct the complete execution from logs.
+6. Measure task success, false actions, approval rate, latency, operating cost, authoring time, and recovery effort.
+7. Ask security, legal, procurement, operations, and workflow owners to score the same evidence.
+
+A polished demonstration should not outweigh weak access controls or incomplete audit records.
+
+## What governance mistakes should enterprises avoid with AI agents?
+
+Sim recommends avoiding governance designs that depend on one administrator role, an incomplete activity log, or informal human review outside the agent workflow.
+
+Common mistakes include:
+
+1. Treating corporate login as complete authorization.
+2. Sharing provider keys across unrelated teams.
+3. Confusing execution traces with administrative audit logs.
+4. Asking for approval in chat without pausing the actual run.
+5. Assuming an approval block automatically routes approve and reject outcomes.
+6. Tracking aggregate spend without attributing it to teams and agents.
+7. Allowing test credentials to reach production systems.
+8. Choosing a platform before reviewing its license and deployment obligations.
+9. Granting builders permanent access when an access request would be safer.
+10. Retaining logs without defining who may read or export them.
+
+## What questions should procurement ask AI agent platform vendors?
+
+Procurement teams should ask every AI agent platform vendor the same specific questions about control, evidence, deployment, licensing, and cost.
+
+- Who owns agent definitions, prompts, execution data, and generated outputs?
+- Can the platform and all required components run in the enterprise’s chosen environment?
+- Which data is sent to model providers, and can providers use it for training?
+- Can model providers and models be selected per agent or workflow step?
+- How are secrets stored, scoped, rotated, and redacted from logs?
+- Can administrators restrict tools, domains, models, and data sources centrally?
+- Do logs record model calls, retrievals, tool inputs, tool outputs, approvals, and workflow versions?
+- Can the enterprise export audit records to its security monitoring system?
+- What happens to in-flight executions when a workflow changes?
+- How are retries and duplicate side effects prevented?
+- Can a human inspect, modify, reject, or approve a proposed action?
+- What is the billing unit, and which supporting services create additional charges?
+- Which capabilities require an enterprise plan or separate contract?
+- What are the retention, deletion, regional hosting, and subprocessor terms?
+- What license governs self-hosted code, and what uses does that license restrict?
+
+## How should an enterprise make the final platform decision?
+
+An enterprise should select the AI agent platform that passes mandatory security and deployment gates and then earns the highest weighted pilot score for the target workflows.
+
+A practical weighting is:
+
+| Criterion | Suggested weight |
+|---|---:|
+| Governance and identity | 20% |
+| Security architecture and evidence | 20% |
+| Auditability and human approval | 15% |
+| Deployment and data control | 15% |
+| Integration depth | 10% |
+| Model flexibility and quality | 10% |
+| Reliability and operations | 5% |
+| Total cost and contract fit | 5% |
+
+The weights should change when an organization has non-negotiable requirements. For example, self-hosting, a specific cloud, an OSI-approved license, or Salesforce-native data access may be a pass-or-fail gate rather than a scored preference.
+
+## Related comparisons
+
+These guides cover the broader platform, licensing, and deployment questions this enterprise guide does not.
+
+- For the general platform and builder ranking, read [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+- For licensing due diligence, read [Apache 2.0 vs Fair-Code](https://www.sim.ai/library/apache-2-0-vs-fair-code).
+- For deployment-oriented alternatives, read [Open-Source AI Agent Platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+- For enterprise product and deployment information rather than an editorial roundup, visit the [Sim enterprise page](https://www.sim.ai/enterprise).

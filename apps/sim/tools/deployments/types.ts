@@ -24,7 +24,7 @@ export interface DeploymentsGetVersionParams {
   version: number
 }
 
-export interface DeploymentVersionSummary {
+interface DeploymentVersionSummary {
   id: string
   version: number
   name: string | null

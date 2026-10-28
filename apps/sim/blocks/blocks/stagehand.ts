@@ -4,13 +4,13 @@ import type { StagehandAgentResponse, StagehandExtractResponse } from '@/tools/s
 
 export type StagehandResponse = StagehandExtractResponse | StagehandAgentResponse
 
-export const StagehandBlock: BlockConfig<StagehandResponse> = {
+export const StagehandBlock: BlockConfig = {
   type: 'stagehand',
   name: 'Stagehand',
   description: 'Web automation and data extraction',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.',
+    'Extract structured data from webpages or run an autonomous agent to perform tasks.',
   docsLink: 'https://docs.sim.ai/integrations/stagehand',
   category: 'tools',
   integrationType: IntegrationType.AI,

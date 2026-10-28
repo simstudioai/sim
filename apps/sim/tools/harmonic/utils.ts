@@ -97,11 +97,6 @@ const KNOWN_UTC_LEAP_SECOND_DATES = new Set([
   '2015-06-30',
   '2016-12-31',
 ])
-const HARMONIC_USER_SAVED_SEARCH_TYPES = new Set([
-  'USER_CREATED',
-  'GENERATED_FROM_PREFERENCES',
-  'TEMPLATE_FROM_PREFERENCES',
-])
 
 /**
  * Scout returns `content` as an object matching this schema when the request succeeds.

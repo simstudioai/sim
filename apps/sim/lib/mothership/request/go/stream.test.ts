@@ -1,3 +1,11 @@
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
@@ -25,8 +33,6 @@ vi.mock('@/lib/mothership/request/session', async () => {
   }
 })
 
-const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
-const listAllWorkspaceFilesMock = vi.hoisted(() => vi.fn())
 const changeStoredChatResourcesMock = vi.hoisted(() => vi.fn())
 const materializeStreamImageMock = vi.hoisted(() => vi.fn())
 
@@ -38,21 +44,8 @@ vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: changeStoredChatResourcesMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
-  findWorkspaceFileRecord: (
-    files: Array<{ name: string; folderPath?: string | null }>,
-    path: string
-  ) =>
-    files.find((file) => {
-      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
-      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
-      return filePath === normalized
-    }) ?? null,
-}))
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
-}))
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
   executeCopilotFileUseCase: (
@@ -72,10 +65,10 @@ vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
     }),
 }))
 
-vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
+vi.mock('@/lib/mothership/tools/server/files/preview', async () => {
   const actual = await vi.importActual<
-    typeof import('@/lib/mothership/tools/server/files/file-preview')
-  >('@/lib/mothership/tools/server/files/file-preview')
+    typeof import('@/lib/mothership/tools/server/files/preview')
+  >('@/lib/mothership/tools/server/files/preview')
   return {
     ...actual,
     // Returns the file's preview base as a `WorkspaceFilePreviewBase` ({ text }), NOT a bare string —
@@ -87,11 +80,14 @@ vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
 
 import {
   buildPreviewContentUpdate,
+  CopilotBackendError,
   decodeJsonStringPrefix,
   extractEditContent,
   runStreamLoop,
   STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
   StreamEndedWithoutTerminalError,
+  WorkerStreamInterruptedError,
+  WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 import {
   createProviderToolCallIdentity,
@@ -101,6 +97,11 @@ import {
 import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
+
+const mockFindFilesByReference = workspaceFilesListMockFns.mockFindActiveWorkspaceFilesByReference
+
+const resolveWorkspaceFileReferenceMock =
+  workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
 
 function createSseResponse(events: unknown[]): Response {
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
@@ -142,6 +143,7 @@ function createStreamingContext(): StreamingContext {
     wasAborted: false,
     errors: [],
     activeFileIntents: new Map(),
+    filePreviewBudget: { contentBytes: 0 },
     trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
@@ -171,16 +173,11 @@ describe('copilot go stream helpers', () => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
-    listAllWorkspaceFilesMock.mockReset()
-    listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
+    mockFindFilesByReference.mockReset()
+    mockFindFilesByReference.mockResolvedValue({ files: new Map() })
     changeStoredChatResourcesMock.mockReset()
     changeStoredChatResourcesMock.mockResolvedValue([])
     materializeStreamImageMock.mockReset().mockResolvedValue({ url: '/private-image' })
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('prepares inline images before delivery without changing text offsets or final receipt length', async () => {
@@ -248,6 +245,77 @@ describe('copilot go stream helpers', () => {
     })
     expect(context.streamComplete).toBe(true)
   })
+
+  it.each([
+    [
+      'an HTML gateway page',
+      502,
+      'text/html',
+      '<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    [
+      "the worker's internal error",
+      500,
+      'application/json',
+      '{"error":"Internal error"}',
+      'The agent service is temporarily unavailable. Please try again.',
+    ],
+    ['a rate limit', 429, 'application/json', '{"error":"Too many requests"}', 'Too many requests'],
+    [
+      'an enterprise-only request',
+      403,
+      'application/json',
+      '{"error":"Enterprise BYOK required"}',
+      'Enterprise BYOK required',
+    ],
+    [
+      'a model selection problem',
+      400,
+      'application/json',
+      '{"error":"This workspace uses an Anthropic API key. Select Opus 5.5 to continue."}',
+      'This workspace uses an Anthropic API key. Select Opus 5.5 to continue.',
+    ],
+    [
+      'protocol skew',
+      426,
+      'application/json',
+      '{"error":"protocol_version_mismatch","expected":3,"got":2,"message":"This Sim build speaks a different mothership protocol version. Update the older side."}',
+      'This Sim build speaks a different mothership protocol version. Update the older side.',
+    ],
+    [
+      'an internal validation detail',
+      400,
+      'application/json',
+      '{"error":"Bad Request","message":"userId required for internal API key"}',
+      'The agent service could not process this request.',
+    ],
+    [
+      'a plain-text request rejection',
+      400,
+      'text/plain',
+      'Invalid request body',
+      'The agent service could not process this request.',
+    ],
+  ])(
+    'tells the user about %s without the raw body',
+    async (_label, status, contentType, body, userMessage) => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(body, { status, headers: { 'Content-Type': contentType } })
+      )
+
+      const error = await runStreamLoop(
+        'https://example.com/api/mothership',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 1000 }
+      ).catch((thrown: unknown) => thrown)
+
+      expect(error).toBeInstanceOf(CopilotBackendError)
+      expect(error).toMatchObject({ message: userMessage, status, body })
+    }
+  )
 
   it('terminates the stream on an exhausted identity budget before forwarding later events', async () => {
     const identity = createProviderToolCallIdentity('exhausted-identity-run')
@@ -424,41 +492,6 @@ describe('copilot go stream helpers', () => {
     }
   )
 
-  it('keeps a healthy stream open beyond an hour when no deadline was requested', async () => {
-    vi.useFakeTimers()
-    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        new ReadableStream<Uint8Array>({
-          start(controller) {
-            streamController = controller
-          },
-        }),
-        { headers: { 'content-type': 'text/event-stream' } }
-      )
-    )
-    const context = createStreamingContext()
-    const pending = runStreamLoop(
-      'https://example.com/mothership/stream',
-      {},
-      context,
-      turnScopedExecContext(),
-      { flushAfterEvent: false }
-    )
-    await vi.advanceTimersByTimeAsync(2 * 60 * 60_000)
-    expect(context.streamComplete).toBe(false)
-    expect(context.errors).toEqual([])
-    streamController?.enqueue(
-      new TextEncoder().encode(
-        'data: {"v":1,"type":"complete","seq":1,"ts":"","stream":{"streamId":"s"},"payload":{"status":"complete"}}\n\n'
-      )
-    )
-    streamController?.close()
-    await pending
-    expect(context.errors).toEqual([])
-    vi.useRealTimers()
-  })
-
   it('bounds response-header waits without classifying the deadline as user Stop', async () => {
     vi.mocked(fetch).mockImplementationOnce(
       (_url, options) =>
@@ -536,14 +569,13 @@ describe('copilot go stream helpers', () => {
   })
 
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    listAllWorkspaceFilesMock.mockResolvedValue({
-      files: [
-        {
-          id: 'changelog-file-1',
-          name: 'changelog.md',
-          folderPath: 'workflows/My Workflow',
-        },
-      ],
+    mockFindFilesByReference.mockResolvedValue({
+      files: new Map([
+        [
+          'workflows/My%20Workflow/changelog.md',
+          { id: 'changelog-file-1', name: 'changelog.md', folderPath: 'workflows/My Workflow' },
+        ],
+      ]),
     })
 
     const workspaceFileCall = createEvent({
@@ -650,12 +682,15 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
+    expect(mockFindFilesByReference).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
         workspaceId: 'workspace-1',
       }),
-      input: { workspaceId: 'workspace-1', scope: 'active' },
+      input: {
+        workspaceId: 'workspace-1',
+        references: ['workflows/My%20Workflow/changelog.md'],
+      },
     })
   })
 
@@ -746,8 +781,89 @@ describe('copilot go stream helpers', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('does not retry network errors because Go may already be executing the request', async () => {
-    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('fetch failed'))
+  it('reports a stream cut mid-body without the raw socket error', async () => {
+    const socketError = Object.assign(
+      new Error(
+        'The socket connection was closed unexpectedly. For more information, pass `verbose: true`'
+      ),
+      { code: 'ECONNRESET' }
+    )
+    const first = createEvent({
+      streamId: 'cut-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-cut',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+          },
+          pull(controller) {
+            controller.error(socketError)
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    )
+
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        {
+          timeout: 1000,
+          flushAfterEvent: false,
+        }
+      )
+    ).rejects.toMatchObject({
+      name: 'WorkerStreamInterruptedError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: socketError,
+    })
+  })
+
+  it('keeps the timeout error when the body read fails after the request timed out', async () => {
+    const first = createEvent({
+      streamId: 'timed-out-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-timed-out',
+      type: 'text',
+      payload: { channel: 'assistant', text: 'partial' },
+    })
+    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+      const signal = init?.signal
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(first)}\n\n`))
+            signal?.addEventListener('abort', () => controller.error(signal.reason))
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    })
+
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        turnScopedExecContext(),
+        { timeout: 20, flushAfterEvent: false }
+      )
+    ).rejects.toMatchObject({ name: 'TimeoutError' })
+  })
+
+  it('reports a worker it could not reach without the raw network error', async () => {
+    const networkError = new TypeError('fetch failed')
+    vi.mocked(fetch).mockRejectedValueOnce(networkError)
 
     const context = createStreamingContext()
     const execContext: ExecutionContext = {
@@ -759,7 +875,11 @@ describe('copilot go stream helpers', () => {
       runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
         timeout: 1000,
       })
-    ).rejects.toThrow('fetch failed')
+    ).rejects.toMatchObject({
+      name: 'WorkerUnreachableError',
+      message: 'The agent service is temporarily unavailable. Please try again.',
+      cause: networkError,
+    })
 
     expect(fetch).toHaveBeenCalledTimes(1)
   })
@@ -898,5 +1018,175 @@ describe('copilot go stream helpers', () => {
         message.includes('Received invalid stream event on shared path')
       )
     ).toBe(true)
+  })
+
+  describe('worker stream liveness without a caller deadline', () => {
+    /** Well past the idle timeout, and under common intermediary idle cuts. */
+    const INTERMEDIARY_IDLE_MS = 300_000
+    const encoder = new TextEncoder()
+    const frame = (event: unknown) => encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+    const firstText = createEvent({
+      streamId: 'long-stream',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-long',
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: 'assistant', text: 'working' },
+    })
+
+    function settle(promise: Promise<void>) {
+      const state: { done: boolean; error?: unknown } = { done: false }
+      promise.then(
+        () => {
+          state.done = true
+        },
+        (error: unknown) => {
+          state.done = true
+          state.error = error
+        }
+      )
+      return state
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('keeps a leg open past an hour while the worker sends keepalives', async () => {
+      vi.useFakeTimers()
+      const complete = createEvent({
+        streamId: 'long-stream',
+        cursor: '2',
+        seq: 2,
+        requestId: 'req-long',
+        type: MothershipStreamV1EventType.complete,
+        payload: { status: MothershipStreamV1CompletionStatus.complete },
+      })
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(frame(firstText))
+              const keepalive = setInterval(() => {
+                try {
+                  controller.enqueue(encoder.encode(': keepalive\n\n'))
+                } catch {
+                  clearInterval(keepalive)
+                }
+              }, 25_000)
+              setTimeout(
+                () => {
+                  clearInterval(keepalive)
+                  controller.enqueue(frame(complete))
+                  controller.close()
+                },
+                2 * 60 * 60 * 1000
+              )
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      )
+      const context = createStreamingContext()
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          context,
+          turnScopedExecContext(),
+          {
+            flushAfterEvent: false,
+          }
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000 + 1_000)
+
+      expect(state).toEqual({ done: true })
+      expect(context.errors).toEqual([])
+      expect(context.streamComplete).toBe(true)
+    })
+
+    it('fails a silent leg as a retryable interruption before an intermediary drops it', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(frame(firstText))
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        )
+      )
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          createStreamingContext(),
+          turnScopedExecContext(),
+          { flushAfterEvent: false }
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(state.done).toBe(false)
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS - 60_000)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toBeInstanceOf(WorkerStreamInterruptedError)
+    })
+
+    it('fails a worker whose error body stalls instead of waiting on it forever', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(new ReadableStream<Uint8Array>(), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          createStreamingContext(),
+          turnScopedExecContext(),
+          {}
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toMatchObject({ name: 'CopilotBackendError', status: 503 })
+    })
+
+    it('fails a worker that never answers as unreachable before an intermediary drops it', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetch).mockImplementationOnce(
+        (_url, options) =>
+          new Promise<Response>((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+              once: true,
+            })
+          })
+      )
+      const context = createStreamingContext()
+      const state = settle(
+        runStreamLoop(
+          'https://example.com/mothership/stream',
+          {},
+          context,
+          turnScopedExecContext(),
+          {}
+        )
+      )
+
+      await vi.advanceTimersByTimeAsync(INTERMEDIARY_IDLE_MS)
+
+      expect(state.done).toBe(true)
+      expect(state.error).toBeInstanceOf(WorkerUnreachableError)
+      expect(context.wasAborted).not.toBe(true)
+    })
   })
 })

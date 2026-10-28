@@ -9,7 +9,7 @@ export const FILE_SHARE_AUTH_TYPES = ['public', 'password', 'email', 'sso'] as c
 const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
 
 /**
- * Which mechanism refuses a request when this key is set.
+ * How this key controls access or initializes a resource.
  *
  * - `capability`: an operation declares a capability whose rule reads the key,
  *   so the authorization funnel refuses before the use case runs.
@@ -18,6 +18,7 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  *   operation-level gate can express.
  * - `ui-only`: the key hides a surface without withholding it, so a caller that
  *   skips the UI still reaches the API.
+ * - `default`: a preference used when initializing a resource, without restricting access.
  *
  * Declared rather than inferred, because `ui-only` is the value an admin is
  * most likely to mistake for a control — twelve keys shipped that way.
@@ -31,7 +32,7 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  * they share, and `check:permission-group-enforcement` is what keeps it honest
  * in both directions.
  */
-type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only'
+type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only' | 'default'
 
 /**
  * Which group a key's capability is actually read from when it is enforced.
@@ -146,7 +147,7 @@ interface DenylistField<TItem extends z.ZodType = z.ZodType> {
  * exists for `satisfies`, never as an annotation.
  */
 type PermissionGroupField = {
-  readonly kind: 'boolean-restriction' | 'allowlist' | 'denylist'
+  readonly kind: 'boolean-restriction' | 'allowlist' | 'denylist' | 'preference'
   readonly writeSchema: z.ZodType
   readonly readSchema: z.ZodType
   readonly tolerantSchema: z.ZodType
@@ -209,6 +210,13 @@ function denylist<TItem extends z.ZodType>(
   }
 }
 
+const agentDefaultModelSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .nullable()
+  .describe('Default model for new Agent blocks. Null uses the platform default.')
+
 /**
  * Every permission-group config key, in wire order.
  *
@@ -219,9 +227,9 @@ function denylist<TItem extends z.ZodType>(
  *
  * Adding a key here adds it to the write schema, the read schema, the type, the
  * defaults, the tolerant parser and — for a boolean — the admin editor. It does
- * not add enforcement: `enforcement` names the mechanism that refuses, and
- * `check:permission-group-enforcement` refuses a key that claims one it does
- * not have.
+ * not add enforcement: `enforcement` names how the key applies, and
+ * `check:permission-group-enforcement` refuses a key that claims a capability
+ * mechanism it does not have.
  */
 export const PERMISSION_GROUP_FIELDS = {
   allowedIntegrations: allowlist(z.string(), 'executor', {
@@ -371,7 +379,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'hide-deploy-chatbot',
     label: 'Chat Deployment',
     category: 'Deployment',
-    hint: 'Prevent publishing a workflow as a chat.',
+    hint: 'Prevent deploying a workflow as a chat.',
   }),
   allowedChatDeployAuthTypes: allowlist(shareAuthType, 'capability', {
     limited:
@@ -506,10 +514,34 @@ export const PERMISSION_GROUP_FIELDS = {
     category: 'Knowledge Base',
     hint: 'Prevent downloading a whole knowledge base as an archive.',
   }),
+  deniedPartialAccessProjectIssues: denylist(
+    z.string().min(1).max(255),
+    'capability',
+    'Issues in the listed Projects are unavailable to teammates without access to every active environment.'
+  ),
+  defaultAgentModel: {
+    kind: 'preference',
+    writeSchema: agentDefaultModelSchema.optional(),
+    readSchema: agentDefaultModelSchema.default(null),
+    tolerantSchema: agentDefaultModelSchema.catch(null),
+    default: null,
+    enforcement: 'default',
+  },
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS
 export type PermissionGroupConfigKey = keyof PermissionGroupFields
+
+export type PermissionGroupRestrictionKey = {
+  [K in PermissionGroupConfigKey]: PermissionGroupFields[K]['kind'] extends 'preference' ? never : K
+}[PermissionGroupConfigKey]
+
+/** Restriction fields that access-request approvals may change. */
+export const PERMISSION_GROUP_RESTRICTION_KEYS = (
+  Object.keys(PERMISSION_GROUP_FIELDS) as PermissionGroupConfigKey[]
+).filter(
+  (key): key is PermissionGroupRestrictionKey => PERMISSION_GROUP_FIELDS[key].kind !== 'preference'
+)
 
 type DerivedPermissionGroupConfig = {
   [K in PermissionGroupConfigKey]: z.infer<PermissionGroupFields[K]['readSchema']>
@@ -598,24 +630,27 @@ type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 
 /**
  * Fails to compile unless `T` is exactly `true`, which is what makes the aliases
- * below load-bearing. They are deliberately unexported: the constraint is
- * checked where the alias is declared, so an export bought nothing but the
- * appearance of a consumer that never existed. Nothing may import them; they
- * are unused on purpose, and deleting one deletes the proof.
+ * below load-bearing. The constraint is checked where each alias is declared;
+ * they are exported only so the unused-variable lint treats them as live.
+ * Nothing imports them, and deleting one deletes the proof.
  */
 type Assert<T extends true> = T
 
-type AssertsAllowlistStaysPrecise = Assert<
+export type AssertsAllowlistStaysPrecise = Assert<
   Exact<PermissionGroupConfig['allowedIntegrations'], string[] | null>
 >
-type AssertsDenylistStaysPrecise = Assert<Exact<PermissionGroupConfig['deniedTools'], string[]>>
-type AssertsRestrictionStaysPrecise = Assert<Exact<PermissionGroupConfig['hideCopilot'], boolean>>
-type AssertsAuthTypesStayPrecise = Assert<
+export type AssertsDenylistStaysPrecise = Assert<
+  Exact<PermissionGroupConfig['deniedTools'], string[]>
+>
+export type AssertsRestrictionStaysPrecise = Assert<
+  Exact<PermissionGroupConfig['hideCopilot'], boolean>
+>
+export type AssertsAuthTypesStayPrecise = Assert<
   Exact<
     PermissionGroupConfig['allowedFileShareAuthTypes'],
     (typeof FILE_SHARE_AUTH_TYPES)[number][] | null
   >
 >
-type AssertsParserReturnsTheConfig = Assert<
+export type AssertsParserReturnsTheConfig = Assert<
   Exact<z.output<typeof tolerantConfigSchema>, PermissionGroupConfig>
 >

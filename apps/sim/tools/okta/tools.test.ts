@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { executeOktaUpdateGroupOperation } from '@/lib/internal/okta/operations/update-group'
 import { OktaBlock } from '@/blocks/blocks/okta'
 import { oktaActivateUserTool } from '@/tools/okta/activate_user'
@@ -35,7 +35,7 @@ function builtBody(build: () => unknown): Record<string, unknown> {
 }
 
 /**
- * Mirrors `generic-handler.ts`, which spreads the mapper's result over the raw
+ * Mirrors `generic/handler.ts`, which spreads the mapper's result over the raw
  * serialized inputs. A key the mapper omits keeps its raw subBlock value, so a
  * guard is only real if it survives this merge.
  */
@@ -44,10 +44,6 @@ function mergedBlockParams(inputs: Record<string, unknown>): Record<string, unkn
   if (!mapper) throw new Error('Okta block defines no params mapper')
   return { ...inputs, ...mapper(inputs) }
 }
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 describe('okta update_group profile merge', () => {
   it('keeps the stored description when the caller omits it', () => {

@@ -7,7 +7,7 @@ import {
   ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
   type ActiveKnowledgeBaseReference,
   toActiveKnowledgeBaseReference,
-} from '@/lib/knowledge/knowledge-base-reference'
+} from '@/lib/knowledge/active-base-reference'
 
 /**
  * Resolves the single active Enterprise Search index owned by a workspace or organization, as
@@ -28,8 +28,4 @@ export async function findSearchIndex(
     )
     .limit(1)
   return index ? toActiveKnowledgeBaseReference(index) : null
-}
-
-export function findWorkspaceSearchIndex(workspaceId: string) {
-  return findSearchIndex({ kind: 'workspace', workspaceId })
 }

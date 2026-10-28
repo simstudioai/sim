@@ -8,7 +8,7 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
-import { organizationSecurityOperations } from '@/lib/organizations/application/security-operations'
+import { organizationSecurityOperations } from '@/lib/organizations/application/operations'
 
 /** A genuine current session is required to preserve caller and impersonator access. */
 export const revokeOrganizationSessions = defineOrganizationConfigurationUseCase({

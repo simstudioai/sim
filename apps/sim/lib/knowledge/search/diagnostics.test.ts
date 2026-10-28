@@ -1,9 +1,8 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const logs = vi.hoisted(() => ({ info: vi.fn() }))
-vi.mock('@sim/logger', () => ({ createLogger: () => logs }))
-
 import { measureSearchStage, withSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
+
+const logs = getMockLogger('KnowledgeSearchDiagnostics')
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['performance', 'setInterval', 'clearInterval'] })

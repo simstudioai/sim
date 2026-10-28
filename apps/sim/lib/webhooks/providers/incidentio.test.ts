@@ -12,12 +12,7 @@ function signIncidentioBody(msgId: string, timestamp: string, rawBody: string): 
   return `v1,${sig}`
 }
 
-function requestWithSvixHeaders(
-  msgId: string,
-  timestamp: string,
-  rawBody: string,
-  signature?: string
-): NextRequest {
+function requestWithSvixHeaders(msgId: string, timestamp: string, signature?: string): NextRequest {
   const headers: Record<string, string> = {
     'webhook-id': msgId,
     'webhook-timestamp': timestamp,
@@ -38,7 +33,7 @@ describe('incident.io webhook provider', () => {
   it('rejects requests when the signing secret is missing', async () => {
     const res = await incidentioHandler.verifyAuth!({
       ...baseAuthCtx,
-      request: requestWithSvixHeaders('msg_1', `${Math.floor(Date.now() / 1000)}`, '{}'),
+      request: requestWithSvixHeaders('msg_1', `${Math.floor(Date.now() / 1000)}`),
       rawBody: '{}',
       requestId: 'incidentio-t1',
       providerConfig: {},
@@ -53,7 +48,7 @@ describe('incident.io webhook provider', () => {
 
     const res = await incidentioHandler.verifyAuth!({
       ...baseAuthCtx,
-      request: requestWithSvixHeaders('msg_1', ts, rawBody, 'v1,not-a-valid-signature'),
+      request: requestWithSvixHeaders('msg_1', ts, 'v1,not-a-valid-signature'),
       rawBody,
       requestId: 'incidentio-t3',
       providerConfig: { signingSecret: SIGNING_SECRET },
@@ -69,7 +64,7 @@ describe('incident.io webhook provider', () => {
 
     const res = await incidentioHandler.verifyAuth!({
       ...baseAuthCtx,
-      request: requestWithSvixHeaders('msg_1', ts, rawBody, signature),
+      request: requestWithSvixHeaders('msg_1', ts, signature),
       rawBody,
       requestId: 'incidentio-t4',
       providerConfig: { signingSecret: SIGNING_SECRET },
@@ -85,7 +80,7 @@ describe('incident.io webhook provider', () => {
 
     const res = await incidentioHandler.verifyAuth!({
       ...baseAuthCtx,
-      request: requestWithSvixHeaders('msg_1', ts, rawBody, signature),
+      request: requestWithSvixHeaders('msg_1', ts, signature),
       rawBody,
       requestId: 'incidentio-t5',
       providerConfig: { signingSecret: SIGNING_SECRET },

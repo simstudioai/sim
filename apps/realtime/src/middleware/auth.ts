@@ -1,7 +1,9 @@
+import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import type { FileDocPresenceUser } from '@sim/realtime-protocol/file-doc'
 import { toError } from '@sim/utils/errors'
 import type { Socket } from 'socket.io'
-import { ANONYMOUS_USER, ANONYMOUS_USER_ID, auth } from '@/auth'
+import { auth } from '@/auth'
 import { isAuthDisabled } from '@/env'
 
 const logger = createLogger('SocketAuth')
@@ -10,6 +12,7 @@ const logger = createLogger('SocketAuth')
  * Authenticated socket with user data attached.
  */
 export interface AuthenticatedSocket extends Socket {
+  data: { fileDocPresence?: { roomName: string; user: FileDocPresenceUser } }
   userId?: string
   userName?: string
   userEmail?: string

@@ -4,7 +4,7 @@ import { parseRequest } from '@/lib/api/server'
 import {
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
@@ -15,11 +15,11 @@ import {
   recordSearchEmbeddingUsage,
 } from '@/lib/knowledge/embeddings'
 import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
+import type { SearchResult } from '@/lib/knowledge/search/candidates'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   type KnowledgeRetrievalResult,
   retrieveKnowledgeSearch,
-  type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
@@ -266,7 +266,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         accessProvider,
         searchMode,
         boostRecency,
-        searchIndexOnly: accessibleKbs.every((kb) => kb.isSearchIndex),
         query,
         queryVector: {
           vector: JSON.stringify(queryEmbeddingResult.embedding),

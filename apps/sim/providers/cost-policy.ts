@@ -1,6 +1,12 @@
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { getModelPricing, resolveModelTokenPricing } from '@/providers/pricing'
+import {
+  getModelPricing,
+  type ModelUsage,
+  priceTokenUsage,
+  roundCost,
+  type TokenUsageCost,
+} from '@/providers/pricing'
 import type { ModelPricing } from '@/providers/types'
 import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
 
@@ -20,10 +26,7 @@ import { calculateCost, shouldBillModelUsage } from '@/providers/utils'
  */
 
 /** Cost shape written onto block output. Mirrors `BlockCost`. */
-export interface ModelCost {
-  input: number
-  output: number
-  total: number
+export interface ModelCost extends TokenUsageCost {
   toolCost?: number
   pricing?: ModelPricing
 }
@@ -57,10 +60,6 @@ const NOT_BILLED_PRICING: ModelPricing = Object.freeze({
   output: 0,
   updatedAt: new Date(0).toISOString(),
 })
-
-function roundCost(value: number): number {
-  return Number.parseFloat(value.toFixed(8))
-}
 
 /**
  * Resolves the billing policy for a model response.
@@ -114,34 +113,9 @@ export function applyModelCostPolicy(
   }
 }
 
-/** A cache write bucket and its premium over the model's base input rate. */
-export interface CacheWriteUsage {
-  tokens: number
-  /** Anthropic: 1.25 (5m) or 2 (1h). OpenAI: 1.25 on GPT-5.6+, free before it. */
-  inputRateMultiplier: number
-}
-
 /**
- * Normalized token usage for one model call.
- *
- * Providers report cache usage in incompatible shapes — Anthropic's
- * `input_tokens` already excludes cache tokens, while OpenAI's `cached_tokens`
- * and Gemini's `cachedContentTokenCount` are subsets of their prompt totals.
- * Each provider adapter resolves that difference before building this; nothing
- * downstream branches on provider again.
- */
-export interface ModelUsage {
-  /** Tokens billed at the base input rate. Always EXCLUDES cache reads/writes. */
-  input: number
-  output: number
-  /** Tokens served from the provider's cache, billed at the cachedInput rate. */
-  cacheRead?: number
-  /** Tokens written to the cache, each bucket at its own premium. */
-  cacheWrites?: CacheWriteUsage[]
-}
-
-/**
- * The single cache-aware pricing function.
+ * Applies the billing policy to normalized usage and prices it, through `priceTokenUsage` when
+ * the model has registered pricing.
  *
  * Every surface that turns tokens into a charge routes through here, so a cache
  * hit is priced identically whether it came from Anthropic, OpenAI, Gemini, or
@@ -162,36 +136,14 @@ export function priceModelUsage(
     return notBilledCost()
   }
 
-  const cacheRead = usage.cacheRead ?? 0
-  const cacheWrites = (usage.cacheWrites ?? []).filter((write) => write.tokens > 0)
   const pricing = getModelPricing(model)
 
   if (pricing) {
-    const totalInputTokens =
-      usage.input + cacheRead + cacheWrites.reduce((total, write) => total + write.tokens, 0)
-    const tokenPricing = resolveModelTokenPricing(pricing, totalInputTokens)
-    const inputRate = tokenPricing.input / 1_000_000
-    const cachedInputRate = (tokenPricing.cachedInput ?? tokenPricing.input) / 1_000_000
-
-    const uncachedInputCost = usage.input * inputRate
-    const cacheReadCost = cacheRead * cachedInputRate
-    const cacheWriteCost = cacheWrites.reduce(
-      (total, write) => total + write.tokens * inputRate * write.inputRateMultiplier,
-      0
-    )
-    const input = roundCost(
-      (uncachedInputCost + cacheReadCost + cacheWriteCost) * policy.multiplier
-    )
-    const output = roundCost(usage.output * (tokenPricing.output / 1_000_000) * policy.multiplier)
-
-    return {
-      input,
-      output,
-      total: roundCost(input + output),
-      pricing,
-    }
+    return { ...priceTokenUsage(pricing, usage, policy.multiplier), pricing }
   }
 
+  const cacheRead = usage.cacheRead ?? 0
+  const cacheWrites = (usage.cacheWrites ?? []).filter((write) => write.tokens > 0)
   const multiplier = policy.multiplier
   const base = calculateCost(model, usage.input, usage.output, false, multiplier, multiplier)
   const read = cacheRead > 0 ? calculateCost(model, cacheRead, 0, true, multiplier, 0) : undefined

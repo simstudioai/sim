@@ -1,7 +1,7 @@
 import { AzureIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { AzureDevOpsBasicWorkItemType, AzureDevOpsResponse } from '@/tools/azure_devops/types'
+import type { AzureDevOpsBasicWorkItemType } from '@/tools/azure_devops/types'
 import { AZURE_DEVOPS_BASIC_WORK_ITEM_STATES } from '@/tools/azure_devops/utils'
 import { getTrigger } from '@/triggers'
 
@@ -12,12 +12,12 @@ function normalizeDate(input: unknown): string | undefined {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00Z` : value
 }
 
-export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
+export const AzureDevOpsBlock: BlockConfig = {
   type: 'azure_devops',
   name: 'Azure DevOps',
   description: 'Interact with Azure DevOps pipelines, builds, and work items',
   longDescription:
-    'Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.',
+    'List and inspect pipelines and builds, query and manage work items, and add or read comments.',
   docsLink: 'https://docs.sim.ai/integrations/azure_devops',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

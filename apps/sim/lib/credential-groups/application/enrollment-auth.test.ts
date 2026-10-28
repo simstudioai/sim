@@ -1,11 +1,12 @@
 import { sha256Hex } from '@sim/security/hash'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ authenticate: vi.fn(), getSession: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  authenticatePublicCredentialGroupEnrollment: mocks.authenticate,
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 
 import {
   authenticateCredentialGroupEnrollment,
@@ -13,9 +14,15 @@ import {
 } from '@/lib/credential-groups/application/enrollment-auth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 
+const mocks = {
+  authenticate: credentialGroupsEnrollmentsMockFns.mockAuthenticatePublicCredentialGroupEnrollment,
+}
+
+const mockGetSession = authMockFns.mockGetSession
+
 describe('consumed OAuth attempt identity', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({ user: { id: 'user-1', emailVerified: true } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1', emailVerified: true } })
   })
   it('retains the old invitation identity without reauthenticating a rotated bearer', async () => {
     const attempt = {
@@ -55,7 +62,7 @@ describe('consumed OAuth attempt identity', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
   it('requires a verified signed-in user before reading an invitation', async () => {
-    mocks.getSession.mockResolvedValue(null)
+    mockGetSession.mockResolvedValue(null)
     expect(await authenticateCredentialGroupEnrollment('token')).toBeNull()
     expect(mocks.authenticate).not.toHaveBeenCalled()
   })

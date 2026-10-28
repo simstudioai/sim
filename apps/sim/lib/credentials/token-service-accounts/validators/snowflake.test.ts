@@ -1,15 +1,9 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 const fields = { apiToken: 'pat-secret', domain: 'MyOrg-MyAccount.snowflakecomputing.com' }
 
@@ -27,7 +21,6 @@ describe('validateSnowflakeServiceAccount', () => {
   })
 
   afterEach(() => {
-    vi.unstubAllGlobals()
     // resetAllMocks, not clearAllMocks: the latter leaves queued
     // mockResolvedValueOnce values behind to leak into the next test.
     vi.resetAllMocks()
@@ -35,7 +28,7 @@ describe('validateSnowflakeServiceAccount', () => {
 
   it('verifies through the SQL API with the PAT headers the tools use', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, { data: [['SVC_USER', 'MYORG-MYACCOUNT', 'ANALYST']] })
+      jsonResponse({ data: [['SVC_USER', 'MYORG-MYACCOUNT', 'ANALYST']] })
     )
 
     await validateSnowflakeServiceAccount(fields)
@@ -68,15 +61,15 @@ describe('validateSnowflakeServiceAccount', () => {
     // The status is what separates these two: without the 202 branch the
     // deferred response would fall through to the metadata-less path and throw
     // 502, so asserting only the code cannot tell them apart.
-    mockFetch.mockResolvedValueOnce(jsonResponse(202, { statementHandle: 'abc' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ statementHandle: 'abc' }, 202))
     await expectCode(validateSnowflakeServiceAccount(fields), 'provider_unavailable', 202)
 
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { data: [] }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: [] }))
     await expectCode(validateSnowflakeServiceAccount(fields), 'provider_unavailable', 502)
   })
 
   it('falls back to the account when the token reports no user', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { data: [[null, 'MYORG-MYACCOUNT', null]] }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: [[null, 'MYORG-MYACCOUNT', null]] }))
     const result = await validateSnowflakeServiceAccount(fields)
     expect(result.displayName).toBe('MYORG-MYACCOUNT')
     expect(result.principal).toEqual({ kind: 'tenant', id: 'MYORG-MYACCOUNT' })

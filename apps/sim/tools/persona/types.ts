@@ -369,20 +369,3 @@ export interface PersonaDocumentResponse extends ToolResponse {
     document: PersonaDocument
   }
 }
-
-export type PersonaResponse =
-  | PersonaInquiryResponse
-  | PersonaListInquiriesResponse
-  | PersonaResumeInquiryResponse
-  | PersonaGenerateInquiryLinkResponse
-  | PersonaListReportsResponse
-  | PersonaListInquiryTemplatesResponse
-  | PersonaPrintInquiryPdfResponse
-  | PersonaAccountResponse
-  | PersonaListAccountsResponse
-  | PersonaImportAccountsResponse
-  | PersonaCaseResponse
-  | PersonaListCasesResponse
-  | PersonaReportResponse
-  | PersonaVerificationResponse
-  | PersonaDocumentResponse

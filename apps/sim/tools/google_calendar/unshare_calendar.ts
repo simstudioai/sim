@@ -95,8 +95,7 @@ export const unshareCalendarV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_unshare_calendar_v2',
   name: 'Google Calendar Remove Sharing',
-  description:
-    'Revoke an access control rule (sharing) from a calendar. Returns API-aligned fields only.',
+  description: 'Revoke an access control rule (sharing) from a calendar.',
   version: '2.0.0',
   oauth: unshareCalendarTool.oauth,
   params: unshareCalendarTool.params,

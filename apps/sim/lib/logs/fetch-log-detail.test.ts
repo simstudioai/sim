@@ -1,15 +1,13 @@
 import { usageLog, user, workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  materializeExecutionData: vi.fn(),
   hydrateChildTraces: vi.fn(),
 }))
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mocks.materializeExecutionData,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/logs/execution/hydrate-child-traces', () => ({
   hydrateChildTraces: mocks.hydrateChildTraces,
@@ -21,6 +19,8 @@ vi.mock('@/lib/logs/execution-origin', () => ({
 
 import { workflowLogDetailSchema } from '@/lib/api/contracts/logs'
 import { readLogDetail } from '@/lib/logs/fetch-log-detail'
+
+const mockMaterializeExecutionData = traceStoreMockFns.mockMaterializeExecutionDataForDisplay
 
 function queueWorkflowLogRow(overrides: Record<string, unknown> = {}): void {
   queueTableRows(workflowExecutionLogs, [
@@ -48,6 +48,7 @@ function queueWorkflowLogRow(overrides: Record<string, unknown> = {}): void {
       workflowWorkspaceId: 'workspace-1',
       workflowCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
       workflowUpdatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      workflowArchivedAt: null,
       pausedStatus: null,
       pausedTotalPauseCount: 0,
       pausedResumedCount: 0,
@@ -126,7 +127,7 @@ const SPEND_BEARING_EXECUTION_DATA = {
 describe('readLogDetail', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.materializeExecutionData.mockResolvedValue({})
+    mockMaterializeExecutionData.mockResolvedValue({})
     mocks.hydrateChildTraces.mockResolvedValue({ hydrated: 0, dropped: {} })
   })
 
@@ -158,6 +159,7 @@ describe('readLogDetail', () => {
         workflowWorkspaceId: 'workspace-1',
         workflowCreatedAt: new Date('2026-01-01T00:00:00.000Z'),
         workflowUpdatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        workflowArchivedAt: null,
         pausedStatus: null,
         pausedTotalPauseCount: 0,
         pausedResumedCount: 0,
@@ -187,9 +189,7 @@ describe('readLogDetail', () => {
   describe("when the viewer's permission group withholds cost", () => {
     beforeEach(() => {
       queueTableRows(usageLog, [])
-      mocks.materializeExecutionData.mockResolvedValue(
-        structuredClone(SPEND_BEARING_EXECUTION_DATA)
-      )
+      mockMaterializeExecutionData.mockResolvedValue(structuredClone(SPEND_BEARING_EXECUTION_DATA))
     })
 
     it('still returns a log the contract accepts, with every spend figure gone', async () => {

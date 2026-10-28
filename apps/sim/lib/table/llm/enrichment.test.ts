@@ -22,11 +22,7 @@ const V2_SCHEMA = {
 }
 
 describe('enrichTableToolParameters for table_query_rows_v2', () => {
-  const { properties, required } = enrichTableToolParameters(
-    V2_SCHEMA,
-    TABLE,
-    'table_query_rows_v2'
-  )
+  const { properties } = enrichTableToolParameters(V2_SCHEMA, TABLE, 'table_query_rows_v2')
 
   it('describes filter with the predicate grammar and real columns', () => {
     expect(properties.filter.description).toContain('status, wins')

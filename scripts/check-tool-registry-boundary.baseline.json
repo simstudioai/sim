@@ -6,68 +6,68 @@
   },
   "entries": {
     "app/api/v2/blocks/[blockId]/route.ts": {
-      "modules": 1671,
+      "modules": 1877,
       "gateways": {
-        "apps/sim/lib/api/server/routes/index.ts": 510,
-        "apps/sim/triggers/index.ts": 487,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 449,
-        "apps/sim/lib/auth/index.ts": 436,
-        "apps/sim/blocks/registry.ts": 364,
-        "apps/sim/lib/webhooks/providers/index.ts": 121,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119
+        "apps/sim/triggers/index.ts": 543,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/blocks/registry.ts": 375,
+        "apps/sim/lib/api/server/routes/index.ts": 353,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 300,
+        "apps/sim/lib/auth/index.ts": 289,
+        "apps/sim/lib/webhooks/providers/index.ts": 90,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88
       }
     },
     "app/api/v2/blocks/route.ts": {
-      "modules": 1670,
+      "modules": 1874,
       "gateways": {
-        "apps/sim/lib/api/server/routes/index.ts": 504,
-        "apps/sim/triggers/index.ts": 487,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 452,
-        "apps/sim/lib/auth/index.ts": 439,
-        "apps/sim/blocks/registry.ts": 364,
-        "apps/sim/lib/webhooks/providers/index.ts": 122,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119
+        "apps/sim/blocks/registry.ts": 922,
+        "apps/sim/triggers/index.ts": 543,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/lib/api/server/routes/index.ts": 346,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 301,
+        "apps/sim/lib/auth/index.ts": 290,
+        "apps/sim/lib/webhooks/providers/index.ts": 91,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88
       }
     },
     "app/api/v2/connector-types/route.ts": {
-      "modules": 1737,
+      "modules": 1943,
       "gateways": {
-        "apps/sim/lib/api/server/routes/index.ts": 503,
-        "apps/sim/triggers/index.ts": 487,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 451,
-        "apps/sim/lib/auth/index.ts": 438,
-        "apps/sim/blocks/registry.ts": 365,
-        "apps/sim/lib/webhooks/providers/index.ts": 122,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119
+        "apps/sim/blocks/registry.ts": 923,
+        "apps/sim/triggers/index.ts": 543,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/lib/api/server/routes/index.ts": 346,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 301,
+        "apps/sim/lib/auth/index.ts": 290,
+        "apps/sim/lib/webhooks/providers/index.ts": 91,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88
       }
     },
     "app/api/v2/tools/[toolId]/route.ts": {
-      "modules": 1666,
+      "modules": 1872,
       "gateways": {
-        "apps/sim/lib/api/server/routes/index.ts": 511,
-        "apps/sim/triggers/index.ts": 487,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 450,
-        "apps/sim/lib/auth/index.ts": 437,
-        "apps/sim/blocks/registry.ts": 365,
-        "apps/sim/lib/webhooks/providers/index.ts": 122,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119
+        "apps/sim/blocks/registry.ts": 922,
+        "apps/sim/triggers/index.ts": 543,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/lib/api/server/routes/index.ts": 354,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 301,
+        "apps/sim/lib/auth/index.ts": 290,
+        "apps/sim/lib/webhooks/providers/index.ts": 91,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88
       }
     },
     "app/api/v2/tools/route.ts": {
-      "modules": 1667,
+      "modules": 1873,
       "gateways": {
-        "apps/sim/lib/api/server/routes/index.ts": 502,
-        "apps/sim/triggers/index.ts": 487,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/api/server/routes/internal-json-route.ts": 450,
-        "apps/sim/lib/auth/index.ts": 437,
-        "apps/sim/blocks/registry.ts": 365,
-        "apps/sim/lib/webhooks/providers/index.ts": 122,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119
+        "apps/sim/blocks/registry.ts": 922,
+        "apps/sim/triggers/index.ts": 543,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/lib/api/server/routes/index.ts": 346,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 301,
+        "apps/sim/lib/auth/index.ts": 290,
+        "apps/sim/lib/webhooks/providers/index.ts": 91,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88
       }
     },
     "app/workspace/[workspaceId]/access-requests/loading.tsx": {
@@ -78,25 +78,76 @@
       "modules": 5,
       "gateways": {}
     },
+    "app/workspace/[workspaceId]/changelog/layout.tsx": {
+      "modules": 1614,
+      "gateways": {
+        "apps/sim/app/workspace/[workspaceId]/changelog/components/index.ts": 1613,
+        "apps/sim/app/workspace/[workspaceId]/changelog/components/release-entry/release-entry.tsx": 1492,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 1454,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 1418,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 1341,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 382,
+        "apps/sim/blocks/registry-maps.ts": 380
+      }
+    },
+    "app/workspace/[workspaceId]/changelog/loading.tsx": {
+      "modules": 17,
+      "gateways": {}
+    },
+    "app/workspace/[workspaceId]/changelog/page.tsx": {
+      "modules": 1657,
+      "gateways": {
+        "apps/sim/app/workspace/[workspaceId]/changelog/changelog.tsx": 1639,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 382,
+        "apps/sim/blocks/registry-maps.ts": 380,
+        "apps/sim/app/workspace/[workspaceId]/changelog/components/index.ts": 374,
+        "apps/sim/app/workspace/[workspaceId]/changelog/components/release-entry/release-entry.tsx": 370,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 336,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 300
+      }
+    },
     "app/workspace/[workspaceId]/chat/[chatId]/error.tsx": {
       "modules": 3,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/chat/[chatId]/layout.tsx": {
-      "modules": 6,
+      "modules": 5,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/chat/[chatId]/page.tsx": {
-      "modules": 3223,
+      "modules": 3590,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1589,
-        "apps/sim/app/workspace/[workspaceId]/home/components/chat-resource-panel.tsx": 989,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 985,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 685,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 682,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/blocks/registry.ts": 333,
-        "apps/sim/lib/auth/index.ts": 276
+        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1746,
+        "apps/sim/app/workspace/[workspaceId]/home/components/chat-resource-panel.tsx": 1079,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 1075,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 739,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 736,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/blocks/registry.ts": 344,
+        "apps/sim/lib/auth/index.ts": 336
+      }
+    },
+    "app/workspace/[workspaceId]/dashboards/layout.tsx": {
+      "modules": 3,
+      "gateways": {}
+    },
+    "app/workspace/[workspaceId]/dashboards/loading.tsx": {
+      "modules": 16,
+      "gateways": {}
+    },
+    "app/workspace/[workspaceId]/dashboards/page.tsx": {
+      "modules": 1316,
+      "gateways": {
+        "apps/sim/components/dashboards/dashboard-resource.tsx": 1299,
+        "apps/sim/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room.ts": 1138,
+        "apps/sim/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room.ts": 1100,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 384,
+        "apps/sim/blocks/registry-maps.ts": 381,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/lib/api/contracts/index.ts": 45
       }
     },
     "app/workspace/[workspaceId]/error.tsx": {
@@ -104,27 +155,27 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/files/[fileId]/loading.tsx": {
-      "modules": 16,
+      "modules": 19,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/files/[fileId]/page.tsx": {
-      "modules": 2237,
+      "modules": 2507,
       "gateways": {
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/app/workspace/[workspaceId]/files/files.tsx": 464,
-        "apps/sim/blocks/registry.ts": 360,
-        "apps/sim/lib/auth/index.ts": 283,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 256,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 231,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 161,
-        "apps/sim/lib/webhooks/providers/index.ts": 121
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/app/workspace/[workspaceId]/files/files.tsx": 524,
+        "apps/sim/blocks/registry.ts": 368,
+        "apps/sim/lib/auth/index.ts": 342,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 302,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 272,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 200,
+        "apps/sim/lib/webhooks/providers/index.ts": 90
       }
     },
     "app/workspace/[workspaceId]/files/[fileId]/view/page.tsx": {
-      "modules": 69,
+      "modules": 80,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/files/[fileId]/view/file-viewer.tsx": 68,
-        "apps/sim/hooks/queries/workspace-files.ts": 64
+        "apps/sim/app/workspace/[workspaceId]/files/[fileId]/view/file-viewer.tsx": 79,
+        "apps/sim/hooks/queries/workspace-files.ts": 68
       }
     },
     "app/workspace/[workspaceId]/files/error.tsx": {
@@ -132,20 +183,20 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/files/loading.tsx": {
-      "modules": 14,
+      "modules": 17,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/files/page.tsx": {
-      "modules": 2236,
+      "modules": 2506,
       "gateways": {
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/app/workspace/[workspaceId]/files/files.tsx": 465,
-        "apps/sim/blocks/registry.ts": 360,
-        "apps/sim/lib/auth/index.ts": 283,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 256,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 231,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 161,
-        "apps/sim/lib/webhooks/providers/index.ts": 121
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/app/workspace/[workspaceId]/files/files.tsx": 525,
+        "apps/sim/blocks/registry.ts": 368,
+        "apps/sim/lib/auth/index.ts": 342,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 302,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 272,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 200,
+        "apps/sim/lib/webhooks/providers/index.ts": 90
       }
     },
     "app/workspace/[workspaceId]/home/error.tsx": {
@@ -153,44 +204,45 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/home/layout.tsx": {
-      "modules": 7,
+      "modules": 5,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/home/page.tsx": {
-      "modules": 3223,
+      "modules": 3590,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1589,
-        "apps/sim/app/workspace/[workspaceId]/home/components/chat-resource-panel.tsx": 989,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 985,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 685,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 682,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/blocks/registry.ts": 333,
-        "apps/sim/lib/auth/index.ts": 276
+        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1746,
+        "apps/sim/app/workspace/[workspaceId]/home/components/chat-resource-panel.tsx": 1079,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 1075,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 739,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 736,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/blocks/registry.ts": 344,
+        "apps/sim/lib/auth/index.ts": 336
       }
     },
     "app/workspace/[workspaceId]/integrations/[block]/page.tsx": {
-      "modules": 1159,
+      "modules": 1244,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail.tsx": 1083,
-        "apps/sim/triggers/index.ts": 524,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 367,
-        "apps/sim/lib/api/contracts/index.ts": 53,
+        "apps/sim/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail.tsx": 1162,
+        "apps/sim/triggers/index.ts": 584,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 395,
+        "apps/sim/lib/api/contracts/index.ts": 54,
+        "apps/sim/triggers/plane/index.ts": 46,
         "apps/sim/triggers/clickup/index.ts": 32
       }
     },
     "app/workspace/[workspaceId]/integrations/connected/[credentialId]/page.tsx": {
-      "modules": 1239,
+      "modules": 1320,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/integrations/connected/[credentialId]/connected-credential-detail.tsx": 1197,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 375,
-        "apps/sim/app/workspace/[workspaceId]/components/credential-detail/index.ts": 101,
-        "apps/sim/components/permissions/index.ts": 88,
-        "apps/sim/components/permissions/add-people-modal.tsx": 79,
-        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 77,
-        "apps/sim/lib/api/contracts/index.ts": 54
+        "apps/sim/app/workspace/[workspaceId]/integrations/connected/[credentialId]/connected-credential-detail.tsx": 1272,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 387,
+        "apps/sim/app/workspace/[workspaceId]/components/credential-detail/index.ts": 103,
+        "apps/sim/components/permissions/index.ts": 89,
+        "apps/sim/components/permissions/add-people-modal.tsx": 84,
+        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 82,
+        "apps/sim/lib/api/contracts/index.ts": 58
       }
     },
     "app/workspace/[workspaceId]/integrations/error.tsx": {
@@ -198,32 +250,33 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/integrations/page.tsx": {
-      "modules": 1134,
+      "modules": 1217,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/integrations/integrations.tsx": 1130,
-        "apps/sim/blocks/registry.ts": 895,
-        "apps/sim/triggers/index.ts": 524,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/hooks/queries/credentials.ts": 72,
-        "apps/sim/lib/api/contracts/index.ts": 53,
+        "apps/sim/app/workspace/[workspaceId]/integrations/integrations.tsx": 1213,
+        "apps/sim/blocks/registry.ts": 985,
+        "apps/sim/triggers/index.ts": 584,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/hooks/queries/credentials.ts": 73,
+        "apps/sim/lib/api/contracts/index.ts": 54,
+        "apps/sim/triggers/plane/index.ts": 46,
         "apps/sim/triggers/clickup/index.ts": 32
       }
     },
     "app/workspace/[workspaceId]/knowledge/[id]/[documentId]/loading.tsx": {
-      "modules": 16,
+      "modules": 19,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/knowledge/[id]/[documentId]/page.tsx": {
-      "modules": 1358,
+      "modules": 1466,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document.tsx": 1300,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 367,
-        "apps/sim/blocks/registry-maps.ts": 364,
-        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 84,
-        "apps/sim/connectors/registry.ts": 72,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document.tsx": 1399,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 378,
+        "apps/sim/blocks/registry-maps.ts": 375,
+        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 90,
+        "apps/sim/connectors/registry.ts": 75,
         "apps/sim/lib/api/contracts/index.ts": 55,
-        "apps/sim/stores/workflows/registry/store.ts": 32
+        "apps/sim/triggers/plane/index.ts": 46
       }
     },
     "app/workspace/[workspaceId]/knowledge/[id]/error.tsx": {
@@ -231,20 +284,20 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/knowledge/[id]/loading.tsx": {
-      "modules": 17,
+      "modules": 20,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/knowledge/[id]/page.tsx": {
-      "modules": 1513,
+      "modules": 1637,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/base.tsx": 1454,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 362,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/index.ts": 143,
-        "apps/sim/connectors/registry.ts": 68,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope.ts": 43,
-        "apps/sim/app/o/[organizationId]/providers/organization-provider.tsx": 32,
-        "apps/sim/triggers/clickup/index.ts": 32
+        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/base.tsx": 1569,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 380,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/index.ts": 156,
+        "apps/sim/connectors/registry.ts": 70,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope.ts": 54,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/app/o/[organizationId]/providers/organization-provider.tsx": 44
       }
     },
     "app/workspace/[workspaceId]/knowledge/error.tsx": {
@@ -252,33 +305,33 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/knowledge/loading.tsx": {
-      "modules": 16,
+      "modules": 19,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/knowledge/page.tsx": {
-      "modules": 2439,
+      "modules": 2673,
       "gateways": {
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 432,
-        "apps/sim/lib/knowledge/application/knowledge-bases.ts": 365,
-        "apps/sim/blocks/registry.ts": 358,
-        "apps/sim/lib/auth/index.ts": 232,
-        "apps/sim/lib/knowledge/orchestration/index.ts": 221,
-        "apps/sim/lib/knowledge/orchestration/connectors.ts": 217,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/knowledge.tsx": 213
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 453,
+        "apps/sim/lib/knowledge/application/knowledge-bases.ts": 385,
+        "apps/sim/blocks/registry.ts": 369,
+        "apps/sim/lib/auth/index.ts": 281,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/knowledge.tsx": 237,
+        "apps/sim/lib/knowledge/orchestration/index.ts": 231,
+        "apps/sim/lib/knowledge/orchestration/connectors.ts": 227
       }
     },
     "app/workspace/[workspaceId]/layout.tsx": {
-      "modules": 2330,
+      "modules": 2524,
       "gateways": {
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/auth/index.ts": 422,
-        "apps/sim/blocks/registry.ts": 352,
-        "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/sidebar.tsx": 349,
-        "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/index.ts": 219,
-        "apps/sim/lib/webhooks/providers/index.ts": 121,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119,
-        "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/index.ts": 95
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/blocks/registry.ts": 363,
+        "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/sidebar.tsx": 289,
+        "apps/sim/lib/auth/index.ts": 288,
+        "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/components/index.ts": 158,
+        "apps/sim/app/workspace/[workspaceId]/prefetch-access.ts": 91,
+        "apps/sim/lib/webhooks/providers/index.ts": 89,
+        "apps/sim/lib/webhooks/providers/registry.ts": 87
       }
     },
     "app/workspace/[workspaceId]/logs/error.tsx": {
@@ -286,20 +339,20 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/logs/loading.tsx": {
-      "modules": 14,
+      "modules": 17,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/logs/page.tsx": {
-      "modules": 1770,
+      "modules": 1927,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/logs/logs.tsx": 1755,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot.tsx": 511,
-        "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/index.ts": 460,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 454,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block.tsx": 393,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/index.ts": 386,
-        "apps/sim/blocks/registry.ts": 354
+        "apps/sim/app/workspace/[workspaceId]/logs/logs.tsx": 1909,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot.tsx": 575,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/index.ts": 524,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 518,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block.tsx": 449,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/index.ts": 439,
+        "apps/sim/blocks/registry.ts": 362
       }
     },
     "app/workspace/[workspaceId]/not-found.tsx": {
@@ -307,7 +360,7 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/page.tsx": {
-      "modules": 6,
+      "modules": 5,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/[section]/error.tsx": {
@@ -318,21 +371,17 @@
       "modules": 8,
       "gateways": {}
     },
-    "app/workspace/[workspaceId]/settings/[section]/loading.tsx": {
-      "modules": 1,
-      "gateways": {}
-    },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
-      "modules": 2410,
+      "modules": 3073,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 729,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/auth/index.ts": 401,
-        "apps/sim/blocks/registry.ts": 360,
-        "apps/sim/lib/webhooks/providers/index.ts": 121,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119,
-        "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": 103,
-        "apps/sim/ee/access-control/components/access-control.tsx": 84
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 1179,
+        "apps/sim/app/workspace/[workspaceId]/settings/section-warmers.ts": 988,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/ee/workspace-forking/components/forks.tsx": 408,
+        "apps/sim/ee/workspace-forking/components/fork-sync-detail-view/fork-sync-detail-view.tsx": 400,
+        "apps/sim/ee/workspace-forking/components/fork-sync/fork-sync-view.tsx": 392,
+        "apps/sim/ee/workspace-forking/components/fork-sync/fork-comparison-modal.tsx": 386,
+        "apps/sim/blocks/registry.ts": 361
       }
     },
     "app/workspace/[workspaceId]/settings/billing/credit-usage/layout.tsx": {
@@ -344,16 +393,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/billing/credit-usage/page.tsx": {
-      "modules": 1621,
+      "modules": 1826,
       "gateways": {
-        "apps/sim/lib/auth/index.ts": 1473,
-        "apps/sim/triggers/index.ts": 487,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/blocks/registry.ts": 368,
-        "apps/sim/blocks/registry-maps.ts": 365,
-        "apps/sim/lib/webhooks/providers/index.ts": 124,
-        "apps/sim/lib/webhooks/providers/registry.ts": 121,
-        "apps/sim/lib/uploads/utils/file-utils.server.ts": 53
+        "apps/sim/lib/auth/index.ts": 1664,
+        "apps/sim/blocks/registry.ts": 926,
+        "apps/sim/blocks/registry-maps.ts": 923,
+        "apps/sim/triggers/index.ts": 543,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/lib/webhooks/providers/index.ts": 91,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88,
+        "apps/sim/lib/workflows/lifecycle.ts": 48
       }
     },
     "app/workspace/[workspaceId]/settings/error.tsx": {
@@ -361,36 +410,45 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/layout.tsx": {
-      "modules": 3,
-      "gateways": {}
+      "modules": 2327,
+      "gateways": {
+        "apps/sim/app/workspace/[workspaceId]/settings/section-warmers.ts": 2290,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/ee/workspace-forking/components/forks.tsx": 414,
+        "apps/sim/ee/workspace-forking/components/fork-sync-detail-view/fork-sync-detail-view.tsx": 406,
+        "apps/sim/ee/workspace-forking/components/fork-sync/fork-sync-view.tsx": 397,
+        "apps/sim/ee/workspace-forking/components/fork-sync/fork-comparison-modal.tsx": 391,
+        "apps/sim/blocks/registry.ts": 362,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/index.ts": 359
+      }
     },
     "app/workspace/[workspaceId]/settings/page.tsx": {
       "modules": 1,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/secrets/[credentialId]/loading.tsx": {
-      "modules": 1171,
+      "modules": 1253,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/components/credential-detail/index.ts": 1168,
-        "apps/sim/components/permissions/index.ts": 1009,
-        "apps/sim/components/permissions/add-people-modal.tsx": 1000,
-        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 998,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 377,
-        "apps/sim/blocks/registry-maps.ts": 374,
+        "apps/sim/app/workspace/[workspaceId]/components/credential-detail/index.ts": 1250,
+        "apps/sim/components/permissions/index.ts": 1084,
+        "apps/sim/components/permissions/add-people-modal.tsx": 1079,
+        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 1077,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 389,
+        "apps/sim/blocks/registry-maps.ts": 386,
         "apps/sim/lib/api/contracts/index.ts": 60
       }
     },
     "app/workspace/[workspaceId]/settings/secrets/[credentialId]/page.tsx": {
-      "modules": 1193,
+      "modules": 1275,
       "gateways": {
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 377,
-        "apps/sim/blocks/registry-maps.ts": 374,
-        "apps/sim/app/workspace/[workspaceId]/components/credential-detail/index.ts": 98,
-        "apps/sim/components/permissions/index.ts": 87,
-        "apps/sim/components/permissions/add-people-modal.tsx": 78,
-        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 76,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 389,
+        "apps/sim/blocks/registry-maps.ts": 386,
+        "apps/sim/app/workspace/[workspaceId]/components/credential-detail/index.ts": 101,
+        "apps/sim/components/permissions/index.ts": 89,
+        "apps/sim/components/permissions/add-people-modal.tsx": 84,
+        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 82,
         "apps/sim/lib/api/contracts/index.ts": 60
       }
     },
@@ -403,29 +461,29 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/usage/events/page.tsx": {
-      "modules": 1628,
+      "modules": 1833,
       "gateways": {
-        "apps/sim/lib/auth/index.ts": 1473,
-        "apps/sim/triggers/index.ts": 487,
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/blocks/registry.ts": 368,
-        "apps/sim/blocks/registry-maps.ts": 365,
-        "apps/sim/lib/webhooks/providers/index.ts": 124,
-        "apps/sim/lib/webhooks/providers/registry.ts": 121,
-        "apps/sim/lib/uploads/utils/file-utils.server.ts": 53
+        "apps/sim/lib/auth/index.ts": 1664,
+        "apps/sim/blocks/registry.ts": 926,
+        "apps/sim/blocks/registry-maps.ts": 923,
+        "apps/sim/triggers/index.ts": 543,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/lib/webhooks/providers/index.ts": 91,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88,
+        "apps/sim/lib/workflows/lifecycle.ts": 48
       }
     },
     "app/workspace/[workspaceId]/skills/[skillId]/page.tsx": {
-      "modules": 1405,
+      "modules": 1550,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/[skillId]/skill-detail.tsx": 1404,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 373,
-        "apps/sim/blocks/registry-maps.ts": 371,
-        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 224,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 221,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 87,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts": 80
+        "apps/sim/app/workspace/[workspaceId]/skills/[skillId]/skill-detail.tsx": 1549,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 382,
+        "apps/sim/blocks/registry-maps.ts": 380,
+        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 287,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 284,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 127,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts": 72
       }
     },
     "app/workspace/[workspaceId]/skills/error.tsx": {
@@ -433,28 +491,28 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/skills/new/page.tsx": {
-      "modules": 1403,
+      "modules": 1548,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/new/skill-create.tsx": 1402,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 373,
-        "apps/sim/blocks/registry-maps.ts": 371,
-        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 224,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 221,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 87,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/index.ts": 80
+        "apps/sim/app/workspace/[workspaceId]/skills/new/skill-create.tsx": 1547,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 382,
+        "apps/sim/blocks/registry-maps.ts": 380,
+        "apps/sim/app/workspace/[workspaceId]/skills/components/skill-fields/index.ts": 287,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field.tsx": 284,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 127,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/index.ts": 72
       }
     },
     "app/workspace/[workspaceId]/skills/page.tsx": {
-      "modules": 1074,
+      "modules": 1153,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/skills/skills.tsx": 1070,
-        "apps/sim/app/workspace/[workspaceId]/integrations/components/showcase-with-explore/index.ts": 943,
-        "apps/sim/blocks/registry.ts": 932,
-        "apps/sim/blocks/registry-maps.ts": 930,
-        "apps/sim/triggers/index.ts": 524,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/hooks/queries/skills.ts": 74,
+        "apps/sim/app/workspace/[workspaceId]/skills/skills.tsx": 1149,
+        "apps/sim/app/workspace/[workspaceId]/integrations/components/showcase-with-explore/index.ts": 1016,
+        "apps/sim/blocks/registry.ts": 1005,
+        "apps/sim/blocks/registry-maps.ts": 1003,
+        "apps/sim/triggers/index.ts": 584,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/hooks/queries/skills.ts": 76,
         "apps/sim/lib/api/contracts/index.ts": 67
       }
     },
@@ -463,20 +521,20 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/tables/[tableId]/loading.tsx": {
-      "modules": 14,
+      "modules": 17,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/tables/[tableId]/page.tsx": {
-      "modules": 1898,
+      "modules": 2053,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/table.tsx": 1842,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/app/workspace/[workspaceId]/w/components/preview/index.ts": 421,
-        "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/index.ts": 372,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 368,
-        "apps/sim/blocks/registry.ts": 335,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block.tsx": 317,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/index.ts": 310
+        "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/table.tsx": 1988,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/index.ts": 466,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/index.ts": 417,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 412,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block.tsx": 355,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/index.ts": 346,
+        "apps/sim/blocks/registry.ts": 345
       }
     },
     "app/workspace/[workspaceId]/tables/error.tsx": {
@@ -484,31 +542,78 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/tables/loading.tsx": {
-      "modules": 14,
+      "modules": 17,
       "gateways": {}
     },
     "app/workspace/[workspaceId]/tables/page.tsx": {
-      "modules": 1983,
+      "modules": 2204,
       "gateways": {
-        "apps/sim/triggers/registry.ts": 485,
-        "apps/sim/lib/auth/index.ts": 443,
-        "apps/sim/blocks/registry.ts": 359,
-        "apps/sim/app/workspace/[workspaceId]/tables/tables.tsx": 200,
-        "apps/sim/lib/webhooks/providers/index.ts": 121,
-        "apps/sim/lib/webhooks/providers/registry.ts": 119,
-        "apps/sim/app/workspace/[workspaceId]/tables/prefetch.ts": 103,
+        "apps/sim/lib/auth/index.ts": 549,
+        "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/blocks/registry.ts": 370,
+        "apps/sim/app/workspace/[workspaceId]/tables/tables.tsx": 215,
+        "apps/sim/app/workspace/[workspaceId]/tables/prefetch.ts": 104,
+        "apps/sim/lib/webhooks/providers/index.ts": 90,
+        "apps/sim/lib/webhooks/providers/registry.ts": 88,
         "apps/sim/app/workspace/[workspaceId]/lib/authorize-resource-prefetch.ts": 56
       }
     },
-    "app/workspace/[workspaceId]/upgrade/page.tsx": {
-      "modules": 169,
+    "app/workspace/[workspaceId]/tests/[name]/loading.tsx": {
+      "modules": 17,
+      "gateways": {}
+    },
+    "app/workspace/[workspaceId]/tests/[name]/page.tsx": {
+      "modules": 1970,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/upgrade/upgrade.tsx": 161,
-        "apps/sim/app/workspace/[workspaceId]/upgrade/hooks/index.ts": 107,
-        "apps/sim/lib/billing/client/upgrade.ts": 99,
-        "apps/sim/hooks/queries/organization.ts": 93,
-        "apps/sim/hooks/queries/workspace.ts": 81,
-        "apps/sim/lib/api/contracts/index.ts": 79
+        "apps/sim/app/workspace/[workspaceId]/tests/components/index.ts": 1969,
+        "apps/sim/app/workspace/[workspaceId]/tests/components/test-detail.tsx": 1966,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 362,
+        "apps/sim/app/workspace/[workspaceId]/tests/components/test-dashboard.tsx": 351,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/index.ts": 342,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/index.ts": 289,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 280
+      }
+    },
+    "app/workspace/[workspaceId]/tests/layout.tsx": {
+      "modules": 1970,
+      "gateways": {
+        "apps/sim/app/workspace/[workspaceId]/tests/components/index.ts": 1969,
+        "apps/sim/app/workspace/[workspaceId]/tests/components/test-detail.tsx": 1966,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 362,
+        "apps/sim/app/workspace/[workspaceId]/tests/components/test-dashboard.tsx": 351,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/index.ts": 342,
+        "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/index.ts": 289,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 280
+      }
+    },
+    "app/workspace/[workspaceId]/tests/loading.tsx": {
+      "modules": 17,
+      "gateways": {}
+    },
+    "app/workspace/[workspaceId]/tests/page.tsx": {
+      "modules": 1274,
+      "gateways": {
+        "apps/sim/app/workspace/[workspaceId]/tests/tests.tsx": 1256,
+        "apps/sim/app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx": 1108,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 389,
+        "apps/sim/blocks/registry-maps.ts": 386,
+        "apps/sim/lib/api/contracts/index.ts": 60,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/stores/workflows/registry/store.ts": 39
+      }
+    },
+    "app/workspace/[workspaceId]/upgrade/page.tsx": {
+      "modules": 174,
+      "gateways": {
+        "apps/sim/app/workspace/[workspaceId]/upgrade/upgrade.tsx": 167,
+        "apps/sim/app/workspace/[workspaceId]/upgrade/hooks/index.ts": 111,
+        "apps/sim/lib/billing/client/upgrade.ts": 103,
+        "apps/sim/hooks/queries/organization.ts": 97,
+        "apps/sim/hooks/queries/workspace.ts": 84,
+        "apps/sim/lib/api/contracts/index.ts": 82
       }
     },
     "app/workspace/[workspaceId]/w/[workflowId]/layout.tsx": {
@@ -516,74 +621,76 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/w/[workflowId]/page.tsx": {
-      "modules": 2234,
+      "modules": 2466,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 2233,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 605,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 557,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 353,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 264,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 169,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/index.ts": 156
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 2465,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 685,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 636,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 362,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 291,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/index.ts": 188,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat.tsx": 184
       }
     },
     "app/workspace/[workspaceId]/w/page.tsx": {
-      "modules": 2215,
+      "modules": 2452,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 1002,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 735,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 380,
-        "apps/sim/blocks/registry.ts": 353,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 176,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/index.ts": 159,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block.tsx": 156
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 1144,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 863,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 441,
+        "apps/sim/blocks/registry.ts": 362,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/index.ts": 193,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat.tsx": 189,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 177
       }
     },
     "app/workspace/layout.tsx": {
-      "modules": 1137,
+      "modules": 1221,
       "gateways": {
-        "apps/sim/app/workspace/providers/socket-provider.tsx": 1126,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 377,
-        "apps/sim/blocks/registry-maps.ts": 374,
-        "apps/sim/stores/workflows/registry/store.ts": 105,
-        "apps/sim/hooks/queries/deployments.ts": 102,
+        "apps/sim/app/workspace/providers/socket-provider.tsx": 1211,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 389,
+        "apps/sim/blocks/registry-maps.ts": 386,
+        "apps/sim/stores/workflows/registry/store.ts": 108,
+        "apps/sim/hooks/queries/deployments.ts": 105,
         "apps/sim/lib/workflows/comparison/describe.ts": 90,
         "apps/sim/lib/api/contracts/index.ts": 60
       }
     },
     "app/workspace/page.tsx": {
-      "modules": 1140,
+      "modules": 1235,
       "gateways": {
-        "apps/sim/lib/auth/stale-session-recovery.ts": 1019,
-        "apps/sim/triggers/index.ts": 524,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/blocks/registry.ts": 378,
-        "apps/sim/blocks/registry-maps.ts": 375,
-        "apps/sim/lib/api/contracts/index.ts": 52,
-        "apps/sim/stores/workflows/registry/store.ts": 43,
-        "apps/sim/hooks/queries/deployments.ts": 38
+        "apps/sim/lib/auth/stale-session-recovery.ts": 1098,
+        "apps/sim/stores/reset-all-stores.ts": 1094,
+        "apps/sim/triggers/index.ts": 584,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/blocks/registry.ts": 390,
+        "apps/sim/blocks/registry-maps.ts": 387,
+        "apps/sim/lib/api/contracts/index.ts": 55,
+        "apps/sim/triggers/plane/index.ts": 46
       }
     },
     "lib/catalog/projection/block-detail.ts": {
-      "modules": 978,
+      "modules": 1053,
       "gateways": {
-        "apps/sim/triggers/index.ts": 524,
-        "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/lib/catalog/projection/block-summary.ts": 412,
-        "apps/sim/blocks/registry-maps.ts": 408,
+        "apps/sim/triggers/index.ts": 584,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/lib/catalog/projection/block-summary.ts": 425,
+        "apps/sim/blocks/registry-maps.ts": 421,
+        "apps/sim/triggers/plane/index.ts": 46,
         "apps/sim/triggers/clickup/index.ts": 32
       }
     },
     "lib/catalog/projection/block-summary.ts": {
-      "modules": 973,
+      "modules": 1048,
       "gateways": {
-        "apps/sim/blocks/registry.ts": 964,
-        "apps/sim/blocks/registry-maps.ts": 961,
-        "apps/sim/triggers/index.ts": 524,
-        "apps/sim/triggers/registry.ts": 522,
+        "apps/sim/blocks/registry.ts": 1038,
+        "apps/sim/blocks/registry-maps.ts": 1035,
+        "apps/sim/triggers/index.ts": 584,
+        "apps/sim/triggers/registry.ts": 582,
+        "apps/sim/triggers/plane/index.ts": 46,
         "apps/sim/triggers/clickup/index.ts": 32
       }
     },
@@ -596,7 +703,7 @@
       "gateways": {}
     },
     "lib/catalog/projection/subblock.ts": {
-      "modules": 6,
+      "modules": 7,
       "gateways": {}
     },
     "lib/catalog/projection/tool.ts": {

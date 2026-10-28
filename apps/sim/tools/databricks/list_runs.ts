@@ -1,4 +1,6 @@
 import type { DatabricksListRunsParams, DatabricksListRunsResponse } from '@/tools/databricks/types'
+import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT, RUN_STATUS_OUTPUT } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRunsResponse> = {
@@ -45,11 +47,23 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
       visibility: 'user-or-llm',
       description: 'Maximum number of runs to return (range 1-24, default 20)',
     },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Token for the next or previous page; takes precedence over legacy offset',
+    },
     offset: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Offset for pagination',
+      description: 'Legacy Jobs 2.1 offset; prefer pageToken',
+    },
+    expandTasks: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include the first 100 tasks and job clusters for each run',
     },
     runType: {
       type: 'string',
@@ -73,20 +87,25 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
 
   request: {
     url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      const url = new URL(`https://${host}/api/2.1/jobs/runs/list`)
+      const url = new URL(
+        databricksUrl(
+          params.host,
+          `/api/${params.offset != null && !params.pageToken ? '2.1' : '2.2'}/jobs/runs/list`
+        )
+      )
       if (params.jobId) url.searchParams.set('job_id', String(params.jobId))
       if (params.activeOnly) url.searchParams.set('active_only', 'true')
       if (params.completedOnly) url.searchParams.set('completed_only', 'true')
       if (params.limit) url.searchParams.set('limit', String(params.limit))
-      if (params.offset) url.searchParams.set('offset', String(params.offset))
+      if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
+      else if (params.offset != null) url.searchParams.set('offset', String(params.offset))
+      if (params.expandTasks != null)
+        url.searchParams.set('expand_tasks', String(params.expandTasks))
       if (params.runType) url.searchParams.set('run_type', params.runType)
-      if (params.startTimeFrom)
+      if (params.startTimeFrom != null)
         url.searchParams.set('start_time_from', String(params.startTimeFrom))
-      if (params.startTimeTo) url.searchParams.set('start_time_to', String(params.startTimeTo))
+      if (params.startTimeTo != null)
+        url.searchParams.set('start_time_to', String(params.startTimeTo))
       return url.toString()
     },
     method: 'GET',
@@ -116,8 +135,18 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
           user_cancelled_or_timedout?: boolean
         }
         start_time?: number
+        tasks?: Record<string, unknown>[]
+        job_clusters?: Record<string, unknown>[]
+        run_page_url?: string
+        status?: Record<string, unknown>
+        has_more?: boolean
         end_time?: number
       }) => ({
+        tasks: run.tasks ?? [],
+        jobClusters: run.job_clusters ?? [],
+        hasMore: run.has_more ?? false,
+        runPageUrl: run.run_page_url ?? null,
+        runStatus: run.status ?? null,
         runId: run.run_id ?? 0,
         jobId: run.job_id ?? 0,
         runName: run.run_name ?? '',
@@ -137,19 +166,30 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
       success: true,
       output: {
         runs,
-        hasMore: data.has_more ?? false,
+        hasMore: Boolean(data.next_page_token) || (data.has_more ?? false),
         nextPageToken: data.next_page_token ?? null,
+        prevPageToken: data.prev_page_token ?? null,
       },
     }
   },
 
   outputs: {
+    prevPageToken: { type: 'string', nullable: true, description: 'Token for the previous page' },
     runs: {
       type: 'array',
       description: 'List of job runs',
       items: {
         type: 'object',
         properties: {
+          tasks: JOB_TASK_OUTPUT,
+          jobClusters: JOB_CLUSTERS_OUTPUT,
+          runStatus: RUN_STATUS_OUTPUT,
+          hasMore: {
+            type: 'boolean',
+            description: 'Whether tasks or job clusters have additional pages',
+          },
+          runPageUrl: { type: 'string', nullable: true, description: 'Run details URL' },
+
           runId: { type: 'number', description: 'Unique run identifier' },
           jobId: { type: 'number', description: 'Job this run belongs to' },
           runName: { type: 'string', description: 'Run name' },
@@ -167,7 +207,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
                 type: 'string',
                 description:
                   'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED)',
-                optional: true,
+                nullable: true,
               },
               stateMessage: { type: 'string', description: 'Descriptive state message' },
               userCancelledOrTimedout: {
@@ -179,9 +219,9 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
           startTime: {
             type: 'number',
             description: 'Run start timestamp (epoch ms)',
-            optional: true,
+            nullable: true,
           },
-          endTime: { type: 'number', description: 'Run end timestamp (epoch ms)', optional: true },
+          endTime: { type: 'number', description: 'Run end timestamp (epoch ms)', nullable: true },
         },
       },
     },
@@ -192,7 +232,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
     nextPageToken: {
       type: 'string',
       description: 'Token for fetching the next page of results',
-      optional: true,
+      nullable: true,
     },
   },
 }

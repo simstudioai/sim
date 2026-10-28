@@ -16,6 +16,31 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: 'text-red-800 dark:text-red-400',
 }
 
+const API_NAV_LABELS: Record<string, string> = {
+  'Workflow imports and workspace sync': 'Import and sync',
+  'Get workflow state': 'Get state',
+  'Replace workflow state': 'Replace state',
+  'Apply workflow operations': 'Apply operations',
+  'Update workflow variables': 'Update variables',
+  'List workflow versions': 'List versions',
+  'Get workflow version': 'Get version',
+  'Compare workflow versions': 'Compare versions',
+  'Update workflow version': 'Update version',
+  'Activate workflow version': 'Activate version',
+  'Revert workflow to version': 'Revert to version',
+  'Get workflow deployment': 'Get deployment',
+  'Update workflow public API access': 'Update public access',
+  'Get workflow chat deployment': 'Get chat deployment',
+  'Create or replace workflow chat deployment': 'Set chat deployment',
+  'Delete workflow chat deployment': 'Delete chat deployment',
+  'Rename or move workflow folder': 'Move or rename folder',
+  'Get workspace fork availability': 'Get fork availability',
+  'List workspace fork children': 'List fork children',
+  'List workspace fork resources': 'List fork resources',
+  'Update workspace fork mappings': 'Update fork mappings',
+  'Update workspace fork exclusions': 'Update fork exclusions',
+}
+
 /**
  * Places HTTP method badges before page names in the sidebar.
  */
@@ -24,6 +49,10 @@ function openapiPluginBadgeLeft() {
     name: 'fumadocs:openapi-badge-left',
     enforce: 'pre' as const,
     transformPageTree: {
+      folder(node: { name: React.ReactNode }) {
+        if (node.name === 'Mcp servers') node.name = 'MCP servers'
+        return node
+      },
       file(
         this: {
           storage: {
@@ -36,6 +65,9 @@ function openapiPluginBadgeLeft() {
         if (!filePath) return node
         const file = this.storage.read(filePath)
         if (!file || file.format !== 'page') return node
+        if (filePath.startsWith('api-reference/') && typeof node.name === 'string') {
+          node.name = API_NAV_LABELS[node.name] ?? node.name
+        }
         const openApiData = file.data._openapi as { method?: string; webhook?: boolean } | undefined
         if (!openApiData || typeof openApiData !== 'object') return node
         if (openApiData.webhook) {
@@ -96,4 +128,6 @@ export type PageData = DocData &
     title: string
     description?: string
     full?: boolean
+    integration?: { type: string; color: string }
+    load: () => Promise<DocData & { lastModified?: Date }>
   }

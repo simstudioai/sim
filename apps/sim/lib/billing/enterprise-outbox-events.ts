@@ -1,0 +1,5 @@
+export const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
+export const ENTERPRISE_METADATA_SYNC_EVENT_TYPE = 'stripe.sync-enterprise-metadata'
+export const ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE = 'enterprise.move-workspace'
+export const ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE = 'enterprise.reconcile-members'
+export const ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE = 'enterprise.invite-people'

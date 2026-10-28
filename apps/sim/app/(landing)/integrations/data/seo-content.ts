@@ -22,9 +22,337 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
     h1: 'GitHub Workflow Automation and Integration',
     tagline: 'Build GitHub automation and trigger AI workflows from GitHub events.',
     overview:
-      'Use Sim’s GitHub integration to run GitHub automation inside one AI workspace. Get pull request details, post pull request and issue comments, fetch repository and commit data, and trigger workflows from pull requests, comments, pushes, releases, and GitHub Actions events. Build GitHub workflow automation for code reviews, changelog generation, engineering digests, release operations, and documentation updates.',
+      'Use Sim’s GitHub integration to run GitHub automation inside one AI workspace. Read pull requests, files, and commits; create and update issues, pull requests, branches, files, and releases; post comments and pull request reviews; and start workflows from issue, pull request, push, release, and GitHub Actions events. For example, a PR Opened trigger can start a workflow that fetches the changed files and diffs with Get PR files, then passes them to an Agent block that posts a pull request review with specific suggestions. An Issue Opened trigger can have an agent read the issue, apply labels and an assignee, and post a triage comment. A Release Published trigger can compare commits since the previous tag and send a changelog to Slack.',
     triggersIntro:
-      'Connect a GitHub webhook to Sim and your agent runs the instant an event happens, no polling, no delay.',
+      'Sim supports GitHub webhook triggers for Issue Opened, Issue Closed, Issue Comment, PR Opened, PR Closed, PR Merged, PR Comment, PR Reviewed, Code Push, Release Published, and Actions Workflow Run. Copy the webhook URL Sim generates into your repository’s Settings > Webhooks, and the workflow starts when GitHub delivers the event instead of waiting for a scheduled check.',
+    comparison: {
+      id: 'github-comparison',
+      heading: 'Sim vs. Zapier and n8n for GitHub',
+      intro:
+        'Zapier and n8n both provide GitHub integrations for general-purpose automation. Sim focuses on workflows where an Agent block reads a pull request, issue, or diff before a GitHub block comments, reviews, labels, or opens a pull request. Zapier or n8n may suit a GitHub workflow that relays events without an AI step.',
+      columns: ['Sim', 'Zapier', 'n8n'],
+      rows: [
+        {
+          label: 'Trigger model',
+          values: [
+            {
+              text: 'Real-time webhook',
+            },
+            {
+              text: 'Polling',
+              href: 'https://zapier.com/apps/github/integrations',
+            },
+            {
+              text: 'Webhook',
+              href: 'https://docs.n8n.io/integrations/builtin/trigger-nodes/n8n-nodes-base.githubtrigger',
+            },
+          ],
+        },
+        {
+          label: 'AI step before acting',
+          values: [
+            {
+              text: 'Agent block, built in',
+            },
+            {
+              text: 'Requires a separate AI step or app',
+              href: 'https://zapier.com/apps/github/integrations/chatgpt',
+            },
+            {
+              text: 'Requires a separate AI Agent node',
+              href: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent',
+            },
+          ],
+        },
+        {
+          label: 'Free to start',
+          values: [
+            {
+              text: 'Yes',
+            },
+            {
+              text: 'Yes, 100 tasks a month on two-step Zaps',
+              href: 'https://zapier.com/pricing',
+            },
+            {
+              text: 'Yes, when self-hosted',
+              href: 'https://docs.n8n.io/n8n-community-license',
+            },
+          ],
+        },
+        {
+          label: 'Open pull requests',
+          values: [
+            {
+              text: 'Create pull request operation',
+            },
+            {
+              text: 'Create Pull Request action',
+              href: 'https://zapier.com/apps/github/integrations',
+            },
+            {
+              text: 'Pull Request Create operation',
+              href: 'https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.github',
+            },
+          ],
+        },
+      ],
+      conclusion:
+        'Choose Sim when an AI agent should read the pull request or issue and decide what to comment, label, or change, rather than relay each GitHub event unchanged.',
+    },
+    faqs: [
+      {
+        question: 'Can a Sim agent open pull requests, triage issues, and comment on GitHub?',
+        answer:
+          'Yes. Sim’s GitHub block includes Create pull request, Create issue comment, Create PR comment, Create PR review, Add issue labels, and Add issue assignees, and an Agent block can choose which to run. Issue Opened and PR Opened triggers start the workflow when GitHub delivers the event, so triage and review comments do not wait on a schedule.',
+      },
+      {
+        question: 'What GitHub events can start a Sim workflow?',
+        answer:
+          'Sim has GitHub triggers for Issue Opened, Issue Closed, Issue Comment, PR Opened, PR Closed, PR Merged, PR Comment, PR Reviewed, Code Push, Release Published, and Actions Workflow Run. Each one uses a webhook URL that you add in your repository’s Settings > Webhooks, with an optional webhook secret.',
+      },
+      {
+        question: 'Can Sim use a GitHub MCP server?',
+        answer:
+          'Sim can connect a remote MCP server that uses Streamable HTTP and give its tools to an Agent block or run them through the MCP block; local stdio servers are not supported. Sim does not ship its own GitHub MCP server, and its built-in GitHub block covers pull requests, issues, files, branches, releases, and Actions without one.',
+      },
+      {
+        question: 'How do I connect GitHub to Sim?',
+        answer:
+          'Add a GitHub block to a workflow and enter a GitHub personal access token in its credential field. Choose an operation such as Get PR details or Create issue, or switch the block to trigger mode and pick a GitHub event. Test the workflow, then deploy it to run on live events.',
+      },
+      {
+        question: 'What is the difference between Sim and Zapier for GitHub?',
+        answer:
+          'Zapier’s GitHub triggers poll for new data, and its free plan allows two-step Zaps, so a Zap with an AI step between the trigger and the action needs a paid plan. Sim receives GitHub webhooks directly and includes Agent blocks in every workflow. Choose Sim when an agent should read code or issue context before acting.',
+      },
+    ],
+  },
+  shopify: {
+    title: 'Shopify Automation with Sim',
+    description:
+      'Build Shopify automation in Sim. Manage products, orders, customers, inventory, and fulfillment with AI agents. Free to start.',
+    keywords: ['shopify automation', 'shopify inventory automation', 'shopify integration'],
+    h1: 'Shopify Automation with Sim',
+    tagline:
+      'Build Shopify automation with AI agents in Sim. Manage products, variants, orders, customers, inventory, collections, and fulfillment.',
+    overview:
+      'Connect Shopify to Sim with OAuth and run Shopify automation from one AI workspace. Create and update products and variants, read and update orders, manage customers, check inventory levels by location, adjust inventory quantities, and create fulfillments with tracking. For example, a scheduled workflow can list inventory items, have an Agent block flag variants whose available quantity is below a threshold, and post the list to Slack. An agent can review recent orders and add tags or notes with Update Order. A restock workflow can apply an Adjust Inventory change at a location after an agent checks the received quantity.',
+    comparison: {
+      id: 'shopify-comparison',
+      heading: 'Sim vs. Zapier and n8n for Shopify',
+      intro:
+        'Zapier and n8n both provide Shopify integrations, and both offer Shopify triggers that Sim does not have. Sim focuses on workflows where an Agent block reads inventory, order, or customer data and decides what to change before a Shopify block acts. Zapier or n8n may suit a workflow that must start the moment a Shopify event fires.',
+      columns: ['Sim', 'Zapier', 'n8n'],
+      rows: [
+        {
+          label: 'Trigger model',
+          values: [
+            {
+              text: 'Scheduled; no native Shopify trigger',
+            },
+            {
+              text: 'Instant for most events, including Updated Inventory',
+              href: 'https://zapier.com/apps/shopify/integrations',
+            },
+            {
+              text: 'Webhook',
+              href: 'https://docs.n8n.io/integrations/builtin/trigger-nodes/n8n-nodes-base.shopifytrigger',
+            },
+          ],
+        },
+        {
+          label: 'AI step before acting',
+          values: [
+            {
+              text: 'Agent block, built in',
+            },
+            {
+              text: 'Requires a separate AI step or app',
+              href: 'https://zapier.com/apps/shopify/integrations/chatgpt',
+            },
+            {
+              text: 'Requires a separate AI Agent node',
+              href: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent',
+            },
+          ],
+        },
+        {
+          label: 'Free to start',
+          values: [
+            {
+              text: 'Yes',
+            },
+            {
+              text: 'Yes, 100 tasks a month on two-step Zaps',
+              href: 'https://zapier.com/pricing',
+            },
+            {
+              text: 'Yes, when self-hosted',
+              href: 'https://docs.n8n.io/n8n-community-license',
+            },
+          ],
+        },
+        {
+          label: 'Adjust inventory',
+          values: [
+            {
+              text: 'Adjust Inventory operation',
+            },
+            {
+              text: 'Update Inventory Quantity action',
+              href: 'https://zapier.com/apps/shopify/integrations',
+            },
+            {
+              text: 'No inventory operation in the Shopify node',
+              href: 'https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.shopify',
+            },
+          ],
+        },
+      ],
+      conclusion:
+        'Choose Sim when an AI agent should review inventory and order data and decide what to flag or change on a schedule, rather than react to each Shopify event with a fixed action.',
+    },
+    faqs: [
+      {
+        question: 'Can a Sim agent update Shopify inventory and flag low stock?',
+        answer:
+          'Yes, on a schedule. Sim’s Shopify block can list inventory items with available and on-hand quantities, get an inventory level at a location, and change a variant’s quantity by a set amount with Adjust Inventory. A Schedule trigger can run an Agent block that flags low-stock variants and posts them to Slack, because Sim has no Shopify trigger that fires when inventory changes.',
+      },
+      {
+        question: 'What Shopify order and inventory operations does Sim support?',
+        answer:
+          'Sim supports Get Order, List Orders, Update Order (note, tags, and email), and Cancel Order, plus List Inventory Items, Get Inventory Level, Adjust Inventory, and List Locations. Fulfillment operations include Create Fulfillment, List Fulfillment Orders, and Update Fulfillment Tracking. Product, variant, customer, and collection operations are also available.',
+      },
+      {
+        question: 'Does Sim have Shopify triggers?',
+        answer:
+          'No. Sim does not have a native Shopify trigger, so Shopify workflows in Sim usually start from a Schedule trigger or another trigger in the workflow. If a workflow must start the moment an order or inventory event fires, Zapier and n8n both offer Shopify triggers.',
+      },
+      {
+        question: 'How do I connect Shopify to Sim?',
+        answer:
+          'Add a Shopify block to a workflow and connect your store with OAuth. Choose an operation such as List Orders or Adjust Inventory, test the workflow, and deploy it. Orders normally cover the last 60 days, and older orders and protected customer fields require Shopify approval.',
+      },
+      {
+        question: 'What is the difference between Sim and Zapier for Shopify?',
+        answer:
+          'Zapier offers instant Shopify triggers and inventory actions, but its free plan allows two-step Zaps, so a Zap with an AI step between the trigger and the action needs a paid plan. Sim includes Agent blocks in every workflow and runs Shopify checks on a schedule. Choose Sim when an agent should decide which products, orders, or quantities need attention.',
+      },
+    ],
+  },
+  snowflake: {
+    title: 'Snowflake Automation with Sim',
+    description:
+      'Build Snowflake automation in Sim. Run SQL, ask Cortex Analyst, and manage warehouses and tasks with AI agents. Free to start.',
+    keywords: ['snowflake automation', 'snowflake ai agent', 'snowflake integration'],
+    h1: 'Snowflake Automation with Sim',
+    tagline:
+      'Build Snowflake automation with AI agents in Sim. Run SQL, ask Cortex Analyst, sync rows, and manage warehouses and tasks.',
+    overview:
+      'Connect Snowflake to Sim with a programmatic access token and run Snowflake automation from one AI workspace. Execute parameterized SQL; insert, update, upsert, and delete rows; load and unload staged data; browse databases, schemas, and tables; control warehouses and tasks; review query history; and call stored procedures. For example, a scheduled workflow can run Execute SQL against a revenue table, have an Agent block summarize the change since last week, and post the summary to Slack. An agent can answer a team question with Ask Cortex Analyst against a semantic view and return the generated SQL and results. A data operations workflow can check List Task Runs and rerun a failed task with Run Task.',
+    comparison: {
+      id: 'snowflake-comparison',
+      heading: 'Sim vs. Zapier and n8n for Snowflake',
+      intro:
+        'Zapier and n8n both connect to Snowflake for SQL and row operations. Sim focuses on workflows where an Agent block queries Snowflake, interprets the results, and sends the insight to a tool such as Slack. None of the three receives instant events from Snowflake: Zapier polls for new rows, while Sim and n8n workflows start from a schedule or another trigger.',
+      columns: ['Sim', 'Zapier', 'n8n'],
+      rows: [
+        {
+          label: 'Trigger model',
+          values: [
+            {
+              text: 'Scheduled; no native Snowflake trigger',
+            },
+            {
+              text: 'Polling for new or updated rows',
+              href: 'https://zapier.com/apps/snowflake/integrations',
+            },
+            {
+              text: 'No Snowflake trigger node',
+              href: 'https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.snowflake',
+            },
+          ],
+        },
+        {
+          label: 'AI step before acting',
+          values: [
+            {
+              text: 'Agent block, built in',
+            },
+            {
+              text: 'Requires a separate AI step or app',
+              href: 'https://zapier.com/apps/snowflake/integrations/chatgpt',
+            },
+            {
+              text: 'Requires a separate AI Agent node',
+              href: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent',
+            },
+          ],
+        },
+        {
+          label: 'Free to start',
+          values: [
+            {
+              text: 'Yes',
+            },
+            {
+              text: 'Yes, 100 tasks a month on two-step Zaps',
+              href: 'https://zapier.com/pricing',
+            },
+            {
+              text: 'Yes, when self-hosted',
+              href: 'https://docs.n8n.io/n8n-community-license',
+            },
+          ],
+        },
+        {
+          label: 'Natural-language questions',
+          values: [
+            {
+              text: 'Ask Cortex Analyst operation',
+            },
+            {
+              text: 'SQL and row actions only',
+              href: 'https://zapier.com/apps/snowflake/integrations',
+            },
+            {
+              text: 'SQL query, insert, and update only',
+              href: 'https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.snowflake',
+            },
+          ],
+        },
+      ],
+      conclusion:
+        'Choose Sim when an AI agent should query Snowflake, interpret the results, and deliver the insight, rather than move rows between tools unchanged.',
+    },
+    faqs: [
+      {
+        question: 'Which AI agent builders integrate with Snowflake for data queries?',
+        answer:
+          'Sim integrates with Snowflake through a block that runs parameterized SQL, lists databases, schemas, and tables, inspects schemas, and asks Cortex Analyst questions in natural language. An Agent block can choose the query, read the results, and pass them to later steps. Zapier and n8n also connect to Snowflake for SQL and row operations.',
+      },
+      {
+        question: 'Can Sim query Snowflake and post insights to Slack?',
+        answer:
+          'Yes. A Sim workflow can run Execute SQL or Ask Cortex Analyst, have an Agent block summarize the results, and send the summary with a Slack block. Start it with a Schedule trigger for recurring reports, because Sim has no trigger that fires on Snowflake data changes.',
+      },
+      {
+        question: 'Does Sim support an MCP server for querying Snowflake?',
+        answer:
+          'Sim can connect a remote MCP server that uses Streamable HTTP and give its tools to an Agent block, so a Snowflake MCP server your team runs can be added as agent tools. Sim does not ship its own Snowflake MCP server, and its built-in Snowflake block runs SQL and Cortex Analyst without one. Sim can also expose a deployed workflow, such as one that runs a Snowflake query, as a tool on an MCP server for external MCP clients.',
+      },
+      {
+        question: 'How do I connect Snowflake to Sim?',
+        answer:
+          'Create a Snowflake programmatic access token, add a Snowflake block to a workflow, and enter the token with your account details. Choose an operation such as Execute SQL or List Tables, test the workflow, and deploy it. Execute SQL runs whatever SQL the workflow passes it, so scope the token’s role to the data the workflow needs.',
+      },
+      {
+        question: 'What is the difference between Sim and n8n for Snowflake?',
+        answer:
+          'n8n’s Snowflake node runs SQL queries and inserts or updates rows, and adding AI requires a separate AI Agent node. Sim’s Snowflake block also covers upserts, staged loads and unloads, warehouses, tasks, query history, stored procedures, and Cortex Analyst, with Agent blocks built into every workflow.',
+      },
+    ],
   },
   outlook: {
     title: 'Outlook Automation with Sim',
@@ -172,7 +500,7 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
             },
             {
               text: 'Yes, when self-hosted',
-              href: 'https://docs.n8n.io/privacy-and-security/sustainable-use-license/',
+              href: 'https://docs.n8n.io/n8n-community-license',
             },
           ],
         },

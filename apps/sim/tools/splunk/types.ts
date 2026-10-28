@@ -275,20 +275,6 @@ export interface SplunkListAppsResponse extends ToolResponse {
   }
 }
 
-/** Union of every Splunk tool response, used by the block's generic output typing. */
-export type SplunkResponse =
-  | SplunkSearchResultsResponse
-  | SplunkCreateSearchJobResponse
-  | SplunkGetSearchJobResponse
-  | SplunkCancelSearchJobResponse
-  | SplunkListSavedSearchesResponse
-  | SplunkGetSavedSearchResponse
-  | SplunkDispatchSavedSearchResponse
-  | SplunkListFiredAlertsResponse
-  | SplunkGetFiredAlertsResponse
-  | SplunkListIndexesResponse
-  | SplunkListAppsResponse
-
 /** Output schema shared by the two tools that project a saved search. */
 export const SAVED_SEARCH_OUTPUT_FIELDS: Record<string, OutputProperty> = {
   name: { type: 'string', description: 'Saved search name' },

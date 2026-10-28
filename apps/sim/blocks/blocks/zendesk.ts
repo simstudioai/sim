@@ -9,7 +9,7 @@ export const ZendeskBlock: BlockConfig = {
   description: 'Manage support tickets, users, and organizations in Zendesk',
   triggerAllowed: true,
   longDescription:
-    'Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.',
+    'Read, create, update, or delete tickets, users, and organizations, including supported bulk operations. Merge tickets, autocomplete organizations, search records, or count search results. Ticket events can start workflows.',
   docsLink: 'https://docs.sim.ai/integrations/zendesk',
   authMode: AuthMode.ApiKey,
   category: 'tools',

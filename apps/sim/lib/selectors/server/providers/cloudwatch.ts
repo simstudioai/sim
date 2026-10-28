@@ -4,7 +4,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/http'
 import type { ServerSelectorAttachmentMap } from '@/lib/selectors/server/types'
 import { detailSelectorResult, listSelectorResult } from '@/lib/selectors/server/types'
 import {

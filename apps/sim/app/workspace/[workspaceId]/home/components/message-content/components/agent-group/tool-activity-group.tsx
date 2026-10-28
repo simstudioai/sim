@@ -8,18 +8,13 @@ import {
   RunCode,
   SearchWorkspace,
 } from '@/lib/mothership/generated/tool-catalog-v1'
+import { getToolActivitySummaryActions, readCallActivity } from '@/lib/mothership/tools/activity'
+import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import {
-  getToolActivitySummaryActions,
-  readToolActivity,
-} from '@/lib/mothership/tools/tool-activity'
-import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
-import {
-  getSearchActivitySources,
-  SearchActivityDetails,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
+import { getSearchActivitySources } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
+import { SearchActivityResults } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-results'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import {
   getActivityAttentionKey,
@@ -100,14 +95,14 @@ function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
 /**
  * An executing call whose streamed arguments do not name its action yet, so its
  * title is only its tool's placeholder: a search before its arguments arrive,
- * a `sim_cli` call before its command parses ("Running CLI command"),
- * a `run_code` call before its arguments
+ * a CLI call before its final frame (the verb parsed mid-stream would only flash
+ * ahead of the model's description), a `run_code` call before its arguments
  * resolve, while their parameters hold at most the activity, and an
  * integration gateway call before its description streams ("Calling integration").
  * A call awaiting approval is never untitled, so its permission card keeps the
  * header, and neither is one the model already described.
  */
-function isAwaitingTitle(tool: ToolCallData): boolean {
+export function isAwaitingTitle(tool: ToolCallData): boolean {
   if (tool.status !== ToolCallStatus.executing || tool.activityDescription) return false
   if (tool.toolName === CallIntegrationTool.id) {
     const description =
@@ -116,6 +111,7 @@ function isAwaitingTitle(tool: ToolCallData): boolean {
   }
   return (
     (tool.toolName === 'sim_cli' ||
+      tool.toolName.startsWith('cli_') ||
       tool.toolName === RunCode.id ||
       tool.toolName === 'search_workspace') &&
     Object.keys(tool.params ?? {}).every((key) => key === 'activity')
@@ -149,11 +145,15 @@ export function getActivityHeaderTool(
   )
 }
 
+/** The wait wording: the turn between steps, and a first call whose own title is still streaming. */
+export const THINKING_LABEL = 'Thinking'
+
 /**
  * The title of an activity in progress for its header call, with earlier
  * stops and skips kept visible. A header call still awaiting its title has no
  * earlier call to hold, so it reads as the activity's intent when the model
- * gave one, else as its own in-progress title.
+ * gave one, else as the wait it continues: a tool's placeholder ("Running CLI
+ * command") would flash between the turn's "Thinking" and the model's description.
  */
 export function getInProgressActivityLabel(
   activeLabel: string,
@@ -161,7 +161,7 @@ export function getInProgressActivityLabel(
   tools: ToolCallData[],
   activityTitle: string | undefined
 ): string {
-  const label = (isAwaitingTitle(headerTool) && activityTitle) || activeLabel
+  const label = isAwaitingTitle(headerTool) ? activityTitle || THINKING_LABEL : activeLabel
   return getActiveToolActivityTitle(label, headerTool, tools)
 }
 
@@ -220,7 +220,7 @@ export function ToolActivityGroup({
   autoScrollActivity = true,
   isLive = false,
 }: ToolActivityGroupProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const tools = withoutRetriedSearchFailures(calls)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
@@ -228,7 +228,7 @@ export function ToolActivityGroup({
   const groupedActivity =
     activity ??
     tools
-      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .map(readCallActivity)
       .reverse()
       .find((entry) => entry?.title || entry?.completedTitle)
   /** Tense follows liveness: a live group, or one with a call still running, reads in progress. */
@@ -236,6 +236,7 @@ export function ToolActivityGroup({
   const attentionKey = getActivityAttentionKey(tools)
   const entries = tools.map((tool) => ({ tool, sources: getSearchActivitySources(tool) }))
   const hasSearchDetails = entries.some(({ sources }) => sources !== undefined)
+  const expanded = manualExpanded ?? (isLive && hasSearchDetails)
 
   return (
     <ToolCallComponent
@@ -258,11 +259,12 @@ export function ToolActivityGroup({
             icon: status.icon,
           }}
           activityKey={headerTool.id}
+          placeholder={working && isAwaitingTitle(headerTool)}
           attentionKey={attentionKey}
           expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
           collapsible={tools.length > 1 || hasSearchDetails}
           expanded={expanded}
-          onToggle={() => setExpanded(!expanded)}
+          onToggle={() => setManualExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}
           unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
@@ -275,7 +277,7 @@ export function ToolActivityGroup({
                   <ToolCallComponent {...tool} toolCallId={tool.id} />
                 )}
                 {sources && (
-                  <SearchActivityDetails
+                  <SearchActivityResults
                     sources={sources}
                     label={`Search results for step ${index + 1}: ${getToolTitle(tool)}`}
                   />

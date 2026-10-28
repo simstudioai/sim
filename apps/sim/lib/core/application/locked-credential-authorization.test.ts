@@ -1,31 +1,33 @@
-import type { OAuthAccessTokenPrincipal, PersonalApiKeyPrincipal } from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  workspaceConfig: vi.fn(),
-  organizationConfig: vi.fn(),
-  role: vi.fn(),
-  lock: vi.fn(),
-  audit: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', async (original) => ({
-  ...(await original<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  resolveVerifiedUserAccessControlContext: mocks.workspaceConfig,
-  getUserPermissionConfigForOrganization: mocks.organizationConfig,
-  getUserPermissionConfig: vi.fn(),
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.lock,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
 vi.mock('@/lib/core/network/context.server', () => ({
   runWithOutboundOrganization: (_id: string, execute: () => Promise<unknown>) => execute(),
 }))
@@ -42,11 +44,15 @@ import { defineAuthorizedAccessRequestUseCase } from '@/ee/access-requests/lib/a
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
 import type { AccessRequestScope } from '@/ee/access-requests/lib/targets'
 
-const personal: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'person',
-  keyId: 'key',
+const mocks = {
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+  workspaceConfig: permissionGroupsResolveMockFns.mockResolveVerifiedUserAccessControlContext,
+  organizationConfig: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  role: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  lock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
 }
+
+const personal = createPersonalApiKeyPrincipal({ userId: 'person', keyId: 'key' })
 const oauth: OAuthAccessTokenPrincipal = {
   kind: 'oauth_access_token',
   userId: 'person',
@@ -162,7 +168,7 @@ describe('locked credential reauthorization', () => {
       principalKinds: ['session'],
       capability: 'tables.use',
     })
-    const principal = { kind: 'session', userId: 'person', sessionId: 'session' } as const
+    const principal = createSessionPrincipal({ userId: 'person', sessionId: 'session' })
     await withPermissionGroupScope(async () => {
       await authorizeWorkspaceOperation(principal, operation, context)
       mocks.workspaceConfig.mockResolvedValue({
@@ -185,7 +191,7 @@ describe('locked credential reauthorization', () => {
       principalKinds: ['session'],
       capability: 'knowledge.use',
     })
-    const principal = { kind: 'session', userId: 'person', sessionId: 'session' } as const
+    const principal = createSessionPrincipal({ userId: 'person', sessionId: 'session' })
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(member, [{ role: 'admin' }])
     await authorizeOrganizationOperation(principal, operation, { organizationId: 'org' })

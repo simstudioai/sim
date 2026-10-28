@@ -2,12 +2,11 @@ import { ClipboardList } from '@sim/emcn/icons'
 import { GreptileIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GreptileResponse } from '@/tools/greptile/types'
 
 /** Shared by the two repository operations, which both take a branch. */
 const ON_BRANCH = { text: 'on branch', field: 'branch' } as const
 
-export const GreptileBlock: BlockConfig<GreptileResponse> = {
+export const GreptileBlock: BlockConfig = {
   type: 'greptile',
   name: 'Greptile',
   description: 'AI-powered codebase search and Q&A',
@@ -42,7 +41,6 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Query', id: 'greptile_query' },
-        // { label: 'Search', id: 'greptile_search' }, // Disabled: Greptile search endpoint returning v1 deprecation error
         { label: 'Index Repository', id: 'greptile_index_repo' },
         { label: 'Check Status', id: 'greptile_status' },
       ],
@@ -78,36 +76,6 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
       type: 'switch',
       condition: { field: 'operation', value: 'greptile_query' },
     },
-    // Search operation inputs - Disabled: Greptile search endpoint returning v1 deprecation error
-    // {
-    //   id: 'query',
-    //   title: 'Search Query',
-    //   type: 'long-input',
-    //   placeholder: 'Search for code patterns, functions, or concepts...',
-    //   condition: { field: 'operation', value: 'greptile_search' },
-    //   required: true,
-    // },
-    // {
-    //   id: 'repositories',
-    //   title: 'Repositories',
-    //   type: 'long-input',
-    //   placeholder: 'owner/repo, github:main:owner/repo (comma-separated)',
-    //   condition: { field: 'operation', value: 'greptile_search' },
-    //   required: true,
-    // },
-    // {
-    //   id: 'sessionId',
-    //   title: 'Session ID',
-    //   type: 'short-input',
-    //   placeholder: 'Optional session ID for conversation continuity',
-    //   condition: { field: 'operation', value: 'greptile_search' },
-    // },
-    // {
-    //   id: 'genius',
-    //   title: 'Genius Mode',
-    //   type: 'switch',
-    //   condition: { field: 'operation', value: 'greptile_search' },
-    // },
     // Index & Status shared inputs
     {
       id: 'remote',
@@ -168,7 +136,7 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     },
   ],
   tools: {
-    access: ['greptile_query', /* 'greptile_search', */ 'greptile_index_repo', 'greptile_status'],
+    access: ['greptile_query', 'greptile_index_repo', 'greptile_status'],
     config: {
       tool: (params) => params.operation,
     },

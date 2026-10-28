@@ -1,7 +1,7 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 const { runCopilotLifecycle } = vi.hoisted(() => ({
@@ -29,10 +29,6 @@ describe('runHeadlessCopilotLifecycle', () => {
   beforeEach(() => {
     trace.setGlobalTracerProvider(new BasicTracerProvider())
     propagation.setGlobalPropagator(new W3CTraceContextPropagator())
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('forces the server-owned headless classification', async () => {

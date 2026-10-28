@@ -2,10 +2,10 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
-import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
-  getCredentialOwner,
+  getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
@@ -51,10 +51,7 @@ async function resolveClickUpAccessToken(
     )
   }
 
-  const credentialOwner = await getCredentialOwner(credentialId, requestId)
-  const accessToken = credentialOwner
-    ? await refreshAccessTokenIfNeeded(credentialOwner.accountId, credentialOwner.userId, requestId)
-    : null
+  const accessToken = await getCredentialAccessToken(credentialId, requestId)
 
   if (!accessToken) {
     throw new Error(
@@ -309,14 +306,7 @@ export const clickupHandler: WebhookProviderHandler = {
         return
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
 
       if (!accessToken) {
         const message = `[${requestId}] Could not retrieve ClickUp access token. Cannot delete webhook.`
@@ -354,7 +344,7 @@ export const clickupHandler: WebhookProviderHandler = {
     } = await import('@/triggers/clickup/utils')
 
     const b = body as Record<string, unknown>
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (triggerId?.startsWith('clickup_task_')) {

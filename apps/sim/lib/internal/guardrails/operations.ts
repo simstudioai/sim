@@ -8,13 +8,13 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
-import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
-import { validateJson } from '@/lib/guardrails/validate_json'
-import { validateRegex } from '@/lib/guardrails/validate_regex'
+import { validateHallucination } from '@/lib/guardrails/validate-hallucination'
+import { validateJson } from '@/lib/guardrails/validate-json'
+import { validateRegex } from '@/lib/guardrails/validate-regex'
 import { validatePIIViaHttp } from '@/lib/guardrails/validation-client'
 import { GuardrailsOperationError } from '@/lib/internal/guardrails/errors'
 import type { GuardrailsValidationInput } from '@/lib/internal/guardrails/input'

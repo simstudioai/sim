@@ -1,15 +1,15 @@
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 
-const { mockBindInternalExecutorDelegation } = vi.hoisted(() => ({
-  mockBindInternalExecutorDelegation: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindInternalExecutorDelegation,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+
+const { mockBindInternalExecutorDelegation } = authInternalDelegationMockFns
 
 function executionContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {

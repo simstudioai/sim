@@ -6,12 +6,12 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
-import { deleteFile, hasCloudStorage } from '@/lib/uploads/core/storage-service'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 import {
-  createErrorResponse,
+  createFileErrorResponse,
   createSuccessResponse,
   extractFilename,
   FileNotFoundError,
@@ -44,7 +44,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       {},
       {
         validationErrorResponse: (error) =>
-          createErrorResponse(
+          createFileErrorResponse(
             new InvalidRequestError(getValidationErrorMessage(error, 'Invalid request data'))
           ),
       }
@@ -73,7 +73,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const hasAccess =
         storageContext === 'knowledge-base'
           ? await verifyKBFileWriteAccess(key, userId)
-          : await verifyFileAccess(key, userId, undefined, storageContext, !hasCloudStorage(), {
+          : await verifyFileAccess(key, userId, undefined, storageContext, {
               requireWrite: true,
             })
 
@@ -100,16 +100,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.error('Error deleting file:', error)
 
       if (error instanceof FileNotFoundError) {
-        return createErrorResponse(error)
+        return createFileErrorResponse(error)
       }
 
-      return createErrorResponse(
+      return createFileErrorResponse(
         error instanceof Error ? error : new Error('Failed to delete file')
       )
     }
   } catch (error) {
     logger.error('Error parsing request:', error)
-    return createErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
+    return createFileErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
   }
 })
 

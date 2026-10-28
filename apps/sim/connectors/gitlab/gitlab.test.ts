@@ -1,10 +1,12 @@
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchSource } = vi.hoisted(() => ({ fetchSource: vi.fn() }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  secureFetchWithRetry: fetchSource,
-}))
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
 vi.mock('@/connectors/gitlab/permissions', () => ({
   getGitLabDocumentAcls: vi.fn(),
   openGitLabDirectory: vi.fn(),
@@ -15,6 +17,8 @@ import { gitlabConnector } from '@/connectors/gitlab/gitlab'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
 import { setGitLabCsvContext } from '@/connectors/gitlab/permission-config/types'
 import type { ExternalDocument } from '@/connectors/types'
+
+const fetchSource = knowledgeSecureFetchMockFns.mockSecureFetchWithRetry
 
 const HOST = 'https://gitlab.example.com:8443'
 const PROJECT_PATH = '/api/v4/projects/group%2Fproject'

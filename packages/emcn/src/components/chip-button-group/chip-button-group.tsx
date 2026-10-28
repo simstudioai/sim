@@ -30,7 +30,7 @@ function useChipButtonGroupContext() {
   return context
 }
 
-export interface ChipButtonGroupProps
+interface ChipButtonGroupProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>,
     VariantProps<typeof chipButtonGroupVariants> {
   /** Currently selected value */
@@ -91,8 +91,7 @@ function ChipButtonGroup({
 
 const chipButtonGroupItemVariants = segmentedControlItemVariants
 
-export interface ChipButtonGroupItemProps
-  extends Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> {
+interface ChipButtonGroupItemProps extends Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> {
   /** Value associated with this item */
   value: string
   /** Disables this specific item */
@@ -130,9 +129,4 @@ function ChipButtonGroupItem({
 ChipButtonGroup.displayName = 'ChipButtonGroup'
 ChipButtonGroupItem.displayName = 'ChipButtonGroupItem'
 
-export {
-  ChipButtonGroup,
-  ChipButtonGroupItem,
-  chipButtonGroupVariants,
-  chipButtonGroupItemVariants,
-}
+export { ChipButtonGroup, ChipButtonGroupItem }

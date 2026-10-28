@@ -1,39 +1,31 @@
 ---
 title: Granola
 description: Access meeting notes, transcripts, and audit events from Granola
+integration:
+  type: "granola"
+  color: "#B2C147"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="granola"
-  color="#B2C147"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Granola](https://www.granola.ai/) is an AI notepad for meetings that automatically records and transcribes calls, then generates structured notes and summaries alongside your own typed notes.
+Use [Granola](https://www.granola.ai/) to list meeting notes, read summaries, attendees, calendar details, and transcripts, and browse folders. Filter lists by date or folder and use pagination to retrieve more notes.
 
-With Granola, you can:
-
-- **List meeting notes**: Browse notes with date filters, folder scoping, and pagination
-- **Retrieve full note details**: Get summaries, attendees, calendar event details, and transcripts for a specific note
-- **Organize by folders**: List and filter notes using Granola's folder structure
-
-In Sim, the Granola integration allows your agents to pull meeting notes, summaries, and transcripts directly into a workflow. Agents can list recent notes with date or folder filters, fetch a specific note's summary text, attendees, and calendar details, retrieve the full transcript with speaker labels when needed, and browse folders to organize retrieval. This makes it possible to build workflows that surface meeting outcomes, route action items, or feed meeting context into downstream agent reasoning.
+The integration also reads workspace audit events and manages webhook endpoints. Note-generated, edited, and shared events can start workflows that route action items or pass meeting context to later steps.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts, review workspace audit events, and manage webhook endpoints. Granola can also trigger workflows when notes are generated, edited, or shared with you.
-
-
 
 ## Actions
 
 ### Granola List Notes
 
 Lists meeting notes from Granola with optional date filters and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +53,13 @@ Lists meeting notes from Granola with optional date filters and pagination.
 | `hasMore` | boolean | Whether more notes are available |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola Get Note
 
 Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +103,13 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 |   ↳ `startTime` | string | Segment start time |
 |   ↳ `endTime` | string | Segment end time |
 
+</ReferenceDetails>
+
 ### Granola Get Transcript
 
 Retrieves a meeting transcript from Granola one page at a time, including when Get Note reports the transcript is too large to return inline.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +135,13 @@ Retrieves a meeting transcript from Granola one page at a time, including when G
 | `hasMore` | boolean | Whether another page of transcript items is available |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola List Folders
 
 Lists folders from Granola, sorted alphabetically, with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -158,9 +162,13 @@ Lists folders from Granola, sorted alphabetically, with pagination.
 | `hasMore` | boolean | Whether more folders are available |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola List Audit Events
 
 Lists workspace audit events from Granola, with optional action and date filters. Events are returned in collection order and retained for one year.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -192,9 +200,13 @@ Lists workspace audit events from Granola, with optional action and date filters
 | `hasMore` | boolean | Whether more audit events are available. A page can hold fewer than pageSize events and still not be the last one. |
 | `cursor` | string | Pagination cursor for the next page |
 
+</ReferenceDetails>
+
 ### Granola Create Webhook Endpoint
 
 Registers an HTTPS URL in Granola to receive note event deliveries. The signing secret is returned only by this operation and cannot be retrieved later.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -222,9 +234,13 @@ Registers an HTTPS URL in Granola to receive note event deliveries. The signing 
 | `createdAt` | string | Creation timestamp |
 | `signingSecret` | string | Secret for verifying delivery signatures \(Standard Webhooks HMAC-SHA256\). Returned only here — store it securely. |
 
+</ReferenceDetails>
+
 ### Granola List Webhook Endpoints
 
 Lists the Granola webhook endpoints the API key can manage. A personal key sees the endpoints it created; a workspace admin sees every endpoint in the workspace. Signing secrets are never included.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +264,13 @@ Lists the Granola webhook endpoints the API key can manage. A personal key sees 
 |   ↳ `enabled` | boolean | Whether deliveries are active |
 |   ↳ `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Granola Update Webhook Endpoint
 
 Updates a Granola webhook endpoint. Each supplied field replaces its current value; omitted fields are left unchanged. Use enabled to pause or resume deliveries.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +299,13 @@ Updates a Granola webhook endpoint. Each supplied field replaces its current val
 | `enabled` | boolean | Whether deliveries are active |
 | `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Granola Delete Webhook Endpoint
 
 Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediately.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -297,11 +321,13 @@ Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediat
 | `id` | string | ID of the deleted webhook endpoint |
 | `deleted` | boolean | Whether the endpoint was deleted |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Granola Events
 

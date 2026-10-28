@@ -1,8 +1,7 @@
 import { NeverBounceIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { NeverBounceResponse } from '@/tools/neverbounce/types'
 
-export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
+export const NeverBounceBlock: BlockConfig = {
   type: 'neverbounce',
   name: 'NeverBounce',
   description: 'Verify email deliverability and check account credits',

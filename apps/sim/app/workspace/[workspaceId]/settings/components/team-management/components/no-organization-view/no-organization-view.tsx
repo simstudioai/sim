@@ -67,6 +67,7 @@ export function NoOrganizationView({
             <div>
               <Label htmlFor='team-name-field'>Team Name</Label>
               <ChipInput
+                disabled={isCreatingOrg}
                 id='team-name-field'
                 value={orgName}
                 onChange={onOrgNameChange}
@@ -88,6 +89,7 @@ export function NoOrganizationView({
                   sim.ai/team/
                 </div>
                 <ChipInput
+                  disabled={isCreatingOrg}
                   id='orgSlug'
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}

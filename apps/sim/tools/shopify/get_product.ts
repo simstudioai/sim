@@ -1,6 +1,6 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyGetProductParams, ShopifyProductResponse } from '@/tools/shopify/types'
 import { PRODUCT_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import { getShopifyHeaders, getShopifyPageSize, getShopifyUrl } from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyProductResponse> = {
@@ -12,12 +12,44 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    variantsFirst: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum variants in this page (default 50, max 100)',
+    },
+    variantsAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor from variants.pageInfo.endCursor for the next page',
+    },
+    imagesFirst: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum images in this page (default 20, max 100)',
+    },
+    imagesAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor from images.pageInfo.endCursor for the next page',
+    },
+
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -30,30 +62,38 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
-      if (!params.productId) {
+      if (!params.productId?.trim()) {
         throw new Error('Product ID is required')
       }
 
       return {
         query: `
-          query getProduct($id: ID!) {
+          query getProduct($id: ID!, $imagesFirst: Int!, $imagesAfter: String, $variantsFirst: Int!, $variantsAfter: String) {
             product(id: $id) {
               id
               title
               handle
+              templateSuffix
+              requiresSellingPlan
+              category {
+                id
+                fullName
+              }
+              seo {
+                title
+                description
+              }
+              onlineStoreUrl
+              options {
+                id
+                name
+                position
+                values
+              }
               descriptionHtml
               vendor
               productType
@@ -61,7 +101,13 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
               status
               createdAt
               updatedAt
-              variants(first: 50) {
+              variants(first: $variantsFirst, after: $variantsAfter) {
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
                 edges {
                   node {
                     id
@@ -69,11 +115,29 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
                     price
                     compareAtPrice
                     sku
+                    barcode
+                    taxable
+                    inventoryPolicy
+                    inventoryItem {
+                      id
+                      sku
+                      tracked
+                    }
+                    selectedOptions {
+                      name
+                      value
+                    }
                     inventoryQuantity
                   }
                 }
               }
-              images(first: 20) {
+              images(first: $imagesFirst, after: $imagesAfter) {
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
                 edges {
                   node {
                     id
@@ -84,9 +148,14 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
               }
             }
           }
+
         `,
         variables: {
-          id: params.productId,
+          imagesFirst: getShopifyPageSize(params.imagesFirst ?? 20, 100),
+          imagesAfter: params.imagesAfter?.trim() || null,
+          variantsFirst: getShopifyPageSize(params.variantsFirst ?? 50, 100),
+          variantsAfter: params.variantsAfter?.trim() || null,
+          id: params.productId.trim(),
         },
       }
     },
@@ -95,10 +164,10 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to get product',
+        error: data.errors?.[0]?.message || 'Failed to get product',
         output: {},
       }
     }

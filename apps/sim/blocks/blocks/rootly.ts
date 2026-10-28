@@ -1,16 +1,14 @@
 import { RootlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RootlyResponse } from '@/tools/rootly/types'
 import { getTrigger } from '@/triggers'
 
-export const RootlyBlock: BlockConfig<RootlyResponse> = {
+export const RootlyBlock: BlockConfig = {
   type: 'rootly',
   name: 'Rootly',
   description: 'Manage incidents, alerts, and on-call with Rootly',
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.',
+  longDescription: 'Create and manage incidents, alerts, services, severities, and retrospectives.',
   docsLink: 'https://docs.sim.ai/integrations/rootly',
   category: 'tools',
   integrationType: IntegrationType.Observability,

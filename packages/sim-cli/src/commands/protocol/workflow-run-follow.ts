@@ -2,12 +2,13 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
+import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { safeOneLine, sanitize } from '../../output/render'
+import { connect } from '../../runtime/called-operations'
 import { executeOperation, runFailureMessage } from '../../runtime/execute'
 import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
@@ -43,16 +44,13 @@ export interface FollowOptions {
   stderr: CommentaryWriter
 }
 
-type WorkflowRunSelection =
-  | { source: 'manual' }
-  | {
-      source: 'manual'
-      entry: { type: 'trigger'; blockId?: string; useMockPayload?: boolean }
-    }
-  | {
-      source: 'manual'
-      entry: { type: 'block'; blockId: string; sourceRunId: string }
-    }
+type WorkflowRunSelection = {
+  source: 'manual'
+  entry?:
+    | { type: 'trigger'; blockId?: string; useMockPayload?: boolean }
+    | { type: 'block'; blockId: string; sourceRunId: string }
+  stopAfterBlockId?: string
+}
 
 /** Projects friendly CLI flags into the API's strict nested run selector. */
 export function resolveWorkflowRunSelection(
@@ -60,8 +58,10 @@ export function resolveWorkflowRunSelection(
 ): WorkflowRunSelection | undefined {
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
   const useMockPayload = flags.mockPayload === true
-  /** A trigger entry only exists on the draft, so these flags imply `--manual`. */
-  const manual = flags.manual === true || trigger !== undefined || useMockPayload
+  const stopAfter = typeof flags.stopAfter === 'string' ? flags.stopAfter : undefined
+  /** A trigger entry and a stop block only exist on the draft, so these flags imply `--manual`. */
+  const manual =
+    flags.manual === true || trigger !== undefined || useMockPayload || stopAfter !== undefined
   const fromBlock = typeof flags.fromBlock === 'string' ? flags.fromBlock : undefined
   const sourceRun = typeof flags.sourceRun === 'string' ? flags.sourceRun : undefined
 
@@ -80,15 +80,20 @@ export function resolveWorkflowRunSelection(
   if (useMockPayload && flags.input !== undefined) {
     throw new SimApiError('--mock-payload cannot be combined with --input', 0)
   }
+  if (stopAfter !== undefined && stopAfter.trim() === '') {
+    throw new SimApiError('--stop-after requires a block ID', 0)
+  }
 
+  const stop = stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}
   if (fromBlock && sourceRun) {
     return {
       source: 'manual',
       entry: { type: 'block', blockId: fromBlock, sourceRunId: sourceRun },
+      ...stop,
     }
   }
   if (!manual) return undefined
-  if (!trigger && !useMockPayload) return { source: 'manual' }
+  if (!trigger && !useMockPayload) return { source: 'manual', ...stop }
   return {
     source: 'manual',
     entry: {
@@ -96,6 +101,7 @@ export function resolveWorkflowRunSelection(
       ...(trigger ? { blockId: trigger } : {}),
       ...(useMockPayload ? { useMockPayload: true } : {}),
     },
+    ...stop,
   }
 }
 
@@ -146,19 +152,33 @@ async function readWorkflowResult(response: Response): Promise<Record<string, un
   throw new SimApiError('Workflow result stream ended without a final result', response.status)
 }
 
+/**
+ * Asks an embedded run for file references without inline bytes unless the caller
+ * passed `--include-file-base64`. The embedding host hands stdout to a model, which
+ * reads a produced file by id; inlined bytes only grew the result it had to skim and
+ * cost the server a storage read and encode per file. Only the synchronous and
+ * `--follow` paths set it: an `--async` run rejects the field outright.
+ */
+function withEmbeddedFileReferences(
+  body: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!embedStore.getStore() || body?.includeFileBase64 !== undefined) return body
+  return { ...body, includeFileBase64: false }
+}
+
 /** Runs synchronously while keeping idle-limited HTTP paths active. */
 async function runWithResultStream(workflowId: string, command: Command): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
-  const { client, profile } = clientFrom(command)
+  const { client, profile } = connect(command, ['executeWorkflow'])
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
   const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
 
   try {
     const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
-    const response = await client.requestRaw(request.path, {
-      method: operation.method,
+    const response = await client.requestRaw('executeWorkflow', {
+      params: request.params,
       query: request.query,
-      body: request.body,
+      body: withEmbeddedFileReferences(request.body),
       headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
     })
     const payload = await readWorkflowResult(response)
@@ -349,15 +369,15 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
   const includeToolCalls = flags.includeToolCalls === true
   const negotiates = includeThinking || includeToolCalls
 
-  const { client, profile } = clientFrom(command)
+  const { client, profile } = connect(command, ['executeWorkflow'])
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
   const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
 
-  const response = await client.requestRaw(request.path, {
-    method: 'POST',
+  const response = await client.requestRaw('executeWorkflow', {
+    params: request.params,
     query: request.query,
     body: {
-      ...(request.body ?? {}),
+      ...withEmbeddedFileReferences(request.body),
       stream: true,
       ...(includeThinking ? { includeThinking: true } : {}),
       ...(includeToolCalls ? { includeToolCalls: true } : {}),
@@ -487,6 +507,10 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option(
       '--source-run <runId>',
       'Prior run whose persisted state supplies upstream outputs (requires --from-block)'
+    )
+    .option(
+      '--stop-after <blockId>',
+      'Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
     )
     .option(
       '--follow',

@@ -35,7 +35,7 @@ function emptyPersonalAndWorkspaceEnv(): {
  *
  * @example
  * ```ts
- * import { environmentUtilsMockFns } from '@sim/testing'
+ * import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
  *
  * environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'k' })
  * ```

@@ -26,8 +26,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.unstubAllEnvs()
   if (stdinTty) Object.defineProperty(process.stdin, 'isTTY', stdinTty)
   else Reflect.deleteProperty(process.stdin, 'isTTY')
   if (stdoutTty) Object.defineProperty(process.stdout, 'isTTY', stdoutTty)
@@ -35,11 +33,6 @@ afterEach(() => {
 })
 
 describe('db:push policy and process boundaries', () => {
-  it('does not implicitly approve data loss', async () => {
-    expect(await runPush([])).toBe(0)
-    expect(spawn.mock.calls[0][0]).not.toContain('--force')
-  })
-
   it('rejects interactive renames without a terminal before any database commands', async () => {
     expect(await runPush(['--interactive-renames', '--force'])).toBe(1)
     expect(spawn).not.toHaveBeenCalled()

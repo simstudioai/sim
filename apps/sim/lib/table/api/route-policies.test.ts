@@ -1,21 +1,13 @@
-import { resetEnvMock } from '@sim/testing'
+import { authMockFns, resetEnvMock } from '@sim/testing'
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+  MockInvalidInternalDelegationBindingError,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockInvalidBindingError, mockBindDelegation, mockGetSession } = vi.hoisted(() => {
-  class MockInvalidBindingError extends Error {}
-  return {
-    MockInvalidBindingError,
-    mockBindDelegation: vi.fn(),
-    mockGetSession: vi.fn(),
-  }
-})
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindDelegation,
-  InvalidInternalDelegationBindingError: MockInvalidBindingError,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 vi.unmock('@/lib/auth/internal')
 
 import {
@@ -26,7 +18,9 @@ import { generateInternalDelegationToken, generateInternalToken } from '@/lib/au
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { v2TableErrorPolicies } from '@/lib/table/api/route-policies'
-import { TableRowTtlDisabledError } from '@/lib/table/errors'
+
+const mockGetSession = authMockFns.mockGetSession
+const mockBindDelegation = authInternalDelegationMockFns.mockBindInternalExecutorDelegation
 
 afterAll(resetEnvMock)
 
@@ -125,7 +119,7 @@ describe('internal Table route authentication', () => {
       subjectUserId: 'user-1',
       workflowId: 'workflow-1',
     })
-    mockBindDelegation.mockRejectedValue(new MockInvalidBindingError())
+    mockBindDelegation.mockRejectedValue(new MockInvalidInternalDelegationBindingError())
 
     await expect(
       internalTableSessionOrExecutorAuth.authenticate(
@@ -151,24 +145,4 @@ describe('internal Table route authentication', () => {
       error: { code: 'BAD_REQUEST', message: 'Invalid workflow ID' },
     })
   })
-
-  it.each([false, true])(
-    'preserves the TTL-disabled reason code (wrapped: %s)',
-    async (wrapped) => {
-      const error = new TableRowTtlDisabledError()
-      error.message = 'TTL support is turned off'
-      const response = v2TableErrorPolicies.default.render(
-        wrapped ? new Error('operation failed', { cause: error }) : error
-      )
-
-      expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toEqual({
-        error: {
-          code: 'BAD_REQUEST',
-          message: 'TTL support is turned off',
-          details: { code: 'TABLE_ROW_TTL_DISABLED' },
-        },
-      })
-    }
-  )
 })

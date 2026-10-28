@@ -1,0 +1,37 @@
+---
+title: Lucid
+description: Find Lucidchart diagrams and Lucidspark boards with your account
+---
+
+Lucid Search finds Lucidchart diagrams and Lucidspark boards through the official read-only MCP server. It uses **Member accounts**, with no developer app, API key, or additional Sim environment variables required.
+
+## Connect
+
+An admin adds **Lucid → Member accounts** in **Settings → Sources**. Each person then connects Lucid in **Integrations** and authorizes their account.
+
+The server supports Free, Individual, Team, and Enterprise plans, excluding FedRAMP accounts. Team/Enterprise admins may need to enable MCP. Documents owned outside the Lucid account boundary are excluded even when shared with you. [Lucid access rules](https://help.lucid.co/hc/en-us/articles/53780064823188-For-admins-Lucid-MCP-server-security-and-authorization).
+
+## Find documents or text
+
+Start with a short title query such as `deployment architecture`. Title search requires terms even with date filters. Results rank by relevance and need not match the title literally. Native kinds `lucidchart` and `lucidspark` narrow the product; omit the kind to search both.
+
+For text inside a known document, set native `project` to its UUID or Lucid URL and search a literal phrase such as `API Gateway`. Matching is case-insensitive across shape labels and sticky notes, excluding notes, tags, links, and comments.
+
+Title queries allow 400 characters; document-text queries allow 200. Boolean and field operators are unsupported. Document search has no continuation and verifies at most ten candidates. Dates use modification time; sorting those candidates does not establish the globally newest or oldest document.
+
+## Browse folders
+
+Ask Sim to browse Lucid folders without search terms. It can list the root or a selected child folder. Each request returns one page of direct children; folder entries are navigation references, not document content. Follow continuation for the same folder or select a child folder.
+
+Browsing uses the same connection. It does not recursively scan the account or follow shortcuts. Date filters and sorting apply to the current page's document metadata, not all folders.
+
+## Read diagram content
+
+Reads preserve structured pages, nodes, connections, and properties, with source links. Large content can be read through successive windows of the same version. Incomplete, changed, or oversized reads are rejected rather than presented as complete graphs.
+
+A complete read is limited to eight page regions and 512 KiB. Images and external links remain references. This Sim adapter does not include rendered diagrams, OCR, comments, or Lucidscale, even when the provider offers additional read-only tools.
+
+## Related docs
+
+- [Lucid read-only MCP server](https://help.lucid.co/hc/en-us/articles/51290793390740-View-and-search-Lucid-content-with-AI-tools-using-the-Lucid-read-only-MCP-server)
+- [Connect your account](/search/connect-your-account)

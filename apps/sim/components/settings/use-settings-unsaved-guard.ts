@@ -1,73 +1,43 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface UseSettingsUnsavedGuardParams {
   isDirty: boolean
   navigationBlocked?: boolean
+  onDiscard?: () => void
 }
 
 interface SettingsUnsavedGuard {
-  showUnsavedModal: boolean
-  setShowUnsavedModal: (open: boolean) => void
   guardBack: (onLeave: () => void) => void
-  confirmDiscard: () => void
 }
 
-/**
- * Connects section-local dirty state to shared settings navigation guards.
- */
+/** Registers one editor with the shared settings navigation guard. */
 export function useSettingsUnsavedGuard({
   isDirty,
   navigationBlocked = false,
+  onDiscard,
 }: UseSettingsUnsavedGuardParams): SettingsUnsavedGuard {
-  const setDirty = useSettingsDirtyStore((state) => state.setDirty)
-  const setNavigationBlocked = useSettingsDirtyStore((state) => state.setNavigationBlocked)
-  const reset = useSettingsDirtyStore((state) => state.reset)
-  const isDirtyRef = useRef(isDirty)
-  const navigationBlockedRef = useRef(navigationBlocked)
-  const pendingLeaveRef = useRef<(() => void) | null>(null)
-  const [showUnsavedModal, setShowUnsavedModal] = useState(false)
+  const id = useId()
+  const discardRef = useRef(onDiscard)
+  const setGuard = useSettingsDirtyStore((state) => state.setGuard)
+  const removeGuard = useSettingsDirtyStore((state) => state.removeGuard)
+  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
+  const hasDiscard = Boolean(onDiscard)
+  const discardDraft = useCallback(() => discardRef.current?.(), [])
+  const guardBack = useCallback(
+    (onLeave: () => void) => {
+      requestLeave(onLeave)
+    },
+    [requestLeave]
+  )
 
   useEffect(() => {
-    isDirtyRef.current = isDirty
-    navigationBlockedRef.current = navigationBlocked
-    setDirty(isDirty)
-    setNavigationBlocked(navigationBlocked)
-    if (navigationBlocked) {
-      pendingLeaveRef.current = null
-      setShowUnsavedModal(false)
-      return
-    }
-    if (!isDirty) {
-      pendingLeaveRef.current = null
-      setShowUnsavedModal(false)
-    }
-  }, [isDirty, navigationBlocked, setDirty, setNavigationBlocked])
-
+    discardRef.current = onDiscard
+  }, [onDiscard])
   useEffect(() => {
-    return () => reset()
-  }, [reset])
+    setGuard(id, { isDirty, navigationBlocked, onDiscard: hasDiscard ? discardDraft : undefined })
+  }, [id, isDirty, navigationBlocked, hasDiscard, setGuard, discardDraft])
+  useEffect(() => () => removeGuard(id), [id, removeGuard])
 
-  const guardBack = useCallback((onLeave: () => void) => {
-    if (navigationBlockedRef.current || useSettingsDirtyStore.getState().navigationBlocked) {
-      return
-    }
-    if (isDirtyRef.current) {
-      pendingLeaveRef.current = onLeave
-      setShowUnsavedModal(true)
-      return
-    }
-    onLeave()
-  }, [])
-
-  const confirmDiscard = useCallback(() => {
-    if (navigationBlockedRef.current || useSettingsDirtyStore.getState().navigationBlocked) {
-      return
-    }
-    setShowUnsavedModal(false)
-    pendingLeaveRef.current?.()
-    pendingLeaveRef.current = null
-  }, [])
-
-  return { showUnsavedModal, setShowUnsavedModal, guardBack, confirmDiscard }
+  return { guardBack }
 }

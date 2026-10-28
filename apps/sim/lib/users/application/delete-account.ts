@@ -55,7 +55,7 @@ export const deleteAccountUseCase: OperationUseCase<
       )
     }
 
-    const plan = await deleteUserAccount(principal.userId)
+    const plan = await deleteUserAccount(principal.userId, { recordIdentity: true })
 
     /**
      * The compliance record deliberately carries no actor identity: the person it

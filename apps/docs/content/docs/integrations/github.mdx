@@ -1,31 +1,29 @@
 ---
 title: GitHub
 description: Interact with GitHub or trigger workflows from GitHub events
+integration:
+  type: "github_v2"
+  color: "#181C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="github_v2"
-  color="#181C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [GitHub](https://github.com/) hosts repositories and their pull requests, issues, and commit history. Use this integration to read repository content, automate code-review and issue workflows, and respond to GitHub events. Select an action below for its required repository identifiers, permissions, and inputs.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Read and update GitHub repositories, pull requests, issues, and related records. Use trigger mode to start workflows from GitHub events.
-
-
 
 ## Actions
 
 ### GitHub PR Reader
 
 Fetch PR details including diff and files changed
+
+<ReferenceDetails>
 
 #### Input
 
@@ -95,9 +93,13 @@ Fetch PR details including diff and files changed
 |   ↳ `patch` | string | Diff patch |
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
 
+</ReferenceDetails>
+
 ### GitHub PR Commenter
 
 Create comments on GitHub PRs
+
+<ReferenceDetails>
 
 #### Input
 
@@ -125,16 +127,20 @@ Create comments on GitHub PRs
 | `id` | number | Comment ID |
 | `body` | string | Comment body |
 | `html_url` | string | GitHub web URL |
-| `path` | string | File path \(for file comments\) |
-| `line` | number | Line number \(for file comments\) |
-| `side` | string | Side \(LEFT/RIGHT for diff comments\) |
-| `commit_id` | string | Commit SHA |
+| `path` | string | File path \(if file comment\) |
+| `line` | number | Line number |
+| `side` | string | Diff side |
+| `commit_id` | string | Commit ID |
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Repository Info
 
-Retrieve comprehensive GitHub repository metadata including stars, forks, issues, and primary language. Supports both public and private repositories with optional authentication.
+Read GitHub repository metadata, including stars, forks, issues, and primary language. Requires a GitHub token with access to the repository.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -183,9 +189,13 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 |   ↳ `name` | string | License name |
 |   ↳ `spdx_id` | string | SPDX identifier |
 
+</ReferenceDetails>
+
 ### GitHub Latest Commit
 
 Retrieve the latest commit from a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -241,9 +251,13 @@ Retrieve the latest commit from a GitHub repository
 | `sha` | string | Commit SHA |
 | `html_url` | string | GitHub web URL |
 
+</ReferenceDetails>
+
 ### GitHub Issue Comment Creator
 
 Create a comment on a GitHub issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -275,9 +289,13 @@ Create a comment on a GitHub issue
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Issue Comments Lister
 
 List all comments on a GitHub issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -313,9 +331,13 @@ List all comments on a GitHub issue
 |   ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of comments returned |
 
+</ReferenceDetails>
+
 ### GitHub Comment Updater
 
 Update an existing comment on a GitHub issue or pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -347,9 +369,13 @@ Update an existing comment on a GitHub issue or pull request
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Comment Deleter
 
 Delete a comment on a GitHub issue or pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -367,9 +393,13 @@ Delete a comment on a GitHub issue or pull request
 | `deleted` | boolean | Whether deletion was successful |
 | `comment_id` | number | Deleted comment ID |
 
+</ReferenceDetails>
+
 ### GitHub PR Review Comments Lister
 
 List all review comments on a GitHub pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -411,9 +441,13 @@ List all review comments on a GitHub pull request
 |   ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of comments returned |
 
+</ReferenceDetails>
+
 ### GitHub Create Pull Request
 
 Create a new pull request in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -447,9 +481,13 @@ Create a new pull request in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Update Pull Request
 
 Update an existing pull request in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -482,9 +520,13 @@ Update an existing pull request in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Merge Pull Request
 
 Merge a pull request in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -506,9 +548,13 @@ Merge a pull request in a GitHub repository
 | `merged` | boolean | Whether merge was successful |
 | `message` | string | Response message |
 
+</ReferenceDetails>
+
 ### GitHub List Pull Requests
 
 List pull requests in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -560,9 +606,13 @@ List pull requests in a GitHub repository
 |   ↳ `merged_at` | string | Merge timestamp |
 | `count` | number | Number of PRs returned |
 
+</ReferenceDetails>
+
 ### GitHub Get PR Files
 
 Get the list of files changed in a pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -593,9 +643,13 @@ Get the list of files changed in a pull request
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
 | `count` | number | Total number of files |
 
+</ReferenceDetails>
+
 ### GitHub Close Pull Request
 
 Close a pull request in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -625,9 +679,13 @@ Close a pull request in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Request Reviewers
 
 Request reviewers for a pull request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -651,9 +709,13 @@ Request reviewers for a pull request
 | `requested_reviewers` | array | Array of requested reviewer objects |
 | `requested_teams` | array | Array of requested team objects |
 
+</ReferenceDetails>
+
 ### GitHub Create PR Review
 
 Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -686,9 +748,13 @@ Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A 
 | `commit_id` | string | SHA of the reviewed commit |
 | `submitted_at` | string | Review submission timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Get File Content
 
 Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -717,9 +783,13 @@ Get the content of a file from a GitHub repository. Supports files up to 1MB. Co
 | `_links` | json | Related links |
 | `file` | file | Downloaded file stored in execution files |
 
+</ReferenceDetails>
+
 ### GitHub Create File
 
 Create a new file in a GitHub repository. The file content will be automatically Base64 encoded. Supports files up to 1MB.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -740,9 +810,13 @@ Create a new file in a GitHub repository. The file content will be automatically
 | `content` | json | Created file content info |
 | `commit` | json | Commit information |
 
+</ReferenceDetails>
+
 ### GitHub Update File
 
 Update an existing file in a GitHub repository. Requires the file SHA. Content will be automatically Base64 encoded. Supports files up to 1MB.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -764,9 +838,13 @@ Update an existing file in a GitHub repository. Requires the file SHA. Content w
 | `content` | json | Updated file content info |
 | `commit` | json | Commit information |
 
+</ReferenceDetails>
+
 ### GitHub Delete File
 
 Delete a file from a GitHub repository. Requires the file SHA. This operation cannot be undone through the API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -787,9 +865,13 @@ Delete a file from a GitHub repository. Requires the file SHA. This operation ca
 | `content` | json | File content info \(null for delete\) |
 | `commit` | json | Commit information |
 
+</ReferenceDetails>
+
 ### GitHub Get Repository Tree
 
 Get the contents of a directory in a GitHub repository. Returns a list of files and subdirectories. Use empty path or omit to get root directory contents.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -818,9 +900,13 @@ Get the contents of a directory in a GitHub repository. Returns a list of files 
 |   ↳ `_links` | json | Related links |
 | `count` | number | Total number of items |
 
+</ReferenceDetails>
+
 ### GitHub Get README
 
 Get the preferred README for a GitHub repository, with its content decoded to plain text.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -844,9 +930,13 @@ Get the preferred README for a GitHub repository, with its content decoded to pl
 | `download_url` | string | Raw download URL for the README |
 | `content` | string | Decoded README text content |
 
+</ReferenceDetails>
+
 ### GitHub List Tags
 
 List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -872,9 +962,13 @@ List tags for a GitHub repository. Returns tag names with their commit SHA and d
 |     ↳ `url` | string | Commit API URL |
 | `count` | number | Number of tags returned |
 
+</ReferenceDetails>
+
 ### GitHub List Branches
 
 List all branches in a GitHub repository. Optionally filter by protected status and control pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -899,9 +993,13 @@ List all branches in a GitHub repository. Optionally filter by protected status 
 |   ↳ `protected` | boolean | Whether branch is protected |
 | `count` | number | Number of branches returned |
 
+</ReferenceDetails>
+
 ### GitHub Get Branch
 
 Get detailed information about a specific branch in a GitHub repository, including commit details and protection status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -916,17 +1014,21 @@ Get detailed information about a specific branch in a GitHub repository, includi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `name` | string | Branch name |
 | `commit` | object | Commit reference info |
 |   ↳ `sha` | string | Commit SHA |
 |   ↳ `url` | string | Commit API URL |
+| `name` | string | Branch name |
 | `protected` | boolean | Whether branch is protected |
 | `protection` | json | Protection settings object |
 | `protection_url` | string | URL to protection settings |
 
+</ReferenceDetails>
+
 ### GitHub Create Branch
 
 Create a new branch in a GitHub repository by creating a git reference pointing to a specific commit SHA.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -947,9 +1049,13 @@ Create a new branch in a GitHub repository by creating a git reference pointing 
 | `url` | string | API URL for the reference |
 | `object` | json | Git object with type and sha |
 
+</ReferenceDetails>
+
 ### GitHub Delete Branch
 
 Delete a branch from a GitHub repository by removing its git reference. Protected branches cannot be deleted.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -967,9 +1073,13 @@ Delete a branch from a GitHub repository by removing its git reference. Protecte
 | `deleted` | boolean | Whether the branch was deleted |
 | `branch` | string | Name of the deleted branch |
 
+</ReferenceDetails>
+
 ### GitHub Get Branch Protection
 
 Get the branch protection rules for a specific branch, including status checks, review requirements, and restrictions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -996,9 +1106,13 @@ Get the branch protection rules for a specific branch, including status checks, 
 | `required_conversation_resolution` | json | Conversation resolution requirement |
 | `required_signatures` | json | Signature requirements |
 
+</ReferenceDetails>
+
 ### GitHub Update Branch Protection
 
 Update branch protection rules for a specific branch, including status checks, review requirements, admin enforcement, and push restrictions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1029,9 +1143,13 @@ Update branch protection rules for a specific branch, including status checks, r
 | `required_conversation_resolution` | json | Conversation resolution requirement |
 | `required_signatures` | json | Signature requirements |
 
+</ReferenceDetails>
+
 ### GitHub Create Issue
 
 Create a new issue in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1097,9 +1215,13 @@ Create a new issue in a GitHub repository
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Update Issue
 
 Update an existing issue in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1166,9 +1288,13 @@ Update an existing issue in a GitHub repository
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
 
+</ReferenceDetails>
+
 ### GitHub List Issues
 
 List issues in a GitHub repository. Note: This includes pull requests as PRs are considered issues in GitHub
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1200,9 +1326,13 @@ List issues in a GitHub repository. Note: This includes pull requests as PRs are
 |   ↳ `default` | boolean | Whether this is a default label |
 | `count` | number | Number of issues returned |
 
+</ReferenceDetails>
+
 ### GitHub Get Issue
 
 Get detailed information about a specific issue in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1263,16 +1393,20 @@ Get detailed information about a specific issue in a GitHub repository
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
-| `closed_by` | object | User who closed the issue |
+| `closed_by` | object | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
 
+</ReferenceDetails>
+
 ### GitHub Close Issue
 
 Close an issue in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1303,7 +1437,7 @@ Close an issue in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 | `closed_at` | string | Close timestamp |
-| `state_reason` | string | State reason \(completed/not_planned\) |
+| `state_reason` | string | Reason for closing |
 | `labels` | array | Array of label objects |
 |   ↳ `id` | number | Label ID |
 |   ↳ `node_id` | string | GraphQL node ID |
@@ -1319,9 +1453,13 @@ Close an issue in a GitHub repository
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
 
+</ReferenceDetails>
+
 ### GitHub Add Labels
 
 Add labels to an issue in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1344,9 +1482,13 @@ Add labels to an issue in a GitHub repository
 |   ↳ `description` | string | Label description |
 | `count` | number | Number of labels |
 
+</ReferenceDetails>
+
 ### GitHub Remove Label
 
 Remove a label from an issue in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1369,9 +1511,13 @@ Remove a label from an issue in a GitHub repository
 |   ↳ `description` | string | Label description |
 | `count` | number | Number of remaining labels |
 
+</ReferenceDetails>
+
 ### GitHub Add Assignees
 
 Add assignees to an issue in a GitHub repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1399,9 +1545,13 @@ Add assignees to an issue in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Create Release
 
 Create a new release for a GitHub repository. Specify tag name, target commit, title, description, and whether it should be a draft or prerelease.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1459,9 +1609,13 @@ Create a new release for a GitHub repository. Specify tag name, target commit, t
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Update Release
 
 Update an existing GitHub release. Modify tag name, target commit, title, description, draft status, or prerelease status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1520,9 +1674,13 @@ Update an existing GitHub release. Modify tag name, target commit, title, descri
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub List Releases
 
 List all releases for a GitHub repository. Returns release information including tags, names, and download URLs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1578,9 +1736,13 @@ List all releases for a GitHub repository. Returns release information including
 |     ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of releases returned |
 
+</ReferenceDetails>
+
 ### GitHub Get Release
 
 Get detailed information about a specific GitHub release by ID. Returns release metadata including assets and download URLs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1633,9 +1795,13 @@ Get detailed information about a specific GitHub release by ID. Returns release 
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Get Latest Release
 
 Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1687,9 +1853,13 @@ Get the latest published, non-draft, non-prerelease release for a GitHub reposit
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Delete Release
 
 Delete a GitHub release by ID. This permanently removes the release but does not delete the associated Git tag.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1707,9 +1877,13 @@ Delete a GitHub release by ID. This permanently removes the release but does not
 | `deleted` | boolean | Whether the release was deleted |
 | `release_id` | number | ID of the deleted release |
 
+</ReferenceDetails>
+
 ### GitHub List Workflows
 
 List all workflows in a GitHub repository. Returns workflow details including ID, name, path, state, and badge URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1739,9 +1913,13 @@ List all workflows in a GitHub repository. Returns workflow details including ID
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `deleted_at` | string | Deletion timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Get Workflow
 
 Get details of a specific GitHub Actions workflow by ID or filename. Returns workflow information including name, path, state, and badge URL.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1768,9 +1946,13 @@ Get details of a specific GitHub Actions workflow by ID or filename. Returns wor
 | `updated_at` | string | Last update timestamp |
 | `deleted_at` | string | Deletion timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Trigger Workflow
 
 Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow must have a workflow_dispatch trigger configured. Returns 204 No Content on success.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1791,9 +1973,13 @@ Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow mu
 | `workflow_id` | string | Workflow ID or filename |
 | `ref` | string | Git reference used |
 
+</ReferenceDetails>
+
 ### GitHub List Workflow Runs
 
 List workflow runs for a repository, or for a single workflow when a workflow ID or filename is given. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1820,9 +2006,13 @@ List workflow runs for a repository, or for a single workflow when a workflow ID
 |   ↳ `number` | number | Pull request number |
 |   ↳ `url` | string | API URL |
 
+</ReferenceDetails>
+
 ### GitHub Get Workflow Run
 
 Get detailed information about a specific workflow run by ID. Returns status, conclusion, timing, and links to the run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1874,9 +2064,13 @@ Get detailed information about a specific workflow run by ID. Returns status, co
 |   ↳ `sha` | string | Commit SHA of referenced workflow |
 |   ↳ `ref` | string | Git ref of referenced workflow |
 
+</ReferenceDetails>
+
 ### GitHub Cancel Workflow Run
 
 Cancel a workflow run. Returns 202 Accepted if cancellation is initiated, or 409 Conflict if the run cannot be cancelled (already completed).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1894,9 +2088,13 @@ Cancel a workflow run. Returns 202 Accepted if cancellation is initiated, or 409
 | `cancelled` | boolean | Whether cancellation was initiated |
 | `run_id` | number | Workflow run ID |
 
+</ReferenceDetails>
+
 ### GitHub Rerun Workflow
 
 Rerun a workflow run. Optionally enable debug logging for the rerun. Returns 201 Created on success.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1915,9 +2113,13 @@ Rerun a workflow run. Optionally enable debug logging for the rerun. Returns 201
 | `rerun_requested` | boolean | Whether rerun was requested |
 | `run_id` | number | Workflow run ID |
 
+</ReferenceDetails>
+
 ### GitHub List Projects
 
 List GitHub Projects V2 for an organization or user. Returns up to 20 projects with their details including ID, title, number, URL, and status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1941,9 +2143,13 @@ List GitHub Projects V2 for an organization or user. Returns up to 20 projects w
 |   ↳ `shortDescription` | string | Short description |
 | `totalCount` | number | Total number of projects |
 
+</ReferenceDetails>
+
 ### GitHub Get Project
 
 Get detailed information about a specific GitHub Project V2 by its number. Returns project details including ID, title, description, URL, and status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1969,15 +2175,19 @@ Get detailed information about a specific GitHub Project V2 by its number. Retur
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Create Project
 
 Create a new GitHub Project V2. Requires the owner Node ID (not login name). Returns the created project with ID, title, and URL.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `owner_id` | string | Yes | Owner Node ID \(format: PVT_... or MDQ6...\). Use GitHub GraphQL API to get this ID from organization or user login. |
+| `owner_id` | string | Yes | Node ID of the owning user or organization, not a project ID or login name. Retrieve the owner id through the GitHub GraphQL API. |
 | `title` | string | Yes | Project title |
 | `apiKey` | string | Yes | GitHub Personal Access Token with project write permissions |
 
@@ -1993,9 +2203,13 @@ Create a new GitHub Project V2. Requires the owner Node ID (not login name). Ret
 | `public` | boolean | Whether project is public |
 | `shortDescription` | string | Short description |
 
+</ReferenceDetails>
+
 ### GitHub Update Project
 
 Update an existing GitHub Project V2. Can update title, description, visibility (public), or status (closed). Requires the project Node ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2020,9 +2234,13 @@ Update an existing GitHub Project V2. Can update title, description, visibility 
 | `public` | boolean | Whether project is public |
 | `shortDescription` | string | Short description |
 
+</ReferenceDetails>
+
 ### GitHub Delete Project
 
 Delete a GitHub Project V2. This action is permanent and cannot be undone. Requires the project Node ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2040,9 +2258,13 @@ Delete a GitHub Project V2. This action is permanent and cannot be undone. Requi
 | `number` | number | Deleted project number |
 | `url` | string | Deleted project URL |
 
+</ReferenceDetails>
+
 ### GitHub Search Code
 
 Search for code across GitHub repositories. Use qualifiers like repo:owner/name, language:js, path:src, extension:py
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2097,9 +2319,13 @@ Search for code across GitHub repositories. Use qualifiers like repo:owner/name,
 |       ↳ `text` | string | Matched text |
 |       ↳ `indices` | array | Start and end indices |
 
+</ReferenceDetails>
+
 ### GitHub Search Commits
 
 Search for commits across GitHub. Use qualifiers like repo:owner/name, author:user, committer:user, author-date:&gt;2023-01-01
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2180,9 +2406,13 @@ Search for commits across GitHub. Use qualifiers like repo:owner/name, author:us
 |     ↳ `url` | string | Parent API URL |
 |     ↳ `html_url` | string | Parent web URL |
 
+</ReferenceDetails>
+
 ### GitHub Search Issues
 
 Search for issues and pull requests across GitHub. Use qualifiers like repo:owner/name, is:issue, is:pr, state:open, label:bug, author:user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2268,9 +2498,13 @@ Search for issues and pull requests across GitHub. Use qualifiers like repo:owne
 |     ↳ `diff_url` | string | Diff URL |
 |     ↳ `patch_url` | string | Patch URL |
 
+</ReferenceDetails>
+
 ### GitHub Search Repositories
 
 Search for repositories across GitHub. Use qualifiers like language:python, stars:&gt;1000, topic:react, user:owner, org:name
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2328,9 +2562,13 @@ Search for repositories across GitHub. Use qualifiers like language:python, star
 |     ↳ `type` | string | User or Organization |
 |     ↳ `site_admin` | boolean | GitHub staff indicator |
 
+</ReferenceDetails>
+
 ### GitHub Search Users
 
 Search for users and organizations on GitHub. Use qualifiers like type:user, type:org, followers:&gt;1000, repos:&gt;10, location:city
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2367,9 +2605,13 @@ Search for users and organizations on GitHub. Use qualifiers like type:user, typ
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `score` | number | Search relevance score |
 
+</ReferenceDetails>
+
 ### GitHub List Commits
 
 List commits in a repository with optional filtering by SHA, path, author, committer, or date range
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2441,9 +2683,13 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 |     ↳ `html_url` | string | Parent web URL |
 | `count` | number | Number of commits returned |
 
+</ReferenceDetails>
+
 ### GitHub Get Commit
 
 Get detailed information about a specific commit including files changed and stats
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2522,9 +2768,13 @@ Get detailed information about a specific commit including files changed and sta
 |   ↳ `url` | string | Parent API URL |
 |   ↳ `html_url` | string | Parent web URL |
 
+</ReferenceDetails>
+
 ### GitHub Compare Commits
 
 Compare two commits or branches to see the diff, commits between them, and changed files
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2649,9 +2899,13 @@ Compare two commits or branches to see the diff, commits between them, and chang
 |   ↳ `patch` | string | Diff patch |
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
 
+</ReferenceDetails>
+
 ### GitHub Create Gist
 
 Create a new gist with one or more files
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2692,9 +2946,13 @@ Create a new gist with one or more files
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 
+</ReferenceDetails>
+
 ### GitHub Get Gist
 
 Get a gist by ID including its file contents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2708,13 +2966,6 @@ Get a gist by ID including its file contents
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `files` | object | Files in the gist \(keyed by filename\) |
-|   ↳ `filename` | string | File name |
-|   ↳ `type` | string | MIME type |
-|   ↳ `language` | string | Programming language |
-|   ↳ `raw_url` | string | Raw file URL |
-|   ↳ `size` | number | File size in bytes |
-|   ↳ `truncated` | boolean | Whether content is truncated |
-|   ↳ `content` | string | File content |
 | `owner` | object | Gist owner |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -2740,9 +2991,13 @@ Get a gist by ID including its file contents
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### GitHub List Gists
 
 List gists for a user or the authenticated user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2760,13 +3015,6 @@ List gists for a user or the authenticated user
 | --------- | ---- | ----------- |
 | `items` | array | Array of gist objects from GitHub API |
 |   ↳ `files` | object | Files in the gist \(keyed by filename\) |
-|     ↳ `filename` | string | File name |
-|     ↳ `type` | string | MIME type |
-|     ↳ `language` | string | Programming language |
-|     ↳ `raw_url` | string | Raw file URL |
-|     ↳ `size` | number | File size in bytes |
-|     ↳ `truncated` | boolean | Whether content is truncated |
-|     ↳ `content` | string | File content |
 |   ↳ `owner` | object | Gist owner |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
@@ -2793,9 +3041,13 @@ List gists for a user or the authenticated user
 |   ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of gists returned |
 
+</ReferenceDetails>
+
 ### GitHub Update Gist
 
 Update a gist description or files. To delete a file, set its value to null in files object
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2836,9 +3088,13 @@ Update a gist description or files. To delete a file, set its value to null in f
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 
+</ReferenceDetails>
+
 ### GitHub Delete Gist
 
 Delete a gist by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2854,9 +3110,13 @@ Delete a gist by ID
 | `deleted` | boolean | Whether deletion succeeded |
 | `gist_id` | string | The deleted gist ID |
 
+</ReferenceDetails>
+
 ### GitHub Fork Gist
 
 Fork a gist to create your own copy
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2877,9 +3137,13 @@ Fork a gist to create your own copy
 | `owner` | object | Owner info |
 | `files` | object | Files |
 
+</ReferenceDetails>
+
 ### GitHub Star Gist
 
 Star a gist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2895,9 +3159,13 @@ Star a gist
 | `starred` | boolean | Whether starring succeeded |
 | `gist_id` | string | The gist ID |
 
+</ReferenceDetails>
+
 ### GitHub Unstar Gist
 
 Unstar a gist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2913,9 +3181,13 @@ Unstar a gist
 | `unstarred` | boolean | Whether unstarring succeeded |
 | `gist_id` | string | The gist ID |
 
+</ReferenceDetails>
+
 ### GitHub Fork Repository
 
 Fork a repository to your account or an organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2965,9 +3237,13 @@ Fork a repository to your account or an organization
 |   ↳ `full_name` | string | Full name |
 |   ↳ `html_url` | string | Web URL |
 
+</ReferenceDetails>
+
 ### GitHub List Forks
 
 List forks of a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3018,9 +3294,13 @@ List forks of a repository
 |     ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of forks returned |
 
+</ReferenceDetails>
+
 ### GitHub Create Milestone
 
 Create a milestone in a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3063,9 +3343,13 @@ Create a milestone in a repository
 | `updated_at` | string | Last update timestamp |
 | `closed_at` | string | Close timestamp |
 
+</ReferenceDetails>
+
 ### GitHub Get Milestone
 
 Get a specific milestone by number
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3105,9 +3389,13 @@ Get a specific milestone by number
 | `updated_at` | string | Last update timestamp |
 | `closed_at` | string | Close timestamp |
 
+</ReferenceDetails>
+
 ### GitHub List Milestones
 
 List milestones in a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3153,9 +3441,13 @@ List milestones in a repository
 |   ↳ `closed_at` | string | Close timestamp |
 | `count` | number | Number of milestones returned |
 
+</ReferenceDetails>
+
 ### GitHub Update Milestone
 
 Update a milestone in a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3199,9 +3491,13 @@ Update a milestone in a repository
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 
+</ReferenceDetails>
+
 ### GitHub Delete Milestone
 
 Delete a milestone from a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3219,9 +3515,13 @@ Delete a milestone from a repository
 | `deleted` | boolean | Whether deletion succeeded |
 | `milestone_number` | number | The deleted milestone number |
 
+</ReferenceDetails>
+
 ### GitHub Create Issue Reaction
 
 Add a reaction to an issue
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3247,11 +3547,15 @@ Add a reaction to an issue
 |   ↳ `avatar_url` | string | Avatar image URL |
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
+
+</ReferenceDetails>
 
 ### GitHub Delete Issue Reaction
 
 Remove a reaction from an issue
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -3269,9 +3573,13 @@ Remove a reaction from an issue
 | `deleted` | boolean | Whether deletion succeeded |
 | `reaction_id` | number | The deleted reaction ID |
 
+</ReferenceDetails>
+
 ### GitHub Create Comment Reaction
 
 Add a reaction to an issue comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3298,9 +3606,13 @@ Add a reaction to an issue comment
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
 
+</ReferenceDetails>
+
 ### GitHub Delete Comment Reaction
 
 Remove a reaction from an issue comment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3319,9 +3631,13 @@ Remove a reaction from an issue comment
 | `deleted` | boolean | Whether deletion succeeded |
 | `reaction_id` | number | The deleted reaction ID |
 
+</ReferenceDetails>
+
 ### GitHub Star Repository
 
 Star a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3339,9 +3655,13 @@ Star a repository
 | `owner` | string | Repository owner |
 | `repo` | string | Repository name |
 
+</ReferenceDetails>
+
 ### GitHub Unstar Repository
 
 Remove star from a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3359,9 +3679,13 @@ Remove star from a repository
 | `owner` | string | Repository owner |
 | `repo` | string | Repository name |
 
+</ReferenceDetails>
+
 ### GitHub Check Star
 
 Check if you have starred a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3379,9 +3703,13 @@ Check if you have starred a repository
 | `owner` | string | Repository owner |
 | `repo` | string | Repository name |
 
+</ReferenceDetails>
+
 ### GitHub List Stargazers
 
 List users who have starred a repository
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3414,9 +3742,13 @@ List users who have starred a repository
 |   ↳ `repos_url` | string | Repos API URL |
 | `count` | number | Number of stargazers returned |
 
+</ReferenceDetails>
+
 ### GitHub List Review Threads
 
 List one page of a pull request's review threads with their comments, plus the newest submitted review.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -3454,15 +3786,19 @@ List one page of a pull request's review threads with their comments, plus the n
 |   ↳ `authorLogin` | string | Reviewer login |
 |   ↳ `authorType` | string | Reviewer GraphQL type \(User, Bot\) |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### GitHub Actions Workflow Run
 
 Trigger workflow when a GitHub Actions workflow run is requested, in progress, or completed
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3478,7 +3814,7 @@ Trigger workflow when a GitHub Actions workflow run is requested, in progress, o
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., workflow_run\) |
 | `action` | string | Action performed \(requested, in_progress, completed\) |
-| `workflow_run` | object | workflow_run output from the tool |
+| `workflow_run` | object |  |
 |   ↳ `id` | number | Workflow run ID |
 |   ↳ `node_id` | string | Workflow run node ID |
 |   ↳ `name` | string | Workflow name |
@@ -3499,46 +3835,46 @@ Trigger workflow when a GitHub Actions workflow run is requested, in progress, o
 |   ↳ `check_suite_id` | number | Associated check suite ID |
 |   ↳ `check_suite_node_id` | string | Associated check suite node ID |
 |   ↳ `url` | string | Workflow run API URL |
-|   ↳ `actor` | object | actor output from the tool |
+|   ↳ `actor` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
 |     ↳ `avatar_url` | string | Avatar URL |
 |     ↳ `html_url` | string | Profile URL |
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
-|   ↳ `triggering_actor` | object | triggering_actor output from the tool |
+|   ↳ `triggering_actor` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
 |     ↳ `avatar_url` | string | Avatar URL |
 |     ↳ `html_url` | string | Profile URL |
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
-|   ↳ `repository` | object | repository output from the tool |
+|   ↳ `repository` | object |  |
 |     ↳ `id` | number | Repository ID |
 |     ↳ `node_id` | string | Repository node ID |
 |     ↳ `name` | string | Repository name |
 |     ↳ `full_name` | string | Repository full name |
 |     ↳ `private` | boolean | Whether repository is private |
-|   ↳ `head_repository` | object | head_repository output from the tool |
+|   ↳ `head_repository` | object |  |
 |     ↳ `id` | number | Head repository ID |
 |     ↳ `node_id` | string | Head repository node ID |
 |     ↳ `name` | string | Head repository name |
 |     ↳ `full_name` | string | Head repository full name |
 |     ↳ `private` | boolean | Whether repository is private |
-|   ↳ `head_commit` | object | head_commit output from the tool |
+|   ↳ `head_commit` | object |  |
 |     ↳ `id` | string | Commit SHA |
 |     ↳ `tree_id` | string | Tree ID |
 |     ↳ `message` | string | Commit message |
 |     ↳ `timestamp` | string | Commit timestamp |
-|     ↳ `author` | object | author output from the tool |
+|     ↳ `author` | object |  |
 |       ↳ `name` | string | Author name |
 |       ↳ `email` | string | Author email |
-|     ↳ `committer` | object | committer output from the tool |
+|     ↳ `committer` | object |  |
 |       ↳ `name` | string | Committer name |
 |       ↳ `email` | string | Committer email |
 |   ↳ `pull_requests` | array | Array of associated pull requests |
 |   ↳ `referenced_workflows` | array | Array of referenced workflow runs |
-| `workflow` | object | workflow output from the tool |
+| `workflow` | object |  |
 |   ↳ `id` | number | Workflow ID |
 |   ↳ `node_id` | string | Workflow node ID |
 |   ↳ `name` | string | Workflow name |
@@ -3549,7 +3885,7 @@ Trigger workflow when a GitHub Actions workflow run is requested, in progress, o
 |   ↳ `url` | string | Workflow API URL |
 |   ↳ `html_url` | string | Workflow HTML URL |
 |   ↳ `badge_url` | string | Workflow badge URL |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -3557,14 +3893,14 @@ Trigger workflow when a GitHub Actions workflow run is requested, in progress, o
 |   ↳ `private` | boolean | Whether the repository is private |
 |   ↳ `html_url` | string | Repository HTML URL |
 |   ↳ `repo_description` | string | Repository description |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `node_id` | string | Owner node ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -3572,12 +3908,13 @@ Trigger workflow when a GitHub Actions workflow run is requested, in progress, o
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub Issue Closed
 
 Trigger workflow when an issue is closed in a GitHub repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3593,7 +3930,7 @@ Trigger workflow when an issue is closed in a GitHub repository
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issues, pull_request, push\) |
 | `action` | string | Action performed \(opened, closed, reopened, edited, etc.\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | number | Issue ID |
 |   ↳ `node_id` | string | Issue node ID |
 |   ↳ `number` | number | Issue number |
@@ -3602,7 +3939,7 @@ Trigger workflow when an issue is closed in a GitHub repository
 |   ↳ `state` | string | Issue state \(open, closed\) |
 |   ↳ `state_reason` | string | Reason for state \(completed, not_planned, reopened\) |
 |   ↳ `html_url` | string | Issue HTML URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -3615,7 +3952,7 @@ Trigger workflow when an issue is closed in a GitHub repository
 |   ↳ `created_at` | string | Issue creation timestamp |
 |   ↳ `updated_at` | string | Issue last update timestamp |
 |   ↳ `closed_at` | string | Issue closed timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -3633,13 +3970,13 @@ Trigger workflow when an issue is closed in a GitHub repository
 |   ↳ `forks_count` | number | Number of forks |
 |   ↳ `open_issues_count` | number | Number of open issues |
 |   ↳ `default_branch` | string | Default branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -3647,12 +3984,13 @@ Trigger workflow when an issue is closed in a GitHub repository
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub Issue Comment
 
 Trigger workflow when a comment is added to an issue (not pull requests)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3668,24 +4006,24 @@ Trigger workflow when a comment is added to an issue (not pull requests)
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issue_comment\) |
 | `action` | string | Action performed \(created, edited, deleted\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `number` | number | Issue number |
 |   ↳ `title` | string | Issue title |
 |   ↳ `state` | string | Issue state \(open, closed\) |
 |   ↳ `html_url` | string | Issue HTML URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
 |     ↳ `avatar_url` | string | Avatar URL |
 |     ↳ `html_url` | string | Profile URL |
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
-| `comment` | object | comment output from the tool |
+| `comment` | object |  |
 |   ↳ `id` | number | Comment ID |
 |   ↳ `node_id` | string | Comment node ID |
 |   ↳ `body` | string | Comment text |
 |   ↳ `html_url` | string | Comment HTML URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -3694,7 +4032,7 @@ Trigger workflow when a comment is added to an issue (not pull requests)
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 |   ↳ `created_at` | string | Comment creation timestamp |
 |   ↳ `updated_at` | string | Comment last update timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -3712,13 +4050,13 @@ Trigger workflow when a comment is added to an issue (not pull requests)
 |   ↳ `forks_count` | number | Number of forks |
 |   ↳ `open_issues_count` | number | Number of open issues |
 |   ↳ `default_branch` | string | Default branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -3726,12 +4064,13 @@ Trigger workflow when a comment is added to an issue (not pull requests)
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub Issue Opened
 
 Trigger workflow when a new issue is opened in a GitHub repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3747,7 +4086,7 @@ Trigger workflow when a new issue is opened in a GitHub repository
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issues, pull_request, push\) |
 | `action` | string | Action performed \(opened, closed, reopened, edited, etc.\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | number | Issue ID |
 |   ↳ `node_id` | string | Issue node ID |
 |   ↳ `number` | number | Issue number |
@@ -3756,7 +4095,7 @@ Trigger workflow when a new issue is opened in a GitHub repository
 |   ↳ `state` | string | Issue state \(open, closed\) |
 |   ↳ `state_reason` | string | Reason for state \(completed, not_planned, reopened\) |
 |   ↳ `html_url` | string | Issue HTML URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -3769,7 +4108,7 @@ Trigger workflow when a new issue is opened in a GitHub repository
 |   ↳ `created_at` | string | Issue creation timestamp |
 |   ↳ `updated_at` | string | Issue last update timestamp |
 |   ↳ `closed_at` | string | Issue closed timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -3787,13 +4126,13 @@ Trigger workflow when a new issue is opened in a GitHub repository
 |   ↳ `forks_count` | number | Number of forks |
 |   ↳ `open_issues_count` | number | Number of open issues |
 |   ↳ `default_branch` | string | Default branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -3801,12 +4140,13 @@ Trigger workflow when a new issue is opened in a GitHub repository
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub PR Closed
 
 Trigger workflow when a pull request is closed without being merged (e.g., abandoned) in a GitHub repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3823,7 +4163,7 @@ Trigger workflow when a pull request is closed without being merged (e.g., aband
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
 | `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
 | `number` | number | Pull request number |
-| `pull_request` | object | pull_request output from the tool |
+| `pull_request` | object |  |
 |   ↳ `id` | number | Pull request ID |
 |   ↳ `node_id` | string | Pull request node ID |
 |   ↳ `number` | number | Pull request number |
@@ -3832,7 +4172,7 @@ Trigger workflow when a pull request is closed without being merged (e.g., aband
 |   ↳ `state` | string | Pull request state \(open, closed\) |
 |   ↳ `merged` | boolean | Whether the PR was merged |
 |   ↳ `merged_at` | string | Timestamp when PR was merged |
-|   ↳ `merged_by` | object | merged_by output from the tool |
+|   ↳ `merged_by` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -3843,23 +4183,23 @@ Trigger workflow when a pull request is closed without being merged (e.g., aband
 |   ↳ `html_url` | string | Pull request HTML URL |
 |   ↳ `diff_url` | string | Pull request diff URL |
 |   ↳ `patch_url` | string | Pull request patch URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
 |     ↳ `avatar_url` | string | Avatar URL |
 |     ↳ `html_url` | string | Profile URL |
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
-|   ↳ `head` | object | head output from the tool |
+|   ↳ `head` | object |  |
 |     ↳ `ref` | string | Source branch name |
 |     ↳ `sha` | string | Source branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Source repository name |
 |       ↳ `full_name` | string | Source repository full name |
-|   ↳ `base` | object | base output from the tool |
+|   ↳ `base` | object |  |
 |     ↳ `ref` | string | Target branch name |
 |     ↳ `sha` | string | Target branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Target repository name |
 |       ↳ `full_name` | string | Target repository full name |
 |   ↳ `additions` | number | Number of lines added |
@@ -3871,7 +4211,7 @@ Trigger workflow when a pull request is closed without being merged (e.g., aband
 |   ↳ `created_at` | string | Pull request creation timestamp |
 |   ↳ `updated_at` | string | Pull request last update timestamp |
 |   ↳ `closed_at` | string | Pull request closed timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -3889,12 +4229,12 @@ Trigger workflow when a pull request is closed without being merged (e.g., aband
 |   ↳ `forks_count` | number | Number of forks |
 |   ↳ `open_issues_count` | number | Number of open issues |
 |   ↳ `default_branch` | string | Default branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -3902,12 +4242,13 @@ Trigger workflow when a pull request is closed without being merged (e.g., aband
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub PR Comment
 
 Trigger workflow when a comment is added to a pull request in a GitHub repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -3923,7 +4264,7 @@ Trigger workflow when a comment is added to a pull request in a GitHub repositor
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issue_comment\) |
 | `action` | string | Action performed \(created, edited, deleted\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | number | Issue ID |
 |   ↳ `node_id` | string | Issue node ID |
 |   ↳ `number` | number | Issue/PR number |
@@ -3931,7 +4272,7 @@ Trigger workflow when a comment is added to a pull request in a GitHub repositor
 |   ↳ `body` | string | Issue/PR description |
 |   ↳ `state` | string | Issue/PR state \(open, closed\) |
 |   ↳ `html_url` | string | Issue/PR HTML URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -3940,20 +4281,20 @@ Trigger workflow when a comment is added to a pull request in a GitHub repositor
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 |   ↳ `labels` | array | Array of label objects |
 |   ↳ `assignees` | array | Array of assigned users |
-|   ↳ `pull_request` | object | pull_request output from the tool |
+|   ↳ `pull_request` | object |  |
 |     ↳ `url` | string | Pull request API URL \(present only for PR comments\) |
 |     ↳ `html_url` | string | Pull request HTML URL |
 |     ↳ `diff_url` | string | Pull request diff URL |
 |     ↳ `patch_url` | string | Pull request patch URL |
 |   ↳ `created_at` | string | Issue/PR creation timestamp |
 |   ↳ `updated_at` | string | Issue/PR last update timestamp |
-| `comment` | object | comment output from the tool |
+| `comment` | object |  |
 |   ↳ `id` | number | Comment ID |
 |   ↳ `node_id` | string | Comment node ID |
 |   ↳ `url` | string | Comment API URL |
 |   ↳ `html_url` | string | Comment HTML URL |
 |   ↳ `body` | string | Comment text |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -3962,7 +4303,7 @@ Trigger workflow when a comment is added to a pull request in a GitHub repositor
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 |   ↳ `created_at` | string | Comment creation timestamp |
 |   ↳ `updated_at` | string | Comment last update timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -3970,14 +4311,14 @@ Trigger workflow when a comment is added to a pull request in a GitHub repositor
 |   ↳ `private` | boolean | Whether the repository is private |
 |   ↳ `html_url` | string | Repository HTML URL |
 |   ↳ `repo_description` | string | Repository description |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `node_id` | string | Owner node ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -3985,13 +4326,14 @@ Trigger workflow when a comment is added to a pull request in a GitHub repositor
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub PR Merged
 
 Trigger workflow when a pull request is successfully merged in a GitHub repository
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4007,7 +4349,7 @@ Trigger workflow when a pull request is successfully merged in a GitHub reposito
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
 | `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
 | `number` | number | Pull request number |
-| `pull_request` | object | pull_request output from the tool |
+| `pull_request` | object |  |
 |   ↳ `id` | number | Pull request ID |
 |   ↳ `node_id` | string | Pull request node ID |
 |   ↳ `number` | number | Pull request number |
@@ -4016,7 +4358,7 @@ Trigger workflow when a pull request is successfully merged in a GitHub reposito
 |   ↳ `state` | string | Pull request state \(open, closed\) |
 |   ↳ `merged` | boolean | Whether the PR was merged |
 |   ↳ `merged_at` | string | Timestamp when PR was merged |
-|   ↳ `merged_by` | object | merged_by output from the tool |
+|   ↳ `merged_by` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -4027,23 +4369,23 @@ Trigger workflow when a pull request is successfully merged in a GitHub reposito
 |   ↳ `html_url` | string | Pull request HTML URL |
 |   ↳ `diff_url` | string | Pull request diff URL |
 |   ↳ `patch_url` | string | Pull request patch URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
 |     ↳ `avatar_url` | string | Avatar URL |
 |     ↳ `html_url` | string | Profile URL |
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
-|   ↳ `head` | object | head output from the tool |
+|   ↳ `head` | object |  |
 |     ↳ `ref` | string | Source branch name |
 |     ↳ `sha` | string | Source branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Source repository name |
 |       ↳ `full_name` | string | Source repository full name |
-|   ↳ `base` | object | base output from the tool |
+|   ↳ `base` | object |  |
 |     ↳ `ref` | string | Target branch name |
 |     ↳ `sha` | string | Target branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Target repository name |
 |       ↳ `full_name` | string | Target repository full name |
 |   ↳ `additions` | number | Number of lines added |
@@ -4055,7 +4397,7 @@ Trigger workflow when a pull request is successfully merged in a GitHub reposito
 |   ↳ `created_at` | string | Pull request creation timestamp |
 |   ↳ `updated_at` | string | Pull request last update timestamp |
 |   ↳ `closed_at` | string | Pull request closed timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -4073,12 +4415,12 @@ Trigger workflow when a pull request is successfully merged in a GitHub reposito
 |   ↳ `forks_count` | number | Number of forks |
 |   ↳ `open_issues_count` | number | Number of open issues |
 |   ↳ `default_branch` | string | Default branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -4086,13 +4428,14 @@ Trigger workflow when a pull request is successfully merged in a GitHub reposito
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub PR Opened
 
 Trigger workflow when a new pull request is opened in a GitHub repository
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -4108,7 +4451,7 @@ Trigger workflow when a new pull request is opened in a GitHub repository
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
 | `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
 | `number` | number | Pull request number |
-| `pull_request` | object | pull_request output from the tool |
+| `pull_request` | object |  |
 |   ↳ `id` | number | Pull request ID |
 |   ↳ `node_id` | string | Pull request node ID |
 |   ↳ `number` | number | Pull request number |
@@ -4117,7 +4460,7 @@ Trigger workflow when a new pull request is opened in a GitHub repository
 |   ↳ `state` | string | Pull request state \(open, closed\) |
 |   ↳ `merged` | boolean | Whether the PR was merged |
 |   ↳ `merged_at` | string | Timestamp when PR was merged |
-|   ↳ `merged_by` | object | merged_by output from the tool |
+|   ↳ `merged_by` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -4128,23 +4471,23 @@ Trigger workflow when a new pull request is opened in a GitHub repository
 |   ↳ `html_url` | string | Pull request HTML URL |
 |   ↳ `diff_url` | string | Pull request diff URL |
 |   ↳ `patch_url` | string | Pull request patch URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
 |     ↳ `avatar_url` | string | Avatar URL |
 |     ↳ `html_url` | string | Profile URL |
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
-|   ↳ `head` | object | head output from the tool |
+|   ↳ `head` | object |  |
 |     ↳ `ref` | string | Source branch name |
 |     ↳ `sha` | string | Source branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Source repository name |
 |       ↳ `full_name` | string | Source repository full name |
-|   ↳ `base` | object | base output from the tool |
+|   ↳ `base` | object |  |
 |     ↳ `ref` | string | Target branch name |
 |     ↳ `sha` | string | Target branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Target repository name |
 |       ↳ `full_name` | string | Target repository full name |
 |   ↳ `additions` | number | Number of lines added |
@@ -4156,7 +4499,7 @@ Trigger workflow when a new pull request is opened in a GitHub repository
 |   ↳ `created_at` | string | Pull request creation timestamp |
 |   ↳ `updated_at` | string | Pull request last update timestamp |
 |   ↳ `closed_at` | string | Pull request closed timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -4174,13 +4517,13 @@ Trigger workflow when a new pull request is opened in a GitHub repository
 |   ↳ `forks_count` | number | Number of forks |
 |   ↳ `open_issues_count` | number | Number of open issues |
 |   ↳ `default_branch` | string | Default branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -4188,12 +4531,13 @@ Trigger workflow when a new pull request is opened in a GitHub repository
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub PR Reviewed
 
 Trigger workflow when a pull request review is submitted, edited, or dismissed in a GitHub repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -4209,10 +4553,10 @@ Trigger workflow when a pull request review is submitted, edited, or dismissed i
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request_review\) |
 | `action` | string | Action performed \(submitted, edited, dismissed\) |
-| `review` | object | review output from the tool |
+| `review` | object |  |
 |   ↳ `id` | number | Review ID |
 |   ↳ `node_id` | string | Review node ID |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | Reviewer username |
 |     ↳ `id` | number | Reviewer user ID |
 |     ↳ `node_id` | string | Reviewer node ID |
@@ -4225,7 +4569,7 @@ Trigger workflow when a pull request review is submitted, edited, or dismissed i
 |   ↳ `submitted_at` | string | Review submission timestamp |
 |   ↳ `commit_id` | string | Commit SHA that was reviewed |
 |   ↳ `author_association` | string | Author association \(OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, etc.\) |
-| `pull_request` | object | pull_request output from the tool |
+| `pull_request` | object |  |
 |   ↳ `id` | number | Pull request ID |
 |   ↳ `node_id` | string | Pull request node ID |
 |   ↳ `number` | number | Pull request number |
@@ -4237,28 +4581,28 @@ Trigger workflow when a pull request review is submitted, edited, or dismissed i
 |   ↳ `html_url` | string | Pull request HTML URL |
 |   ↳ `diff_url` | string | Pull request diff URL |
 |   ↳ `patch_url` | string | Pull request patch URL |
-|   ↳ `user` | object | user output from the tool |
+|   ↳ `user` | object |  |
 |     ↳ `login` | string | PR author username |
 |     ↳ `id` | number | PR author user ID |
 |     ↳ `node_id` | string | PR author node ID |
 |     ↳ `avatar_url` | string | PR author avatar URL |
 |     ↳ `html_url` | string | PR author profile URL |
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
-|   ↳ `head` | object | head output from the tool |
+|   ↳ `head` | object |  |
 |     ↳ `ref` | string | Source branch name |
 |     ↳ `sha` | string | Source branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Source repository name |
 |       ↳ `full_name` | string | Source repository full name |
-|   ↳ `base` | object | base output from the tool |
+|   ↳ `base` | object |  |
 |     ↳ `ref` | string | Target branch name |
 |     ↳ `sha` | string | Target branch commit SHA |
-|     ↳ `repo` | object | repo output from the tool |
+|     ↳ `repo` | object |  |
 |       ↳ `name` | string | Target repository name |
 |       ↳ `full_name` | string | Target repository full name |
 |   ↳ `created_at` | string | Pull request creation timestamp |
 |   ↳ `updated_at` | string | Pull request last update timestamp |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -4266,14 +4610,14 @@ Trigger workflow when a pull request review is submitted, edited, or dismissed i
 |   ↳ `private` | boolean | Whether the repository is private |
 |   ↳ `html_url` | string | Repository HTML URL |
 |   ↳ `repo_description` | string | Repository description |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `node_id` | string | Owner node ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -4281,12 +4625,13 @@ Trigger workflow when a pull request review is submitted, edited, or dismissed i
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub Push
 
 Trigger workflow when code is pushed to a repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -4311,28 +4656,28 @@ Trigger workflow when code is pushed to a repository
 | `base_ref` | string | Base reference for the push |
 | `compare` | string | URL to compare the changes |
 | `commits` | array | Array of commit objects included in this push |
-| `head_commit` | object | head_commit output from the tool |
+| `head_commit` | object |  |
 |   ↳ `id` | string | Commit SHA of the most recent commit |
 |   ↳ `tree_id` | string | Git tree SHA |
 |   ↳ `distinct` | boolean | Whether this commit is distinct |
 |   ↳ `message` | string | Commit message |
 |   ↳ `timestamp` | string | Commit timestamp |
 |   ↳ `url` | string | Commit URL |
-|   ↳ `author` | object | author output from the tool |
+|   ↳ `author` | object |  |
 |     ↳ `name` | string | Author name |
 |     ↳ `email` | string | Author email |
 |     ↳ `username` | string | Author GitHub username |
-|   ↳ `committer` | object | committer output from the tool |
+|   ↳ `committer` | object |  |
 |     ↳ `name` | string | Committer name |
 |     ↳ `email` | string | Committer email |
 |     ↳ `username` | string | Committer GitHub username |
 |   ↳ `added` | array | Array of file paths added in this commit |
 |   ↳ `removed` | array | Array of file paths removed in this commit |
 |   ↳ `modified` | array | Array of file paths modified in this commit |
-| `pusher` | object | pusher output from the tool |
+| `pusher` | object |  |
 |   ↳ `name` | string | Pusher name |
 |   ↳ `email` | string | Pusher email |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -4350,14 +4695,14 @@ Trigger workflow when code is pushed to a repository
 |   ↳ `forks_count` | number | Number of forks |
 |   ↳ `open_issues_count` | number | Number of open issues |
 |   ↳ `default_branch` | string | Default branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `node_id` | string | Owner node ID |
 |     ↳ `avatar_url` | string | Owner avatar URL |
 |     ↳ `html_url` | string | Owner profile URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -4365,12 +4710,13 @@ Trigger workflow when code is pushed to a repository
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
-
----
+</ReferenceDetails>
 
 ### GitHub Release Published
 
 Trigger workflow when a new release is published in a GitHub repository
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -4386,7 +4732,7 @@ Trigger workflow when a new release is published in a GitHub repository
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., release\) |
 | `action` | string | Action performed \(published, unpublished, created, edited, deleted, prereleased, released\) |
-| `release` | object | release output from the tool |
+| `release` | object |  |
 |   ↳ `id` | number | Release ID |
 |   ↳ `node_id` | string | Release node ID |
 |   ↳ `tag_name` | string | Git tag name for the release |
@@ -4404,7 +4750,7 @@ Trigger workflow when a new release is published in a GitHub repository
 |   ↳ `tarball_url` | string | Source code tarball download URL |
 |   ↳ `zipball_url` | string | Source code zipball download URL |
 |   ↳ `discussion_url` | string | Discussion URL if available |
-|   ↳ `author` | object | author output from the tool |
+|   ↳ `author` | object |  |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
 |     ↳ `node_id` | string | User node ID |
@@ -4424,7 +4770,7 @@ Trigger workflow when a new release is published in a GitHub repository
 |     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 |     ↳ `site_admin` | boolean | Whether user is a site administrator |
 |   ↳ `assets` | array | Array of release asset objects with download URLs |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -4485,7 +4831,7 @@ Trigger workflow when a new release is published in a GitHub repository
 |   ↳ `archived` | boolean | Whether the repository is archived |
 |   ↳ `disabled` | boolean | Whether the repository is disabled |
 |   ↳ `open_issues_count` | number | Number of open issues |
-|   ↳ `license` | object | license output from the tool |
+|   ↳ `license` | object |  |
 |     ↳ `key` | string | License key |
 |     ↳ `name` | string | License name |
 |     ↳ `spdx_id` | string | SPDX license identifier |
@@ -4502,7 +4848,7 @@ Trigger workflow when a new release is published in a GitHub repository
 |   ↳ `created_at` | string | Repository creation timestamp |
 |   ↳ `updated_at` | string | Repository last update timestamp |
 |   ↳ `pushed_at` | string | Repository last push timestamp |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `login` | string | Owner username |
 |     ↳ `id` | number | Owner ID |
 |     ↳ `node_id` | string | Owner node ID |
@@ -4521,7 +4867,7 @@ Trigger workflow when a new release is published in a GitHub repository
 |     ↳ `received_events_url` | string | Received events API URL |
 |     ↳ `owner_type` | string | Owner type \(User, Organization\) |
 |     ↳ `site_admin` | boolean | Whether owner is a site administrator |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
 |   ↳ `node_id` | string | User node ID |
@@ -4541,12 +4887,13 @@ Trigger workflow when a new release is published in a GitHub repository
 |   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 |   ↳ `site_admin` | boolean | Whether user is a site administrator |
 
-
----
+</ReferenceDetails>
 
 ### GitHub Webhook
 
 Trigger workflow from GitHub events like push, pull requests, issues, and more
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -4568,7 +4915,7 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 | `forced` | boolean | Whether the push was forced |
 | `base_ref` | string | Base reference for the push |
 | `compare` | string | URL to compare the changes |
-| `repository` | object | repository output from the tool |
+| `repository` | object |  |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `node_id` | string | Repository node ID |
 |   ↳ `name` | string | Repository name |
@@ -4600,7 +4947,7 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 |   ↳ `default_branch` | string | Default branch name |
 |   ↳ `stargazers` | number | Number of stargazers |
 |   ↳ `master_branch` | string | Master branch name |
-|   ↳ `owner` | object | owner output from the tool |
+|   ↳ `owner` | object |  |
 |     ↳ `name` | string | Owner name |
 |     ↳ `email` | string | Owner email |
 |     ↳ `login` | string | Owner username |
@@ -4621,7 +4968,7 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 | `pusher` | object | Information about who pushed the changes |
 |   ↳ `name` | string | Pusher name |
 |   ↳ `email` | string | Pusher email |
-| `sender` | object | sender output from the tool |
+| `sender` | object |  |
 |   ↳ `login` | string | Sender username |
 |   ↳ `id` | number | Sender ID |
 |   ↳ `node_id` | string | Sender node ID |
@@ -4651,4 +4998,6 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 | `event_type` | string | Type of GitHub event \(e.g., push, pull_request, issues\) |
 | `action` | string | The action that was performed \(e.g., opened, closed, synchronize\) |
 | `branch` | string | Branch name extracted from ref |
+
+</ReferenceDetails>
 

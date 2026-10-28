@@ -17,10 +17,10 @@ import {
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { revokeKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
+import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/outbox-events'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 
-export const KNOWLEDGE_CONNECTOR_CLEANUP_EVENT = 'knowledge.connector.cleanup'
 const DOCUMENT_BATCH_SIZE = 250
 const EMBEDDING_BATCH_SIZE = 1_000
 const RELATED_ROW_BATCH_SIZE = 1_000

@@ -1,8 +1,11 @@
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const boundary = vi.hoisted(() => ({
   target: vi.fn(),
-  organization: vi.fn(),
   route: vi.fn(),
   sink: vi.fn(),
 }))
@@ -10,9 +13,7 @@ vi.mock('@/lib/mothership/chat/application/workspace-target', () => ({
   WORKSPACE_TARGET_AUDIENCE: 'sim:workspaces',
   authorizeChatWorkspaceTarget: { execute: boundary.target },
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: boundary.organization },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/mothership/tools/server/router', () => ({ routeExecution: boundary.route }))
 vi.mock('@/lib/mothership/agent-cli/workbench-file-provenance', () => ({
   createWorkbenchFileProvenance: () => ({ observeOutput: vi.fn() }),
@@ -23,6 +24,9 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+
+const mockAuthorizeOrganizationChatDelegation =
+  mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation
 
 const selected = '00000000-0000-4000-8000-000000000001'
 const other = '00000000-0000-4000-8000-000000000002'
@@ -45,7 +49,7 @@ describe('worker-local CLI authorization through the real handler and scope reso
       userId: 'actor',
       permission: 'read',
     })
-    boundary.organization.mockResolvedValue({ organizationId: 'org' })
+    mockAuthorizeOrganizationChatDelegation.mockResolvedValue({ organizationId: 'org' })
     boundary.sink.mockImplementation(async (_sink, _session, result) => result)
   })
 
@@ -67,7 +71,7 @@ describe('worker-local CLI authorization through the real handler and scope reso
         }),
         input: { chatId: 'owned-chat', workspaceId: selected },
       })
-      expect(boundary.organization).not.toHaveBeenCalled()
+      expect(mockAuthorizeOrganizationChatDelegation).not.toHaveBeenCalled()
       expect(boundary.route).not.toHaveBeenCalled()
     }
   )
@@ -75,7 +79,7 @@ describe('worker-local CLI authorization through the real handler and scope reso
   it('retains organization-only authorization for local output without a workspace target', async () => {
     const result = await executeSimCli({ request: stdout }, organization)
     expect(result.success).toBe(true)
-    expect(boundary.organization).toHaveBeenCalledWith({
+    expect(mockAuthorizeOrganizationChatDelegation).toHaveBeenCalledWith({
       principal: expect.objectContaining({ organizationId: 'org', subjectUserId: 'actor' }),
     })
     expect(boundary.target).not.toHaveBeenCalled()
@@ -145,4 +149,26 @@ describe('worker-local CLI authorization through the real handler and scope reso
     expect(boundary.target).not.toHaveBeenCalled()
     expect(boundary.route).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { entityType: 'workspace' as const, entityId: selected },
+    { entityType: 'project' as const, entityId: 'project' },
+  ])(
+    'rejects a file owner on a service before any owner adapter runs: $entityType',
+    async (owner) => {
+      expect(
+        await executeSimCli(
+          {
+            request: {
+              fileOwner: owner,
+              invocation: { kind: 'service', name: 'dashboards', input: {} },
+            },
+          },
+          workspace
+        )
+      ).toEqual({ success: false, error: 'Service invocations do not take a file owner' })
+      expect(boundary.target).not.toHaveBeenCalled()
+      expect(boundary.route).not.toHaveBeenCalled()
+    }
+  )
 })

@@ -1,7 +1,14 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, cloneElement, type ReactNode } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,8 +22,6 @@ vi.mock('@/hooks/queries/environment', () => ({
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
   hasMaxAccess: true,
-  replace: vi.fn(),
-  push: vi.fn(),
   availabilityReady: true,
   availabilityLoading: false,
   availabilityError: null as Error | null,
@@ -75,9 +80,7 @@ const mocks = vi.hoisted(() => ({
   connectorsQuery: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: mocks.userId } } }),
-}))
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useUpdateSearchIntegration: () => ({ mutate: mocks.updateSearchIntegration }),
@@ -114,11 +117,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
     refetchIntegrationAvailability: mocks.refetchAvailability,
   }),
 }))
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-  usePathname: () => '/o/org-1/settings/integrations',
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
   useOptionalWorkspaceHostContext: () => ({ ownerBilling: {}, features: mocks.features }),
@@ -139,54 +138,8 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
     hasMaxAccess: mocks.hasMaxAccess,
   }),
 }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  isConnectorSyncingOrPending: (row: {
-    status: string
-    accessMode?: string
-    memberSyncStatus?: string
-  }) =>
-    ['pending', 'syncing'].includes(row.status) ||
-    ['pending', 'running'].includes(row.memberSyncStatus ?? ''),
-  useSearchIndex: (
-    scope: { workspaceId?: string; organizationId?: string },
-    options: { enabled: boolean }
-  ) => {
-    mocks.basesQuery(scope.workspaceId ?? scope.organizationId, options)
-    return {
-      data: { knowledgeBaseId: mocks.bases.find((base) => base.isSearchIndex)?.id ?? null },
-      isPending: mocks.basesPending,
-      isError: Boolean(mocks.basesError),
-      error: mocks.basesError,
-      isFetching: false,
-      refetch: mocks.refetchBases,
-    }
-  },
-  useCreateConnector: () => ({ mutate: mocks.create, isPending: mocks.createPending }),
-  useUpdateConnector: () => ({ mutate: mocks.update, isPending: mocks.updatePending }),
-  useUpdateConnectorAccess: () => ({ mutate: mocks.applyAccess, isPending: mocks.accessPending }),
-  usePrepareSearchSource: () => ({
-    mutate: mocks.prepare,
-    data: mocks.prepareData,
-    isPending: mocks.preparePending,
-    error: mocks.prepareError,
-  }),
-  useConnectorList: (id?: string) => {
-    mocks.connectorsQuery(id)
-    return {
-      data: mocks.connectors,
-      isError: Boolean(mocks.connectorsError),
-      error: mocks.connectorsError,
-      isPending: mocks.connectorsPending,
-      isSuccess: !mocks.connectorsPending && !mocks.connectorsError,
-      isFetching: mocks.connectorsPending,
-      refetch: mocks.refetchConnectors,
-    }
-  },
-  useConnectorDocuments: () => ({ data: { documents: [], total: 0 }, isLoading: false }),
-  useExcludeConnectorDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  useRestoreConnectorDocument: () => ({ mutate: vi.fn(), isPending: false }),
-}))
-vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
+vi.mock('@/hooks/queries/oauth/credentials', () => ({
   useOAuthCredentials: () => ({
     data: mocks.credentials,
     isLoading: false,
@@ -222,6 +175,71 @@ import { SearchSourceSetup } from '@/app/o/[organizationId]/settings/components/
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
+
+const mockPush = nextNavigationMockFns.router.push
+const mockReplace = nextNavigationMockFns.router.replace
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/org-1/settings/integrations')
+authClientMockFns.mockUseSession.mockImplementation(() => ({
+  data: { user: { id: mocks.userId } },
+}))
+
+const connectorQueries = kbConnectorsQueriesMockFns
+connectorQueries.mockUseSearchIndex.mockImplementation(
+  (scope: { workspaceId?: string; organizationId?: string }, options: { enabled: boolean }) => {
+    mocks.basesQuery(scope.workspaceId ?? scope.organizationId, options)
+    return {
+      data: { knowledgeBaseId: mocks.bases.find((base) => base.isSearchIndex)?.id ?? null },
+      isPending: mocks.basesPending,
+      isError: Boolean(mocks.basesError),
+      error: mocks.basesError,
+      isFetching: false,
+      refetch: mocks.refetchBases,
+    }
+  }
+)
+connectorQueries.mockUseCreateConnector.mockImplementation(() => ({
+  mutate: mocks.create,
+  isPending: mocks.createPending,
+}))
+connectorQueries.mockUseUpdateConnector.mockImplementation(() => ({
+  mutate: mocks.update,
+  isPending: mocks.updatePending,
+}))
+connectorQueries.mockUseUpdateConnectorAccess.mockImplementation(() => ({
+  mutate: mocks.applyAccess,
+  isPending: mocks.accessPending,
+}))
+connectorQueries.mockUsePrepareSearchSource.mockImplementation(() => ({
+  mutate: mocks.prepare,
+  data: mocks.prepareData,
+  isPending: mocks.preparePending,
+  error: mocks.prepareError,
+}))
+connectorQueries.mockUseConnectorList.mockImplementation((id?: string) => {
+  mocks.connectorsQuery(id)
+  return {
+    data: mocks.connectors,
+    isError: Boolean(mocks.connectorsError),
+    error: mocks.connectorsError,
+    isPending: mocks.connectorsPending,
+    isSuccess: !mocks.connectorsPending && !mocks.connectorsError,
+    isFetching: mocks.connectorsPending,
+    refetch: mocks.refetchConnectors,
+  }
+})
+connectorQueries.mockUseConnectorDocuments.mockImplementation(() => ({
+  data: { documents: [], total: 0 },
+  isLoading: false,
+}))
+connectorQueries.mockUseExcludeConnectorDocument.mockImplementation(() => ({
+  mutate: vi.fn(),
+  isPending: false,
+}))
+connectorQueries.mockUseRestoreConnectorDocument.mockImplementation(() => ({
+  mutate: vi.fn(),
+  isPending: false,
+}))
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -262,7 +280,7 @@ async function openSyncFrequency() {
 }
 
 function menuItem(label: string): HTMLElement {
-  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')).find(
     (node) => node.textContent?.trim() === label
   )
   expect(match, `Menu item ${label}`).toBeDefined()
@@ -387,7 +405,6 @@ afterEach(async () => {
   container?.remove()
   root = null
   container = null
-  vi.restoreAllMocks()
   resetDeploymentShape()
 })
 
@@ -408,30 +425,12 @@ describe('Search source setup with real connector dialogs', () => {
         />,
         `?manage-source=${source}`
       )
-      if (source === 'source-one') expect(mocks.replace).toHaveBeenCalledWith(destination)
-      else expect(mocks.replace).not.toHaveBeenCalled()
+      if (source === 'source-one') expect(mockReplace).toHaveBeenCalledWith(destination)
+      else expect(mockReplace).not.toHaveBeenCalled()
       expect(mocks.connectorsQuery).not.toHaveBeenCalled()
       expect(document.querySelector('[role="dialog"]')).toBeNull()
     }
   )
-
-  it('prepares organization connected-account indexing in members mode even when central access is available', async () => {
-    mocks.bases = []
-    await render(
-      <SearchSourceSetup
-        scope={{ kind: 'organization', organizationId: 'org-1' }}
-        canAdmin
-        memberAccessAvailable
-        mirroredAccessAvailable
-      />,
-      '?addConnector=slack'
-    )
-    expect(mocks.prepare).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      connectorType: 'slack',
-      accessMode: 'members',
-    })
-  })
 })
 
 describe('member content credentials in real add and edit dialogs', () => {
@@ -716,42 +715,6 @@ describe('administrator source prerequisites in real connector dialogs', () => {
     mocks.credentials = [driveCredential]
   })
 
-  it.each(['admin', 'members'] as const)(
-    'shows and saves Gmail’s Search default date window in %s mode',
-    async (accessMode) => {
-      mocks.credentials = [
-        {
-          id: 'gmail-service',
-          name: 'Gmail indexing',
-          provider: 'google-email',
-          type: 'service_account',
-        },
-      ]
-      await render(
-        <AddConnectorModal
-          open
-          onOpenChange={vi.fn()}
-          knowledgeBaseId='kb-search'
-          isSearchIndex
-          initialConnectorType='gmail'
-          initialAccessMode={accessMode}
-        />
-      )
-      expect(document.body.textContent).toContain('Last 6 months')
-      expect(document.body.textContent).not.toContain('All time (default)')
-      if (accessMode === 'admin') await fill(adminEmailPlaceholder, 'admin@example.com')
-      await click(button(accessMode === 'admin' ? 'Connect & Sync' : 'Create & Invite'))
-      expect(mocks.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          accessMode,
-          connectorType: 'gmail',
-          sourceConfig: expect.objectContaining({ dateRange: '6m' }),
-        }),
-        expect.any(Object)
-      )
-    }
-  )
-
   it('preserves a deliberate Gmail date-range draft and keeps general KB defaults separate', async () => {
     const key = 'gmail-all-time'
     useConnectorSetupStore.getState().saveDraft(key, {
@@ -907,8 +870,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
         <AddConnectorModal
           open
           onOpenChange={vi.fn()}
-          knowledgeBaseId='kb-search'
-          isSearchIndex
+          knowledgeBaseId='ordinary-kb'
           initialConnectorType={type}
           initialAccessMode='admin'
         />
@@ -963,8 +925,7 @@ describe('administrator source prerequisites in real connector dialogs', () => {
         <AddConnectorModal
           open
           onOpenChange={vi.fn()}
-          knowledgeBaseId='kb-search'
-          isSearchIndex
+          knowledgeBaseId='ordinary-kb'
           initialConnectorType={type}
           setupDraftKey={setupDraftKey}
         />
@@ -1067,41 +1028,6 @@ describe('administrator source prerequisites in real connector dialogs', () => {
       expect(mocks.create.mock.calls[0][0].sourceConfig.adminEmail).toBeFalsy()
     }
   )
-
-  it('does not let an administrator erase the crawl subject from an existing mirrored Drive source', async () => {
-    await render(
-      <EditConnectorModal
-        open
-        onOpenChange={vi.fn()}
-        knowledgeBaseId='kb-search'
-        isSearchIndex
-        connector={connector({
-          connectorType: 'google_drive',
-          accessMode: 'admin',
-          credentialId: driveCredential.id,
-          sourceConfig: { adminEmail: 'admin@example.com', fileType: 'documents' },
-        })}
-      />
-    )
-    expect(document.body.textContent).toContain('Directory administrator email*')
-    await fill(adminEmailPlaceholder, '')
-    expect(button('Save')).toBeDisabled()
-    await click(button('Save'))
-    expect(mocks.update).not.toHaveBeenCalled()
-    await fill(adminEmailPlaceholder, 'replacement@example.com')
-    expect(button('Save')).toBeEnabled()
-    await click(button('Save'))
-    expect(mocks.update.mock.calls[0][0]).toMatchObject({
-      connectorId: 'connector-1',
-      updates: {
-        sourceConfig: {
-          adminEmail: 'replacement@example.com',
-          fileType: 'documents',
-        },
-      },
-    })
-    expect(mocks.applyAccess).not.toHaveBeenCalled()
-  })
 
   it('guides a general knowledge-base member source back to saving its crawl subject without losing drafts or combining mutations', async () => {
     const existing = connector({
@@ -1308,47 +1234,6 @@ describe('canonical Search connector safety', () => {
     )
   })
 
-  it('defaults an OAuth source to member accounts and never offers workspace-wide access', async () => {
-    await render(
-      <AddConnectorModal
-        open
-        onOpenChange={() => {}}
-        knowledgeBaseId='kb-search'
-        isSearchIndex
-        initialConnectorType='google_drive'
-      />
-    )
-    expect(button('Member accounts')).toHaveAttribute('aria-checked', 'true')
-    expect(
-      Array.from(document.querySelectorAll('button')).some(
-        (node) => node.textContent === 'Workspace'
-      )
-    ).toBe(false)
-    expect(document.body.textContent).not.toContain('Everyone in this workspace')
-    await click(button('Choose another source'))
-    const gitlab = Array.from(document.querySelectorAll('button')).find(
-      (node) => node.getAttribute('aria-label') === 'GitLab'
-    )
-    expect(gitlab).toBeDefined()
-    await click(gitlab!)
-    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
-    expect(button('Non-admin token')).toHaveAttribute('aria-checked', 'false')
-    expect(document.body.textContent).not.toContain('Connection method')
-    expect(
-      Array.from(document.querySelectorAll('button')).some(
-        (node) => node.textContent === 'Workspace'
-      )
-    ).toBe(false)
-    await fill('Enter your GitLab PAT', 'fixture-pat')
-    await fill('gitlab.example.com', 'gitlab.example.test')
-    await fill('group/project or numeric ID', 'engineering/search')
-    await click(button('Connect & Sync'))
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ accessMode: 'admin', connectorType: 'gitlab' }),
-      expect.any(Object)
-    )
-  })
-
   it('keeps an existing Search member source out of workspace-wide mode', async () => {
     await render(
       <EditConnectorModal
@@ -1444,7 +1329,7 @@ describe('resuming Search source setup', () => {
     const created = connector()
     await act(async () => mocks.create.mock.calls[0][1].onSuccess(created))
     expect(onCreated).toHaveBeenCalledWith('slack', created)
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
     expect(useConnectorSetupStore.getState().getDraft(key)).toBeUndefined()
   })
 

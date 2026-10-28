@@ -3,19 +3,18 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleDocsResponse } from '@/tools/google_docs/types'
 
 const DOCUMENT_FIELD = ['documentId', 'manualDocumentId'] as const
 const FOLDER_FIELD = ['folderSelector', 'folderId'] as const
 const NAMED_RANGE_FIELD = ['namedRangeId', 'namedRangeName'] as const
 
-export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
+export const GoogleDocsBlock: BlockConfig = {
   type: 'google_docs',
   name: 'Google Docs',
   description: 'Read, write, create, and edit documents',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.',
+    'Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.',
   docsLink: 'https://docs.sim.ai/integrations/google_docs',
   category: 'tools',
   integrationType: IntegrationType.Documents,

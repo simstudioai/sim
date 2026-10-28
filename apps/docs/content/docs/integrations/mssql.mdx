@@ -1,25 +1,21 @@
 ---
 title: Microsoft SQL Server
 description: Connect to Microsoft SQL Server database
+integration:
+  type: "mssql"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mssql"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft SQL Server](https://www.microsoft.com/sql-server) to query or modify rows, execute T-SQL, and inspect tables, keys, and indexes. Configure the host, port, database, credentials, and TLS settings for your instance.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Microsoft SQL Server into the workflow. Can query, insert, update, delete, execute raw T-SQL, and introspect schemas.
-
-
+Query, insert, update, delete, execute raw T-SQL, and introspect schemas.
 
 ## Actions
 
@@ -171,6 +167,8 @@ Execute a raw T-SQL statement on a Microsoft SQL Server database
 
 Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes. Results only cover objects the login can see, so a low-privilege account returns a partial schema rather than an error
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -215,5 +213,7 @@ Introspect a Microsoft SQL Server schema to retrieve table structures, columns, 
 |     ↳ `columns` | array | Key columns included in the index, in key order |
 |     ↳ `unique` | boolean | Whether the index enforces uniqueness |
 | `schemas` | array | List of available schemas in the database |
+
+</ReferenceDetails>
 
 

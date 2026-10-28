@@ -64,13 +64,14 @@ export async function executeQuickBooksWebhookIngress(
       const targets = await findWebhooksByRoutingKey(routingKey, payload.requestId, 'quickbooks')
       targetCount += targets.length
 
-      for (const { webhook, workflow } of targets) {
+      for (const { webhook, workflow, triggerBlockDeployed } of targets) {
         try {
           const result = await dispatchResolvedWebhookTarget(webhook, workflow, event, request, {
             requestId: payload.requestId,
             path: webhook.path ?? undefined,
             receivedAt: payload.receivedAt,
             triggerTimestampMs: Date.parse(event.time),
+            triggerBlockDeployed,
           })
           if (result.outcome === 'queued') processed += 1
           else if (result.outcome === 'ignored') ignored += 1

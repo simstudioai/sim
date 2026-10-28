@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -22,7 +22,10 @@ import { backfillWhatsAppInteractiveType } from './whatsapp-interactive-type'
  * route the barrel's `getBlock` to the real registry via a spy on the shared
  * barrel namespace — it patches whichever instance the cached module reads.
  */
-const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+let getBlockSpy: MockInstance<typeof blocksBarrel.getBlock>
+beforeEach(() => {
+  getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+})
 
 afterAll(() => {
   getBlockSpy.mockRestore()

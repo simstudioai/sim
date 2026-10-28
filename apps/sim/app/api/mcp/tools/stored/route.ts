@@ -17,7 +17,7 @@ export const GET = withRouteHandler(
   withMcpAuth(
     'read',
     'mcp_tools.use'
-  )(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  )(async (_request: NextRequest, { workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Fetching stored MCP tools for workspace ${workspaceId}`)
 

@@ -1,12 +1,8 @@
 import type { ToolMetadata } from '@/tools/metadata'
 
 /** Adapt legacy GitHub API-token operations only at the Assistant boundary; Build schemas stay unchanged. */
-export function projectAssistantConnectedAccountTool<T extends ToolMetadata>(
-  tool: T,
-  liveSearch: boolean
-): T {
-  if (!liveSearch || !/^github_[a-z0-9_]+$/.test(tool.id) || !tool.params.apiKey || tool.oauth)
-    return tool
+export function projectAssistantConnectedAccountTool<T extends ToolMetadata>(tool: T): T {
+  if (!/^github_[a-z0-9_]+$/.test(tool.id) || !tool.params.apiKey || tool.oauth) return tool
   return {
     ...tool,
     oauth: {

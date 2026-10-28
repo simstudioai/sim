@@ -1,33 +1,37 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ register: vi.fn(), rateLimit: vi.fn(), markPublic: vi.fn() }))
+const mocks = vi.hoisted(() => ({ register: vi.fn(), markPublic: vi.fn() }))
 vi.mock('@/lib/auth/oauth-client-registration', () => ({
   markPubliclyRegisteredOAuthClient: mocks.markPublic,
 }))
 vi.mock('better-auth/next-js', () => ({ toNextJsHandler: () => ({ POST: mocks.register }) }))
-vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mocks.rateLimit }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { POST } from '@/app/api/auth/oauth2/register/route'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
 
 const client = {
   client_name: 'Test MCP client',
   redirect_uris: ['http://127.0.0.1:43123/callback'],
 }
 function request(body: object = client, headers: Record<string, string> = {}) {
-  return new NextRequest('https://sim.test/api/auth/oauth2/register', {
+  return createMockRequest({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
+    url: 'https://sim.test/api/auth/oauth2/register',
+    headers: { ...headers },
+    body,
   })
 }
 
 afterAll(resetEnvFlagsMock)
 beforeEach(() => {
   setEnvFlags({ isAuthDisabled: false })
-  mocks.rateLimit.mockResolvedValue(null)
+  rateLimiterMockFns.mockEnforceIpRateLimit.mockResolvedValue(null)
   mocks.markPublic.mockResolvedValue(undefined)
   mocks.register.mockImplementation(async (req: Request) =>
     Response.json(
@@ -150,7 +154,9 @@ describe('MCP public client registration', () => {
   })
 
   it('admits before reading metadata or creating a client', async () => {
-    mocks.rateLimit.mockResolvedValue(Response.json({ error: 'Rate limited' }, { status: 429 }))
+    rateLimiterMockFns.mockEnforceIpRateLimit.mockResolvedValue(
+      Response.json({ error: 'Rate limited' }, { status: 429 })
+    )
     expect((await POST(request())).status).toBe(429)
     expect(mocks.register).not.toHaveBeenCalled()
   })

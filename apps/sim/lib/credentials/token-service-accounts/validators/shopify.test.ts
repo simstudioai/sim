@@ -1,29 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
 import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 describe('validateShopifyServiceAccount', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.clearAllMocks()
-  })
-
   it('queries the normalized store host on success', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         data: {
           shop: {
             name: 'Acme Store',
@@ -68,7 +57,7 @@ describe('validateShopifyServiceAccount', () => {
   )
 
   it('throws site_not_found on 404', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(404, { errors: 'Not Found' }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ errors: 'Not Found' }, 404))
 
     await expect(
       validateShopifyServiceAccount({ apiToken: 'shpat_abc', domain: 'no-shop.myshopify.com' })
@@ -99,7 +88,7 @@ describe('validateShopifyServiceAccount', () => {
   })
 
   it('throws provider_unavailable when a 200 body carries GraphQL errors', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { errors: [{ message: 'Internal error' }] }))
+    mockFetch.mockResolvedValueOnce(jsonResponse({ errors: [{ message: 'Internal error' }] }))
 
     await expect(
       validateShopifyServiceAccount({ apiToken: 'shpat_abc', domain: 'acme.myshopify.com' })
@@ -112,7 +101,7 @@ describe('validateShopifyServiceAccount', () => {
 
   it('maps an auth-shaped GraphQL error in a 200 response to invalid_credentials', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         errors: [
           { message: 'Invalid API key or access token (unrecognized login or wrong password)' },
         ],
@@ -129,7 +118,7 @@ describe('validateShopifyServiceAccount', () => {
 
   it('does not blame the credential when an auth-shaped error accompanies a populated shop', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
+      jsonResponse({
         data: { shop: { name: 'My Store', myshopifyDomain: 'my-store.myshopify.com' } },
         errors: [
           { message: 'Access denied for email field', extensions: { code: 'ACCESS_DENIED' } },

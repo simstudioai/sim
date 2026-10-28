@@ -111,7 +111,7 @@ export const kalshiGetSettlementsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_settlements')
+      handleKalshiError(data, 'get_settlements')
     }
 
     return {
@@ -181,7 +181,7 @@ export const kalshiGetSettlementsV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_settlements_v2',
   name: 'Get Settlements from Kalshi V2',
-  description: 'Retrieve your portfolio settlement history from Kalshi (V2 - exact API response)',
+  description: 'Retrieve your portfolio settlement history from Kalshi',
   version: '2.0.0',
 
   params: {
@@ -267,7 +267,7 @@ export const kalshiGetSettlementsV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_settlements_v2')
+      handleKalshiError(data, 'get_settlements_v2')
     }
 
     const settlements = (data.settlements || []).map((s: Record<string, unknown>) => ({

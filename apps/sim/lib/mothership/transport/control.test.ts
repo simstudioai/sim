@@ -1,25 +1,34 @@
+import {
+  mothershipChatWorkspaceContextMock,
+  mothershipChatWorkspaceContextMockFns,
+} from '@sim/testing/mocks/mothership-chat-workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlers = vi.hoisted(() => ({
   memory: vi.fn(),
+  recall: vi.fn(),
   read: vi.fn(),
   status: vi.fn(),
   prepare: vi.fn(),
   wake: vi.fn(),
-  workspace: vi.fn(),
   catalog: vi.fn(),
 }))
 vi.mock('@/lib/mothership/memory/application/read-scope', () => ({
   MEMORY_SCOPE_AUDIENCE: 'memory',
   readMemoryScope: { execute: handlers.memory },
 }))
+vi.mock('@/lib/mothership/chat/application/read-recall-chats', () => ({
+  RECALL_CHATS_AUDIENCE: 'recall',
+  readRecallChats: { execute: handlers.recall },
+}))
 vi.mock('@/lib/mothership/integrations/application/catalog', () => ({
   INTEGRATION_CATALOG_AUDIENCE: 'catalog',
   readIntegrationCatalog: { execute: handlers.catalog },
 }))
-vi.mock('@/lib/mothership/chat/application/workspace-context', () => ({
-  readWorkspaceContext: { execute: handlers.workspace },
-}))
+vi.mock(
+  '@/lib/mothership/chat/application/workspace-context',
+  () => mothershipChatWorkspaceContextMock
+)
 vi.mock('@/lib/mothership/request/application/read-control', () => ({
   RUN_CONTROL_AUDIENCE: 'control',
   readRunControl: { execute: handlers.read },
@@ -40,6 +49,7 @@ import type {
 } from '@/lib/mothership/generated/sim-transport'
 import { executeSimControl } from '@/lib/mothership/transport/control'
 
+const readWorkspaceContext = mothershipChatWorkspaceContextMockFns.mockReadWorkspaceContextExecute
 const scope = { userId: 'user', workspaceId: 'workspace', chatId: 'chat' }
 function request(operation: SimControlOperation): SimControlRequest {
   return { id: 'request', scope, operation, expiresAt: Date.now() + 5000 }
@@ -179,19 +189,33 @@ describe('outbound control delivery uses the existing authorized operations', ()
 })
 
 it('uses the same protected inventory for checkpoint memory preflight', async () => {
-  handlers.workspace.mockResolvedValue({ success: true, workspaces: [], nextCursor: null })
+  readWorkspaceContext.mockImplementation(
+    async ({
+      principal,
+      input,
+    }: {
+      principal: { kind: string; audience?: string; resourceScope?: { chatId?: string } }
+      input: { workspaceId: string }
+    }) => {
+      if (
+        principal.kind !== 'organization_delegated' ||
+        principal.audience !== 'sim:workspaces' ||
+        principal.resourceScope?.chatId !== 'chat'
+      ) {
+        throw new OrchestrationError('forbidden', 'Wrong delegated authority')
+      }
+      return { success: true, workspaces: [{ id: input.workspaceId }], nextCursor: null }
+    }
+  )
   const result = await executeSimControl({
     ...request({ kind: 'workspace_context', input: { workspaceId: 'target' } }),
     scope: { organizationId: 'org', userId: 'user', chatId: 'chat' },
   })
   expect(result.status).toBe(200)
-  expect(handlers.workspace).toHaveBeenCalledWith({
-    input: { workspaceId: 'target' },
-    principal: expect.objectContaining({
-      kind: 'organization_delegated',
-      audience: 'sim:workspaces',
-      resourceScope: { chatId: 'chat' },
-    }),
+  expect(JSON.parse(result.body)).toEqual({
+    success: true,
+    workspaces: [{ id: 'target' }],
+    nextCursor: null,
   })
 })
 
@@ -231,4 +255,30 @@ it('routes memory through the same use case for both delivery scopes', async () 
       }),
     })
   }
+})
+
+it("routes a chat's other chats through the same use case for both delivery scopes", async () => {
+  handlers.recall.mockResolvedValue({ userId: 'user', chats: [] })
+  for (const owner of [scope, { userId: 'user', organizationId: 'org', chatId: 'chat' }]) {
+    const result = await executeSimControl({
+      ...request({ kind: 'recall_chats', input: { chatId: 'chat', limit: 50 } }),
+      scope: owner,
+    })
+    expect(result).toEqual({ status: 200, body: JSON.stringify({ userId: 'user', chats: [] }) })
+    expect(handlers.recall).toHaveBeenLastCalledWith({
+      input: { chatId: 'chat', limit: 50 },
+      principal: expect.objectContaining({
+        subjectUserId: 'user',
+        audience: 'recall',
+        resourceScope: { chatId: 'chat' },
+      }),
+    })
+  }
+  expect(
+    (
+      await executeSimControl(
+        request({ kind: 'recall_chats', input: { chatId: 'another-chat', limit: 50 } })
+      )
+    ).status
+  ).toBe(403)
 })

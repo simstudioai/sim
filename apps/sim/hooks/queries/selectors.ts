@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query'
-import { requestJson } from '@/lib/api/client/request'
-import { personalSourceSetupContract } from '@/lib/api/contracts/knowledge/personal-source-setup'
-import {
-  type ExecuteSelectorClientInput,
-  executeSelectorRequest,
-} from '@/lib/selectors/client/execute-selector'
+import { executeSelectorRequest } from '@/lib/selectors/client/execute-selector'
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { MAX_SELECTOR_OPTIONS, MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
 import {
@@ -21,7 +16,6 @@ import type {
   SelectorOption,
   SelectorPage,
   SelectorScope,
-  SelectorSurface,
 } from '@/lib/selectors/types'
 import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
@@ -40,38 +34,6 @@ interface SelectorHookArgs {
   search?: string
   enabled?: boolean
   surfaceId?: string
-  surface?: SelectorSurface
-}
-
-async function executeForSurface(
-  input: ExecuteSelectorClientInput,
-  surface?: SelectorSurface
-): Promise<SelectorExecutionResult> {
-  if (!surface) return executeSelectorRequest(input)
-  const expectedKey = surface.connectorType === 'jira' ? 'jira.projectKeys' : 'confluence.spaces'
-  if (
-    input.selectorKey !== expectedKey ||
-    input.scope?.kind !== 'organization' ||
-    input.scope.organizationId !== surface.organizationId ||
-    !input.context.oauthCredential ||
-    !input.context.domain
-  )
-    throw new Error('This selector is not available during personal source setup')
-  const result = await requestJson(personalSourceSetupContract, {
-    body: {
-      action: 'options',
-      organizationId: surface.organizationId,
-      connectorType: surface.connectorType,
-      credentialId: input.context.oauthCredential,
-      domain: input.context.domain,
-      request: input.request,
-    },
-    signal: input.signal,
-  })
-  if (result.data.kind !== 'list' && result.data.kind !== 'detail') {
-    throw new Error('Personal source setup returned an unexpected selector result')
-  }
-  return result.data
 }
 
 export interface SelectorOptionsResult {
@@ -181,13 +143,7 @@ function usePreparedSelector(
   const context = projectSelectorContext(key, args.context)
   const scope = selectorScopeFromContext(args.context, args.scope)
   const contextValues = manifest.context.allowed.map((field) => context[field])
-  const revision = useOpaqueRevision([
-    ...contextValues,
-    ...requestValues,
-    args.surface?.kind,
-    args.surface?.organizationId,
-    args.surface?.connectorType,
-  ])
+  const revision = useOpaqueRevision([...contextValues, ...requestValues])
   const ready =
     args.enabled !== false &&
     isSelectorReady(key, context) &&
@@ -199,7 +155,6 @@ function usePreparedSelector(
     revision,
     ready,
     surfaceId: args.surfaceId ?? generatedSurfaceId,
-    surface: args.surface,
   }
 }
 
@@ -222,19 +177,16 @@ export function useSelectorOptions(
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: baseKey,
     queryFn: async ({ signal }) => {
-      const result = await executeForSurface(
-        {
-          selectorKey: key,
-          scope: prepared.scope,
-          context: prepared.context,
-          request: {
-            kind: 'list',
-            ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
-          },
-          signal,
+      const result = await executeSelectorRequest({
+        selectorKey: key,
+        scope: prepared.scope,
+        context: prepared.context,
+        request: {
+          kind: 'list',
+          ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
         },
-        prepared.surface
-      )
+        signal,
+      })
       if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
       return result
     },
@@ -247,20 +199,17 @@ export function useSelectorOptions(
     // rq-lint-allow: context and search are represented by an opaque privacy revision.
     queryKey: [...baseKey, 'paged'],
     queryFn: async ({ pageParam, signal }) => {
-      const result = await executeForSurface(
-        {
-          selectorKey: key,
-          scope: prepared.scope,
-          context: prepared.context,
-          request: {
-            kind: 'list',
-            ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
-            ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
-          },
-          signal,
+      const result = await executeSelectorRequest({
+        selectorKey: key,
+        scope: prepared.scope,
+        context: prepared.context,
+        request: {
+          kind: 'list',
+          ...(effectiveSearch !== undefined ? { search: effectiveSearch } : {}),
+          ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
         },
-        prepared.surface
-      )
+        signal,
+      })
       if (result.kind !== 'list') throw new Error('Selector returned an unexpected detail result')
       return result
     },
@@ -441,16 +390,13 @@ export function useSelectorOptionDetail(
       prepared.revision
     ),
     queryFn: async ({ signal }) => {
-      const result = await executeForSurface(
-        {
-          selectorKey: key,
-          scope: prepared.scope,
-          context: prepared.context,
-          request: { kind: 'detail', id: args.detailId! },
-          signal,
-        },
-        prepared.surface
-      )
+      const result = await executeSelectorRequest({
+        selectorKey: key,
+        scope: prepared.scope,
+        context: prepared.context,
+        request: { kind: 'detail', id: args.detailId! },
+        signal,
+      })
       if (result.kind !== 'detail') throw new Error('Selector returned an unexpected list result')
       return result.item
     },
@@ -478,16 +424,13 @@ export function useSelectorOptionDetails(
         ordinal
       ),
       queryFn: async ({ signal }: { signal: AbortSignal }) => {
-        const result = await executeForSurface(
-          {
-            selectorKey: key,
-            scope: prepared.scope,
-            context: prepared.context,
-            request: { kind: 'detail', id: detailId },
-            signal,
-          },
-          prepared.surface
-        )
+        const result = await executeSelectorRequest({
+          selectorKey: key,
+          scope: prepared.scope,
+          context: prepared.context,
+          request: { kind: 'detail', id: detailId },
+          signal,
+        })
         if (result.kind !== 'detail') throw new Error('Selector returned an unexpected list result')
         return result.item
       },

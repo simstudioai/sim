@@ -23,7 +23,7 @@ function createRegistry(): ResolvedSecretTraceRegistry {
 describe('projectToolResultForCopilot', () => {
   it.each([RunFunction.id, RunCode.id])(
     'projects active exact and embedded secrets for %s without mutating runtime output',
-    (toolName) => {
+    () => {
       const registry = createRegistry()
       registry.recordResolved('SECRET', 'secret-value', { propagated: true })
       const runtimeResult = {
@@ -132,7 +132,13 @@ describe('projectToolResultForCopilot', () => {
         },
         registry
       )
-    ).toEqual({ success: true })
+    ).toEqual({
+      success: true,
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be checked/),
+      },
+    })
   })
 
   it('uses an opaque marker when a replacement contains another active literal', () => {
@@ -334,7 +340,7 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it.each([
-    ['missing', undefined],
+    ['missing', undefined, undefined],
     [
       'incomplete',
       (() => {
@@ -342,20 +348,28 @@ describe('projectToolResultForCopilot', () => {
         registry.markIncomplete('unspecified')
         return registry
       })(),
+      { resultWithheld: true, withheldReason: expect.stringMatching(/could not be verified/) },
     ],
-  ])('fails closed for %s provenance without changing structural fields', (_label, registry) => {
-    expect(
-      projectToolResultForCopilot(
-        {
-          success: false,
-          output: { result: 'possibly-secret' },
-          error: 'possibly-secret-error',
-          resources: [{ type: 'file', id: 'file-1', title: 'report.txt' }],
-        },
-        registry
-      )
-    ).toEqual({ success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR })
-  })
+  ])(
+    'fails closed for %s provenance without changing structural fields',
+    (_label, registry, output) => {
+      expect(
+        projectToolResultForCopilot(
+          {
+            success: false,
+            output: { result: 'possibly-secret' },
+            error: 'possibly-secret-error',
+            resources: [{ type: 'file', id: 'file-1', title: 'report.txt' }],
+          },
+          registry
+        )
+      ).toEqual({
+        success: false,
+        ...(output ? { output } : {}),
+        error: TOOL_RESULT_UNAVAILABLE_ERROR,
+      })
+    }
+  )
 
   it('leaves resource metadata outside plaintext result projection', () => {
     const registry = createRegistry()
@@ -556,5 +570,105 @@ describe('effect disclosure on a withheld result', () => {
 
     const absent = inspectToolResultForCopilot({ success: false }, undefined)
     expect(absent.safe === false && absent.cause).toEqual({ kind: 'registry-absent' })
+  })
+})
+
+/**
+ * A withheld result used to reach the model as a bare `{ success: true }`, so the agent retried or
+ * guessed. The reason it now carries is chosen from code-defined wording by the guard that tripped;
+ * the payload, its keys, and any caller-supplied text must still never cross.
+ */
+describe('withholding reason disclosure', () => {
+  const EXECUTION_ID = '0f4d5a4c-6a1e-4c2f-9b7d-2c8f1a3e5d90'
+  const CONTENT = 'secret-value inside /files/private-report.txt'
+
+  function latched(reason: 'mounted-file-provenance-unavailable' | 'entry-decrypt-failed') {
+    const registry = createRegistry()
+    registry.recordResolved('SECRET', 'secret-value', { propagated: true })
+    registry.markIncomplete(reason, { origin: 'files/private-report.txt' })
+    return registry
+  }
+
+  it.each([
+    [
+      'mounted-file-provenance-unavailable',
+      /file, table, or document .* unknown secret provenance/,
+    ],
+    ['entry-decrypt-failed', /could not be verified/],
+  ] as const)('explains a %s latch without any content', (reason, wording) => {
+    const projected = projectToolResultForCopilot(
+      { success: true, output: { stdout: CONTENT } },
+      latched(reason),
+      'run_code'
+    )
+    expect(projected).toEqual({
+      success: true,
+      output: { resultWithheld: true, withheldReason: expect.stringMatching(wording) },
+    })
+    expect(JSON.stringify(projected)).not.toMatch(/secret-value|private-report/)
+  })
+
+  it('explains an unprojectable payload from a complete registry', () => {
+    const projected = projectToolResultForCopilot(
+      { success: true, output: { 'secret-value': 'first', '{{SECRET}}': 'second' } },
+      (() => {
+        const registry = createRegistry()
+        registry.recordResolved('SECRET', 'secret-value', { propagated: true })
+        return registry
+      })(),
+      'run_workflow'
+    )
+    expect(projected).toEqual({
+      success: true,
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be checked/),
+      },
+    })
+    expect(JSON.stringify(projected)).not.toContain('secret-value')
+  })
+
+  it('keeps the reason beside an effect disclosure and the failure wording', () => {
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: false,
+          error: CONTENT,
+          effect: { phase: 'performed', ids: { executionId: EXECUTION_ID } },
+        },
+        latched('mounted-file-provenance-unavailable'),
+        'run_workflow'
+      )
+    ).toEqual({
+      success: false,
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/unknown secret provenance/),
+        effect: 'performed',
+        executionId: EXECUTION_ID,
+      },
+      error: expect.stringContaining('Do not retry'),
+    })
+  })
+
+  it('voids the disclosure when an id would take the reason key', () => {
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: false,
+          error: 'why',
+          effect: { phase: 'performed', ids: { withheldReason: EXECUTION_ID } },
+        },
+        latched('entry-decrypt-failed'),
+        'run_workflow'
+      )
+    ).toEqual({
+      success: false,
+      output: {
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be verified/),
+      },
+      error: TOOL_RESULT_UNAVAILABLE_ERROR,
+    })
   })
 })

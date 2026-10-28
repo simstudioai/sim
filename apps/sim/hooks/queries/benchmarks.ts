@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { requestJson } from '@/lib/api/client/request'
+import { requestJson, requestRaw } from '@/lib/api/client/request'
 import {
   type BenchmarkResponse,
   benchmarkAvailabilityContract,
@@ -15,45 +15,56 @@ import {
   listBenchmarkRunsContract,
   listBenchmarksContract,
   type ReviewBenchmarkRunBody,
+  type RunBenchmarkComparisonBody,
   type RunBenchmarkStageBody,
   reviewBenchmarkRunContract,
+  runBenchmarkComparisonContract,
   runBenchmarkStageContract,
   type UpdateBenchmarkBody,
   updateBenchmarkContract,
 } from '@/lib/api/contracts/benchmarks'
+import { useSession } from '@/lib/auth/client'
+import { readBenchmarkRunResponse } from '@/lib/benchmarks/run-stream'
 
-export const benchmarkKeys = {
-  all: ['benchmarks'] as const,
-  lists: () => [...benchmarkKeys.all, 'list'] as const,
-  list: (organizationId: string, runAsUserId?: string) =>
-    [...benchmarkKeys.lists(), organizationId, ...(runAsUserId ? [runAsUserId] : [])] as const,
-  selections: () => [...benchmarkKeys.all, 'selection'] as const,
-  selection: (
-    kind: string,
-    organizationId: string,
-    userId: string,
-    search: string,
-    selectedId = ''
-  ) => [...benchmarkKeys.selections(), kind, organizationId, userId, search, selectedId] as const,
-  availability: () => [...benchmarkKeys.all, 'availability'] as const,
-  details: () => [...benchmarkKeys.all, 'detail'] as const,
-  detail: (organizationId: string, benchmarkId: string) =>
-    [...benchmarkKeys.details(), organizationId, benchmarkId] as const,
-  runLists: () => [...benchmarkKeys.all, 'runs', 'list'] as const,
-  runList: (organizationId: string, benchmarkId: string) =>
-    [...benchmarkKeys.runLists(), organizationId, benchmarkId] as const,
-  runPage: (organizationId: string, benchmarkId: string, cursor: string) =>
-    [...benchmarkKeys.runList(organizationId, benchmarkId), cursor] as const,
-  runs: () => [...benchmarkKeys.all, 'runs', 'detail'] as const,
-  run: (organizationId: string, benchmarkId: string, runId: string) =>
-    [...benchmarkKeys.runs(), organizationId, benchmarkId, runId] as const,
+function useBenchmarkKeys() {
+  const { data: session, isPending, error } = useSession()
+  const operatorId = !isPending && !error ? (session?.user?.id ?? null) : null
+  const benchmarkKeys = {
+    all: ['benchmarks', operatorId] as const,
+    lists: () => [...benchmarkKeys.all, 'list'] as const,
+    list: (organizationId: string, runAsUserId?: string) =>
+      [...benchmarkKeys.lists(), organizationId, ...(runAsUserId ? [runAsUserId] : [])] as const,
+    selections: () => [...benchmarkKeys.all, 'selection'] as const,
+    selection: (
+      kind: string,
+      organizationId: string,
+      userId: string,
+      search: string,
+      selectedId = ''
+    ) => [...benchmarkKeys.selections(), kind, organizationId, userId, search, selectedId] as const,
+    availability: () => [...benchmarkKeys.all, 'availability'] as const,
+    details: () => [...benchmarkKeys.all, 'detail'] as const,
+    detail: (organizationId: string, benchmarkId: string) =>
+      [...benchmarkKeys.details(), organizationId, benchmarkId] as const,
+    runLists: () => [...benchmarkKeys.all, 'runs', 'list'] as const,
+    runList: (organizationId: string, benchmarkId: string) =>
+      [...benchmarkKeys.runLists(), organizationId, benchmarkId] as const,
+    runPage: (organizationId: string, benchmarkId: string, cursor: string) =>
+      [...benchmarkKeys.runList(organizationId, benchmarkId), cursor] as const,
+    runs: () => [...benchmarkKeys.all, 'runs', 'detail'] as const,
+    run: (organizationId: string, benchmarkId: string, runId: string) =>
+      [...benchmarkKeys.runs(), organizationId, benchmarkId, runId] as const,
+  }
+
+  return { benchmarkKeys, operatorId }
 }
 
-export const BENCHMARK_STALE_TIME = 10_000
+const BENCHMARK_STALE_TIME = 10_000
 const BENCHMARK_POLL_INTERVAL = 2_000
 const BENCHMARK_PAGE_SIZE = 20
 
 export function useBenchmarks(organizationId: string, runAsUserId?: string) {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useInfiniteQuery({
     queryKey: benchmarkKeys.list(organizationId, runAsUserId),
     initialPageParam: undefined as string | undefined,
@@ -64,20 +75,23 @@ export function useBenchmarks(organizationId: string, runAsUserId?: string) {
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: Boolean(operatorId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }
 
 export function useBenchmarkAvailability(enabled = true) {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useQuery({
     queryKey: benchmarkKeys.availability(),
     queryFn: ({ signal }) => requestJson(benchmarkAvailabilityContract, { signal }),
-    enabled,
+    enabled: enabled && Boolean(operatorId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }
 
 export function useBenchmarkOrganizations(search: string, selectedId = '') {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useInfiniteQuery({
     queryKey: benchmarkKeys.selection('organizations', '', '', search, selectedId),
     initialPageParam: undefined as string | undefined,
@@ -87,11 +101,13 @@ export function useBenchmarkOrganizations(search: string, selectedId = '') {
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: Boolean(operatorId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }
 
 export function useBenchmarkUsers(organizationId: string, search: string, selectedId = '') {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useInfiniteQuery({
     queryKey: benchmarkKeys.selection('users', organizationId, '', search, selectedId),
     initialPageParam: undefined as string | undefined,
@@ -102,12 +118,13 @@ export function useBenchmarkUsers(organizationId: string, search: string, select
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: Boolean(organizationId),
+    enabled: Boolean(operatorId && organizationId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }
 
 export function useBenchmarkWorkspaces(organizationId: string, runAsUserId: string, search = '') {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useInfiniteQuery({
     queryKey: benchmarkKeys.selection('workspaces', organizationId, runAsUserId, search),
     initialPageParam: undefined as string | undefined,
@@ -118,12 +135,13 @@ export function useBenchmarkWorkspaces(organizationId: string, runAsUserId: stri
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: Boolean(organizationId && runAsUserId),
+    enabled: Boolean(operatorId && organizationId && runAsUserId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }
 
-export function useBenchmark(organizationId: string, benchmarkId: string) {
+export function useBenchmark(organizationId: string, benchmarkId: string, polling = false) {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useQuery({
     queryKey: benchmarkKeys.detail(organizationId, benchmarkId),
     queryFn: ({ signal }) =>
@@ -131,9 +149,10 @@ export function useBenchmark(organizationId: string, benchmarkId: string) {
         params: { id: organizationId, benchmarkId },
         signal,
       }),
-    enabled: Boolean(benchmarkId),
+    enabled: Boolean(operatorId && benchmarkId),
     staleTime: BENCHMARK_STALE_TIME,
     refetchInterval: (query) => {
+      if (polling) return BENCHMARK_POLL_INTERVAL
       const benchmark = query.state.data?.benchmark
       if (!benchmark?.runningStage || !benchmark.leaseExpiresAt) return false
       return Date.parse(benchmark.leaseExpiresAt) > Date.now() ? BENCHMARK_POLL_INTERVAL : false
@@ -142,6 +161,7 @@ export function useBenchmark(organizationId: string, benchmarkId: string) {
 }
 
 export function useBenchmarkRuns(organizationId: string, benchmarkId: string, cursor: string) {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useQuery({
     queryKey: benchmarkKeys.runPage(organizationId, benchmarkId, cursor),
     queryFn: ({ signal }) =>
@@ -150,11 +170,13 @@ export function useBenchmarkRuns(organizationId: string, benchmarkId: string, cu
         query: { cursor: cursor || undefined, limit: BENCHMARK_PAGE_SIZE },
         signal,
       }),
+    enabled: Boolean(operatorId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }
 
 export function useBenchmarkRun(organizationId: string, benchmarkId: string, runId: string) {
+  const { benchmarkKeys, operatorId } = useBenchmarkKeys()
   return useQuery({
     queryKey: benchmarkKeys.run(organizationId, benchmarkId, runId),
     queryFn: ({ signal }) =>
@@ -162,14 +184,22 @@ export function useBenchmarkRun(organizationId: string, benchmarkId: string, run
         params: { id: organizationId, benchmarkId, runId },
         signal,
       }),
-    enabled: Boolean(runId),
+    enabled: Boolean(operatorId && runId),
     staleTime: BENCHMARK_STALE_TIME,
   })
 }
 
 export function useReviewBenchmarkRun(organizationId: string, benchmarkId: string, runId: string) {
+  const { benchmarkKeys } = useBenchmarkKeys()
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: [
+      ...benchmarkKeys.all,
+      'useReviewBenchmarkRun',
+      organizationId,
+      benchmarkId,
+      runId,
+    ],
     mutationFn: (body: ReviewBenchmarkRunBody) =>
       requestJson(reviewBenchmarkRunContract, {
         params: { id: organizationId, benchmarkId, runId },
@@ -189,8 +219,10 @@ export function useReviewBenchmarkRun(organizationId: string, benchmarkId: strin
 }
 
 export function useCreateBenchmark(organizationId: string) {
+  const { benchmarkKeys } = useBenchmarkKeys()
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: [...benchmarkKeys.all, 'useCreateBenchmark', organizationId],
     mutationFn: (body: CreateBenchmarkBody) =>
       requestJson(createBenchmarkContract, { params: { id: organizationId }, body }),
     onSuccess: (data) => {
@@ -201,8 +233,10 @@ export function useCreateBenchmark(organizationId: string) {
 }
 
 export function useUpdateBenchmark(organizationId: string, benchmarkId: string) {
+  const { benchmarkKeys } = useBenchmarkKeys()
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: [...benchmarkKeys.all, 'useUpdateBenchmark', organizationId, benchmarkId],
     mutationFn: (body: UpdateBenchmarkBody) =>
       requestJson(updateBenchmarkContract, {
         params: { id: organizationId, benchmarkId },
@@ -219,21 +253,28 @@ export function useUpdateBenchmark(organizationId: string, benchmarkId: string) 
 }
 
 export function useRunBenchmarkStage(organizationId: string, benchmarkId: string) {
+  const { benchmarkKeys } = useBenchmarkKeys()
   const queryClient = useQueryClient()
   const queryKey = benchmarkKeys.detail(organizationId, benchmarkId)
   return useMutation({
+    mutationKey: [...benchmarkKeys.all, 'useRunBenchmarkStage', organizationId, benchmarkId],
     mutationFn: (body: RunBenchmarkStageBody) =>
-      requestJson(runBenchmarkStageContract, {
+      requestRaw(runBenchmarkStageContract, {
         params: { id: organizationId, benchmarkId },
         body,
-      }),
+      }).then(readBenchmarkRunResponse),
     onMutate: async ({ stage }) => {
       await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<BenchmarkResponse>(queryKey)
       queryClient.setQueryData<BenchmarkResponse>(queryKey, (current) =>
         current
           ? { ...current, benchmark: { ...current.benchmark, runningStage: stage, error: null } }
           : current
       )
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
     },
     onSuccess: (data) => queryClient.setQueryData(queryKey, data),
     onSettled: () => {
@@ -246,9 +287,33 @@ export function useRunBenchmarkStage(organizationId: string, benchmarkId: string
   })
 }
 
+export function useRunBenchmarkComparison(organizationId: string, benchmarkId: string) {
+  const { benchmarkKeys } = useBenchmarkKeys()
+  const queryClient = useQueryClient()
+  const queryKey = benchmarkKeys.detail(organizationId, benchmarkId)
+  return useMutation({
+    mutationKey: [...benchmarkKeys.all, 'useRunBenchmarkComparison', organizationId, benchmarkId],
+    mutationFn: (body: RunBenchmarkComparisonBody) =>
+      requestRaw(runBenchmarkComparisonContract, {
+        params: { id: organizationId, benchmarkId },
+        body,
+      }).then(readBenchmarkRunResponse),
+    onSuccess: (data) => queryClient.setQueryData(queryKey, data),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: benchmarkKeys.list(organizationId) })
+      queryClient.invalidateQueries({
+        queryKey: benchmarkKeys.runList(organizationId, benchmarkId),
+      })
+    },
+  })
+}
+
 export function useDeleteBenchmark(organizationId: string, benchmarkId: string) {
+  const { benchmarkKeys } = useBenchmarkKeys()
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: [...benchmarkKeys.all, 'useDeleteBenchmark', organizationId, benchmarkId],
     mutationFn: (body: DeleteBenchmarkBody) =>
       requestJson(deleteBenchmarkContract, {
         params: { id: organizationId, benchmarkId },

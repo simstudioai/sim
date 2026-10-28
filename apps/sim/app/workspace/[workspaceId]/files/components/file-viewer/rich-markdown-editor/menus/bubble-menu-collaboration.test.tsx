@@ -72,8 +72,6 @@ afterEach(() => {
     peer.doc.destroy()
   }
   viewport.remove()
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 

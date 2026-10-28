@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeAddUserAppRoleAssignmentOperation } from '@/lib/internal/microsoft-ad/operations/add-user-app-role-assignment'
 
 const INPUT = {
@@ -15,8 +15,6 @@ describe('executeAddUserAppRoleAssignmentOperation', () => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it('rejects malformed successful Graph JSON instead of fabricating a null assignment', async () => {
     fetchMock.mockResolvedValueOnce(new Response('not-json'))

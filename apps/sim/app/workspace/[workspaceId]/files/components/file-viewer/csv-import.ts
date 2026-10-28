@@ -61,7 +61,6 @@ export function useCsvTruncationImport(
       }
     )
     // importFile.mutate and router are stable references
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, file.id, file.key, file.name])
 
   // Surface the cap as a warning toast with an import action, once per file.

@@ -7,22 +7,11 @@ import { join } from 'node:path'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { OutboundGateway, ResolvedOutboundRoute } from '@/lib/core/network/config.server'
 
-const { state } = vi.hoisted(() => ({
-  state: { gateways: new Map<string, OutboundGateway>() },
-}))
-vi.mock('@/lib/core/network/config.server', () => ({
-  isOutboundRoutingEnabled: () => true,
-  async resolveOutboundRoute(
-    organizationId: string | null | undefined
-  ): Promise<ResolvedOutboundRoute> {
-    const gateway = organizationId ? state.gateways.get(organizationId) : undefined
-    if (!gateway || !organizationId) throw new Error('No configured route')
-    return { kind: 'gateway', gateway }
-  },
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { openGatewayTunnel, secureOutboundTunnel } from '@/lib/core/network/gateway.server'
@@ -30,6 +19,17 @@ import {
   createPinnedFetchWithDispatcher,
   secureFetchWithPinnedIP,
 } from '@/lib/core/security/input-validation.server'
+
+const state = { gateways: new Map<string, OutboundGateway>() }
+
+networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(
+  async (organizationId: string | null | undefined): Promise<ResolvedOutboundRoute> => {
+    const gateway = organizationId ? state.gateways.get(organizationId) : undefined
+    if (!gateway || !organizationId) throw new Error('No configured route')
+    return { kind: 'gateway', gateway }
+  }
+)
 
 const certificateDirectory = mkdtempSync(join(tmpdir(), 'gateway-tls-'))
 const certificatePath = join(certificateDirectory, 'cert.pem')
@@ -43,11 +43,16 @@ const admissions: Array<{
 }> = []
 let originRequests = 0
 let receivedHeaders: Record<string, unknown> = {}
+let receivedTarget = ''
 const proxiedPorts = new Set<number>()
+/** Each queued entry makes one CONNECT fail: `reset` drops the connection, a number answers with that status. */
+const connectFailures: Array<'reset' | number> = []
 const secureOrigin = httpsServer(async (req, res) => {
   res.setHeader('x-via-proxy', proxiedPorts.has(req.socket.remotePort ?? 0) ? 'yes' : 'no')
   originRequests++
   receivedHeaders = req.headers
+  receivedTarget = req.url ?? ''
+  res.setHeader('x-request-target', receivedTarget)
   if (req.url === '/redirect') {
     res.writeHead(302, { location: '/done' })
     res.end()
@@ -56,7 +61,7 @@ const secureOrigin = httpsServer(async (req, res) => {
   if (req.url === '/wait') return
   const chunks: Buffer[] = []
   for await (const chunk of req) chunks.push(Buffer.from(chunk))
-  res.end(req.method === 'POST' ? Buffer.concat(chunks) : 'tls reached')
+  res.end(req.method === 'POST' || req.method === 'PUT' ? Buffer.concat(chunks) : 'tls reached')
 })
 const proxy = httpsServer()
 proxy.on('connect', (req, socket, head) => {
@@ -67,6 +72,15 @@ proxy.on('connect', (req, socket, head) => {
     destination: req.url,
     sni: tlsSocket.servername,
   })
+  const failure = connectFailures.shift()
+  if (failure === 'reset') {
+    socket.destroy()
+    return
+  }
+  if (failure !== undefined) {
+    socket.end(`HTTP/1.1 ${failure} Gateway Failure\r\nContent-Length: 0\r\n\r\n`)
+    return
+  }
   if (!req.headers['proxy-authorization']?.match(/^Bearer (alpha|bravo|a{48})$/)) {
     socket.end('HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n')
     return
@@ -147,9 +161,36 @@ afterAll(async () => {
   rmSync(certificateDirectory, { recursive: true, force: true })
 })
 const url = () => 'https://origin.invalid'
+const gatewayFor = (organizationId: string): OutboundGateway => {
+  const gateway = state.gateways.get(organizationId)
+  if (!gateway) throw new Error(`No gateway for ${organizationId}`)
+  return gateway
+}
 const options = { profile: 'selfHostedService' as const }
 
 describe('organization gateways over real TLS CONNECT sockets', () => {
+  it('preserves signed request targets and origin authentication through the gateway', async () => {
+    const target = '/exports/../raw/audit_logs/event%2Fpart.ndjson?x-id=PutObject&token=%2B'
+    const response = await runWithOutboundOrganization('org_a', () =>
+      secureFetchWithPinnedIP(`${url()}${target}`, '1.1.1.1', {
+        ...options,
+        requestTarget: target,
+        method: 'PUT',
+        body: '{"id":"event"}\n',
+        headers: {
+          authorization: 'AWS4-HMAC-SHA256 signed-request',
+          'Proxy-Authorization': 'must-not-reach-origin',
+        },
+      })
+    )
+    expect(await response.text()).toBe('{"id":"event"}\n')
+    expect(response.headers.get('x-via-proxy')).toBe('yes')
+    expect(receivedTarget).toBe(target)
+    expect(receivedHeaders.authorization).toBe('AWS4-HMAC-SHA256 signed-request')
+    expect(receivedHeaders['proxy-authorization']).toBeUndefined()
+    expect(admissions.at(-1)?.destination).toBe('1.1.1.1:443')
+  })
+
   it('keeps an upgraded tunnel usable after five minutes', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     let tunnel: Socket | undefined
@@ -312,7 +353,7 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
         },
       }
     )
-    expect(admissions.length).toBe(start + 3)
+    expect(admissions.length).toBe(start + 4)
     expect(
       admissions.slice(start).every((entry) => entry.token === `Bearer ${'a'.repeat(48)}`)
     ).toBe(true)
@@ -329,6 +370,44 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
       await expect(promise).rejects.toThrow()
     } finally {
       await transport.dispatcher.destroy()
+    }
+  })
+
+  it.each(['reset', 503] as const)(
+    'retries a CONNECT that fails with %s before the tunnel opens and completes the request',
+    async (failure) => {
+      connectFailures.push(failure)
+      const start = admissions.length
+      try {
+        const response = await runWithOutboundOrganization('org_a', () =>
+          secureFetchWithPinnedIP(url(), '1.1.1.1', options)
+        )
+        expect(await response.text()).toBe('tls reached')
+        expect(admissions.length).toBe(start + 2)
+      } finally {
+        connectFailures.length = 0
+      }
+    }
+  )
+
+  it('does not retry a rejected proxy credential', async () => {
+    const start = admissions.length
+    await expect(
+      openGatewayTunnel({ ...gatewayFor('org_a'), token: 'denied' }, '1.1.1.1', 443)
+    ).rejects.toMatchObject({ code: 'GATEWAY_UNAVAILABLE' })
+    expect(admissions.length).toBe(start + 1)
+  })
+
+  it('gives up after two failed CONNECT attempts', async () => {
+    connectFailures.push('reset', 503)
+    const start = admissions.length
+    try {
+      await expect(openGatewayTunnel(gatewayFor('org_a'), '1.1.1.1', 443)).rejects.toMatchObject({
+        code: 'GATEWAY_UNAVAILABLE',
+      })
+      expect(admissions.length).toBe(start + 2)
+    } finally {
+      connectFailures.length = 0
     }
   })
 })

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { beginBrowserPanelDividerDrag } from '@/lib/browser-agent/transport'
 import { readSeparatorKey, type SeparatorKey } from '@/lib/core/utils/separator-keys'
+import { useChatPanelStore } from '@/stores/chat-panel/store'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
 
 /**
@@ -12,23 +13,23 @@ import { MOTHERSHIP_WIDTH } from '@/stores/constants'
  * — the row absorbs the difference silently, leaving the inline style reading a
  * value the panel is not actually at.
  *
- * Floored at MIN so a window too narrow to satisfy both keeps a usable panel
- * rather than collapsing it; below that the row overflows, which is the same
- * thing it did before and is only reachable at the minimum window size with the
- * sidebar expanded.
+ * In narrow regular layouts, both columns yield up to half the available space.
  */
 export function maxPanelWidth(viewportWidth: number, containerWidth: number): number {
   return Math.max(
-    MOTHERSHIP_WIDTH.MIN,
+    Math.min(MOTHERSHIP_WIDTH.MIN, containerWidth / 2),
     Math.min(
       viewportWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE,
-      containerWidth - MOTHERSHIP_WIDTH.CHAT_MIN
+      containerWidth - Math.min(MOTHERSHIP_WIDTH.CHAT_MIN, containerWidth / 2)
     )
   )
 }
 
 function measureMaxWidth(el: HTMLElement): number {
-  return maxPanelWidth(window.innerWidth, el.parentElement?.clientWidth ?? window.innerWidth)
+  return maxPanelWidth(
+    window.innerWidth,
+    el.parentElement?.getBoundingClientRect().width ?? window.innerWidth
+  )
 }
 
 /** What a divider drag measures once at pointerdown and holds for the gesture. */
@@ -48,7 +49,10 @@ export interface DragGeometry {
 /** Panel width for a pointer position. The only place the clamps live. */
 export function panelWidthAt(clientX: number, geometry: DragGeometry): number {
   const { panelRight, grabOffset, maxWidth } = geometry
-  return Math.max(MOTHERSHIP_WIDTH.MIN, Math.min(panelRight - (clientX - grabOffset), maxWidth))
+  return Math.max(
+    Math.min(MOTHERSHIP_WIDTH.MIN, maxWidth),
+    Math.min(panelRight - (clientX - grabOffset), maxWidth)
+  )
 }
 
 /**
@@ -79,10 +83,11 @@ export function keyboardPanelWidth(
   currentWidth: number,
   maxWidth: number
 ): number {
-  if (key === 'min') return MOTHERSHIP_WIDTH.MIN
+  const minWidth = Math.min(MOTHERSHIP_WIDTH.MIN, maxWidth)
+  if (key === 'min') return minWidth
   if (key === 'max') return maxWidth
   const delta = key === 'left' ? KEYBOARD_STEP_PX : -KEYBOARD_STEP_PX
-  return Math.max(MOTHERSHIP_WIDTH.MIN, Math.min(currentWidth + delta, maxWidth))
+  return Math.max(minWidth, Math.min(currentWidth + delta, maxWidth))
 }
 
 /**
@@ -97,11 +102,32 @@ function writeWidthInstantly(el: HTMLElement, width: number) {
   el.style.transition = prevTransition
 }
 
+/** Restores the preference within the current layout without changing the saved width. */
+function restorePanelWidth(el: HTMLElement, preferred: number | undefined) {
+  if (preferred === undefined) {
+    el.style.removeProperty('width')
+    return
+  }
+  const width = Math.min(preferred, measureMaxWidth(el))
+  if (el.style.width !== `${width}px`) writeWidthInstantly(el, width)
+}
+
 /** Mirrors the panel's current width and bounds onto the divider for assistive tech. */
 function syncDividerValue(handle: HTMLElement, el: HTMLElement, maxWidth = measureMaxWidth(el)) {
-  handle.setAttribute('aria-valuemin', String(MOTHERSHIP_WIDTH.MIN))
+  handle.setAttribute('aria-valuemin', String(Math.round(Math.min(MOTHERSHIP_WIDTH.MIN, maxWidth))))
   handle.setAttribute('aria-valuemax', String(Math.round(maxWidth)))
   handle.setAttribute('aria-valuenow', String(Math.round(el.getBoundingClientRect().width)))
+}
+
+/** Synchronous storage hydration also covers panels that arrive after a lazy fallback. */
+function readPreferredWidth(userId: string | undefined, scopeId: string): number | undefined {
+  if (!useChatPanelStore.persist.hasHydrated()) void useChatPanelStore.persist.rehydrate()
+  return userId ? useChatPanelStore.getState().widths[`${userId}:${scopeId}`] : undefined
+}
+
+interface MothershipResizeOptions {
+  userId?: string
+  collapsed: boolean
 }
 
 /**
@@ -113,184 +139,207 @@ function syncDividerValue(handle: HTMLElement, el: HTMLElement, maxWidth = measu
  * `handleResizePointerDown` to the drag handle's onPointerDown.
  * Bind `handleResizeKeyDown` and `handleResizeFocus` to the same handle so it is
  * keyboard-adjustable and reports its value to assistive tech.
- * Call `clearWidth` when the panel collapses so the CSS class retakes control.
  */
-export function useMothershipResize(desktopScopeId: string) {
+export function useMothershipResize(
+  desktopScopeId: string,
+  { userId, collapsed }: MothershipResizeOptions
+) {
+  const scopeRef = useRef(desktopScopeId)
   const mothershipRef = useRef<HTMLDivElement | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
   const focusedDividerRef = useRef<HTMLElement | null>(null)
-  const desktopScopeIdRef = useRef(desktopScopeId)
-  desktopScopeIdRef.current = desktopScopeId
+  const preferredWidthRef = useRef<number | undefined>(undefined)
 
-  const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault()
+  const rememberWidth = useCallback(
+    (width: number) => {
+      const preferredWidth = Math.max(MOTHERSHIP_WIDTH.MIN, width)
+      preferredWidthRef.current = preferredWidth
+      if (userId) useChatPanelStore.getState().setWidth(userId, desktopScopeId, preferredWidth)
+    },
+    [userId, desktopScopeId]
+  )
 
+  const restoreWidth = useCallback(() => {
     const el = mothershipRef.current
-    if (!el) return
-    // Single-flight: a second press while a drag is live must not stack listeners
-    if (cleanupRef.current) return
+    if (!el || cleanupRef.current) return
+    restorePanelWidth(el, collapsed ? undefined : preferredWidthRef.current)
+    const divider = focusedDividerRef.current
+    if (divider && document.activeElement === divider) syncDividerValue(divider, el)
+  }, [collapsed])
 
-    const handle = e.currentTarget as HTMLElement
-    const pointerId = e.pointerId
-    handle.setPointerCapture(pointerId)
+  useLayoutEffect(() => {
+    const store = useChatPanelStore.getState()
+    if (store.resolveChatId(scopeRef.current) !== desktopScopeId) cleanupRef.current?.()
+    scopeRef.current = desktopScopeId
+    preferredWidthRef.current = readPreferredWidth(userId, desktopScopeId)
+    restoreWidth()
+  }, [desktopScopeId, userId, restoreWidth])
 
-    // Pin to current rendered width so drag starts from the visual position
-    const startRect = el.getBoundingClientRect()
-    el.style.width = `${startRect.width}px`
-
-    // Nothing moves the panel's right edge mid-drag, and the pointer keeps the
-    // offset it grabbed at, so one measurement serves the whole gesture.
-    const geometry: DragGeometry = {
-      panelRight: startRect.right,
-      grabOffset: e.clientX - startRect.left,
-      maxWidth: measureMaxWidth(el),
-    }
-
-    // The panel's left edge IS the divider. Handing it to the browser
-    // transport lets the native browser view (when one is showing) be
-    // repositioned arithmetically per pointer move instead of waiting for the
-    // renderer's layout → measure → report round-trip; no-op (null) when no
-    // browser resource is live
-    const predictBrowserBounds = beginBrowserPanelDividerDrag(
-      startRect.left,
-      desktopScopeIdRef.current
-    )
-
-    // Disable CSS transition to prevent animation lag during drag
-    const prevTransition = el.style.transition
-    el.style.transition = 'none'
-    document.body.style.cursor = 'ew-resize'
-    document.body.style.userSelect = 'none'
-
-    let rafId: number | null = null
-    let lastClientX: number | null = null
-
-    const applyWidth = (clientX: number) => {
-      el.style.width = `${panelWidthAt(clientX, geometry)}px`
-    }
-
-    // AbortController removes all listeners at once on cleanup/cancel/unmount
-    const ac = new AbortController()
-    const { signal } = ac
-
-    const cleanup = () => {
-      ac.abort()
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId)
-        rafId = null
-      }
-      // Land on the exact final pointer position before transitions come back,
-      // so a fast flick whose last move never got a frame is not lost. The
-      // flush is what stops that catch-up delta from animating: without it the
-      // width write and the transition restore land in one style change, and
-      // the panel eases into its final width over 200ms while the native view
-      // chases it.
-      if (lastClientX !== null) applyWidth(lastClientX)
-      void el.offsetWidth
-      el.style.transition = prevTransition
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      cleanupRef.current = null
-      syncDividerValue(handle, el)
-    }
-    cleanupRef.current = cleanup
-
-    handle.addEventListener(
-      'pointermove',
-      (moveEvent: PointerEvent) => {
-        if (moveEvent.pointerId !== pointerId) return
-        lastClientX = moveEvent.clientX
-        // Fast path first: hand the native browser view its next rect at
-        // pointer-event time (clamped exactly like the width write below), a
-        // full layout pass ahead of the measured geometry report
-        predictBrowserBounds?.(dividerXAt(moveEvent.clientX, geometry))
-        // Coalesce to one width write per frame: pointermove can outpace the
-        // display refresh, and every unbatched write forces an extra layout
-        // pass that the embedded browser view then has to chase
+  /** DOM attachment owns gesture cleanup; pending chat adoption leaves the same panel attached. */
+  const attachPanel = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (!el) return
+      mothershipRef.current = el
+      preferredWidthRef.current = readPreferredWidth(userId, scopeRef.current)
+      let rafId: number | null = null
+      const scheduleRestore = () => {
         rafId ??= requestAnimationFrame(() => {
           rafId = null
-          if (lastClientX !== null) applyWidth(lastClientX)
+          restoreWidth()
         })
-      },
-      { signal }
-    )
+      }
+      restoreWidth()
+      const observer = new ResizeObserver(scheduleRestore)
+      if (el.parentElement) observer.observe(el.parentElement)
+      window.addEventListener('resize', scheduleRestore)
+      return () => {
+        cleanupRef.current?.()
+        observer.disconnect()
+        window.removeEventListener('resize', scheduleRestore)
+        if (rafId !== null) cancelAnimationFrame(rafId)
+        mothershipRef.current = null
+      }
+    },
+    [userId, restoreWidth]
+  )
 
-    handle.addEventListener(
-      'pointerup',
-      (upEvent: PointerEvent) => {
-        if (upEvent.pointerId !== pointerId) return
-        handle.releasePointerCapture(upEvent.pointerId)
-        cleanup()
-      },
-      { signal }
-    )
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return
+      e.preventDefault()
 
-    // Browser fires pointercancel when it reclaims the gesture (scroll, palm rejection, etc.)
-    // Without this, body cursor/userSelect and transition would be permanently stuck
-    handle.addEventListener('pointercancel', cleanup, { signal })
-    // A blur mid-drag (cmd-tab, window switch) would otherwise strand the
-    // body cursor/userSelect overrides with no pointerup coming
-    window.addEventListener('blur', cleanup, { signal })
-  }, [])
-
-  // Tear down any active drag if the component unmounts mid-drag
-  useEffect(() => {
-    return () => {
-      cleanupRef.current?.()
-    }
-  }, [])
-
-  // Re-clamp panel width when the viewport is resized (inline px width can exceed max after narrowing).
-  // Shares `measureMaxWidth` with the drag so a window resize can never leave
-  // the panel at a width the drag would have refused, or vice versa.
-  // Coalesced to one frame, and the pinned width is read off the inline style
-  // rather than the box: resize events can outpace the display during a live
-  // window-edge drag, so measuring in the handler would flush layout per event.
-  // The container measurement `computeMaxWidth` does need costs one flush, but
-  // it happens inside the coalesced frame, not per event.
-  // The clamp also has to land without animating — the transition on the panel
-  // would otherwise make the embedded browser view chase a moving rect for
-  // 200ms after the drag stops.
-  useEffect(() => {
-    let rafId: number | null = null
-
-    const clampWidth = () => {
-      rafId = null
       const el = mothershipRef.current
       if (!el) return
-      const pinned = el.style.width
-      const divider = focusedDividerRef.current
-      const reportsToDivider = divider !== null && document.activeElement === divider
-      if (!pinned && !reportsToDivider) return
-      const maxWidth = measureMaxWidth(el)
-      if (pinned && Number.parseFloat(pinned) > maxWidth) writeWidthInstantly(el, maxWidth)
-      if (reportsToDivider) syncDividerValue(divider, el, maxWidth)
-    }
+      // Single-flight: a second press while a drag is live must not stack listeners
+      if (cleanupRef.current) return
 
-    const handleWindowResize = () => {
-      if (rafId !== null) return
-      rafId = requestAnimationFrame(clampWidth)
-    }
+      const handle = e.currentTarget as HTMLElement
+      const pointerId = e.pointerId
+      handle.setPointerCapture(pointerId)
 
-    window.addEventListener('resize', handleWindowResize)
-    return () => {
-      window.removeEventListener('resize', handleWindowResize)
-      if (rafId !== null) cancelAnimationFrame(rafId)
-    }
-  }, [])
+      // Pin to current rendered width so drag starts from the visual position
+      const startRect = el.getBoundingClientRect()
+      el.style.width = `${startRect.width}px`
+
+      // Snapshot geometry avoids layout reads on every move; release applies fresh bounds.
+      const geometry: DragGeometry = {
+        panelRight: startRect.right,
+        grabOffset: e.clientX - startRect.left,
+        maxWidth: measureMaxWidth(el),
+      }
+
+      // The panel's left edge IS the divider. Handing it to the browser
+      // transport lets the native browser view (when one is showing) be
+      // repositioned arithmetically per pointer move instead of waiting for the
+      // renderer's layout → measure → report round-trip; no-op (null) when no
+      // browser resource is live
+      const predictBrowserBounds = beginBrowserPanelDividerDrag(startRect.left, desktopScopeId)
+
+      // Disable CSS transition to prevent animation lag during drag
+      const prevTransition = el.style.transition
+      el.style.transition = 'none'
+      document.body.style.cursor = 'ew-resize'
+      document.body.style.userSelect = 'none'
+
+      let rafId: number | null = null
+      let lastClientX: number | null = null
+
+      const applyWidth = (clientX: number) => {
+        el.style.width = `${panelWidthAt(clientX, geometry)}px`
+      }
+
+      // AbortController removes all listeners at once on cleanup/cancel/unmount
+      const ac = new AbortController()
+      const { signal } = ac
+
+      const finish = (commit: boolean) => {
+        ac.abort()
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId)
+          rafId = null
+        }
+        if (commit && lastClientX !== null) {
+          rememberWidth(panelWidthAt(lastClientX, geometry))
+        }
+        // Flush the restored width before transitions return, so the native view
+        // does not chase a 200ms catch-up animation.
+        restorePanelWidth(el, preferredWidthRef.current)
+        void el.offsetWidth
+        // A cancelled frame may never change DOM size, so ResizeObserver cannot undo its prediction.
+        const restoredRect = el.getBoundingClientRect()
+        if (
+          restoredRect.left === startRect.left &&
+          restoredRect.top === startRect.top &&
+          restoredRect.width === startRect.width &&
+          restoredRect.height === startRect.height
+        ) {
+          predictBrowserBounds?.(restoredRect.left, scopeRef.current)
+        }
+        el.style.transition = prevTransition
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+        cleanupRef.current = null
+        if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+        syncDividerValue(handle, el)
+      }
+      const cancel = () => finish(false)
+      const cancelPointer = (event: PointerEvent) => {
+        if (event.pointerId === pointerId) cancel()
+      }
+      const complete = () => finish(true)
+      const completePointer = (event: PointerEvent) => {
+        if (event.pointerId === pointerId) complete()
+      }
+      cleanupRef.current = cancel
+
+      handle.addEventListener(
+        'pointermove',
+        (moveEvent: PointerEvent) => {
+          if (moveEvent.pointerId !== pointerId) return
+          lastClientX = moveEvent.clientX
+          // Fast path first: hand the native browser view its next rect at
+          // pointer-event time (clamped exactly like the width write below), a
+          // full layout pass ahead of the measured geometry report
+          predictBrowserBounds?.(dividerXAt(moveEvent.clientX, geometry), scopeRef.current)
+          // Coalesce to one width write per frame: pointermove can outpace the
+          // display refresh, and every unbatched write forces an extra layout
+          // pass that the embedded browser view then has to chase
+          rafId ??= requestAnimationFrame(() => {
+            rafId = null
+            if (lastClientX !== null) applyWidth(lastClientX)
+          })
+        },
+        { signal }
+      )
+
+      handle.addEventListener('pointerup', completePointer, { signal })
+
+      // Browser fires pointercancel when it reclaims the gesture (scroll, palm rejection, etc.)
+      // Without this, body cursor/userSelect and transition would be permanently stuck
+      handle.addEventListener('pointercancel', cancelPointer, { signal })
+      // Capture or focus can be lost before pointerup reaches the handle; retain the user's resize.
+      handle.addEventListener('lostpointercapture', completePointer, { signal })
+      window.addEventListener('blur', complete, { signal })
+    },
+    [desktopScopeId, rememberWidth]
+  )
 
   /** Steps the panel width from the focused divider, never during a live drag. */
-  const handleResizeKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
-    const key = readSeparatorKey(e)
-    const el = mothershipRef.current
-    if (!key || !el || cleanupRef.current) return
-    const maxWidth = measureMaxWidth(el)
-    const width = keyboardPanelWidth(key, el.getBoundingClientRect().width, maxWidth)
-    e.preventDefault()
-    e.stopPropagation()
-    writeWidthInstantly(el, width)
-    syncDividerValue(e.currentTarget, el, maxWidth)
-  }, [])
+  const handleResizeKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLElement>) => {
+      const key = readSeparatorKey(e)
+      const el = mothershipRef.current
+      if (!key || !el || cleanupRef.current) return
+      const maxWidth = measureMaxWidth(el)
+      const width = keyboardPanelWidth(key, el.getBoundingClientRect().width, maxWidth)
+      e.preventDefault()
+      e.stopPropagation()
+      writeWidthInstantly(el, width)
+      rememberWidth(width)
+      syncDividerValue(e.currentTarget, el, maxWidth)
+    },
+    [rememberWidth]
+  )
 
   /** Reports the current width when the divider takes focus, and while it keeps focus. */
   const handleResizeFocus = useCallback((e: React.FocusEvent<HTMLElement>) => {
@@ -299,16 +348,10 @@ export function useMothershipResize(desktopScopeId: string) {
     if (el) syncDividerValue(e.currentTarget, el)
   }, [])
 
-  /** Remove inline width so the collapse CSS class retakes control */
-  const clearWidth = useCallback(() => {
-    mothershipRef.current?.style.removeProperty('width')
-  }, [])
-
   return {
-    mothershipRef,
+    mothershipRef: attachPanel,
     handleResizePointerDown,
     handleResizeKeyDown,
     handleResizeFocus,
-    clearWidth,
   }
 }

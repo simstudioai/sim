@@ -1,4 +1,4 @@
-export { useFloatBoundarySync, useFloatDrag, useFloatResize } from './float'
+export { useFloatBoundarySync, useFloatDrag, useFloatLayout, useFloatResize } from './float'
 export { useAccessibleReferencePrefixes } from './use-accessible-reference-prefixes'
 export { useAutoLayout } from './use-auto-layout'
 export { useBlockDimensions } from './use-block-dimensions'

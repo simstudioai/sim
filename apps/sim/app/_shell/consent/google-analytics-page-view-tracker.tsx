@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useConsentManager } from '@c15t/nextjs/headless'
 import { usePathname } from 'next/navigation'
 import { trackGooglePageView } from '@/lib/analytics/google'
+import { getInitialGooglePagePathname, updateGooglePageContext } from '@/lib/consent/google-context'
 
 /** Tracks Next.js client navigations after c15t has loaded the consent-aware tag. */
 export function GoogleAnalyticsPageViewTracker() {
@@ -12,12 +13,13 @@ export function GoogleAnalyticsPageViewTracker() {
   const lastTrackedPathRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!hasFetchedBanner || !has('measurement') || !loadedScripts.gtag) return
+    if (!hasFetchedBanner || !loadedScripts.gtag) return
+    updateGooglePageContext(window.location.href)
 
     if (lastTrackedPathRef.current === null) {
-      lastTrackedPathRef.current = pathname
-      return
+      lastTrackedPathRef.current = getInitialGooglePagePathname() ?? pathname
     }
+    if (!has('measurement')) return
     if (lastTrackedPathRef.current === pathname) return
 
     lastTrackedPathRef.current = pathname

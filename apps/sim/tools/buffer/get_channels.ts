@@ -1,3 +1,5 @@
+import { toArray } from '@sim/utils/object'
+import { bufferInputDescription, bufferSelection, parseBufferInput } from '@/tools/buffer/schema'
 import {
   BUFFER_API_URL,
   type BufferChannelsResponse,
@@ -12,17 +14,7 @@ import type { ToolConfig } from '@/tools/types'
 const GET_CHANNELS_QUERY = `
   query GetChannels($input: ChannelsInput!) {
     channels(input: $input) {
-      id
-      name
-      displayName
-      service
-      serviceId
-      avatar
-      timezone
-      type
-      isQueuePaused
-      isDisconnected
-      organizationId
+      ${bufferSelection('Channel')}
     }
   }
 `
@@ -47,6 +39,15 @@ export const bufferGetChannelsTool: ToolConfig<BufferGetChannelsParams, BufferCh
       visibility: 'user-or-llm',
       description: 'Buffer organization ID (find it with the Get Account operation)',
     },
+    filter: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: bufferInputDescription(
+        'ChannelsFiltersInput',
+        'Filter channels by locked status or product.'
+      ),
+    },
   },
 
   request: {
@@ -56,7 +57,10 @@ export const bufferGetChannelsTool: ToolConfig<BufferGetChannelsParams, BufferCh
     body: (params) => ({
       query: GET_CHANNELS_QUERY,
       variables: {
-        input: { organizationId: params.organizationId },
+        input: parseBufferInput('ChannelsInput', {
+          organizationId: params.organizationId,
+          ...(params.filter ? { filter: params.filter } : {}),
+        }),
       },
     }),
   },
@@ -66,7 +70,7 @@ export const bufferGetChannelsTool: ToolConfig<BufferGetChannelsParams, BufferCh
     return {
       success: true,
       output: {
-        channels: (data.channels ?? []).map(mapBufferChannel),
+        channels: toArray(data.channels).map(mapBufferChannel),
       },
     }
   },

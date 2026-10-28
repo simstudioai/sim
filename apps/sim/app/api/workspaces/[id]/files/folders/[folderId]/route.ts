@@ -9,11 +9,11 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { internalFileAnalytics, internalFileErrorPolicies } from '@/lib/workspace-files/api'
-import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   deleteWorkspaceFileFolderOperation,
   updateWorkspaceFileFolderOperation,
-} from '@/lib/workspace-files/application/workspace-file-folders'
+} from '@/lib/workspace-files/application/folders'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export const PATCH = defineInternalJsonRoute({
   contract: updateWorkspaceFileFolderContract,

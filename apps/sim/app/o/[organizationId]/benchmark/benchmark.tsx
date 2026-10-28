@@ -10,6 +10,7 @@ import {
   benchmarkUrlOptions,
 } from '@/app/o/[organizationId]/benchmark/search-params'
 import { useBenchmarks } from '@/hooks/queries/benchmarks'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 interface BenchmarkProps {
   organizationId: string
@@ -22,6 +23,7 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
     benchmarkParams,
     benchmarkUrlOptions
   )
+  const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   const benchmarks = useBenchmarks(organizationId, runAsUserId)
   const records = benchmarks.data?.pages.flatMap((page) => page.benchmarks) ?? []
 
@@ -36,12 +38,16 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
         ) : (
           <div className='flex items-center gap-2'>
             {benchmarkId && (
-              <Chip onClick={() => setParams(emptyBenchmarkSelection)}>All benchmarks</Chip>
+              <Chip onClick={() => requestLeave(() => void setParams(emptyBenchmarkSelection))}>
+                All benchmarks
+              </Chip>
             )}
             <Chip
               variant='primary'
               leftIcon={Plus}
-              onClick={() => setParams({ ...emptyBenchmarkSelection, creating: true })}
+              onClick={() =>
+                requestLeave(() => void setParams({ ...emptyBenchmarkSelection, creating: true }))
+              }
             >
               New benchmark
             </Chip>
@@ -65,15 +71,23 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
         />
       ) : (
         <>
-          {benchmarks.error ? (
-            <p role='alert' className='text-[var(--text-error)] text-small'>
-              {benchmarks.error.message}
-            </p>
-          ) : benchmarks.isLoading ? (
+          {benchmarks.error && (
+            <div className='flex items-center justify-between gap-3'>
+              <p role='alert' className='text-[var(--text-error)] text-small'>
+                {benchmarks.error.message}
+              </p>
+              {!benchmarks.isFetchNextPageError && (
+                <Chip disabled={benchmarks.isFetching} onClick={() => void benchmarks.refetch()}>
+                  Retry
+                </Chip>
+              )}
+            </div>
+          )}
+          {benchmarks.isLoading ? (
             <p role='status' className='text-[var(--text-muted)] text-small'>
               Loading benchmarks…
             </p>
-          ) : records.length === 0 ? (
+          ) : !benchmarks.data ? null : records.length === 0 ? (
             <div className='rounded-lg border border-[var(--border)] p-5'>
               <p className='text-[var(--text-primary)] text-small'>No benchmarks yet</p>
               <p className='mt-1 text-[var(--text-muted)] text-small'>
@@ -109,7 +123,11 @@ export function Benchmark({ organizationId, canPlan, runAsUserId }: BenchmarkPro
                 disabled={benchmarks.isFetchingNextPage}
                 onClick={() => benchmarks.fetchNextPage()}
               >
-                {benchmarks.isFetchingNextPage ? 'Loading…' : 'Load older benchmarks'}
+                {benchmarks.isFetchingNextPage
+                  ? 'Loading…'
+                  : benchmarks.isFetchNextPageError
+                    ? 'Retry older benchmarks'
+                    : 'Load older benchmarks'}
               </Chip>
             </div>
           )}

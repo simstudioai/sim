@@ -97,7 +97,7 @@ interface GmailModifyV2Response {
 export const gmailMoveV2Tool: InternalToolConfig<GmailMoveParams, GmailModifyV2Response> = {
   id: 'gmail_move_v2',
   name: 'Gmail Move',
-  description: 'Move emails between labels/folders in Gmail. Returns API-aligned fields only.',
+  description: 'Move emails between labels/folders in Gmail.',
   version: '2.0.0',
   oauth: gmailMoveTool.oauth,
   params: gmailMoveTool.params,

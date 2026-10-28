@@ -1,4 +1,3 @@
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import type { ToolMetadata } from '@/tools/metadata'
 
@@ -57,7 +56,7 @@ const ASSISTANT_INTEGRATION_TOOLS = new Set([
 /** Discovery and execution share the same operations and personal-account requirements. */
 export function isAssistantIntegrationTool(tool: ToolMetadata | undefined): boolean {
   if (!tool || !ASSISTANT_INTEGRATION_TOOLS.has(tool.id)) return false
-  tool = projectAssistantConnectedAccountTool(tool, isLiveEnterpriseSearchEnabled)
+  tool = projectAssistantConnectedAccountTool(tool)
   const tokenBinding = tool.personalToken
   const supportsToken =
     tokenBinding && tool.params[tokenBinding.tokenParam] && tool.params[tokenBinding.hostParam]
@@ -78,7 +77,7 @@ export function isAssistantIntegrationTool(tool: ToolMetadata | undefined): bool
 }
 
 export function isAssistantIntegrationParameter(tool: ToolMetadata, name: string): boolean {
-  tool = projectAssistantConnectedAccountTool(tool, isLiveEnterpriseSearchEnabled)
+  tool = projectAssistantConnectedAccountTool(tool)
   if (CREDENTIAL_PARAMS.has(name)) return true
   if (name === tool.personalToken?.tokenParam || name === tool.personalToken?.hostParam)
     return false

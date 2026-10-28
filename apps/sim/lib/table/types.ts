@@ -347,24 +347,6 @@ export interface TableDeleteJobPayload {
   maxRows?: number
 }
 
-/**
- * Persisted scope of a running bulk-update job (`table_jobs.payload`): the same `data` patch is
- * merged into every row matching `filter` with `created_at <= cutoff` (so mid-job inserts are
- * spared, matching the delete job's snapshot semantics). `affectedCount` is the kickoff estimate,
- * display-only. Unlike delete, reads are not masked — updated rows still exist, so a background
- * update is eventually consistent (readers may see a mix of patched/unpatched rows mid-job).
- */
-export interface TableUpdateJobPayload {
-  filter: Filter
-  /** Column-id-keyed partial patch applied to every matched row (JSONB merge). */
-  data: RowData
-  /** ISO timestamp; rows created after it are not patched. */
-  cutoff: string
-  affectedCount?: number
-  /** Stop after updating this many rows (an explicit caller-supplied limit). Omitted = every match. */
-  maxRows?: number
-}
-
 export type TableExportFormat = 'csv' | 'json'
 
 /**

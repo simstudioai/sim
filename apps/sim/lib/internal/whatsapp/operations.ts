@@ -23,7 +23,7 @@ import {
 import { uploadWhatsAppMedia } from '@/lib/internal/whatsapp/upload'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
-import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { getExtensionFromMimeType } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 import {

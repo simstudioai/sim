@@ -20,7 +20,7 @@ import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import {
   requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type {
@@ -29,7 +29,7 @@ import type {
   KnowledgeBaseResult,
 } from '@/lib/knowledge/application/knowledge-bases'
 import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
-import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import type { KnowledgeBaseSummary } from '@/lib/knowledge/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
@@ -107,12 +107,21 @@ export function toInternalKnowledgeDocument<
 }
 
 export function toInternalKnowledgeChunk<
-  T extends { createdAt: Date | string; updatedAt: Date | string },
+  T extends {
+    createdAt: Date | string
+    updatedAt: Date | string
+    date1?: Date | string | null
+    date2?: Date | string | null
+  },
 >(chunk: T): ChunkData {
+  /** A date slot is serialized only when the row carries it, so a projected row keeps its keys. */
+  const { date1, date2 } = chunk
   return chunkDataSchema.parse({
     ...chunk,
     createdAt: serializeDate(chunk.createdAt),
     updatedAt: serializeDate(chunk.updatedAt),
+    ...(date1 === undefined ? {} : { date1: serializeNullableDate(date1) }),
+    ...(date2 === undefined ? {} : { date2: serializeNullableDate(date2) }),
   })
 }
 
@@ -216,7 +225,7 @@ export function toInternalKnowledgeDocumentUpload(
   }
 }
 
-function toInternalKnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts): KnowledgeBaseData {
+function toInternalKnowledgeBase(knowledgeBase: KnowledgeBaseSummary): KnowledgeBaseData {
   return {
     ...knowledgeBase,
     chunkingConfig: { ...knowledgeBase.chunkingConfig },
@@ -227,7 +236,7 @@ function toInternalKnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts): Knowle
 }
 
 export const internalKnowledgePresenters = {
-  list({ knowledgeBases }: { knowledgeBases: KnowledgeBaseWithCounts[] }) {
+  list({ knowledgeBases }: { knowledgeBases: KnowledgeBaseSummary[] }) {
     return { success: true as const, data: knowledgeBases.map(toInternalKnowledgeBase) }
   },
   create({ knowledgeBase }: KnowledgeBaseResult) {

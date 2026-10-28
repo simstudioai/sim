@@ -217,7 +217,10 @@ function KnowledgeContent() {
     }
   }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
 
-  const { knowledgeBases, isLoading, isPlaceholderData, error } = useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, isLoading, isPlaceholderData, error } = useKnowledgeBasesList(
+    workspaceId,
+    { includeCounts: true }
+  )
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   /**
    * Indexed once: `ownerCell` resolves a member per row, so passing the raw array makes the
@@ -522,7 +525,7 @@ function KnowledgeContent() {
       await deleteKnowledgeBase.mutateAsync({ knowledgeBaseId: id })
       logger.info(`Knowledge base deleted: ${id}`)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+    // mutation objects are unstable; mutateAsync is stable in v5
     [knowledgeBases, userPermissions.canEdit, userPermissions.canAdmin]
   )
 
@@ -930,7 +933,6 @@ function KnowledgeContent() {
       logger.error('Failed to create folder', createError)
       toast.error(getErrorMessage(createError, 'Failed to create folder'))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
   useRegisterGlobalCommands(() => [
@@ -984,7 +986,6 @@ function KnowledgeContent() {
       logger.error('Failed to delete folder', deleteError)
       toast.error(getErrorMessage(deleteError, 'Failed to delete folder'))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, openFolder, canDeleteFolder])
 
   const descendantsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
@@ -995,7 +996,7 @@ function KnowledgeContent() {
     const mutation = pinnedBaseIds.has(kb.id) ? unpinItem : pinItem
     mutation.mutate({ workspaceId, resourceType: 'knowledge_base', resourceId: kb.id })
     closeRowContextMenu()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // mutation objects are unstable; mutate is stable in v5
   }, [workspaceId, pinnedBaseIds, closeRowContextMenu])
 
   const handleToggleFolderPin = useCallback(() => {
@@ -1004,7 +1005,7 @@ function KnowledgeContent() {
     const mutation = pinnedFolderIds.has(folder.id) ? unpinItem : pinItem
     mutation.mutate({ workspaceId, resourceType: 'folder', resourceId: folder.id })
     closeFolderContextMenu()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // mutation objects are unstable; mutate is stable in v5
   }, [workspaceId, pinnedFolderIds, closeFolderContextMenu])
 
   /** Move targets for the folder under the cursor: itself and its subtree are unreachable. */
@@ -1042,7 +1043,7 @@ function KnowledgeContent() {
         toast.error(getErrorMessage(moveError, 'Failed to move folder'))
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+    // mutation objects are unstable; mutateAsync is stable in v5
     [workspaceId]
   )
 
@@ -1108,7 +1109,7 @@ function KnowledgeContent() {
         }
       )
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    // mutation objects are unstable; mutate is stable in v5
     [clearSelection]
   )
 
@@ -1154,7 +1155,7 @@ function KnowledgeContent() {
       // The mutation toasts the request failure itself; the modal stays open to allow a retry.
       logger.error('Failed to delete selected items', deleteError)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+    // mutation objects are unstable; mutateAsync is stable in v5
   }, [selectedKnowledgeBaseIds, selectedFolderIds, clearSelection, canDeleteSelection])
 
   /**

@@ -26,7 +26,6 @@ import {
   CredentialDetailLayout,
   CredentialMembersSection,
   DetailSection,
-  UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
@@ -46,16 +45,13 @@ import {
   useWorkspaceCredentials,
   type WorkspaceCredential,
 } from '@/hooks/queries/credentials'
+import { useConnectOAuthService, useOAuthConnections } from '@/hooks/queries/oauth/connections'
+import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/credentials'
 import {
   assertMicrosoftDataverseReconnectAvailable,
   useConnectMicrosoftDataverseOAuthService,
   useMicrosoftDataverseCredentialBinding,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
-import {
-  useConnectOAuthService,
-  useOAuthConnections,
-} from '@/hooks/queries/oauth/oauth-connections'
-import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')
@@ -356,12 +352,6 @@ export function ConnectedCredentialDetail({
           onOpenChange={setIsShareModalOpen}
         />
       )}
-
-      <UnsavedChangesModal
-        open={form.showUnsavedAlert}
-        onOpenChange={form.setShowUnsavedAlert}
-        onDiscard={form.confirmDiscard}
-      />
 
       {credential.type === 'personal_token' && (
         <ConnectPersonalTokenModal

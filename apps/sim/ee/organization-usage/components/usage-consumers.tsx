@@ -1,8 +1,20 @@
 'use client'
 
-import type { ComponentType } from 'react'
-import { Avatar, cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
-import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
+import { type ComponentType, useId, useState } from 'react'
+import {
+  Avatar,
+  Button,
+  cn,
+  disclosureChevronClass,
+  FloatingTooltip,
+  formatChartCompactNumber,
+  OverflowText,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  useFloatingTooltip,
+} from '@sim/emcn'
+import { ArrowRight, ChevronDown, CircleInfo } from '@sim/emcn/icons'
 import {
   AnthropicIcon,
   AzureIcon,
@@ -13,6 +25,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  KieIcon,
   KimiIcon,
   LitellmIcon,
   MetaIcon,
@@ -29,6 +42,7 @@ import {
   xAIIcon,
   ZaiIcon,
 } from '@/components/icons'
+import { NebiusIcon } from '@/components/icons/nebius'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
@@ -64,10 +78,12 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   fireworks: FireworksIcon,
   google: GeminiIcon,
   groq: GroqIcon,
+  kie: KieIcon,
   kimi: KimiIcon,
   litellm: LitellmIcon,
   meta: MetaIcon,
   mistral: MistralIcon,
+  nebius: NebiusIcon,
   nvidia: NvidiaIcon,
   ollama: OllamaIcon,
   'ollama-cloud': OllamaIcon,
@@ -87,6 +103,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
 
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow
+  info?: string
   /** Member rows lead with the member's avatar where other rows show a provider mark. */
   isMember: boolean
   /** BYOK rows carry no cost, so tokens are the only usage they can show. */
@@ -120,12 +137,46 @@ const TRAILING_SLOT_CLASSES = {
  */
 export const USAGE_ROW_CLASSES = 'flex w-full items-center gap-2.5 rounded-lg p-2 text-left'
 
+interface UsageInfoProps {
+  label: string
+  info: string
+}
+
+function UsageInfo({ label, info }: UsageInfoProps) {
+  const [open, setOpen] = useState(false)
+  const tooltipId = useId()
+  const tooltip = useFloatingTooltip(() => !open, { revalidateKey: open })
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant='quiet'
+          size='icon'
+          aria-label={label}
+          aria-describedby={!open && tooltip.state.visible ? tooltipId : undefined}
+          {...tooltip.handlers}
+        >
+          <CircleInfo className='size-[14px]' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent appearance='tooltip' aria-label={label}>
+        {info}
+      </PopoverContent>
+      {!open && (
+        <FloatingTooltip id={tooltipId} role='tooltip' label={info} state={tooltip.state} />
+      )}
+    </Popover>
+  )
+}
+
 /**
  * A tabular row, not `SettingsResourceRow` — tabular columns are the sanctioned
  * exception in `sim-settings-pages.md`, alongside billing invoices and credit usage.
  */
 function UsageConsumerRow({
   row,
+  info,
   isMember,
   showTokensOnly,
   onSelect,
@@ -154,7 +205,14 @@ function UsageConsumerRow({
       ) : (
         ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       )}
-      <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{row.label}</span>
+      <div className='flex min-w-0 flex-1 items-center gap-1'>
+        <OverflowText
+          label={row.label}
+          className='text-[var(--text-body)] text-sm'
+          focusTarget={onSelect ? 'nearest-interactive' : undefined}
+        />
+        {info && <UsageInfo label={`About ${row.label.toLowerCase()}`} info={info} />}
+      </div>
       <div
         className='h-[4px] w-[64px] shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
         aria-hidden='true'
@@ -208,11 +266,7 @@ export function UsageConsumers({
   onExpandOther,
 }: UsageConsumersProps) {
   if (isError) {
-    return (
-      <SettingsEmptyState variant='inline' tone='error'>
-        Couldn't load this view.
-      </SettingsEmptyState>
-    )
+    return <SettingsEmptyState variant='inline'>Couldn't load this view.</SettingsEmptyState>
   }
   if (isLoading || !breakdown) {
     return <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
@@ -243,9 +297,14 @@ export function UsageConsumers({
         <UsageConsumerRow
           key={`${dimension}-${row.id}`}
           row={row}
+          info={
+            dimension === 'workspace' && !row.id
+              ? 'Includes organization-wide activity and charges from deleted workspaces.'
+              : undefined
+          }
           isMember={dimension === 'member'}
           showTokensOnly={showTokensOnly}
-          {...(onExpandOther && trailingSlot ? { reservedTrailing: trailingSlot } : {})}
+          {...(trailingSlot ? { reservedTrailing: trailingSlot } : {})}
           {...(onSelectRow && row.id ? { onSelect: onSelectRow } : {})}
           {...(rowActions && row.id ? { actions: rowActions(row) } : {})}
         />

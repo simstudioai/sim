@@ -1,24 +1,30 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ installation: vi.fn(), publish: vi.fn(), enqueue: vi.fn() }))
-vi.mock('@/lib/core/async-jobs', () => ({
-  getInlineJobQueue: async () => ({ enqueue: mocks.enqueue }),
-}))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
-vi.mock('@/lib/internal/slack/client', () => ({ requestSlackApi: mocks.publish }))
+const hoisted = vi.hoisted(() => ({ installation: vi.fn(), publish: vi.fn() }))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
+vi.mock('@/lib/internal/slack/client', () => ({ requestSlackApi: hoisted.publish }))
 vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
-  findSlackSearchInstallation: mocks.installation,
+  findSlackSearchInstallation: hoisted.installation,
   loadSlackSearchCredential: async () => ({ version: 'v1', botToken: 'private-bot-token' }),
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: async () => undefined,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
 import {
   publishSlackSearchHome,
   receiveSlackSearchHome,
 } from '@/lib/knowledge/application/slack-search/home'
 import { slackSearchHomeViewKey } from '@/lib/slack-search/home'
+
+const mocks = {
+  ...hoisted,
+  enqueue: asyncJobsMockFns.mockJobQueue.enqueue,
+}
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
 
 const installation = {
   id: 'i1',
@@ -81,7 +87,7 @@ describe('static Slack Home intake', () => {
   it('rejects a non-Slack principal and expired intake', async () => {
     await expect(
       receiveSlackSearchHome.execute({
-        principal: { kind: 'session', userId: 'member1', sessionId: 's1' },
+        principal: createSessionPrincipal({ userId: 'member1', sessionId: 's1' }),
         input: event,
       })
     ).rejects.toThrow('installation authority')

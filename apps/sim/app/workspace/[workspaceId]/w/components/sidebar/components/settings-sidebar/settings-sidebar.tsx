@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Chip,
-  ChipConfirmModal,
   ChipTag,
   chipContentIconClass,
   chipVariants,
@@ -14,7 +13,6 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { ArrowUpRight, Building, ChevronLeft, Lock } from '@sim/emcn/icons'
-import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
   type DesktopSettingsSurface,
@@ -24,19 +22,20 @@ import {
   ORGANIZATION_PLANE_UNIFIED_SECTIONS,
 } from '@/components/settings/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSettingsNavigationState } from '@/components/settings/settings-navigation-provider'
+import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
+import { useSession } from '@/lib/auth/client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { warmSettingsSectionQuery } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-sidebar/settings-query-warmers'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import {
@@ -55,31 +54,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-/**
- * Sections whose JS chunk is warmed when a row receives navigation intent.
- *
- * Deliberately not all of them, and the reason is the boundary audit rather than bundle weight.
- * Each section is already `dynamic()`-imported by the settings panel, so naming it here adds an
- * async-chunk reference, not parsed JS — but `check-tool-registry-boundary` counts `import()`
- * as a graph edge on purpose, and listing all of them measured +126..+172 modules against six of
- * the app's hottest route baselines. Code-splitting this sidebar does not help: measured, it
- * moves exactly one module, because the audit follows the dynamic edge either way.
- *
- * These six predate this map and are already inside those baselines, so warming them is free.
- * Widening it means either raising the ratchet on the routes it exists to protect, or teaching
- * the audit to track async reach separately from initial-chunk weight.
- *
- * Every section still gets its route payload warmed through {@link SettingsIntentLink}.
- */
-const SECTION_CHUNK_WARMERS: Partial<Record<SettingsSection, () => Promise<unknown>>> = {
-  general: () => import('@/app/workspace/[workspaceId]/settings/components/general/general'),
-  secrets: () => import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets'),
-  billing: () => import('@/app/workspace/[workspaceId]/settings/components/billing/billing'),
-  desktop: () => import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop'),
-  browser: () => import('@/app/workspace/[workspaceId]/settings/components/browser/browser'),
-  terminal: () => import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal'),
-}
-
 interface SettingsSidebarProps {
   isCollapsed?: boolean
   showCollapsedTooltips?: boolean
@@ -97,13 +71,7 @@ export function SettingsSidebar({
   const pathname = usePathname()
   const router = useRouter()
 
-  const queryClient = useQueryClient()
-
   const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
-  const confirmLeave = useSettingsDirtyStore((s) => s.confirmLeave)
-  const cancelLeave = useSettingsDirtyStore((s) => s.cancelLeave)
-  const pendingLeave = useSettingsDirtyStore((s) => s.pendingLeave)
-  const showDiscardDialog = pendingLeave !== null
 
   const scrollEdges = useScrollEdges(scrollContainerRef, {
     contentRef: scrollContentRef,
@@ -129,7 +97,13 @@ export function SettingsSidebar({
   const accessRequests = useWorkspaceAccessRequestFeatures()
   const accessRequestsEnabled = accessRequests.data?.enabled === true
   const forkingAvailable = useForkingAvailable(workspaceId)
-  const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
+  const { workspacePermissions, userPermissions } = useWorkspacePermissionsContext()
+  // The server-seeded viewer permission, read directly: the derived admin flag waits on the client
+  // session. Offline mode still withdraws admin; without the viewer field, fall back to the flag.
+  const viewerPermission = workspacePermissions?.viewer?.permissionType
+  const canAdminWorkspace = viewerPermission
+    ? viewerPermission === 'admin' && !userPermissions.isOfflineMode
+    : userPermissions.canAdmin
 
   const userId = session?.user?.id
 
@@ -294,35 +268,20 @@ export function SettingsSidebar({
 
   const segments = pathname?.split('/') ?? []
   const settingsIndex = segments.indexOf('settings')
-  const activeSection: SettingsSection =
+  const routeSection: SettingsSection =
     settingsIndex !== -1 && segments[settingsIndex + 1]
       ? (segments[settingsIndex + 1] as SettingsSection)
       : 'general'
+  const { activeSection, navigateToSection } = usePendingSettingsSelection(routeSection)
+  const { signalIntent } = useSettingsNavigationState()
 
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
-
-  const handleIntent = (section: SettingsSection) => {
-    void SECTION_CHUNK_WARMERS[section]?.()
-    warmSettingsSectionQuery(
-      queryClient,
-      { workspaceId, billingOrganizationId: hostContext.hostOrganizationId },
-      section
-    )
-  }
 
   const handleBack = useCallback(() => {
     requestLeave(() => {
       router.push(popSettingsReturnUrl(`/workspace/${workspaceId}`))
     })
   }, [requestLeave, router, popSettingsReturnUrl, workspaceId])
-
-  const handleConfirmDiscard = useCallback(() => {
-    confirmLeave()
-  }, [confirmLeave])
-
-  const handleCancelDiscard = useCallback(() => {
-    cancelLeave()
-  }, [cancelLeave])
 
   useEffect(() => {
     setDesktopSurfaces({
@@ -392,10 +351,12 @@ export function SettingsSidebar({
                   {key === 'organization' && organizationSettingsId && (
                     <SidebarTooltip label='Organization' enabled={showCollapsedTooltips}>
                       <SettingsIntentLink
+                        data-settings-navigation='managed'
                         href={getOrganizationSettingsHref(organizationSettingsId, 'members')}
                         className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
                         onNavigate={(event) => {
-                          if (!useSettingsDirtyStore.getState().isDirty) return
+                          const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
+                          if (!isDirty && !navigationBlocked) return
                           event.preventDefault()
                           requestLeave(() =>
                             router.push(
@@ -474,6 +435,7 @@ export function SettingsSidebar({
                       </a>
                     ) : (
                       <SettingsIntentLink
+                        data-settings-navigation='managed'
                         href={href}
                         replace
                         scroll={false}
@@ -482,15 +444,14 @@ export function SettingsSidebar({
                           permissionRestricted ? `${item.label}: access required` : undefined
                         }
                         className={itemClassName}
-                        onIntent={() => !permissionRestricted && handleIntent(section)}
+                        onIntent={() => !permissionRestricted && signalIntent(section)}
                         onNavigate={(event) => {
                           if (active) {
                             event.preventDefault()
                             return
                           }
-                          if (!useSettingsDirtyStore.getState().isDirty) return
                           event.preventDefault()
-                          requestLeave(() => router.replace(href, { scroll: false }))
+                          requestLeave(() => navigateToSection(section, href))
                         }}
                       >
                         {content}
@@ -512,19 +473,6 @@ export function SettingsSidebar({
             ))}
         </div>
       </div>
-
-      <ChipConfirmModal
-        open={showDiscardDialog}
-        onOpenChange={(open) => !open && handleCancelDiscard()}
-        srTitle='Unsaved changes'
-        title='Unsaved changes'
-        text='You have unsaved changes. Are you sure you want to discard them?'
-        dismissLabel='Keep editing'
-        confirm={{
-          label: 'Discard changes',
-          onClick: handleConfirmDiscard,
-        }}
-      />
     </>
   )
 }

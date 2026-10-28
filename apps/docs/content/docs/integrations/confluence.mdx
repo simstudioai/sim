@@ -1,31 +1,78 @@
 ---
 title: Confluence
-description: Interact with Confluence
+description: Manage Confluence pages, comments, and attachments
+integration:
+  type: "confluence_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="confluence_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Confluence](https://www.atlassian.com/software/confluence) organizes documentation in spaces and pages. Use this integration to search content and manage pages, blog posts, comments, attachments, and labels. Configure its triggers when a workflow should respond to Confluence events.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Confluence account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/confluence` |
+| Environment variables | `CONFLUENCE_CLIENT_ID`, `CONFLUENCE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `read:confluence-content.all` | Read all Confluence content |
+| `read:confluence-space.summary` | Read Confluence space information |
+| `read:space:confluence` | View Confluence spaces |
+| `write:confluence-content` | Create and edit Confluence pages, blog posts, and comments |
+| `write:confluence-space` | Manage Confluence spaces |
+| `write:confluence-file` | Upload files to Confluence |
+| `read:page:confluence` | View Confluence pages |
+| `write:page:confluence` | Create and update Confluence pages |
+| `read:comment:confluence` | View comments on Confluence pages |
+| `write:comment:confluence` | Create and update comments |
+| `delete:comment:confluence` | Delete comments from Confluence pages |
+| `delete:attachment:confluence` | Delete attachments from Confluence pages |
+| `delete:page:confluence` | Delete Confluence pages |
+| `read:label:confluence` | View labels on Confluence content |
+| `write:label:confluence` | Add and remove labels |
+| `read:attachment:confluence` | View attachments on Confluence pages |
+| `write:attachment:confluence` | Upload and manage attachments |
+| `search:confluence` | Search Confluence content |
+| `read:me` | Read profile information |
+| `offline_access` | Access account when not using the application |
+| `read:hierarchical-content:confluence` | View page hierarchy \(children and ancestors\) |
+| `read:content.metadata:confluence` | View content metadata \(required for ancestors\) |
+| `read:user:confluence` | View Confluence user profiles |
+| `read:confluence-user` | View Confluence user profiles \(v1 API\) |
+| `read:group:confluence` | View Confluence groups and memberships |
+| `read:task:confluence` | View Confluence inline tasks |
+| `write:task:confluence` | Update Confluence inline tasks |
+| `write:space:confluence` | Create and update Confluence spaces |
+| `delete:space:confluence` | Delete Confluence spaces |
+| `read:blogpost:confluence` | View Confluence blog posts |
+| `write:blogpost:confluence` | Create and update Confluence blog posts |
+| `delete:blogpost:confluence` | Delete Confluence blog posts |
+| `read:content.property:confluence` | View properties on Confluence content |
+| `write:content.property:confluence` | Create and manage content properties |
+| `read:space.property:confluence` | View Confluence space properties |
+| `write:space.property:confluence` | Create and manage space properties |
+| `read:space.permission:confluence` | View Confluence space permissions |
 
+## Use the block [#usage-instructions]
+
+Read, create, update, delete pages, manage comments, attachments, labels, and search content.
 
 ## Actions
 
 ### Confluence Retrieve
 
 Retrieve content from Confluence pages using the Confluence API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,9 +105,13 @@ Retrieve content from Confluence pages using the Confluence API.
 |   ↳ `authorId` | string | Account ID of the version author |
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 
+</ReferenceDetails>
+
 ### Confluence Update
 
 Update a Confluence page using the Confluence API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +150,13 @@ Update a Confluence page using the Confluence API.
 | `url` | string | URL to view the page in Confluence |
 | `success` | boolean | Update operation success status |
 
+</ReferenceDetails>
+
 ### Confluence Create Page
 
 Create a new page in a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -141,9 +196,13 @@ Create a new page in a Confluence space.
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `url` | string | Page URL |
 
+</ReferenceDetails>
+
 ### Confluence Delete Page
 
 Delete a Confluence page. By default moves to trash; use purge=true to permanently delete.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -161,9 +220,13 @@ Delete a Confluence page. By default moves to trash; use purge=true to permanent
 | `pageId` | string | Deleted page ID |
 | `deleted` | boolean | Deletion status |
 
+</ReferenceDetails>
+
 ### Confluence List Pages in Space
 
 List all pages within a specific Confluence space. Supports pagination and filtering by status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -208,9 +271,13 @@ List all pages within a specific Confluence space. Supports pagination and filte
 |   ↳ `webUrl` | string | URL to view the page in Confluence |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Get Page Children
 
 Get all child pages of a specific Confluence page. Useful for navigating page hierarchies.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +303,13 @@ Get all child pages of a specific Confluence page. Useful for navigating page hi
 |   ↳ `webUrl` | string | URL to view the page |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Get Page Ancestors
 
 Get the ancestor (parent) pages of a specific Confluence page. Returns the full hierarchy from the page up to the root.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -261,9 +332,13 @@ Get the ancestor (parent) pages of a specific Confluence page. Returns the full 
 |   ↳ `spaceId` | string | Space ID |
 |   ↳ `webUrl` | string | URL to view the page |
 
+</ReferenceDetails>
+
 ### Confluence List Page Versions
 
 List all versions (revision history) of a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -288,9 +363,13 @@ List all versions (revision history) of a Confluence page.
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Get Page Version
 
 Get details about a specific version of a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -322,9 +401,13 @@ Get details about a specific version of a Confluence page.
 |   ↳ `value` | string | The content value in the specified format |
 |   ↳ `representation` | string | Content representation type |
 
+</ReferenceDetails>
+
 ### Confluence List Page Properties
 
 List all custom properties (metadata) attached to a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -353,9 +436,13 @@ List all custom properties (metadata) attached to a Confluence page.
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Create Page Property
 
 Create a new custom property (metadata) on a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -382,9 +469,13 @@ Create a new custom property (metadata) on a Confluence page.
 |   ↳ `authorId` | string | Account ID of the version author |
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 
+</ReferenceDetails>
+
 ### Confluence Delete Page Property
 
 Delete a content property from a Confluence page by its property ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -403,9 +494,13 @@ Delete a content property from a Confluence page by its property ID.
 | `propertyId` | string | ID of the deleted property |
 | `deleted` | boolean | Deletion status |
 
+</ReferenceDetails>
+
 ### Confluence Search
 
 Search for content across Confluence pages, blog posts, and other content.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -435,9 +530,13 @@ Search for content across Confluence pages, blog posts, and other content.
 |   ↳ `lastModified` | string | ISO 8601 timestamp of last modification |
 |   ↳ `entityType` | string | Entity type identifier \(e.g., content, space\) |
 
+</ReferenceDetails>
+
 ### Confluence Search in Space
 
 Search for content within a specific Confluence space. Optionally filter by text query and content type.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -471,9 +570,13 @@ Search for content within a specific Confluence space. Optionally filter by text
 |   ↳ `lastModified` | string | ISO 8601 timestamp of last modification |
 |   ↳ `entityType` | string | Entity type identifier \(e.g., content, space\) |
 
+</ReferenceDetails>
+
 ### Confluence List Blog Posts
 
 List all blog posts across all accessible Confluence spaces.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -506,9 +609,13 @@ List all blog posts across all accessible Confluence spaces.
 |   ↳ `webUrl` | string | URL to view the blog post |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Get Blog Post
 
 Get a specific Confluence blog post by ID, including its content.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -547,9 +654,13 @@ Get a specific Confluence blog post by ID, including its content.
 |     ↳ `representation` | string | Content representation type |
 | `webUrl` | string | URL to view the blog post |
 
+</ReferenceDetails>
+
 ### Confluence Create Blog Post
 
 Create a new blog post in a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -589,9 +700,13 @@ Create a new blog post in a Confluence space.
 |   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `webUrl` | string | URL to view the blog post |
 
+</ReferenceDetails>
+
 ### Confluence List Blog Posts in Space
 
 List all blog posts within a specific Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -635,9 +750,13 @@ List all blog posts within a specific Confluence space.
 |   ↳ `webUrl` | string | URL to view the blog post |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Create Comment
 
 Add a comment to a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -655,9 +774,13 @@ Add a comment to a Confluence page.
 | `commentId` | string | Created comment ID |
 | `pageId` | string | Page ID |
 
+</ReferenceDetails>
+
 ### Confluence List Comments
 
 List all comments on a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -694,9 +817,13 @@ List all comments on a Confluence page.
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Update Comment
 
 Update an existing comment on a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -714,9 +841,13 @@ Update an existing comment on a Confluence page.
 | `commentId` | string | Updated comment ID |
 | `updated` | boolean | Update status |
 
+</ReferenceDetails>
+
 ### Confluence Delete Comment
 
 Delete a comment from a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -733,9 +864,13 @@ Delete a comment from a Confluence page.
 | `commentId` | string | Deleted comment ID |
 | `deleted` | boolean | Deletion status |
 
+</ReferenceDetails>
+
 ### Confluence Upload Attachment
 
 Upload a file as an attachment to a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -759,9 +894,13 @@ Upload a file as an attachment to a Confluence page.
 | `downloadUrl` | string | Download URL for the attachment |
 | `pageId` | string | Page ID the attachment was added to |
 
+</ReferenceDetails>
+
 ### Confluence List Attachments
 
 List all attachments on a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -796,9 +935,13 @@ List all attachments on a Confluence page.
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Delete Attachment
 
 Delete an attachment from a Confluence page (moves to trash).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -815,9 +958,13 @@ Delete an attachment from a Confluence page (moves to trash).
 | `attachmentId` | string | Deleted attachment ID |
 | `deleted` | boolean | Deletion status |
 
+</ReferenceDetails>
+
 ### Confluence List Labels
 
 List all labels on a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -839,9 +986,13 @@ List all labels on a Confluence page.
 |   ↳ `prefix` | string | Label prefix/type \(e.g., global, my, team\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Add Label
 
 Add a label to a Confluence page for organization and categorization.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -861,9 +1012,13 @@ Add a label to a Confluence page for organization and categorization.
 | `labelName` | string | Name of the added label |
 | `labelId` | string | ID of the added label |
 
+</ReferenceDetails>
+
 ### Confluence Delete Label
 
 Remove a label from a Confluence page.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -882,9 +1037,13 @@ Remove a label from a Confluence page.
 | `labelName` | string | Name of the removed label |
 | `deleted` | boolean | Deletion status |
 
+</ReferenceDetails>
+
 ### Confluence Get Pages by Label
 
 Retrieve all pages that have a specific label applied.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -917,9 +1076,13 @@ Retrieve all pages that have a specific label applied.
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence List Space Labels
 
 List all labels associated with a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -942,9 +1105,13 @@ List all labels associated with a Confluence space.
 |   ↳ `prefix` | string | Label prefix/type \(e.g., global, my, team\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Get Space
 
 Get details about a specific Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -971,9 +1138,13 @@ Get details about a specific Confluence space.
 |   ↳ `value` | string | Description text content |
 |   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 
+</ReferenceDetails>
+
 ### Confluence Create Space
 
 Create a new Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1000,9 +1171,13 @@ Create a new Confluence space.
 |   ↳ `value` | string | Description text content |
 |   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 
+</ReferenceDetails>
+
 ### Confluence Update Space
 
 Update a Confluence space name or description.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1028,9 +1203,13 @@ Update a Confluence space name or description.
 |   ↳ `value` | string | Description text content |
 |   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 
+</ReferenceDetails>
+
 ### Confluence Delete Space
 
 Delete a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1049,9 +1228,13 @@ Delete a Confluence space.
 | `longTaskId` | string | ID of the long-running deletion task; poll Confluence long-task API to track completion |
 | `longTaskStatusLink` | string | Relative link to the long-task status endpoint |
 
+</ReferenceDetails>
+
 ### Confluence List Spaces
 
 List all Confluence spaces accessible to the user.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1080,9 +1263,13 @@ List all Confluence spaces accessible to the user.
 |     ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence List Space Properties
 
 List properties on a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1105,9 +1292,13 @@ List properties on a Confluence space.
 | `spaceId` | string | Space ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Create Space Property
 
 Create a property on a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1128,9 +1319,13 @@ Create a property on a Confluence space.
 | `value` | json | Property value |
 | `spaceId` | string | Space ID |
 
+</ReferenceDetails>
+
 ### Confluence Delete Space Property
 
 Delete a property from a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1149,9 +1344,13 @@ Delete a property from a Confluence space.
 | `propertyId` | string | Deleted property ID |
 | `deleted` | boolean | Deletion status |
 
+</ReferenceDetails>
+
 ### Confluence List Space Permissions
 
 List permissions for a Confluence space.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1178,9 +1377,13 @@ List permissions for a Confluence space.
 | `spaceId` | string | Space ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Get Page Descendants
 
 Get all descendants of a Confluence page recursively.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1208,9 +1411,13 @@ Get all descendants of a Confluence page recursively.
 | `pageId` | string | Parent page ID |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence List Tasks
 
 List inline tasks from Confluence. Optionally filter by page, space, assignee, or status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1246,9 +1453,13 @@ List inline tasks from Confluence. Optionally filter by page, space, assignee, o
 |   ↳ `completedAt` | string | Completion timestamp |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
+</ReferenceDetails>
+
 ### Confluence Get Task
 
 Get a specific Confluence inline task by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1277,9 +1488,13 @@ Get a specific Confluence inline task by ID.
 | `dueAt` | string | Due date |
 | `completedAt` | string | Completion timestamp |
 
+</ReferenceDetails>
+
 ### Confluence Update Task
 
 Update the status of a Confluence inline task (complete or incomplete).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1309,9 +1524,13 @@ Update the status of a Confluence inline task (complete or incomplete).
 | `dueAt` | string | Due date |
 | `completedAt` | string | Completion timestamp |
 
+</ReferenceDetails>
+
 ### Confluence Update Blog Post
 
 Update an existing Confluence blog post title and/or content.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1334,9 +1553,13 @@ Update an existing Confluence blog post title and/or content.
 | `version` | json | Version information |
 | `url` | string | URL to view the blog post |
 
+</ReferenceDetails>
+
 ### Confluence Delete Blog Post
 
 Delete a Confluence blog post.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1353,9 +1576,13 @@ Delete a Confluence blog post.
 | `blogPostId` | string | Deleted blog post ID |
 | `deleted` | boolean | Deletion status |
 
+</ReferenceDetails>
+
 ### Confluence Get User
 
 Get display name and profile info for a Confluence user by account ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1376,16 +1603,20 @@ Get display name and profile info for a Confluence user by account ID.
 | `profilePicture` | string | Path to the user profile picture |
 | `publicName` | string | Public name of the user |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Confluence Attachment Created
 
 Trigger workflow when an attachment is uploaded in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1403,7 +1634,7 @@ Trigger workflow when an attachment is uploaded in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `attachment` | object | attachment output from the tool |
+| `attachment` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1416,19 +1647,20 @@ Trigger workflow when an attachment is uploaded in Confluence
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `mediaType` | string | MIME type of the attachment |
 |   ↳ `fileSize` | number | File size in bytes |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | number | Container page/blog ID |
 |     ↳ `title` | string | Container page/blog title |
 |     ↳ `contentType` | string | Container content type |
 | `files` | file[] | Attachment file content downloaded from Confluence \(if includeFileContent is enabled with credentials\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Attachment Removed
 
 Trigger workflow when an attachment is removed in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1446,7 +1678,7 @@ Trigger workflow when an attachment is removed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `attachment` | object | attachment output from the tool |
+| `attachment` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1459,19 +1691,20 @@ Trigger workflow when an attachment is removed in Confluence
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `mediaType` | string | MIME type of the attachment |
 |   ↳ `fileSize` | number | File size in bytes |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | number | Container page/blog ID |
 |     ↳ `title` | string | Container page/blog title |
 |     ↳ `contentType` | string | Container content type |
 | `files` | file[] | Attachment file content downloaded from Confluence \(if includeFileContent is enabled with credentials\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Attachment Updated
 
 Trigger workflow when an attachment is updated in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1489,7 +1722,7 @@ Trigger workflow when an attachment is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `attachment` | object | attachment output from the tool |
+| `attachment` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1502,19 +1735,20 @@ Trigger workflow when an attachment is updated in Confluence
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `mediaType` | string | MIME type of the attachment |
 |   ↳ `fileSize` | number | File size in bytes |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | number | Container page/blog ID |
 |     ↳ `title` | string | Container page/blog title |
 |     ↳ `contentType` | string | Container content type |
 | `files` | file[] | Attachment file content downloaded from Confluence \(if includeFileContent is enabled with credentials\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Blog Post Created
 
 Trigger workflow when a blog post is created in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1529,7 +1763,7 @@ Trigger workflow when a blog post is created in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `blog` | object | blog output from the tool |
+| `blog` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1541,13 +1775,14 @@ Trigger workflow when a blog post is created in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Blog Post Removed
 
 Trigger workflow when a blog post is removed in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1562,7 +1797,7 @@ Trigger workflow when a blog post is removed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `blog` | object | blog output from the tool |
+| `blog` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1574,13 +1809,14 @@ Trigger workflow when a blog post is removed in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Blog Post Restored
 
 Trigger workflow when a blog post is restored from trash in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1595,7 +1831,7 @@ Trigger workflow when a blog post is restored from trash in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `blog` | object | blog output from the tool |
+| `blog` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1607,13 +1843,14 @@ Trigger workflow when a blog post is restored from trash in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Blog Post Updated
 
 Trigger workflow when a blog post is updated in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1628,7 +1865,7 @@ Trigger workflow when a blog post is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `blog` | object | blog output from the tool |
+| `blog` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1640,13 +1877,14 @@ Trigger workflow when a blog post is updated in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Comment Created
 
 Trigger workflow when a comment is created in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1661,7 +1899,7 @@ Trigger workflow when a comment is created in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `comment` | object | comment output from the tool |
+| `comment` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1672,20 +1910,21 @@ Trigger workflow when a comment is created in Confluence
 |   ↳ `self` | string | URL link to the content |
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | number | Parent page/blog ID |
 |     ↳ `title` | string | Parent page/blog title |
 |     ↳ `contentType` | string | Parent content type \(page or blogpost\) |
 |     ↳ `spaceKey` | string | Space key of the parent |
 |     ↳ `self` | string | URL link to the parent content |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Comment Removed
 
 Trigger workflow when a comment is removed in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1700,7 +1939,7 @@ Trigger workflow when a comment is removed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `comment` | object | comment output from the tool |
+| `comment` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1711,20 +1950,21 @@ Trigger workflow when a comment is removed in Confluence
 |   ↳ `self` | string | URL link to the content |
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | number | Parent page/blog ID |
 |     ↳ `title` | string | Parent page/blog title |
 |     ↳ `contentType` | string | Parent content type \(page or blogpost\) |
 |     ↳ `spaceKey` | string | Space key of the parent |
 |     ↳ `self` | string | URL link to the parent content |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Comment Updated
 
 Trigger workflow when a comment is updated in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1739,7 +1979,7 @@ Trigger workflow when a comment is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `comment` | object | comment output from the tool |
+| `comment` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1750,20 +1990,21 @@ Trigger workflow when a comment is updated in Confluence
 |   ↳ `self` | string | URL link to the content |
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
-|   ↳ `parent` | object | parent output from the tool |
+|   ↳ `parent` | object |  |
 |     ↳ `id` | number | Parent page/blog ID |
 |     ↳ `title` | string | Parent page/blog title |
 |     ↳ `contentType` | string | Parent content type \(page or blogpost\) |
 |     ↳ `spaceKey` | string | Space key of the parent |
 |     ↳ `self` | string | URL link to the parent content |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Label Added
 
 Trigger workflow when a label is added to content in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1778,22 +2019,23 @@ Trigger workflow when a label is added to content in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `label` | object | label output from the tool |
+| `label` | object |  |
 |   ↳ `name` | string | Label name |
 |   ↳ `id` | string | Label ID |
 |   ↳ `prefix` | string | Label prefix \(global, my, team\) |
-| `content` | object | content output from the tool |
+| `content` | object |  |
 |   ↳ `id` | number | Content ID the label was added to or removed from |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Label Removed
 
 Trigger workflow when a label is removed from content in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1808,22 +2050,23 @@ Trigger workflow when a label is removed from content in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `label` | object | label output from the tool |
+| `label` | object |  |
 |   ↳ `name` | string | Label name |
 |   ↳ `id` | string | Label ID |
 |   ↳ `prefix` | string | Label prefix \(global, my, team\) |
-| `content` | object | content output from the tool |
+| `content` | object |  |
 |   ↳ `id` | number | Content ID the label was added to or removed from |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Page Created
 
 Trigger workflow when a new page is created in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1838,7 +2081,7 @@ Trigger workflow when a new page is created in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `page` | object | page output from the tool |
+| `page` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1850,13 +2093,14 @@ Trigger workflow when a new page is created in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Page Moved
 
 Trigger workflow when a page is moved in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1871,7 +2115,7 @@ Trigger workflow when a page is moved in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `page` | object | page output from the tool |
+| `page` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1883,12 +2127,13 @@ Trigger workflow when a page is moved in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Page Permissions Updated
 
 Trigger workflow when page permissions are changed in Confluence
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1904,7 +2149,7 @@ Trigger workflow when page permissions are changed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `page` | object | page output from the tool |
+| `page` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1917,13 +2162,14 @@ Trigger workflow when page permissions are changed in Confluence
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 |   ↳ `permissions` | json | Updated permissions object for the page |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Page Removed
 
 Trigger workflow when a page is removed or trashed in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1938,7 +2184,7 @@ Trigger workflow when a page is removed or trashed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `page` | object | page output from the tool |
+| `page` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1950,13 +2196,14 @@ Trigger workflow when a page is removed or trashed in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Page Restored
 
 Trigger workflow when a page is restored from trash in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1971,7 +2218,7 @@ Trigger workflow when a page is restored from trash in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `page` | object | page output from the tool |
+| `page` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -1983,13 +2230,14 @@ Trigger workflow when a page is restored from trash in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Page Updated
 
 Trigger workflow when a page is updated in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2004,7 +2252,7 @@ Trigger workflow when a page is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `page` | object | page output from the tool |
+| `page` | object |  |
 |   ↳ `id` | number | Content ID |
 |   ↳ `title` | string | Content title |
 |   ↳ `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
@@ -2016,13 +2264,14 @@ Trigger workflow when a page is updated in Confluence
 |   ↳ `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
 |   ↳ `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Space Created
 
 Trigger workflow when a new space is created in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2037,18 +2286,19 @@ Trigger workflow when a new space is created in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `space` | object | space output from the tool |
+| `space` | object |  |
 |   ↳ `key` | string | Space key |
 |   ↳ `name` | string | Space name |
 |   ↳ `self` | string | URL link to the space |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Space Removed
 
 Trigger workflow when a space is removed in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2063,18 +2313,19 @@ Trigger workflow when a space is removed in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `space` | object | space output from the tool |
+| `space` | object |  |
 |   ↳ `key` | string | Space key |
 |   ↳ `name` | string | Space name |
 |   ↳ `self` | string | URL link to the space |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Space Updated
 
 Trigger workflow when a space is updated in Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2089,18 +2340,19 @@ Trigger workflow when a space is updated in Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `space` | object | space output from the tool |
+| `space` | object |  |
 |   ↳ `key` | string | Space key |
 |   ↳ `name` | string | Space name |
 |   ↳ `self` | string | URL link to the space |
 
-
----
+</ReferenceDetails>
 
 ### Confluence User Created
 
 Trigger workflow when a new user is added to Confluence
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -2115,7 +2367,7 @@ Trigger workflow when a new user is added to Confluence
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
-| `user` | object | user output from the tool |
+| `user` | object |  |
 |   ↳ `accountId` | string | Account ID of the new user |
 |   ↳ `accountType` | string | Account type \(e.g., atlassian, app\) |
 |   ↳ `displayName` | string | Display name of the user |
@@ -2123,12 +2375,13 @@ Trigger workflow when a new user is added to Confluence
 |   ↳ `publicName` | string | Public name of the user |
 |   ↳ `self` | string | URL link to the user profile |
 
-
----
+</ReferenceDetails>
 
 ### Confluence Webhook (All Events)
 
 Trigger workflow on any Confluence webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -2156,4 +2409,6 @@ Trigger workflow on any Confluence webhook event
 | `content` | json | Content object \(present in label events\) |
 | `user` | json | User object \(present in user events\) |
 | `files` | file[] | Attachment file content \(present in attachment events when includeFileContent is enabled\) |
+
+</ReferenceDetails>
 

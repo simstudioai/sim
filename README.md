@@ -42,7 +42,7 @@ macOS 12+, Apple Silicon and Intel. See the [desktop docs](https://docs.sim.ai/d
 
 ## Capabilities
 
-- Connect 1,000+ integrations and every major LLM
+- Connect 270+ integrations (5,400+ actions, 520+ triggers) and every major LLM
 - Add Slack, Notion, HubSpot, Salesforce, databases, and more
 - Build agents visually, conversationally, or with code
 - Ingest files, knowledge bases, and structured table data
@@ -74,6 +74,16 @@ macOS 12+, Apple Silicon and Intel. See the [desktop docs](https://docs.sim.ai/d
     </td>
   </tr>
 </table>
+
+## MCP server
+
+Connect Claude, Claude Code, Codex, or any MCP client to Sim Cloud at `https://mcp.sim.ai/mcp`. Your agent can manage workspaces, run and deploy workflows, and work with tables, knowledge bases, files, and logs. Sign in with OAuth or use an API key.
+
+- **Claude Code:** `claude mcp add --transport http sim https://mcp.sim.ai/mcp`, then open `/mcp` to sign in
+- **Claude:** add `https://mcp.sim.ai/mcp` as a custom connector under **Customize → Connectors**
+- **Codex:** `codex mcp add sim --url https://mcp.sim.ai/mcp`
+
+See the [MCP docs](https://docs.sim.ai/mcp/overview) for other clients and for self-hosted URLs.
 
 ## Self-hosting
 

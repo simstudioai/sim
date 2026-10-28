@@ -11,6 +11,10 @@ import { getEmailSubject, renderEnterpriseOwnerInvitationEmail } from '@/compone
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
+  ENTERPRISE_OWNER_ACTIVATION_EVENT_TYPE,
+  ENTERPRISE_OWNER_CLAIM_EVENT_TYPE,
+} from '@/lib/billing/enterprise-owner-claim-events'
+import {
   assertEnterpriseInvitationEligibility,
   EnterpriseProvisioningError,
   getEnterpriseIssuanceSeatRequirement,
@@ -20,8 +24,8 @@ import {
   retryEnterpriseProvisioning,
 } from '@/lib/billing/enterprise-provisioning'
 import { parseWorkflowExecutionTimeoutSeconds } from '@/lib/billing/execution-timeout-defaults'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { createOrganizationWithOwnerTx } from '@/lib/billing/organizations/create-organization'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import {
   enqueueOutboxEvent,
   type OutboxHandler,
@@ -30,6 +34,7 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitations/expiry'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
@@ -41,8 +46,6 @@ import {
 } from '@/lib/workspaces/create'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
-export const ENTERPRISE_OWNER_CLAIM_EVENT_TYPE = 'enterprise.invite-owner'
-export const ENTERPRISE_OWNER_ACTIVATION_EVENT_TYPE = 'enterprise.activate-owner-claim'
 export const ENTERPRISE_OWNER_CLAIM_EXPIRY_DAYS = INVITATION_EXPIRY_DAYS
 
 const logger = createLogger('EnterpriseOwnerClaim')
@@ -492,8 +495,10 @@ export async function createEnterpriseOwnerClaim(
   })
   const requestKey = buildClaimRequestKey(input, normalized)
   const result = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`enterprise-owner-claim:${normalized.ownerEmail}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'enterprise_owner_claim',
+      `enterprise-owner-claim:${normalized.ownerEmail}`
     )
     const [accountCreatedDuringReview] = await tx
       .select({ id: user.id })

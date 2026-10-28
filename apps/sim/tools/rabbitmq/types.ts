@@ -518,30 +518,3 @@ export interface RabbitmqGetOverviewResponse extends ToolResponse {
     messageStats: Record<string, unknown>
   }
 }
-
-export type RabbitmqResponse =
-  | RabbitmqPublishMessageResponse
-  | RabbitmqGetMessagesResponse
-  | RabbitmqListQueuesResponse
-  | RabbitmqGetQueueResponse
-  | RabbitmqCreateQueueResponse
-  | RabbitmqDeleteQueueResponse
-  | RabbitmqPurgeQueueResponse
-  | RabbitmqListExchangesResponse
-  | RabbitmqListBindingsResponse
-  | RabbitmqCreateBindingResponse
-  | RabbitmqGetOverviewResponse
-  | RabbitmqGetExchangeResponse
-  | RabbitmqCreateExchangeResponse
-  | RabbitmqDeleteExchangeResponse
-  | RabbitmqListExchangeBindingsResponse
-  | RabbitmqDeleteBindingResponse
-  | RabbitmqListVhostsResponse
-  | RabbitmqListConnectionsResponse
-  | RabbitmqListChannelsResponse
-  | RabbitmqListConsumersResponse
-  | RabbitmqListNodesResponse
-  | RabbitmqHealthCheckResponse
-  | RabbitmqListPoliciesResponse
-  | RabbitmqCreatePolicyResponse
-  | RabbitmqDeletePolicyResponse

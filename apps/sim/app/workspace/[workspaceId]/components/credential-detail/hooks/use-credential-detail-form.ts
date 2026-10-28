@@ -1,11 +1,14 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { type MouseEvent, useCallback, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useUnsavedChangesGuard } from '@/app/workspace/[workspaceId]/components/credential-detail/hooks/use-unsaved-changes-guard'
+import { filterUndefined } from '@sim/utils/object'
+import { useRouter } from 'next/navigation'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('CredentialDetailForm')
 
@@ -25,6 +28,12 @@ export interface CredentialDetailFormSection {
   discard: () => void
 }
 
+interface CredentialMetadata {
+  displayName: string
+  description: string
+  unredacted: boolean
+}
+
 interface UseCredentialDetailFormParams {
   workspaceId?: string
   credential: WorkspaceCredential | null
@@ -33,9 +42,7 @@ interface UseCredentialDetailFormParams {
   backHref: string
   /**
    * An additional editable section on the page, folded into one dirty state, one
-   * save, and one unsaved-changes guard. Two independent guards on a page cannot
-   * coexist: each seeds its own same-URL history entry while dirty, so Back would
-   * pop only one of them and leave the other stranded.
+   * save, and one unsaved-changes guard.
    */
   section?: CredentialDetailFormSection
 }
@@ -55,43 +62,107 @@ export function useCredentialDetailForm({
   section,
 }: UseCredentialDetailFormParams) {
   const updateCredential = useUpdateWorkspaceCredential(workspaceId)
-
-  const [displayNameDraft, setDisplayNameDraft] = useState('')
-  const [descriptionDraft, setDescriptionDraft] = useState('')
-  const [unredactedDraft, setUnredactedDraft] = useState(false)
-  const [seededCredentialId, setSeededCredentialId] = useState<string | null>(null)
-
-  // Seed drafts when the credential first resolves (or the route id changes); a
-  // background refetch of the same credential must not clobber an in-progress
-  // edit — Discard is the one way to reset.
-  /** Applies a credential to every draft — the one definition of "reset to server state". */
-  const seedDrafts = useCallback((source: WorkspaceCredential) => {
-    setDisplayNameDraft(source.displayName)
-    setDescriptionDraft(source.description ?? '')
-    setUnredactedDraft(source.unredacted)
-  }, [])
-
-  if (credential && credential.id !== seededCredentialId) {
-    setSeededCredentialId(credential.id)
-    seedDrafts(credential)
-  }
-
-  const isDisplayNameDirty = credential ? displayNameDraft !== credential.displayName : false
-  const isDescriptionDirty = credential
-    ? descriptionDraft !== (credential.description || '')
-    : false
-  const isUnredactedDirty = credential ? unredactedDraft !== credential.unredacted : false
-  const isMetadataDirty = isDisplayNameDirty || isDescriptionDirty || isUnredactedDirty
-  const isSectionDirty = section?.isDirty ?? false
-  const isDirty = isMetadataDirty || isSectionDirty
   const isSaving = updateCredential.isPending || (section?.isSaving ?? false)
 
-  const guard = useUnsavedChangesGuard({ isDirty, backHref })
+  const savedValues = {
+    displayName: credential?.displayName ?? '',
+    description: credential?.description ?? '',
+    unredacted: credential?.unredacted ?? false,
+  }
+  const [draft, setDraft] = useState<{
+    credentialId: string
+    values: Partial<CredentialMetadata>
+  } | null>(null)
+
+  if (draft && credential && draft.credentialId !== credential.id) setDraft(null)
+
+  const values = { ...savedValues, ...draft?.values }
+  const displayNameDraft = values.displayName
+  const descriptionDraft = values.description
+  const unredactedDraft = values.unredacted
+  const isDisplayNameDirty = values.displayName.trim() !== savedValues.displayName.trim()
+  const isDescriptionDirty = values.description.trim() !== savedValues.description.trim()
+  const isUnredactedDirty = values.unredacted !== savedValues.unredacted
+  const isMetadataDirty = isDisplayNameDirty || isDescriptionDirty || isUnredactedDirty
+
+  if (
+    draft &&
+    !isSaving &&
+    values.displayName === savedValues.displayName &&
+    values.description === savedValues.description &&
+    values.unredacted === savedValues.unredacted
+  )
+    setDraft(null)
+
+  const updateDraft = useCallback(
+    (change: Partial<typeof savedValues>) => {
+      if (!credential) return
+      setDraft((current) => {
+        const saved = {
+          displayName: credential.displayName,
+          description: credential.description ?? '',
+          unredacted: credential.unredacted,
+        }
+        const values = { ...current?.values, ...change }
+        if (!isSaving) {
+          if (values.displayName === saved.displayName) values.displayName = undefined
+          if (values.description === saved.description) values.description = undefined
+          if (values.unredacted === saved.unredacted) values.unredacted = undefined
+        }
+        const overrides = filterUndefined(values)
+        return Object.keys(overrides).length
+          ? { credentialId: credential.id, values: overrides }
+          : null
+      })
+    },
+    [credential, isSaving]
+  )
+  const setDisplayNameDraft = useCallback(
+    (displayName: string) => updateDraft({ displayName }),
+    [updateDraft]
+  )
+  const setDescriptionDraft = useCallback(
+    (description: string) => updateDraft({ description }),
+    [updateDraft]
+  )
+  const setUnredactedDraft = useCallback(
+    (unredacted: boolean) => updateDraft({ unredacted }),
+    [updateDraft]
+  )
+
+  const isSectionDirty = section?.isDirty ?? false
+  const isDirty = isMetadataDirty || isSectionDirty
+  const router = useRouter()
+  const discard = useCallback(() => {
+    if (isSaving) return
+    setDraft(null)
+    section?.discard()
+  }, [isSaving, section])
+
+  const guard = useSettingsUnsavedGuard({
+    isDirty,
+    navigationBlocked: isSaving,
+    onDiscard: discard,
+  })
+  const handleBackClick = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>) => {
+      const { isDirty, navigationBlocked } = useSettingsDirtyStore.getState()
+      if (!isDirty && !navigationBlocked) return
+      event.preventDefault()
+      guard.guardBack(() => router.push(backHref))
+    },
+    [guard.guardBack, router, backHref]
+  )
 
   const save = useCallback(async () => {
     if (!credential || isSaving) return
-    if (isSectionDirty && !(await section?.save())) return
-    if (!isAdmin || !isMetadataDirty) return
+    const submitted = draft
+    if (isSectionDirty && !(await section?.save())) {
+      return
+    }
+    if (!isAdmin || !isMetadataDirty) {
+      return
+    }
 
     try {
       await updateCredential.mutateAsync({
@@ -100,8 +171,17 @@ export function useCredentialDetailForm({
         ...(isDescriptionDirty ? { description: descriptionDraft.trim() || null } : {}),
         ...(isUnredactedDirty ? { unredacted: unredactedDraft } : {}),
       })
-      if (isDisplayNameDirty) setDisplayNameDraft((value) => value.trim())
-      if (isDescriptionDirty) setDescriptionDraft((value) => value.trim())
+      setDraft((current) => {
+        if (current === submitted) return null
+        if (!current || !submitted || current.credentialId !== submitted.credentialId)
+          return current
+        const values = { ...current.values }
+        if (values.displayName === submitted.values.displayName) values.displayName = undefined
+        if (values.description === submitted.values.description) values.description = undefined
+        if (values.unredacted === submitted.values.unredacted) values.unredacted = undefined
+        const overrides = filterUndefined(values)
+        return Object.keys(overrides).length ? { ...current, values: overrides } : null
+      })
     } catch (error) {
       toast.error("Couldn't save changes", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -110,6 +190,7 @@ export function useCredentialDetailForm({
     }
   }, [
     credential,
+    draft,
     isAdmin,
     isMetadataDirty,
     isSectionDirty,
@@ -124,11 +205,6 @@ export function useCredentialDetailForm({
     updateCredential.mutateAsync,
   ])
 
-  const discard = useCallback(() => {
-    if (credential) seedDrafts(credential)
-    section?.discard()
-  }, [credential, section, seedDrafts])
-
   return {
     displayNameDraft,
     setDisplayNameDraft,
@@ -140,9 +216,6 @@ export function useCredentialDetailForm({
     save,
     discard,
     isSaving,
-    handleBackClick: guard.handleBackClick,
-    showUnsavedAlert: guard.showUnsavedAlert,
-    setShowUnsavedAlert: guard.setShowUnsavedAlert,
-    confirmDiscard: guard.confirmDiscard,
+    handleBackClick,
   }
 }

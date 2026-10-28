@@ -1,5 +1,16 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps, useState } from 'react'
+import { act, type ComponentProps, useEffect, useState } from 'react'
+import { ToastProvider } from '@sim/emcn'
+import {
+  createMockDeploymentShape,
+  deploymentShapeMock,
+  deploymentShapeMockFns,
+} from '@sim/testing/mocks/deployment-shape.mock'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -10,7 +21,6 @@ import {
 } from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
-  live: false,
   plan: false,
   advanced: false,
   speech: vi.fn<typeof useSpeechToText>(),
@@ -38,14 +48,7 @@ const mocks = vi.hoisted(() => ({
   ],
 }))
 
-vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => ({
-    features: {
-      liveEnterpriseSearch: mocks.live,
-    },
-  }),
-  getDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspacesQuery: () => ({ data: mocks.workspaces }),
 }))
@@ -58,9 +61,7 @@ vi.mock('@/hooks/queries/skills', () => ({
   }),
 }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
-vi.mock('@/blocks/integration-matcher', () => ({
-  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
-}))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/plus-menu-dropdown',
   async () => {
@@ -84,13 +85,19 @@ vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/hooks/use-animated-placeholder', () => ({ useAnimatedPlaceholder: () => 'Ask Sim to' }))
 vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: () => ({ organization: { id: 'organization-a' } }),
-}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 
 import { Composer } from '@/app/o/[organizationId]/home/components/composer/composer'
+import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+
+const deploymentShape = () => createMockDeploymentShape()
+deploymentShapeMockFns.mockUseDeploymentShape.mockImplementation(deploymentShape)
+deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape)
+organizationProviderMockFns.mockUseOrganizationContext.mockReturnValue({
+  organization: { id: 'organization-a' },
+})
 
 let root: Root
 let container: HTMLDivElement
@@ -98,13 +105,9 @@ let queryClient: QueryClient
 
 beforeEach(() => {
   mocks.advanced = false
+  useMothershipEffortStore.getState().reset()
   useMothershipPlanEffortStore.getState().reset()
-  useMothershipEffortStore.setState({
-    effort: 'high',
-    modelSelection: { model: 'gpt-6-astra', fastMode: false },
-  })
   mocks.plan = false
-  mocks.live = false
   vi.clearAllMocks()
   mocks.workspaces = [
     {
@@ -173,7 +176,7 @@ beforeEach(() => {
   mocks.speech.mockReturnValue({
     isSupported: true,
     isListening: false,
-    audioLevelsRef: { current: new Float32Array(5) },
+    audioLevels: new Float32Array(5),
     toggleListening: mocks.toggleListening,
     resetTranscript: mocks.resetTranscript,
   })
@@ -184,10 +187,9 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount())
+  vi.useRealTimers()
   container.remove()
   queryClient.clear()
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
 async function render(
@@ -233,7 +235,9 @@ async function render(
       <QueryClientProvider client={queryClient}>
         <FeatureFlagsProvider
           flags={{
-            'table-row-ttl': false,
+            dashboards: false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
           }}
@@ -248,6 +252,110 @@ async function render(
 function fileList(files: File[]): FileList {
   return Object.assign(files, { item: (index: number) => files[index] ?? null })
 }
+
+it.each([
+  { searchEnabled: true, planEnabled: true, modes: ['assistant', 'agent', 'plan', 'assistant'] },
+  { searchEnabled: true, planEnabled: false, modes: ['assistant', 'agent', 'assistant'] },
+  { searchEnabled: false, planEnabled: true, modes: ['agent', 'plan', 'agent'] },
+  { searchEnabled: true, planEnabled: true, withDocument: true, modes: ['agent', 'plan', 'agent'] },
+] satisfies {
+  searchEnabled: boolean
+  planEnabled: boolean
+  withDocument?: boolean
+  modes: ChatRequestMode[]
+}[])(
+  'cycles available modes without losing the draft or selection (Search: $searchEnabled, Plan: $planEnabled, document: $withDocument)',
+  async ({ searchEnabled, planEnabled, modes, withDocument = false }) => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
+    let currentMode = modes[0]
+    function Harness() {
+      const [mode, setMode] = useState(modes[0])
+      currentMode = mode
+      const [value, setValue] = useState('Summarize this draft')
+      const files = useFileAttachments({
+        userId: 'user-a',
+        organizationId: 'organization-a',
+        requestMode: mode,
+      })
+      const { restoreAttachedFiles } = files
+      useEffect(() => {
+        if (withDocument) {
+          restoreAttachedFiles([
+            {
+              id: 'document-a',
+              name: 'Draft.pdf',
+              type: 'application/pdf',
+              size: 1024,
+              key: 'sample/draft.pdf',
+              path: '',
+              uploading: false,
+            },
+          ])
+        }
+      }, [restoreAttachedFiles])
+      return (
+        <Composer
+          requestMode={mode}
+          searchEnabled={searchEnabled}
+          showModeSelector
+          onModeChange={setMode}
+          value={value}
+          onChange={setValue}
+          files={files}
+          isInitialView
+          isSending={false}
+          onStop={() => {}}
+          onSubmit={() => {}}
+        />
+      )
+    }
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <FeatureFlagsProvider
+            flags={{
+              dashboards: false,
+              'workflow-tests': false,
+              changelog: false,
+              'mothership-model-selector': false,
+              'mothership-plan-mode': planEnabled,
+            }}
+          >
+            <Harness />
+            <ToastProvider />
+          </FeatureFlagsProvider>
+        </QueryClientProvider>
+      )
+    )
+    const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+    await act(async () => {
+      input.focus()
+      input.setSelectionRange(10, 14, 'backward')
+    })
+    for (const expectedMode of modes.slice(1)) {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      await act(async () => {
+        container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.dispatchEvent(event)
+      })
+      await act(async () => vi.advanceTimersToNextFrame())
+      const nextInput = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+      expect(currentMode).toBe(expectedMode)
+      expect(event.defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(nextInput)
+      expect(nextInput.value).toBe('Summarize this draft')
+      expect([
+        nextInput.selectionStart,
+        nextInput.selectionEnd,
+        nextInput.selectionDirection,
+      ]).toEqual([10, 14, 'backward'])
+    }
+  }
+)
 
 async function paste(files: File[]) {
   const event = new Event('paste', { bubbles: true, cancelable: true })
@@ -267,62 +375,81 @@ async function paste(files: File[]) {
   return event
 }
 
-it('keeps restored queued skills scoped when replacing a draft', async () => {
-  let restore: () => void = () => {}
-  function Harness() {
-    const [value, setValue] = useState('Original draft')
-    const [contexts, setContexts] = useState<ComponentProps<typeof Composer>['restoredContexts']>()
-    restore = () => {
-      setValue('/review fix this')
-      setContexts([
-        { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
-      ])
+it.each([false, true])(
+  'keeps restored queued skills scoped and warns about lost context (%s)',
+  async (invalidContext) => {
+    let restore: () => void = () => {}
+    function Harness() {
+      const [value, setValue] = useState('Original draft')
+      const [contexts, setContexts] =
+        useState<ComponentProps<typeof Composer>['restoredContexts']>()
+      restore = () => {
+        setValue('/review fix this @Browser')
+        setContexts([
+          { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+          ...(invalidContext
+            ? [
+                {
+                  kind: 'browser_tab' as const,
+                  tabId: 'tab-a',
+                  label: 'Browser',
+                  selection: { text: 'Selected passage', title: 'x'.repeat(513) },
+                },
+              ]
+            : []),
+        ])
+      }
+      const files = useFileAttachments({
+        userId: 'user-a',
+        organizationId: 'organization-a',
+        requestMode: 'agent',
+      })
+      return (
+        <Composer
+          requestMode='agent'
+          value={value}
+          onChange={setValue}
+          restoredContexts={contexts}
+          files={files}
+          isInitialView={false}
+          isSending={false}
+          onStop={() => {}}
+          onSubmit={mocks.submit}
+        />
+      )
     }
-    const files = useFileAttachments({
-      userId: 'user-a',
-      organizationId: 'organization-a',
-      requestMode: 'agent',
-    })
-    return (
-      <Composer
-        requestMode='agent'
-        value={value}
-        onChange={setValue}
-        restoredContexts={contexts}
-        files={files}
-        isInitialView={false}
-        isSending={false}
-        onStop={() => {}}
-        onSubmit={mocks.submit}
-      />
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <FeatureFlagsProvider
+            flags={{
+              dashboards: false,
+              'workflow-tests': false,
+              changelog: false,
+              'mothership-model-selector': mocks.advanced,
+              'mothership-plan-mode': mocks.plan,
+            }}
+          >
+            <Harness />
+            <ToastProvider />
+          </FeatureFlagsProvider>
+        </QueryClientProvider>
+      )
     )
+    await act(async () => restore())
+    expect(
+      container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+        .value
+    ).toBe('\u2003review fix this @Browser')
+    if (invalidContext) expect(document.body.textContent).toContain('Reattach it before sending.')
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
+    )
+    expect(mocks.submit).toHaveBeenLastCalledWith('/review fix this @Browser', [
+      { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+    ])
   }
-  await act(async () =>
-    root.render(
-      <QueryClientProvider client={queryClient}>
-        <FeatureFlagsProvider
-          flags={{
-            'table-row-ttl': false,
-            'mothership-model-selector': mocks.advanced,
-            'mothership-plan-mode': mocks.plan,
-          }}
-        >
-          <Harness />
-        </FeatureFlagsProvider>
-      </QueryClientProvider>
-    )
-  )
-  await act(async () => restore())
-  expect(
-    container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.value
-  ).toBe('\u2003review fix this')
-  await act(async () =>
-    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
-  )
-  expect(mocks.submit).toHaveBeenLastCalledWith('/review fix this', [
-    { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
-  ])
-})
+)
 
 it('shows global built-ins once with no workspace label and submits no invented workspace', async () => {
   mocks.workspaces = []
@@ -371,21 +498,22 @@ it.each([
   }
 )
 
-it('renders and restores separate Plan and Build model preferences when changing modes', async () => {
+it('preserves mode-specific models and unsent effort across composer remounts', async () => {
   mocks.plan = true
   mocks.advanced = true
   await render(false, '', 'plan')
   expect(container.textContent).toContain('Opus 5.5')
   expect(container.textContent).toContain('Medium')
   await act(async () => {
-    useMothershipPlanEffortStore.getState().setModel('gpt-6-astra')
-    useMothershipPlanEffortStore.getState().setEffort('xhigh')
+    useMothershipPlanEffortStore.getState().setModel('gpt-6-sol')
+    useMothershipEffortStore.getState().setNewChatEffort('xhigh')
   })
-  expect(container.textContent).toContain('GPT-6 Astra')
+  expect(container.textContent).toContain('GPT-6.1 Sol')
   expect(container.textContent).toContain('Extra High')
   await render(false, '', 'agent')
   expect(container.textContent).toContain('GPT-6 Astra')
-  expect(container.textContent).not.toContain('Extra High')
+  expect(container.textContent).toContain('Extra High')
   await render(false, '', 'plan')
+  expect(container.textContent).toContain('GPT-6.1 Sol')
   expect(container.textContent).toContain('Extra High')
 })

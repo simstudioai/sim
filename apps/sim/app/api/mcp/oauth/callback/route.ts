@@ -17,6 +17,7 @@ import {
   isCredentialGroupMcpOAuthState,
 } from '@/lib/credential-groups/mcp-oauth-state'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
+import type { CredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import {
   assertSafeOauthServerUrl,
@@ -30,7 +31,10 @@ import {
   SimMcpOauthProvider,
 } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
-import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
+import {
+  createCredentialGroupCompletionRedirect,
+  createCredentialGroupEnrollmentRedirect,
+} from '@/app/api/credential-groups/enrollment-redirect'
 
 const logger = createLogger('McpOauthCallbackAPI')
 const timedStep = makeTimedStep(logger)
@@ -96,15 +100,48 @@ async function completeManagedMcpCallback(params: {
     throw error
   }
   if (!attempt) {
-    return htmlClose('Invalid or expired authorization state.', false, 'invalid_state')
+    return htmlClose(
+      'Invalid or expired authorization state.',
+      false,
+      'invalid_state',
+      undefined,
+      params.state
+    )
   }
+  const failureRedirect = (oauth: CredentialGroupOAuthFailure) =>
+    attempt.completionId
+      ? createCredentialGroupCompletionRedirect(
+          oauth,
+          attempt.completionId,
+          attempt.returnTo === 'integrations' ? attempt.organizationId : undefined
+        )
+      : createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth })
   if (params.error) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'denied' })
+    const errorCode = [
+      'invalid_request',
+      'unauthorized_client',
+      'access_denied',
+      'unsupported_response_type',
+      'invalid_scope',
+      'server_error',
+      'temporarily_unavailable',
+    ].includes(params.error)
+      ? params.error
+      : 'unknown'
+    logger.warn('Managed MCP authorization returned a provider error', {
+      phase: 'provider_authorization',
+      errorCode,
+    })
+    return failureRedirect(
+      errorCode === 'access_denied'
+        ? 'denied'
+        : errorCode === 'server_error' || errorCode === 'temporarily_unavailable'
+          ? 'provider_unavailable'
+          : 'failed'
+    )
   }
   if (!params.code) {
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
-      oauth: 'failed',
-    })
+    return failureRedirect('failed')
   }
   try {
     const principal = await credentialGroupOAuthAttemptPrincipal(attempt)
@@ -113,13 +150,19 @@ async function completeManagedMcpCallback(params: {
       input: { attempt, code: params.code },
       request: params.request,
     })
+    if (attempt.completionId)
+      return createCredentialGroupCompletionRedirect(
+        undefined,
+        attempt.completionId,
+        attempt.returnTo === 'integrations' ? attempt.organizationId : undefined
+      )
     return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
       mcp: 'connected',
       mcpServerId: result.mcpServerId,
     })
   } catch (error) {
     logger.error('Managed MCP OAuth callback failed', error)
-    return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'failed' })
+    return failureRedirect('failed')
   }
 }
 

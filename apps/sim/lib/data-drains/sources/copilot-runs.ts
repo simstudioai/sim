@@ -1,6 +1,7 @@
-import { dbReplica } from '@sim/db'
 import { copilotRuns } from '@sim/db/schema'
-import { and, inArray, isNotNull } from 'drizzle-orm'
+import { isRecordLike } from '@sim/utils/object'
+import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
   decodeTimeCursor,
   encodeTimeCursor,
@@ -8,7 +9,7 @@ import {
   timeCursorPredicate,
   timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
-import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
+import { readBoundedSourcePage, workspaceInOrganization } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
 
 type CopilotRunRow = typeof copilotRuns.$inferSelect
@@ -18,32 +19,37 @@ type CopilotRunRow = typeof copilotRuns.$inferSelect
  * `error`, `completedAt`) are not exported until they reach a terminal state.
  */
 async function* pages(input: SourcePageInput): AsyncIterable<CopilotRunRow[]> {
-  const workspaceIds = await getOrganizationWorkspaceIds(input.organizationId)
-  if (workspaceIds.length === 0) return
-
   let cursor = decodeTimeCursor(input.cursor)
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(copilotRuns.completedAt, copilotRuns.id, cursor)
-
-    const rows = await dbReplica
-      .select()
-      .from(copilotRuns)
-      .where(
-        and(
-          inArray(copilotRuns.workspaceId, workspaceIds),
-          isNotNull(copilotRuns.completedAt),
-          timeCursorStabilityBound(copilotRuns.completedAt),
-          cursorClause
-        )
-      )
-      .orderBy(...timeCursorOrderBy(copilotRuns.completedAt, copilotRuns.id))
-      .limit(input.chunkSize)
+    const orderBy = timeCursorOrderBy(copilotRuns.completedAt, copilotRuns.id)
+    const rows = await readBoundedSourcePage({
+      table: copilotRuns,
+      idColumn: copilotRuns.id,
+      condition: and(
+        or(
+          workspaceInOrganization(copilotRuns.workspaceId, input.organizationId),
+          and(isNull(copilotRuns.workspaceId), eq(copilotRuns.organizationId, input.organizationId))
+        ),
+        isNotNull(copilotRuns.completedAt),
+        timeCursorStabilityBound(copilotRuns.completedAt),
+        cursorClause
+      ),
+      orderBy,
+      chunkSize: input.chunkSize,
+      read: (tx, ids) =>
+        tx
+          .select()
+          .from(copilotRuns)
+          .where(inArray(copilotRuns.id, ids))
+          .orderBy(...orderBy),
+    })
 
     if (rows.length === 0) return
     yield rows
     const last = rows[rows.length - 1]
     cursor = { ts: last.completedAt!.toISOString(), id: last.id }
-    if (rows.length < input.chunkSize) return
+    if (rows.length < Math.min(input.chunkSize, DATA_DRAIN_LIMITS.pageRows)) return
   }
 }
 
@@ -65,7 +71,16 @@ export const copilotRunsSource: DrainSource<CopilotRunRow> = {
       model: row.model,
       provider: row.provider,
       status: row.status,
-      requestContext: row.requestContext,
+      requestContext: isRecordLike(row.requestContext)
+        ? {
+            ...(typeof row.requestContext.requestId === 'string'
+              ? { requestId: row.requestContext.requestId.slice(0, 128) }
+              : {}),
+            ...(typeof row.requestContext.source === 'string'
+              ? { source: row.requestContext.source.slice(0, 128) }
+              : {}),
+          }
+        : null,
       startedAt: row.startedAt.toISOString(),
       completedAt: row.completedAt ? row.completedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),

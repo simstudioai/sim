@@ -2,6 +2,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, folder, knowledgeBase, permissions, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -25,7 +26,6 @@ import {
   readKnowledgeBase,
   restoreKnowledgeBase,
 } from '@/lib/knowledge/application/knowledge-bases'
-import { deleteKnowledgeBaseByVfsPath } from '@/lib/knowledge/application/knowledge-vfs'
 import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/service'
 
 const ids = createKnowledgeAclFixtureIds()
@@ -108,7 +108,7 @@ describe('canonical search knowledge-base policy', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(user).where(eq(user.id, ids.aliceId))
     await db.delete(user).where(eq(user.id, ids.bobId))
     vi.unstubAllGlobals()
@@ -139,7 +139,7 @@ describe('canonical search knowledge-base policy', () => {
           (
             await listInternalKnowledgeBases.execute({
               principal,
-              input: { workspaceId: ids.workspaceId, scope: 'active' },
+              input: { workspaceId: ids.workspaceId, scope: 'active', includeCounts: true },
             })
           ).knowledgeBases[0]
         ).toMatchObject({ isSearchIndex: true, docCount, tokenCount })
@@ -182,12 +182,6 @@ describe('canonical search knowledge-base policy', () => {
     ] as Principal[]) {
       await expect(deleteKnowledgeBaseOperation.execute({ principal, input })).rejects.toThrow()
     }
-    await expect(
-      deleteKnowledgeBaseByVfsPath.execute({
-        principal: copilot(ids.bobId),
-        input: { workspaceId: ids.workspaceId, sourceName: indexName },
-      })
-    ).rejects.toThrow('Insufficient workspace permissions')
     await expectIndexActive()
   })
 

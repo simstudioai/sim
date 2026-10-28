@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { ConnectorConfigField } from '@/connectors/types'
@@ -14,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@sim/emcn', () => ({
   ChipCombobox: mocks.combobox,
 }))
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/selectors/context', () => ({ projectSelectorContext: mocks.projectContext }))
 vi.mock('@/lib/selectors/manifest', () => ({
   getSelectorManifestEntry: () => ({ resolvesUnknownIds: false }),
@@ -32,6 +34,8 @@ vi.mock('@/hooks/queries/selectors', () => ({
 }))
 
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/connector-selector-field'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 interface ComboboxCallbacks {
   options: {
@@ -86,59 +90,6 @@ it.each([
       })
     } finally {
       await act(async () => root.unmount())
-      vi.clearAllMocks()
     }
   }
 )
-
-it('keeps the prior selection when all personal setup options exceed its source limit', async () => {
-  mocks.loadAll.mockResolvedValue({
-    status: 'complete',
-    options: Array.from({ length: 1001 }, (_, index) => ({
-      id: `P${index}`,
-      label: `Project ${index}`,
-    })),
-  })
-  const field: ConnectorConfigField & { selectorKey: 'jira.projectKeys' } = {
-    id: 'projects',
-    title: 'Projects',
-    type: 'selector',
-    selectorKey: 'jira.projectKeys',
-    multi: true,
-    allowSelectAll: true,
-  }
-  const container = document.createElement('div')
-  const root = createRoot(container)
-  try {
-    await act(async () =>
-      root.render(
-        <ConnectorSelectorField
-          scope={{ kind: 'organization', organizationId: 'org-1' }}
-          selectorSurface={{
-            kind: 'personal-search-setup',
-            organizationId: 'org-1',
-            connectorType: 'jira',
-          }}
-          field={field}
-          value={['SAVED']}
-          onChange={mocks.change}
-          credentialId='credential-1'
-          sourceConfig={{ domain: 'example.atlassian.net' }}
-          configFields={[field]}
-          canonicalModes={{}}
-        />
-      )
-    )
-    const all = mocks.combobox.mock.lastCall![0].options.find((item) => item.label === 'All')
-    expect(container.textContent).not.toContain('Select all')
-    await act(async () => all?.onSelect?.())
-    expect(mocks.loadAll).toHaveBeenCalledTimes(1)
-    expect(mocks.change).not.toHaveBeenCalled()
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      'Select up to 1,000 items'
-    )
-  } finally {
-    await act(async () => root.unmount())
-    vi.clearAllMocks()
-  }
-})

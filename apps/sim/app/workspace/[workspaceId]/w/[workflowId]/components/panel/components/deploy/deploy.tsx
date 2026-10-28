@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { Chip, Tooltip, toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useDeployment,
@@ -26,8 +26,7 @@ interface DeployProps {
 
 export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: DeployProps) {
   const queryClient = useQueryClient()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string | undefined
+  const { workspaceId } = useWorkflowScope()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
@@ -46,7 +45,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     enabled: !isRegistryLoading,
     deployReadiness,
   })
-  const { status: buttonStatus, isDeployed, deployedState } = deployment
+  const { status: buttonStatus, isDeployed } = deployment
   const isDeploymentSettling = deployment.isSettling
 
   const { isDeploying, handleDeployClick } = useDeployment({
@@ -174,6 +173,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
         <Tooltip.Trigger asChild>
           <span className='inline-flex'>
             <Chip
+              mobileCompact
               variant='border'
               onClick={onDeployClick}
               onMouseEnter={prefetchDeployModal}

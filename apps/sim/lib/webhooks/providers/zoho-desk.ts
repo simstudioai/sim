@@ -5,9 +5,11 @@ import { toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import * as jose from 'jose'
+import { LRUCache } from 'lru-cache'
 import { NextResponse } from 'next/server'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -17,22 +19,28 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
+import { safeUrlPathSegment } from '@/tools/url-path'
+import {
+  DEFAULT_ZOHO_DESK_BASE,
+  extractZohoDeskBaseFromScope,
+  safeZohoDeskBase,
+} from '@/tools/zoho_desk/host-allowlist'
 import { withDerivedContentText } from '@/tools/zoho_desk/utils'
 
 const logger = createLogger('WebhookProvider:ZohoDesk')
-
-const DEFAULT_ZOHO_DESK_BASE = 'https://desk.zoho.com'
-// Stop at a comma or whitespace: better-auth persists Zoho's scopes comma-joined
-// (no spaces), so a greedy `\S+` would swallow the whole scope list into the host.
-const ZOHO_DESK_BASE_URL_REGEX = /__zoho_domain__:([^\s,]+)/
 
 /**
  * Remote JWKS sets are cached per Desk data-center host. `createRemoteJWKSet`
  * caches keys and coalesces refetches internally, so a module-scoped cache keeps
  * verification within Zoho's 5-second delivery deadline.
+ *
+ * The host comes from `providerConfig.apiDomain`, which `SYSTEM_MANAGED_FIELDS`
+ * protects from *diffing* but not from being written by a workspace member.
+ * `safeZohoDeskBase` clamps it to a Zoho apex, but any `*.zoho.com` label still
+ * passes, so the ceiling stops repeated writes from growing one JWKS instance
+ * per label. Zoho has a handful of data centers.
  */
-const jwksCache = new Map<string, ReturnType<typeof jose.createRemoteJWKSet>>()
+const jwksCache = new LRUCache<string, ReturnType<typeof jose.createRemoteJWKSet>>({ max: 16 })
 
 /**
  * Events whose subscription filter accepts `departmentIds`. Zoho documents the
@@ -63,26 +71,9 @@ const PREV_STATE_EVENTS = new Set([
   'Article_Update',
 ])
 
-/**
- * Bound on distinct Desk hosts held in {@link jwksCache}. The host is derived
- * from `providerConfig.apiDomain`, which `SYSTEM_MANAGED_FIELDS` protects from
- * *diffing* but not from being written by a workspace member. `safeZohoDeskBase`
- * already clamps it to a Zoho apex so no key material is ever fetched off-Zoho,
- * but any `*.zoho.com` label still passes - so without a cap, repeated writes
- * plus webhook hits could grow one JWKS instance (and its key cache) per label.
- * Zoho has a handful of data centers; anything beyond this is not legitimate
- * traffic, so evicting oldest-first is safe.
- */
-const JWKS_CACHE_MAX_ENTRIES = 16
-
 function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
-  const set = jwksCache.get(deskHost)
-  if (set) return set
-
-  if (jwksCache.size >= JWKS_CACHE_MAX_ENTRIES) {
-    const oldest = jwksCache.keys().next()
-    if (!oldest.done) jwksCache.delete(oldest.value)
-  }
+  const cached = jwksCache.get(deskHost)
+  if (cached) return cached
   // Zoho fails a delivery that is not answered within 5 seconds and publishes no
   // retry, so a cold-start JWKS fetch must not consume the whole budget -
   // jose's default timeoutDuration is 5000ms, exactly the deadline.
@@ -94,23 +85,14 @@ function getJwks(deskHost: string): ReturnType<typeof jose.createRemoteJWKSet> {
 }
 
 /**
- * Anchor a Desk base URL to the Zoho apex allowlist before it is used to build a
- * token-carrying request or a JWKS fetch. `providerConfig.apiDomain` is only
- * written by `createSubscription`, but `SYSTEM_MANAGED_FIELDS` governs config
- * *diffing*, not writability - it does not strip a caller-supplied `apiDomain`
- * from an incoming providerConfig. Falling back to the US base on anything
- * unrecognized keeps a hostile value from ever receiving the OAuth token or
- * standing in as the JWKS issuer.
+ * Anchor a stored Desk base URL to the Zoho apex allowlist before it is used to
+ * build a token-carrying request or a JWKS fetch. `providerConfig.apiDomain` is
+ * only written by `createSubscription`, but `SYSTEM_MANAGED_FIELDS` governs
+ * config *diffing*, not writability, so a hostile value falls back to the US base
+ * rather than receiving the OAuth token or standing in as the JWKS issuer.
  */
-function safeZohoDeskBase(candidate: unknown): string {
-  if (typeof candidate !== 'string' || !candidate) return DEFAULT_ZOHO_DESK_BASE
-  try {
-    const url = new URL(candidate)
-    if (url.protocol !== 'https:' || !isZohoHost(url.hostname)) return DEFAULT_ZOHO_DESK_BASE
-    return candidate.replace(/\/+$/, '')
-  } catch {
-    return DEFAULT_ZOHO_DESK_BASE
-  }
+function storedZohoDeskBase(apiDomain: string): string {
+  return safeZohoDeskBase(apiDomain) ?? DEFAULT_ZOHO_DESK_BASE
 }
 
 /** Read the persisted data-center Desk base URL from the credential's scope marker. */
@@ -121,9 +103,7 @@ async function resolveZohoDeskApiDomain(accountId: string): Promise<string> {
       .from(account)
       .where(eq(account.id, accountId))
       .limit(1)
-    const scope = rows[0]?.scope
-    const match = typeof scope === 'string' ? scope.match(ZOHO_DESK_BASE_URL_REGEX) : null
-    return safeZohoDeskBase(match?.[1])
+    return extractZohoDeskBaseFromScope(rows[0]?.scope) ?? DEFAULT_ZOHO_DESK_BASE
   } catch (error) {
     logger.warn('Failed to resolve Zoho Desk api domain from credential', {
       message: toError(error).message,
@@ -165,24 +145,16 @@ function resolveConfigOrgId(config: Record<string, unknown>): string | undefined
   return undefined
 }
 
-/** Error carrying an HTTP status so the deploy outbox can classify retryability. */
-function statusError(message: string, status: number): Error {
-  const err = new Error(message) as Error & { status: number }
-  err.status = status
-  return err
-}
-
 /** Zoho errorCode / message patterns that genuinely indicate a permission or edition denial. */
 const ZOHO_EDITION_PERMISSION_PATTERN =
   /permission|not\s+(allowed|permitted|supported)|edition|upgrade|feature/i
 
 /**
  * Map a Zoho Desk webhook-creation failure to an actionable error that surfaces
- * Zoho's real errorCode / message / field errors instead of a catch-all. The
- * returned error carries an HTTP `status`: permanent client failures (4xx -
- * invalid data, permission, unprocessable) keep their 4xx so the deploy outbox
- * fails the deploy terminally (NonRetryableDeploymentError) with the true
- * reason; rate limits and provider 5xx map to 5xx so they stay retryable.
+ * Zoho's real errorCode / message / field errors instead of a catch-all.
+ * Permanent client failures (invalid data, permission, unprocessable) are a
+ * {@link WebhookDeploymentConfigurationError} so the deploy fails terminally with
+ * the true reason; rate limits and provider 5xx stay plain, retryable errors.
  */
 export function mapZohoWebhookError(status: number, bodyText: string): Error {
   let errorCode: string | undefined
@@ -229,12 +201,8 @@ export function mapZohoWebhookError(status: number, bodyText: string): Error {
       ' (Zoho Desk webhooks require a Professional edition or higher and the Desk.webhooks.CREATE scope.)'
   }
 
-  // Rate limits and provider-side 5xx are transient -> keep retryable.
-  if (status === 429 || status >= 500) {
-    return statusError(realMessage, 503)
-  }
-  // Other client errors cannot succeed on retry -> carry the 4xx status.
-  return statusError(realMessage, status >= 400 && status < 500 ? status : 422)
+  if (status === 429 || status >= 500) return new Error(realMessage)
+  return new WebhookDeploymentConfigurationError(realMessage)
 }
 
 export const zohoDeskHandler: WebhookProviderHandler = {
@@ -244,7 +212,6 @@ export const zohoDeskHandler: WebhookProviderHandler = {
 
   async createSubscription({
     webhook: webhookRecord,
-    userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const config = ((webhookRecord as Record<string, unknown>).providerConfig ?? {}) as Record<
@@ -255,19 +222,14 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     const orgId = resolveConfigOrgId(config)
     const eventType = typeof config.eventType === 'string' ? config.eventType : undefined
 
-    // Missing configuration is permanent - carry a 4xx so the deploy outbox fails
-    // terminally (NonRetryableDeploymentError) instead of retrying a create that
-    // can never succeed without the user fixing the trigger config.
     if (!orgId) {
-      throw statusError(
-        'Zoho Desk Organization ID is required to create the webhook subscription.',
-        400
+      throw new WebhookDeploymentConfigurationError(
+        'Zoho Desk Organization ID is required to create the webhook subscription.'
       )
     }
     if (!eventType) {
-      throw statusError(
-        'A Zoho Desk event type is required to create the webhook subscription.',
-        400
+      throw new WebhookDeploymentConfigurationError(
+        'A Zoho Desk event type is required to create the webhook subscription.'
       )
     }
 
@@ -276,13 +238,12 @@ export const zohoDeskHandler: WebhookProviderHandler = {
       ? await refreshAccessTokenIfNeeded(owner.accountId, owner.userId, requestId)
       : null
     if (!accessToken || !owner) {
-      throw statusError(
-        'Zoho Desk account connection required. Please connect your Zoho Desk account in the trigger configuration and try again.',
-        400
+      throw new WebhookDeploymentConfigurationError(
+        'Zoho Desk account connection required. Please connect your Zoho Desk account in the trigger configuration and try again.'
       )
     }
 
-    // Already allowlist-anchored by resolveZohoDeskApiDomain -> safeZohoDeskBase.
+    // Already allowlist-anchored by extractZohoDeskBaseFromScope.
     const apiDomain = await resolveZohoDeskApiDomain(owner.accountId)
     const notificationUrl = getNotificationUrl(webhookRecord)
 
@@ -354,8 +315,10 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     // verifyAuth checks, so an empty one would force verification to fail open.
     if (!externalId) {
       // Zoho reported success but gave no id: a webhook may have been created and
-      // is unidentifiable, so retrying risks duplicates. Fail terminally (4xx).
-      throw statusError('Zoho Desk webhook creation succeeded but returned no webhook id', 422)
+      // is unidentifiable, so retrying risks duplicates. Fail terminally.
+      throw new WebhookDeploymentConfigurationError(
+        'Zoho Desk webhook creation succeeded but returned no webhook id'
+      )
     }
 
     logger.info(`[${requestId}] Created Zoho Desk webhook`, { externalId })
@@ -396,10 +359,11 @@ export const zohoDeskHandler: WebhookProviderHandler = {
 
     const apiDomain =
       typeof config.apiDomain === 'string' && config.apiDomain
-        ? safeZohoDeskBase(config.apiDomain)
+        ? storedZohoDeskBase(config.apiDomain)
         : await resolveZohoDeskApiDomain(owner.accountId)
 
-    const response = await fetch(`${apiDomain}/api/v1/webhooks/${externalId}`, {
+    const webhookPath = safeUrlPathSegment(externalId, 'externalId')
+    const response = await fetch(`${apiDomain}/api/v1/webhooks/${webhookPath}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Zoho-oauthtoken ${accessToken}`,
@@ -450,7 +414,7 @@ export const zohoDeskHandler: WebhookProviderHandler = {
     // than defaulting to the US host and rejecting legitimate events.
     let apiDomain =
       typeof providerConfig.apiDomain === 'string' && providerConfig.apiDomain
-        ? safeZohoDeskBase(providerConfig.apiDomain)
+        ? storedZohoDeskBase(providerConfig.apiDomain)
         : ''
     if (!apiDomain) {
       const credentialId =

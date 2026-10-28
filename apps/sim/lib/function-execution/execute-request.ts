@@ -8,7 +8,6 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { escapeRegExp } from '@sim/utils/string'
 import { NextResponse } from 'next/server'
 import type { ParsedFunctionExecuteBody } from '@/lib/api/contracts'
 import { isMothershipSandboxEnabled, isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
@@ -28,7 +27,13 @@ import {
   type CompiledCodePlaceholders,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
-import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
+import { parseExecutionDeadlineHeader } from '@/lib/execution/deadline-header'
+import {
+  type DurableSecretProvenance,
+  durableSecretProvenanceFromEnvelope,
+  importDurableSecretProvenance,
+  mergeDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import {
@@ -68,11 +73,15 @@ import {
   RESOLVED_SECRET_NAMES_METADATA_V1,
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
+import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
+import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
 import {
   executeInSandbox,
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
+import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/observer'
 import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
@@ -80,13 +89,14 @@ import {
   MAX_SANDBOX_OUTPUT_BYTES,
   readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
-import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
-import {
-  MAX_BLOCK_MOUNTED_FILES,
-  SANDBOX_OUTPUT_DIR,
-} from '@/lib/execution/remote-sandbox/sandbox-paths'
-import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
+import { MAX_BLOCK_MOUNTED_FILES, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
+import type {
+  SandboxCollectedFile,
+  SandboxFile,
+  SandboxSessionRequest,
+} from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import { MAX_FUNCTION_REFERENCES } from '@/lib/function-execution/limits'
 import type { SandboxExportedFile } from '@/lib/function-execution/output'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
 import {
@@ -102,7 +112,7 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
@@ -111,9 +121,9 @@ import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFiles } from '@/lib/uploads/core/storage-service'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -132,8 +142,8 @@ import {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
-import type {
-  ResolvedSecretTraceProvenanceV1,
+import {
+  type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -750,38 +760,33 @@ function scrubInternalIdentifiers(message: string, identifiers: readonly string[
 
 function resolveWorkflowVariables(
   code: string,
-  workflowVariables: Record<string, any>,
-  contextVariables: Record<string, any>
+  workflowVariables: Record<string, unknown>,
+  contextVariables: Record<string, unknown>
 ): string {
-  let resolvedCode = code
+  const variablesByName = new Map<string, Record<string, unknown>>()
+  for (const value of Object.values(workflowVariables)) {
+    const variable = toRecord(value)
+    if (typeof variable.name !== 'string') continue
+    const name = normalizeName(variable.name)
+    if (!variablesByName.has(name)) variablesByName.set(name, variable)
+  }
+  const replacements = new Map<string, string>()
+  const boundNames = new Set<string>()
 
-  const regex = createWorkflowVariablePattern()
-  let match: RegExpExecArray | null
-  const replacements: Array<{
-    match: string
-    index: number
-    variableName: string
-    variableValue: unknown
-  }> = []
+  return code.replace(createWorkflowVariablePattern(), (_match, name: string) => {
+    const variableName = name.trim()
+    const cached = replacements.get(variableName)
+    if (cached !== undefined) return cached
 
-  while ((match = regex.exec(code)) !== null) {
-    const variableName = match[1].trim()
-
-    const foundVariable = Object.entries(workflowVariables).find(
-      ([_, variable]) => normalizeName(variable.name || '') === variableName
-    )
-
-    if (!foundVariable) {
-      const availableVars = Object.values(workflowVariables)
-        .map((v) => v.name)
-        .filter(Boolean)
+    const variable = variablesByName.get(variableName)
+    if (!variable) {
+      const availableVars = [...variablesByName.values()].map((value) => value.name).filter(Boolean)
       throw new Error(
         `Variable "${variableName}" doesn't exist.` +
           (availableVars.length > 0 ? ` Available: ${availableVars.join(', ')}` : '')
       )
     }
 
-    const variable = foundVariable[1]
     let variableValue: unknown = variable.value
 
     if (variable.value !== undefined && variable.value !== null) {
@@ -805,24 +810,15 @@ function resolveWorkflowVariables(
       }
     }
 
-    replacements.push({
-      match: match[0],
-      index: match.index,
-      variableName,
-      variableValue,
-    })
-  }
-
-  for (let i = replacements.length - 1; i >= 0; i--) {
-    const { match: matchStr, index, variableName, variableValue } = replacements[i]
-
     const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-    contextVariables[safeVarName] = variableValue
-    resolvedCode =
-      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
-  }
-
-  return resolvedCode
+    // The original reverse rewrite gave the first reference precedence on binding-name collisions.
+    if (!boundNames.has(safeVarName)) {
+      contextVariables[safeVarName] = variableValue
+      boundNames.add(safeVarName)
+    }
+    replacements.set(variableName, safeVarName)
+    return safeVarName
+  })
 }
 
 /**
@@ -869,13 +865,12 @@ function resolveTagVariables(
   contextVariables: Record<string, unknown>,
   language = 'javascript'
 ): string {
-  let resolvedCode = code
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
+  const replacements = new Map<string, string | undefined>()
 
-  const tagMatches = resolvedCode.match(TAG_PATTERN) || []
-
-  for (const match of tagMatches) {
+  return code.replace(TAG_PATTERN, (match) => {
     const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
+    if (replacements.has(tagName)) return replacements.get(tagName) ?? match
     const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
     const blockName = pathParts[0]
     const fieldPath = pathParts.slice(1)
@@ -887,14 +882,15 @@ function resolveTagVariables(
     })
 
     if (!result) {
-      continue
+      replacements.set(tagName, undefined)
+      return match
     }
 
     let tagValue = result.value
 
     if (tagValue === undefined) {
-      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), undefinedLiteral)
-      continue
+      replacements.set(tagName, undefinedLiteral)
+      return undefinedLiteral
     }
 
     if (typeof tagValue === 'string') {
@@ -910,10 +906,9 @@ function resolveTagVariables(
 
     const safeVarName = `__tag_${tagName.replace(/_/g, '_1').replace(/\./g, '_0')}`
     contextVariables[safeVarName] = tagValue
-    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
-  }
-
-  return resolvedCode
+    replacements.set(tagName, safeVarName)
+    return safeVarName
+  })
 }
 
 /**
@@ -1026,6 +1021,7 @@ interface FunctionRouteExecutionContext {
   outputSecretMatcher?: ResolvedSecretMatcher
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
+  compiledBinaryFileProvenance?: WorkspaceFileSecretProvenance
   /**
    * In-scope names the caller's registry certified as redaction-exempt. They stay in
    * `outputSecretPlaintextsByName` — the response's resolved-name reporting and the usage
@@ -1038,6 +1034,7 @@ interface FunctionRouteExecutionContext {
   runtimeFileSecretTraceRegistry?: ResolvedSecretTraceRegistry
   runtimeInputProvenanceUnrecorded?: boolean
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  sessionOutputProvenance?: SandboxSessionRequest['outputProvenance']
 }
 
 /** Keeps bound file provenance in both ordinary Function results and exported artifact bytes. */
@@ -1092,6 +1089,10 @@ async function importRuntimeInputProvenance(
     })
     if (decision.safe && decision.provenance.status === 'unrecorded') {
       context.runtimeInputProvenanceUnrecorded = true
+      context.runtimeFileSecretTraceRegistry = new ResolvedSecretTraceRegistry([], {
+        userId: context.attributedUserId,
+        workspaceId: context.workspaceId,
+      })
       return
     }
   }
@@ -1284,6 +1285,12 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
+  if (context.sessionOutputProvenance && context.resolvedSecretTraceRegistry) {
+    await importDurableSecretProvenance(
+      context.resolvedSecretTraceRegistry,
+      context.sessionOutputProvenance(body)
+    )
+  }
   const responseBody = {
     ...body,
     largeValueKeys: context.largeValueKeys,
@@ -1318,51 +1325,21 @@ function activateReferencedSecretProvenance(context: FunctionRouteExecutionConte
   }
 }
 
-/**
- * Compiled secret names that still demand redaction, and whose value a scan could
- * actually find. Exempt names don't count.
- *
- * Non-identifying literals are excluded on the same predicate
- * {@link createResolvedSecretMatcher} uses to drop them, because the two decisions
- * have to agree. When every in-scope value is shorter than the substitutable-literal
- * minimum, the matcher builds nothing and returns `undefined`; a counter that still
- * reported those names would send
- * {@link getOutputFileSecretProvenance} down its no-matcher branch and classify
- * every output as `unknown` — failing an export while claiming it contains a
- * secret that, by that very policy, is too short to be attributed to anything.
- */
-function countProtectedOutputSecretNames(context: FunctionRouteExecutionContext): number {
-  let count = 0
+/** Compiled candidates subject to the shared literal and exemption policies. */
+function getProtectedOutputSecretNames(context: FunctionRouteExecutionContext): string[] {
+  const names: string[] = []
   for (const [name, plaintext] of context.outputSecretPlaintextsByName) {
     if (context.unredactedSecretNames.has(name)) continue
     if (isNonIdentifyingSecretLiteral(plaintext)) continue
-    count += 1
+    names.push(name)
   }
-  return count
+  return names
 }
 
 /**
- * True when this execution compiled a secret placeholder or received a mounted file with verified
- * secret provenance. Ordinary mounts without a provenance envelope are user data, not evidence that
- * a Sim secret was resolved in this call. Exempt names don't count: a binary export whose only
- * in-scope secrets are redaction-exempt is deliberately classified exact-empty rather than locked.
- */
-function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
-  if (countProtectedOutputSecretNames(context) > 0) return true
-  return Boolean(
-    context.mountedFileSecretProvenanceScanner?.hasSecrets ||
-      context.runtimeFileSecretProvenanceScanner?.hasSecrets
-  )
-}
-
-/**
- * Classifies the secret provenance of one exported sandbox file.
- *
- * Text exports are scanned for the exact resolved-secret plaintexts in scope. Binary exports cannot
- * be scanned soundly — re-encoding can carry a secret without leaving a literal substring — so they
- * are classified only when no secret material was in scope at all; with nothing available to embed,
- * the bytes are provably secret-free. Otherwise they stay unknown, which fails closed at every
- * model and runtime boundary that later reads the file.
+ * Text exports narrow known candidates to matching literals. Opaque exports retain the complete
+ * encrypted candidate set, so runtime consumers can protect decoded output. Direct opaque model
+ * delivery still requires an empty set at its own boundary.
  */
 async function getOutputFileSecretProvenance(
   buffer: Buffer,
@@ -1377,63 +1354,77 @@ async function getOutputFileSecretProvenance(
       await createMountedFileSecretProvenanceScanner(provenance)
     if (!context.runtimeFileSecretProvenanceScanner && provenance.entries.length > 0) {
       context.runtimeFileSecretProvenanceScanner = {
-        hasSecrets: true,
+        provenance: { status: 'unknown' },
         scan: () => ({ status: 'unknown' }),
       }
     }
   }
-  if (isBinary) {
-    return hasSecretMaterialInScope(context)
-      ? { status: 'unknown' }
-      : context.runtimeInputProvenanceUnrecorded
-        ? { status: 'unrecorded' }
-        : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-  }
   const mountedFileProvenance = mergeWorkspaceFileSecretProvenance(
-    context.mountedFileSecretProvenanceScanner?.scan(buffer) ??
+    (isBinary
+      ? context.mountedFileSecretProvenanceScanner?.provenance
+      : context.mountedFileSecretProvenanceScanner?.scan(buffer)) ??
       EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
-    context.runtimeFileSecretProvenanceScanner?.scan(buffer) ??
+    (isBinary
+      ? context.runtimeFileSecretProvenanceScanner?.provenance
+      : context.runtimeFileSecretProvenanceScanner?.scan(buffer)) ??
       EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
     context.runtimeInputProvenanceUnrecorded
       ? { status: 'unrecorded' }
       : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
   )
-  if (countProtectedOutputSecretNames(context) === 0) {
+  if (isBinary && context.compiledBinaryFileProvenance) {
+    return mergeWorkspaceFileSecretProvenance(
+      context.compiledBinaryFileProvenance,
+      mountedFileProvenance
+    )
+  }
+  const protectedNames = getProtectedOutputSecretNames(context)
+  if (protectedNames.length === 0 || mountedFileProvenance.status === 'unknown') {
     return mountedFileProvenance
   }
-  if (!context.outputSecretMatcher) return { status: 'unknown' }
 
-  const matchedNames = new Set<string>()
-  try {
-    scanResolvedSecretString(
-      buffer.toString('utf8'),
-      context.outputSecretMatcher,
-      (scanLiteral) => {
-        for (const name of context.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []) {
-          matchedNames.add(name)
-        }
-      },
-      MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
-    )
-  } catch {
-    return { status: 'unknown' }
+  const matchedNames = new Set(isBinary ? protectedNames : [])
+  if (!isBinary) {
+    if (!context.outputSecretMatcher) return { status: 'unknown' }
+    try {
+      scanResolvedSecretString(
+        buffer.toString('utf8'),
+        context.outputSecretMatcher,
+        (scanLiteral) => {
+          for (const name of context.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []) {
+            matchedNames.add(name)
+          }
+        },
+        MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
+      )
+    } catch {
+      return { status: 'unknown' }
+    }
   }
 
   try {
-    const entries = await Promise.all(
-      [...matchedNames].sort().map(async (name) => {
-        const plaintext = context.outputSecretPlaintextsByName.get(name)
-        if (plaintext === undefined) {
-          throw new Error('Resolved secret provenance name is outside the scoped catalog')
-        }
-        return {
-          name,
-          encryptedValue: (await encryptSecret(plaintext)).encrypted,
-          sourceUserId: scope.userId,
-          sourceWorkspaceId: scope.workspaceId,
-        }
-      })
-    )
+    const entries = []
+    const budget = new SecretProvenanceBudget()
+    for (const name of [...matchedNames].sort()) {
+      const plaintext = context.outputSecretPlaintextsByName.get(name)
+      if (plaintext === undefined) {
+        throw new Error('Resolved secret provenance name is outside the scoped catalog')
+      }
+      if (Buffer.byteLength(plaintext, 'utf8') > PROVENANCE_MAX_SERIALIZED_BYTES) {
+        return { status: 'unknown' }
+      }
+      const entry = {
+        name,
+        encryptedValue: (await encryptSecret(plaintext)).encrypted,
+        sourceUserId: scope.userId,
+        sourceWorkspaceId: scope.workspaceId,
+      }
+      if (!budget.add(entry.encryptedValue, Buffer.byteLength(JSON.stringify(entry), 'utf8'))) {
+        return { status: 'unknown' }
+      }
+      entries.push(entry)
+    }
+    if (isBinary) context.compiledBinaryFileProvenance = { status: 'exact', entries }
     return mergeWorkspaceFileSecretProvenance({ status: 'exact', entries }, mountedFileProvenance)
   } catch {
     return { status: 'unknown' }
@@ -1480,14 +1471,6 @@ async function appendPrivateResolvedSecretNames(
 export interface FunctionExecutionRequestContext {
   headers: Headers
   signal: AbortSignal
-}
-
-export function projectFunctionValidationResponse(
-  req: Pick<FunctionExecutionRequestContext, 'headers'>,
-  response: NextResponse
-): Promise<NextResponse> {
-  const metadataType = getRequestedResolvedSecretNamesMetadataType(req.headers)
-  return appendPrivateResolvedSecretNames(response, metadataType ? [] : null, metadataType)
 }
 
 /**
@@ -1551,13 +1534,14 @@ function exportUnchangedNote(sandboxPath?: string): string {
 }
 
 function exportFailure(
+  context: FunctionRouteExecutionContext,
   error: string,
   status: number,
   stdout: string,
   executionTime: number,
   cost: FunctionExecutionCost | undefined
-): NextResponse {
-  return NextResponse.json(
+) {
+  return functionJsonResponse(
     {
       success: false,
       error,
@@ -1568,6 +1552,7 @@ function exportFailure(
         ...(cost ? { cost } : {}),
       },
     },
+    context,
     { status }
   )
 }
@@ -1657,6 +1642,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   if (!outputPath) {
     return exportFailure(
+      routeContext,
       'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
       400,
       stdout,
@@ -1670,6 +1656,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   if (!resolvedWorkspaceId || routeContext.principal.kind !== 'delegated') {
     return exportFailure(
+      routeContext,
       'Workspace context required to save sandbox file to workspace',
       400,
       stdout,
@@ -1680,6 +1667,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   if (exportedFileContent === undefined) {
     return exportFailure(
+      routeContext,
       `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
       500,
       stdout,
@@ -1703,6 +1691,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   const outputBytes = Buffer.byteLength(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   if (outputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
     return exportFailure(
+      routeContext,
       `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
       400,
       stdout,
@@ -1787,6 +1776,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     })
   } catch (error) {
     return exportFailure(
+      routeContext,
       getErrorMessage(error, 'Failed to export sandbox file'),
       workspaceFileExportErrorStatus(error),
       stdout,
@@ -1813,6 +1803,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   if (sandboxFiles.length === 0) return null
   if (sandboxFiles.length > MAX_SANDBOX_OUTPUT_FILES) {
     return exportFailure(
+      args.routeContext,
       `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
       400,
       args.stdout,
@@ -1848,6 +1839,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
   if (!resolvedWorkspaceId || args.routeContext.principal.kind !== 'delegated') {
     return exportFailure(
+      args.routeContext,
       'Workspace context required to save sandbox files to workspace',
       400,
       args.stdout,
@@ -1863,6 +1855,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     const content = args.exportedFiles?.[sandboxPath]
     if (content === undefined) {
       return exportFailure(
+        args.routeContext,
         `Sandbox file "${sandboxPath}" was not found or could not be read`,
         500,
         args.stdout,
@@ -1884,6 +1877,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
       return exportFailure(
+        args.routeContext,
         `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
         400,
         args.stdout,
@@ -1936,6 +1930,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     validationPaths = validations.map((validation) => validation.vfsPath)
   } catch (error) {
     return exportFailure(
+      args.routeContext,
       getErrorMessage(error, 'Invalid sandbox output destination'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
@@ -1948,6 +1943,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   )
   if (duplicateDestination) {
     return exportFailure(
+      args.routeContext,
       `Duplicate sandbox output destination: ${duplicateDestination}`,
       400,
       args.stdout,
@@ -2005,6 +2001,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     }
   } catch (error) {
     return exportFailure(
+      args.routeContext,
       getErrorMessage(error, 'Failed to export sandbox files'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
@@ -2153,7 +2150,8 @@ async function collectSandboxOutputFiles(args: {
   // reporting success without them would read as "your script wrote nothing".
   if (!resolvedWorkspaceId || !args.workflowId || !args.executionId) {
     return {
-      response: exportFailure(
+      response: await exportFailure(
+        routeContext,
         'Workspace, workflow, and execution context are required to return files from the sandbox.',
         400,
         args.stdout,
@@ -2184,7 +2182,8 @@ async function collectSandboxOutputFiles(args: {
       ) {
         await discardUploadedExecutionFiles(files)
         return {
-          response: exportFailure(
+          response: await exportFailure(
+            routeContext,
             `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
             400,
             args.stdout,
@@ -2280,6 +2279,23 @@ export async function executeFunctionRequest(
       req.headers
     )
     includePrivateResolvedSecretNames = privateResolvedSecretNamesMetadataType !== undefined
+
+    let referenceCount = 0
+    for (const _match of body.code.matchAll(TAG_PATTERN)) {
+      if (++referenceCount > MAX_FUNCTION_REFERENCES) {
+        return appendPrivateResolvedSecretNames(
+          NextResponse.json(
+            {
+              success: false,
+              error: `Function code exceeds the maximum of ${MAX_FUNCTION_REFERENCES} references`,
+            },
+            { status: 400 }
+          ),
+          includePrivateResolvedSecretNames ? [] : null,
+          privateResolvedSecretNamesMetadataType
+        )
+      }
+    }
 
     const mountedWorkspaceFileProvenance = inspectMountedWorkspaceFileProvenance(req.headers, body)
     if (mountedWorkspaceFileProvenance.status === 'invalid') {
@@ -2383,7 +2399,7 @@ export async function executeFunctionRequest(
     // would leave `{{OTHER_SECRET}}` resolving, which is a hole, not a scope.
     const envVars = scopeEnvironmentVariables(rawEnvVars, secretScope, mountedSecrets)
     const admittedChatOwner = activeSandboxChatOwner()
-    const mothershipSession =
+    const admittedSession =
       usesMothershipSandbox &&
       !selectedSandboxId &&
       sandboxSessionKey &&
@@ -2447,7 +2463,7 @@ export async function executeFunctionRequest(
     const executionParams = { ...params }
     executionParams._context = undefined
 
-    logger.info(`[${requestId}] Function execution request`, {
+    logger.debug(`[${requestId}] Function execution request`, {
       hasCode: !!code,
       paramsCount: Object.keys(executionParams).length,
       timeout,
@@ -2478,6 +2494,7 @@ export async function executeFunctionRequest(
       ),
       mountedFileSecretProvenanceScanner,
       resolvedSecretTraceRegistry: auth.resolvedSecretTraceRegistry,
+      sessionOutputProvenance: admittedSession?.outputProvenance,
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
@@ -2689,6 +2706,9 @@ export async function executeFunctionRequest(
           logger,
         },
       })
+      if (resolvedMounts.unprovenancedMountCount > 0) {
+        routeContext.runtimeInputProvenanceUnrecorded = true
+      }
       await importRuntimeFileContributors(
         routeContext,
         resolvedMounts.contributingFiles,
@@ -2714,6 +2734,40 @@ export async function executeFunctionRequest(
       )
     }
     const { sandboxFiles: userFileMounts, manifest: mountManifest } = resolvedMounts
+    const activeRouteContext = routeContext
+    const mothershipSession = admittedSession
+      ? {
+          ...admittedSession,
+          inputProvenance: () => {
+            const runtime = activeRouteContext.runtimeFileSecretTraceRegistry?.exportProvenance()
+            return mergeDurableSecretProvenance(
+              sandboxSessionInputProvenance(),
+              runtime
+                ? durableSecretProvenanceFromEnvelope(runtime)
+                : { status: 'exact', entries: [] }
+            )
+          },
+          acceptOutputProvenance: async (provenance: DurableSecretProvenance) => {
+            const registry = activeRouteContext.resolvedSecretTraceRegistry
+            activeRouteContext.runtimeFileSecretTraceRegistry ??= new ResolvedSecretTraceRegistry(
+              [],
+              {
+                userId: auth.attributedUserId,
+                ...(workspaceId ? { workspaceId } : {}),
+              }
+            )
+            const runtimeRegistry = activeRouteContext.runtimeFileSecretTraceRegistry
+            const runtimeImported = await importDurableSecretProvenance(runtimeRegistry, provenance)
+            const imported = registry && (await importDurableSecretProvenance(registry, provenance))
+            activeRouteContext.runtimeFileSecretProvenanceScanner = undefined
+            if (!runtimeImported || !imported) {
+              throw new Error(
+                'Workbench output withheld because its secret provenance is unavailable'
+              )
+            }
+          },
+        }
+      : undefined
     const sandboxFiles = mergeSandboxFileMounts(_sandboxFiles, userFileMounts)
 
     // Every `<block.file.path>` marker becomes the path its file was mounted at,
@@ -3215,12 +3269,6 @@ export async function executeFunctionRequest(
       }
 
       const isSystemError = isolatedResult.error.isSystemError === true
-      const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
-      logFn(`[${requestId}] Function execution failed in isolated-vm`, {
-        executionTime,
-        isSystemError,
-        hasStack: Boolean(isolatedResult.error.stack),
-      })
 
       const ivmError = isolatedResult.error
       let adjustedLine = ivmError.line
@@ -3250,11 +3298,15 @@ export async function executeFunctionRequest(
         errorDisplayCode
       )
 
-      const detailLogFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
-      detailLogFn(`[${requestId}] Enhanced error details`, {
-        line: enhancedError.line,
-        column: enhancedError.column,
-      })
+      /** The author's code throwing is logged once by the tool boundary; an isolate failure is ours. */
+      if (isSystemError) {
+        logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+          executionTime,
+          hasStack: Boolean(ivmError.stack),
+          line: enhancedError.line,
+          column: enhancedError.column,
+        })
+      }
 
       return functionJsonResponse(
         {
@@ -3278,7 +3330,7 @@ export async function executeFunctionRequest(
       )
     }
 
-    logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
+    logger.debug(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 
@@ -3441,11 +3493,6 @@ export async function executeFunctionRequest(
           )
     }
 
-    logger.error(`[${requestId}] Function execution failed`, {
-      executionTime,
-      hasStack: Boolean(error.stack),
-    })
-
     const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
     const enhancedError = extractEnhancedError(error, userCodeStartLine, errorDisplayCode)
     const userFriendlyErrorMessage = scrubInternalIdentifiers(
@@ -3453,7 +3500,9 @@ export async function executeFunctionRequest(
       compilerInternalIdentifiers
     )
 
-    logger.error(`[${requestId}] Enhanced error details`, {
+    logger.error(`[${requestId}] Function execution failed`, {
+      executionTime,
+      hasStack: Boolean(error.stack),
       line: enhancedError.line,
       column: enhancedError.column,
       userCodeStartLine,

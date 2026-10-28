@@ -2,7 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 /**
  * Which shared processing queue a document's indexing pass is admitted through.
  *
@@ -197,20 +197,6 @@ export function createWorkspaceDocumentProcessingBillingContext(
     workspaceId: billingAttribution.workspaceId,
     billingAttribution,
   }
-}
-
-export function createNonWorkspaceDocumentProcessingBillingContext(
-  actorUserId: string
-): NonWorkspaceDocumentProcessingBillingContext {
-  const billingContext = assertDocumentProcessingBillingContext({
-    billingScope: 'non-workspace',
-    actorUserId,
-    workspaceId: null,
-  })
-  if (billingContext.billingScope !== 'non-workspace') {
-    throw new Error('Non-workspace document processing context could not be created')
-  }
-  return billingContext
 }
 
 /** Identifies a durable handoff independently of its original indexing pass and scheduled time. */

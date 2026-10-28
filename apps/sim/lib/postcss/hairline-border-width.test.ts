@@ -5,7 +5,7 @@
  */
 import postcss from 'postcss'
 import { describe, expect, it } from 'vitest'
-import hairline from '@/lib/postcss/hairline-border-width.mjs'
+import hairline from '@/lib/postcss/hairline-border-width.cjs'
 
 const FROM = '/repo/apps/sim/app/_styles/globals.css'
 

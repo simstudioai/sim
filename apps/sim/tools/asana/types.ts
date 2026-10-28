@@ -155,33 +155,6 @@ export interface AsanaSearchTasksResponse extends ToolResponse {
   }
 }
 
-interface AsanaTask {
-  gid: string
-  resource_type: string
-  resource_subtype: string
-  name: string
-  notes?: string
-  completed: boolean
-  assignee?: {
-    gid: string
-    name: string
-  }
-  created_by?: {
-    gid: string
-    resource_type: string
-    name: string
-  }
-  due_on?: string
-  created_at: string
-  modified_at: string
-}
-
-interface AsanaProject {
-  gid: string
-  name: string
-  resource_type: string
-}
-
 export interface AsanaAddCommentParams {
   accessToken: string
   taskGid: string
@@ -312,17 +285,3 @@ export interface AsanaListSectionsResponse extends ToolResponse {
     }>
   }
 }
-
-export type AsanaResponse =
-  | AsanaGetTaskResponse
-  | AsanaCreateTaskResponse
-  | AsanaUpdateTaskResponse
-  | AsanaGetProjectsResponse
-  | AsanaSearchTasksResponse
-  | AsanaAddCommentResponse
-  | AsanaProjectRecordResponse
-  | AsanaListWorkspacesResponse
-  | AsanaDeleteTaskResponse
-  | AsanaAddFollowersResponse
-  | AsanaSectionResponse
-  | AsanaListSectionsResponse

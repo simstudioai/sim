@@ -6,8 +6,13 @@
  * provider-agnostic contract they share.
  */
 
-import { toError } from '@sim/utils/errors'
+import { APIUserAbortError as AnthropicUserAbortError } from '@anthropic-ai/sdk/error'
+import { findCause, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { APIUserAbortError as GroqUserAbortError } from 'groq-sdk/error'
+import { APIUserAbortError as OpenAIUserAbortError } from 'openai/error'
+import { classifyFailure } from '@/lib/core/errors/failure-log'
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 
@@ -20,6 +25,7 @@ export const STREAMING_TOOL_CALL_PROVIDERS: ReadonlySet<string> = new Set([
   'openai',
   'anthropic',
   'azure-anthropic',
+  'kie',
   'groq',
   'deepseek',
   'google',
@@ -39,11 +45,47 @@ export interface StreamingToolLoopComplete {
   iterations: number
 }
 
-/** True for user/SDK abort errors raised when a run is cancelled mid-stream. */
+/**
+ * True for the error a cancelled request rejects with: a platform `AbortError`, or the
+ * `APIUserAbortError` the vendor SDKs raise in its place. The SDK class leaves `name` as
+ * `'Error'`, so it is recognised by class, never by name.
+ */
 export function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const name = (error as { name?: string }).name
-  return name === 'AbortError' || name === 'APIUserAbortError'
+  return (
+    error instanceof AnthropicUserAbortError ||
+    error instanceof OpenAIUserAbortError ||
+    error instanceof GroqUserAbortError ||
+    (isRecordLike(error) && error.name === 'AbortError')
+  )
+}
+
+/**
+ * True when `error` is the run's own abort surfacing: the run's signal fired, and the failure
+ * is its reason or an abort error anywhere in the cause chain. The signal decides; an abort
+ * error while the run is still live is a request-level deadline, a real failure.
+ */
+export function isRunAbortError(error: unknown, abortSignal: AbortSignal | undefined): boolean {
+  if (!abortSignal?.aborted) return false
+  return (
+    error === abortSignal.reason ||
+    findCause(error, (link): link is Error => isAbortError(link)) !== undefined
+  )
+}
+
+/**
+ * The severity a provider logs its own request failure at, on the `failure-log` scale: a run
+ * the user stopped or a failure {@link classifyFailure} attributes to the user is routine
+ * (info), one the run's time limit cut off is expected but worth seeing (warn), and anything
+ * else is an unattributed failure (error).
+ */
+export function providerFailureLogLevel(
+  error: unknown,
+  abortSignal: AbortSignal | undefined
+): 'info' | 'warn' | 'error' {
+  if (isRunAbortError(error, abortSignal)) {
+    return isTimeoutAbortReason(abortSignal?.reason) ? 'warn' : 'info'
+  }
+  return classifyFailure(error) === 'user' ? 'info' : 'error'
 }
 
 /** Parse provider-supplied tool arguments without accepting non-object JSON values. */
@@ -90,8 +132,8 @@ interface TerminateToolLoopOptions {
   /** The stream consumer called `cancel()`; the controller is already closed. */
   consumerCancelled: boolean
   error: unknown
-  /** Invoked only for a genuine failure, before the stream is errored. */
-  onUnexpectedError?: (error: unknown) => void
+  /** Invoked only for a genuine failure, before the stream is errored, at its log severity. */
+  onUnexpectedError?: (error: unknown, level: 'info' | 'warn' | 'error') => void
 }
 
 /**
@@ -123,6 +165,6 @@ export function terminateToolLoop({
   }
 
   settleOpenTools(controller, openTools, 'error')
-  onUnexpectedError?.(error)
+  onUnexpectedError?.(error, providerFailureLogLevel(error, undefined))
   controller.error(toError(error))
 }

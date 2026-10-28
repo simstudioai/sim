@@ -1,0 +1,162 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Plain `knip` reports reachability and dependency ownership. check:unused-exports runs
+  // knip with this config, gates these at zero, and ratchets unused exports, types, and
+  // duplicates in the same pass.
+  "include": ["files", "dependencies", "unlisted", "unresolved"],
+  // On by default: every workspace's `exports` map serves only this monorepo, so an entry export
+  // no workspace imports is dead. The workspaces below turn it off because their entries are
+  // public or standalone: the apps (framework entries such as Next routes and Trigger tasks), the
+  // published packages (cli, sim-cli, sim-setup, ts-sdk), db (standalone scripts), and the root
+  // (scripts). A new private package is checked without opting in.
+  "includeEntryExports": true,
+  "workspaces": {
+    ".": {
+      "includeEntryExports": false,
+      "entry": ["scripts/**/*.{ts,tsx}", "vitest.shared.ts"],
+      "paths": { "@/*": ["./apps/sim/*"] },
+      // This alias selects the native tsc binary; see check-native-typecheck.ts.
+      "ignoreDependencies": ["@typescript/native"]
+    },
+    "apps/sim": {
+      "includeEntryExports": false,
+      "entry": [
+        // Container bootstrap and Trigger's directory-discovered task graph.
+        "bootstrap.ts",
+        "trigger.config.ts",
+        "background/**/*.ts",
+        "scripts/**/*.{ts,tsx}",
+        "**/*.integration.ts",
+        "vitest.integration.setup.ts",
+        // Spawned worker and assets bundled/loaded by filename.
+        "lib/execution/isolated-vm-worker.cjs",
+        // The worker host runs as its own process (`node isolated-vm-host.cjs`).
+        "lib/execution/isolated-vm-host.cjs",
+        // Oracle's client spawns this standalone Node worker by filename.
+        "lib/internal/oracledb/oracle-worker.cjs",
+        "lib/execution/sandbox/bundles/*.{ts,cjs}",
+        // Bundled by build:xlsx-worker and spawned as a worker thread by filename.
+        "lib/file-parsers/xlsx-worker-entry.ts",
+        // Compile-time fixture compatibility assertion, included by tsconfig.
+        "lib/table/fixture-contract.ts",
+        // scripts/generate-docs.ts imports this through pathToFileURL.
+        "app/(landing)/integrations/data/landing-content.ts"
+      ],
+      // Required/discoverable barrels whose children have direct live imports.
+      // Ignore only the barrel file finding, so it cannot keep dead children alive.
+      "ignoreIssues": {
+        // Generated contracts mirror their source of truth; regenerating them must not
+        // trip the unused-export ratchet, and hand edits would be overwritten.
+        "lib/mothership/generated/**": ["exports", "types", "duplicates"],
+        // Client aliases consumed only by the stacked Project file PR #9034. Remove each entry once
+        // its consumer merges.
+        "lib/api/contracts/projects.ts": ["types"],
+        "lib/api/contracts/project-files.ts": ["types"],
+        "lib/api/contracts/project-file-folders.ts": ["types"],
+        "lib/api/contracts/project-file-lifecycle.ts": ["types"],
+        "sandboxes/index.ts": ["files"],
+        "lib/api/contracts/file-copy.ts": ["exports", "types"],
+        "lib/api/contracts/file-copy-input.ts": ["exports", "types"],
+        // API contract conventions require named boundary schemas and wire aliases before client adoption.
+        "lib/api/contracts/project-file-downloads.ts": ["exports", "types"],
+        "lib/api/contracts/project-file-shares.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-shares.ts": ["exports", "types"],
+        "lib/api/contracts/project-file-extraction.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-downloads.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-extraction.ts": ["exports", "types"],
+        "components/mcp/index.ts": ["files"],
+        "triggers/quickbooks/index.ts": ["files"],
+        "lib/api/contracts/selectors/index.ts": ["files"],
+        "lib/api/contracts/tools/index.ts": ["files"],
+        "lib/api/contracts/tools/communication/index.ts": ["files"],
+        "lib/api/contracts/tools/databases/index.ts": ["files"],
+        "lib/api/contracts/tools/media/index.ts": ["files"],
+        "lib/api/contracts/v1/index.ts": ["files"],
+        "app/(landing)/components/shared/two-block-workflow-preview/index.ts": ["files"],
+        "app/(landing)/customers/components/customer-story-card/index.ts": ["files"],
+        "app/(landing)/customers/components/customer-story-media/index.ts": ["files"],
+        "app/(landing)/customers/components/customer-story-page/index.ts": ["files"]
+      },
+      "ignoreDependencies": [
+        // docker/app.Dockerfile invokes this binary to rebuild isolated-vm.
+        "node-gyp",
+        // Imported inside the generated source string in sandbox/bundles/build.ts.
+        "pptxgenjs",
+        "@vitest/expect",
+        "@vitest/spy",
+        "buffer",
+        "process",
+        "chai",
+        "tinyrainbow",
+        // Next aliases this marker to its bundled server-only module.
+        "server-only",
+        // Knip's email CLI plugin infers this transitive preview implementation.
+        "@react-email/ui"
+      ],
+      // Live test spawns this path with cwd=MSHIP_WORKER_ROOT (a sibling repo).
+      "ignoreUnresolved": ["tools/probes/src/controller-run-read.ts"]
+    },
+    "apps/realtime": {
+      "includeEntryExports": false,
+      "entry": [
+        "src/bootstrap.ts",
+        // Integration mode discovers these suites and setup by filename.
+        "src/**/*.integration.ts",
+        "vitest.integration.setup.ts"
+      ]
+    },
+    "apps/desktop": {
+      "includeEntryExports": false,
+      // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path; the nested
+      // Playwright run in e2e/check-report.spec.ts loads worker-restart.ts through its config.
+      "entry": [
+        "src/main/index.ts",
+        "src/preload/*.ts",
+        "src/preload/browser/index.ts",
+        "src/renderer/*/index.tsx",
+        "scripts/*.ts",
+        "e2e/fixtures/updater.ts",
+        "e2e/fixtures/worker-restart.ts",
+        // The native permission test launches this Electron fixture by filename.
+        "native/computer-use/tests/electron-fixture/*.cjs"
+      ],
+      // ensure-pty-prebuilds.ts assembles these package names for universal builds.
+      "ignoreDependencies": ["@lydell/node-pty-darwin-arm64", "@lydell/node-pty-darwin-x64"]
+    },
+    "apps/docs": {
+      "includeEntryExports": false,
+      // scripts/generate-docs.ts copies this verbatim from apps/sim/components/icons.tsx, whose
+      // export surface is already ratcheted there; docs consumes only the icons it maps.
+      "ignoreIssues": { "components/icons.tsx": ["exports", "types", "duplicates"] }
+    },
+    "apps/pii": { "includeEntryExports": false },
+    "packages/cli": { "includeEntryExports": false },
+    "packages/db": {
+      "includeEntryExports": false,
+      "entry": [
+        "scripts/*.ts",
+        "script-migrations/*.ts",
+        "**/*.integration.ts",
+        "vitest.integration.setup.ts"
+      ]
+    },
+    // The contract audit reads this snapshot by filename.
+    // Generated, so its export surface is not ratcheted either.
+    "packages/desktop-bridge": {
+      "entry": ["contract-snapshot.ts"],
+      "ignoreIssues": {
+        "contract-snapshot.ts": ["exports", "types", "duplicates"],
+        // Mirrored from Mothership; hand edits are overwritten by contracts:sync.
+        "src/computer-use.generated.ts": ["exports", "types", "duplicates"]
+      }
+    },
+    "packages/sim-cli": {
+      "includeEntryExports": false,
+      "entry": ["src/index.ts", "src/runtime.ts", "scripts/*.ts"]
+    },
+    "packages/sim-setup": { "includeEntryExports": false },
+    "packages/ts-sdk": { "includeEntryExports": false, "entry": ["examples/*.ts"] },
+    // This shared config is consumed by apps that own the Next dependency.
+    "packages/tsconfig": { "ignoreUnresolved": ["next"] }
+  }
+}

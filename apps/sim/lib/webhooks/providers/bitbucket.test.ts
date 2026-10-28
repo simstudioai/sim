@@ -1,20 +1,19 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { authOAuthUtilsMock } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCredentialOwner, mockRefreshAccessTokenIfNeeded } = vi.hoisted(() => ({
-  mockGetCredentialOwner: vi.fn(),
-  mockRefreshAccessTokenIfNeeded: vi.fn(),
+const { mockGetCredentialAccessToken } = vi.hoisted(() => ({
+  mockGetCredentialAccessToken: vi.fn(),
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  refreshAccessTokenIfNeeded: mockRefreshAccessTokenIfNeeded,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getProviderConfig: (webhook: { providerConfig?: Record<string, unknown> }) =>
     webhook.providerConfig || {},
   getNotificationUrl: () => 'https://app.example.com/api/webhooks/trigger/bitbucket-path',
-  getCredentialOwner: mockGetCredentialOwner,
+  getCredentialAccessToken: mockGetCredentialAccessToken,
 }))
 
 import { IdempotencyService } from '@/lib/core/idempotency/service'
@@ -29,35 +28,8 @@ const fetchMock = vi.fn()
 const CALLBACK_URL = 'https://app.example.com/api/webhooks/trigger/bitbucket-path'
 const CANDIDATE_DESCRIPTION = 'Sim workflow trigger (bitbucket_push) [sim:webhook-1]'
 
-const BASE_OUTPUT_KEYS = [
-  'actor',
-  'attemptNumber',
-  'eventType',
-  'hookUuid',
-  'payload',
-  'repository',
-  'requestUuid',
-]
-
-const PULL_REQUEST_OUTPUT_KEYS = [
-  ...BASE_OUTPUT_KEYS,
-  'destinationBranch',
-  'pullRequest',
-  'pullRequestId',
-  'pullRequestState',
-  'pullRequestTitle',
-  'sourceBranch',
-].sort()
-
 function requestWithHeaders(headers: Record<string, string>): NextRequest {
   return new NextRequest('http://localhost/test', { headers })
-}
-
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 function emptyResponse(status: number): Response {
@@ -109,13 +81,7 @@ describe('Bitbucket webhook provider', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-    mockGetCredentialOwner.mockResolvedValue({ accountId: 'account-1', userId: 'user-1' })
-    mockRefreshAccessTokenIfNeeded.mockResolvedValue('oauth-token')
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
+    mockGetCredentialAccessToken.mockResolvedValue('oauth-token')
   })
 
   describe('verifyAuth', () => {
@@ -273,14 +239,6 @@ describe('Bitbucket webhook provider', () => {
         )
       }
     )
-
-    const pullRequest = {
-      id: 42,
-      title: 'Add Bitbucket triggers',
-      state: 'OPEN',
-      source: { branch: { name: 'feature' } },
-      destination: { branch: { name: 'staging' } },
-    }
   })
 
   describe('createSubscription', () => {
@@ -307,7 +265,7 @@ describe('Bitbucket webhook provider', () => {
     }
 
     function hooksResponse(values: Array<Record<string, unknown>>): Response {
-      return jsonResponse(200, { values })
+      return jsonResponse({ values })
     }
 
     it.each([
@@ -318,7 +276,7 @@ describe('Bitbucket webhook provider', () => {
     ])('maps Bitbucket HTTP %s to an actionable error', async (status, message) => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([]))
-        .mockResolvedValueOnce(jsonResponse(status, { error: { message: 'provider detail' } }))
+        .mockResolvedValueOnce(jsonResponse({ error: { message: 'provider detail' } }, status))
       await expect(
         bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
       ).rejects.toThrow(message)
@@ -344,7 +302,7 @@ describe('Bitbucket webhook provider', () => {
         ).rejects.toThrow(/webhook ID is required/i)
 
         expect(fetchMock).not.toHaveBeenCalled()
-        expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+        expect(mockGetCredentialAccessToken).not.toHaveBeenCalled()
       }
     )
 
@@ -353,7 +311,7 @@ describe('Bitbucket webhook provider', () => {
       async (createResponse) => {
         fetchMock
           .mockResolvedValueOnce(hooksResponse([activeHook]))
-          .mockResolvedValueOnce(jsonResponse(201, createResponse))
+          .mockResolvedValueOnce(jsonResponse(createResponse, 201))
           .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
           .mockResolvedValueOnce(emptyResponse(204))
 
@@ -405,7 +363,7 @@ describe('Bitbucket webhook provider', () => {
         fetchMock
           .mockResolvedValueOnce(hooksResponse([activeHook]))
           .mockResolvedValueOnce(
-            jsonResponse(status, { error: { message: 'temporarily unavailable' } })
+            jsonResponse({ error: { message: 'temporarily unavailable' } }, status)
           )
           .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
           .mockResolvedValueOnce(emptyResponse(204))
@@ -422,7 +380,7 @@ describe('Bitbucket webhook provider', () => {
     it('leaves hooks untouched when an ambiguous response has multiple candidate matches', async () => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([activeHook]))
-        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(jsonResponse({}, 201))
         .mockResolvedValueOnce(
           hooksResponse([
             activeHook,
@@ -452,7 +410,7 @@ describe('Bitbucket webhook provider', () => {
     ])('leaves hooks untouched when %s', async (_case, reconciliationHooks) => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([activeHook]))
-        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(jsonResponse({}, 201))
         .mockResolvedValueOnce(hooksResponse(reconciliationHooks))
 
       await expect(
@@ -470,8 +428,8 @@ describe('Bitbucket webhook provider', () => {
     it('leaves hooks untouched when candidate lookup fails after an ambiguous response', async () => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([activeHook]))
-        .mockResolvedValueOnce(jsonResponse(201, {}))
-        .mockResolvedValueOnce(jsonResponse(500, { error: { message: 'list failed' } }))
+        .mockResolvedValueOnce(jsonResponse({}, 201))
+        .mockResolvedValueOnce(jsonResponse({ error: { message: 'list failed' } }, 500))
 
       await expect(
         bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
@@ -488,7 +446,7 @@ describe('Bitbucket webhook provider', () => {
     it('does not retry or touch the active hook when proven-candidate deletion times out', async () => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([activeHook]))
-        .mockResolvedValueOnce(jsonResponse(201, {}))
+        .mockResolvedValueOnce(jsonResponse({}, 201))
         .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
         .mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
 
@@ -505,7 +463,7 @@ describe('Bitbucket webhook provider', () => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
         .mockResolvedValueOnce(emptyResponse(204))
-        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{new-candidate-hook}' }))
+        .mockResolvedValueOnce(jsonResponse({ uuid: '{new-candidate-hook}' }, 201))
 
       const result = await bitbucketHandler.createSubscription!(subscriptionContext(validConfig))
 
@@ -542,7 +500,7 @@ describe('Bitbucket webhook provider', () => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([activeHook, candidateHook]))
         .mockResolvedValueOnce(emptyResponse(204))
-        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{new-candidate-hook}' }))
+        .mockResolvedValueOnce(jsonResponse({ uuid: '{new-candidate-hook}' }, 201))
 
       const result = await bitbucketHandler.createSubscription!(
         subscriptionContext({ ...validConfig, ...checkpoint })
@@ -563,7 +521,7 @@ describe('Bitbucket webhook provider', () => {
       fetchMock
         .mockResolvedValueOnce(hooksResponse([activeHook, { ...candidateHook, ...hookOverride }]))
         .mockResolvedValueOnce(emptyResponse(204))
-        .mockResolvedValueOnce(jsonResponse(201, { uuid: '{new-candidate-hook}' }))
+        .mockResolvedValueOnce(jsonResponse({ uuid: '{new-candidate-hook}' }, 201))
 
       const result = await bitbucketHandler.createSubscription!(
         subscriptionContext({
@@ -592,7 +550,7 @@ describe('Bitbucket webhook provider', () => {
     })
 
     it('does not delete by ID-based description for legacy non-candidate creation', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse(201, {}))
+      fetchMock.mockResolvedValueOnce(jsonResponse({}, 201))
 
       await expect(
         bitbucketHandler.createSubscription!(
@@ -627,7 +585,7 @@ describe('Bitbucket webhook provider', () => {
 
     it('throws a deletion failure during strict outbox cleanup', async () => {
       fetchMock.mockResolvedValueOnce(
-        jsonResponse(500, { error: { message: 'temporary provider failure' } })
+        jsonResponse({ error: { message: 'temporary provider failure' } }, 500)
       )
       await expect(
         bitbucketHandler.deleteSubscription!({

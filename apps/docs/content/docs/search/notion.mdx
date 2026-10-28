@@ -1,0 +1,39 @@
+---
+title: Notion
+description: Find Notion pages and databases through your personal MCP connection
+---
+
+Notion Search finds pages and databases through the official hosted MCP service. It uses **Member accounts** and the connected person's current workspace permissions.
+
+## Connect and search
+
+An admin adds **Notion** in **Settings → Sources**. Each teammate connects Notion in **Integrations** and authorizes a workspace. Search short keywords such as `launch rollback` or one focused question such as `Why did we postpone the migration?`. Read important matches before drawing conclusions.
+
+Personal MCP OAuth is separate from the ordinary Notion OAuth grant for workflow blocks and knowledge-base ingestion. Search does not fall back to REST title-only search.
+
+## Queries and available tools
+
+Sim checks the connection's current tool access and advertised schemas. It uses AI search when exposed and available, or the advertised keyword route. Workspace plan, admin settings, and selected MCP tools affect availability. Notion may search connected apps, but Sim returns only Notion pages and databases; use the separate Slack, Gmail, or Drive source for those apps.
+
+Page-scoped native queries accept a Notion page URL or ID when the server advertises the supported page-scope field. Otherwise, Sim reports the limitation. Modification-date filters and newest sorting are sent only when the connection's plan and schema allow them. Sim checks exact timestamps from at most ten fresh page reads; other keyword searches use local date filtering. Date-only queries report unavailable plan capabilities.
+
+Bounded results do not establish exhaustive date coverage or the oldest page. Sim does not replace a missing page timestamp with search time. Capabilities can change with the authenticated server; [Notion's tool documentation](https://developers.notion.com/guides/mcp/mcp-supported-tools) describes current provider behavior.
+
+## Browse sidebar pages
+
+Ask Sim to browse private, shared, favorite, or recently viewed pages without keywords. Private/shared lists match sidebar sections, not the whole workspace. Recent pages rank by visits and frequency, not modification time. Follow continuation in the same list and read a page for content.
+
+List availability depends on current tools and access. Browsing uses the same personal connection without additional credentials.
+
+## Reads and coverage
+
+Search returns a bounded ranked selection. Pagination is used only when the advertised tool and response support it. Capped results, omitted external results, or plan restrictions produce partial-coverage guidance.
+
+Reads fetch the exact page or database with the member's connection. Large pages may omit subtrees; the read preserves that notice. Open Notion when content is incomplete.
+
+Sim permits only tool-access inspection, search, sidebar lists, and fetch through a fixed read-only allowlist. It cannot create/edit pages or select another server URL.
+
+## Related docs
+
+- [Notion MCP setup](https://developers.notion.com/guides/mcp/get-started-with-mcp)
+- [Connect your account](/search/connect-your-account)

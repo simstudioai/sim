@@ -83,7 +83,7 @@ export const kalshiGetEventsTool: ToolConfig<KalshiGetEventsParams, KalshiGetEve
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'get_events')
+      handleKalshiError(data, 'get_events')
     }
 
     const events = data.events || []
@@ -166,8 +166,7 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
   {
     id: 'kalshi_get_events_v2',
     name: 'Get Events from Kalshi V2',
-    description:
-      'Retrieve a list of events from Kalshi with optional filtering (V2 - exact API response)',
+    description: 'Retrieve a list of events from Kalshi with optional filtering',
     version: '2.0.0',
 
     params: {
@@ -242,7 +241,7 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, response.status, 'get_events_v2')
+        handleKalshiError(data, 'get_events_v2')
       }
 
       const events = (data.events || []).map((e: Record<string, unknown>) => ({

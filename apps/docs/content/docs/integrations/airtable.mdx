@@ -1,31 +1,50 @@
 ---
 title: Airtable
 description: Read, create, and update Airtable
+integration:
+  type: "airtable"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="airtable"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Airtable](https://airtable.com/) to list bases and table schemas, read or write records, and start workflows from record changes. For token setup, see [Personal Access Tokens](/integrations/airtable-service-account).
+
+Trigger mode handles record creation, updates, and deletion. Inspect `payloads` or `latestPayload` for Airtable's raw changes; deleted record IDs are under `changedTablesById[tableId].destroyedRecordIds`. The `airtableChanges` array currently consolidates created and updated records and returns changed cell values in `changedFields`.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Personal access tokens](/integrations/airtable-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
+Sim requests these scopes when someone connects an Airtable account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/airtable` |
+| Environment variables | `AIRTABLE_CLIENT_ID`, `AIRTABLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `data.records:read` | Read records |
+| `data.records:write` | Create, edit, and delete records |
+| `schema.bases:read` | View bases and tables |
+| `user.email:read` | Read email address |
+| `webhook:manage` | Create, view, and delete base webhooks and read their payloads |
+
+## Use the block [#usage-instructions]
+
+List bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Use trigger mode to start a workflow when a record is created, updated, or deleted in an Airtable table.
 
 ## Actions
 
 ### Airtable List Bases
 
 List all bases the authenticated user has access to
+
+<ReferenceDetails>
 
 #### Input
 
@@ -45,9 +64,13 @@ List all bases the authenticated user has access to
 |   ↳ `offset` | string | Offset for next page of results |
 |   ↳ `totalBases` | number | Number of bases returned |
 
+</ReferenceDetails>
+
 ### Airtable List Tables
 
 List all tables and their schema in an Airtable base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +97,13 @@ List all tables and their schema in an Airtable base
 |   ↳ `baseId` | string | The base ID queried |
 |   ↳ `totalTables` | number | Number of tables in the base |
 
+</ReferenceDetails>
+
 ### Airtable List Records
 
 Read records from an Airtable table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +126,13 @@ Read records from an Airtable table
 |   ↳ `offset` | string | Pagination offset for next page |
 |   ↳ `totalRecords` | number | Number of records returned |
 
+</ReferenceDetails>
+
 ### Airtable Get Record
 
 Retrieve a single record from an Airtable table by its ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -122,9 +153,13 @@ Retrieve a single record from an Airtable table by its ID
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of records returned \(always 1\) |
 
+</ReferenceDetails>
+
 ### Airtable Create Records
 
 Write new records to an Airtable table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +181,13 @@ Write new records to an Airtable table
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of records created |
 
+</ReferenceDetails>
+
 ### Airtable Update Record
 
 Update an existing record in an Airtable table by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +211,13 @@ Update an existing record in an Airtable table by ID
 |   ↳ `recordCount` | number | Number of records updated \(always 1\) |
 |   ↳ `updatedFields` | array | List of field names that were updated |
 
+</ReferenceDetails>
+
 ### Airtable Update Multiple Records
 
 Update multiple existing records in an Airtable table
+
+<ReferenceDetails>
 
 #### Input
 
@@ -197,9 +240,13 @@ Update multiple existing records in an Airtable table
 |   ↳ `recordCount` | number | Number of records updated |
 |   ↳ `updatedRecordIds` | array | List of updated record IDs |
 
+</ReferenceDetails>
+
 ### Airtable Upsert Records
 
 Update existing records or create new ones in an Airtable table, matching on the specified merge fields
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,9 +273,13 @@ Update existing records or create new ones in an Airtable table, matching on the
 |   ↳ `createdCount` | number | Number of records created |
 |   ↳ `updatedCount` | number | Number of records updated |
 
+</ReferenceDetails>
+
 ### Airtable Delete Records
 
 Delete one or more records from an Airtable table by ID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -249,9 +300,13 @@ Delete one or more records from an Airtable table by ID
 |   ↳ `recordCount` | number | Number of records deleted |
 |   ↳ `deletedRecordIds` | array | List of deleted record IDs |
 
+</ReferenceDetails>
+
 ### Airtable Get Base Schema
 
 Get the schema of all tables, fields, and views in an Airtable base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,15 +321,19 @@ Get the schema of all tables, fields, and views in an Airtable base
 | `tables` | json | Array of table schemas with fields and views |
 | `metadata` | json | Operation metadata including total tables count |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Airtable Webhook
 
 Trigger workflow from Airtable record changes like create, update, and delete events (requires Airtable credentials)
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -310,9 +369,11 @@ Trigger workflow from Airtable record changes like create, update, and delete ev
 |         ↳ `cellValuesByFieldId` | object | Cell values keyed by field ID |
 |     ↳ `createdRecordsById` | object | Created records by ID |
 |     ↳ `destroyedRecordIds` | array | Array of destroyed record IDs |
-| `airtableChanges` | array | Changes made to the Airtable table |
+| `airtableChanges` | array | Consolidated record creations and updates. Deleted record IDs remain in raw payloads. |
 |   ↳ `tableId` | string | Table ID |
 |   ↳ `recordId` | string | Record ID |
-|   ↳ `changeType` | string | Type of change \(created, changed, destroyed\) |
+|   ↳ `changeType` | string | Type of consolidated change: created or updated |
 |   ↳ `cellValuesByFieldId` | object | Cell values by field ID |
+
+</ReferenceDetails>
 

@@ -6,6 +6,7 @@ import type {
   GraphEvent,
 } from '@/tools/outlook/types'
 import type { ToolRetryConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Shared retry config for the Outlook calendar tools.
@@ -40,6 +41,9 @@ export const CALENDAR_RETRY: ToolRetryConfig = {
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 
+/** Graph event and calendar ids are opaque and can contain `/`, which encodes as `%2F`. */
+const GRAPH_ID_SEGMENT = { allowSeparators: true } as const
+
 /**
  * Build the Graph URL for a calendar-scoped collection.
  *
@@ -50,9 +54,8 @@ const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
  * @see https://learn.microsoft.com/en-us/graph/api/user-post-events
  */
 export function buildCalendarScopedUrl(collection: 'events' | 'calendarView', calendarId?: string) {
-  const id = calendarId?.trim()
-  return id
-    ? `${GRAPH_BASE_URL}/me/calendars/${encodeURIComponent(id)}/${collection}`
+  return calendarId?.trim()
+    ? `${GRAPH_BASE_URL}/me/calendars/${safeUrlPathSegment(calendarId, 'calendarId', GRAPH_ID_SEGMENT)}/${collection}`
     : `${GRAPH_BASE_URL}/me/${collection}`
 }
 
@@ -63,7 +66,7 @@ export function buildCalendarScopedUrl(collection: 'events' | 'calendarView', ca
  * the user's calendars — no calendar scoping is needed for get / update / delete / respond.
  */
 export function buildEventUrl(eventId: string, suffix?: string) {
-  const base = `${GRAPH_BASE_URL}/me/events/${encodeURIComponent(eventId.trim())}`
+  const base = `${GRAPH_BASE_URL}/me/events/${safeUrlPathSegment(eventId, 'eventId', GRAPH_ID_SEGMENT)}`
   return suffix ? `${base}/${suffix}` : base
 }
 

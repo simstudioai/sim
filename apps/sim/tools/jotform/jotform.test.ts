@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { addLabelResourcesTool } from '@/tools/jotform/add_label_resources'
 import { createFormTool } from '@/tools/jotform/create_form'
@@ -12,13 +13,6 @@ import { listWebhooksTool } from '@/tools/jotform/list_webhooks'
 import { normalizeSubmission } from '@/tools/jotform/normalize'
 import { updateFormPropertiesTool } from '@/tools/jotform/update_form_properties'
 import { normalizeSubmissionAnswers, parseJotformResponse, toFormBody } from '@/tools/jotform/utils'
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 const auth = { apiKey: 'key-123' }
 

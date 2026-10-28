@@ -8,7 +8,6 @@ describe('PostgreSQL token bucket', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-04T12:00:00Z'))
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -43,41 +42,6 @@ describe('PostgreSQL token bucket', () => {
       retryAfterMs: 3000,
     })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ tokens: '0' }))
-  })
-
-  it('initializes request and cooldown buckets in a consistent order without duplicate keys', async () => {
-    const now = new Date()
-    dbChainMockFns.limit.mockResolvedValue([
-      { key: 'cooldown', tokens: '0', lastRefillAt: now, blockedUntil: null },
-      { key: 'requests', tokens: '10', lastRefillAt: now, blockedUntil: null },
-      { key: 'tokens', tokens: '10', lastRefillAt: now, blockedUntil: null },
-    ])
-
-    expect(
-      await new DbTokenBucket().consumeTokensAtomically(
-        [
-          { key: 'tokens', cost: 2, config: CONFIG },
-          { key: 'requests', cost: 1, config: CONFIG },
-        ],
-        { cooldownKeys: ['cooldown', 'cooldown'], deadlineAt: now.getTime() + 1000 }
-      )
-    ).toEqual({ allowed: true, retryAfterMs: 0 })
-
-    expect(dbChainMockFns.values).toHaveBeenCalledExactlyOnceWith([
-      { key: 'cooldown', tokens: '0', lastRefillAt: now, updatedAt: now },
-      { key: 'requests', tokens: '10', lastRefillAt: now, updatedAt: now },
-      { key: 'tokens', tokens: '10', lastRefillAt: now, updatedAt: now },
-    ])
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      tokens: '8',
-      lastRefillAt: now,
-      updatedAt: now,
-    })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      tokens: '9',
-      lastRefillAt: now,
-      updatedAt: now,
-    })
   })
 
   it('accepts an empty reservation without attempting an empty insert', async () => {

@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import type { WizaGetCreditsParams, WizaGetCreditsResponse } from '@/tools/wiza/types'
 
@@ -6,6 +7,7 @@ export const wizaGetCreditsTool: ToolConfig<WizaGetCreditsParams, WizaGetCredits
   name: 'Wiza Get Credits',
   description: 'Retrieve the remaining credits on your Wiza account',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.WIZA_ERRORS,
 
   params: {
     apiKey: {

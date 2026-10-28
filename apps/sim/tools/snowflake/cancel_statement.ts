@@ -6,6 +6,7 @@ import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   getSnowflakeBaseUrl,
   getSnowflakeHeaders,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -19,6 +20,7 @@ export const cancelStatementTool: ToolConfig<
   name: 'Snowflake Cancel Statement',
   description: 'Cancel a running Snowflake SQL API statement.',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   params: {
     ...snowflakeAuthParamFields,
     statementHandle: {

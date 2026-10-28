@@ -28,7 +28,10 @@ export function CustomerStoryPage({ story, post, nextStory }: CustomerStoryPageP
       <article className={HOME_INSET}>
         <header className={cn('pb-12 max-sm:pb-8', LANDING_HERO_TOP_PADDING)}>
           <BackLink href='/customers' label='Customer stories' />
-          <h1 className='mt-7 max-w-[1100px] text-balance text-[64px] text-[var(--text-primary)] leading-[1.04] tracking-[-0.03em] max-sm:mt-5 max-sm:text-[36px] max-xl:text-[52px]'>
+          <h1
+            className='mt-7 max-w-[1100px] text-balance text-[64px] text-[var(--text-primary)] leading-[1.04] tracking-[-0.03em] max-sm:mt-5 max-sm:text-[36px] max-xl:text-[52px]'
+            data-speakable='headline'
+          >
             {post.title}
           </h1>
         </header>
@@ -72,7 +75,10 @@ export function CustomerStoryPage({ story, post, nextStory }: CustomerStoryPageP
           </aside>
 
           <div className='min-w-0 max-w-[740px]'>
-            <p className='mb-10 text-pretty text-[28px] text-[var(--text-primary)] leading-[1.3] tracking-[-0.015em] max-sm:text-[23px]'>
+            <p
+              className='mb-10 text-pretty text-[28px] text-[var(--text-primary)] leading-[1.3] tracking-[-0.015em] max-sm:text-[23px]'
+              data-speakable='description'
+            >
               {post.description}
             </p>
             <div className='[&_h2:first-child]:!mt-0 [&_:is(h1,h2,h3,h4,h5,h6,a,strong,b)]:font-normal [&_h2]:scroll-mt-28 [&_p]:text-pretty'>

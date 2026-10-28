@@ -1,4 +1,5 @@
-import { parseFolderPath } from '@/lib/folders/paths'
+import type { folder } from '@sim/db/schema'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface FolderScopeOptions {
   /**
@@ -37,28 +38,12 @@ export function isWithinFolderScope(
 }
 
 /**
- * Whether a canonical folder path sits inside a canonical folder scope.
- *
- * For the resource types whose folders are addressed by canonical path on both
- * sides — workflows, knowledge bases, and tables. Workspace files store a
- * backslash-escaped display path instead and go through
- * `isFileInFolderScope`, which decodes its side before comparing.
- */
-export function isFolderPathWithinScope(
-  folderPath: string,
-  scopePath: string,
-  options?: FolderScopeOptions
-): boolean {
-  return isWithinFolderScope(parseFolderPath(folderPath), parseFolderPath(scopePath), options)
-}
-
-/**
  * A folder scope already resolved to concrete folder ids.
  *
- * The path predicates above answer "is this folder inside that scope" one
- * folder at a time. This is the same question asked of many items at once,
- * after the paths have been walked to ids: a listing filters against it in
- * memory, and a query pushes it down into SQL.
+ * `isWithinFolderScope` answers "is this folder inside that scope" one folder
+ * at a time. This is the same question asked of many items at once,
+ * after the paths have been walked to ids, so a query can push it down into
+ * SQL.
  *
  * The root is carried as its own flag rather than as an entry in `folderIds`,
  * because an item at the root has no folder id to match. A sentinel string
@@ -71,10 +56,38 @@ export interface FolderIdScope {
   includeRootItems: boolean
 }
 
-/** Whether an item belongs to a resolved scope. Root items carry no folder id. */
-export function isWithinFolderIdScope(
-  folderId: string | null | undefined,
-  scope: FolderIdScope
-): boolean {
-  return folderId ? scope.folderIds.has(folderId) : scope.includeRootItems
+type FolderScope = Pick<typeof folder.$inferSelect, 'workspaceId' | 'projectId'>
+
+/** Narrows persisted ownership to one canonical workspace folder. */
+export function isWorkspaceFolder<T extends FolderScope>(
+  row: T,
+  workspaceId?: string
+): row is T & { workspaceId: string } {
+  return (
+    typeof row.workspaceId === 'string' &&
+    row.workspaceId.length > 0 &&
+    (workspaceId === undefined || row.workspaceId === workspaceId) &&
+    row.projectId === null
+  )
+}
+
+/** Rejects non-workspace ownership before projecting a workspace-only folder. */
+export function requireWorkspaceFolder<T extends FolderScope>(
+  row: T,
+  workspaceId?: string
+): T & { workspaceId: string } {
+  if (!isWorkspaceFolder(row, workspaceId)) {
+    throw new OrchestrationError('not_found', 'Folder not found')
+  }
+  return row
+}
+
+/** Workspace resources retain a live creator; detached Project attribution is not a workspace identity. */
+export function requireWorkspaceFolderCreator<T extends FolderScope & { userId: string | null }>(
+  row: T,
+  workspaceId?: string
+): T & { workspaceId: string; userId: string } {
+  const scoped = requireWorkspaceFolder(row, workspaceId)
+  if (!scoped.userId) throw new OrchestrationError('not_found', 'Folder not found')
+  return { ...scoped, userId: scoped.userId }
 }

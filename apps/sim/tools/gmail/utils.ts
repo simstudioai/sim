@@ -48,7 +48,7 @@ export async function fetchThreadingHeaders(
         subject: headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value,
       }
     }
-  } catch (error) {
+  } catch {
     // Continue without threading headers rather than failing
   }
 
@@ -321,7 +321,6 @@ function generateBoundary(): string {
  * @see https://github.com/googleapis/google-api-nodejs-client/blob/main/samples/gmail/send.js
  */
 export function encodeRfc2047(value: string): string {
-  // eslint-disable-next-line no-control-regex
   if (/^[\x00-\x7F]*$/.test(value)) {
     return value
   }

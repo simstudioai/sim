@@ -1,24 +1,19 @@
 import { Readable } from 'node:stream'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
-const { mockBackoffWithJitter, mockDownloadFileStream, mockHeadObject, mockParseRetryAfter } =
-  vi.hoisted(() => ({
-    mockBackoffWithJitter: vi.fn(() => 0),
-    mockDownloadFileStream: vi.fn(),
-    mockHeadObject: vi.fn(),
-    mockParseRetryAfter: vi.fn(() => 25),
-  }))
+const { mockBackoffWithJitter, mockParseRetryAfter } = vi.hoisted(() => ({
+  mockBackoffWithJitter: vi.fn(() => 0),
+  mockParseRetryAfter: vi.fn(() => 25),
+}))
 
 vi.mock('@sim/utils/retry', () => ({
   backoffWithJitter: mockBackoffWithJitter,
   parseRetryAfter: mockParseRetryAfter,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mockDownloadFileStream,
-  headObject: mockHeadObject,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import {
   computeTikTokChunkPlan,
@@ -26,6 +21,8 @@ import {
   streamStoredVideoToTikTok,
   TIKTOK_MAX_VIDEO_BYTES,
 } from '@/lib/internal/tiktok/upload'
+
+const { mockDownloadFileStream, mockHeadObject } = storageServiceMockFns
 
 const baseStreamOptions = {
   key: 'workspace/workspace-1/video.mp4',

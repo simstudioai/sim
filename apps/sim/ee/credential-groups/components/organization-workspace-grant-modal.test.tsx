@@ -25,7 +25,6 @@ describe('workspace integration grant editor', () => {
   afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
-    vi.unstubAllGlobals()
   })
   async function render(
     access: OrganizationAccountWorkspaceAccess['grants'][number]['access'] | null = { mode: 'all' },
@@ -84,7 +83,7 @@ describe('workspace integration grant editor', () => {
     await act(async () =>
       trigger.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
     )
-    const option = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    const option = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
       (element) => element.textContent === 'Finance'
     )
     expect(option).toBeDefined()

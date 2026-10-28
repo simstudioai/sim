@@ -1,14 +1,8 @@
 /**
  * Tests for schedule deploy utilities
  */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  flattenMockConditions,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, flattenMockConditions, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 const { mockRandomUUID, mockGetProtectedDeploymentVersionId, mockIsDeploymentOperationCurrent } =
   vi.hoisted(() => ({
@@ -16,8 +10,6 @@ const { mockRandomUUID, mockGetProtectedDeploymentVersionId, mockIsDeploymentOpe
     mockGetProtectedDeploymentVersionId: vi.fn(),
     mockIsDeploymentOperationCurrent: vi.fn(),
   }))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 vi.mock('@/lib/webhooks/deploy', () => ({
   cleanupWebhooksForWorkflow: vi.fn().mockResolvedValue(undefined),
@@ -41,10 +33,16 @@ import { findScheduleBlocks, validateScheduleBlock, validateWorkflowSchedules } 
  * factory could never rebind. Patching the resolved namespace covers both
  * fresh and reused module graphs.
  */
-const mockGenerateCronExpression = vi.spyOn(scheduleUtils, 'generateCronExpression')
-const mockCalculateNextRunTime = vi.spyOn(scheduleUtils, 'calculateNextRunTime')
-const mockValidateCronExpression = vi.spyOn(scheduleUtils, 'validateCronExpression')
-const mockGetScheduleTimeValues = vi.spyOn(scheduleUtils, 'getScheduleTimeValues')
+let mockGenerateCronExpression: MockInstance<typeof scheduleUtils.generateCronExpression>
+let mockCalculateNextRunTime: MockInstance<typeof scheduleUtils.calculateNextRunTime>
+let mockValidateCronExpression: MockInstance<typeof scheduleUtils.validateCronExpression>
+let mockGetScheduleTimeValues: MockInstance<typeof scheduleUtils.getScheduleTimeValues>
+beforeEach(() => {
+  mockGenerateCronExpression = vi.spyOn(scheduleUtils, 'generateCronExpression')
+  mockCalculateNextRunTime = vi.spyOn(scheduleUtils, 'calculateNextRunTime')
+  mockValidateCronExpression = vi.spyOn(scheduleUtils, 'validateCronExpression')
+  mockGetScheduleTimeValues = vi.spyOn(scheduleUtils, 'getScheduleTimeValues')
+})
 
 afterAll(() => {
   mockGenerateCronExpression.mockRestore()
@@ -81,11 +79,6 @@ describe('Schedule Deploy Utilities', () => {
       monthlyTime: [9, 0],
       cronExpression: null,
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-    vi.unstubAllGlobals()
   })
 
   describe('findScheduleBlocks', () => {

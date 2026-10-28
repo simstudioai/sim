@@ -1,4 +1,4 @@
-import { copilotChats, copilotRuns, member } from '@sim/db/schema'
+import { copilotChats, copilotRuns, member, settings, user } from '@sim/db/schema'
 import {
   dbChainMockFns,
   queueTableRows,
@@ -6,31 +6,50 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { admitChatTurn, turnDesktopDevice } from '@/lib/mothership/chat/application/admit-turn'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 
-const mocks = vi.hoisted(() => ({
-  append: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   lease: vi.fn(),
-  config: vi.fn(),
-  banned: vi.fn(),
-  searchAvailable: vi.fn(),
+  resolveDesktop: vi.fn(),
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: mocks.searchAvailable,
-}))
+const mocks = {
+  ...hoisted,
+  append: mothershipChatMessagesMockFns.mockAppendCopilotChatMessages,
+  banned: authBanMockFns.mockGetActivelyBannedUserIds,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  searchAvailable: knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable,
+}
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 afterAll(resetEnvFlagsMock)
-vi.mock('@/lib/mothership/chat/messages-store', () => ({ appendCopilotChatMessages: mocks.append }))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 vi.mock('@/lib/mothership/request/session/controller-lease', () => ({
-  assertChatStreamLease: mocks.lease,
+  assertChatStreamLease: hoisted.lease,
 }))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mocks.banned }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
+vi.mock('@/lib/desktop/application/executor', () => ({
+  resolveTurnDesktopDevice: hoisted.resolveDesktop,
 }))
-vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: vi.fn() }))
 
-const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 const chatId = '11111111-1111-4111-8111-111111111111'
 const streamId = '22222222-2222-4222-8222-222222222222'
 const chat = {
@@ -105,9 +124,36 @@ describe('organization turn admission through current private-chat authorization
       expect.anything()
     )
   })
+  /**
+   * Another attempt with this id re-took the claim after this one's in-progress
+   * TTL ran out. That attempt may admit the turn, so this one must not, and the
+   * route answers it as a duplicate.
+   */
+  it('refuses to admit a send whose claim another attempt took', async () => {
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(member, [{ role: 'member' }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ model: null }])
+      .mockResolvedValueOnce([{ id: 'run-1', organizationId: 'org-1', workspaceId: null }])
+      .mockResolvedValueOnce([])
+    await expect(admitChatTurn.execute({ principal, input: input() })).rejects.toBeInstanceOf(
+      ChatSendSupersededError
+    )
+  })
+  it("keeps an organization chat's turn with its chat view, never on a desktop", async () => {
+    hoisted.resolveDesktop.mockResolvedValue('device-1')
+    const offered = '33333333-3333-4333-8333-333333333333'
+
+    await expect(turnDesktopDevice(principal, null, offered)).resolves.toBeNull()
+    await expect(turnDesktopDevice(principal, 'ws-1', offered)).resolves.toBe('device-1')
+    await expect(turnDesktopDevice(principal, 'ws-1', undefined)).resolves.toBeNull()
+  })
   it.each(['agent', 'assistant', 'plan'] as const)(
     'switches the same chat to %s atomically with turn admission',
     async (mode) => {
+      setEnvFlags({ isMothershipBenchmarkEnabled: true })
+      queueTableRows(user, [{ role: 'admin' }])
+      queueTableRows(settings, [{ superUserModeEnabled: true }])
       queueTableRows(copilotChats, [{ ...chat, mode: mode === 'agent' ? 'assistant' : 'agent' }])
       queueTableRows(member, [{ role: 'owner' }])
       if (mode !== 'assistant') queueTableRows(member, [{ role: 'owner' }])
@@ -135,6 +181,24 @@ describe('organization turn admission through current private-chat authorization
           }),
         })
       )
+    }
+  )
+  it.each([
+    [undefined, false],
+    ['low', true],
+  ] as const)(
+    'records the send effort %s as the chat choice in the admission write: %s',
+    async (effortChoice, recorded) => {
+      queueTableRows(copilotChats, [chat])
+      queueTableRows(member, [{ role: 'member' }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ model: null }])
+        .mockResolvedValueOnce([{ id: 'run-1' }])
+        .mockResolvedValueOnce([{ key: 'claim' }])
+      await admitChatTurn.execute({ principal, input: { ...input(), effortChoice } })
+      const config = dbChainMockFns.set.mock.calls[0][0].config.toSQL()
+      expect(config.sql.includes("jsonb_build_object('effort'")).toBe(recorded)
+      expect(config.params.includes('low')).toBe(recorded)
     }
   )
   it.each(['agent', 'plan'] as const)(

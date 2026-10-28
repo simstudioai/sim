@@ -575,6 +575,7 @@ describe('principal actors', () => {
         kind: 'delegated',
         serviceId: 'executor',
         delegationId: 'delegation-1',
+        workflowId: 'workflow-1',
       },
       attributedUserId: 'billing-owner-1',
     })

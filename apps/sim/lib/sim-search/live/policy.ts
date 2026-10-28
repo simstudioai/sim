@@ -200,14 +200,20 @@ export function createPolicyVerifier(
         const project = object(object(row.fields).project)
         return Boolean(project.key) && permitsResources(policy, [string(project.key)])
       }
-      const row = object(
-        await json(
-          `/ex/confluence/${segment(document.container)}/wiki/rest/api/content/${segment(document.id)}`,
-          { expand: 'space' }
+      /** v2 reads, like document reads, so the check needs only the granular read scopes. */
+      const api = `/ex/confluence/${segment(document.container)}/wiki/api/v2`
+      /** The search response names each hit's space; only reads without that evidence look it up. */
+      let spaceKey = document.kind === 'space' ? document.id : string(providerMetadata?.spaceKey)
+      if (!spaceKey) {
+        const row = object(
+          await json(
+            `${api}/${document.kind === 'blogpost' ? 'blogposts' : 'pages'}/${segment(document.id)}`
+          )
         )
-      )
-      const space = object(row.space)
-      return Boolean(space.key) && permitsResources(policy, [string(space.key)])
+        if (!string(row.spaceId)) return false
+        spaceKey = string(object(await json(`${api}/spaces/${segment(string(row.spaceId))}`)).key)
+      }
+      return Boolean(spaceKey) && permitsResources(policy, [spaceKey])
     }
     if (provider === 'coda') {
       if (!restricted) return true

@@ -1,62 +1,72 @@
 import {
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import { mothershipChatMessagesMock } from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckWorkspaceAccess,
-  mockGetUserEntityPermissions,
-  mockGetMessage,
-  mockGetAttachment,
-  mockTrackChatUpload,
-  mockUploadFile,
-  mockDeleteFile,
-  mockDeleteFileMetadata,
-  mockResolveOrCreateChat,
-  mockRunHeadlessCopilotLifecycle,
-  mockSendInboxResponse,
-  mockBuildIntegrationToolSchemas,
-} = vi.hoisted(() => ({
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
+const { mockGetMessage, mockGetAttachment, mockSendInboxResponse } = vi.hoisted(() => ({
   mockGetMessage: vi.fn(),
   mockGetAttachment: vi.fn(),
-  mockTrackChatUpload: vi.fn(),
-  mockUploadFile: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
-  mockResolveOrCreateChat: vi.fn(),
-  mockRunHeadlessCopilotLifecycle: vi.fn(),
   mockSendInboxResponse: vi.fn(),
-  mockBuildIntegrationToolSchemas: vi.fn(),
 }))
+const { mockResolveOrCreateChat } = mothershipChatLifecycleMockFns
+const { mockRunHeadlessCopilotLifecycle } = mothershipHeadlessLifecycleMockFns
+const { mockBuildIntegrationToolSchemas } = mothershipChatPayloadMockFns
+const { mockUploadFile, mockDeleteFile } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
+const { mockTrackChatUpload } = workspaceFileManagerMockFns
+const { mockCheckWorkspaceAccess, mockGetUserEntityPermissions } = permissionsMockFns
+billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({})
+workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId.mockResolvedValue('owner-1')
+setEnvFlags({ isDocSandboxEnabled: false, isHosted: true })
+afterAll(resetEnvFlagsMock)
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+vi.mock('@/lib/auth/ban', () => authBanMock)
 
-vi.mock('@/lib/auth/ban', () => ({
-  getActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
-  isEmailBlocked: vi.fn().mockResolvedValue(false),
-}))
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: vi.fn().mockResolvedValue({}),
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  resolveOrCreateChat: mockResolveOrCreateChat,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages: vi.fn(),
-}))
-
-vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
 vi.mock('@/lib/mothership/chat/persisted-message', () => ({
   buildPersistedAssistantMessage: vi.fn().mockReturnValue({ id: 'assistant-message' }),
@@ -67,25 +77,16 @@ vi.mock('@/lib/mothership/chat/workspace-context', () => ({
   generateWorkspaceContext: vi.fn().mockResolvedValue({}),
 }))
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: vi.fn() },
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 
 vi.mock('@/lib/mothership/request/lifecycle/start', () => ({
   requestChatTitle: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isDocSandboxEnabled: false,
-  isHosted: true,
 }))
 
 vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
@@ -97,29 +98,13 @@ vi.mock('@/lib/mothership/inbox/response', () => ({
   sendInboxResponse: mockSendInboxResponse,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  generateWorkspaceFileKey: (workspaceId: string, filename: string) =>
-    `workspace/${workspaceId}/generated-${filename}`,
-  trackChatUpload: mockTrackChatUpload,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
-
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('owner-1'),
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
@@ -148,6 +133,12 @@ const WORKSPACE = {
   inboxMountedSecrets: ['INBOX_KEY'],
 }
 
+/** Queues a task and, when it continues a chat, that chat as found in the task's workspace. */
+function queueInboxTask(task: { chatId: string | null }) {
+  queueTableRows(schemaMock.mothershipInboxTask, [task])
+  if (task.chatId) queueTableRows(schemaMock.copilotChats, [{ id: task.chatId }])
+}
+
 describe('Inbox execution actor', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -166,18 +157,15 @@ describe('Inbox execution actor', () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
-      conversationHistory: [],
       isNew: true,
     })
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ id: 'task-1' }])
-      .mockResolvedValueOnce([{ model: 'claude-opus-4-8' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'task-1' }])
   })
 
   it('sends a valid inbox turn without eagerly loading integration schemas', async () => {
     const chatId = '44444444-4444-4444-8444-444444444444'
     const workspaceId = '55555555-5555-4555-8555-555555555555'
-    queueTableRows(schemaMock.mothershipInboxTask, [{ ...INBOX_TASK, chatId, workspaceId }])
+    queueInboxTask({ ...INBOX_TASK, chatId, workspaceId })
     queueTableRows(schemaMock.workspace, [{ ...WORKSPACE, id: workspaceId }])
     queueTableRows(schemaMock.user, [{ id: 'member-1' }])
     mockGetUserEntityPermissions.mockResolvedValue('write')
@@ -202,7 +190,7 @@ describe('Inbox execution actor', () => {
   })
 
   it('gives a workspace member their own raw-secret authority', async () => {
-    queueTableRows(schemaMock.mothershipInboxTask, [INBOX_TASK])
+    queueInboxTask(INBOX_TASK)
     queueTableRows(schemaMock.workspace, [WORKSPACE])
     queueTableRows(schemaMock.user, [{ id: 'member-1' }])
     mockGetUserEntityPermissions.mockResolvedValue('write')
@@ -225,7 +213,7 @@ describe('Inbox execution actor', () => {
   })
 
   it('does not lend a read-only member write authority', async () => {
-    queueTableRows(schemaMock.mothershipInboxTask, [INBOX_TASK])
+    queueInboxTask(INBOX_TASK)
     queueTableRows(schemaMock.workspace, [WORKSPACE])
     queueTableRows(schemaMock.user, [{ id: 'member-1' }])
     mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'read' })
@@ -247,7 +235,7 @@ describe('Inbox execution actor', () => {
    * secret actor already refuses for a direct mount.
    */
   it('caps an external sender at read even when the owner is an admin', async () => {
-    queueTableRows(schemaMock.mothershipInboxTask, [INBOX_TASK])
+    queueInboxTask(INBOX_TASK)
     queueTableRows(schemaMock.workspace, [WORKSPACE])
     queueTableRows(schemaMock.user, [])
     mockCheckWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
@@ -270,7 +258,7 @@ describe('Inbox execution actor', () => {
   })
 
   it('stamps the shared mothership model on the chat it creates for a task', async () => {
-    queueTableRows(schemaMock.mothershipInboxTask, [{ ...INBOX_TASK, chatId: null }])
+    queueInboxTask({ ...INBOX_TASK, chatId: null })
     queueTableRows(schemaMock.workspace, [WORKSPACE])
     queueTableRows(schemaMock.user, [{ id: 'member-1' }])
     mockGetUserEntityPermissions.mockResolvedValue('write')
@@ -287,7 +275,7 @@ describe('Inbox execution actor', () => {
   })
 
   it('leaves an external sender with no permission at none rather than promoting to read', async () => {
-    queueTableRows(schemaMock.mothershipInboxTask, [INBOX_TASK])
+    queueInboxTask(INBOX_TASK)
     queueTableRows(schemaMock.workspace, [WORKSPACE])
     queueTableRows(schemaMock.user, [])
     mockCheckWorkspaceAccess.mockResolvedValue({ permission: null })
@@ -301,9 +289,7 @@ describe('Inbox execution actor', () => {
   it.each(['member', 'external'])(
     'makes inbox attachments readable without increasing %s tool authority',
     async (actor) => {
-      queueTableRows(schemaMock.mothershipInboxTask, [
-        { ...INBOX_TASK, hasAttachments: true, agentmailMessageId: 'mail-1' },
-      ])
+      queueInboxTask({ ...INBOX_TASK, hasAttachments: true, agentmailMessageId: 'mail-1' })
       queueTableRows(schemaMock.workspace, [WORKSPACE])
       queueTableRows(schemaMock.user, actor === 'member' ? [{ id: 'member-1' }] : [])
       mockGetUserEntityPermissions.mockResolvedValue('write')
@@ -359,9 +345,7 @@ describe('Inbox execution actor', () => {
   it.each(['download', 'binding', 'declared-size', 'actual-size'])(
     'keeps a valid sibling readable when an attachment fails during %s',
     async (failure) => {
-      queueTableRows(schemaMock.mothershipInboxTask, [
-        { ...INBOX_TASK, hasAttachments: true, agentmailMessageId: 'mail-1' },
-      ])
+      queueInboxTask({ ...INBOX_TASK, hasAttachments: true, agentmailMessageId: 'mail-1' })
       queueTableRows(schemaMock.workspace, [WORKSPACE])
       queueTableRows(schemaMock.user, [{ id: 'member-1' }])
       mockGetUserEntityPermissions.mockResolvedValue('write')
@@ -425,9 +409,7 @@ describe('Inbox execution actor', () => {
   )
 
   it('does not promise readable attachments when metadata cannot be loaded', async () => {
-    queueTableRows(schemaMock.mothershipInboxTask, [
-      { ...INBOX_TASK, hasAttachments: true, agentmailMessageId: 'mail-1' },
-    ])
+    queueInboxTask({ ...INBOX_TASK, hasAttachments: true, agentmailMessageId: 'mail-1' })
     queueTableRows(schemaMock.workspace, [WORKSPACE])
     queueTableRows(schemaMock.user, [{ id: 'member-1' }])
     mockGetUserEntityPermissions.mockResolvedValue('write')

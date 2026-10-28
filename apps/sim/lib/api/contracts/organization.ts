@@ -672,13 +672,24 @@ const organizationWhitelabelEnvelopeResponseSchema = z.object({
   data: organizationWhitelabelSettingsResponseSchema,
 })
 
+/**
+ * The read also carries the entitlement the update enforces, so the settings page can gate on it
+ * without a separate billing read. It sits beside `data` rather than inside it: `data` keeps the
+ * settings shape clients already parse, so a client from before this field reads the same response.
+ * It is optional so a client reading a server from before this field still parses the settings.
+ */
+const organizationWhitelabelReadResponseSchema =
+  organizationWhitelabelEnvelopeResponseSchema.extend({
+    isEnterprise: z.boolean().optional(),
+  })
+
 export const getOrganizationWhitelabelContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/whitelabel',
   params: organizationParamsSchema,
   response: {
     mode: 'json',
-    schema: organizationWhitelabelEnvelopeResponseSchema,
+    schema: organizationWhitelabelReadResponseSchema,
   },
 })
 
@@ -704,6 +715,33 @@ export const createOrganizationContract = defineRouteContract({
       organizationId: z.string(),
       created: z.boolean(),
     }),
+  },
+})
+
+const organizationPlanSeatsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    organizationId: z.string().min(1),
+    subscriptionPlan: z.string().min(1).nullable(),
+    subscriptionStatus: z.string().nullable(),
+    totalSeats: z.number().int().nonnegative(),
+    usedSeats: z.number().int().nonnegative(),
+    membersTotal: z.number().int().nonnegative(),
+    hasEnterprisePlan: z.boolean(),
+  }),
+})
+
+/** Primary-backed plan access and canonical member/invitation seat reservations. */
+export type OrganizationPlanSeatsResponse = z.output<typeof organizationPlanSeatsResponseSchema>
+
+/** Lightweight settings read that excludes usage-ledger aggregates. */
+export const getOrganizationPlanSeatsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/billing-plan',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationPlanSeatsResponseSchema,
   },
 })
 

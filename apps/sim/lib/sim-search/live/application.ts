@@ -1,4 +1,7 @@
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -13,7 +16,10 @@ import {
   nativeSearchQueriesSchema,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
+import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
+import { admitContent } from '@/lib/core/application'
+import { env } from '@/lib/core/config/env'
+import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceOwner,
@@ -22,14 +28,16 @@ import {
 } from '@/lib/core/resource-scope'
 import { createPinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import { RRF_K } from '@/lib/knowledge/search/recency'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
+import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   type LiveAccountSession,
   openLiveAccountSession,
@@ -48,13 +56,75 @@ import {
   withImpliedListingBound,
 } from '@/lib/sim-search/live/dates'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
+import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { joinMessages } from '@/lib/sim-search/live/pages'
 import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
 import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
+import { LiveReadError } from '@/lib/sim-search/live/read-error'
+import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const boundContinuationSchema = z
+  .object({
+    v: z.literal(2),
+    scope: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
+    cursor: z.string().min(1).max(2048),
+    listingEndDate: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict()
+type BoundContinuation = z.output<typeof boundContinuationSchema>
+const signedContinuationSchema = boundContinuationSchema.extend({
+  signature: z.string().regex(/^[a-f0-9]{64}$/),
+})
+
+type BoundProvider = 'hubspot' | 'zoom' | 'lucid' | 'notion'
+
+function hasBoundContinuation(provider: string): provider is BoundProvider {
+  return ['hubspot', 'zoom', 'lucid', 'notion'].includes(provider)
+}
+
+function continuationSignature(provider: BoundProvider, value: BoundContinuation): string {
+  return hmacSha256Hex(
+    `live-search-continuation:${provider}:${canonicalJson(value)}`,
+    env.BETTER_AUTH_SECRET
+  )
+}
+
+function readBoundContinuation(provider: BoundProvider, value: string): BoundContinuation {
+  try {
+    const prefix = `${provider}:`
+    if (!value.startsWith(prefix) || value.length > (provider === 'hubspot' ? 512 : 4000))
+      throw new Error('Invalid continuation')
+    const { signature, ...continuation } = signedContinuationSchema.parse(
+      JSON.parse(Buffer.from(value.slice(prefix.length), 'base64url').toString('utf8'))
+    )
+    if (!safeCompare(signature, continuationSignature(provider, continuation)))
+      throw new Error('Invalid continuation signature')
+    if (provider === 'hubspot' && !/^[1-9]\d{0,3}$/.test(continuation.cursor))
+      throw new Error('Invalid HubSpot continuation')
+    return continuation
+  } catch {
+    throw new NativeSearchError(
+      'unavailable',
+      `Invalid ${provider} cursor. Restart this search without a cursor.`
+    )
+  }
+}
+
+function writeBoundContinuation(provider: BoundProvider, value: BoundContinuation): string {
+  const payload = boundContinuationSchema.parse(value)
+  const signed = { ...payload, signature: continuationSignature(provider, payload) }
+  const cursor = `${provider}:${Buffer.from(JSON.stringify(signed)).toString('base64url')}`
+  if (cursor.length > (provider === 'hubspot' ? 512 : 4000))
+    throw new NativeSearchError(
+      'unavailable',
+      'The provider continuation is too large. Narrow the query and restart without a cursor.'
+    )
+  return cursor
+}
 
 const referenceSchema = z
   .object({
@@ -102,10 +172,6 @@ interface LiveSearchOptions {
 }
 export type LiveSearchInput = ResourceOwner & LiveSearchOptions
 
-function requireLiveSearch() {
-  if (!isLiveEnterpriseSearchEnabled)
-    throw new OrchestrationError('not_found', 'Live search is not enabled')
-}
 function safeContent(content: string, registry?: ResolvedSecretTraceRegistry): string {
   if (!registry) return content
   const projected = projectResolvedSecretModelContent(content, registry)
@@ -203,8 +269,12 @@ function resultFor(
   }
 }
 
-/** Accounts searched at once; bounds token refresh and provider fan-out in large organizations. */
-const ACCOUNT_CONCURRENCY = 4
+/**
+ * Accounts searched at once; bounds token refresh and provider fan-out in large organizations.
+ * Each account is one provider, and a search waits for every account, so a second wave adds a
+ * full provider round trip; eight covers the account count most organizations search.
+ */
+const ACCOUNT_CONCURRENCY = 8
 /** Candidates verified at once; each verification is one or more provider requests. */
 const VERIFY_CONCURRENCY = 5
 const MAX_ACCOUNTS = 20
@@ -237,6 +307,42 @@ async function verifyCandidates(session: LiveAccountSession, candidates: LiveCan
     unverified: outcomes.some((outcome) => outcome === 'unverified' || outcome === 'rate_limited'),
     rateLimited: outcomes.includes('rate_limited'),
   }
+}
+
+/** Top results per account read for a passage when their provider returns only an excerpt. */
+const PREVIEW_READS = 3
+/** A slow preview read keeps the provider's excerpt rather than delaying the search. */
+const PREVIEW_DEADLINE_MS = 2500
+/** Text kept around the match from a preview read, so a long document stays bounded. */
+const PREVIEW_SOURCE_CHARACTERS = 100_000
+
+/**
+ * Replaces the excerpt or metadata of an account's top results with their full text, so their
+ * preview is a passage around the match like other providers' results rather than a prompt to
+ * read. A read that fails or misses the deadline keeps the provider's own preview.
+ */
+async function withPreviewText(
+  session: LiveAccountSession,
+  candidates: LiveCandidate[],
+  query: string
+): Promise<LiveCandidate[]> {
+  const deadline = AbortSignal.timeout(PREVIEW_DEADLINE_MS)
+  const expired = new Promise<undefined>((resolve) =>
+    deadline.addEventListener('abort', () => resolve(undefined), { once: true })
+  )
+  const texts = await Promise.all(
+    candidates
+      .slice(0, PREVIEW_READS)
+      .map((candidate) =>
+        Promise.race([session.previewText(candidate.document).catch(() => undefined), expired])
+      )
+  )
+  return candidates.map((candidate, index) => {
+    const text = texts[index]?.trim()
+    if (!text) return candidate
+    const content = matchPassage(text, query, PREVIEW_SOURCE_CHARACTERS).content
+    return { ...candidate, document: { ...candidate.document, content } }
+  })
 }
 
 /** Keeps the first of candidates a provider marked as the same item, such as a shared meeting. */
@@ -287,13 +393,18 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: LiveSearchInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }): Promise<WorkspaceKnowledgeSearchData> {
-    requireLiveSearch()
+    /** Live provider results carry no stored provenance; they are projected through `safeContent`. */
+    await admitContent(principal, [])
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
     const queries = input.nativeQueries
       ? nativeSearchQueriesSchema.parse(input.nativeQueries)
       : undefined
+    const requestedFilters = input.filters
+      ? workspaceSearchFiltersSchema.parse(input.filters)
+      : undefined
+    input = { ...input, filters: requestedFilters }
     if (
       (!input.query.trim() && !queries?.some((query) => query.query)) ||
       queries?.some((query) => !query.query)
@@ -302,15 +413,14 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     if (
       (!input.query.trim() &&
         !hasDateBounds(input.filters) &&
-        !queries?.some((query) => query.query)) ||
+        !queries?.some((query) => query.query || query.browse)) ||
+      (!queries && input.filters?.source === 'lucid' && !input.query.trim()) ||
       input.query.length > 2000 ||
       !Number.isInteger(input.topK) ||
       input.topK < 1 ||
       input.topK > 50
     )
       throw new OrchestrationError('validation', 'Invalid live search query or result limit')
-    if (input.filters)
-      input = { ...input, filters: workspaceSearchFiltersSchema.parse(input.filters) }
     const filters = input.filters
     if (
       filters?.startDate &&
@@ -318,7 +428,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       Date.parse(filters.startDate) >= Date.parse(filters.endDate)
     )
       throw new OrchestrationError('validation', 'endDate must be after startDate')
-    if (queries?.some((query) => !query.query) && !hasDateBounds(filters))
+    if (queries?.some((query) => !query.query && !query.browse) && !hasDateBounds(filters))
       throw new OrchestrationError('validation', 'Empty native queries require a date bound')
     const searchSignal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
@@ -357,12 +467,60 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       native: NativeSearchQuery | undefined,
       status: Pick<LiveSearchAccountStatus, 'accountId' | 'provider' | 'displayName' | 'queryIndex'>
     ): Promise<SearchedQuery> => {
+      let queryFilters = filters
+      let queryNative = native
+      let continuationScope: string | undefined
+      let listingEndDate: string | undefined
+      if (hasBoundContinuation(account.provider)) {
+        continuationScope = fingerprint(
+          canonicalJson({
+            provider: account.provider,
+            user: userId,
+            owner: resourceScopeKey(resourceScopeFromOwner(input)),
+            account: account.id,
+            query: (native?.query ?? input.query).trim(),
+            kind: native?.kind,
+            ...(['lucid', 'notion'].includes(account.provider)
+              ? { browse: native?.browse, project: native?.project, topK: input.topK }
+              : {}),
+            sort: requestedFilters?.sortBy ?? 'relevance',
+            startDate: instantScopePart(requestedFilters?.startDate),
+            endDate: instantScopePart(requestedFilters?.endDate),
+            modifiedAfter: instantScopePart(requestedFilters?.modifiedAfter),
+            modifiedBefore: instantScopePart(requestedFilters?.modifiedBefore),
+            documentIds: requestedFilters?.documentIds
+              ? [...new Set(requestedFilters.documentIds)].sort(compareStrings)
+              : undefined,
+          })
+        )
+        if (native?.cursor) {
+          const continuation = readBoundContinuation(account.provider, native.cursor)
+          const allowsListingBound =
+            Boolean(dateSortDirection(requestedFilters)) && !hasDateBounds(requestedFilters)
+          if (
+            continuation.scope !== continuationScope ||
+            (continuation.listingEndDate && !allowsListingBound) ||
+            (allowsListingBound && !native.query && !continuation.listingEndDate)
+          )
+            throw new NativeSearchError(
+              'unavailable',
+              'The cursor does not match this account, query, kind, or filters. Restart without a cursor.'
+            )
+          listingEndDate = continuation.listingEndDate
+          queryFilters = listingEndDate
+            ? { ...requestedFilters, endDate: listingEndDate }
+            : requestedFilters
+          queryNative = { ...native, cursor: continuation.cursor }
+        } else if (!hasDateBounds(requestedFilters)) {
+          listingEndDate = filters?.endDate
+        }
+      }
       const page = await measureSearchStage('live.search', () =>
         session.search({
-          filters,
+          filters: queryFilters,
           policy: session.policy,
           query: input.query,
-          native,
+          native: queryNative,
           limit: input.topK,
           scopes: resolved.account.scopes,
         })
@@ -379,18 +537,25 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           session,
           candidates.filter(
             ({ document, documentId }) =>
-              matchesLiveFilters(document, documentId, account.provider, filters) ||
-              lacksFilterDate(document, account.provider, filters)
+              matchesLiveFilters(document, documentId, account.provider, queryFilters) ||
+              lacksFilterDate(document, account.provider, queryFilters)
           )
         )
       )
       const matching = firstOfEachDocument(
         permitted.filter(({ document, documentId }) =>
-          matchesLiveFilters(document, documentId, account.provider, filters)
+          matchesLiveFilters(document, documentId, account.provider, queryFilters)
         )
       )
+      /** A native query's operators would anchor the passage, so only plain queries preview. */
+      const previewed =
+        !native && input.query.trim()
+          ? await measureSearchStage('live.preview', () =>
+              withPreviewText(session, matching, input.query)
+            )
+          : matching
       const undatedExcluded = permitted.some(({ document }) =>
-        lacksFilterDate(document, account.provider, filters)
+        lacksFilterDate(document, account.provider, queryFilters)
       )
       const undatedUnsorted =
         dateSorted && matching.some(({ document }) => !sourceDate(document, account.provider))
@@ -435,9 +600,25 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               ? 'No readable matches on this page. Continue with nextCursor for more.'
               : undefined,
           ]),
-          nextCursor: page.nextCursor,
+          ...(page.folders
+            ? {
+                folders: page.folders.map((folder) => ({
+                  ...folder,
+                  name: safeContent(folder.name, input.resultSecretRegistry),
+                })),
+              }
+            : {}),
+          nextCursor:
+            page.nextCursor && continuationScope && hasBoundContinuation(account.provider)
+              ? writeBoundContinuation(account.provider, {
+                  v: 2,
+                  scope: continuationScope,
+                  cursor: page.nextCursor,
+                  ...(listingEndDate ? { listingEndDate } : {}),
+                })
+              : page.nextCursor,
         },
-        results: matching.map((candidate, index) => {
+        results: previewed.map((candidate, index) => {
           const result = resultFor(
             candidate,
             account,
@@ -492,12 +673,13 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           results: [],
         }
       }
+      let session: LiveAccountSession | undefined
       try {
         signal.throwIfAborted()
         const resolved = await measureSearchStage('live.resolve', () =>
           resolveListedLiveAccount(input, userId, account)
         )
-        const session = await measureSearchStage('live.session', () =>
+        session = await measureSearchStage('live.session', () =>
           openLiveAccountSession({
             owner: input,
             userId,
@@ -508,9 +690,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             searches: natives.length,
           })
         )
+        const currentSession = session
         return await Promise.all(
           natives.map((target) =>
-            searchQuery(account, resolved, session, target.native, statusFor(target)).catch(
+            searchQuery(account, resolved, currentSession, target.native, statusFor(target)).catch(
               (error) => failed(error, target)
             )
           )
@@ -519,6 +702,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         return natives.map((target) => failed(error, target))
       } finally {
         settled.abort()
+        await session?.close()
       }
     }
     let searched: SearchedQuery[]
@@ -546,14 +730,30 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         }
       }
     }
-    const ranked = [...fused.values()].sort(({ result: a }, { result: b }) => {
-      if (!dateSorted) return b.similarity - a.similarity
-      const left = Date.parse(a.sourceDate ?? '')
-      const right = Date.parse(b.sourceDate ?? '')
-      if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
-      if (!Number.isFinite(right)) return -1
-      return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
-    })
+    /**
+     * Similarity only ranks a result within its own account, so every account's first result would
+     * tie; a plain query's terms compare results across accounts, and similarity breaks their ties.
+     * Native queries carry provider operators and keep fusion order.
+     */
+    const relevanceOf =
+      dateSorted || queries || !input.query.trim() ? undefined : queryRelevance(input.query)
+    const ranked = [...fused.values()]
+      .map((entry) => ({
+        ...entry,
+        relevance: relevanceOf?.(entry.result.documentName ?? '', entry.result.content) ?? [
+          0, 0, 0,
+        ],
+      }))
+      .sort(({ relevance: x, result: a }, { relevance: y, result: b }) => {
+        if (!dateSorted) {
+          return y[0] - x[0] || y[1] - x[1] || y[2] - x[2] || b.similarity - a.similarity
+        }
+        const left = Date.parse(a.sourceDate ?? '')
+        const right = Date.parse(b.sourceDate ?? '')
+        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
+        if (!Number.isFinite(right)) return -1
+        return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
+      })
     /**
      * A query's cursor continues after its own page, so it would skip that query's results cut
      * from this merge, including a fused result it shares with another query. Those queries drop
@@ -615,11 +815,64 @@ export type LiveReadInput = ResourceOwner & {
   signal?: AbortSignal
 }
 
+/** Milliseconds one document read may spend on provider calls, after account resolution. */
+const READ_DEADLINE_MS = 15_000
+
+function liveProviderName(provider: string): string {
+  return isManagedSearchMcpProvider(provider)
+    ? MANAGED_MCP_CONNECTORS[provider].name
+    : connectorDisplayName(provider)
+}
+
+/**
+ * Classifies a provider failure during a read so the caller can act on it: a missing or
+ * non-readable document, a grant to reconnect, or a transient failure worth retrying.
+ * Classified and unrecognized errors pass through unchanged.
+ */
+function liveReadFailure(error: unknown, provider: string, deadline?: AbortSignal): unknown {
+  if (error instanceof OrchestrationError) return error
+  const name = liveProviderName(provider)
+  if (error instanceof NativeSearchError) {
+    if (error.status === 'reconnect')
+      return new OrchestrationError(
+        'unauthorized',
+        `Reconnect ${name} to read this document. ${error.message}`
+      )
+    if (error.status === 'rate_limited')
+      return new LiveReadError(error.message, true, error.retryAfterSeconds)
+    if (error.status === 'timeout' || error.httpStatus === 408)
+      return new LiveReadError(`${name} timed out reading this document. Try again.`, true)
+    if (error.httpStatus === 404 || error.httpStatus === 410)
+      return new OrchestrationError(
+        'not_found',
+        `${name} could not find this document: it was deleted, moved, or is not a readable page. Search again or read a different result.`
+      )
+    if (error.httpStatus !== undefined && error.httpStatus >= 500)
+      return new LiveReadError(
+        `${name} is temporarily unavailable (${error.httpStatus}). Try again shortly.`,
+        true
+      )
+    return new LiveReadError(error.message, false)
+  }
+  if (deadline?.aborted || (error instanceof McpError && error.code === ErrorCode.RequestTimeout))
+    return new LiveReadError(
+      `${name} took too long to return this document. Try again, or read a different result.`,
+      true
+    )
+  if (isRetryableNetworkError(error))
+    return new LiveReadError(
+      `${name} did not respond while reading this document. Try again shortly.`,
+      true
+    )
+  return error
+}
+
 export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({ input }: { input: LiveReadInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }) {
-    requireLiveSearch()
+    /** Live provider documents carry no stored provenance; they are projected through `safeContent`. */
+    await admitContent(principal, [])
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)
@@ -635,19 +888,24 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       (input.filters?.documentIds && !input.filters.documentIds.includes(input.documentId))
     )
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
+    /** Cancellation by the caller passes through unclassified. */
+    const readFailure = (error: unknown, deadline?: AbortSignal) =>
+      input.signal?.aborted ? error : liveReadFailure(error, reference.provider, deadline)
     const [resolved, policies] = await Promise.all([
       resolveLiveAccount(input, userId, reference.account),
       loadLiveSearchPolicies(input),
-    ])
+    ]).catch((error: unknown) => {
+      throw readFailure(error)
+    })
     if (resolved.account.provider !== reference.provider)
       throw new OrchestrationError('not_found', 'Document account changed')
-    const signal = input.signal
-      ? AbortSignal.any([input.signal, AbortSignal.timeout(15_000)])
-      : AbortSignal.timeout(15_000)
+    const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
+    const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
     const pool = createPinnedConnectionPool()
     let document: NativeDocument
+    let session: LiveAccountSession | undefined
     try {
-      const session = await openLiveAccountSession({
+      session = await openLiveAccountSession({
         owner: input,
         userId,
         resolved,
@@ -660,14 +918,28 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'not_found',
           'Document is outside your organization’s search scope'
         )
-      document = await measureSearchStage('live.read', () => session.read(reference, input.filters))
-      if (!(await session.verifyCurrent(document)))
+      const currentSession = session
+      document = await measureSearchStage('live.read', () =>
+        currentSession.read(reference, input.filters)
+      )
+      /** Readers degrade section failures to warnings, so the signal decides cancellation. */
+      signal.throwIfAborted()
+      const current = await session.verifyCurrent(document)
+      /** A verifier may report a check cut short by cancellation as a normal result. */
+      signal.throwIfAborted()
+      if (!current)
         throw new OrchestrationError(
           'not_found',
           'Document is outside your organization’s search scope'
         )
+    } catch (error) {
+      throw readFailure(error, deadline)
     } finally {
-      pool.destroy()
+      try {
+        await session?.close()
+      } finally {
+        pool.destroy()
+      }
     }
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
@@ -719,7 +991,6 @@ export const listLiveSearchAccounts = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listPersonalSearchIntegrations,
   resolveContext: ({ input }: { input: ResourceOwner }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }) {
-    requireLiveSearch()
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     const accounts = await listLiveAccounts(input, requirePrincipalSubjectUserId(principal))
     return {

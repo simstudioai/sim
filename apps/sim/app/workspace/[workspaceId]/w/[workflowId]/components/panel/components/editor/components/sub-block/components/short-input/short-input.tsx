@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { cn, Input } from '@sim/emcn'
 import { useReactFlow } from '@xyflow/react'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   maskSecretText,
@@ -102,7 +103,9 @@ export const ShortInput = memo(function ShortInput({
     providerWebhookUrl: config.providerWebhookUrl,
   })
 
+  const { workspaceId } = useWorkflowScope()
   const wandHook = useWand({
+    workspaceId,
     wandConfig: config.wandConfig,
     currentValue: localContent,
     onStreamStart: () => {
@@ -218,13 +221,6 @@ export const ShortInput = memo(function ShortInput({
   )
 
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : undefined
-
-  const effectiveValue =
-    (useWebhookUrl || config.providerWebhookUrl) && webhookManagement.webhookUrl
-      ? webhookManagement.webhookUrl
-      : baseValue
-
-  const value = wandHook?.isStreaming ? localContent : effectiveValue
 
   useEffect(() => {
     if (!wandHook.isStreaming) {

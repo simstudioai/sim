@@ -7,8 +7,7 @@ import { useParams } from 'next/navigation'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
-import type { SelectorContext, SelectorSurface } from '@/lib/selectors/types'
-import { MAX_PERSONAL_SOURCE_SETUP_KEYS } from '@/lib/sim-search/personal-source-setup'
+import type { SelectorContext } from '@/lib/selectors/types'
 import type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -27,7 +26,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 interface ConnectorSelectorFieldProps {
   controlAria?: ChipModalFieldAria
   scope?: ResourceScope
-  selectorSurface?: SelectorSurface
   field: ConnectorConfigField & { selectorKey: SelectorKey }
   value: ConfigFieldValue
   onChange: (value: ConfigFieldValue, selectedOptions?: SourceSelectionLabel[]) => void
@@ -43,7 +41,6 @@ interface ConnectorSelectorFieldProps {
 export function ConnectorSelectorField({
   controlAria,
   scope: explicitScope,
-  selectorSurface,
   field,
   value,
   onChange,
@@ -112,9 +109,7 @@ export function ConnectorSelectorField({
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
-  const missingDependencyMessage = selectorSurface
-    ? 'Enter your Atlassian site first'
-    : `Select ${getDependencyLabel(field, configFields)} first`
+  const missingDependencyMessage = `Select ${getDependencyLabel(field, configFields)} first`
   const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const {
     data: options = [],
@@ -131,7 +126,6 @@ export function ConnectorSelectorField({
   } = useSelectorOptions(field.selectorKey, {
     context,
     scope,
-    surface: selectorSurface,
     search: debouncedSearch,
     enabled: isEnabled,
     surfaceId: `connector:${field.id}`,
@@ -155,7 +149,6 @@ export function ConnectorSelectorField({
     {
       context,
       scope,
-      surface: selectorSurface,
       detailIds: isEnabled ? missingSelectedIds : [],
       surfaceId: `connector:${field.id}`,
     }
@@ -171,7 +164,6 @@ export function ConnectorSelectorField({
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
     scope,
-    surface: selectorSurface,
     detailId:
       resolvesUnknownIds && isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
     surfaceId: `connector:${field.id}`,
@@ -251,16 +243,6 @@ export function ConnectorSelectorField({
           result.status === 'partial'
             ? 'There are too many results to select all. Select items individually or enter keys.'
             : 'Could not load all options. Try again.',
-      })
-      return
-    }
-    if (
-      selectorSurface?.kind === 'personal-search-setup' &&
-      result.options.length > MAX_PERSONAL_SOURCE_SETUP_KEYS
-    ) {
-      setBulkError({
-        context,
-        message: `Select up to ${MAX_PERSONAL_SOURCE_SETUP_KEYS.toLocaleString()} items. Choose a smaller set to continue.`,
       })
       return
     }

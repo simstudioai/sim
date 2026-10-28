@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
+import toolOutputs from '../apps/sim/tools/generated/tool-outputs'
 import {
   escapeMdxCell,
   extractAllBlockConfigs,
@@ -14,6 +15,7 @@ import {
   generateIconMappings,
   getToolInfo,
   isFactoryToolDeclaration,
+  parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
 
@@ -50,6 +52,109 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it.each(['tailscale_get_device', 'tailscale_list_devices'])(
+    'preserves the runtime output field paths when %s imports a sibling schema',
+    async (toolId) => {
+      interface OutputNode {
+        properties?: Record<string, OutputNode>
+        items?: { properties?: Record<string, OutputNode> }
+      }
+      const fieldPaths = (outputs: Record<string, OutputNode>, prefix = ''): string[] =>
+        Object.entries(outputs)
+          .flatMap(([key, output]) => {
+            const field = prefix ? `${prefix}.${key}` : key
+            return [
+              field,
+              ...fieldPaths(output.properties ?? output.items?.properties ?? {}, field),
+            ]
+          })
+          .sort()
+
+      const info = await getToolInfo(toolId)
+      expect(fieldPaths(info?.outputs ?? {})).toEqual(
+        fieldPaths(toolOutputs[toolId] as Record<string, OutputNode>)
+      )
+    }
+  )
+
+  it('does not publish unrelated block fields for operations with no response body', () => {
+    const page = fs.readFileSync(
+      path.resolve(import.meta.dirname, '../apps/docs/content/docs/integrations/greenhouse.mdx'),
+      'utf8'
+    )
+    for (const operation of ['Hire', 'Move', 'Reject', 'Unreject']) {
+      const action = page.split(`### Greenhouse ${operation} Application\n`)[1]?.split('\n### ')[0]
+      expect(action).toBeDefined()
+      const output = action?.split('#### Output\n')[1]
+      expect(output).toContain('No output fields')
+      expect(output).not.toContain('| `candidate_id` |')
+      expect(output).not.toContain('| `nextCursor` |')
+    }
+  })
+
+  it('preserves nested fields referenced by private constants in the same module', () => {
+    const source = `
+      const MONEY_FIELDS = {
+        currency: { type: 'string', description: 'Currency code' },
+        value: { type: 'number', description: 'Minor units' },
+      } as const
+    `
+    expect(
+      parseConstProperties(
+        "amount: { type: 'json', properties: MONEY_FIELDS }",
+        'private-constant-fixture',
+        source,
+        0
+      )
+    ).toEqual({
+      amount: {
+        type: 'json',
+        description: '',
+        properties: {
+          currency: { type: 'string', description: 'Currency code' },
+          value: { type: 'number', description: 'Minor units' },
+        },
+      },
+    })
+  })
+
+  it.each(['object', 'array'])('keeps nested constant fields inside their %s container', (type) => {
+    const source = `
+      const IMAGE_FIELDS = {
+        url: { type: 'string', description: 'Image URL' },
+        altText: { type: 'string', description: 'Alternative text' },
+      } as const
+    `
+    const properties = `
+      id: { type: 'string', description: 'Product ID' },
+      featuredImage: { type: 'object', properties: IMAGE_FIELDS },
+    `
+    const descriptor =
+      type === 'array'
+        ? `type: 'array', items: { type: 'object', properties: { ${properties} } }`
+        : `type: 'object', properties: { ${properties} }`
+    const parsed = parseConstProperties(
+      `products: { ${descriptor} }`,
+      `nested-constant-${type}-fixture`,
+      source,
+      0
+    )
+    const expected = {
+      id: { type: 'string', description: 'Product ID' },
+      featuredImage: {
+        type: 'object',
+        description: '',
+        properties: {
+          url: { type: 'string', description: 'Image URL' },
+          altText: { type: 'string', description: 'Alternative text' },
+        },
+      },
+    }
+    expect(
+      type === 'array' ? parsed.products.items.properties : parsed.products.properties
+    ).toEqual(expected)
+  })
+
   it('preserves versioned inherited tools when the access array appends another operation', () => {
     const [block] = extractAllBlockConfigs(`
       export const ExampleBlock: BlockConfig = {
@@ -81,7 +186,7 @@ describe('documentation tool metadata', () => {
         ],
         tools: { access: ['download_file', 'download_list'] },
         outputs: { file: { type: 'file' }, content: { type: 'string' } },
-      } as const) satisfies BlockConfig<Response>
+      } as const) satisfies BlockConfig
       export const DownloadV2Block: BlockConfig = {
         ...DownloadBlock,
         type: 'download_v2', name: 'Download', hideFromToolbar: false,
@@ -255,6 +360,32 @@ describe('documentation output property parsing', () => {
       type: 'number',
       description: 'Number of items in the vault',
     })
+  })
+
+  it('inlines a shared output group spread into the outputs object', () => {
+    const source = `
+      const SHARED_OUTPUTS = {
+        sources: { type: 'array', description: 'Cited sources' },
+        warnings: { type: 'array', description: 'Research warnings' },
+      }
+
+      export const exampleResearchTool = {
+        id: 'example_research',
+        name: 'Example Research',
+        description: 'Research a question',
+        params: {},
+        outputs: {
+          taskId: { type: 'string', description: 'Background task ID' },
+          ...SHARED_OUTPUTS,
+        },
+      }
+    `
+
+    expect(Object.keys(extractToolInfo('example_research', source)?.outputs ?? {})).toEqual([
+      'taskId',
+      'sources',
+      'warnings',
+    ])
   })
 })
 

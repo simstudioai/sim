@@ -6,6 +6,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -26,6 +27,7 @@ export const introspectSchemaTool: ToolConfig<
 > = {
   id: 'snowflake_introspect_schema',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Introspect Schema',
   description: 'Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.',
   params: {

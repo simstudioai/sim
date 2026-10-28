@@ -200,7 +200,6 @@ export function buildWorkflowSearchReplacePlan({
         replacement
       )
       const parsedReplacement = parseWorkflowSearchSubflowReplacement({
-        blockType: block.type,
         fieldId: match.target.fieldId,
         replacement: nextTextValue,
       })

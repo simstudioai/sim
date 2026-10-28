@@ -1,7 +1,6 @@
 import { TinyFishIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { TinyFishRunResponse } from '@/tools/tinyfish/types'
 
 /** Operations that build and submit an automation run. */
 const AUTOMATION_OPERATIONS = ['tinyfish_run', 'tinyfish_run_async']
@@ -28,13 +27,13 @@ const PROXY_COUNTRY_OPTIONS = [
   { label: 'Australia', id: 'AU' },
 ]
 
-export const TinyFishBlock: BlockConfig<TinyFishRunResponse> = {
+export const TinyFishBlock: BlockConfig = {
   type: 'tinyfish',
   name: 'TinyFish',
   description: 'Automate and read the live web',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate TinyFish into the workflow. Give a web agent a natural-language goal and let it drive a real browser on any site, queue and track long-running automations, search the web, and fetch pages as clean markdown.',
+    'Give a web agent a natural-language goal and let it drive a real browser on supported, reachable sites, queue and track long-running automations, search the web, and fetch pages as clean markdown.',
   docsLink: 'https://docs.sim.ai/integrations/tinyfish',
   category: 'tools',
   integrationType: IntegrationType.AI,

@@ -25,6 +25,12 @@ describe('file text line windows', () => {
         }
     }
   )
+  it('reads offset 0 as the first line and reports the 1-based offset it used', () => {
+    expect(sliceFileTextLines('one\ntwo\nthree', 0, 2, false)).toEqual({
+      text: 'one\ntwo',
+      lineRange: { offset: 1, lineCount: 2, totalLines: 3, totalLinesExact: true },
+    })
+  })
   it('reads a late window in a newline-dense document', () => {
     const result = sliceFileTextLines(
       `${'abc\n'.repeat(1_000_000)}tail needle\n`,

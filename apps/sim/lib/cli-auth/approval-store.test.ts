@@ -1,18 +1,12 @@
 import { createHash } from 'node:crypto'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetRedisClient, mockSet, mockGet, mockDel } = vi.hoisted(() => ({
-  mockGetRedisClient: vi.fn(),
-  mockSet: vi.fn(),
-  mockGet: vi.fn(),
-  mockDel: vi.fn(),
-}))
-
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
-
 import { createApproval, pollApproval } from '@/lib/cli-auth/approval-store'
+
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockSet = vi.fn()
+const mockGet = vi.fn()
+const mockDel = vi.fn()
 
 const REQUEST = 'a'.repeat(43)
 const SECRET = 'b'.repeat(43)

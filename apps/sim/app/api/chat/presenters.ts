@@ -19,7 +19,7 @@ export function toChatDetailResponse(deployment: ChatDeploymentView, chatUrl: st
     allowedEmails: (deployment.allowedEmails as string[] | null) ?? [],
     outputConfigs: (deployment.outputConfigs as ChatDetail['outputConfigs'] | null) ?? [],
     includeThinking: deployment.includeThinking,
-    includeToolCalls: deployment.includeToolCalls ?? false,
+    includeToolCalls: deployment.includeToolCalls,
     customizations: (deployment.customizations as ChatDetail['customizations']) ?? undefined,
     isActive: deployment.isActive,
     chatUrl,

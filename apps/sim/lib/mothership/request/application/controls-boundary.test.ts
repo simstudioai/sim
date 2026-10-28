@@ -1,37 +1,43 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  latest: vi.fn(),
-  stop: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   signal: vi.fn(),
-  permissions: vi.fn(),
 }))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: mocks.latest,
-  requestRunStop: mocks.stop,
-  areStreamToolExecutionsSettled: vi.fn(async () => true),
-  getUnsettledClientWorkflowExecutions: vi.fn(async () => []),
-  getUnsettledStreamSandboxProcesses: vi.fn(async () => []),
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
-  requestExplicitStreamAbort: mocks.signal,
+  requestExplicitStreamAbort: hoisted.signal,
 }))
 vi.mock('@/lib/mothership/request/session', () => ({
   abortActiveStream: vi.fn(),
   waitForPendingChatStream: vi.fn(async () => true),
   releasePendingChatStream: vi.fn(),
 }))
-vi.mock('@/lib/permission-groups/resolve.server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/permission-groups/resolve.server')>()),
-  getUserPermissionConfigForOrganization: mocks.permissions,
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: async () => [] }))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
 
 import { abortRun } from '@/lib/mothership/request/application/controls'
 
+const mocks = {
+  ...hoisted,
+  latest: mothershipAsyncRunsMockFns.mockGetLatestRunForStream,
+  stop: mothershipAsyncRunsMockFns.mockRequestRunStop,
+  permissions: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
+
 beforeEach(() => {
   resetDbChainMock()
+  mothershipAsyncRunsMockFns.mockAreStreamToolExecutionsSettled.mockResolvedValue(true)
   mocks.permissions
     .mockReset()
     .mockResolvedValue({ hideCopilot: true, disableWorkspaceCreation: true })
@@ -44,7 +50,7 @@ beforeEach(() => {
   })
 })
 describe('abort authorization before service signaling', () => {
-  const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+  const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
   const input = { streamId: 'stream', chatId: 'chat' }
   const ownedChat = {
     userId: 'actor',
@@ -108,7 +114,7 @@ describe('abort authorization before service signaling', () => {
     ])
     await expect(
       abortRun.execute({
-        principal: { kind: 'session', userId: 'actor', sessionId: 'session' },
+        principal: createSessionPrincipal({ userId: 'actor', sessionId: 'session' }),
         input: { streamId: 'stream', chatId: 'chat' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
@@ -119,7 +125,7 @@ describe('abort authorization before service signaling', () => {
   it('rejects a foreign asserted chat without loading or signaling that run', async () => {
     await expect(
       abortRun.execute({
-        principal: { kind: 'session', userId: 'actor', sessionId: 'session' },
+        principal: createSessionPrincipal({ userId: 'actor', sessionId: 'session' }),
         input: { streamId: 'stream', chatId: 'foreign' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -132,7 +138,7 @@ describe('abort authorization before service signaling', () => {
     ])
     await expect(
       abortRun.execute({
-        principal: { kind: 'session', userId: 'actor', sessionId: 'session' },
+        principal: createSessionPrincipal({ userId: 'actor', sessionId: 'session' }),
         input: { streamId: 'stream', chatId: 'chat', organizationId: 'foreign' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

@@ -1,47 +1,24 @@
-import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { mcpPubsubMock } from '@sim/testing/mocks/mcp-pubsub.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    MCP_SERVER_UPDATED: 'mcp_server_updated',
-    MCP_TOOL_UPDATED: 'mcp_tool_updated',
-  },
-  AuditResourceType: {
-    MCP_SERVER: 'mcp_server',
-    MCP_TOOL: 'mcp_tool',
-  },
-  recordAudit: vi.fn(),
-  auditUpdatedFields: auditMock.auditUpdatedFields,
-}))
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  workflow: schemaMock.workflow,
-  workflowMcpServer: schemaMock.workflowMcpServer,
-  workflowMcpTool: schemaMock.workflowMcpTool,
-}))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn(),
-  asc: vi.fn(),
-  eq: vi.fn(),
-  inArray: vi.fn(),
-  isNull: vi.fn(),
-  ne: vi.fn(),
-  sql: Object.assign(vi.fn(), { raw: vi.fn((value: string) => value) }),
-}))
-vi.mock('@/lib/mcp/pubsub', () => ({ mcpPubSub: undefined }))
-vi.mock('@/lib/workflows/triggers/trigger-utils.server', () => ({
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
+vi.mock('@/lib/workflows/triggers/utils.server', () => ({
   hasValidStartBlock: vi.fn(),
 }))
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
   generateParameterSchemaForWorkflow: vi.fn().mockResolvedValue({ type: 'object', properties: {} }),
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_MCP_PARAMETER_SCHEMA_BYTES, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 import {
   performCreateWorkflowMcpServer,
   performUpdateWorkflowMcpTool,
 } from '@/lib/mcp/orchestration/workflow-mcp-lifecycle'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import { hasValidStartBlock } from '@/lib/workflows/triggers/utils.server'
 
 describe('workflow MCP lifecycle orchestration', () => {
   beforeEach(() => {
@@ -122,6 +99,36 @@ describe('workflow MCP lifecycle orchestration', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
+  it('answers an unpublishable workflow input as a validation failure naming the field', async () => {
+    const message =
+      'Workflow input "payload" has unsupported type "integer". Use one of: string, number.'
+    vi.mocked(hasValidStartBlock).mockResolvedValueOnce(true)
+    vi.mocked(generateParameterSchemaForWorkflow).mockRejectedValueOnce(
+      new OrchestrationError('validation', message)
+    )
+    dbChainMockFns.where.mockResolvedValueOnce([
+      {
+        id: 'wf-1',
+        name: 'Workflow',
+        description: null,
+        isDeployed: true,
+        workspaceId: 'workspace-1',
+        deployedAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      },
+    ])
+
+    const result = await performCreateWorkflowMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Server',
+      workflowIds: ['wf-1'],
+    })
+
+    expect(result).toEqual({ success: false, error: message, errorCode: 'validation' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
   it('rejects workflow MCP server fan-out above the per-workflow limit', async () => {
     vi.mocked(hasValidStartBlock).mockResolvedValueOnce(true)
     dbChainMockFns.where.mockResolvedValueOnce([
@@ -160,6 +167,33 @@ describe('workflow MCP lifecycle orchestration', () => {
       errorCode: 'validation',
     })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('answers an unpublishable workflow input on a tool update as a validation failure', async () => {
+    const message = 'Workflow input name "__proto__" is reserved. Rename this input field.'
+    vi.mocked(generateParameterSchemaForWorkflow).mockRejectedValueOnce(
+      new OrchestrationError('validation', message)
+    )
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'server-1' }]).mockResolvedValueOnce([
+      {
+        id: 'tool-1',
+        workflowId: 'wf-1',
+        toolName: 'tool_a',
+        toolDescription: null,
+        parameterSchemaBytes: 10,
+      },
+    ])
+
+    const result = await performUpdateWorkflowMcpTool({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      toolId: 'tool-1',
+      parameterDescriptionOverrides: { input: 'The request to answer' },
+    })
+
+    expect(result).toEqual({ success: false, error: message, errorCode: 'validation' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('allows updating tool metadata when an unchanged stored schema exceeds the new cap', async () => {

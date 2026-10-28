@@ -1,0 +1,37 @@
+---
+title: HubSpot
+description: Find CRM records with your current HubSpot permissions
+---
+
+HubSpot Search finds contacts, companies, deals, and tickets through the official MCP service. It uses **Member accounts** and your current HubSpot permissions.
+
+## Connect
+
+An admin adds **HubSpot** in **Settings → Sources**. Each person then selects **Integrations → HubSpot → Connect** and signs in. Grant read access to contacts, companies, deals, and tickets; write access is not needed. Search a known name, email, or domain, then read the record.
+
+## Search and read records
+
+Use concise keywords such as names, domains, email addresses, deal names, or ticket subjects. Native kinds are `contacts`, `companies`, `deals`, and `tickets`; a query without a kind searches all four. The provider searches default searchable properties lexically, so shorten long natural-language questions.
+
+Reads return available CRM properties, including custom properties, with a verified HubSpot record link. They do not include activity histories, notes, or associated records.
+
+Dates and sorting use last modification time. For a queryless listing, use newest/oldest sorting or a date range. Continue one CRM kind with its cursor and the same query and filters. Bounded results cannot establish aggregate totals or revenue.
+
+Ownership, pipeline, lifecycle-stage filters, and custom object types are unsupported. “My deals” is not interpreted as all visible deals. Subscription restrictions, user permissions, and request limits still apply. Search only uses read tools and cannot create or change records.
+
+## Self-hosted setup and recovery
+
+Configure a dedicated HubSpot MCP OAuth app, separate from the ordinary workflow OAuth app. Register an MCP app in HubSpot, set `HUBSPOT_MCP_CLIENT_ID` and `HUBSPOT_MCP_CLIENT_SECRET`, and register the exact callback:
+
+```text
+https://<your-sim-domain>/api/mcp/oauth/callback
+```
+
+Sim uses `https://mcp.hubspot.com` and handles its regional redirect. Replacing the shared registration requires members to reconnect.
+
+If HubSpot is unavailable in the source picker, ask the deployment admin to configure the MCP app. If read permissions are missing, reconnect with the required grants.
+
+## Related docs
+
+- [HubSpot remote MCP setup](https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-the-remote-hubspot-mcp-server)
+- [Connect your account](/search/connect-your-account)

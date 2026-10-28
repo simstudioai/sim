@@ -1,13 +1,13 @@
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
-  getSession: vi.fn(),
   rateLimit: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
 vi.mock('@/lib/credential-groups/application/manage-enrollments', () => ({
   inviteCredentialGroupEnrollmentsSettings: {
@@ -37,22 +37,19 @@ import { POST } from '@/app/api/workspaces/[id]/credential-groups/[groupId]/enro
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 const GROUP_ID = 'group-1'
-const context = { params: Promise.resolve({ id: WORKSPACE_ID, groupId: GROUP_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID, groupId: GROUP_ID })
 
 function createRequest(body: unknown): NextRequest {
-  return new NextRequest(
-    `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/credential-groups/${GROUP_ID}/enrollments`,
-    {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'content-type': 'application/json' },
-    }
-  )
+  return createMockRequest({
+    method: 'POST',
+    url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/credential-groups/${GROUP_ID}/enrollments`,
+    body,
+  })
 }
 
 describe('credential group enrollment invitation route', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })

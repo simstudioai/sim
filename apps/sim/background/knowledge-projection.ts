@@ -7,7 +7,6 @@ import {
 import {
   KNOWLEDGE_PROJECTION_PASS_BUDGET_MS,
   KNOWLEDGE_PROJECTION_TASK_ID,
-  requestKnowledgeProjection,
 } from '@/lib/knowledge/projection/enqueue'
 import { runKnowledgeProjectionPass } from '@/lib/knowledge/projection/run'
 
@@ -23,9 +22,10 @@ export const KNOWLEDGE_PROJECTION_RETRY_POLICY: BackgroundRetryPolicy = {
 
 /**
  * Runs one knowledge projector pass. One pass runs at a time and projects several documents at
- * once itself; the prompt requests and the sweep collapse into whichever pass is queued. A pass
- * that ran out of budget with marks left asks for the next one. Retry-safe: a pass writes only rows
- * that differ from their source and removes a mark only on the generation it read.
+ * once itself; the sweep enqueues at most one per minute, and marks a pass left are taken by the
+ * next. Retry-safe: a pass writes only rows that differ from their source and removes a mark only
+ * on the generation it read, or, for a workspace document with no content to project, once no
+ * writer holds it.
  */
 export const knowledgeProjectionTask = task({
   id: KNOWLEDGE_PROJECTION_TASK_ID,
@@ -35,11 +35,5 @@ export const knowledgeProjectionTask = task({
   queue: { name: KNOWLEDGE_PROJECTION_TASK_ID, concurrencyLimit: 1 },
   catchError: async ({ error, ctx }) =>
     getBackgroundRetryDecision(error, ctx.attempt.number, KNOWLEDGE_PROJECTION_RETRY_POLICY),
-  run: async () => {
-    const result = await runKnowledgeProjectionPass({
-      budgetMs: KNOWLEDGE_PROJECTION_PASS_BUDGET_MS,
-    })
-    if (result.remaining) await requestKnowledgeProjection()
-    return result
-  },
+  run: async () => runKnowledgeProjectionPass({ budgetMs: KNOWLEDGE_PROJECTION_PASS_BUDGET_MS }),
 })

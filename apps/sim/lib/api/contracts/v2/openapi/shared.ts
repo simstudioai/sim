@@ -7,12 +7,16 @@ import type {
   OpenApiRouteDefinition,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
+import {
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+  OAUTH_SCOPE_DESCRIPTIONS,
+} from '@/lib/auth/oauth-provider'
 
 interface ErrorResponseOptions {
   /**
-   * The `message` a caller actually receives for this status. Every one below is a literal
-   * the runtime emits — the generic path for that status, not a domain's phrasing of it —
-   * so the reference can be read as the response rather than as an illustration.
+   * Representative response message. Fixed surface errors use their runtime
+   * literal; domain errors use an illustrative message because wording varies.
    */
   message: string
   /** `error.details`, for the statuses that populate it. Omitted where none is sent. */
@@ -124,12 +128,7 @@ export const ERROR_RESPONSES = {
     message: 'Not found',
   }),
   Conflict: errorResponse(409, 'The request conflicts with current resource state.', {
-    /**
-     * The workflows phrasing, which is the default because that document does not override
-     * it. Nothing in the response layer supplies a 409 message, so every other document
-     * carrying this status names its own through {@link withErrorExamples}.
-     */
-    message: 'Webhook path already in use',
+    message: 'The request conflicts with current resource state',
   }),
   RunIdConflict: errorResponse(
     409,
@@ -203,7 +202,7 @@ export const ERROR_RESPONSES = {
   }),
   ServiceUnavailable: errorResponse(
     503,
-    'A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.',
+    'A required service is temporarily unavailable. When present, `Retry-After` gives the minimum seconds to wait; add jitter before retrying. Check operation-specific guidance before repeating a change after an uncertain response.',
     { message: 'Service temporarily unavailable', headers: ['Retry-After'] }
   ),
 } as const satisfies Readonly<Record<string, OpenApiErrorResponse>>
@@ -317,6 +316,9 @@ export function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRou
   return { ...route, operation: { ...route.operation, errors: derived } }
 }
 
+/** The production authorization server, as its RFC 8414 metadata names it (`issuer`). */
+const SIM_OAUTH_ISSUER = 'https://www.sim.ai/api/auth'
+
 export const V2_AUTH_SECURITY = [{ apiKey: [] }, { oauthBearer: [] }] as const
 
 export const V2_AUTH_SECURITY_SCHEMES = {
@@ -325,14 +327,24 @@ export const V2_AUTH_SECURITY_SCHEMES = {
     in: 'header',
     name: 'X-API-Key',
     description:
-      'Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description.',
+      'Send a personal or workspace API key in `X-API-Key`. See [key types and access](https://docs.sim.ai/api-reference/authentication#key-types); operations that reject workspace keys say so in their description.',
   },
   oauthBearer: {
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'OAuth 2.0 access token',
+    type: 'oauth2',
     description:
-      'A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.',
+      'Send a Sim OAuth access token in `Authorization: Bearer`. See [OAuth authentication and scopes](https://docs.sim.ai/api-reference/authentication#oauth-access-tokens).',
+    flows: {
+      authorizationCode: {
+        authorizationUrl: `${SIM_OAUTH_ISSUER}/oauth2/authorize`,
+        tokenUrl: `${SIM_OAUTH_ISSUER}/oauth2/token`,
+        refreshUrl: `${SIM_OAUTH_ISSUER}/oauth2/token`,
+        scopes: {
+          [OAUTH_API_READ_SCOPE]: OAUTH_SCOPE_DESCRIPTIONS[OAUTH_API_READ_SCOPE],
+          [OAUTH_API_WRITE_SCOPE]: OAUTH_SCOPE_DESCRIPTIONS[OAUTH_API_WRITE_SCOPE],
+          offline_access: OAUTH_SCOPE_DESCRIPTIONS.offline_access,
+        },
+      },
+    },
   },
 } as const satisfies Readonly<Record<string, OpenApiSecurityScheme>>
 
@@ -355,9 +367,9 @@ export const FOLDER_TREE_TOO_LARGE = 'Workspace folder trees exceeding 10,000 fo
  * single-page list from a paged one by shape alone. Saying so once keeps the
  * eight such operations from drifting into eight paraphrases of the same
  * promise. The authoritative membership is pinned in
- * `contracts/v2/__tests__/list-pagination.test.ts` as `FULL_SET_LISTS`.
+ * `contracts/v2/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
-export const FULL_SET_LIST = 'Returns the complete set in one page; `nextCursor` is always null.'
+export const FULL_SET_LIST = 'Returns one page; `nextCursor` is always null.'
 
 /**
  * Appended to a `GET` whose route declares `headSafe: false` because the read
@@ -378,7 +390,7 @@ export const HEAD_MIRRORS_GET =
  * `headSafe: false` exists to skip.
  */
 export const HEAD_OMITS_PAYLOAD_HEADERS =
-  '`HEAD` omits `Content-Length`; use file metadata to size downloads.'
+  '`HEAD` omits `Content-Length` and cannot determine the download size.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.
@@ -405,26 +417,13 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
   'A workspace API key is rejected as `404` rather than `403`, because unauthorized resources are concealed; use a personal API key or an appropriately scoped OAuth token.'
 
 /**
- * Appended to the two reads over `workflow_execution_logs`, which is the only
- * store of a run and is hard-deleted — rows and execution files both — by the
- * `cleanup-logs` background task once a run passes the payer's window.
- *
- * The window itself is `CLEANUP_CONFIG['cleanup-logs'].defaults` in
- * `lib/billing/cleanup-dispatcher.ts`: 30 days on the free plan, and `null`
- * — meaning the plan is skipped entirely and nothing is deleted — on Pro and
- * Team. Enterprise resolves per organization through
- * `resolveEffectiveRetentionHours`, with a per-workspace override, and is
- * likewise unbounded until someone configures it. Self-hosted classifies every
- * workspace as enterprise and dispatches nothing unless data retention is
- * enabled.
- *
- * Stated because deletion is otherwise invisible: an aged-out run is not a
- * tombstone or a 404, it is simply absent. The matching `runCount` caveat lives
- * on that field rather than here. Kept as one constant so the two sibling reads
- * cannot drift into two paraphrases of one window.
+ * Shared by run-list reads. `cleanup-logs` deletes both log rows and execution files, so expired
+ * runs disappear from lists rather than leave tombstones. Plan windows come from
+ * `CLEANUP_CONFIG['cleanup-logs'].defaults` in `lib/billing/cleanup-dispatcher.ts`; organization and
+ * workspace policies resolve through `resolveEffectiveRetentionHours`.
  */
 export const RUN_RETENTION =
-  'Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides.'
+  'Expired runs are permanently deleted by retention cleanup. Sim Cloud Free defaults to 30 days from run start; paid plans and billing-disabled deployments have no default expiry. Organization policies and workspace overrides can set an effective window. Billing-disabled cleanup requires enabled data retention. Runs referenced by active pauses are protected from cleanup.'
 
 /**
  * Response headers a binary download declares on top of the common set. Shared

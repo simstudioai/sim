@@ -1,3 +1,4 @@
+import { toArray, toRecord } from '@sim/utils/object'
 import type {
   JsmApprovalsBody,
   JsmCommentBody,
@@ -21,7 +22,7 @@ import {
   validateEnum,
   validateJiraIssueKey,
 } from '@/lib/core/security/input-validation'
-import { asArray, asObject, createJsmClient } from '@/lib/internal/jsm/client'
+import { createJsmClient } from '@/lib/internal/jsm/client'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
 
 function validateId(value: string, field: string): void {
@@ -143,8 +144,8 @@ export async function executeJsmGetRequestTypeFields(
       requestTypeId: input.requestTypeId,
       canAddRequestParticipants: data.canAddRequestParticipants ?? false,
       canRaiseOnBehalfOf: data.canRaiseOnBehalfOf ?? false,
-      requestTypeFields: asArray(data.requestTypeFields).map((entry) => {
-        const field = asObject(entry)
+      requestTypeFields: toArray(data.requestTypeFields).map((entry) => {
+        const field = toRecord(entry)
         return {
           fieldId: field.fieldId ?? null,
           name: field.name ?? null,
@@ -212,7 +213,7 @@ export async function executeJsmGetRequests(input: JsmRequestsBody, signal?: Abo
 }
 
 function currentStatus(data: Record<string, unknown>) {
-  const value = asObject(data.currentStatus)
+  const value = toRecord(data.currentStatus)
   return data.currentStatus
     ? {
         status: value.status ?? null,
@@ -224,7 +225,7 @@ function currentStatus(data: Record<string, unknown>) {
 
 function reporter(data: Record<string, unknown>, includeActive: boolean) {
   if (!data.reporter) return null
-  const value = asObject(data.reporter)
+  const value = toRecord(data.reporter)
   return {
     accountId: value.accountId ?? null,
     displayName: value.displayName ?? null,
@@ -315,8 +316,8 @@ export async function executeJsmGetRequest(input: JsmRequestBody, signal?: Abort
       createdDate: data.createdDate ?? null,
       currentStatus: currentStatus(data),
       reporter: reporter(data, true),
-      requestFieldValues: asArray(data.requestFieldValues).map((entry) => {
-        const field = asObject(entry)
+      requestFieldValues: toArray(data.requestFieldValues).map((entry) => {
+        const field = toRecord(entry)
         return {
           fieldId: field.fieldId ?? null,
           label: field.label ?? null,
@@ -338,7 +339,7 @@ export async function executeJsmAddComment(input: JsmCommentBody, signal?: Abort
     signal,
     true
   )
-  const author = asObject(data.author)
+  const author = toRecord(data.author)
   return {
     success: true,
     output: {
@@ -472,9 +473,9 @@ export async function executeJsmAnswerApproval(input: JsmApprovalsBody, signal?:
       name: data.name ?? null,
       finalDecision: data.finalDecision ?? null,
       canAnswerApproval: data.canAnswerApproval ?? null,
-      approvers: asArray(data.approvers).map((entry) => {
-        const item = asObject(entry)
-        const approver = asObject(item.approver)
+      approvers: toArray(data.approvers).map((entry) => {
+        const item = toRecord(entry)
+        const approver = toRecord(item.approver)
         return {
           approver: {
             accountId: approver.accountId ?? null,

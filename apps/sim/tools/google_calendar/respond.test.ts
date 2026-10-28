@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { describe, expect, it, vi } from 'vitest'
 import { respondTool, respondV2Tool } from '@/tools/google_calendar/respond'
 import type { GoogleCalendarRespondParams } from '@/tools/google_calendar/types'
 
@@ -26,17 +27,6 @@ function eventWith(selfStatus: string, selfComment?: string) {
     ],
   }
 }
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 describe('google_calendar_respond', () => {
   it('reads the event occurrence it is given', () => {

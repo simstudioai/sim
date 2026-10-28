@@ -108,7 +108,7 @@ export function build{Service}Outputs(): Record<string, TriggerOutput> {
 
 ```typescript
 import { {Service}Icon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import { build{Service}ExtraFields, build{Service}Outputs, {service}SetupInstructions, {service}TriggerOptions } from '@/triggers/{service}/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -191,7 +191,7 @@ export const {Service}Block: BlockConfig = {
 - **V2 defines its own `subBlocks`** (e.g., Google Sheets): Add trigger to V2 (the visible block). V1 is hidden and doesn't need it.
 - **Single block, no V2** (e.g., Google Drive): Add trigger directly.
 
-`generate-docs.ts` deduplicates by base type (first match wins). If V1 is processed first without triggers, the V2 triggers won't appear in `integrations.json`. Always verify by checking the output after running the script.
+`generate-docs.ts` documents only visible blocks (`category: 'tools'`, not `hideFromToolbar`, not `preview`), one per base type. A trigger appears only if that visible block lists it in `triggers.available`. Always verify by checking the output after running the script.
 
 ## Provider Handler
 
@@ -216,9 +216,9 @@ If none apply, you don't need a handler. The default handler provides bearer tok
 ### Example Handler
 
 ```typescript
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type { EventMatchContext, FormatInputContext, FormatInputResult, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
@@ -226,8 +226,7 @@ const logger = createLogger('WebhookProvider:{Service}')
 
 function validate{Service}Signature(secret: string, signature: string, body: string): boolean {
   if (!secret || !signature || !body) return false
-  const computed = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
-  return safeCompare(computed, signature)
+  return safeCompare(hmacSha256Hex(body, secret), signature)
 }
 
 export const {service}Handler: WebhookProviderHandler = {
@@ -236,6 +235,7 @@ export const {service}Handler: WebhookProviderHandler = {
     headerName: 'X-{Service}-Signature',
     validateFn: validate{Service}Signature,
     providerLabel: '{Service}',
+    requireSecret: true,
   }),
 
   async matchEvent({ body, requestId, providerConfig }: EventMatchContext) {
@@ -298,6 +298,7 @@ If they differ: the tag dropdown shows fields that don't exist, or actual data h
 If the service API supports programmatic webhook creation, implement `createSubscription` and `deleteSubscription` on the handler. The orchestration layer calls these automatically — **no code touches `route.ts`, `provider-subscriptions.ts`, or `deploy.ts`**.
 
 ```typescript
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type { DeleteSubscriptionContext, SubscriptionContext, SubscriptionResult } from '@/lib/webhooks/providers/types'
 
@@ -314,7 +315,10 @@ export const {service}Handler: WebhookProviderHandler = {
     })
 
     if (!res.ok) throw new Error(`{Service} error: ${res.status}`)
-    const { id } = (await res.json()) as { id: string }
+    const { id } = await readResponseJsonWithLimit<{ id: string }>(res, {
+      maxBytes: 1024 * 1024,
+      label: '{Service} webhook creation response',
+    })
     return { providerConfigUpdates: { externalId: id } }
   },
 
@@ -341,6 +345,7 @@ export const {service}Handler: WebhookProviderHandler = {
 Trigger outputs use the same schema as block outputs (NOT tool outputs).
 
 **Supported:** `type` + `description` for leaf fields, nested objects for complex data.
+**Also supported:** `nullable: true` and `condition` (`TriggerOutput` in `triggers/types.ts`).
 **NOT supported:** `optional: true`, `items` (those are tool-output-only features).
 
 ```typescript
@@ -376,7 +381,7 @@ apps/sim/lib/webhooks/polling/
 
 ```typescript
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import type { PollingProviderHandler, PollOutcome, PollWebhookContext } from '@/lib/webhooks/polling/types'
 import { markWebhookFailed, markWebhookSuccess, resolveOAuthCredential, updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
@@ -384,7 +389,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
   provider: '{service}',
   label: '{Service}',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
 
@@ -437,7 +442,7 @@ export const {service}PollingTrigger: TriggerConfig = {
   polling: true,               // REQUIRED — routes to polling infrastructure
 
   subBlocks: [
-    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', requiredScopes: [], required: true, mode: 'trigger' },
+    { id: 'triggerCredentials', type: 'oauth-input', title: 'Credentials', serviceId: '{service}', canonicalParamId: 'oauthCredential', requiredScopes: [], required: true, mode: 'trigger' },
     // ... service-specific config fields (dropdowns, inputs, switches) ...
     { id: 'triggerInstructions', type: 'text', title: 'Setup Instructions', hideFromPreview: true, mode: 'trigger', defaultValue: '...' },
   ],
@@ -469,7 +474,9 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
   failedJobsHistoryLimit: 1
 ```
 
-Mirror the existing `rssWebhookPoll` entry.
+Mirror the existing `rssWebhookPoll` entry, and add the matching line to `docker/crontab` under
+`# Polling triggers` (copy the existing `rss` line's format). `bun run check:cron-parity` fails when
+the two disagree.
 
 ### Reference Implementations
 
@@ -480,43 +487,12 @@ Mirror the existing `rssWebhookPoll` entry.
 
 ## Option Lists: `selectorKey` or `options`, never a per-block fetcher
 
-A sub-block gets its choices from exactly one of two places. There is no third.
-
-**`selectorKey` — every remote list.** Use the `add-selector` skill to add the key to the
-browser-safe manifest and attach its provider behavior on the server. All remote selectors execute
-through `selectors.execute`; never add a client provider module or selector-only fetch route.
-
-```ts
-{ id: 'triggerCredentials', type: 'oauth-input', canonicalParamId: 'oauthCredential', mode: 'trigger' },
-{ id: 'labelIds', type: 'dropdown', multiSelect: true,
-  selectorKey: 'gmail.labels', dependsOn: ['triggerCredentials'], mode: 'trigger' },
-{ id: 'manualLabelIds', type: 'short-input', mode: 'trigger-advanced' },
-```
-
-`canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. The
-shared context builder uses trigger mode and projects only active `dependsOn` values under their
-canonical ids. Exact `{{KEY}}` environment references remain unresolved until the authorized server
-executor. The builder does not infer a credential from `type: 'oauth-input'`; only the legacy ids
-`credential` / `botCredential` / `customBotCredential` / `manualBotCredential` are aliased. Give the
-field `canonicalParamId: 'oauthCredential'`, or declare a manifest `sourceFields` alias when a
-legacy source id must be retained.
-
-**`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
-
-```ts
-options: (params) => {
-  const model = params?.values.model
-  return typeof model === 'string' ? effortsFor(model) : DEFAULT_EFFORTS
-}
-```
-
-**Never fetch inside `options`, and never reach into the stores from a block definition.** A fetcher that resolves its credential with `readSubBlockValue(blockId, ...)` only works on the canvas — every surface that is not the editor gets an empty list. `fetchOptions`/`fetchOptionById` were removed for exactly this reason.
-
-Two rules the checks enforce:
-
-- **Selector query keys contain no dependency values.** Credential IDs, secrets, unresolved
-  references, and their hashes stay out of browser cache identities.
-- **A sub-block that `dependsOn` a credential / knowledge-base / table selector must be reconfigurable at fork-sync time** — a `selectorKey`, a canonical pair whose basic member is a selector, or a `short-input`/`long-input`. `bun run check:fork-dependent-coverage` fails otherwise, because a fork sync clears those fields on every push and an unofferable one can never be set anywhere that sticks.
+Trigger sub-blocks follow the same rules as block sub-blocks: see the `add-block` skill → Option
+Lists, `.claude/rules/sim-integrations.md`, and the `add-selector` skill. Trigger-specific: the
+shared context builder runs in trigger mode, and it aliases only the legacy credential ids
+`credential` / `botCredential` / `customBotCredential` / `manualBotCredential`. Any other trigger
+credential sub-block (such as `triggerCredentials`) needs `canonicalParamId: 'oauthCredential'`, or a
+manifest `sourceFields` alias when a legacy source id must be retained.
 
 ## Checklist
 
@@ -532,6 +508,7 @@ registered `InternalToolConfig.operation`; a `directExecution` property fails
 - [ ] Primary trigger has `includeDropdown: true`; secondary triggers do NOT
 - [ ] All triggers use `buildTriggerSubBlocks` helper
 - [ ] Created `index.ts` barrel export
+- [ ] Trigger files never statically value-import `@/blocks`, directly or transitively (`import type` and dynamic `import()` are fine); `bun run check:trigger-block-cycle` enforces this
 
 ### Registration
 - [ ] All triggers in `triggers/registry.ts` → `TRIGGER_REGISTRY`
@@ -542,6 +519,7 @@ registered `InternalToolConfig.operation`; a `directExecution` property fails
 - [ ] Handler file at `apps/sim/lib/webhooks/providers/{service}.ts`
 - [ ] Registered in `providers/registry.ts` (alphabetical)
 - [ ] Signature validator is a private function inside the handler file
+- [ ] `createHmacVerifier` passes `requireSecret: true` when the provider always signs
 - [ ] `formatInput` output keys match trigger `outputs` exactly
 - [ ] Event matching uses dynamic `await import()` for trigger utils
 
@@ -557,7 +535,7 @@ registered `InternalToolConfig.operation`; a `directExecution` property fails
 - [ ] First poll seeds state and emits nothing
 - [ ] Added provider to `POLLING_PROVIDERS` in `triggers/constants.ts`
 - [ ] Added handler to `POLLING_HANDLERS` in `lib/webhooks/polling/registry.ts`
-- [ ] Added cron job to `helm/sim/values.yaml`
+- [ ] Added cron job to `helm/sim/values.yaml` and the matching `docker/crontab` line; `bun run check:cron-parity` passes
 - [ ] Payload shape matches trigger `outputs` schema
 
 ### Testing
@@ -565,5 +543,5 @@ registered `InternalToolConfig.operation`; a `directExecution` property fails
 - [ ] Manually verify output keys match trigger `outputs` keys
 - [ ] Trigger UI shows correctly in the block
 - [ ] Ran `bun run scripts/generate-docs.ts` and committed the refreshed pages — trigger sections
-      render into the owning integration's docs page, and CI's `bun run docs:check` fails on stale
+      render into the owning integration's docs page, and CI's `bun run check:docs` fails on stale
       pages

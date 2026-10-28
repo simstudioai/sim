@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Alpine Linux with Bun
 # ========================================
-FROM oven/bun:1.4.1-alpine AS base
+FROM oven/bun:1.4.4-alpine AS base
 
 RUN apk add --no-cache libc6-compat curl
 
@@ -43,6 +43,11 @@ RUN addgroup -g 1001 -S nodejs && \
 
 COPY --from=deps --chown=nextjs:nodejs /app ./
 COPY --from=pruner --chown=nextjs:nodejs /app/out/full/ ./
+
+# /tmp stays writable under a read-only root filesystem: ECS copies the image's
+# /tmp (mode 1777) into a bind volume mounted at a VOLUME path.
+RUN chmod 1777 /tmp
+VOLUME ["/tmp"]
 
 USER nextjs
 

@@ -1,8 +1,23 @@
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { getBlock } from '@/blocks/registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) =>
+  type === 'generic_webhook'
+    ? genericWebhookConfig
+    : type === 'github_v2'
+      ? multiTriggerConfig
+      : type === 'mothership'
+        ? mothershipConfig
+        : type === 'function'
+          ? functionConfig
+          : undefined
+)
 
 beforeAll(() => {
   urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
@@ -62,19 +77,6 @@ const functionConfig = {
     { id: 'sandboxId', type: 'combobox' },
   ],
 }
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'generic_webhook'
-      ? genericWebhookConfig
-      : type === 'github_v2'
-        ? multiTriggerConfig
-        : type === 'mothership'
-          ? mothershipConfig
-          : type === 'function'
-            ? functionConfig
-            : undefined,
-}))
 
 /**
  * Builds a minimal one-block workflow whose knowledge block carries the two

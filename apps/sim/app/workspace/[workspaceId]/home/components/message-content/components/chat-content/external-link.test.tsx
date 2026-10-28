@@ -41,7 +41,6 @@ describe('shared link previews', () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
   const render = (href = HREF, source?: SourceTagData) =>
     act(() =>

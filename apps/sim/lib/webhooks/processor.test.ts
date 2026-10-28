@@ -1,7 +1,6 @@
 import type { webhook, workflow } from '@sim/db/schema'
 import {
   createMockRequest,
-  dbChainMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   queueTableRows,
@@ -10,8 +9,23 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import { admissionGateMock } from '@sim/testing/mocks/admission-gate.mock'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import {
   ADMISSION_ERROR_CODE,
   ADMISSION_RETRY_AFTER_SECONDS,
@@ -24,58 +38,26 @@ type WebhookLookupRow = {
   workflow: Pick<WorkflowRecord, 'id'>
 }
 
-const {
-  mockGenerateId,
-  mockAdmissionRelease,
-  mockEnqueue,
-  mockExecuteWebhookJob,
-  mockGetInlineJobQueue,
-  mockGetJobQueue,
-  mockReleaseExecutionSlot,
-  mockProviderHandler,
-  mockShouldExecuteInline,
-} = vi.hoisted(() => ({
-  mockGenerateId: vi.fn(),
-  mockAdmissionRelease: vi.fn(),
+const { mockEnqueue, mockExecuteWebhookJob, mockProviderHandler } = vi.hoisted(() => ({
   mockEnqueue: vi.fn(),
   mockExecuteWebhookJob: vi.fn().mockResolvedValue({ success: true }),
-  mockGetInlineJobQueue: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-  mockReleaseExecutionSlot: vi.fn(),
   mockProviderHandler: { current: {} as Record<string, unknown> },
-  mockShouldExecuteInline: vi.fn(),
 }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+billingSubscriptionUtilsMockFns.mockCheckEnterprisePlan.mockReturnValue(true)
+billingSubscriptionUtilsMockFns.mockCheckTeamPlan.mockReturnValue(true)
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-  generateShortId: vi.fn(() => 'mock-short-id'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  checkEnterprisePlan: vi.fn().mockReturnValue(true),
-  checkTeamPlan: vi.fn().mockReturnValue(true),
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getInlineJobQueue: mockGetInlineJobQueue,
-  getJobQueue: mockGetJobQueue,
-  shouldExecuteInline: mockShouldExecuteInline,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  tryAdmit: vi.fn(() => ({ release: mockAdmissionRelease })),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
 vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),
@@ -127,6 +109,7 @@ vi.mock('@/triggers/jira/utils', () => ({
   isJiraEventMatch: vi.fn().mockReturnValue(true),
 }))
 
+import { findRecentlyRefusedWorkspaces } from '@/lib/webhooks/polling/admission-refusals'
 import {
   checkWebhookPreprocessing,
   dispatchResolvedWebhookTarget,
@@ -136,6 +119,15 @@ import {
   parseWebhookBody,
   processPolledWebhookEvent,
 } from '@/lib/webhooks/processor'
+
+const mockGetInlineJobQueue = asyncJobsMockFns.mockGetInlineJobQueue
+const mockGetJobQueue = asyncJobsMockFns.mockGetJobQueue
+const mockShouldExecuteInline = asyncJobsMockFns.mockShouldExecuteInline
+
+const mockReleaseExecutionSlot = billingUsageReservationMockFns.mockReleaseExecutionSlot
+
+const mockGenerateId = idMockFns.mockGenerateId
+idMockFns.mockGenerateShortId.mockImplementation(() => 'mock-short-id')
 
 afterAll(resetDbChainMock)
 
@@ -358,6 +350,165 @@ describe('webhook admission failures', () => {
       await expect(result.error?.json()).resolves.toEqual({ error: 'Admission denied' })
     }
   )
+})
+
+describe('deterministic admission rejections', () => {
+  const usageLimitRefusal = {
+    success: false,
+    error: {
+      message: 'Usage limit exceeded',
+      statusCode: 402,
+      code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
+    },
+  }
+
+  const dispatch = (provider: string) =>
+    dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/bot', provider }),
+      makeWorkflowRecord({}),
+      { update_id: 1 },
+      createMockRequest('POST', { update_id: 1 }) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/bot' }
+    )
+
+  beforeEach(() => {
+    mockGenerateId.mockReturnValue('generated-execution-id')
+    mockProviderHandler.current = {}
+  })
+
+  it.each([
+    { name: 'usage limit', error: usageLimitRefusal.error },
+    {
+      name: 'suspended account',
+      error: {
+        message: 'Account suspended',
+        statusCode: 403,
+        code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED,
+      },
+    },
+  ])(
+    'acknowledges a $name refusal with an empty 200 for a provider that opts in',
+    async ({ error }) => {
+      mockProviderHandler.current = { acknowledgeAdmissionRejections: true }
+      mockPreprocessExecution.mockResolvedValueOnce({ success: false, error })
+
+      const result = await dispatch('telegram')
+
+      expect(result.outcome).toBe('ignored')
+      expect(result.response.status).toBe(200)
+      expect(await result.response.text()).toBe('')
+    }
+  )
+
+  it('keeps the 402 for a provider that does not opt in', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce(usageLimitRefusal)
+
+    const result = await dispatch('generic')
+
+    expect(result.outcome).toBe('failed')
+    expect(result.response.status).toBe(402)
+  })
+
+  it.each([
+    {
+      name: 'rate limit',
+      error: {
+        message: 'Rate limit exceeded',
+        statusCode: 429,
+        code: 'RATE_LIMIT_EXCEEDED',
+        retryAfterMs: 1000,
+      },
+    },
+    {
+      name: 'reservation outage',
+      error: {
+        message: 'Usage admission unavailable',
+        statusCode: 503,
+        code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
+        retryable: true,
+      },
+    },
+    {
+      name: 'payer headroom',
+      error: {
+        message: 'No headroom',
+        statusCode: 402,
+        code: ADMISSION_ERROR_CODE.RESERVATION_PAYER_HEADROOM,
+        retryable: false,
+      },
+    },
+    {
+      name: 'member headroom',
+      error: {
+        message: 'No headroom',
+        statusCode: 402,
+        code: ADMISSION_ERROR_CODE.RESERVATION_MEMBER_HEADROOM,
+        retryable: false,
+      },
+    },
+    {
+      name: 'unreadable usage ledger',
+      error: { message: 'Usage unavailable', statusCode: 402 },
+    },
+    { name: 'uncoded failure', error: { message: 'Internal error', statusCode: 500 } },
+  ])('still fails a $name for an opted-in provider so the sender retries', async ({ error }) => {
+    mockProviderHandler.current = { acknowledgeAdmissionRejections: true }
+    mockPreprocessExecution.mockResolvedValueOnce({ success: false, error })
+
+    const result = await dispatch('telegram')
+
+    expect(result.outcome).toBe('failed')
+    expect(result.response.status).toBe(error.statusCode)
+  })
+
+  it('records a polled refusal so the next poll tick skips the workspace', async () => {
+    const store = new Map<string, string>()
+    const redis = createMockRedis()
+    redis.set.mockImplementation(async (key: string, value: string) => {
+      store.set(key, value)
+      return 'OK'
+    })
+    Object.assign(redis, {
+      mget: vi.fn(async (...keys: string[]) => keys.map((key) => store.get(key) ?? null)),
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+    setEnvFlags({ isBillingEnabled: true })
+    mockPreprocessExecution.mockResolvedValueOnce(usageLimitRefusal)
+
+    try {
+      await processPolledWebhookEvent(
+        makeWebhookRecord({ provider: 'rss' }),
+        makeWorkflowRecord({ workspaceId: 'workspace-refused' }),
+        { item: {} },
+        'request-1'
+      )
+
+      expect(await findRecentlyRefusedWorkspaces(['workspace-refused', 'workspace-1'])).toEqual(
+        new Set(['workspace-refused'])
+      )
+    } finally {
+      resetEnvFlagsMock()
+      resetRedisConfigMock()
+    }
+  })
+
+  it('hands a poller the raw refusal and its code even when the provider acknowledges', async () => {
+    mockProviderHandler.current = { acknowledgeAdmissionRejections: true }
+    mockPreprocessExecution.mockResolvedValueOnce(usageLimitRefusal)
+
+    const result = await processPolledWebhookEvent(
+      makeWebhookRecord({ provider: 'rss' }),
+      makeWorkflowRecord({}),
+      { item: {} },
+      'request-1'
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      statusCode: 402,
+      code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED,
+    })
+  })
 })
 
 describe('webhook processor execution identity', () => {

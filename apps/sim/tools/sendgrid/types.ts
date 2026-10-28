@@ -42,29 +42,12 @@ export interface SendGridTemplate {
   versions?: SendGridTemplateVersion[]
 }
 
-interface SendGridPersonalization {
-  to: Array<{ email: string; name?: string }>
-  cc?: Array<{ email: string }>
-  bcc?: Array<{ email: string }>
-  dynamic_template_data?: Record<string, unknown>
-}
-
 interface SendGridAttachment {
   content: string
   filename: string
   type?: string
   disposition?: string
   content_id?: string
-}
-
-interface SendGridMailBody {
-  personalizations: SendGridPersonalization[]
-  from: { email: string; name?: string }
-  subject?: string
-  template_id?: string
-  content?: Array<{ type: 'text/plain' | 'text/html'; value?: string }>
-  reply_to?: { email: string; name?: string }
-  attachments?: SendGridAttachment[] | UserFile[]
 }
 
 export interface SendGridContactObject {

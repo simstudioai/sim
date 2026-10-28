@@ -3,14 +3,13 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleMeetResponse } from '@/tools/google_meet/types'
 
-export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
+export const GoogleMeetBlock: BlockConfig = {
   type: 'google_meet',
   name: 'Google Meet',
   description: 'Create and manage Google Meet meetings',
   longDescription:
-    'Integrate Google Meet into your workflow. Create meeting spaces, get space details, end conferences, list conference records, and view participants.',
+    'Create meeting spaces, get space details, end conferences, list conference records, and view participants.',
   docsLink: 'https://docs.sim.ai/integrations/google_meet',
   category: 'tools',
   integrationType: IntegrationType.Communication,

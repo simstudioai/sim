@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, CommandVariantSpec } from '../contract/types'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+import { callsOperations } from './called-operations'
 import { deriveCommandPath } from './derive'
 import { executeOperation } from './execute'
 import { retypeApiError } from './naming'
@@ -92,13 +93,16 @@ function looksLikeAnId(token: string): boolean {
 }
 
 /**
- * Appends a worked example to the parse errors a positional argument causes.
+ * Appends a worked example to the parse errors a positional argument causes,
+ * and the command's own flags to an unknown option.
  *
  * Covers the argument being absent and the argument being swallowed as an
  * option because its id opens with a dash; the second needs the `--` escape,
- * which commander never mentions.
+ * which commander never mentions. A guessed flag gets the real list: commander
+ * suggests only a near spelling, so `--row-ids` for `--row` got a bare error
+ * and a caller had to look the command up before retrying.
  */
-function addArgumentExamples(command: Command): Command {
+function addParseErrorGuidance(command: Command): Command {
   const outputError = command.configureOutput().outputError
   if (!outputError) throw new Error('Commander output formatter is not configured')
 
@@ -113,10 +117,18 @@ function addArgumentExamples(command: Command): Command {
         return
       }
 
-      if (command.registeredArguments.length === 0) return
       const token = UNKNOWN_OPTION_TOKEN.exec(message)?.[1]
-      if (!token || !looksLikeAnId(token)) return
-      write(`Example: ${commandPath(command)} -- ${token}\n`)
+      if (!token) return
+      if (looksLikeAnId(token) && command.registeredArguments.length > 0) {
+        write(`Example: ${commandPath(command)} -- ${token}\n`)
+        return
+      }
+      const flags = command.options.filter((option) => !option.hidden).map((option) => option.flags)
+      write(
+        flags.length > 0
+          ? `Options for ${commandPath(command)}: ${flags.join(', ')}\n`
+          : `${commandPath(command)} takes no options.\n`
+      )
     },
   })
   return command
@@ -237,6 +249,12 @@ function configureOperation(
   spec: CommandSpec
 ): Command {
   const operationSpec = V2_OPERATIONS[operation] as OperationSpec
+  // A workspace mutation is followed by reading its operation receipt under `--wait`.
+  callsOperations(
+    command,
+    spec.workspaceOperation ? [operation, 'getWorkspaceOperation'] : [operation],
+    { runs: operation }
+  )
   command.allowExcessArguments(false)
 
   for (const alias of spec.aliases ?? []) command.alias(alias)
@@ -339,7 +357,7 @@ function configureOperation(
 }
 
 function buildLeaf(operation: V2OperationName, spec: CommandSpec, leafName: string): Command {
-  return addArgumentExamples(configureOperation(new Command(leafName), operation, spec))
+  return addParseErrorGuidance(configureOperation(new Command(leafName), operation, spec))
 }
 
 /**

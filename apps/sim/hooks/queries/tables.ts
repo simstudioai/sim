@@ -6,6 +6,7 @@
 
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import {
   type InfiniteData,
   infiniteQueryOptions,
@@ -119,6 +120,7 @@ import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import {
   TABLE_LIST_STALE_TIME,
   TABLE_VIEWS_STALE_TIME,
@@ -318,18 +320,6 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_DETAIL_STALE_TIME,
   })
-}
-
-/**
- * Shared table-detail query options so non-component callers (e.g. selector
- * providers) can `ensureQueryData` the same cache entry `useTable` populates.
- */
-export function getTableDetailQueryOptions(workspaceId: string, tableId: string) {
-  return {
-    queryKey: tableKeys.detail(tableId),
-    queryFn: ({ signal }: { signal?: AbortSignal }) => fetchTable(workspaceId, tableId, signal),
-    staleTime: TABLE_DETAIL_STALE_TIME,
-  }
 }
 
 export interface TableRunState {
@@ -1859,6 +1849,7 @@ export function useRestoreTable() {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) }),
+        queryClient.invalidateQueries({ queryKey: recentlyDeletedKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) }),
       ])
     },
@@ -2219,9 +2210,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         const nextMetadata = prevWidths
           ? {
               ...previousDetail.metadata,
-              columnWidths: Object.fromEntries(
-                Object.entries(prevWidths).filter(([k]) => k !== stripKey)
-              ),
+              columnWidths: omit(prevWidths, [stripKey]),
             }
           : previousDetail.metadata
         queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {

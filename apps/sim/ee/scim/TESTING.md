@@ -9,9 +9,10 @@ provisioning service.
 ## Requirements
 
 - Bun and the repository dependencies installed.
-- A running local app configured for Enterprise SCIM, using a dedicated local
+- A running local app configured for hosted Enterprise SCIM with billing enabled, using a dedicated local
   PostgreSQL database with all migrations applied (including `0325`). Leave
   Redis unconfigured so the app uses PostgreSQL for rate-limit storage.
+  For `next dev`, set `NEXT_PUBLIC_FORCE_HOSTED=true` and `BILLING_ENABLED=true`.
 - The app's local `BETTER_AUTH_SECRET`, at least 32 characters long.
 - An app URL using HTTP on `localhost`, `127.0.0.1`, or `::1`. The database must
   also use a loopback host, and its name must include `test` or `scim`.
@@ -53,6 +54,8 @@ timeout.
 
 - Discovery, session-authenticated configuration, credential hashing, tenant
   isolation, bearer authentication, content type, and malformed JSON errors.
+- Hosted Enterprise entitlement loss rejects both session-authenticated administration
+  and an existing bearer token; restoring the subscription restores both paths.
 - User and group creation, reads, replacement, PATCH, deletion, conflict errors,
   stable pagination, count-only queries, and group/member attribute projection.
 - Case-insensitive user lookup, external IDs, secondary/work/primary email
@@ -76,20 +79,26 @@ timeout.
 
 ## Continuous integration and PostgreSQL regressions
 
-The `PostgreSQL integration` job in `.github/workflows/test-build.yml` runs
-against both supported database provisioning paths, `db:push` and `db:migrate`.
-After the integration layer (every `*.integration.ts`), it starts a local Next.js app with
-hosted Enterprise configuration and runs the HTTP suite above. Startup is
-bounded to 120 seconds; the server is stopped when the step exits. A failure
-uploads the credential-free scenario report and an allowlist of HTTP status log
-lines. Raw application logs are not uploaded.
+The `e2e (scim)` job in `.github/workflows/checks.yml`
+provisions its own database through `db:migrate`, starts a local Next.js app
+with hosted Enterprise configuration, and runs the HTTP suite above. The production
+app's public URL uses `scim-e2e.sim.ai`, mapped to loopback on that runner; the
+tests and internal API requests still connect to `127.0.0.1`. Production ignores
+`NEXT_PUBLIC_FORCE_HOSTED`, so setting that flag alone cannot provide hosted coverage.
+It has its
+own database because the hosted app runs background usage replay against it.
+Readiness is bounded to 600 seconds for either production or local development
+startup; the server is stopped when the step exits. A failure prints the server log
+tail and uploads the credential-free scenario report, an allowlist of HTTP
+status log lines, and the local app's server log. The CI app uses only fixture
+secrets.
 
 The focused PostgreSQL suite is part of the integration layer and reads the same
-`TEST_DATABASE_URL` as every other integration suite. From `apps/sim`:
+`TEST_DATABASE_URL` as every other integration suite:
 
 ```sh
 TEST_DATABASE_URL="$SCIM_E2E_DATABASE_URL" \
-  bunx vitest run --mode integration ee/scim/lib/managed-membership.integration.ts
+  bun run --cwd apps/sim test --mode integration ee/scim/lib/managed-membership.integration.ts
 ```
 
 Integration mode refuses to start without that variable. The suites execute
@@ -100,7 +109,8 @@ transaction. Hosted billing flags are configured for the test; subscription
 and entitlement reads use real PostgreSQL with the transaction tripwire enabled.
 The suite checks an active Enterprise subscription, an ended one, and a real
 billing query failure that must propagate instead of releasing directory locks.
-The same CI job runs `lib/auth/sso/application/admit-sso-user.integration.ts`,
+The `integration` jobs, which run every `*.integration.ts` against
+both `db:push` and `db:migrate`, also run `lib/auth/sso/application/admit-sso-user.integration.ts`,
 which verifies that SCIM's `disableJit` setting blocks fresh SSO membership,
 preserves existing membership, and permits JIT when disabled. These checks run
 the admission operation and Enterprise entitlement reads through PostgreSQL.
@@ -162,5 +172,5 @@ Focused unit tests remain useful for malformed payload variants and policy
 branches that do not belong in a local HTTP scenario:
 
 ```sh
-bunx vitest run ee/scim lib/api/server/routes/scim-route.test.ts
+bun run --cwd apps/sim test ee/scim lib/api/server/routes/scim-route.test.ts
 ```

@@ -10,10 +10,10 @@ import {
   ensureUserInOrganizationTx,
   reapplyPaidOrgJoinBillingForExistingMemberTx,
 } from '@/lib/billing/organizations/membership'
-import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
@@ -205,7 +205,7 @@ export async function attachOwnedWorkspacesToOrganization({
  * transaction.
  */
 export async function attachOwnedWorkspacesToOrganizationTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   {
     ownerUserId,
     organizationId,
@@ -352,8 +352,11 @@ export async function attachOwnedWorkspacesToOrganizationTx(
   }
 
   const now = new Date()
-  await changeWorkspaceStoragePayersInTx(
+  await transferWorkspaceProjects(
     tx,
+    ownedWorkspaceIds,
+    organizationId,
+    undefined,
     ownedWorkspaces.map((ownedWorkspace) => ({
       workspaceId: ownedWorkspace.id,
       organizationId,
@@ -424,7 +427,7 @@ export async function detachOrganizationWorkspaces(
  * describing detachments that a later rollback undid.
  */
 export async function detachOrganizationWorkspacesTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
   const organizationWorkspacesWhere = and(
@@ -492,7 +495,6 @@ export async function detachOrganizationWorkspacesTx(
     const workspaceIds = organizationWorkspaces
       .map((organizationWorkspace) => organizationWorkspace.id)
       .sort()
-    await lockWorkspaceRowsForPayerChanges(tx, workspaceIds)
     const payerChanges = organizationWorkspaces.map((organizationWorkspace) => ({
       workspaceId: organizationWorkspace.id,
       organizationId: null,
@@ -503,7 +505,13 @@ export async function detachOrganizationWorkspacesTx(
       },
     }))
 
-    await changeWorkspaceStoragePayersInTx(tx, payerChanges)
+    await transferWorkspaceProjects(
+      tx,
+      workspaceIds,
+      null,
+      organizationOwnerId ?? undefined,
+      payerChanges
+    )
 
     if (workspaceIds.length === 0) return []
 

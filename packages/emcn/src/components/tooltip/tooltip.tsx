@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { createPortal } from 'react-dom'
 import { cn } from '../../lib/cn'
-import { TOOLTIP_SURFACE_CLASS } from './tooltip-styles'
+import { TOOLTIP_SURFACE_CLASS } from './styles'
 
 const TOOLTIP_OFFSET = 16
 const EDGE_GUTTER = 16
@@ -174,11 +174,13 @@ export function useFloatingTooltip(
   const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
     return {
       onPointerEnter: (event) => {
+        if (event.pointerType === 'touch') return
         if (!canShowRef.current(event.currentTarget)) return
         triggerRef.current = event.currentTarget
         showFromPointer(event.clientX, event.clientY)
       },
       onPointerMove: (event) => {
+        if (event.pointerType === 'touch') return
         if (!canShowRef.current(event.currentTarget)) return
         triggerRef.current = event.currentTarget
         const now = performance.now()
@@ -389,7 +391,7 @@ function isVisiblyRendered(element: HTMLElement): boolean {
 }
 
 /** Clamps `value` to the inclusive `[min, max]` range. */
-export function clamp(value: number, min: number, max: number): number {
+function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
@@ -406,7 +408,7 @@ function quantize(value: number): number {
  * mouse click). Used to keep the tooltip from re-appearing/repositioning when the trigger is
  * clicked. Falls back to `true` where the selector can't be queried.
  */
-export function isFocusVisible(element: Element): boolean {
+function isFocusVisible(element: Element): boolean {
   try {
     return element.matches(':focus-visible')
   } catch {

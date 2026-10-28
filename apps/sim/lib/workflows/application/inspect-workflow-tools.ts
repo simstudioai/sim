@@ -18,9 +18,8 @@ import { projectIntegrationCatalog } from '@/lib/mothership/integrations/applica
 import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { getSkillUseCase } from '@/lib/skills/application/use-cases'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import {
   loadWorkflowGraph,
   type ReadWorkflowGraphInput,
@@ -403,17 +402,7 @@ async function inspectSelections(
 /** No execution context is fabricated: discovery is explicitly for the caller reading this draft. */
 export const inspectWorkflowTools = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.inspectTools,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: InspectionPrincipal
-    input: InspectWorkflowToolsInput
-  }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolvePrincipalWorkflowContext<InspectWorkflowToolsInput>,
   async execute({ principal, input, context }): Promise<WorkflowToolInspection> {
     input.signal?.throwIfAborted()
     const limit = input.limit ?? 20

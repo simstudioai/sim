@@ -1,25 +1,39 @@
 ---
 title: Webflow
 description: Manage Webflow CMS collections
+integration:
+  type: "webflow"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="webflow"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Webflow](https://webflow.com/) in Sim to create, retrieve, list, update, and delete CMS collection items. Webflow event triggers can start workflows when collection items change or forms are submitted. See [Site Tokens](/integrations/webflow-service-account) for token setup.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+Connection guides: [Site tokens](/integrations/webflow-service-account).
 
-Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.
+## OAuth scopes [#oauth-scopes]
 
+Sim requests these scopes when someone connects a Webflow account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/webflow` |
+| Environment variables | `WEBFLOW_CLIENT_ID`, `WEBFLOW_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `cms:read` | View CMS content |
+| `cms:write` | Manage CMS content |
+| `sites:read` | View Webflow sites |
+| `sites:write` | Manage webhooks and site settings |
+| `forms:read` | View form submissions |
+
+## Use the block [#usage-instructions]
+
+Create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Use trigger mode to start workflows when collection items change or forms are submitted.
 
 ## Actions
 
@@ -136,7 +150,7 @@ Delete an item from a Webflow CMS collection
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Collection Item Changed
 
@@ -156,7 +170,7 @@ Trigger workflow when an item is updated in a Webflow CMS collection (requires W
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was changed |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | string | The ID of the changed item |
 |   ↳ `cmsLocaleId` | string | CMS locale ID |
 |   ↳ `lastPublished` | string | Last published timestamp |
@@ -187,7 +201,7 @@ Trigger workflow when a new item is created in a Webflow CMS collection (require
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was created |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | string | The ID of the created item |
 |   ↳ `cmsLocaleId` | string | CMS locale ID |
 |   ↳ `lastPublished` | string | Last published timestamp |
@@ -218,7 +232,7 @@ Trigger workflow when an item is deleted from a Webflow CMS collection (requires
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was deleted |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | string | The ID of the deleted item |
 |   ↳ `deletedOn` | string | Timestamp when the item was deleted |
 

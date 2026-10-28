@@ -6,7 +6,7 @@ import type { ToolResponse } from '@/tools/types'
  * @see https://docs.convex.dev/http-api/
  */
 
-export interface ConvexBaseParams {
+interface ConvexBaseParams {
   deploymentUrl: string
   deployKey: string
 }
@@ -86,18 +86,4 @@ export interface ConvexDocumentDeltasApiResponse {
   values?: unknown[]
   hasMore?: boolean
   cursor?: number | string | null
-}
-
-export interface ConvexResponse extends ToolResponse {
-  output: {
-    value?: unknown
-    logLines?: string[]
-    tables?: string[]
-    schemas?: Record<string, unknown>
-    documents?: unknown[]
-    hasMore?: boolean
-    snapshot?: string | null
-    pageCursor?: string | null
-    cursor?: string | null
-  }
 }

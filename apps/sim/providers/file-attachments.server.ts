@@ -5,8 +5,8 @@ import { sleep } from '@sim/utils/helpers'
 import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
 import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
 import { StorageService } from '@/lib/uploads'
-import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { resolveTrustedFileContext } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import {
@@ -116,7 +116,7 @@ export async function attachLargeFileRemoteUrls(
         )
       }
       context = resolveTrustedFileContext(file.key, file.context)
-      const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context, false)
+      const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context)
       if (!hasAccess) {
         throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
       }
@@ -188,7 +188,7 @@ async function assertFileAccessForUpload(
     throw new Error(`File "${file.name}" requires an authenticated user to upload`)
   }
   const context = resolveTrustedFileContext(file.key, file.context)
-  const hasAccess = await verifyFileAccess(file.key, userId, undefined, context, false)
+  const hasAccess = await verifyFileAccess(file.key, userId, undefined, context)
   if (!hasAccess) {
     throw new Error(`File "${file.name}" is not accessible`)
   }

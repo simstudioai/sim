@@ -5,9 +5,9 @@ import { ActivityTextColumn } from '@/components/ui/activity-status'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
-import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import {
   collectGroupTools,
@@ -28,6 +28,8 @@ import {
   getActivityStatusTool,
   getCompletedActivityLabel,
   getInProgressActivityLabel,
+  isAwaitingTitle,
+  THINKING_LABEL,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { useToolCallTitle } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-title'
@@ -133,7 +135,7 @@ export function AgentGroupView({
   const activityDescriptor =
     groupActivity ??
     tools
-      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .map(readCallActivity)
       .reverse()
       .find((entry) => entry?.title || entry?.completedTitle)
   const browserAgentAvailable = isBrowserAgentAvailable()
@@ -294,7 +296,7 @@ export function AgentGroupView({
             tools,
             activityDescriptor?.title
           )
-        : 'Thinking'
+        : THINKING_LABEL
       : tools.length > 0
         ? getCompletedActivityLabel(tools, activityDescriptor)
         : agentLabel
@@ -317,6 +319,7 @@ export function AgentGroupView({
         <ActivityStream
           activity={{ label: headerText, isActive: headerActive, icon: agentIcon }}
           activityKey={headerTool?.id}
+          placeholder={inProgress && !error && (!headerTool || isAwaitingTitle(headerTool))}
           expandedLabel={pendingInteraction ? undefined : activityDescriptor?.title}
           attentionKey={`${getActivityAttentionKey(tools)}:${activeBrowserTakeover?.id ?? ''}`}
           collapsible={collapsible}

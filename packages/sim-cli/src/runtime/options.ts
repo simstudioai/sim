@@ -18,14 +18,17 @@ export const DEFAULT_PAGE_SIZE = 100
 const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
   'listBlocks',
   'listChatDeployments',
+  'listCredentialMembers',
   'listCredentials',
   'listCustomTools',
   'listPermissionGroups',
   'listPermissionGroupMembers',
   'listOrganizations',
+  'listOrganizationDomains',
   'listOrganizationMembers',
   'listOrganizationWorkspaces',
   'listFiles',
+  'listProjectFiles',
   'listKnowledgeBases',
   'listKnowledgeConnectors',
   'listMcpServers',
@@ -33,6 +36,7 @@ const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
   'listSecrets',
   'listSkillEditors',
   'listSkills',
+  'listSsoProviders',
   'listTables',
   'listTools',
   'listWorkflowMcpServers',
@@ -159,13 +163,19 @@ function addFieldOption(
     return
   }
 
-  const documented = `${describeField(flag, descriptor, name, field)}${
+  const fieldDescription = `${describeField(flag, descriptor, name, field)}${
     capsAFilter &&
     field === 'limit' &&
     (descriptor.kind === 'number' || descriptor.kind === 'integer')
       ? NON_PAGINATED_LIMIT_HINT
       : ''
   }`
+
+  const effectiveDefault = flag.requestDefault ?? descriptor.default
+  const documented =
+    effectiveDefault !== undefined && !/\bdefault(?:s|ing)?\b/i.test(fieldDescription)
+      ? `${fieldDescription}${/[.!?]$/.test(fieldDescription) ? '' : '.'} Defaults to ${JSON.stringify(effectiveDefault)}.`
+      : fieldDescription
 
   if (descriptor.kind === 'boolean' || flag.boolean) {
     const booleanDoc = withoutWireVocabulary(documented)
@@ -202,9 +212,11 @@ function addFieldOption(
       ? '<n>'
       : wantsJson
         ? '<json|@file>'
-        : descriptor.nullable
-          ? '<number|null>'
-          : '<value>'
+        : flag.textSource
+          ? '<value|@file>'
+          : descriptor.nullable
+            ? '<number|null>'
+            : '<value>'
   const choices = flag.choices ?? descriptor.values
   /**
    * Only a body field reaches the wire as JSON, and only a plain scalar flag is
@@ -218,7 +230,9 @@ function addFieldOption(
         : ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
-        : ''
+        : flag.textSource
+          ? ' (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @)'
+          : ''
   }${descriptor.required ? ' (required)' : ''}${literalNull ? literalNullHint(documented, name) : ''}`
 
   const renamedFrom = flag.renamedFrom ?? []

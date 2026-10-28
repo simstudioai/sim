@@ -65,13 +65,6 @@ export interface SharepointList {
   items?: SharepointListItem[]
 }
 
-interface SharepointListSitesResponse extends ToolResponse {
-  output: {
-    sites: SharepointSite[]
-    nextPageUrl?: string
-  }
-}
-
 export interface SharepointCreatePageResponse extends ToolResponse {
   output: {
     page: SharepointPage
@@ -205,25 +198,6 @@ export interface CanvasLayout {
     }>
   }>
 }
-
-export type SharepointResponse =
-  | SharepointListSitesResponse
-  | SharepointCreatePageResponse
-  | SharepointReadPageResponse
-  | SharepointReadSiteResponse
-  | SharepointGetListResponse
-  | SharepointCreateListResponse
-  | SharepointUpdateListItemResponse
-  | SharepointAddListItemResponse
-  | SharepointUploadFileResponse
-  | SharepointDeleteListItemResponse
-  | SharepointGetListItemResponse
-  | SharepointDeletePageResponse
-  | SharepointUpdatePageResponse
-  | SharepointPublishPageResponse
-  | SharepointDownloadFileResponse
-  | SharepointDeleteFileResponse
-  | SharepointGetDriveItemResponse
 
 export interface SharepointGetListResponse extends ToolResponse {
   output: {

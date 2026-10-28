@@ -1,8 +1,12 @@
 import { vi } from 'vitest'
+import { schemaMock } from './schema.mock'
+import { GENERATED_DB_CONSTANTS } from './schema-tables.generated'
 
 /**
  * Creates mock SQL template literal function.
- * Mimics drizzle-orm's sql tagged template.
+ * Mimics drizzle-orm's sql tagged template. `sql` itself and `sql.raw` / `sql.join` /
+ * `sql.param` are `vi.fn` spies with the fragment-building default, so a test inspects
+ * `vi.mocked(sql).mock.calls` (strings + interpolated values) without re-mocking `drizzle-orm`.
  *
  * The `Date` guards below are a best-effort backstop, not the gate: tests that
  * override the `drizzle-orm` mock bypass them entirely. `bun run check:sql-date-binding`
@@ -14,7 +18,7 @@ import { vi } from 'vitest'
  * options are irrelevant to this failure.
  */
 export function createMockSql() {
-  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => {
+  const sqlFn = vi.fn((strings: TemplateStringsArray, ...values: any[]) => {
     if (values.some((value) => value instanceof Date)) {
       throw new Error(
         `sql\`…\${date}\` interpolates a Date without an encoder, so drizzle never runs ` +
@@ -33,28 +37,28 @@ export function createMockSql() {
       mapWith: (decoder: unknown) => ({ ...fragment, decoder }),
     }
     return fragment
-  }
-
-  sqlFn.raw = (rawSql: string) => ({
-    rawSql,
-    toSQL: () => ({ sql: rawSql, params: [] }),
   })
 
-  sqlFn.join = (fragments: any[], separator: any) => ({
+  const raw = vi.fn((rawSql: string) => ({
+    rawSql,
+    toSQL: () => ({ sql: rawSql, params: [] }),
+  }))
+
+  const join = vi.fn((fragments: any[], separator: any) => ({
     fragments,
     separator,
     toSQL: () => ({
       sql: fragments.map((f) => f?.toSQL?.()?.sql || String(f)).join(separator?.rawSql || ', '),
       params: fragments.flatMap((f) => f?.toSQL?.()?.params || []),
     }),
-  })
+  }))
 
   // Binds a value as a single parameter. Rejecting arrays here is the only place
   // the unit suite can see this bug class: the app pools set `fetch_types: false`
   // (packages/db/db.ts), which leaves postgres-js with no array serializer, so an
   // array bound as ONE parameter fails at execution with `22P02`. Rendered SQL
   // looks perfect (`ANY($1::text[])`), so no assertion on query text can catch it.
-  sqlFn.param = (value: any, encoder?: any) => {
+  const param = vi.fn((value: any, encoder?: any) => {
     if (encoder === undefined && Array.isArray(value)) {
       throw new Error(
         'sql.param(array) binds an array as one parameter, which fails under ' +
@@ -71,9 +75,9 @@ export function createMockSql() {
       )
     }
     return { value, toSQL: () => ({ sql: '?', params: [value] }) }
-  }
+  })
 
-  return sqlFn
+  return Object.assign(sqlFn, { raw, join, param })
 }
 
 /**
@@ -159,7 +163,7 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  *
  * - `select().from().where()` → returns a builder with `.limit` / `.orderBy` /
  *   `.returning` / `.groupBy` / `.for` terminals
- * - `select().from().innerJoin()|leftJoin()` → returns the same where-builder
+ * - `select().from().innerJoin()|leftJoin()|crossJoinLateral()` → returns the same where-builder
  * - `insert().values().returning()` / `update().set().where()` / `delete().where()`
  *
  * Results resolve, in priority order:
@@ -174,21 +178,24 @@ function dequeueChainRows(tables: unknown[]): unknown[] | null {
  * implementation returns a sentinel that the chain replaces with the
  * chain-local builder, while any `mock*` override on the spy wins verbatim.
  *
+ * `unionAll` resolves to the LEFT chain's rows (its own queued set or the outer
+ * `.limit` override); the right chain is never awaited, so it consumes nothing.
+ *
  * `for` mirrors drizzle's `.for('update')` — it returns a Promise with
  * `.limit` / `.orderBy` / `.returning` / `.groupBy` attached, so both
  * `await .where().for('update')` (terminal) and
  * `await .where().for('update').limit(1)` (chained) work.
  *
- * `vi.clearAllMocks()` clears call history but preserves default wiring. Tests
+ * The shared config's `clearMocks` clears call history but preserves default wiring. Tests
  * that replace a wiring with `mockReturnValue(...)` (not `...Once`) must
  * re-wire via `resetDbChainMock()` in their own `beforeEach`.
  *
  * @example
  * ```ts
- * import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+ * import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+ * import { schemaMock } from '@sim/testing/mocks/schema.mock'
  *
  * beforeEach(() => {
- *   vi.clearAllMocks()
  *   resetDbChainMock()
  * })
  *
@@ -225,12 +232,14 @@ const where = chainSpy()
 const limit = chainSpy()
 const offset = chainSpy()
 const orderBy = chainSpy()
+const unionAll = chainSpy()
 const groupBy = chainSpy()
 const having = chainSpy()
 const asAlias = chainSpy()
 const forClause = chainSpy()
 const innerJoin = chainSpy()
 const leftJoin = chainSpy()
+const crossJoinLateral = chainSpy()
 const insert = chainSpy()
 const update = chainSpy()
 const set = chainSpy()
@@ -240,7 +249,13 @@ const execute = vi.fn(() => Promise.resolve([] as unknown[]))
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
-const values = vi.fn(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
+const values = vi.fn<
+  (values: unknown) => {
+    returning: typeof returning
+    onConflictDoUpdate: typeof onConflictDoUpdate
+    onConflictDoNothing: typeof onConflictDoNothing
+  }
+>(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )
@@ -289,12 +304,13 @@ const lazyRowsThenable = (getRows: RowsSupplier): any => ({
 })
 
 // `.limit()` returns a builder that is awaitable and also exposes `.offset()`
-// for keyset/OFFSET paging (`.limit(n).offset(m)`) and `.for()` for drizzle's
-// `.limit(1).for('update')` row-lock form.
+// for keyset/OFFSET paging (`.limit(n).offset(m)`), `.for()` for drizzle's
+// `.limit(1).for('update')` row-lock form, and `.unionAll()` for a limited branch.
 const limitBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}) => {
   const thenable = lazyRowsThenable(getRows)
   thenable.offset = spyOrDefault(offset, () => limitBuilder(getRows, fields))
   thenable.for = spyOrDefault(forClause, () => limitBuilder(getRows, fields))
+  thenable.unionAll = spyOrDefault(unionAll, () => terminalBuilder(getRows, fields))
   thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   return thenable
 }
@@ -303,6 +319,7 @@ const terminalBuilder = (getRows: RowsSupplier, fields: SelectedFields = {}): an
   const thenable = lazyRowsThenable(getRows)
   thenable.limit = spyOrDefault(limit, () => limitBuilder(getRows, fields))
   thenable.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows, fields))
+  thenable.unionAll = spyOrDefault(unionAll, () => terminalBuilder(getRows, fields))
   thenable.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   thenable.returning = returning
   thenable.groupBy = spyOrDefault(groupBy, () => {
@@ -322,6 +339,7 @@ const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   const builder = lazyRowsThenable(getRows)
   builder.where = spyOrDefault(where, () => terminalBuilder(getRows, fields))
   builder.orderBy = spyOrDefault(orderBy, () => terminalBuilder(getRows, fields))
+  builder.limit = spyOrDefault(limit, () => limitBuilder(getRows, fields))
   builder.as = spyOrDefault(asAlias, (alias: string) => subqueryFields(fields, alias))
   builder.innerJoin = spyOrDefault(innerJoin, (table: unknown) =>
     joinBuilder([...tables, table], fields)
@@ -329,6 +347,8 @@ const joinBuilder = (tables: unknown[], fields: SelectedFields = {}): any => {
   builder.leftJoin = spyOrDefault(leftJoin, (table: unknown) =>
     joinBuilder([...tables, table], fields)
   )
+  // A lateral join reads a SQL expression, not a table, so the chain routes as before it.
+  builder.crossJoinLateral = spyOrDefault(crossJoinLateral, () => joinBuilder(tables, fields))
   return builder
 }
 
@@ -351,9 +371,11 @@ export const dbChainMockFns = {
   limit,
   offset,
   orderBy,
+  unionAll,
   returning,
   innerJoin,
   leftJoin,
+  crossJoinLateral,
   groupBy,
   having,
   as: asAlias,
@@ -370,12 +392,13 @@ export const dbChainMockFns = {
 }
 
 /**
- * Restores every `dbChainMockFns` entry to its default wiring, drains any
- * unconsumed `...Once` overrides, and clears all table-routed row queues.
- * Call this in `beforeEach` (after `vi.clearAllMocks()`) so each test starts
- * from fresh defaults — a `...Once` override queued by a previous test but
- * never consumed would otherwise leak into the next test (`vi.clearAllMocks`
- * clears call history only, not once-queues).
+ * Restores every `dbChainMockFns` entry and `isPrimaryPoolClient` to their default
+ * wiring, drains any unconsumed `...Once` overrides, and clears all table-routed
+ * row queues.
+ * Call this in `beforeEach` so each test starts from fresh defaults — a
+ * `...Once` override queued by a previous test but never consumed would
+ * otherwise leak into the next test (`clearMocks` clears call history only,
+ * not once-queues).
  */
 export function resetDbChainMock(): void {
   tableRowQueues.clear()
@@ -387,6 +410,7 @@ export function resetDbChainMock(): void {
     ;(spy as ChainSpy).mockReset()
   }
   query.mockReset()
+  mockIsPrimaryPoolClient.mockReset()
   for (const key of [
     'select',
     'selectDistinct',
@@ -417,6 +441,8 @@ const dbInstance = {
   transaction,
 }
 
+const mockIsPrimaryPoolClient = vi.fn((executor: object): boolean => executor === dbInstance)
+
 /**
  * Static mock module for `@sim/db` backed by `dbChainMockFns`.
  *
@@ -429,17 +455,47 @@ export const dbChainMock = {
   db: dbInstance,
   /** Same instance as `db` so per-test chain overrides cover both clients. */
   dbReplica: dbInstance,
-  /** Sub-pool clients (`dbFor('cleanup' | 'exec')`) share the same instance too. */
+  /** Sub-pool clients (`dbFor('auth' | 'billing' | ...)`) share the same instance too. */
   dbFor: () => dbInstance,
+  isPrimaryPoolClient: mockIsPrimaryPoolClient,
   runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
   instrumentPoolClient: <T>(client: T): T => client,
 }
 
 /**
+ * Mirrors `resolveDbUrl` from `@sim/db` (pure): the role-keyed variant
+ * (`DATABASE_URL_TRIGGER`) wins, falling back to the shared base variable.
+ */
+function resolveDbUrl(
+  base: 'DATABASE_URL' | 'DATABASE_REPLICA_URL',
+  role: string
+): string | undefined {
+  return process.env[`${base}_${role.toUpperCase()}`] ?? process.env[base]
+}
+
+/**
+ * Controllable mock functions for the non-query exports of `@sim/db`.
+ * `mockResolveDbUrl` is the real (pure) env lookup; the row-count trigger helpers are bare.
+ */
+export const databaseMockFns = {
+  mockResolveDbUrl: vi.fn(resolveDbUrl),
+  /** Recognizes only the shared instance unless a test marks its own client. */
+  mockIsPrimaryPoolClient,
+  mockEnsureRowCountTriggers: vi.fn(async (): Promise<void> => {}),
+  mockVerifyRowCountTriggers: vi.fn(async () => ({
+    incrementTrigger: true,
+    decrementTrigger: true,
+  })),
+}
+
+/**
  * Mock module for `@sim/db` installed globally in vitest.setup.ts. Shares its
  * `db` instance (and therefore all chain spies and table queues) with
- * `dbChainMock`; additionally exposes the `sql` template tag and operator
- * exports the real module provides.
+ * `dbChainMock`, and re-exports everything else the real barrel does: every
+ * schema table/enum (the SAME objects as `schemaMock`, so `queueTableRows`
+ * routing is identical whichever specifier the code imports a table from),
+ * `resolveDbUrl`, `DB_POOL_PROFILES`, the row-count trigger SQL and helpers,
+ * plus the `sql` template tag and operator exports.
  *
  * @example
  * ```ts
@@ -447,7 +503,12 @@ export const dbChainMock = {
  * ```
  */
 export const databaseMock = {
+  ...schemaMock,
+  ...GENERATED_DB_CONSTANTS,
   ...dbChainMock,
+  resolveDbUrl: databaseMockFns.mockResolveDbUrl,
+  ensureRowCountTriggers: databaseMockFns.mockEnsureRowCountTriggers,
+  verifyRowCountTriggers: databaseMockFns.mockVerifyRowCountTriggers,
   sql: createMockSql(),
   ...createMockSqlOperators(),
 }

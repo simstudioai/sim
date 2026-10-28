@@ -2,16 +2,15 @@ import { Bug } from '@sim/emcn/icons'
 import { SentryIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SentryResponse } from '@/tools/sentry/types'
 import { getTrigger } from '@/triggers'
 
-export const SentryBlock: BlockConfig<SentryResponse> = {
+export const SentryBlock: BlockConfig = {
   type: 'sentry',
   name: 'Sentry',
   description: 'Manage Sentry issues, projects, events, and releases',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.',
+    'Monitor issues, manage projects, track events, and coordinate releases across your applications.',
   docsLink: 'https://docs.sim.ai/integrations/sentry',
   category: 'tools',
   integrationType: IntegrationType.Observability,

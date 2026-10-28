@@ -1,24 +1,26 @@
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { toArray } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 
-const { mockDeleteFile, mockDeleteMetadata, mockGetBindings } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn(),
-  mockDeleteMetadata: vi.fn(),
-  mockGetBindings: vi.fn(),
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadataByIdentity: mockDeleteMetadata,
-  getFileMetadataByKeys: mockGetBindings,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import {
   cleanupKnowledgeStorage,
   enqueueKnowledgeStorageCleanup,
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDeleteMetadata = uploadsMetadataMockFns.mockDeleteFileMetadataByIdentity
+const mockGetBindings = uploadsMetadataMockFns.mockGetFileMetadataByKeys
 
 const version = new Date('2026-09-08T00:00:00.123Z')
 const binding = {
@@ -39,6 +41,26 @@ const payload = {
   contentUpdatedAt: version.toISOString(),
   workspaceId: binding.workspaceId,
   organizationId: null,
+}
+const SOURCE_WORKSPACE_ID = 'workspace-1'
+const SOURCE_KEY = `workspace/${SOURCE_WORKSPACE_ID}/source.pdf`
+const SOURCE_URL = `/api/files/serve/${encodeURIComponent(SOURCE_KEY)}?context=workspace`
+const SOURCE_UPDATED_AT = new Date('2026-08-05T12:00:00.000Z')
+const SOURCE_BINDING = {
+  id: 'source-file-1',
+  key: SOURCE_KEY,
+  userId: 'source-user',
+  workspaceId: SOURCE_WORKSPACE_ID,
+  context: 'workspace',
+  originalName: 'source.pdf',
+  displayName: 'source.pdf',
+  contentType: 'application/pdf',
+  size: 512,
+  folderId: null,
+  uploadedAt: SOURCE_UPDATED_AT,
+  contentUpdatedAt: SOURCE_UPDATED_AT,
+  deletedAt: null,
+  secretProvenanceVersion: 1,
 }
 function context(): OutboxEventContext {
   return {
@@ -73,7 +95,9 @@ describe('durable knowledge storage cleanup', () => {
       'request-1'
     )
     expect(mockGetBindings.mock.calls.map(([keys]) => keys.length)).toEqual([100, 100, 51])
-    expect(dbChainMockFns.values.mock.calls.map(([rows]) => rows.length)).toEqual([100, 100, 51])
+    expect(dbChainMockFns.values.mock.calls.map(([rows]) => toArray(rows).length)).toEqual([
+      100, 100, 51,
+    ])
   })
 
   it('propagates persistence failures before the parent transaction can commit', async () => {
@@ -178,4 +202,51 @@ describe('durable knowledge storage cleanup', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mockDeleteFile).not.toHaveBeenCalled()
   })
+  it('never deletes a referenced workspace source as knowledge-base storage', async () => {
+    await enqueueKnowledgeStorageCleanup(
+      db,
+      [{ id: 'document-1', fileUrl: SOURCE_URL, workspaceId: SOURCE_WORKSPACE_ID }],
+      'request-1'
+    )
+
+    expect(mockGetBindings).not.toHaveBeenCalled()
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+    expect(mockDeleteMetadata).not.toHaveBeenCalled()
+  })
+
+  it.each(['org-1', 'org-2', null])(
+    'only queues an organization cache for its exact owner: %s',
+    async (organizationId) => {
+      const storageKey = 'kb/org-source.pdf'
+      mockGetBindings.mockResolvedValue([
+        {
+          ...SOURCE_BINDING,
+          key: storageKey,
+          context: 'knowledge-base',
+          workspaceId: null,
+          organizationId: 'org-1',
+        },
+      ])
+      const cleanup = enqueueKnowledgeStorageCleanup(
+        db,
+        [
+          {
+            id: 'org-doc',
+            fileUrl: `/api/files/serve/${encodeURIComponent(storageKey)}`,
+            workspaceId: null,
+            organizationId,
+          },
+        ],
+        'request-1'
+      )
+      if (organizationId === 'org-1') {
+        await cleanup
+        expect(dbChainMockFns.values).toHaveBeenCalledOnce()
+      } else {
+        await expect(cleanup).rejects.toThrow()
+        expect(dbChainMockFns.values).not.toHaveBeenCalled()
+      }
+      expect(mockDeleteFile).not.toHaveBeenCalled()
+    }
+  )
 })

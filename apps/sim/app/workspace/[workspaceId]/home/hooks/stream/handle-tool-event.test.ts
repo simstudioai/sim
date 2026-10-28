@@ -1,11 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/lib/mothership/resources/extraction', () => ({
   isResourceToolName: vi.fn(() => false),
   extractResourcesFromToolResult: vi.fn(() => []),
-}))
-vi.mock('@/lib/mothership/tools/workflow-tools', () => ({
-  isWorkflowToolName: vi.fn(() => false),
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry',
@@ -53,50 +52,57 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 }
 
 describe('tool events (dispatch → model + side effects)', () => {
-  it('routes a complete native computer call and never executes a partial or settled call', () => {
-    const deps = makeStreamLoopDeps()
-    const ctx = createStreamLoopContext(deps)
-    const args = { action: 'list_apps' }
-    dispatchStreamEvent(
-      ctx,
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId: 'computer',
-        toolName: 'computer',
-        arguments: args,
-        partial: true,
-      })
-    )
-    expect(deps.startClientComputerTool).not.toHaveBeenCalled()
-    dispatchStreamEvent(
-      ctx,
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId: 'computer',
-        toolName: 'computer',
-        arguments: args,
-      })
-    )
-    expect(deps.startClientComputerTool).toHaveBeenCalledWith('computer', args, '')
-    dispatchStreamEvent(ctx, toolResult('computer', true, 'computer'))
-    vi.mocked(deps.startClientComputerTool).mockClear()
-    dispatchStreamEvent(
-      ctx,
-      toolEnv({
-        phase: 'call',
-        executor: 'client',
-        mode: 'async',
-        toolCallId: 'computer',
-        toolName: 'computer',
-        arguments: args,
-      })
-    )
-    expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+  beforeEach(() => {
+    libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({})
   })
+
+  it.each([false, true])(
+    'routes computer calls through the native view with background execution %s',
+    (desktopToolsOnDevice) => {
+      const deps = makeStreamLoopDeps({ options: { desktopToolsOnDevice } })
+      const ctx = createStreamLoopContext(deps)
+      const args = { action: 'list_apps' }
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+          partial: true,
+        })
+      )
+      expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+        })
+      )
+      expect(deps.startClientComputerTool).toHaveBeenCalledWith('computer', args, '')
+      dispatchStreamEvent(ctx, toolResult('computer', true, 'computer'))
+      vi.mocked(deps.startClientComputerTool).mockClear()
+      dispatchStreamEvent(
+        ctx,
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer',
+          toolName: 'computer',
+          arguments: args,
+        })
+      )
+      expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([true, false])(
     'does not redispatch a completed computer call from a fresh replay batch (success=%s)',
@@ -201,6 +207,73 @@ describe('tool events (dispatch → model + side effects)', () => {
       { operation: 'run', args: { command: 'rm -rf build' } },
       expect.anything()
     )
+  })
+
+  /** Starters that record which calls this view started, by tool call id. */
+  function recordingStarters() {
+    const started: string[] = []
+    const record = (toolCallId: string) => {
+      started.push(toolCallId)
+    }
+    return {
+      started,
+      starters: {
+        startClientBrowserTool: record,
+        startClientTerminalTool: record,
+        startClientLocalFilesystemTool: record,
+        startClientWorkflowTool: record,
+      },
+    }
+  }
+
+  function dispatchCall(
+    ctx: StreamLoopContext,
+    toolCallId: string,
+    toolName: string,
+    args: Record<string, unknown>
+  ) {
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId,
+        toolName,
+        arguments: args,
+        status: 'executing',
+      })
+    )
+  }
+
+  it("only shows desktop calls when the desktop's background executor runs the turn", () => {
+    const { started, starters } = recordingStarters()
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({
+        ...starters,
+        chatIdRef: ref('chat-1'),
+        options: { desktopToolsOnDevice: true },
+      })
+    )
+
+    dispatchCall(ctx, 'click-1', 'browser_click', { ref: 'e1' })
+    dispatchCall(ctx, 'run-1', 'terminal', { operation: 'run', args: { command: 'ls' } })
+    dispatchCall(ctx, 'read-1', 'read_local_file', { path: '~/notes.txt' })
+    dispatchCall(ctx, 'workflow-1', 'run_workflow', { workflowId: 'wf-1' })
+
+    expect(toolNode(ctx, 'click-1').status).toBe('running')
+    expect(started).toEqual(['workflow-1'])
+  })
+
+  it('runs a desktop call in the view when no desktop runs the chat in the background', () => {
+    const { started, starters } = recordingStarters()
+    const ctx = createStreamLoopContext(
+      makeStreamLoopDeps({ ...starters, chatIdRef: ref('chat-1') })
+    )
+
+    dispatchCall(ctx, 'click-2', 'browser_click', { ref: 'e1' })
+
+    expect(started).toEqual(['click-2'])
   })
 
   it('never starts a skipped terminal command', () => {

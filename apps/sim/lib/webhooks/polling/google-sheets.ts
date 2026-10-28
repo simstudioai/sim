@@ -5,12 +5,16 @@ import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
   type PollingProviderHandler,
+  type PollOutcome,
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
+  PollAdmissionRefusedError,
   resolveOAuthCredential,
+  skipAdmissionRefusedPoll,
+  throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
@@ -51,7 +55,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
   provider: 'google-sheets',
   label: 'Google Sheets',
 
-  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+  async pollWebhook(ctx: PollWebhookContext): Promise<PollOutcome> {
     const { webhookData, workflowData, requestId, logger } = ctx
     const webhookId = webhookData.id
 
@@ -100,15 +104,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         rowCount: currentRowCount,
         headers,
         headerRowIndex,
-      } = await fetchSheetState(
-        accessToken,
-        spreadsheetId,
-        sheetName,
-        valueRender,
-        dateTimeRender,
-        requestId,
-        logger
-      )
+      } = await fetchSheetState(accessToken, spreadsheetId, sheetName, valueRender, dateTimeRender)
 
       // First poll: seed state, emit nothing
       if (config.lastIndexChecked === undefined) {
@@ -191,9 +187,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         adjustedStartRow,
         endRow,
         valueRender,
-        dateTimeRender,
-        requestId,
-        logger
+        dateTimeRender
       )
 
       const { processedCount, failedCount } = await processRows(
@@ -237,6 +231,9 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError) {
+        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
+      }
       logger.error(`[${requestId}] Error processing Google Sheets webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -252,12 +249,12 @@ async function isDriveFileUnchanged(
   logger: Logger
 ): Promise<{ unchanged: boolean; currentModifiedTime?: string }> {
   try {
-    const currentModifiedTime = await getDriveFileModifiedTime(accessToken, spreadsheetId, logger)
+    const currentModifiedTime = await getDriveFileModifiedTime(accessToken, spreadsheetId)
     if (!lastModifiedTime || !currentModifiedTime) {
       return { unchanged: false, currentModifiedTime }
     }
     return { unchanged: currentModifiedTime === lastModifiedTime, currentModifiedTime }
-  } catch (error) {
+  } catch {
     logger.warn(`[${requestId}] Drive modifiedTime check failed, proceeding with Sheets API`)
     return { unchanged: false }
   }
@@ -265,8 +262,7 @@ async function isDriveFileUnchanged(
 
 async function getDriveFileModifiedTime(
   accessToken: string,
-  fileId: string,
-  logger: Logger
+  fileId: string
 ): Promise<string | undefined> {
   try {
     const response = await fetch(
@@ -295,9 +291,7 @@ async function fetchSheetState(
   spreadsheetId: string,
   sheetName: string,
   valueRenderOption: ValueRenderOption,
-  dateTimeRenderOption: DateTimeRenderOption,
-  requestId: string,
-  logger: Logger
+  dateTimeRenderOption: DateTimeRenderOption
 ): Promise<{ rowCount: number; headers: string[]; headerRowIndex: number }> {
   const encodedSheet = encodeURIComponent(sheetName)
   const params = new URLSearchParams({
@@ -350,9 +344,7 @@ async function fetchRowRange(
   startRow: number,
   endRow: number,
   valueRenderOption: ValueRenderOption,
-  dateTimeRenderOption: DateTimeRenderOption,
-  requestId: string,
-  logger: Logger
+  dateTimeRenderOption: DateTimeRenderOption
 ): Promise<string[][]> {
   const encodedSheet = encodeURIComponent(sheetName)
   const params = new URLSearchParams({
@@ -441,6 +433,7 @@ async function processRows(
           )
 
           if (!result.success) {
+            throwIfAdmissionRefused(result)
             logger.error(
               `[${requestId}] Failed to process webhook for row ${rowNumber}:`,
               result.statusCode,
@@ -458,6 +451,7 @@ async function processRows(
       )
       processedCount++
     } catch (error) {
+      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing row ${rowNumber}:`, errorMessage)
       failedCount++

@@ -16,6 +16,7 @@ const CLIENTS = [
   { value: 'codex', label: 'Codex' },
   { value: 'claude-code', label: 'Claude Code' },
   { value: 'cursor', label: 'Cursor' },
+  { value: 'devin', label: 'Devin' },
   { value: 'other', label: 'Other' },
 ] as const
 
@@ -66,11 +67,13 @@ export function SearchMcpConnection({ endpoint }: SearchMcpConnectionProps) {
           hint={
             client === 'claude'
               ? 'In Claude web or Desktop, add a custom connector with this URL, then sign in to Sim. On Team or Enterprise, an owner adds the connector first.'
-              : client === 'other'
-                ? 'Add this URL in an app that supports remote MCP with OAuth. Choose Streamable HTTP if asked, then sign in to Sim.'
-                : client === 'claude-code'
-                  ? 'Run this command, then open /mcp in Claude Code to connect and sign in to Sim.'
-                  : 'Run this command and sign in to Sim in the browser. To reconnect, run codex mcp login sim-search.'
+              : client === 'devin'
+                ? 'In Devin, open Customize → MCPs and add a custom MCP with this URL. Choose HTTP, OAuth, and Personal access, then select Connect and sign in to Sim.'
+                : client === 'other'
+                  ? 'Add this URL in an app that supports remote MCP with OAuth. Choose Streamable HTTP if asked, then sign in to Sim.'
+                  : client === 'claude-code'
+                    ? 'Run this command, then open /mcp in Claude Code to connect and sign in to Sim.'
+                    : 'Run this command and sign in to Sim in the browser. To reconnect, run codex mcp login sim-search.'
           }
         />
       ) : (

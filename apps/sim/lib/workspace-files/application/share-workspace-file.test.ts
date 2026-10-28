@@ -1,39 +1,41 @@
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getShare: vi.fn(),
-  getWorkspaceShares: vi.fn(),
-  getWorkspaceFile: vi.fn(),
-  loadFileContext: vi.fn(),
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
-  upsertFileShare: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getShareForResource: mocks.getShare,
-  getWorkspaceSharesForResources: mocks.getWorkspaceShares,
-  ShareValidationError: class ShareValidationError extends Error {},
-  upsertFileShare: mocks.upsertFileShare,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getWorkspaceFile,
-  loadActiveWorkspaceContext: mocks.loadWorkspace,
-  loadActiveWorkspaceFileContext: mocks.loadFileContext,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validatePublicFileSharing: vi.fn(),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+const provenance = {
+  bound: workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance,
+  current: workspaceFileSecretProvenanceMockFns.mockGetCurrentWorkspaceFileSecretProvenance,
+}
 
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import {
+  type ContentDeliveryGate,
+  ContentRefusedError,
+  observeContentDelivery,
+} from '@/lib/core/application'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
@@ -43,11 +45,49 @@ import {
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
+const mocks = {
+  getWorkspaceFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadWorkspace: workspaceFileManagerMockFns.mockLoadActiveWorkspaceContext,
+  loadFileContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  getShare: publicSharesMockFns.mockGetShareForResource,
+  getWorkspaceShares: publicSharesMockFns.mockGetWorkspaceSharesForResources,
+  upsertFileShare: publicSharesMockFns.mockUpsertFileShare,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
 }
+
+const principal = createSessionPrincipal()
+
+/** Chat's gate with no registry: a link is opaque, so only a secret-free file is admitted. */
+const secretFreeGate: ContentDeliveryGate = {
+  async admit(sources) {
+    return sources.map(
+      ({ provenance }) =>
+        provenance.status === 'unrecorded' ||
+        (provenance.status === 'exact' && provenance.entries.length === 0)
+    )
+  },
+}
+const asChat = <T>(execute: () => T) => observeContentDelivery(secretFreeGate, execute)
+
+function copilotPrincipal() {
+  const copilot = createCopilotChatPrincipal(
+    { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat-1' },
+    WORKSPACE_FILES_DELEGATION_AUDIENCE
+  )
+  markCopilotWorkspaceInvocation(copilot)
+  return copilot
+}
+
+/** Every file this suite shares reads as `provenance` now; clean unless a test says otherwise. */
+function currentProvenance(value: unknown) {
+  provenance.current.mockImplementation(
+    async (_workspaceId: string, ids: readonly string[]) => new Map(ids.map((id) => [id, value]))
+  )
+}
+
+beforeEach(() => {
+  currentProvenance({ status: 'exact', entries: [] })
+})
 
 describe('getWorkspaceFileShares', () => {
   beforeEach(() => {
@@ -88,6 +128,30 @@ describe('getWorkspaceFileShares', () => {
 
     expect(mocks.getWorkspaceShares).not.toHaveBeenCalled()
   })
+
+  it('shows Chat only the live links to files its gate admits', async () => {
+    mocks.getWorkspaceShares.mockResolvedValue(
+      new Map([
+        ['clean', { isActive: true }],
+        ['secret', { isActive: true }],
+        ['inactive', { isActive: false }],
+      ])
+    )
+    provenance.current.mockResolvedValue(
+      new Map([
+        ['clean', { status: 'exact', entries: [] }],
+        ['secret', { status: 'unknown' }],
+      ])
+    )
+    const { shares } = await asChat(() =>
+      getWorkspaceFileShares.execute({
+        principal: copilotPrincipal(),
+        input: { workspaceId: 'workspace-1', fileIds: ['clean', 'secret', 'inactive'] },
+      })
+    )
+    expect([...shares.keys()]).toEqual(['clean', 'inactive'])
+    expect(provenance.current).toHaveBeenCalledWith('workspace-1', ['clean', 'secret'])
+  })
 })
 
 describe('updateWorkspaceFileShare password references', () => {
@@ -96,15 +160,6 @@ describe('updateWorkspaceFileShare password references', () => {
     workspaceOrganizationId: null,
     allowPersonalApiKeys: true,
     billedAccountUserId: 'billing-owner',
-  }
-
-  function copilotPrincipal() {
-    const copilot = createCopilotChatPrincipal(
-      { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat-1' },
-      WORKSPACE_FILES_DELEGATION_AUDIENCE
-    )
-    markCopilotWorkspaceInvocation(copilot)
-    return copilot
   }
 
   function share(
@@ -148,7 +203,7 @@ describe('updateWorkspaceFileShare password references', () => {
   it("stores the value of the agent's referenced variable, not the placeholder", async () => {
     environment({ SHARE_PW: 'resolved-share-password' })
 
-    await share(copilotPrincipal(), '{{SHARE_PW}}')
+    await asChat(() => share(copilotPrincipal(), '{{SHARE_PW}}'))
 
     expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
       'user-1',
@@ -161,10 +216,49 @@ describe('updateWorkspaceFileShare password references', () => {
   })
 
   it('refuses an unset variable by name', async () => {
-    await expect(share(copilotPrincipal(), '{{SHARE_PW}}')).rejects.toMatchObject({
+    await expect(asChat(() => share(copilotPrincipal(), '{{SHARE_PW}}'))).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('Environment variable "SHARE_PW"'),
     })
+    expect(mocks.upsertFileShare).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { status: 'unknown' },
+    { status: 'exact', entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }] },
+  ])(
+    'refuses Chat a live link to a file holding a secret or of unknown provenance: %j',
+    async (refused) => {
+      currentProvenance(refused)
+      environment({ SHARE_PW: 'resolved-share-password' })
+      await expect(asChat(() => share(copilotPrincipal(), '{{SHARE_PW}}'))).rejects.toBeInstanceOf(
+        ContentRefusedError
+      )
+      expect(mocks.upsertFileShare).not.toHaveBeenCalled()
+    }
+  )
+
+  it('lets a person share a file whatever its provenance', async () => {
+    currentProvenance({ status: 'unknown' })
+    await share(principal, 'a-long-literal-password-value')
+    expect(mocks.upsertFileShare).toHaveBeenCalled()
+    expect(provenance.current).not.toHaveBeenCalled()
+  })
+
+  it('refuses a secret-bearing file even under a gate that admits it, such as the workbench', async () => {
+    currentProvenance({
+      status: 'exact',
+      entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }],
+    })
+    environment({ SHARE_PW: 'resolved-share-password' })
+    const admitAll: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map(() => true)
+      },
+    }
+    await expect(
+      observeContentDelivery(admitAll, () => share(copilotPrincipal(), '{{SHARE_PW}}'))
+    ).rejects.toBeInstanceOf(ContentRefusedError)
     expect(mocks.upsertFileShare).not.toHaveBeenCalled()
   })
 
@@ -185,7 +279,7 @@ describe('updateWorkspaceFileShare password references', () => {
 
   it('resolves only when the effective share mode is password', async () => {
     mocks.getShare.mockResolvedValue({ authType: 'email' })
-    await share(copilotPrincipal(), '{{SHARE_PW}}', {})
+    await asChat(() => share(copilotPrincipal(), '{{SHARE_PW}}', {}))
     expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
     expect(mocks.upsertFileShare).toHaveBeenCalledWith(
       expect.objectContaining({ password: '{{SHARE_PW}}' })
@@ -193,7 +287,7 @@ describe('updateWorkspaceFileShare password references', () => {
 
     mocks.getShare.mockResolvedValue({ authType: 'password' })
     environment({ SHARE_PW: 'resolved-share-password' })
-    await share(copilotPrincipal(), '{{SHARE_PW}}', {})
+    await asChat(() => share(copilotPrincipal(), '{{SHARE_PW}}', {}))
     expect(mocks.upsertFileShare).toHaveBeenLastCalledWith(
       expect.objectContaining({ password: 'resolved-share-password' })
     )

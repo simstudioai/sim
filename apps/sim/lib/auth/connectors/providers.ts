@@ -18,6 +18,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { exchangeAtlassianAuthorizationCode } from '@/lib/oauth/atlassian-token'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { createGitHubRepositoriesProvider } from '@/lib/oauth/github-repositories'
+import { createGreenhouseProvider } from '@/lib/oauth/greenhouse'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
 import {
   assertMicrosoftDataverseLegacyOAuthCallbackScopes,
@@ -194,6 +195,12 @@ function salesforceConnector(providerId: string, loginHost: string): GenericOAut
  */
 export function buildConnectorProviders(): GenericOAuthConfig[] {
   const providers: GenericOAuthConfig[] = [
+    createGreenhouseProvider({
+      clientId: env.GREENHOUSE_CLIENT_ID as string,
+      clientSecret: env.GREENHOUSE_CLIENT_SECRET as string,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/greenhouse`,
+      scopes: getCanonicalScopesForProvider('greenhouse'),
+    }),
     createGitHubRepositoriesProvider({
       clientId: env.GITHUB_APP_CLIENT_ID as string,
       clientSecret: env.GITHUB_APP_CLIENT_SECRET as string,
@@ -853,6 +860,22 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
     {
+      providerId: 'microsoft-intune',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-intune'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-intune`,
+      getUserInfo: async (tokens) => {
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-intune')
+      },
+    },
+    {
       providerId: 'microsoft-planner',
       clientId: env.MICROSOFT_CLIENT_ID as string,
       clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
@@ -867,6 +890,28 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-planner`,
       getUserInfo: async (tokens) => {
         return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-planner')
+      },
+    },
+
+    {
+      providerId: 'microsoft-powerbi',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
+      getUserInfo: async (tokens) => {
+        const canonicalScopes = getCanonicalScopesForProvider('microsoft-powerbi')
+        tokens.scopes = tokens.scopes?.map((scope) => {
+          const qualified = `https://analysis.windows.net/powerbi/api/${scope}`
+          return canonicalScopes.includes(qualified) ? qualified : scope
+        })
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
       },
     },
 
@@ -1246,7 +1291,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
 
           const zuid = profile.ZUID?.toString()
           if (!zuid) {
-            logger.error('Invalid Zoho Desk profile response:', profile)
+            logger.error('Invalid Zoho Desk profile response', { keys: Object.keys(profile) })
             return null
           }
 
@@ -1380,7 +1425,9 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
 
           const zuid = profile.ZUID?.toString()
           if (!zuid) {
-            logger.error('Invalid ManageEngine ServiceDesk Plus profile response:', profile)
+            logger.error('Invalid ManageEngine ServiceDesk Plus profile response', {
+              keys: Object.keys(profile),
+            })
             return null
           }
 
@@ -1437,7 +1484,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           const profile = await response.json()
 
           if (!profile.data) {
-            logger.error('Invalid X profile response:', profile)
+            logger.error('Invalid X profile response', { keys: Object.keys(profile) })
             return null
           }
 
@@ -1540,7 +1587,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           const user = profile.data?.user
 
           if (!user?.open_id) {
-            logger.error('Invalid TikTok profile response:', profile)
+            logger.error('Invalid TikTok profile response', { keys: Object.keys(profile) })
             return null
           }
 
@@ -2788,6 +2835,125 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in DocuSign getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
+      providerId: 'ramp',
+      clientId: env.RAMP_CLIENT_ID as string,
+      clientSecret: env.RAMP_CLIENT_SECRET as string,
+      authorizationUrl: 'https://app.ramp.com/v1/authorize',
+      tokenUrl: 'https://api.ramp.com/developer/v1/token',
+      scopes: getCanonicalScopesForProvider('ramp'),
+      responseType: 'code',
+      authentication: 'basic',
+      accessTokenExpiresIn: 3600,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/ramp`,
+      getUserInfo: async (tokens) => {
+        if (!tokens.accessToken) return null
+
+        try {
+          const signal = AbortSignal.timeout(15_000)
+          const response = await fetch('https://api.ramp.com/developer/v1/business', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}` },
+            redirect: 'error',
+            signal,
+          })
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Ramp OAuth business error response',
+              signal,
+            }).catch(() => {})
+            logger.error('Failed to fetch Ramp business info', { status: response.status })
+            return null
+          }
+
+          const business = await readResponseJsonWithLimit<unknown>(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Ramp OAuth business response',
+            signal,
+          })
+          if (!isRecordLike(business) || typeof business.id !== 'string' || !business.id) {
+            return null
+          }
+
+          const now = new Date()
+          return {
+            id: `${business.id}-${generateId()}`,
+            name:
+              typeof business.business_name_legal === 'string' && business.business_name_legal
+                ? business.business_name_legal
+                : 'Ramp Business',
+            email: syntheticConnectorEmail('ramp', business.id),
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Failed to fetch Ramp business info', { errorType: toError(error).name })
+          return null
+        }
+      },
+    },
+
+    {
+      providerId: 'helpscout',
+      clientId: env.HELPSCOUT_CLIENT_ID as string,
+      clientSecret: env.HELPSCOUT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://secure.helpscout.net/authentication/authorizeClientApplication',
+      tokenUrl: 'https://api.helpscout.net/v2/oauth2/token',
+      scopes: getCanonicalScopesForProvider('helpscout'),
+      responseType: 'code',
+      authentication: 'post',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/helpscout`,
+      getUserInfo: async (tokens) => {
+        if (!tokens.accessToken) return null
+
+        try {
+          const signal = AbortSignal.timeout(15_000)
+          const response = await fetch('https://api.helpscout.net/v2/users/me', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}`, Accept: 'application/json' },
+            redirect: 'error',
+            signal,
+          })
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Help Scout OAuth user error response',
+              signal,
+            }).catch(() => {})
+            logger.error('Failed to fetch Help Scout user info', { status: response.status })
+            return null
+          }
+
+          const user = await readResponseJsonWithLimit<unknown>(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Help Scout OAuth user response',
+            signal,
+          })
+          if (!isRecordLike(user) || typeof user.id !== 'number') return null
+
+          const userId = String(user.id)
+          const name = [user.firstName, user.lastName]
+            .filter((part): part is string => typeof part === 'string' && part.trim() !== '')
+            .join(' ')
+          const now = new Date()
+          return {
+            id: `${userId}-${generateId()}`,
+            name: name || 'Help Scout User',
+            email:
+              typeof user.email === 'string' && user.email
+                ? user.email
+                : syntheticConnectorEmail('helpscout', userId),
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Failed to fetch Help Scout user info', { errorType: toError(error).name })
           return null
         }
       },

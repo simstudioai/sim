@@ -1,4 +1,4 @@
-import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
+import type { RawFileInput } from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -61,7 +61,7 @@ interface ReductoGranularConfidence {
 /**
  * Block type classification
  */
-export type ReductoBlockType =
+type ReductoBlockType =
   | 'Header'
   | 'Footer'
   | 'Title'

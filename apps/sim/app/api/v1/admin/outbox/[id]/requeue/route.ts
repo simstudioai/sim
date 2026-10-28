@@ -2,15 +2,21 @@ import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { and, eq, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1RequeueOutboxEventContract } from '@/lib/api/contracts/v1/admin'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { enterpriseMetadataSyncPayloadSchema } from '@/lib/billing/enterprise-outbox'
 import {
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
-  enterpriseMetadataSyncPayloadSchema,
-} from '@/lib/billing/enterprise-outbox'
+} from '@/lib/billing/enterprise-outbox-events'
+import {
+  isSubscriptionSyncEventType,
+  lockSubscriptionForSyncRetry,
+  recommitSubscriptionSync,
+} from '@/lib/billing/webhooks/subscription-sync'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 
@@ -28,7 +34,9 @@ const invalidOutboxEventResponse = (message: string) =>
  * will retry it. Resets `attempts`, `lastError`, and `availableAt` so
  * the next poll picks it up. Only dead-lettered events can be
  * requeued — completed/pending/processing rows are rejected to avoid
- * operator errors.
+ * operator errors. A Stripe subscription sync is re-committed with the
+ * subscription's current value, so the retry never revives the value it
+ * failed with.
  */
 export const POST = withRouteHandler(
   withAdminAuthParams<{ id: string }>(async (request, context) => {
@@ -61,23 +69,43 @@ export const POST = withRouteHandler(
       const deliveryRevision = metadataIntent?.success
         ? metadataIntent.data.deliveryRevision + 1
         : null
-      const result = await db
-        .update(outboxEvent)
-        .set({
-          status: 'pending',
-          attempts: 0,
-          lastError: null,
-          availableAt: new Date(),
-          lockedAt: null,
-          processedAt: null,
-          ...(deliveryRevision === null
-            ? {}
-            : {
-                payload: sql`(${outboxEvent.payload}::jsonb || ${JSON.stringify({ deliveryRevision })}::jsonb)::json`,
-              }),
-        })
-        .where(and(eq(outboxEvent.id, id), eq(outboxEvent.status, 'dead_letter')))
-        .returning({ id: outboxEvent.id, eventType: outboxEvent.eventType })
+      const subscriptionId = toRecord(existing?.payload).subscriptionId
+      const subscriptionSync =
+        existing &&
+        isSubscriptionSyncEventType(existing.eventType) &&
+        typeof subscriptionId === 'string'
+          ? { eventType: existing.eventType, subscriptionId }
+          : null
+      const result = await db.transaction(async (tx) => {
+        if (subscriptionSync) {
+          await lockSubscriptionForSyncRetry(tx, subscriptionSync.subscriptionId)
+        }
+        const requeued = await tx
+          .update(outboxEvent)
+          .set({
+            status: 'pending',
+            attempts: 0,
+            lastError: null,
+            availableAt: new Date(),
+            lockedAt: null,
+            processedAt: null,
+            ...(deliveryRevision === null
+              ? {}
+              : {
+                  payload: sql`(${outboxEvent.payload}::jsonb || ${JSON.stringify({ deliveryRevision })}::jsonb)::json`,
+                }),
+          })
+          .where(and(eq(outboxEvent.id, id), eq(outboxEvent.status, 'dead_letter')))
+          .returning({ id: outboxEvent.id, eventType: outboxEvent.eventType })
+        if (subscriptionSync && requeued.length > 0) {
+          await recommitSubscriptionSync(
+            tx,
+            subscriptionSync.eventType,
+            subscriptionSync.subscriptionId
+          )
+        }
+        return requeued
+      })
 
       if (result.length === 0) {
         return NextResponse.json(

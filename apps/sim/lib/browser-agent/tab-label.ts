@@ -25,6 +25,6 @@ export function browserTabTitle(tab: BrowserTabState): string {
   if (tab.issue?.kind === 'load-error') return browserTabHostname(tab.url) ?? 'Page unavailable'
   const title = tab.title.trim()
   if (title) return title
-  if (tab.loading) return 'Loading…'
+  if (tab.loading) return 'Loading'
   return browserTabHostname(tab.url) ?? 'New tab'
 }

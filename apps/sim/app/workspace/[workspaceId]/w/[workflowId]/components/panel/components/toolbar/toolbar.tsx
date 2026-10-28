@@ -22,10 +22,10 @@ import {
   OverflowText,
 } from '@sim/emcn'
 import { ChevronDown, Lock, Search } from '@sim/emcn/icons'
-import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
-import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/utils'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {
   type DragItemInfo,
   ToolbarItemContextMenu,
@@ -481,9 +481,7 @@ export const Toolbar = memo(
 
     const { handleDragStart, handleItemClick } = useToolbarItemInteractions()
 
-    const params = useParams()
-    const workspaceId = params?.workspaceId as string | undefined
-    const currentWorkflowId = params?.workflowId as string | undefined
+    const { workspaceId, workflowId: currentWorkflowId } = useWorkflowScope()
     const { data: customBlocksData } = useCustomBlocks(workspaceId)
     /** No-icon custom blocks use the access-authorized workspace host logo, then the glyph. */
     const fallbackIconUrl = useOrgBrandConfig().logoUrl ?? null

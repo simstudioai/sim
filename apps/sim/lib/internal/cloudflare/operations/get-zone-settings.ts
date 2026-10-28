@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import { mapZoneSetting, zoneSettingUrl } from '@/tools/cloudflare/get_zone_settings'
 import type {
@@ -36,8 +37,11 @@ export const executeGetZoneSettingsOperation: InternalToolOperationImplementatio
           headers,
           signal,
         })
-        const data = (await response.json()) as CloudflareEnvelope<CloudflareRawZoneSetting>
-        if (!data.success) {
+        const data = await readResponseJsonWithLimit<CloudflareEnvelope<CloudflareRawZoneSetting>>(
+          response,
+          { maxBytes: 1024 * 1024, label: 'Cloudflare zone setting' }
+        )
+        if (!response.ok || !data.success || !data.result) {
           return {
             settingId,
             error: cloudflareErrorMessage(data, `Failed to read zone setting ${settingId}`),

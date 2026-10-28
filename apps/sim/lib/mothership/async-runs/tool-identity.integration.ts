@@ -10,14 +10,10 @@ import Redis from 'ioredis'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { database, redisState, databaseUrl, redisUrl } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  const redisUrl = process.env.TEST_REDIS_URL
-  for (const value of [databaseUrl, redisUrl]) {
-    if (value && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(value).hostname)) {
-      throw new Error('Copilot identity integration tests require local services')
-    }
-  }
+const { database, redisState, databaseUrl, redisUrl } = await vi.hoisted(async () => {
+  const { readTestDatabaseUrl, readTestRedisUrl } = await import(
+    '@sim/db/testing/test-infrastructure'
+  )
   const channels = globalThis as typeof globalThis & {
     _toolConfirmationChannel?: { dispose(): void }
     _toolPermissionChannel?: { dispose(): void }
@@ -27,8 +23,8 @@ const { database, redisState, databaseUrl, redisUrl } = vi.hoisted(() => {
   channels._toolConfirmationChannel = undefined
   channels._toolPermissionChannel = undefined
   return {
-    databaseUrl,
-    redisUrl: databaseUrl ? redisUrl : undefined,
+    databaseUrl: readTestDatabaseUrl(),
+    redisUrl: readTestRedisUrl(),
     database: { current: undefined as PostgresJsDatabase | undefined },
     redisState: { current: undefined as Redis | undefined },
   }
@@ -79,7 +75,7 @@ import {
   scopeProviderToolCallId,
 } from '@/lib/mothership/request/go/tool-call-identity'
 
-const connection = databaseUrl ? postgres(databaseUrl, { max: 1 }) : undefined
+const connection = postgres(databaseUrl, { max: 1 })
 const providerId = 'call_reused_fixture'
 const legacyRunId = generateId()
 const firstRunId = generateId()
@@ -117,12 +113,11 @@ afterAll(async () => {
     }
     await redisState.current.quit()
   }
-  await connection?.end()
+  await connection.end()
 })
 
-describe.skipIf(!databaseUrl)('Copilot tool identity with PostgreSQL', () => {
+describe('Copilot tool identity with PostgreSQL', () => {
   beforeAll(async () => {
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     database.current = drizzle(connection)
     await connection.unsafe(`
       CREATE TEMP TABLE copilot_async_tool_calls
@@ -144,7 +139,6 @@ describe.skipIf(!databaseUrl)('Copilot tool identity with PostgreSQL', () => {
 
   beforeEach(async () => {
     vi.restoreAllMocks()
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection.unsafe('TRUNCATE pg_temp.copilot_async_tool_calls')
     await connection`
       INSERT INTO copilot_async_tool_calls
@@ -173,7 +167,6 @@ describe.skipIf(!databaseUrl)('Copilot tool identity with PostgreSQL', () => {
     expect(second?.runId).toBe(secondRunId)
     expect(retries.every((row) => row?.id === first?.id)).toBe(true)
     expect(await getAsyncToolCall(providerId)).toEqual(legacy)
-    if (!connection) throw new Error('PostgreSQL test database is not initialized')
     const counts = await connection`SELECT count(*)::integer AS count FROM copilot_async_tool_calls`
     expect(counts[0].count).toBe(3)
   })

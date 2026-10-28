@@ -2,7 +2,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   type CopilotEnvironmentContext,
   prepareCopilotEnvironmentContext,

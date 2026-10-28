@@ -15,6 +15,11 @@ import {
   requireNonRootFolderPath,
 } from '@/lib/folders/paths'
 import { folderResourceLabel } from '@/lib/folders/resource-traits'
+import {
+  isWorkspaceFolder,
+  requireWorkspaceFolder,
+  requireWorkspaceFolderCreator,
+} from '@/lib/folders/scope'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
 
 export type FolderSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt'
@@ -28,7 +33,7 @@ export type FolderSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt'
  */
 export function toFolderApi(row: typeof folder.$inferSelect): FolderApi {
   return {
-    ...row,
+    ...requireWorkspaceFolderCreator(row),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
@@ -96,7 +101,7 @@ export async function findActiveFolder(
     )
     .limit(1)
 
-  return row ?? null
+  return row && isWorkspaceFolder(row, workspaceId) ? row : null
 }
 
 /**
@@ -182,7 +187,7 @@ export async function loadActiveFolderPathIndex(
     throw new FolderCollectionLimitExceededError('path index', options.maxRows)
   }
 
-  return buildFolderPathIndex(rows)
+  return buildFolderPathIndex(rows.map((row) => requireWorkspaceFolder(row, workspaceId)))
 }
 
 export interface FolderCollectionRoomOptions {
@@ -312,7 +317,7 @@ export async function listActiveFolderRows(
   if (options.maxRows !== undefined && rows.length > options.maxRows) {
     throw new FolderCollectionLimitExceededError('list', options.maxRows)
   }
-  return rows
+  return rows.map((row) => requireWorkspaceFolder(row, workspaceId))
 }
 
 /**
@@ -343,7 +348,7 @@ export async function listFoldersForWorkspace(
     )
     .orderBy(...listOrderBy(FOLDER_SORTS[sortBy], sortOrder))
 
-  return rows.map(toFolderApi)
+  return rows.map((row) => toFolderApi(requireWorkspaceFolder(row, workspaceId)))
 }
 
 /**
@@ -376,7 +381,7 @@ export async function findArchivedFolderIdByPath(
     throw new FolderCollectionLimitExceededError('path index', maxRows)
   }
 
-  const rowById = new Map(rows.map((row) => [row.id, row]))
+  const rowById = new Map(rows.map((row) => [row.id, requireWorkspaceFolder(row, workspaceId)]))
   const pathById = new Map<string, string>()
 
   const resolvePath = (folderId: string, seen: Set<string>): string | null => {

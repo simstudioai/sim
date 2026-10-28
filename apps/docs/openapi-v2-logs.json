@@ -38,11 +38,19 @@
     "/api/v2/logs": {
       "get": {
         "operationId": "listLogs",
-        "summary": "List Logs",
-        "description": "List logs with filters, selectable detail, sorting, and cursor pagination. `includeJobRuns=true` includes chat and Sim-agent jobs only with `sortBy=startedAt`, because other orderings are unsupported. `files` contains only run-produced files; use the files API for input attachments. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "summary": "List logs",
+        "description": "List logs with filters, selectable detail, sorting, and cursor pagination. `includeJobRuns=true` includes chat and Sim-agent jobs only with `sortBy=startedAt`, because other orderings are unsupported. `files` contains only run-produced files; use the files API for input attachments. Expired runs are permanently deleted by retention cleanup. Sim Cloud Free defaults to 30 days from run start; paid plans and billing-disabled deployments have no default expiry. Organization policies and workspace overrides can set an effective window. Billing-disabled cleanup requires enabled data retention. Runs referenced by active pauses are protected from cleanup. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -205,9 +213,9 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
+            "description": "Maximum log entries per page. When execution data is returned (`includeTraceSpans` or `includeFinalOutput`), a page holds at most 20 entries, and fewer when their stored traces are large; follow `nextCursor` for the rest. A page whose execution data is withheld by permissions is not capped. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
             "schema": {
-              "description": "Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
+              "description": "Maximum log entries per page. When execution data is returned (`includeTraceSpans` or `includeFinalOutput`), a page holds at most 20 entries, and fewer when their stored traces are large; follow `nextCursor` for the rest. A page whose execution data is withheld by permissions is not capped. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
               "default": 100
             }
@@ -331,6 +339,41 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2LogListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "kind": "workflow",
+                          "runId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                          "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                          "deploymentVersionId": "dep_2c4e6a8b0d1f",
+                          "status": "completed",
+                          "level": "info",
+                          "trigger": "api",
+                          "startedAt": "2026-01-15T10:30:00.000Z",
+                          "endedAt": "2026-01-15T10:30:01.250Z",
+                          "totalDurationMs": 1250,
+                          "cost": {
+                            "total": 0.0072
+                          },
+                          "hasHandledErrors": false,
+                          "files": [
+                            {
+                              "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
+                              "name": "summary.pdf",
+                              "size": 18422,
+                              "type": "application/pdf",
+                              "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04"
+                            }
+                          ]
+                        }
+                      ],
+                      "nextCursor": "eyJzdGFydGVkQXQiOiIyMDI2LTAxLTE1VDEwOjMwOjAwMFoifQ=="
+                    }
+                  }
                 }
               }
             }
@@ -365,11 +408,19 @@
     "/api/v2/logs/{runId}": {
       "get": {
         "operationId": "getLog",
-        "summary": "Get Log",
-        "description": "Get a run's workflow graph, trace spans, final output, and cost. Trace spans expire separately, so an empty `traceSpans` array does not prove none were recorded. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "summary": "Get log",
+        "description": "Get a run's workflow graph, trace spans, final output, and cost. Trace spans expire separately, so an empty `traceSpans` array does not prove none were recorded. Expired runs are permanently deleted by retention cleanup. Sim Cloud Free defaults to 30 days from run start; paid plans and billing-disabled deployments have no default expiry. Organization policies and workspace overrides can set an effective window. Billing-disabled cleanup requires enabled data retention. Runs referenced by active pauses are protected from cleanup. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.read_detail",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "runId",
@@ -382,6 +433,16 @@
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9._:-]+$",
               "description": "Unique workflow run identifier."
+            }
+          },
+          {
+            "name": "includeWorkflowState",
+            "in": "query",
+            "required": false,
+            "description": "Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.",
+            "schema": {
+              "description": "Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.",
+              "type": "boolean"
             }
           }
         ],
@@ -403,6 +464,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2LogDetailResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "runId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
+                        "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                        "deploymentVersionId": "dep_2c4e6a8b0d1f",
+                        "status": "completed",
+                        "level": "info",
+                        "trigger": "api",
+                        "startedAt": "2026-01-15T10:30:00.000Z",
+                        "endedAt": "2026-01-15T10:30:01.250Z",
+                        "totalDurationMs": 1250,
+                        "files": [
+                          {
+                            "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
+                            "name": "summary.pdf",
+                            "size": 18422,
+                            "type": "application/pdf",
+                            "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04"
+                          }
+                        ],
+                        "executedByEmail": "billing@example.com",
+                        "workflow": {
+                          "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                          "name": "Customer Support Agent",
+                          "description": "Routes incoming support tickets and drafts responses",
+                          "folderPath": "/",
+                          "ownerEmail": "jane@example.com",
+                          "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                          "createdAt": "2025-01-10T09:00:00.000Z",
+                          "updatedAt": "2025-06-18T16:45:00.000Z",
+                          "deleted": false
+                        },
+                        "workflowState": {
+                          "blocks": {},
+                          "edges": []
+                        },
+                        "traceSpans": [],
+                        "finalOutput": {
+                          "result": "Hello, world!"
+                        },
+                        "cost": {
+                          "total": 0.0072,
+                          "items": [
+                            {
+                              "category": "fixed",
+                              "description": "Base execution charge",
+                              "cost": 0.005
+                            },
+                            {
+                              "category": "model",
+                              "description": "gpt-5",
+                              "cost": 0.0022,
+                              "inputTokens": 1840,
+                              "outputTokens": 260
+                            }
+                          ]
+                        },
+                        "workflowInput": {
+                          "ticketId": "T-4821"
+                        },
+                        "createdAt": "2026-01-15T10:30:00.000Z"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -437,11 +566,19 @@
     "/api/v2/logs/stats": {
       "get": {
         "operationId": "getLogStats",
-        "summary": "Get Log Statistics",
-        "description": "Get bucketed run counts, success rate, errors, and mean latency for the workspace and individual workflows. Query fields describe window selection and bucketing. Folder filters cover subtrees. Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "summary": "Get log statistics",
+        "description": "Get bucketed run counts, success rate, errors, and mean latency for the workspace and individual workflows. Query fields describe window selection and bucketing. Folder filters cover subtrees. Expired runs are permanently deleted by retention cleanup. Sim Cloud Free defaults to 30 days from run start; paid plans and billing-disabled deployments have no default expiry. Organization policies and workspace overrides can set an effective window. Billing-disabled cleanup requires enabled data retention. Runs referenced by active pauses are protected from cleanup. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "logs.read_stats",
         "x-oauth-scope": "api:read",
         "tags": ["Logs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -549,7 +686,7 @@
             "required": false,
             "description": "Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "default": false,
+              "default": "false",
               "description": "Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
               "enum": [
                 "true",
@@ -587,6 +724,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2LogStatsResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workflows": [
+                          {
+                            "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                            "workflowName": "Customer Support Agent",
+                            "segments": [
+                              {
+                                "timestamp": "2026-01-15T10:00:00.000Z",
+                                "totalExecutions": 40,
+                                "successfulExecutions": 38,
+                                "avgDurationMs": 1180
+                              }
+                            ],
+                            "totalExecutions": 40,
+                            "totalSuccessful": 38,
+                            "overallSuccessRate": 95
+                          }
+                        ],
+                        "workflowsTruncated": false,
+                        "aggregateSegments": [
+                          {
+                            "timestamp": "2026-01-15T10:00:00.000Z",
+                            "totalExecutions": 40,
+                            "successfulExecutions": 38,
+                            "avgDurationMs": 1180
+                          }
+                        ],
+                        "totalRuns": 40,
+                        "totalErrors": 2,
+                        "avgLatency": 1180,
+                        "timeBounds": {
+                          "start": "2026-01-15T10:00:00.000Z",
+                          "end": "2026-01-15T22:00:00.000Z"
+                        },
+                        "segmentMs": 600000
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -625,13 +805,23 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+        "description": "Send a personal or workspace API key in `X-API-Key`. See [key types and access](https://docs.sim.ai/api-reference/authentication#key-types); operations that reject workspace keys say so in their description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "Send a Sim OAuth access token in `Authorization: Bearer`. See [OAuth authentication and scopes](https://docs.sim.ai/api-reference/authentication#oauth-access-tokens).",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {
@@ -810,7 +1000,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. When present, `Retry-After` gives the minimum seconds to wait; add jitter before retrying. Check operation-specific guidance before repeating a change after an uncertain response.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -856,6 +1046,9 @@
           "ORGANIZATION_MEMBERSHIP_REQUIRED",
           "ORGANIZATION_ADMIN_REQUIRED",
           "ENTERPRISE_PLAN_REQUIRED",
+          "SSO_DISABLED",
+          "SSO_DOMAIN_NOT_VERIFIED",
+          "SSO_PROVIDER_LIMIT_REACHED",
           "ORGANIZATION_PLAN_REQUIRED",
           "AUDIT_LOGS_DISABLED",
           "ACCESS_REQUESTS_DISABLED",
@@ -1255,6 +1448,11 @@
             "type": "number",
             "description": "Offset from the root span in milliseconds."
           },
+          "contentWithheld": {
+            "type": "boolean",
+            "const": true,
+            "description": "Present when the log projection withheld some or all of this span's content (input, output, thinking, error message, tool-call or provider-segment content) because it could not be proven safe to display. Status, timing, and usage remain. A withheld content field is omitted whole, never a key inside it: a content field absent from a span carrying this marker may exist on the run but was not returned, while a key missing inside a content field that is present is genuinely absent."
+          },
           "toolCalls": {
             "type": "array",
             "items": {
@@ -1329,7 +1527,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -1351,7 +1549,7 @@
                 "endedAt": "2026-01-15T10:30:01.250Z",
                 "totalDurationMs": 1250,
                 "cost": {
-                  "total": 0.0032
+                  "total": 0.0072
                 },
                 "hasHandledErrors": false,
                 "files": [
@@ -1602,7 +1800,7 @@
                 "type": "null"
               }
             ],
-            "description": "Workflow graph captured for the run, or null if unavailable. Sensitive values are redacted to null; environment-variable references may be preserved."
+            "description": "Workflow graph captured for the run, or null if unavailable or includeWorkflowState=false. Sensitive values are redacted to null; environment-variable references may be preserved."
           },
           "traceSpans": {
             "type": "array",
@@ -1747,7 +1945,15 @@
               "startedAt": "2026-01-15T10:30:00.000Z",
               "endedAt": "2026-01-15T10:30:01.250Z",
               "totalDurationMs": 1250,
-              "files": null,
+              "files": [
+                {
+                  "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
+                  "name": "summary.pdf",
+                  "size": 18422,
+                  "type": "application/pdf",
+                  "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04"
+                }
+              ],
               "executedByEmail": "billing@example.com",
               "workflow": {
                 "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
@@ -1769,12 +1975,12 @@
                 "result": "Hello, world!"
               },
               "cost": {
-                "total": 0.0032,
+                "total": 0.0072,
                 "items": [
                   {
                     "category": "fixed",
                     "description": "Base execution charge",
-                    "cost": 0.001
+                    "cost": 0.005
                   },
                   {
                     "category": "model",

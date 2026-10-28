@@ -25,7 +25,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 /**
  * Constants for ComboBox component behavior
  */
-const DEFAULT_MODEL = 'claude-sonnet-5'
+const DEFAULT_MODEL = 'claude-sonnet-5-5'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
@@ -296,7 +296,7 @@ export const ComboBox = memo(function ComboBox({
 
   /**
    * Determines the default option value to use.
-   * Priority: explicit defaultValue > claude-sonnet-5 for model field > first option
+   * Priority: explicit defaultValue > DEFAULT_MODEL for model field > first option
    */
   const defaultOptionValue = useMemo(() => {
     if (defaultValue !== undefined) {
@@ -308,7 +308,6 @@ export const ComboBox = memo(function ComboBox({
       // Default not available (e.g. provider disabled) — fall through to other fallbacks
     }
 
-    // For model field, default to claude-sonnet-5 if available
     if (subBlockId === 'model') {
       const defaultModelOption = evaluatedOptions.find(
         (opt) => getOptionValue(opt) === DEFAULT_MODEL

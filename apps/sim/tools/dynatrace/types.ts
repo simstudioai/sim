@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Credentials every Dynatrace Environment API v2 call needs. */
-export interface DynatraceBaseParams {
+interface DynatraceBaseParams {
   environmentUrl: string
   apiToken: string
 }
@@ -110,7 +110,7 @@ export interface DynatraceEvent {
 }
 
 /** One series of a metric query result. */
-export interface DynatraceMetricSeries {
+interface DynatraceMetricSeries {
   dimensions: string[]
   dimensionMap: Record<string, string>
   timestamps: number[]
@@ -1020,51 +1020,3 @@ export interface DynatraceDeleteSloResponse extends ToolResponse {
     deleted: boolean
   }
 }
-
-/** Union of every Dynatrace tool response, used as the block's response type. */
-export type DynatraceResponse =
-  | DynatraceAddProblemCommentResponse
-  | DynatraceAddTagsResponse
-  | DynatraceCloseProblemResponse
-  | DynatraceCreateSettingsObjectResponse
-  | DynatraceCreateSloResponse
-  | DynatraceDeleteProblemCommentResponse
-  | DynatraceDeleteSettingsObjectResponse
-  | DynatraceDeleteSloResponse
-  | DynatraceDeleteTagResponse
-  | DynatraceExecuteSyntheticMonitorsResponse
-  | DynatraceGetAttackResponse
-  | DynatraceGetAuditLogsResponse
-  | DynatraceGetEntityResponse
-  | DynatraceGetEventResponse
-  | DynatraceGetMetricResponse
-  | DynatraceGetProblemCommentResponse
-  | DynatraceGetProblemResponse
-  | DynatraceGetSecurityProblemResponse
-  | DynatraceGetSettingsObjectResponse
-  | DynatraceGetSloResponse
-  | DynatraceGetSyntheticBatchResponse
-  | DynatraceIngestEventResponse
-  | DynatraceIngestLogsResponse
-  | DynatraceIngestMetricsResponse
-  | DynatraceListAttacksResponse
-  | DynatraceListEntitiesResponse
-  | DynatraceListEntityTypesResponse
-  | DynatraceListEventsResponse
-  | DynatraceListMetricsResponse
-  | DynatraceListProblemCommentsResponse
-  | DynatraceListProblemsResponse
-  | DynatraceListRemediationItemsResponse
-  | DynatraceListSecurityProblemsResponse
-  | DynatraceListSettingsObjectsResponse
-  | DynatraceListSettingsSchemasResponse
-  | DynatraceListSlosResponse
-  | DynatraceListSyntheticMonitorsResponse
-  | DynatraceListTagsResponse
-  | DynatraceMuteSecurityProblemResponse
-  | DynatraceMuteSecurityProblemsResponse
-  | DynatraceQueryMetricsResponse
-  | DynatraceSearchLogsResponse
-  | DynatraceUpdateProblemCommentResponse
-  | DynatraceUpdateSettingsObjectResponse
-  | DynatraceUpdateSloResponse

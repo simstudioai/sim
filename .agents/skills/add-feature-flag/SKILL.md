@@ -83,9 +83,9 @@ Critically, **none of this is expressible in code** — gating (especially `admi
 
 4. **(Prod) configure in AppConfig.** The infra `feature-flags` profile schema is permissive, so a new flag needs **no infra change**. Operators add the flag to the hosted `feature-flags` document using `enabled` for global rollout or only the selected `workspaceIds`/`orgIds`/`userIds`/`adminEnabled` clauses for scoped rollout, then start a `sim-<env>-fast` deployment (see the AppConfig runbook in the infra README — same flow as `access-control`). The fallback secret only applies when AppConfig is disabled.
 
-5. **Test.** Add a case to `apps/sim/lib/core/config/feature-flags.test.ts` that matches the chosen granularity. For a global flag, exercise `isFeatureEnabled('<flag-name>')` with an AppConfig `enabled` rule and toggle the fallback secret for the off-AppConfig path. For scoped rollout, cover only the selected clauses and mock `isPlatformAdmin` when testing `adminEnabled`.
+5. **Test only new evaluation logic.** A flag that reuses the existing clauses is already covered by `apps/sim/lib/core/config/feature-flags.test.ts`; add no per-flag case. When you change how flags evaluate (a new clause kind, a new fallback path), add a case there that passes the `test-audit` authoring gate.
 
-6. **Clean up after rollout.** When the feature ships to everyone, delete the flag's entry from `FEATURE_FLAGS`, the `<FLAG_SECRET>` env entry, the AppConfig document, the call sites, and the test. Leaving dead flags around is the main failure mode of flag systems.
+6. **Clean up after rollout.** When the feature ships to everyone, delete the flag's entry from `FEATURE_FLAGS`, the `<FLAG_SECRET>` env entry, the AppConfig document, and the call sites. Leaving dead flags around is the main failure mode of flag systems.
 
 ## Notes
 

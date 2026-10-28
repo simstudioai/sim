@@ -11,6 +11,7 @@ import {
   forkMappableResourceTypeSchema,
   forkRemapKindSchema,
   forkResourceSelectionSchema,
+  forkWorkflowComparisonSchema,
   promoteCopyResourcesSchema,
 } from '@/lib/api/contracts/workspace-fork'
 
@@ -23,13 +24,13 @@ export const v2ForkRequestIdSchema = z
   .min(1)
   .max(128)
   .describe(
-    'Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409.'
+    'Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can apply another operation.'
   )
 export const v2ForkFingerprintSchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/)
   .describe(
-    'Fingerprint from a preview with the same choices. A changed plan returns 409; request a new preview.'
+    'Fingerprint returned by a preview with the same choices. A changed plan returns 409; preview again. The example hash is illustrative; use the actual preview value.'
   )
 export const v2ForkMappingSchema = z
   .object({
@@ -164,12 +165,8 @@ export const v2ForkPreviewBodySchema = z
   .strict()
 export const v2ForkApplyBodySchema = v2ForkPreviewBodySchema
   .extend({
-    requestId: v2ForkRequestIdSchema.describe(
-      'Stable client request ID for reconciliation and identical retries.'
-    ),
-    previewFingerprint: v2ForkFingerprintSchema.describe(
-      'Fingerprint of the reviewed preview and its choices.'
-    ),
+    requestId: v2ForkRequestIdSchema,
+    previewFingerprint: v2ForkFingerprintSchema,
   })
   .strict()
 export const v2SyncPreviewBodySchema = z
@@ -181,15 +178,15 @@ export const v2SyncPreviewBodySchema = z
       .array(v2ForkMappingSchema)
       .max(5000)
       .optional()
-      .describe('Proposed mappings; preview does not save them. Apply commits them with the sync.')
-      .describe('Mappings keyed by resource type and source identifier.'),
+      .describe(
+        'Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync.'
+      ),
     dependentValues: z
       .array(v2ForkDependentValueSchema)
       .max(2000)
       .optional()
-      .describe('Destination choices addressed by source workflow, block, and field identities.')
       .describe(
-        'Destination-dependent choices keyed by source workflow, block, and field identities.'
+        'Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them.'
       ),
     copyResources: v2SyncCopySelectionSchema
       .optional()
@@ -223,24 +220,19 @@ export const v2SyncPreviewBodySchema = z
   .strict()
 export const v2SyncApplyBodySchema = v2SyncPreviewBodySchema
   .extend({
-    requestId: v2ForkRequestIdSchema.describe(
-      'Stable client request ID for reconciliation and identical retries.'
-    ),
-    previewFingerprint: v2ForkFingerprintSchema.describe(
-      'Fingerprint of the reviewed preview and its choices.'
-    ),
+    requestId: v2ForkRequestIdSchema,
+    previewFingerprint: v2ForkFingerprintSchema,
     confirm: z
       .literal(true)
       .describe(
-        'Acknowledge replacement of target workflows and archival of mapped targets whose sources were deleted.'
-      )
-      .describe('Explicit acknowledgement that sync replaces target workflows.'),
+        'Confirm replacement of mapped target drafts and archival of mapped targets whose sources were deleted or archived.'
+      ),
   })
   .strict()
 export const v2ForkPreviewDataSchema = z
   .object({
     previewFingerprint: v2ForkFingerprintSchema.describe(
-      'Fingerprint of the reviewed preview and its choices.'
+      'Fingerprint to submit when applying this preview with the same choices. Preview again after changing a choice.'
     ),
     sourceWorkspaceId: workspaceIdSchema.describe(
       'Canonical workspace the workflows and resources are copied from.'
@@ -265,8 +257,8 @@ export const v2ForkPreviewDataSchema = z
   })
   .meta({
     id: 'WorkspaceForkPreview',
-    title: 'WorkspaceForkPreview',
-    description: 'The WorkspaceForkPreview result.',
+    title: 'Workspace fork preview',
+    description: 'Read-only fork plan and fingerprint.',
   })
 export const v2SyncConfigurationSchema = z.object({
   sourceWorkflowId: workflowIdSchema.describe('Workflow identifier in the source workspace.'),
@@ -312,7 +304,7 @@ export const v2SyncConfigurationSchema = z.object({
 export const v2SyncPreviewDataSchema = z
   .object({
     previewFingerprint: v2ForkFingerprintSchema.describe(
-      'Fingerprint of the reviewed preview and its choices.'
+      'Fingerprint to submit when applying this preview with the same choices. Preview again after changing a choice.'
     ),
     sourceWorkspaceId: workspaceIdSchema.describe(
       'Canonical workspace the workflows and resources are copied from.'
@@ -320,7 +312,9 @@ export const v2SyncPreviewDataSchema = z
     targetWorkspaceId: workspaceIdSchema.describe('Canonical workspace receiving the changes.'),
     ready: z
       .boolean()
-      .describe('Whether the operation passes its current apply or deployment readiness checks.'),
+      .describe(
+        'Whether required bindings, configuration, and sync blockers are resolved. This does not mean the target is already deployed.'
+      ),
     workflows: z
       .array(
         z.object({
@@ -336,6 +330,11 @@ export const v2SyncPreviewDataSchema = z
               'Existing target workflow identifier; absent when apply will create a new target.'
             ),
           name: z.string().max(1024).describe('Display name of the workflow or workspace.'),
+          comparison: forkWorkflowComparisonSchema
+            .optional()
+            .describe(
+              'Last successfully synced source deployment compared with the source deployment pinned by this preview. Absent for archive actions.'
+            ),
         })
       )
       .max(2000)
@@ -396,8 +395,8 @@ export const v2SyncPreviewDataSchema = z
   })
   .meta({
     id: 'WorkspaceSyncPreview',
-    title: 'WorkspaceSyncPreview',
-    description: 'The WorkspaceSyncPreview result.',
+    title: 'Workspace sync preview',
+    description: 'Read-only sync actions, bindings, configuration, and trigger-path choices.',
   })
 export const v2ForkOtherBodySchema = z
   .object({
@@ -434,7 +433,9 @@ export const v2ForkMappingUpdateBodySchema = z
     mappings: z
       .array(v2ForkMappingSchema)
       .max(5000)
-      .describe('Mappings keyed by resource type and source identifier.'),
+      .describe(
+        'Mapping entries addressed by resource type and `sourceId`. `targetId: null` clears a mapping.'
+      ),
   })
   .strict()
 export const v2ForkChildrenQuerySchema = z
@@ -460,7 +461,7 @@ export const v2ForkResourcesQuerySchema = z
         'mcpServers',
         'workflowMcpServers',
       ])
-      .describe('Resource or operation kind.'),
+      .describe('Kind of source resource to list for copy selection.'),
     sortBy: z.enum(['id']).default('id').describe('Supported stable sort key for this collection.'),
     sortOrder: z.enum(['asc']).default('asc').describe('Sort direction.'),
   })
@@ -556,8 +557,8 @@ export const v2GetWorkspaceForkAvailabilityContract = defineRouteContract({
         })
         .meta({
           id: 'GetWorkspaceForkAvailabilityResult',
-          title: 'GetWorkspaceForkAvailabilityResult',
-          description: 'The GetWorkspaceForkAvailabilityResult result.',
+          title: 'Get workspace fork availability result',
+          description: 'Fork feature availability for this workspace.',
         })
     ),
   },
@@ -580,8 +581,8 @@ export const v2GetWorkspaceForkLineageContract = defineRouteContract({
         })
         .meta({
           id: 'GetWorkspaceForkLineageResult',
-          title: 'GetWorkspaceForkLineageResult',
-          description: 'The GetWorkspaceForkLineageResult result.',
+          title: 'Get workspace fork lineage result',
+          description: 'Current workspace and its active parent.',
         })
     ),
   },
@@ -599,8 +600,8 @@ export const v2ListWorkspaceForkChildrenContract = defineRouteContract({
         .extend({ createdAt: z.iso.datetime().describe('ISO 8601 creation timestamp.') })
         .meta({
           id: 'ListWorkspaceForkChildrenResult',
-          title: 'ListWorkspaceForkChildrenResult',
-          description: 'The ListWorkspaceForkChildrenResult result.',
+          title: 'List workspace fork children result',
+          description: 'An active direct child workspace.',
         })
     ),
   },
@@ -631,8 +632,8 @@ export const v2ListWorkspaceForkResourcesContract = defineRouteContract({
         })
         .meta({
           id: 'ListWorkspaceForkResourcesResult',
-          title: 'ListWorkspaceForkResourcesResult',
-          description: 'The ListWorkspaceForkResourcesResult result.',
+          title: 'List workspace fork resources result',
+          description: 'A copyable resource candidate.',
         })
     ),
   },
@@ -650,8 +651,8 @@ export const v2GetWorkspaceForkMappingsContract = defineRouteContract({
         .extend({ id: z.string().max(256).describe('Resource identifier.') })
         .meta({
           id: 'GetWorkspaceForkMappingsResult',
-          title: 'GetWorkspaceForkMappingsResult',
-          description: 'The GetWorkspaceForkMappingsResult result.',
+          title: 'Get workspace fork mappings result',
+          description: 'A saved directional mapping entry.',
         })
     ),
   },
@@ -668,8 +669,8 @@ export const v2UpdateWorkspaceForkMappingsContract = defineRouteContract({
     schema: v2DataResponse(
       z.object({ updated: z.number().int().min(0).describe('Number of records changed.') }).meta({
         id: 'UpdateWorkspaceForkMappingsResult',
-        title: 'UpdateWorkspaceForkMappingsResult',
-        description: 'The UpdateWorkspaceForkMappingsResult result.',
+        title: 'Update workspace fork mappings result',
+        description: 'Count of changed mapping records.',
       })
     ),
   },
@@ -713,8 +714,8 @@ export const v2RollbackWorkspaceForkContract = defineRouteContract({
         })
         .meta({
           id: 'RollbackWorkspaceForkResult',
-          title: 'RollbackWorkspaceForkResult',
-          description: 'The RollbackWorkspaceForkResult result.',
+          title: 'Rollback workspace fork result',
+          description: 'Workflow restoration and pending-activation counts.',
         })
     ),
   },
@@ -731,8 +732,8 @@ export const v2UnlinkWorkspaceForkContract = defineRouteContract({
     schema: v2DataResponse(
       z.object({ unlinked: z.boolean().describe('Whether the fork edge was removed.') }).meta({
         id: 'UnlinkWorkspaceForkResult',
-        title: 'UnlinkWorkspaceForkResult',
-        description: 'The UnlinkWorkspaceForkResult result.',
+        title: 'Unlink workspace fork result',
+        description: 'Fork-edge removal acknowledgment.',
       })
     ),
   },
@@ -749,8 +750,8 @@ export const v2UpdateWorkspaceForkExclusionsContract = defineRouteContract({
     schema: v2DataResponse(
       z.object({ updated: z.number().int().min(0).describe('Number of records changed.') }).meta({
         id: 'UpdateWorkspaceForkExclusionsResult',
-        title: 'UpdateWorkspaceForkExclusionsResult',
-        description: 'The UpdateWorkspaceForkExclusionsResult result.',
+        title: 'Update workspace fork exclusions result',
+        description: 'Count of changed workflow exclusion flags.',
       })
     ),
   },

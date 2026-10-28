@@ -1,6 +1,11 @@
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 import type { ShopifyCreateCustomerParams, ShopifyCustomerResponse } from '@/tools/shopify/types'
 import { CUSTOMER_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
+import {
+  getShopifyHeaders,
+  getShopifyUrl,
+  parseShopifyArray,
+  parseShopifyObject,
+} from '@/tools/shopify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const shopifyCreateCustomerTool: ToolConfig<
@@ -15,12 +20,52 @@ export const shopifyCreateCustomerTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'shopify',
+    authoritativeParams: ['domain', 'idToken'],
   },
 
   params: {
-    shopDomain: {
+    accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'Shopify Admin API token supplied by the connected credential',
+    },
+    locale: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Customer locale, such as en',
+    },
+    taxExempt: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the customer is exempt from taxes',
+    },
+    metafields: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'MetafieldInput array: namespace, key, type, value, or id',
+    },
+    emailMarketingConsent: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'CustomerEmailMarketingConsentInput with marketingState, marketingOptInLevel, consentUpdatedAt',
+    },
+    smsMarketingConsent: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'CustomerSmsMarketingConsentInput with marketingState, marketingOptInLevel, consentUpdatedAt',
+    },
+
+    shopDomain: {
+      type: 'string',
+      required: false,
       visibility: 'user-only',
       description: 'Your Shopify store domain (e.g., mystore.myshopify.com)',
     },
@@ -69,18 +114,9 @@ export const shopifyCreateCustomerTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    url: getShopifyUrl,
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Missing access token for Shopify API request')
-      }
-      return {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': params.accessToken,
-      }
-    },
+    headers: getShopifyHeaders,
     body: (params) => {
       // Shopify requires at least one of: email, phone, firstName, or lastName
       const hasEmail = params.email?.trim()
@@ -112,9 +148,24 @@ export const shopifyCreateCustomerTool: ToolConfig<
       if (params.tags && Array.isArray(params.tags)) {
         input.tags = params.tags
       }
-      if (params.addresses && Array.isArray(params.addresses)) {
-        input.addresses = params.addresses
+      if (params.addresses !== undefined) {
+        input.addresses = parseShopifyArray(params.addresses, 'addresses')
       }
+
+      if (params.locale !== undefined) input.locale = params.locale
+      if (params.taxExempt !== undefined) input.taxExempt = params.taxExempt
+      if (params.metafields !== undefined)
+        input.metafields = parseShopifyArray(params.metafields, 'metafields')
+      if (params.emailMarketingConsent !== undefined)
+        input.emailMarketingConsent = parseShopifyObject(
+          params.emailMarketingConsent,
+          'emailMarketingConsent'
+        )
+      if (params.smsMarketingConsent !== undefined)
+        input.smsMarketingConsent = parseShopifyObject(
+          params.smsMarketingConsent,
+          'smsMarketingConsent'
+        )
 
       return {
         query: `
@@ -130,25 +181,48 @@ export const shopifyCreateCustomerTool: ToolConfig<
                 updatedAt
                 note
                 tags
+                numberOfOrders
+                locale
+                taxExempt
+                emailMarketingConsent {
+                  marketingState
+                  marketingOptInLevel
+                  consentUpdatedAt
+                }
+                smsMarketingConsent {
+                  marketingState
+                  marketingOptInLevel
+                  consentUpdatedAt
+                }
                 amountSpent {
                   amount
                   currencyCode
                 }
-                addresses {
+                addresses(first: 250) {
+                  firstName
+                  lastName
                   address1
                   address2
                   city
                   province
+                  provinceCode
                   country
+                  countryCode
                   zip
                   phone
                 }
                 defaultAddress {
+                  firstName
+                  lastName
                   address1
+                  address2
                   city
                   province
+                  provinceCode
                   country
+                  countryCode
                   zip
+                  phone
                 }
               }
               userErrors {
@@ -157,6 +231,7 @@ export const shopifyCreateCustomerTool: ToolConfig<
               }
             }
           }
+
         `,
         variables: {
           input,
@@ -168,10 +243,10 @@ export const shopifyCreateCustomerTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (data.errors) {
+    if (!response.ok || data.errors?.length) {
       return {
         success: false,
-        error: data.errors[0]?.message || 'Failed to create customer',
+        error: data.errors?.[0]?.message || 'Failed to create customer',
         output: {},
       }
     }

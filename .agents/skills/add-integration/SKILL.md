@@ -26,10 +26,78 @@ Before writing any code:
 1. Use Context7 to find official documentation: `mcp__context7__resolve-library-id`, then fetch with `mcp__context7__query-docs`
 2. Or use WebFetch to read API docs directly
 3. Identify:
-   - Authentication method (OAuth, API Key, both)
+   - Supported authentication grants, who owns the app, and which permissions each operation needs
    - Available operations (CRUD, search, etc.)
    - Required vs optional parameters
    - Response structures
+
+### Choose the connection flow before building tools
+
+Read the provider's current authentication documentation first. “OAuth” describes a protocol;
+it does not imply a browser redirect or a deployment-wide client ID and secret. Compare the
+supported paths and choose the simplest supported setup for the intended user:
+
+| Provider method | Sim connection pattern | Verify in the provider docs |
+| --- | --- | --- |
+| Authorization code | Shared OAuth app and consent flow | Partner approval, redirect URIs, tenant consent, scopes, refresh-token rotation |
+| Customer-owned client credentials | Saved `service_account` credential with a client ID and secret | Internal-app eligibility, grant activation, scope syntax, token lifetime and revocation behavior |
+| API token or personal access token | Saved token service account when reusable connections are useful | Token permissions, identity verification, expiry and rotation |
+| Private key, certificate, or service-account JSON | Existing key-based service-account framework | Signing algorithm, audience, subject, tenant binding and key rotation |
+
+Do not present customer-owned credentials as a way around a provider's approval requirements
+for a shared public integration. Explain the supported account/app type in the setup docs. Keep
+existing OAuth connections usable when other users depend on them, unless a migration or removal is explicitly authorized.
+
+For client credentials, extend the existing descriptors and minter registry under
+`apps/sim/lib/credentials/client-credential-accounts/`; for token credentials, use
+`token-service-accounts/`. Reuse the connect modal, encrypted storage, authorized credential
+operations, and execution-time token resolver. Do not collect reusable secrets on every block,
+invent a credential route, or store a short-lived access token as if it were permanent.
+
+Verify the complete lifecycle, including connect-time verification, concurrent executions on
+different workers, expiry, secret rotation, and permission changes. Some providers invalidate the
+previous token whenever another is minted. Those providers require shared coordination keyed by
+the provider application identity, including across duplicate saved credentials; a process-local
+or per-scope token cache is insufficient. A cache hit must never authenticate a wrong secret or
+silently grant broader permissions. Bound token responses and retries, prevent credential-bearing
+redirects, and never include provider response bodies or secrets in errors.
+
+Use explicit permission choices when the supported operations have different access needs. Keep
+region and permission selections on reconnect unless the user changes them. Verify documented
+identity endpoints rather than guessing which person a client-credentials token represents.
+
+### Pair saved credentials with block and resource selectors
+
+`oauth-input` is the shared saved-credential picker, including for service accounts that never
+redirect to OAuth. Give its basic/advanced pair one `canonicalParamId: 'oauthCredential'`, with
+the correct `serviceId`, and wire tool OAuth metadata to that same service. Tokens and trusted
+API origins are hidden execution inputs; the model receives a credential ID, never a secret.
+Use `credentialKind: 'service-account'` when only service accounts are supported, including in
+tool OAuth metadata. Use `credentialKind: 'any'` on the picker when both browser OAuth and saved
+service accounts are supported; omitting it defaults the connect action to browser OAuth. Per-connection scope
+choices belong in the descriptor and encrypted credential, not an all-permissions block
+`requiredScopes` array that would reject read-only connections.
+
+When a documented list endpoint makes a resource ID discoverable, pair the saved credential
+with a dynamic resource selector using the `add-selector` and `validate-selector` skills:
+
+- Declare the credential subblock and any parent resource in `dependsOn`, and give the resource
+  selector and its manual advanced input the same canonical parameter.
+- Register browser-safe selector metadata and a server attachment through the shared selector
+  framework. Resolve the credential with the expected provider binding and use a fixed or
+  credential-bound destination; selectors and execution must use the same auth/region policy.
+- Exercise switching credentials, parent resources, pagination, expired tokens, denied access,
+  and the advanced environment-reference path. Check that stale choices cannot survive a change
+  of account. Do not fetch provider data or mint tokens in the browser.
+- Keep a manual ID path when the provider cannot enumerate a resource. Do not invent an endpoint
+  solely to provide a dropdown.
+
+For an existing integration, inspect persisted workflow serialization as well as the visible
+form before removing old auth fields. Establish whether existing users need a migration or
+compatibility path; do not add permanent legacy branches speculatively when removal is authorized.
+When compatibility is needed, prove that old values survive serialization and execution; hiding
+a field is not proof. If the user authorizes a production usage check, query only the aggregate usage/auth-shape evidence
+needed and keep identities, secrets, and local evidence out of commits and PRs.
 
 ### Hard Rule: No Guessed Response Schemas
 
@@ -85,12 +153,14 @@ export interface {Service}{Action}Params {
   optionalParam?: string
 }
 
-export interface {Service}Response extends ToolResponse {
+export interface {Service}{Action}Response extends ToolResponse {
   output: {
     // Define output structure
   }
 }
 ```
+
+Declare one response interface per tool, imported by that tool's `ToolConfig<Params, Response>` (or `InternalToolConfig` for in-process work). Never add an umbrella `{Service}Response` union: nothing imports it.
 
 **Tool file pattern:** an external provider API uses `ToolConfig` with `request` (absolute `https://` URL, headers, body, `transformResponse`); same-process Sim work uses `InternalToolConfig` with `operation`. Both full templates, param visibility rules, and output typing live in `.agents/skills/add-tools/SKILL.md` — read it before writing the first tool.
 
@@ -123,18 +193,22 @@ Follow `.agents/skills/add-block/SKILL.md` for the block structure, subBlock typ
 `canvasPresentation`; `bun run apps/sim/scripts/check-canvas-sentences.ts --block={service}` must
 pass (CI runs `check:canvas-sentences --require-coverage`).
 
-Two rules that are easy to get wrong when copying from existing blocks:
+Three rules that are easy to get wrong when copying from existing blocks:
 
 - Every remote `selectorKey` must use the unified server selector path. Apply the `add-selector` skill:
   add browser-safe metadata to `apps/sim/lib/selectors/manifest.ts`, reuse or extract a server-only
   provider listing primitive, and add a credential- and destination-bound server attachment. Do not
-  add code under `hooks/selectors/providers`, a provider-specific query key, browser token acquisition,
-  or a selector-only API route. The shared context builder sends only active `dependsOn` values and
+  add a client provider fetcher, a provider-specific query key, browser token acquisition, or a
+  selector-only API route. The shared context builder sends only active `dependsOn` values and
   preserves exact `{{KEY}}` environment references for server-side resolution.
-- A `canonicalParamId` is a third name that neither member of a basic/advanced pair uses as its `id`
-  (e.g. `channelSelector` + `channelId` → `canonicalParamId: 'channel'`). It is the only key that
-  survives serialization, so `inputs` and `tools.config.params` reference the canonical id, never the
-  subblock ids. It is unique block-wide, and every member of a group shares the same `required` value.
+- Basic/advanced pairs use a `canonicalParamId`; its constraints are in
+  `.claude/rules/sim-integrations.md` and the `add-block` skill → canonicalParamId Pattern.
+- Every text-entry subBlock (`short-input`, `long-input`, `code`) and every selector declares a
+  `placeholder`; an empty box tells the user nothing. Secrets read `Enter your {thing}` (e.g.
+  `Enter your API key`), free text names what to type (`Enter branch name`), and formatted values
+  show the shape (`2023-01-01T00:00:00Z`, `1 to 1000`). An optional field with a server-side default
+  names that default (`Defaults to the database region`). Dropdowns, switches, and `oauth-input` do
+  not need one.
 
 ## Step 4: Add Icon
 
@@ -209,7 +283,7 @@ import {
 } from '@/tools/{service}'
 
 // Add to tools object (alphabetically)
-export const tools: Record<string, ToolConfig> = {
+export const tools: Record<string, ExecutableToolConfig> = {
   // ... existing tools ...
   {service}_action1: {service}Action1Tool,
   {service}_action2: {service}Action2Tool,
@@ -219,7 +293,7 @@ export const tools: Record<string, ToolConfig> = {
 Then regenerate the generated tool metadata and commit it:
 
 ```bash
-bun run tool-metadata:generate
+bun run generate:tool-metadata
 ```
 
 Client code reads `params`/`outputs` from these artifacts rather than importing
@@ -268,46 +342,77 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 
 ## Step 7: Configure Deployment Availability
 
-Do this for every visible OAuth integration. API-key and unauthenticated integrations do not need
-an OAuth client capability.
+Do this for every integration that uses the shared credential picker. Only a connection that
+depends on deployment-wide OAuth client fields needs an OAuth client capability; a customer-owned
+service account must remain available without those fields.
 
 The block's `oauth-input.serviceId` is the canonical link between the generated integration catalog,
 the OAuth service configuration, deployment availability, and the setup CLI.
 
-1. Ensure the block has exactly one distinct OAuth `serviceId` and that it matches the canonical
-   service entry in `apps/sim/lib/oauth/oauth.ts`.
-2. Confirm `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended provider entry in
+1. Set `authMode: AuthMode.OAuth` for integrations using browser OAuth or customer-owned OAuth
+   client credentials. Token-only service accounts can retain `AuthMode.ApiKey` with the shared
+   picker, as Coda does; `oauth-input` alone does not determine the authentication protocol.
+   Register a new token-only service ID and block type in `tokenCredentialIntegrationTypes` in
+   `packages/deployment-config/src/integration-availability.ts` so availability and integration
+   policy recognize the saved credential path.
+   For OAuth integrations, this value lets the catalog discover the connection flow instead of
+   routing "Add to Sim" to chat. Ensure the block has exactly one distinct OAuth `serviceId`
+   matching the canonical service in `apps/sim/lib/oauth/oauth.ts`. The canonical service's
+   `authType` selects browser OAuth or the service-account modal. Verify the resulting catalog
+   and block connection actions for the chosen authentication method.
+2. For browser OAuth, confirm `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended provider entry in
    `OAUTH_CLIENT_CAPABILITIES` in `packages/deployment-config/src/env-capabilities.ts`. Google and
    Microsoft service IDs deliberately share provider-level capabilities.
-3. For a new OAuth provider, add the required client fields to `OAUTH_CLIENT_CAPABILITIES`, add
+3. For a new browser OAuth provider, add the required client fields to `OAUTH_CLIENT_CAPABILITIES`, add
    every referenced field to the env schema in `apps/sim/lib/core/config/env.ts`, and add the
    matching `text` or `secret` entries to `OAUTH_CLIENT_SETUP_FIELDS` in
    `packages/sim-setup/src/capability-config.ts`. Do not create integration-specific setup logic or
    infer secret fields from naming; the CLI mapping is exhaustively checked against the runtime
    fields.
 4. If the canonical OAuth service has `serviceAccountProviderId`, run
-   `bun run deployment-config:generate` to refresh
+   `bun run generate:deployment-config` to refresh
    `packages/deployment-config/src/service-account-providers.generated.ts`; never hand-edit the
    generated provider-ID map. In `packages/deployment-config/src/service-account-metadata.ts`, use:
    - no `deploymentRequirement` when the service-account path works independently of OAuth client fields;
    - `'oauth-client'` when it requires the same deployment OAuth client fields;
    - `'preview-gated'` when availability is controlled by the service-account preview block.
+   For a service-account-only default, set the canonical service's `authType: 'service_account'`
+   and `serviceAccountProviderId`. Verify both block availability and the connect modal with no
+   deployment OAuth credentials configured. An existing browser OAuth path may remain for legacy
+   credentials without becoming a prerequisite for the new path.
 
-Never add a permissive fallback for missing capability metadata. A visible OAuth integration without
-a resolvable capability must fail validation.
+Never add a permissive fallback for missing capability metadata. A browser OAuth connection without
+a resolvable capability must fail validation; an independent service account uses its own metadata.
 
 ## Step 8: Generate and Validate the Catalog
 
-Run the documentation generator:
-```bash
-bun run scripts/generate-docs.ts
-bun run deployment-config:generate
-bun run integration-catalog:check
-bun run deployment-config:check
-bun run docs:check
+Run `bun run generate:tool-metadata`, `bun run scripts/generate-docs.ts`,
+`bun run generate:deployment-config`, then `bun run check:audits` (see the `validate-integration`
+skill → Regenerate Derived Artifacts for the full list and what each check verifies).
+
+The docs generator creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+
+Every generated integration page carries a hand-written intro directly under `<BlockInfoCard />`. The
+generator preserves it across regenerations, so write it once after the first generate:
+
+```mdx
+{/* MANUAL-CONTENT-START:intro */}
+[{Service}](https://service.com/) is {one sentence on what the service is}.
+
+With the {Service} block, you can:
+
+- **{Capability}**: {what the operations in this group do}
+- **{Capability}**: {...}
+
+{How to connect: which credential to create and where, if it is not OAuth.}
+
+In Sim, the {Service} block lets your agents {concrete workflow uses}.
+{/* MANUAL-CONTENT-END */}
 ```
 
-This creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+Group the bullets by what the user gets done, not one bullet per tool. Only describe operations the
+block actually ships. Follow `.claude/rules/constitution.md` for voice. Re-run
+`bun run scripts/generate-docs.ts` afterwards and confirm the section survived unchanged.
 
 The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
 config generator projects service-account provider IDs from that catalog plus the canonical OAuth
@@ -352,7 +457,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] All optional outputs have `optional: true`
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
-- [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
+- [ ] Ran `bun run generate:tool-metadata` and committed the regenerated artifacts
 - [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
 - [ ] Added shared model-input projection or private provenance only where required; ordinary
       external resource locators and control inputs retain their request semantics
@@ -364,10 +469,12 @@ If creating V2 versions (API-aligned outputs):
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`
 - [ ] Set `integrationType` to the correct `IntegrationType` enum value
-- [ ] Set `tags` array with all applicable `IntegrationTag` values
+- [ ] `{Service}BlockMeta.tags` lists every applicable `IntegrationTag` (tags live on the meta, not the block)
 - [ ] Defined operation dropdown with all operations
-- [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
+- [ ] Added the saved-credential picker with the supported `credentialKind`; browser OAuth scopes
+      use `getScopesForService('{service}')`, while variable service-account permissions stay on the credential
 - [ ] Added conditional fields per operation
+- [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder`
 - [ ] Set up dependsOn for cascading selectors
 - [ ] Every remote `selectorKey` exists in the shared manifest and has one server attachment with
       trusted credential provider binding and a fixed, credential-bound, or explicitly reviewed
@@ -383,15 +490,25 @@ If creating V2 versions (API-aligned outputs):
 - [ ] `canvasPresentation.sentences` covers every operation; `bun run apps/sim/scripts/check-canvas-sentences.ts --block={service}` passes
 - [ ] `{Service}BlockMeta` also sets `url` (verified external homepage) and `skills` (grounded in `tools.access`, sourced from real use cases) — see add-block → BlockMeta
 
-### OAuth Scopes (if OAuth service)
+### Authentication and saved credentials
+- [ ] Compared documented authorization code, client credentials, token, and key-based methods
+- [ ] Chosen app ownership and approval requirements match the intended user
+- [ ] Saved credential picker, tools, and resource selectors share the same provider/region binding
+- [ ] Connect verification, expiry, concurrent workers, secret rotation, and scope changes are sound
+- [ ] Existing usage and the migration/removal decision are established; any required compatibility is verified through serialization and execution
+- [ ] New connection and reconnect flows verified in the running UI
+
+### Browser OAuth Scopes (if authorization-code flow is supported)
 - [ ] Defined scopes in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS`
 - [ ] Added scope descriptions in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
-- [ ] Used `getCanonicalScopesForProvider()` in `auth.ts` (never hardcode)
-- [ ] Used `getScopesForService()` in block `requiredScopes` (never hardcode)
+- [ ] Used `getCanonicalScopesForProvider()` in `lib/auth/connectors/providers.ts` (never hardcode)
+- [ ] Used `getScopesForService()` for the browser OAuth permissions the block needs (never hardcode)
+- [ ] A picker that also accepts service accounts does not require broader scopes than every supported
+      connection needs; per-connection service-account permissions are validated by the descriptor/minter
 
-### Deployment Availability (if OAuth service)
+### Deployment Availability (if using the saved-credential picker)
 - [ ] Block declares exactly one distinct `oauth-input.serviceId`
-- [ ] `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry
+- [ ] Browser OAuth resolves to the intended `OAUTH_CLIENT_CAPABILITIES` entry; independent service accounts work without deployment OAuth fields
 - [ ] Every new OAuth capability field exists in `apps/sim/lib/core/config/env.ts`
 - [ ] Runtime OAuth fields live in `OAUTH_CLIENT_CAPABILITIES`; matching CLI input modes live in the exhaustively checked `OAUTH_CLIENT_SETUP_FIELDS`
 - [ ] If `serviceAccountProviderId` is configured, `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` has the matching projection and deployment requirement
@@ -413,14 +530,15 @@ If creating V2 versions (API-aligned outputs):
 
 ### Docs and deployment metadata
 - [ ] Ran `bun run scripts/generate-docs.ts`
-- [ ] Ran `bun run deployment-config:generate` for OAuth or service-account changes
+- [ ] Ran `bun run generate:deployment-config` for OAuth or service-account changes
 - [ ] Verified docs file created
+- [ ] Wrote the `{/* MANUAL-CONTENT-START:intro */}` section under `<BlockInfoCard />` and confirmed it survives a regenerate
 - [ ] Reviewed and committed the generated `packages/deployment-config/src/integrations.json` change
-- [ ] `bun run integration-catalog:check` passes
-- [ ] `bun run docs:check` passes — CI fails on stale generated docs, so commit the full generator
+- [ ] `bun run check:integration-catalog` passes
+- [ ] `bun run check:docs` passes — CI fails on stale generated docs, so commit the full generator
       output, including catch-up regeneration for pages another PR left stale (never revert it as
       "unrelated drift")
-- [ ] `bun run deployment-config:check` passes
+- [ ] `bun run check:deployment-config` passes
 
 ### Final Validation (Required)
 - [ ] Read every tool file and cross-referenced inputs/outputs against the API docs
@@ -474,7 +592,7 @@ Use the basic/advanced mode pattern:
 },
 ```
 
-**Critical:** `canonicalParamId` must NOT match any subblock `id`.
+**Critical:** `canonicalParamId` must NOT match the `id` of a subblock outside its canonical group.
 
 #### 2. Normalize File Input in Block Config
 
@@ -518,60 +636,30 @@ Implement `apps/sim/lib/internal/{service}/execute-tool.ts` and keep the file/pr
 operations beside it. The handler validates `request.input`, derives storage authority only from
 trusted `request.context`, authorizes every stored file before reading bytes, forwards
 `request.signal`, enforces declared and actual byte caps, and returns the canonical tool response.
-Register `{service}_upload` in `apps/sim/lib/internal/tool-operations/registry.server.ts` and add a
-registry/direct-handler test. There is no HTTP fallback.
+Register `{service}_upload` in `apps/sim/lib/internal/tool-operations/registry.server.ts`; the
+sweep in `apps/sim/tools/request-transport.test.ts` fails a forgotten registration
+(`registry.server.test.ts` checks registered ids are canonical with loadable handlers). For anything more, run the
+`test-audit` gate. There is no HTTP fallback.
 
 ### File Output Pattern (Downloads)
 
-For tools that return files, use `FileToolProcessor` to store files and return `UserFile` objects.
+Declare a `file` / `file[]` output on the tool. For a raw binary endpoint, set
+`request.responseType: 'binary'` and return `output.file = { name, mimeType, data: buffer, size }`
+from `transformResponse(response, params?, context?)`. The executor's `FileToolProcessor` stores it
+and replaces it with a `UserFile`; tools never call it.
 
-#### In Tool transformResponse
-
-```typescript
-import { FileToolProcessor } from '@/executor/utils/file-tool-processor'
-
-transformResponse: async (response, context) => {
-  const data = await response.json()
-
-  // Process file outputs to UserFile objects
-  const fileProcessor = new FileToolProcessor(context)
-  const file = await fileProcessor.processFileData({
-    data: data.content,      // base64 or buffer
-    mimeType: data.mimeType,
-    filename: data.filename,
-  })
-
-  return {
-    success: true,
-    output: { file },
-  }
-}
-```
-
-#### In the operation handler (for complex file handling)
-
-```typescript
-// Return file data that FileToolProcessor can handle. No API route is involved.
-return Response.json({
-  success: true,
-  output: {
-    file: {
-      data: base64Content,
-      mimeType: 'application/pdf',
-      filename: 'document.pdf',
-    },
-  },
-})
-```
+In an operation handler, return `createInternalToolFileResult` / `createInternalToolFilesResult`
+from `lib/internal/tool-operations/file-result.ts` — never base64 JSON. See the `add-tools` skill →
+File Downloads and Generated Files.
 
 ### Key Helpers Reference
 
 | Helper | Location | Purpose |
 |--------|----------|---------|
 | `normalizeFileInput` | `@/blocks/utils` | Normalize file params in block config |
-| `processFilesToUserFiles` | `@/lib/uploads/utils/file-utils` | Convert raw inputs to UserFile[] |
-| `downloadFileFromStorage` | `@/lib/uploads/utils/file-utils.server` | Get file Buffer from UserFile |
-| `FileToolProcessor` | `@/executor/utils/file-tool-processor` | Process tool output files |
+| `processFilesToUserFiles` | `@/lib/uploads/utils/file` | Convert raw inputs to UserFile[] |
+| `downloadFileFromStorage` | `@/lib/uploads/utils/file.server` | Get file Buffer from UserFile |
+| `FileToolProcessor` | `@/executor/utils/file-tool-processor` | Executor-side; stores declared file outputs (not called by tools) |
 | `isUserFile` | `@/lib/core/utils/user-file` | Type guard for UserFile objects |
 | `FileInputSchema` | `@/lib/uploads/utils/file-schemas` | Zod schema for file validation |
 
@@ -606,13 +694,13 @@ Scopes are maintained in a single source of truth and reused everywhere:
 
 1. **Define scopes** in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS[provider].services[service].scopes`
 2. **Add descriptions** in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for the OAuth modal UI
-3. **Reference in auth.ts** using `getCanonicalScopesForProvider(providerId)` from `@/lib/oauth/utils`
+3. **Reference in `lib/auth/connectors/providers.ts`** (`buildConnectorProviders`) using `getCanonicalScopesForProvider(providerId)` from `@/lib/oauth/utils`
 4. **Reference in blocks** using `getScopesForService(serviceId)` from `@/lib/oauth/utils`
 
-**Never hardcode scope arrays** in `auth.ts` or block `requiredScopes`. Always import from the centralized source.
+**Never hardcode scope arrays** in the Better Auth connector providers or block `requiredScopes`. Always import from the centralized source.
 
 ```typescript
-// In auth.ts (Better Auth config)
+// In lib/auth/connectors/providers.ts (Better Auth connector providers)
 scopes: getCanonicalScopesForProvider('{service}'),
 
 // In block credential sub-block

@@ -7,7 +7,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { ExecutionJobCancellationScope } from '@/lib/core/async-jobs/types'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   clearExecutionCancellation,
   type ExecutionCancellationRecordResult,
@@ -26,6 +26,7 @@ import {
   type PublishableWorkflowGroupCancellation,
   publishWorkflowGroupCancellationEvent,
 } from '@/lib/table/workflow-group-cancellation'
+import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('CancelWorkflowExecution')
@@ -64,7 +65,16 @@ async function cancelQueuedExecutionJobs(
 ): Promise<number> {
   try {
     const queue = await getJobQueue()
-    return await queue.cancelByExecution({ workflowId, executionId }, scope)
+    return await queue.cancelByExecution(
+      {
+        workflowId,
+        executionId,
+        ...(scope === 'standalone'
+          ? { rootJobId: `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}` }
+          : {}),
+      },
+      scope
+    )
   } catch (error) {
     logger.warn('Failed to cancel queued execution jobs', {
       workflowId,
@@ -1190,12 +1200,13 @@ export async function cancelWorkflowExecution({
       reason,
     }
   } catch (error) {
-    const normalizedError = toError(error)
-    logger.error('Failed to cancel execution', {
-      workflowId,
-      executionId,
-      error: normalizedError.message,
-    })
+    const details = { workflowId, executionId, error: toError(error).message }
+    const classified = asOrchestrationError(error)
+    if (classified && classified.code !== 'internal') {
+      logger.info('Execution cancellation refused', details)
+    } else {
+      logger.error('Failed to cancel execution', details)
+    }
     throw error
   }
 }

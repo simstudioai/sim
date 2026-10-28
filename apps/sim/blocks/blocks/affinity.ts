@@ -2,7 +2,6 @@ import { AffinityIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
-import type { AffinityCollectionResponse } from '@/tools/affinity/types'
 
 /** Operations scoped to a company or person through the shared field endpoints. */
 const FIELD_ENTITY_OPERATIONS = [
@@ -304,12 +303,12 @@ function affinityToolIds(): ReadonlySet<string> {
   return affinityToolIdCache
 }
 
-export const AffinityBlock: BlockConfig<AffinityCollectionResponse<string>> = {
+export const AffinityBlock: BlockConfig = {
   type: 'affinity',
   name: 'Affinity',
   description: 'Read and write companies, people, lists, notes, and relationships in Affinity',
   longDescription:
-    'Integrates the Affinity v2 API into the workflow. Read and search companies, people, and opportunities, page the rows of any list or saved view, read and write field values one at a time or a hundred at once, write and reply to notes, create reminders, follow logged calls, emails, meetings, and transcripts, find warm introductions through shared work and investment history, search notes and files by keyword, find companies from a description in plain language, and follow the field-value change feed for delta sync. What each operation can reach depends on the permissions granted to the API key.',
+    'Read companies, people, opportunities, lists, and saved views; search companies, people, and list entries. Page through the rows of a list or saved view. Read field values and update them individually or in batches of up to 100 on one company, person, or list entry. Read, create, update, delete, and reply to notes; list or create reminders; retrieve logged calls, emails, chat messages, meetings, and transcripts. Search notes and files by keyword, find companies from a plain-language description with Semantic Search, discover possible introduction paths through shared work and investment history, and follow the field-value change feed for incremental synchronization. Access depends on the API key holder’s permissions.',
   docsLink: 'https://docs.sim.ai/integrations/affinity',
   category: 'tools',
   integrationType: IntegrationType.Sales,

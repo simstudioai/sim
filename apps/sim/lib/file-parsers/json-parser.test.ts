@@ -1,11 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseJSONBuffer, parseJSONLBuffer } from '@/lib/file-parsers/json-parser'
 
 describe('JSON parser complexity limits', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('rejects excessive nesting before serializing the parsed value', async () => {
     const content = `${'['.repeat(501)}0${']'.repeat(501)}`
     const stringify = vi.spyOn(JSON, 'stringify')
@@ -37,4 +33,29 @@ describe('JSON parser complexity limits', () => {
       code: 'invalid_format',
     })
   })
+
+  /**
+   * Text extraction errors reach Chat as the read's error, and egress redaction recognizes only
+   * whole secrets, so a message quoting a clipped excerpt of the file could carry part of one.
+   */
+  it.each([
+    [
+      'JSON',
+      parseJSONBuffer,
+      `{"config": {"key": sk_live_FIXTURE_0123456789abcdefghij${'x'.repeat(200)}}}`,
+    ],
+    [
+      'JSONL',
+      parseJSONLBuffer,
+      `{"ok": true}\n{"key": "${'x'.repeat(80)}sk_live_FIXTURE_0123456789abcdefghij`,
+    ],
+  ] as const)(
+    'names where invalid %s fails without quoting the file',
+    async (_kind, parse, text) => {
+      const error = await parse(Buffer.from(text)).catch((caught: unknown) => caught)
+      expect(error).toMatchObject({ code: 'invalid_format' })
+      expect(String((error as Error).message)).not.toContain('sk_l')
+      expect(String((error as Error).message)).not.toContain('xxxx')
+    }
+  )
 })

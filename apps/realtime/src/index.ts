@@ -7,7 +7,7 @@ import { assertSchemaCompatibility } from '@/database/preflight'
 import { env } from '@/env'
 import { setupAllHandlers } from '@/handlers'
 import { waitForConnectionCleanup } from '@/handlers/connection'
-import { flushAllFileDocRooms } from '@/handlers/file-doc'
+import { flushAllFileDocRooms, registerFileDocPresenceRelay } from '@/handlers/file-doc'
 import { getFileDocStore, initFileDocStore } from '@/handlers/file-doc-store'
 import { type AuthenticatedSocket, authenticateSocket } from '@/middleware/auth'
 import { type IRoomManager, MemoryRoomManager, RedisRoomManager } from '@/rooms'
@@ -61,6 +61,7 @@ async function main() {
   // Initialize the shared Yjs backend for collaborative file docs (Redis Streams). Enabled only when
   // REDIS_URL is set; otherwise the relay runs its original single-replica in-memory doc path.
   await initFileDocStore(env.REDIS_URL)
+  registerFileDocPresenceRelay(io)
 
   // Set up authentication middleware
   io.use(authenticateSocket)

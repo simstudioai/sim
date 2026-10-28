@@ -1,6 +1,7 @@
 import { Chip, ChipTextarea, cn } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import type { BenchmarkRun } from '@/lib/api/contracts/benchmarks'
+import { benchmarkModelLabel } from '@/lib/benchmarks/models'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { BenchmarkReviewedResults } from '@/app/o/[organizationId]/benchmark/components/benchmark-reviewed-results'
 
@@ -34,6 +35,14 @@ function RunSnapshot({
             {run.artifacts.recoveryMode === 'references'
               ? 'Spec with reference resolution'
               : 'Spec only'}
+          </p>
+          <p className='text-[var(--text-body)] text-small'>
+            Planner: {benchmarkModelLabel(run.modelRuns.plan?.config)}
+          </p>
+          <p className='text-[var(--text-muted)] text-small'>
+            Reader: {benchmarkModelLabel(run.modelRuns.reconstruct?.config)}
+            <br />
+            Grader: {benchmarkModelLabel(run.modelRuns.grade?.config)}
           </p>
           {run.reviewedCount > 0 && (
             <p className='mt-1 text-[var(--text-muted)] text-small'>
@@ -113,7 +122,7 @@ export function BenchmarkRunComparison({
         <p role='status' className='text-[var(--text-body)] text-small'>
           {comparable
             ? `${delta > 0 ? '+' : ''}${Number(delta.toFixed(1))} percentage points vs baseline · ${improved} details improved · ${regressed} regressed`
-            : 'These runs used different inputs or recovery methods. Their scores are not directly comparable.'}
+            : 'These runs used different inputs, evaluators, or recovery methods. Their scores are not directly comparable.'}
         </p>
       )}
       {(run.reviewedCount > 0 || (baseline?.reviewedCount ?? 0) > 0) && (

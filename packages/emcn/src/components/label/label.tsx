@@ -3,7 +3,7 @@
 import * as LabelPrimitive from '@radix-ui/react-label'
 import { cn } from '../../lib/cn'
 
-export interface LabelProps extends React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> {}
+interface LabelProps extends React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> {}
 
 /**
  * EMCN Label component built on Radix UI Label primitive.

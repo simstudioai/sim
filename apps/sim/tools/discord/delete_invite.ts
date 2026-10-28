@@ -41,7 +41,7 @@ export const discordDeleteInviteTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

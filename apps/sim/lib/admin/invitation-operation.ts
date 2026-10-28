@@ -4,10 +4,9 @@ import { member, outboxEvent, user, workspace } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import {
-  ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
-  enterpriseInvitePeoplePayloadSchema,
-} from '@/lib/billing/enterprise-outbox'
+import { ADMIN_INVITATION_OPERATION_EVENT_TYPE } from '@/lib/admin/invitation-operation-event'
+import { enterpriseInvitePeoplePayloadSchema } from '@/lib/billing/enterprise-outbox'
+import { ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE } from '@/lib/billing/enterprise-outbox-events'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import {
   deferOutboxHandler,
@@ -21,7 +20,6 @@ import {
 } from '@/lib/invitations/direct-grant-event'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 
-export const ADMIN_INVITATION_OPERATION_EVENT_TYPE = 'admin.organization-invitation-operation'
 const MAX_INVITATION_OPERATION_FAILURE_DETAILS = 100
 
 const adminInvitationOperationRequestSchema = z.object({

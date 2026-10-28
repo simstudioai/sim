@@ -1,3 +1,9 @@
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
+import { tableApiMock } from '@sim/testing/mocks/table-api.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 interface CapturedDefinition {
@@ -18,9 +24,6 @@ interface CapturedDefinition {
 }
 
 const mocks = vi.hoisted(() => ({
-  auth: { kind: 'session-or-executor' },
-  concealTableGroupAuthorization: { kind: 'conceal-table-group' },
-  definitions: [] as CapturedDefinition[],
   useCases: {
     create: { operation: { id: 'tables.groups.create' } },
     remove: { operation: { id: 'tables.groups.delete' } },
@@ -28,22 +31,9 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes', () => ({
-  defineInternalJsonRoute: (definition: CapturedDefinition) => {
-    mocks.definitions.push(definition)
-    return vi.fn()
-  },
-  internalRateLimits: {
-    none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
-  },
-}))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 
-vi.mock('@/lib/table/api', () => ({
-  internalTableErrorPolicies: {
-    concealTableGroupAuthorization: mocks.concealTableGroupAuthorization,
-  },
-  internalTableSessionOrExecutorAuth: mocks.auth,
-}))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
 vi.mock('@/lib/table/application/groups', () => ({
   createTableGroupUseCase: mocks.useCases.create,
@@ -51,14 +41,16 @@ vi.mock('@/lib/table/application/groups', () => ({
   updateTableGroupUseCase: mocks.useCases.update,
 }))
 
-vi.mock('@/lib/table/wire', () => ({
-  normalizeColumn: vi.fn(),
-}))
+vi.mock('@/lib/table/wire', () => tableWireMock)
 
 import '@/app/api/table/[tableId]/groups/route'
 
+const definitions = apiServerRoutesMockFns.mockDefineInternalJsonRoute.mock.calls.map(
+  ([captured]) => captured as unknown as CapturedDefinition
+)
+
 function definition(method: string): CapturedDefinition {
-  const match = mocks.definitions.find((candidate) => candidate.contract.method === method)
+  const match = definitions.find((candidate) => candidate.contract.method === method)
   if (!match) throw new Error(`Missing ${method} group route definition`)
   return match
 }

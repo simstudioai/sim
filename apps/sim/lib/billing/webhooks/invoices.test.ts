@@ -1,33 +1,34 @@
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import { billingSubscriptionUtilsMock } from '@sim/testing/mocks/billing-subscription-utils.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { emailMailerMock } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock } from '@sim/testing/mocks/email-templates.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import {
   createMockStripeEvent,
-  dbChainMockFns,
-  resetDbChainMock,
   stripeClientMock,
   stripePaymentMethodMock,
-  urlsMockFns,
-} from '@sim/testing'
+} from '@sim/testing/mocks/stripe.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import type Stripe from 'stripe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBlockOrgMembers, mockUnblockOrgMembers } = vi.hoisted(() => ({
-  mockBlockOrgMembers: vi.fn(),
-  mockUnblockOrgMembers: vi.fn(),
-}))
+vi.mock('@/components/emails', () => emailTemplatesMock)
 
-vi.mock('@/components/emails', () => ({
-  getEmailSubject: vi.fn(),
-  renderCreditPurchaseEmail: vi.fn(),
-  renderPaymentFailedEmail: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  calculateSubscriptionOverage: vi.fn(),
-  isSubscriptionOrgScoped: vi.fn().mockResolvedValue(true),
-}))
-
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCostByUser: vi.fn().mockResolvedValue(new Map()),
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/credits/balance', () => ({
   addCredits: vi.fn(),
@@ -39,23 +40,14 @@ vi.mock('@/lib/billing/credits/purchase', () => ({
   setUsageLimitForCredits: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  blockOrgMembers: mockBlockOrgMembers,
-  unblockOrgMembers: mockUnblockOrgMembers,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isEnterprise: vi.fn(() => false),
-  isOrgPlan: vi.fn((plan: string | null | undefined) => Boolean(plan?.startsWith('team'))),
-  isTeam: vi.fn((plan: string | null | undefined) => Boolean(plan?.startsWith('team'))),
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
 vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/billing/stripe-payment-method', () => stripePaymentMethodMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 vi.mock('@/lib/billing/utils/decimal', () => ({
   toDecimal: vi.fn((v: string | number | null | undefined) => {
@@ -74,9 +66,7 @@ vi.mock('@/lib/billing/webhooks/idempotency', () => ({
   },
 }))
 
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  sendEmail: vi.fn(),
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 vi.mock('@/lib/messaging/email/utils', () => ({
   getPersonalEmailFrom: vi.fn(() => ({
@@ -94,6 +84,15 @@ import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
+
+const { mockBlockOrgMembers, mockUnblockOrgMembers } = organizationMembershipMockFns
+billingCoreMockFns.mockIsSubscriptionOrgScoped.mockResolvedValue(true)
+billingUsageLogMockFns.mockGetBillingPeriodUsageCostByUser.mockResolvedValue(new Map())
+billingPlanHelpersMockFns.mockIsEnterprise.mockReturnValue(false)
+billingPlanHelpersMockFns.mockIsOrgPlan.mockImplementation((plan) =>
+  Boolean(plan?.startsWith('team'))
+)
+billingPlanHelpersMockFns.mockIsTeam.mockImplementation((plan) => Boolean(plan?.startsWith('team')))
 
 interface SelectResponse {
   limitResult?: unknown

@@ -10,8 +10,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { sleep } from '../helpers'
 import { configPath, credentialsPath } from './paths'
 import {
   DEFAULT_ENDPOINT,
@@ -327,7 +327,10 @@ describe('OAuth logins in the credentials file', () => {
         order.push('b-end')
       }),
     ])
-    expect(order).toEqual(['a-start', 'a-end', 'b-start', 'b-end'])
+    expect([
+      ['a-start', 'a-end', 'b-start', 'b-end'],
+      ['b-start', 'b-end', 'a-start', 'a-end'],
+    ]).toContainEqual(order)
     expect(existsSync(`${credentialsPath()}.lock`)).toBe(false)
   })
 

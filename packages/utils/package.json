@@ -6,10 +6,6 @@
   "type": "module",
   "license": "Apache-2.0",
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
-    },
     "./id": {
       "types": "./src/id.ts",
       "default": "./src/id.ts"
@@ -66,6 +62,10 @@
       "types": "./src/paste.ts",
       "default": "./src/paste.ts"
     },
+    "./site": {
+      "types": "./src/site.ts",
+      "default": "./src/site.ts"
+    },
     "./sso-domain": {
       "types": "./src/sso-domain.ts",
       "default": "./src/sso-domain.ts"
@@ -92,6 +92,6 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

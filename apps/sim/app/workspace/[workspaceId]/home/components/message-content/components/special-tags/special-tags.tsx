@@ -31,7 +31,7 @@ import {
 import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
@@ -53,6 +53,7 @@ import {
   parseSearchConnectionBody,
   searchConnectionTargetSchema,
 } from '@/lib/knowledge/search/connection-target'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { organizationSecretNameSchema } from '@/lib/organization-secrets/validation'
@@ -356,7 +357,7 @@ export interface QuestionItem {
 /** Normalized `<question>` payload: single-object bodies become a one-element array. */
 export type QuestionTagData = QuestionItem[]
 
-export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as const
+export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'dashboard', 'file'] as const
 
 export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
 
@@ -1889,7 +1890,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           />
         </button>
       ) : (
-        <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+        <span className='block text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
       )}
       <Expandable expanded={expanded}>
         <ExpandableContent className='mt-1.5'>
@@ -1930,6 +1931,8 @@ function fallbackWorkspaceResourceTitle(type: WorkspaceResourceTagType): string 
       return 'Workflow'
     case 'table':
       return 'Table'
+    case 'dashboard':
+      return 'Dashboard'
     case 'file':
       return 'File'
   }
@@ -1945,6 +1948,8 @@ function toChatMessageContext(data: WorkspaceResourceTagData, label: string): Ch
       return { kind: 'workflow', label, workflowId: data.id ?? '' }
     case 'table':
       return { kind: 'table', label, tableId: data.id ?? '' }
+    case 'dashboard':
+      return { kind: 'dashboard', label, dashboardId: data.id ?? '' }
     case 'file':
       return { kind: 'file', label, fileId: data.id ?? data.path ?? '' }
   }
@@ -2000,13 +2005,15 @@ function WorkspaceResourceDisplayContent({
         : data.type === 'table'
           ? (tables.find((table) => table.id === data.id)?.name ??
             fallbackWorkspaceResourceTitle(data.type))
-          : data.type === 'file'
-            ? (files.find((file) => file.id === data.id)?.name ??
-              fileFromPath?.name ??
-              data.title ??
-              fallbackWorkspaceResourceTitle(data.type))
-            : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
-              fallbackWorkspaceResourceTitle(data.type))
+          : data.type === 'dashboard'
+            ? (data.title ?? fallbackWorkspaceResourceTitle(data.type))
+            : data.type === 'file'
+              ? (files.find((file) => file.id === data.id)?.name ??
+                fileFromPath?.name ??
+                data.title ??
+                fallbackWorkspaceResourceTitle(data.type))
+              : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
+                fallbackWorkspaceResourceTitle(data.type))
 
     const id = data.id ?? fileFromPath?.id
     return {
@@ -2264,7 +2271,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
               />
             </button>
           </Tooltip.Trigger>
-          <Tooltip.Content>{isSaving ? 'Saving…' : 'Save'}</Tooltip.Content>
+          <Tooltip.Content>{isSaving ? 'Saving' : 'Save'}</Tooltip.Content>
         </Tooltip.Root>
       }
     />
@@ -2376,7 +2383,7 @@ function FolderAccessDisplay({ data }: { data: CredentialItemData }) {
     >
       <FolderGrantIcon className='size-[16px] shrink-0' />
       <span className='flex-1 text-[var(--text-body)] text-sm'>
-        {picking ? 'Choose a folder…' : label}
+        {picking ? 'Choose a folder' : label}
       </span>
       {grantedName === null && (
         <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -2587,9 +2594,9 @@ function CredentialLinkDisplay({
   const displayLabel = connected
     ? `Connected ${integrationName}`
     : !isReady
-      ? `Checking ${integrationName} connections…`
+      ? `Checking ${integrationName} connections`
       : status === 'pending'
-        ? `Waiting for ${integrationName} connection…`
+        ? `Waiting for ${integrationName} connection`
         : status === 'failed'
           ? retryLabel
           : label
@@ -2646,9 +2653,9 @@ function PersonalCredentialLinkDisplay({
     : connection.hasMetadataError
       ? `Retry checking ${name} connections`
       : !connection.isReady
-        ? `Checking ${name} connections…`
+        ? `Checking ${name} connections`
         : connection.status === 'pending'
-          ? `Waiting for ${name} connection…`
+          ? `Waiting for ${name} connection`
           : connection.status === 'failed'
             ? `Not connected — connect ${name}`
             : `Connect ${name}`
@@ -3320,7 +3327,8 @@ export function CredentialDisplay(props: Parameters<typeof CredentialDisplayCont
     (item) =>
       item.type === 'link' ||
       item.type === 'service_account' ||
-      item.type === 'sim_key' ||
+      // A masked key has nothing to copy, so only a revealed one needs its workspace.
+      (item.type === 'sim_key' && item.value !== undefined) ||
       (item.type === 'secret_input' && (!item.scope || item.scope === 'workspace'))
   )
   const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))
@@ -3435,6 +3443,47 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
+  return data.reason === 'job_run_budget' ? (
+    <JobRunBudgetDisplay message={data.message} />
+  ) : (
+    <PlanUsageLimitDisplay data={data} />
+  )
+}
+
+/**
+ * A scheduled job's run reached its own spend cap. The cap belongs to the job, not to the
+ * account, so the card offers no billing action: the next run starts with a fresh cap.
+ */
+interface JobRunBudgetDisplayProps {
+  message: string
+}
+
+function JobRunBudgetDisplay({ message }: JobRunBudgetDisplayProps) {
+  return (
+    <InteractionCard
+      title={
+        <span className='inline-flex items-center gap-2'>
+          <TriangleAlert
+            aria-hidden
+            className='size-[14px] shrink-0 text-[var(--badge-amber-text)]'
+          />
+          Run Spend Limit Reached
+        </span>
+      }
+    >
+      <div className='px-2 pb-2'>
+        <p className='text-[var(--text-body)] text-small leading-5'>{message}</p>
+      </div>
+    </InteractionCard>
+  )
+}
+
+interface PlanUsageLimitDisplayProps {
+  data: UsageUpgradeTagData
+}
+
+/** The payer's plan limit: the card links to where the plan or the limit can change. */
+function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
   const organizationContext = useOptionalOrganizationContext()
@@ -3482,6 +3531,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
         {canManageBilling ? (
           <ChipLink
             href={href}
+            onNavigate={() => rememberSettingsReturnUrl(href)}
             variant='border'
             rightIcon={hosted ? ArrowRight : SquareArrowUpRight}
             target={hosted ? undefined : '_blank'}

@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
-import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  mothershipResourceRemovalSchema,
+  mothershipResourceSchema,
+} from '@/lib/api/contracts/mothership-resources'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import {
   mountedSecretNamesSchema,
@@ -9,6 +11,11 @@ import {
 } from '@/lib/api/contracts/secret-mount-policy'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import {
+  MAX_CHAT_CONTEXT_LABEL_LENGTH,
+  MAX_CHAT_CONTEXTS,
+  MAX_CHAT_MESSAGE_LENGTH,
+} from '@/lib/mothership/chat/context-limits'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import type { AgentStreamEvent, TextDeltaClassification } from '@/providers/stream-events'
 
@@ -33,6 +40,14 @@ export const listMothershipChatsQuerySchema = mothershipChatOwnerSchema.and(
 export const mothershipChatParamsSchema = z.object({
   chatId: z.string().min(1),
 })
+
+/** The effort the user picked for a chat; null while the chat follows the default. */
+const mothershipChatEffortChoiceSchema = ChatPayloadSchema.shape.effort.unwrap().nullable()
+
+const setMothershipChatEffortBodySchema = z.object({
+  effort: ChatPayloadSchema.shape.effort.unwrap(),
+})
+export type SetMothershipChatEffortBody = z.input<typeof setMothershipChatEffortBodySchema>
 
 export const updateMothershipChatBodySchema = z
   .object({
@@ -71,7 +86,11 @@ export const markMothershipChatReadContract = defineRouteContract({
 
 const mothershipExecuteMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
-  content: z.string(),
+  content: z.string().max(MAX_CHAT_MESSAGE_LENGTH),
+})
+
+const mothershipContextInputSchema = scheduleContextSchema.extend({
+  label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
 })
 
 const mothershipExecuteFileAttachmentSchema = z
@@ -134,7 +153,7 @@ export const mothershipExecuteBodySchema = z.object({
    * mirroring the interactive chat path. Headless executions use this to pass
    * captured contexts into the run without a live client.
    */
-  contexts: z.array(scheduleContextSchema).optional(),
+  contexts: z.array(mothershipContextInputSchema).max(MAX_CHAT_CONTEXTS).optional(),
   mcpTools: z.array(mothershipExecuteMcpToolSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
@@ -151,18 +170,10 @@ export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 
 export const mothershipEventsQuerySchema = mothershipChatOwnerSchema
 
-export const mothershipChatGetQuerySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    workspaceId: z.string().optional(),
-    organizationId: z.string().optional(),
-    chatId: z.string().optional(),
-  })
-  .passthrough()
-
 export const mothershipChatPostEnvelopeSchema = z
   .object({
-    message: z.string().optional(),
+    message: z.string().max(MAX_CHAT_MESSAGE_LENGTH).optional(),
+    contexts: z.array(mothershipContextInputSchema).max(MAX_CHAT_CONTEXTS).optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
@@ -193,6 +204,7 @@ export const mothershipChatStreamQuerySchema = z
     streamId: z.string().optional(),
     after: z.string().optional(),
     batch: z.string().optional(),
+    source: z.enum(['ring', 'log']).optional(),
   })
   .passthrough()
 
@@ -224,11 +236,8 @@ const reorderMothershipChatResourcesBodySchema = z.object({
   resources: z.array(mothershipResourceSchema),
 })
 
-const removeMothershipChatResourceBodySchema = z.object({
-  workspaceId: workspaceIdSchema.optional(),
+const removeMothershipChatResourceBodySchema = mothershipResourceRemovalSchema.safeExtend({
   chatId: z.string().min(1),
-  resourceType: mothershipResourceSchema.shape.type,
-  resourceId: z.string().min(1),
 })
 
 export const addMothershipChatResourceContract = defineRouteContract({
@@ -290,6 +299,19 @@ export const updateMothershipChatContract = defineRouteContract({
   path: '/api/mothership/chats/[chatId]',
   params: mothershipChatParamsSchema,
   body: updateMothershipChatBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
+export const setMothershipChatEffortContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/mothership/chats/[chatId]/effort',
+  params: mothershipChatParamsSchema,
+  body: setMothershipChatEffortBodySchema,
   response: {
     mode: 'json',
     schema: z.object({
@@ -388,9 +410,15 @@ export const getMothershipChatResponseSchema = z.object({
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),
+      /** Optional so a client still loads chats from a server that predates the field. */
+      effort: mothershipChatEffortChoiceSchema.optional(),
       createdAt: z.union([z.string(), z.date()]).nullable().optional(),
       updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
       streamSnapshot: mothershipChatStreamSnapshotSchema.optional(),
+      /** Where the messages before this window end; null or absent when the window starts the chat. */
+      olderCursor: z.string().nullable().optional(),
+      /** This window's first message, for a reload that extends it with newer messages. */
+      windowStartCursor: z.string().nullable().optional(),
     })
     .passthrough(),
 })
@@ -424,13 +452,59 @@ export const mothershipExecuteContract = defineRouteContract({
   },
 })
 
+const transcriptCursorSchema = z.string().min(1).max(512)
+
+/**
+ * Which messages a chat read returns: `window=latest` for the newest messages, `from` for every
+ * message at or after a cursor; neither returns the whole transcript.
+ */
+const getMothershipChatQuerySchema = z.object({
+  window: z.literal('latest').optional(),
+  from: transcriptCursorSchema.optional(),
+})
+
 export const getMothershipChatContract = defineRouteContract({
   method: 'GET',
   path: '/api/mothership/chats/[chatId]',
   params: mothershipChatParamsSchema,
+  query: getMothershipChatQuerySchema,
   response: {
     mode: 'json',
     schema: getMothershipChatResponseSchema,
+  },
+})
+
+/** A page of the messages before `before` in a chat, oldest first. */
+export const listMothershipChatOlderMessagesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/messages',
+  params: mothershipChatParamsSchema,
+  query: z.object({ before: transcriptCursorSchema }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      messages: z.array(z.unknown()),
+      olderCursor: z.string().nullable(),
+    }),
+  },
+})
+
+/**
+ * The chat's live stream, without its transcript: what a tab polls while it
+ * waits for a finished turn to be saved, so each check costs a row and a lock
+ * lookup instead of the whole conversation.
+ */
+export const getMothershipChatStreamStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/stream-status',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      activeStreamId: z.string().nullable(),
+    }),
   },
 })
 

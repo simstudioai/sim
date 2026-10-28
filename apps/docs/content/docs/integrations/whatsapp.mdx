@@ -1,31 +1,29 @@
 ---
 title: WhatsApp
 description: Send WhatsApp messages
+integration:
+  type: "whatsapp"
+  color: "#25D366"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="whatsapp"
-  color="#25D366"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [WhatsApp](https://www.whatsapp.com/) Cloud API to send text, template, media, or interactive messages, react to messages, and manage media. Message webhooks can start workflows. See the messaging-window requirement below before choosing between a free-form message and a template.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate WhatsApp into the workflow. Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API. Free-form messages only reach a recipient within 24 hours of their last message to you — outside that window WhatsApp requires a pre-approved template.
-
-
+Send text, template, media, and interactive messages, react to messages, and mark messages as read through the WhatsApp Cloud API. Free-form messages only reach a recipient within 24 hours of their last message to you — outside that window WhatsApp requires a pre-approved template.
 
 ## Actions
 
 ### WhatsApp Send Message
 
 Send a free-form text message through the WhatsApp Cloud API. Only works inside the 24-hour customer service window — use Send Template to start a conversation.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +72,13 @@ Send a free-form text message through the WhatsApp Cloud API. Only works inside 
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
+</ReferenceDetails>
+
 ### WhatsApp Send Template
 
 Send a pre-approved WhatsApp template message. Required to start a conversation or to message a user outside the 24-hour customer service window.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -126,9 +128,13 @@ Send a pre-approved WhatsApp template message. Required to start a conversation 
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
+</ReferenceDetails>
+
 ### WhatsApp Send Media
 
 Send an image, document, video, audio, or sticker message. Accepts an uploaded file, a media ID, or a public link.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -181,9 +187,13 @@ Send an image, document, video, audio, or sticker message. Accepts an uploaded f
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
+</ReferenceDetails>
+
 ### WhatsApp Send Interactive
 
 Send an interactive WhatsApp message with reply buttons or a selectable list.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -236,9 +246,13 @@ Send an interactive WhatsApp message with reply buttons or a selectable list.
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
+</ReferenceDetails>
+
 ### WhatsApp Send Reaction
 
 React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -287,9 +301,13 @@ React to a WhatsApp message with an emoji. Send an empty emoji to remove an exis
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
+</ReferenceDetails>
+
 ### WhatsApp Mark As Read
 
 Mark a received WhatsApp message as read so the sender sees blue checkmarks, optionally showing a typing indicator.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -305,9 +323,13 @@ Mark a received WhatsApp message as read so the sender sees blue checkmarks, opt
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the message was successfully marked as read |
 
+</ReferenceDetails>
+
 ### WhatsApp Upload Media
 
 Upload a file to WhatsApp and get a media ID for sending. Uploaded media is retained for 30 days and can back many sends.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -325,9 +347,13 @@ Upload a file to WhatsApp and get a media ID for sending. Uploaded media is reta
 | `mimeType` | string | MIME type WhatsApp received the file as |
 | `size` | number | Size of the uploaded file in bytes |
 
+</ReferenceDetails>
+
 ### WhatsApp Download Media
 
 Download media a customer sent you. Takes the media ID from an incoming WhatsApp message and stores the file in the workflow.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -346,15 +372,19 @@ Download media a customer sent you. Takes the media ID from an incoming WhatsApp
 | `fileSize` | number | Size of the downloaded media in bytes |
 | `sha256` | string | SHA-256 hash WhatsApp reported for the media, for integrity checks |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### WhatsApp Webhook
 
 Trigger workflow from WhatsApp incoming messages and message status webhooks
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -387,4 +417,6 @@ Trigger workflow from WhatsApp incoming messages and message status webhooks
 | `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
 | `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
 | `raw` | json | Complete structured webhook payload from WhatsApp |
+
+</ReferenceDetails>
 

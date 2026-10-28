@@ -2,6 +2,7 @@
 description: Settings page layout and SettingsPanel design-system compliance
 paths:
   - "apps/sim/app/workspace/*/settings/**"
+  - "apps/sim/app/o/*/settings/**"
   - "apps/sim/app/workspace/*/{integrations,skills,upgrade}/**"
   - "apps/sim/app/workspace/*/components/{resource-tile,credential-detail}/**"
   - "apps/sim/components/{settings,permissions}/**"
@@ -10,14 +11,14 @@ paths:
 
 # Settings Pages
 
-The Next.js `settings/[section]/layout.tsx` owns all settings page chrome via
+Workspace and organization `settings/[section]/layout.tsx` own page chrome via
 `SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
 action chips), a scroll region, and a centered `max-w-[48rem]` content column led
 by a **title + description from navigation metadata**. The chrome stays mounted
 across section navigation. Its routed title and description are available before
 the section body resolves. Each section renders through the **`SettingsPanel`**
 registrar
-(`@/app/workspace/[workspaceId]/settings/components/settings-panel`), which feeds
+(`@/components/settings/settings-panel`), which feeds
 the shell its header data and renders only the section body. Sections supply
 **data**, never chrome.
 
@@ -34,7 +35,7 @@ shell (fed through `SettingsPanel`):
 ## Canonical page shape
 
 ```tsx
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsPanel } from '@/components/settings/settings-panel'
 
 return (
   <SettingsPanel
@@ -93,17 +94,20 @@ return (
 ## Title + description live in navigation metadata
 
 `apps/sim/components/settings/navigation.ts` is the single source of truth (the
-`settings/navigation.ts` in the route tree is only a re-export shim). Every `NavigationItem` carries a one-line `description`; `SettingsPanel`
+`settings/navigation.ts` in the route tree is only a re-export shim). Each `SETTINGS_SECTION_REGISTRY` entry's one-line description is
+`unified.description` (a plane projection's `planes.<plane>.description` overrides it where that
+plane's scope differs), or, for a section that exists only on a standalone plane, its
+`planes.<plane>.description`; `SettingsPanel`
 resolves both via `getSettingsSectionMeta(plane, section)` and the
 `SettingsSectionProvider` the settings shell wraps around the active section.
 
 Adding a new settings page:
 
-1. Add the section id to the `UnifiedSettingsSection` union + a `NavigationItem`
-   (with `label` **and** `description`) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
+1. Add the section id to the `UnifiedSettingsSection` union + a `SETTINGS_SECTION_REGISTRY`
+   entry (with `label` **and** its description, as described above) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
    ~40–55 chars, in the product voice (see `.claude/rules/constitution.md`).
-2. Render the component inside the shell's `effectiveSection` switch in
-   `settings/[section]/settings.tsx`.
+2. Register its module in `SECTION_MODULES` (`settings/section-warmers.ts`) and render it
+   inside the shell's `effectiveSection` switch in `settings/[section]/settings.tsx`.
 3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
 4. When a real second consumer or server boundary needs it, extract client-safe React Query options;
    otherwise keep them with the hook. Approved intent warmers reuse those exact options and must keep
@@ -113,17 +117,9 @@ Adding a new settings page:
 
 ## Text-scale tokens (no literal pixel sizes)
 
-Settings pages never use a literal `text-[Npx]` class — always the named Tailwind
-scale token from the `@theme` block in `apps/sim/app/_styles/globals.css` (`text-micro`
-10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px
-[Tailwind default, unmodified], `text-base` 15px, `text-md` 16px, `text-lg` 18px
-[Tailwind default]). A literal size is either a straight rename to the equivalent
-token (if the pixel value matches one exactly) or a sign the page never migrated —
-grep `text-\[1[0-8]px\]` under `apps/sim/app/workspace/*/settings/**` and
-`apps/sim/ee/**` to find stragglers.
-
-Watch `text-xs`: it is 11px here, so a "caption" written as `text-xs` is a pixel
-short. See `sim-styling.md` for the full scale.
+Settings pages never use a literal `text-[Npx]` class — always a named token from
+the scale in `sim-styling.md` ("Text Scale"). Find stragglers with
+`rg 'text-\[1[0-8]px\]' apps/sim/app/workspace apps/sim/ee`.
 
 The two-line list row (title over a muted subtitle — a name + email, a tool name
 + description, a server name + status) is **not something you build**: it is
@@ -229,14 +225,18 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   divider, body. Also carries `headerAccessory` and `action` slots. Never
   re-derive the label/divider chrome; `sim-styling.md` owns those tokens.
 - **`SettingsField`** (`…/components/settings-field`) — a read-only label/value
-  pair in a detail body: muted caption over the value. Pair it with
-  `SETTINGS_FIELD_VALUE_CLASSES` for the value text.
+  pair in a detail body: muted caption over the value. Pass the value as text and it
+  renders the value paragraph itself; pass a node when the value needs its own
+  presentation (a control, an icon beside the value, status styling).
 - **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
-  muted status message, for empty lists, "no results", loading gates, **and
-  failed loads** (`tone='error'`). `variant='fill'` (default) centers in the
-  available height; `variant='inline'` sits in flow. Never hand-roll
-  `<div className='flex h-full items-center justify-center …'>` or
-  `<div className='py-4 text-center …'>`.
+  muted status message for empty lists, "no results", loading gates, and failed
+  reads. `variant='fill'` (default) centers in the available height;
+  `variant='inline'` sits in flow. Never hand-roll its layout.
+- **`SettingsQueryErrorState`** (same module) — the muted read-failure message
+  with an accessible alert and retry control. Show an initial failure when data
+  is unavailable; preserve cached content, mounted editors, and unsaved drafts
+  during background failures, using an inline status. Validation and mutation
+  failures retain their error styling.
 - **`RowActionsMenu`** (`…/components/row-actions-menu`) — the trailing `...`
   actions menu for a list row. Pass `label` (aria-label) and
   `actions: RowAction[]` (`{ label, onSelect, destructive?, disabled? }`); the
@@ -343,34 +343,33 @@ rendered through `<SettingsActionChips actions={…} />` from
 `@/components/settings/settings-header` — that is the shared chip path, and it
 is what keeps tone/icon/variant/tooltip handling from drifting between the two
 shells. Reach for it before hand-rolling a `Chip`.
-- **`useSettingsUnsavedGuard({ isDirty })`** (`…/settings/hooks/use-settings-unsaved-guard`)
-  — syncs the page's local `isDirty` into the shared `useSettingsDirtyStore` (so
-  the sidebar's **section-switch** confirm + the centralized `beforeunload` both
-  apply for free) and returns `{ showUnsavedModal, setShowUnsavedModal, guardBack,
-  confirmDiscard }` for a detail view's **in-view back** chip.
-  - **Top-level pages** (whitelabeling, sso): call it **unassigned** —
-    `useSettingsUnsavedGuard({ isDirty: hasChanges })` — they only need the
-    store-sync; the sidebar/`beforeunload` do the rest.
-  - **Detail sub-views** (data-retention, access-control group-detail): route the
-    back chip through `onClick={() => guard.guardBack(closeFn)}` and render the
-    shared `<UnsavedChangesModal open={guard.showUnsavedModal}
-    onOpenChange={guard.setShowUnsavedModal} onDiscard={guard.confirmDiscard} />`
-    (from `@/app/workspace/[workspaceId]/components/credential-detail`). The
-    in-view header **Discard** chip (via `SaveDiscardActions onDiscard`) is a
-    *reset to original* — distinct from the back-confirm's discard, which leaves.
-- **`useSettingsBeforeUnload`** is mounted by the settings shells
-  (`settings/layout.tsx` and `components/settings/standalone-settings-shell.tsx`) —
-  never add a per-page `beforeunload`.
-- **Dirty *computation* stays local** (shapes differ: field-compare vs
-  normalize+stringify) — only how dirty is *consumed* is shared. Derive it (a
-  `const`/`useMemo`), never store it in `useState`.
-- **CRITICAL — rules of hooks:** call `useSettingsUnsavedGuard(...)`
-  **unconditionally, before every early-return gate** (entitlement / loading /
-  not-entitled `return <SettingsEmptyState>`). A hook placed after a gate is
-  skipped on gated renders and crashes.
-- The route-based credential detail keeps its own `useUnsavedChangesGuard` (it
-  guards real `router.push` navigation + browser Back via a history sentinel);
-  it already shares `UnsavedChangesModal`, so copy stays unified.
+- **`useSettingsUnsavedGuard({ isDirty, navigationBlocked, onDiscard })`** from
+  `@/components/settings/use-settings-unsaved-guard` registers one editor with the
+  shared settings store. Register every full-page draft, including inline creation
+  forms. Dirty computation stays local and derived; fetched defaults stay clean.
+- **`onDiscard` resets the registered draft.** The root `SettingsNavigationGuard`
+  owns the discard dialog, internal link interception, browser Back/Forward, and
+  refresh protection for registered editors. Do not add a per-page dialog or
+  history listener for an editor using this hook. Skill create/detail pages retain
+  their existing `useUnsavedChangesGuard` and local dialog until they migrate to
+  the shared registration.
+- **Native history needs entry indexes.** The Navigation API supplies them for
+  legacy entries. Without it, native traversal to an unindexed entry cannot be
+  cancelled reliably; never guess a direction or rewrite the history stack.
+- **History confirmation authorizes traversal before discarding.** Drafts are
+  discarded only when the browser reports the confirmed traversal, so a no-op
+  Back or Forward retains edits. Known cross-document traversal uses native unload
+  protection. An unknown cross-document target on a classic History browser can
+  require a second native confirmation after the shared dialog.
+- **Detail back controls** call `guard.guardBack(closeFn)`. Other destructive view
+  transitions, such as switching an editor's direction or environment, also use
+  the shared `requestLeave` action before resetting their draft.
+- **`navigationBlocked` covers pending saves and uploads.** The shared guard blocks
+  navigation while requests are pending. Attempts are not queued; retry after they
+  settle. Disable or preserve edits made during requests;
+  failed saves retain drafts, and successful saves only clear committed values.
+- **Call the hook unconditionally, before every early-return gate** (entitlement,
+  loading, or empty-state return), so gated renders preserve hook order.
 
 ## Detail sub-views
 
@@ -392,14 +391,14 @@ A settings page is design-system-clean when:
 - [ ] Its main return is a `<SettingsPanel>` (or `<>…<SettingsPanel>…</>` with modal siblings) — no hand-rolled shell/header/scroll/column.
 - [ ] It renders **no** hand-rolled `<h1>`/description title block — the title comes from nav metadata.
 - [ ] Header chips are in `actions`; a standalone search is in the `search` prop.
-- [ ] Its `NavigationItem` has an accurate, consistent-length `description`.
+- [ ] Its registry entry has an accurate, consistent-length `description`.
 - [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
-- [ ] If it has editable state: Save/Discard go through `SaveDiscardActions`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
+- [ ] If it has editable state: Save/Discard go through `saveDiscardActions()`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
 - [ ] No business logic, handlers, or conditional rendering changed by the migration — except where the shared primitive makes a gate structural (a permission gate becomes `onClick={can ? … : undefined}` + `navigable={can}`, which renders a plain non-interactive row).
 - [ ] No literal `text-[Npx]` classes — named scale tokens only (see "Text-scale tokens" above).
 - [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK`/`RESOURCE_LIST_GRID` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke, and draw their own arrow with `RESOURCE_ROW_ARROW_CLASSES`: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), grids (secrets), and the member rows (see the avatar note above).
 - [ ] Rows that open a detail page use `navigable` + `clickLabel`; flat records use `RowActionsMenu`. Not both.
 - [ ] Decorative trailing content is in `badge`, not `trailing`.
-- [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/error use `SettingsEmptyState`.
+- [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/read-failure messages use `SettingsEmptyState`, with `SettingsQueryErrorState` when offering retry.
 - [ ] Delete is a plain `id:'delete'` header action behind a `ChipConfirmModal`; `destructive` is reserved for bulk actions.
-- [ ] `tsc`, `biome`, and the page's tests pass.
+- [ ] The local gate in the root `CLAUDE.md` ("How your work is checked") passes.

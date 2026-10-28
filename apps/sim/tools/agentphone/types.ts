@@ -285,13 +285,7 @@ export interface AgentPhoneSendMessageResult extends ToolResponse {
   }
 }
 
-export type AgentPhoneReactionType =
-  | 'love'
-  | 'like'
-  | 'dislike'
-  | 'laugh'
-  | 'emphasize'
-  | 'question'
+type AgentPhoneReactionType = 'love' | 'like' | 'dislike' | 'laugh' | 'emphasize' | 'question'
 
 export interface AgentPhoneReactToMessageParams {
   apiKey: string

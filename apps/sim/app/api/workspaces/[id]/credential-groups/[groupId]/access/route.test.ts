@@ -1,13 +1,12 @@
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
   read: vi.fn(),
   update: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
 vi.mock('@/lib/credential-groups/application/manage-access', () => ({
   readCredentialGroupAccess: {
@@ -25,10 +24,10 @@ import { PUT } from '@/app/api/workspaces/[id]/credential-groups/[groupId]/acces
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 const GROUP_ID = 'group-1'
 const url = `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/credential-groups/${GROUP_ID}/access`
-const context = { params: Promise.resolve({ id: WORKSPACE_ID, groupId: GROUP_ID }) }
+const context = createRouteContext({ id: WORKSPACE_ID, groupId: GROUP_ID })
 describe('Credential Group access route', () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'admin-1' },
       session: { id: 'session-1' },
     })
@@ -44,9 +43,10 @@ describe('Credential Group access route', () => {
       allowedWorkflowIds: [],
       padding: 'x'.repeat(40_000),
     })
-    const request = new NextRequest(url, {
+    const request = createMockRequest({
       method: 'PUT',
-      body,
+      url,
+      rawBody: body,
       headers: {
         'content-length': String(Buffer.byteLength(body)),
         'content-type': 'application/json',

@@ -5,9 +5,9 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 export const LaunchDarklyBlock: BlockConfig = {
   type: 'launchdarkly',
   name: 'LaunchDarkly',
-  description: 'Manage feature flags with LaunchDarkly.',
+  description: 'Manage feature flags with LaunchDarkly',
   longDescription:
-    'Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.',
+    'List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs. Requires an API key.',
   docsLink: 'https://docs.sim.ai/integrations/launchdarkly',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

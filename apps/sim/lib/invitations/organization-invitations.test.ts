@@ -8,47 +8,60 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CreatePendingInvitationInput } from '@/lib/invitations/send'
 
-const mocks = vi.hoisted(() => ({
-  admin: vi.fn(),
-  plan: vi.fn(),
-  policy: vi.fn(),
-  membership: vi.fn(),
-  lockOrg: vi.fn(),
-  lockUser: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   seats: vi.fn(),
-  pending: vi.fn(),
-  create: vi.fn(),
-  send: vi.fn(),
-  cancel: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/billing/core/organization', () => ({ isOrganizationOwnerOrAdmin: mocks.admin }))
-vi.mock('@/lib/billing/core/subscription', () => ({ resolveOrganizationPlan: mocks.plan }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.lockOrg,
-  acquireOrganizationUserMutationLocks: mocks.lockUser,
-  getUserOrganization: mocks.membership,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/billing/validation/seat-management', () => ({
-  validateSeatAvailability: mocks.seats,
+  validateSeatAvailability: hoisted.seats,
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateInvitationsAllowed: mocks.policy,
-}))
-vi.mock('@/lib/invitations/send', () => ({
-  createPendingInvitation: mocks.create,
-  sendInvitationEmail: mocks.send,
-  cancelPendingInvitation: mocks.cancel,
-  findPendingOrganizationInvitation: mocks.pending,
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
 
 import {
   createOrganizationInvitation,
   prepareOrganizationInvitationContext,
 } from '@/lib/invitations/organization-invitations'
+
+const mocks = {
+  ...hoisted,
+  admin: billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin,
+  pending: invitationsSendMockFns.mockFindPendingOrganizationInvitation,
+  create: invitationsSendMockFns.mockCreatePendingInvitation,
+  send: invitationsSendMockFns.mockSendInvitationEmail,
+  cancel: invitationsSendMockFns.mockCancelPendingInvitation,
+  plan: billingSubscriptionMockFns.mockResolveOrganizationPlan,
+  policy: permissionCheckMockFns.mockValidateInvitationsAllowed,
+  membership: organizationMembershipMockFns.mockGetUserOrganization,
+  lockOrg: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  lockUser: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
 
 const context = {
   organizationId: 'org-target',

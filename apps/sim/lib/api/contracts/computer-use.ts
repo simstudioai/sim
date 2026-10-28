@@ -1,28 +1,31 @@
 import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
 import { z } from 'zod'
 import { desktopToolCallIdSchema } from '@/lib/api/contracts/desktop-tool-authorization'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { type ContractQuery, defineRouteContract } from '@/lib/api/contracts/types'
 
-export const computerUseAvailabilityResponseSchema = z.object({ enabled: z.boolean() }).strict()
-export type ComputerUseAvailabilityResponse = z.output<typeof computerUseAvailabilityResponseSchema>
+/** The chat owner whose rollout applies: exactly one of a workspace or an organization. */
+const computerUseAvailabilityQuerySchema = z.union([
+  z.object({ workspaceId: workspaceIdSchema }).strict(),
+  z.object({ organizationId: organizationIdSchema }).strict(),
+])
+const computerUseAvailabilityResponseSchema = z.object({ enabled: z.boolean() }).strict()
 export const computerUseAvailabilityContract = defineRouteContract({
   method: 'GET',
   path: '/api/desktop/computer/availability',
+  query: computerUseAvailabilityQuerySchema,
   response: { mode: 'json', schema: computerUseAvailabilityResponseSchema },
 })
+export type ComputerUseOwner = ContractQuery<typeof computerUseAvailabilityContract>
 
-export const authorizeComputerUseBodySchema = z
-  .object({ toolCallId: desktopToolCallIdSchema })
-  .strict()
-export type AuthorizeComputerUseBody = z.input<typeof authorizeComputerUseBodySchema>
-export const authorizeComputerUseResponseSchema = z
+const authorizeComputerUseBodySchema = z.object({ toolCallId: desktopToolCallIdSchema }).strict()
+const authorizeComputerUseResponseSchema = z
   .object({
     toolName: z.literal('computer'),
     args: ComputerUseSchema,
     chatId: z.string().min(1),
   })
   .strict()
-export type AuthorizeComputerUseResponse = z.output<typeof authorizeComputerUseResponseSchema>
 export const authorizeComputerUseContract = defineRouteContract({
   method: 'POST',
   path: '/api/desktop/computer/authorize',

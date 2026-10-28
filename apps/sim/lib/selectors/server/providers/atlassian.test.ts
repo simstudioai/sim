@@ -1,25 +1,29 @@
+import {
+  knowledgeDocumentsUtilsMock,
+  knowledgeDocumentsUtilsMockFns,
+} from '@sim/testing/mocks/knowledge-documents-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchProviderJsonWithStatus, mockRetryWithExponentialBackoff } = vi.hoisted(() => ({
+const { mockFetchProviderJsonWithStatus } = vi.hoisted(() => ({
   mockFetchProviderJsonWithStatus: vi.fn(),
-  mockRetryWithExponentialBackoff: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
+vi.mock('@/lib/selectors/server/providers/http', () => ({
   fetchProviderJsonWithStatus: mockFetchProviderJsonWithStatus,
   RetryableProviderNetworkError: class RetryableProviderNetworkError extends Error {},
 }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  retryWithExponentialBackoff: mockRetryWithExponentialBackoff,
-}))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
 
 import {
   SelectorConnectionUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorAtlassianCloudId } from '@/lib/selectors/server/providers/atlassian'
-import { RetryableProviderNetworkError } from '@/lib/selectors/server/providers/provider-http'
+import { RetryableProviderNetworkError } from '@/lib/selectors/server/providers/http'
+
+const mockRetryWithExponentialBackoff =
+  knowledgeDocumentsUtilsMockFns.mockRetryWithExponentialBackoff
 
 describe('Atlassian server selector authentication', () => {
   beforeEach(() => {

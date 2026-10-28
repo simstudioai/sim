@@ -27,8 +27,8 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  internalErrorResponse,
-  notFoundResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import { type AdminWorkflowDetail, toAdminWorkflow } from '@/app/api/v1/admin/types'
@@ -50,7 +50,7 @@ export const GET = withRouteHandler(
       const workflowData = await getActiveWorkflowRecord(workflowId)
 
       if (!workflowData) {
-        return notFoundResponse('Workflow')
+        return adminNotFoundResponse('Workflow')
       }
 
       const [blockCountResult, edgeCountResult] = await Promise.all([
@@ -75,7 +75,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get workflow', { error, workflowId })
-      return internalErrorResponse('Failed to get workflow')
+      return adminInternalErrorResponse('Failed to get workflow')
     }
   })
 )
@@ -91,7 +91,7 @@ export const DELETE = withRouteHandler(
       const workflowData = await getActiveWorkflowRecord(workflowId)
 
       if (!workflowData) {
-        return notFoundResponse('Workflow')
+        return adminNotFoundResponse('Workflow')
       }
 
       const result = await performDeleteWorkflow({
@@ -103,7 +103,7 @@ export const DELETE = withRouteHandler(
       })
 
       if (!result.success) {
-        return internalErrorResponse(result.error || 'Failed to delete workflow')
+        return adminInternalErrorResponse(result.error || 'Failed to delete workflow')
       }
 
       logger.info(`Admin API: Deleted workflow ${workflowId} (${workflowData.name})`)
@@ -111,7 +111,7 @@ export const DELETE = withRouteHandler(
       return NextResponse.json({ success: true, workflowId })
     } catch (error) {
       logger.error('Admin API: Failed to delete workflow', { error, workflowId })
-      return internalErrorResponse('Failed to delete workflow')
+      return adminInternalErrorResponse('Failed to delete workflow')
     }
   })
 )

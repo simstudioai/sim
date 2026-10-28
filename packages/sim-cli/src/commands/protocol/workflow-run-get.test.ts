@@ -1,26 +1,13 @@
 import { Command } from 'commander'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
+import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { attachWorkflowRunGet } from './workflow-run-get'
 
-const { output, request } = vi.hoisted(() => ({
-  output: { format: 'json' },
-  request: vi.fn(),
-}))
+vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 
-vi.mock('../../context', () => ({
-  clientFrom: () => ({
-    client: { request, requireWorkspace: () => 'ws_local' },
-    profile: {
-      workspaceId: 'ws_local',
-      output: output.format,
-      name: 'default',
-      apiKey: 'k',
-      endpoint: 'https://sim.example',
-    },
-  }),
-}))
+const { mockRequest: request } = contextMockFns
 
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const SUMMARIZE_ID = '11111111-1111-4111-8111-111111111111'
@@ -79,12 +66,8 @@ function stdout(): () => string {
 }
 
 beforeEach(() => {
-  output.format = 'json'
+  contextMockState.output = 'json'
   request.mockReset()
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
 })
 
 describe('sim workflows runs get --select-output', () => {

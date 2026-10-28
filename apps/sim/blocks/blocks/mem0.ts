@@ -1,15 +1,14 @@
 import { toError } from '@sim/utils/errors'
 import { Mem0Icon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { Mem0Response } from '@/tools/mem0/types'
 import { parseMem0Messages } from '@/tools/mem0/utils'
 
-export const Mem0Block: BlockConfig<Mem0Response> = {
+export const Mem0Block: BlockConfig = {
   type: 'mem0',
   name: 'Mem0',
   description: 'Agent memory management',
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Mem0 into the workflow. Can add, search, and retrieve memories.',
+  longDescription: 'Add, search, and retrieve memories.',
   bgColor: '#181C1E',
   icon: Mem0Icon,
   canvasPresentation: {

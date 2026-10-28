@@ -5,6 +5,13 @@ import {
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { workspaceFileSecretProvenanceMock } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** The `workspace_files` columns {@link fileRows} enforces its unique indexes on. */
@@ -25,15 +32,9 @@ interface WorkspaceFileRow {
  * `executeForkFileBlobCopies collisions` enforces the same unique indexes against it. One
  * store, so the allocator and the index can never disagree the way two fixtures would.
  */
-const {
-  fileRows,
-  mockAllocateUniqueWorkspaceFileName,
-  mockCopyWorkspaceFileSecretProvenanceInTx,
-  mockIncrementStorageUsageInTx,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => {
+const { fileRows, allocateFromFileRows } = vi.hoisted(() => {
   const fileRows: WorkspaceFileRow[] = []
-  const withCopySuffix = (name: string, n: number) => {
+  const withCopySuffix = (name: string, n: number | string) => {
     const lastDot = name.lastIndexOf('.')
     return lastDot > 0 && lastDot < name.length - 1
       ? `${name.slice(0, lastDot)} (${n})${name.slice(lastDot)}`
@@ -45,45 +46,37 @@ const {
      * Mirrors `allocateUniqueWorkspaceFileName`: the taken-name probe matches the columns
      * of `workspace_files_workspace_folder_name_active_unique`.
      */
-    mockAllocateUniqueWorkspaceFileName: vi.fn(
-      async (workspaceId: string, baseName: string, folderId?: string | null) => {
-        const taken = (name: string) =>
-          fileRows.some(
-            (row) =>
-              row.deletedAt === null &&
-              row.context === 'workspace' &&
-              row.workspaceId === workspaceId &&
-              (row.folderId ?? null) === (folderId ?? null) &&
-              row.originalName === name
-          )
-        if (!taken(baseName)) return baseName
-        for (let n = 1; n <= 1000; n++) {
-          const candidate = withCopySuffix(baseName, n)
-          if (!taken(candidate)) return candidate
-        }
-        throw new Error(`A file named "${baseName}" already exists in this workspace`)
+    allocateFromFileRows: async (
+      workspaceId: string,
+      baseName: string,
+      folderId?: string | null
+    ) => {
+      const taken = (name: string) =>
+        fileRows.some(
+          (row) =>
+            row.deletedAt === null &&
+            row.context === 'workspace' &&
+            row.workspaceId === workspaceId &&
+            (row.folderId ?? null) === (folderId ?? null) &&
+            row.originalName === name
+        )
+      if (!taken(baseName)) return baseName
+      for (let n = 1; n <= 20; n++) {
+        const candidate = withCopySuffix(baseName, n)
+        if (!taken(candidate)) return candidate
       }
-    ),
-    mockCopyWorkspaceFileSecretProvenanceInTx: vi.fn(),
-    mockIncrementStorageUsageInTx: vi.fn(),
-    mockResolveStorageBillingContext: vi.fn(),
+      return withCopySuffix(baseName, generateShortId(8))
+    },
   }
 })
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/billing/storage', () => ({
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  allocateUniqueWorkspaceFileName: mockAllocateUniqueWorkspaceFileName,
-  generateWorkspaceFileKey: vi.fn(
-    (workspaceId: string, fileName: string) => `workspace/${workspaceId}/generated-${fileName}`
-  ),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  copyWorkspaceFileSecretProvenanceInTx: mockCopyWorkspaceFileSecretProvenanceInTx,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -91,6 +84,15 @@ import {
   executeForkFileBlobCopies,
   planForkFileCopies,
 } from '@/ee/workspace-forking/lib/copy/copy-files'
+
+const {
+  mockIncrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
+  mockResolveStorageBillingContext,
+} = billingStorageMockFns
+
+const mockAllocateUniqueWorkspaceFileName =
+  workspaceFileManagerMockFns.mockAllocateUniqueWorkspaceFileName
+mockAllocateUniqueWorkspaceFileName.mockImplementation(allocateFromFileRows)
 
 function makeTask(overrides: Partial<BlobCopyTask> = {}): BlobCopyTask {
   return {

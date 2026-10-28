@@ -1,6 +1,8 @@
-name: Desktop E2E
+name: desktop-e2e
 
-# Smoke coverage of the real Electron shell on desktop changes, plus a weekly
+# Smoke coverage of the real Electron shell on desktop changes. Three isolated runners
+# partition complete test files by measured duration; workers remain serial per runner.
+# The weekly
 # advisory canary against electron@latest so Chromium-cadence breakage surfaces
 # before an upgrade is attempted.
 
@@ -10,6 +12,27 @@ on:
       - '.github/workflows/desktop-e2e.yml'
       - '.github/workflows/desktop-release.yml'
       - 'apps/desktop/**'
+      - 'apps/sim/app/_shell/desktop-update-*.tsx'
+      - 'apps/sim/app/workspace/**/home/hooks/use-mothership-resize.ts'
+      - 'apps/sim/app/workspace/**/home/hooks/use-resource-panel.ts'
+      - 'apps/sim/app/workspace/**/home/components/chat-panel-layout.tsx'
+      - 'apps/sim/stores/chat-panel/**'
+      - 'apps/sim/stores/constants.ts'
+      - 'apps/sim/lib/browser-agent/transport.ts'
+      - 'apps/sim/lib/core/utils/separator-keys.ts'
+      - 'apps/sim/scripts/fixtures/chat-panel.tsx'
+      - 'apps/sim/app/layout.tsx'
+      - 'apps/sim/hooks/use-desktop-update-state.ts'
+      - 'apps/sim/lib/desktop/**'
+      - 'apps/sim/app/desktop/connect/**'
+      - 'apps/sim/app/credential-groups/**'
+      - 'apps/sim/hooks/queries/slack-search.ts'
+      - 'apps/sim/hooks/queries/personal-search-integrations.ts'
+      - 'apps/sim/hooks/use-search-integration-connection.ts'
+      - 'apps/sim/hooks/use-github-installation-setup.ts'
+      - 'apps/sim/lib/api/contracts/desktop-source-connect.ts'
+      - 'apps/sim/scripts/fixtures/desktop-source-connect.tsx'
+      - 'apps/sim/app/workspace/**/browser-session/**'
       - 'apps/sim/app/_styles/**'
       - 'apps/sim/lib/postcss/**'
       - 'apps/sim/postcss.config.mjs'
@@ -24,6 +47,8 @@ on:
       - 'packages/utils/**'
       - 'bun.lock'
       - 'package.json'
+      - 'scripts/desktop-e2e.ts'
+      - 'scripts/duration-shards.ts'
   schedule:
     - cron: '23 9 * * 1'
   workflow_dispatch:
@@ -36,18 +61,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  e2e-pinned:
-    name: E2E (pinned)
+  e2e:
+    name: e2e (${{ matrix.shard }}/3)
     if: github.event_name != 'schedule'
     runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
+
+      # Electron, electron-builder and Playwright download their binaries on every cold install. All
+      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
+      - name: Cache Electron and Playwright downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/Library/Caches/ms-playwright
+          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: desktop-downloads-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -56,72 +100,139 @@ jobs:
         working-directory: apps/desktop
         run: bun run build
 
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
+
+      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
+      - name: Install tmux
+        run: brew install tmux
+
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
-        run: bunx playwright test
+        run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/3
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
+          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
+          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: desktop-e2e-results-pinned
+          name: desktop-e2e-results-pinned-${{ matrix.shard }}
           path: apps/desktop/test-results
           retention-days: 7
 
-  e2e-latest-canary:
-    name: E2E (electron@latest canary)
+      - name: Upload smoke coverage and timings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-smoke-reports-${{ matrix.shard }}
+          path: |
+            apps/desktop/test-results/desktop-smoke.json
+            apps/desktop/test-results/desktop-shard-plan.json
+            apps/desktop/test-results/desktop-discovery.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-canary:
+    name: e2e-canary
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-26
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
+
+      # Electron, electron-builder and Playwright download their binaries on every cold install. All
+      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
+      - name: Cache Electron and Playwright downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/Library/Caches/ms-playwright
+          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: desktop-downloads-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # The bunfig age gate would resolve `latest` to the newest week-old release; the canary
+      # exists to test the release that just shipped. Already-locked packages stay locked.
       - name: Switch to electron@latest
         working-directory: apps/desktop
-        run: bun add --no-save -d electron@latest
+        run: bun add --no-save -d --minimum-release-age=0 electron@latest
 
       - name: Bundle main and preload
         working-directory: apps/desktop
         run: bun run build
 
+      - name: Install system-browser fixture
+        working-directory: apps/desktop
+        run: bunx playwright install chromium
+
+      # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
+      - name: Install tmux
+        run: brew install tmux
+
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bunx playwright test
+        env:
+          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
+          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-e2e-results-latest
           path: apps/desktop/test-results
           retention-days: 7
 
   package-smoke:
-    name: Unsigned package smoke
+    name: package-smoke
     if: github.event_name != 'schedule'
     runs-on: macos-26
+    timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: 22
+
+      # Electron, electron-builder and Playwright download their binaries on every cold install. All
+      # three caches are keyed by version inside, so an older entry restored by prefix is harmless.
+      - name: Cache Electron and Playwright downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/Library/Caches/ms-playwright
+          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: desktop-downloads-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

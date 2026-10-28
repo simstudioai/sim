@@ -5,24 +5,17 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { tableApplicationRowsMock } from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {}
-  return {
-    mocks: {
-      cancelRuns: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
+const mocks = vi.hoisted(() => ({
+  cancelRuns: vi.fn(),
+}))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 vi.mock('@/lib/table/application/runs', () => ({
   cancelTableRuns: { operation: { id: 'tables.runs.cancel' }, execute: mocks.cancelRuns },
 }))

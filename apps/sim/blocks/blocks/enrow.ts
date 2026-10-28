@@ -1,14 +1,13 @@
 import { EnrowIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { EnrowResponse } from '@/tools/enrow/types'
 
-export const EnrowBlock: BlockConfig<EnrowResponse> = {
+export const EnrowBlock: BlockConfig = {
   type: 'enrow',
   name: 'Enrow',
-  description: 'Find and verify B2B emails with triple-verified accuracy',
+  description: 'Find and verify B2B email addresses',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.',
+    'Find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Inspect the returned qualification before using an email address.',
   docsLink: 'https://docs.sim.ai/integrations/enrow',
   category: 'tools',
   integrationType: IntegrationType.Sales,
@@ -38,7 +37,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       value: () => 'enrow_find_email',
     },
 
-    // --- Find Email ---
+    // Find Email
     {
       id: 'fullname',
       title: 'Full Name',
@@ -64,7 +63,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       mode: 'advanced',
     },
 
-    // --- Verify Email ---
+    // Verify Email
     {
       id: 've_email',
       title: 'Email Address',
@@ -74,7 +73,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       condition: { field: 'operation', value: 'enrow_verify_email' },
     },
 
-    // --- API Key (hidden on hosted Sim for operations with hosted-key support) ---
+    // API Key (hidden on hosted Sim for operations with hosted-key support)
     {
       id: 'apiKey',
       title: 'API Key',

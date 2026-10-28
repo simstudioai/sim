@@ -1,7 +1,6 @@
 import { SemrushIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SemrushResponse } from '@/tools/semrush/types'
 
 const DATABASE_OPTIONS = [
   { label: 'United States (us)', id: 'us' },
@@ -347,7 +346,7 @@ Return ONLY the 8-character value - no explanations, no quotes, no extra text.`,
   generationType: 'timestamp' as const,
 }
 
-export const SemrushBlock: BlockConfig<SemrushResponse> = {
+export const SemrushBlock: BlockConfig = {
   type: 'semrush',
   name: 'Semrush',
   description: 'Research SEO and paid search data with Semrush',

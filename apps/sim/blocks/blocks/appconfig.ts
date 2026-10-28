@@ -1,19 +1,13 @@
 import { AppConfigIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  AppConfigGetConfigurationResponse,
-  AppConfigListApplicationsResponse,
-} from '@/tools/appconfig/types'
 
-export const AppConfigBlock: BlockConfig<
-  AppConfigListApplicationsResponse | AppConfigGetConfigurationResponse
-> = {
+export const AppConfigBlock: BlockConfig = {
   type: 'appconfig',
   name: 'AWS AppConfig',
   description: 'Manage and retrieve configuration with AWS AppConfig',
   longDescription:
-    'Integrate AWS AppConfig into workflows. Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.',
+    'Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/appconfig',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

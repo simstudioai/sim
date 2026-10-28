@@ -1,25 +1,35 @@
 ---
 title: Google Contacts
 description: Manage Google Contacts
+integration:
+  type: "google_contacts"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="google_contacts"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Google Contacts](https://contacts.google.com/) stores contact records for a Google account. Search or list contacts to obtain their resource names, then use those names to read, update, or delete records. Create contacts with the name, email, phone, and other fields needed by your workflow.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.
+Sim requests these scopes when someone connects a Google Contacts account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-contacts` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/contacts` | View and manage Google Contacts |
+
+## Use the block [#usage-instructions]
+
+Create, read, update, delete, list, and search contacts.
 
 ## Actions
 

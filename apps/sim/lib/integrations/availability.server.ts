@@ -1,10 +1,10 @@
-import { stripVersionSuffix } from '@sim/utils/string'
-import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { env } from '@/lib/core/config/env'
 import {
   inspectOAuthClientCapability,
   resolveOAuthClientCapabilityId,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import { stripVersionSuffix } from '@sim/utils/string'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
+import { env } from '@/lib/core/config/env'
 import {
   type IntegrationAvailability,
   resolveIntegrationAvailability,

@@ -11,7 +11,7 @@ export const clusterStatsTool: ToolConfig<
 > = {
   id: 'elasticsearch_cluster_stats',
   name: 'Elasticsearch Cluster Stats',
-  description: 'Get comprehensive statistics about the Elasticsearch cluster.',
+  description: 'Get Elasticsearch cluster health, node counts, and index statistics.',
   version: '1.0.0',
 
   params: {

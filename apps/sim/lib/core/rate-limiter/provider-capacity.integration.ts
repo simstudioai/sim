@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { db } from '@sim/db'
 import { rateLimitBucket } from '@sim/db/schema'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -25,18 +26,7 @@ import {
 import { mutateProviderCapacity } from '@/lib/core/rate-limiter/provider-capacity-store'
 import { fetchGitHubWithRetry } from '@/connectors/github/request'
 
-const redisUrl = process.env.TEST_REDIS_URL
-if (redisUrl) {
-  const target = new URL(redisUrl)
-  if (
-    target.protocol !== 'redis:' ||
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    target.username ||
-    target.password
-  ) {
-    throw new Error('Provider capacity tests require an explicitly configured local Redis')
-  }
-}
+const redisUrl = readTestRedisUrl()
 const CONFIG: ProviderCapacityConfig = {
   requestsPerMinute: 60,
   pagesPerMinute: 1000,

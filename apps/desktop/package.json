@@ -9,7 +9,7 @@
   "type": "module",
   "main": "dist/main.cjs",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
   "scripts": {
@@ -25,8 +25,8 @@
     "lint:check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "bun run scripts/build-native.ts && vitest run",
+    "test:watch": "bun run scripts/build-native.ts && vitest",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -42,7 +42,7 @@
     "@xterm/headless": "6.0.0",
     "electron-updater": "6.8.9",
     "micromatch": "4.0.8",
-    "safe-regex2": "5.1.0",
+    "safe-regex2": "5.1.2",
     "pdf-lib": "1.17.1"
   },
   "devDependencies": {
@@ -51,18 +51,19 @@
     "@sim/emcn": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@types/micromatch": "4.0.10",
-    "@types/node": "24.2.1",
+    "@types/node": "24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "electron": "43.5.0",
+    "electron": "43.8.1",
     "electron-builder": "26.15.3",
-    "esbuild": "0.28.1",
+    "esbuild": "0.28.2",
     "jsdom": "^26.0.0",
-    "postcss": "^8",
+    "postcss": "^8.5.30",
     "postcss-load-config": "6.0.1",
+    "postgres": "^3.4.5",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

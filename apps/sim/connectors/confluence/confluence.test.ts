@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AtlassianSiteNotAccessibleError } from '@/lib/atlassian/discovery'
 import {
   confluenceConnector,
@@ -23,8 +24,6 @@ function stubFetchWithoutAttachments(mockFetch: typeof fetch): void {
 }
 
 describe('Confluence dynamic All scope', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it('lists newly accessible spaces on each sync, including old content, and follows pagination', async () => {
     const fetchMock = vi.fn()
     const page = (id: string, key: string) => ({
@@ -111,8 +110,6 @@ describe('escapeCql', () => {
 })
 
 describe('Confluence rejected credentials', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it.each(['discovery', 'space', 'pages', 'cql', 'content'] as const)(
     'preserves authenticated401 at the %s boundary',
     async (boundary) => {
@@ -221,8 +218,6 @@ describe('Confluence service-account site binding', () => {
     stubFetchWithoutAttachments(fetchMock)
   })
 
-  afterEach(() => vi.unstubAllGlobals())
-
   it('rejects a mismatched domain during setup without calling the provider', async () => {
     await expect(confluenceConnector.validateConfig('token', config, context)).resolves.toEqual({
       valid: false,
@@ -265,8 +260,6 @@ describe('Confluence listing limits', () => {
     stubFetchWithoutAttachments(fetchMock)
     context = { cloudId: 'cloud-1', spaceId: 'space-1' }
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it.each([{ contentType: 'page' }, { contentType: 'blogpost' }, { labelFilter: 'published' }])(
     'trims a partially consumed final provider page for %j and suppresses deletion reconciliation',
@@ -380,8 +373,6 @@ describe('Confluence permission-scoped content', () => {
       })
     )
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it('skips scoped inclusion-only pages without rendering another page into their ACL', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -505,13 +496,6 @@ describe('confluence mirrored permissions', () => {
   const fetchMock =
     vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
 
-  function jsonResponse(body: unknown, status = 200): Response {
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
   /** A two-space site where each space is readable by one different person. */
   function site() {
     fetchMock.mockImplementation(async (input) => {
@@ -563,10 +547,6 @@ describe('confluence mirrored permissions', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     stubFetchWithoutAttachments(fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   /**

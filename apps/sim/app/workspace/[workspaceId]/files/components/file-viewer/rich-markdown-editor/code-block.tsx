@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useContext, useEffect, useState } from 'react'
 import {
   chipVariants,
   cn,
@@ -11,17 +11,32 @@ import {
 import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn/icons'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
-import { MarkdownCodeBlock } from './code-block-schema'
-import { detectLanguage } from './detect-language'
-import { useEditorEditable } from './use-editor-editable'
+import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
+import { DIFF_EMBED_LANGUAGE } from '@/lib/diff/embed-language'
+import {
+  looksLikeMermaid,
+  MermaidDiagram,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/mermaid-diagram'
+import { MarkdownCodeBlock } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block-schema'
+import { detectLanguage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/detect-language'
+import { MarkdownStreamingContext } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
+import { ToolbarButton } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/toolbar-button'
+import { useEditorEditable } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/use-editor-editable'
+
+/** Kept out of every rich-markdown surface's graph until a document actually holds a dashboard. */
+const DashboardEmbed = lazy(() =>
+  import('@/components/dashboards/dashboard-embed').then((m) => ({ default: m.DashboardEmbed }))
+)
+const DiffEmbed = lazy(() =>
+  import('@/components/diff/diff-embed').then((m) => ({ default: m.DiffEmbed }))
+)
 
 const PLAIN = 'plain'
 const MERMAID = 'mermaid'
 
 /** Languages the Prism highlighter has registered (see {@link CodeBlockHighlight}). Every non-plain
  * value MUST have a grammar registered in {@link CodeBlockHighlight} — enforced by a unit test. */
-export const LANGUAGE_OPTIONS = [
+const LANGUAGE_OPTIONS = [
   { value: PLAIN, label: 'Plain text' },
   { value: 'bash', label: 'Bash' },
   { value: 'c', label: 'C' },
@@ -42,34 +57,36 @@ export const LANGUAGE_OPTIONS = [
   { value: 'yaml', label: 'YAML' },
 ] as const
 
-const CONTROL_CLASS =
-  'flex size-[24px] items-center justify-center rounded-lg text-[var(--text-icon)] outline-hidden transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-body)] focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]'
-
 /**
  * Code block view with hover controls (language picker, line-wrap, copy). When the block holds
  * Mermaid — tagged ```mermaid or {@link looksLikeMermaid auto-detected} — it renders as a diagram
  * whenever the cursor is outside it (and always in read-only), and as editable source while the
  * cursor is inside, re-rendering on blur (the Linear/GitHub model). The source `<pre>` stays mounted
  * (hidden behind the diagram) so ProseMirror keeps managing its contentDOM, and the node remains an
- * ordinary code block, so markdown round-trips unchanged.
+ * ordinary code block, so markdown round-trips unchanged. A ```dashboard fence renders live
+ * dashboard panels the same way.
  */
 function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
-  const [wrap, setWrap] = useState(false)
+  const [wrap, setWrap] = useState(() => node.attrs.language === DIFF_EMBED_LANGUAGE)
   const [menuOpen, setMenuOpen] = useState(false)
   const [editingInline, setEditingInline] = useState(false)
   const [peekSource, setPeekSource] = useState(false)
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const editable = useEditorEditable(editor)
+  const isStreaming = useContext(MarkdownStreamingContext)
 
   const explicitLanguage = node.attrs.language as string | null
   const text = node.textContent
   const isMermaid = explicitLanguage === MERMAID || (!explicitLanguage && looksLikeMermaid(text))
+  const isDashboard = explicitLanguage === DASHBOARD_EMBED_LANGUAGE
+  const isDiff = explicitLanguage === DIFF_EMBED_LANGUAGE
+  const isRendered = isMermaid || isDashboard || isDiff
 
   // Editable Mermaid shows source while the caret is focused inside the block and re-renders the
   // diagram on blur (the Linear/GitHub model). The Show source / Show diagram control drives this by
   // focusing into / blurring the block; read-only uses {@link peekSource} since there is no caret.
   useEffect(() => {
-    if (!isMermaid || !editable) {
+    if (!isRendered || !editable) {
       setEditingInline(false)
       return
     }
@@ -92,13 +109,13 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
       editor.off('focus', sync)
       editor.off('blur', sync)
     }
-  }, [editor, getPos, isMermaid, editable])
+  }, [editor, getPos, isRendered, editable])
 
   const showSource = editable ? editingInline : peekSource
-  const showDiagram = isMermaid && text.trim().length > 0 && !showSource
+  const showRendered = isRendered && text.trim().length > 0 && !showSource
 
-  // Skip language detection on the mermaid path — the picker/label never render there.
-  const language = explicitLanguage ?? (isMermaid ? null : detectLanguage(text)) ?? PLAIN
+  // Skip language detection on rendered blocks — the picker/label never render there.
+  const language = explicitLanguage ?? (isRendered ? null : detectLanguage(text)) ?? PLAIN
   const label =
     LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ??
     explicitLanguage ??
@@ -128,23 +145,29 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
     <NodeViewWrapper className='group relative'>
       <div
         className={cn(
-          'absolute top-1.5 right-2 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100',
+          'absolute top-1.5 right-2 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(any-pointer:coarse)]:opacity-100 [@media(hover:none)]:opacity-100',
+          isDiff && showRendered && 'top-3 right-3 opacity-100',
+          isRendered && showSource && 'static mb-1 justify-end opacity-100',
           menuOpen && 'opacity-100'
         )}
         contentEditable={false}
       >
-        {isMermaid && (
-          <button
-            type='button'
-            aria-label={showSource ? 'Show diagram' : 'Show source'}
-            onMouseDown={(event) => event.preventDefault()}
+        {isRendered && (
+          <ToolbarButton
+            icon={showSource ? Eye : Code}
+            label={
+              showSource
+                ? isDashboard
+                  ? 'Show dashboard'
+                  : isDiff
+                    ? 'Show diff'
+                    : 'Show diagram'
+                : 'Show source'
+            }
             onClick={toggleSource}
-            className={CONTROL_CLASS}
-          >
-            {showSource ? <Eye /> : <Code />}
-          </button>
+          />
         )}
-        {!isMermaid &&
+        {!isRendered &&
           (editable ? (
             // Editable: a language picker. Read-only: a static label — selecting a language calls
             // updateAttributes, which would mutate a doc that must not change.
@@ -180,47 +203,48 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
               {label}
             </span>
           ))}
-        {!isMermaid && editable && (
-          <button
-            type='button'
-            aria-label='Toggle line wrap'
-            aria-pressed={wrap}
-            onMouseDown={(event) => event.preventDefault()}
+        {(isDiff || (!isRendered && editable)) && (
+          <ToolbarButton
+            icon={Wrap}
+            label='Toggle line wrap'
+            isActive={wrap}
             onClick={() => setWrap((value) => !value)}
-            className={cn(
-              CONTROL_CLASS,
-              wrap && 'bg-[var(--surface-active)] text-[var(--text-body)]'
-            )}
-          >
-            <Wrap />
-          </button>
+          />
         )}
-        <button
-          type='button'
-          aria-label='Copy code'
-          onMouseDown={(event) => event.preventDefault()}
+        <ToolbarButton
+          icon={copied ? Check : Duplicate}
+          label={copied ? 'Copied' : isDiff ? 'Copy diff' : 'Copy code'}
           onClick={() => copy(text)}
-          className={CONTROL_CLASS}
-        >
-          {copied ? <Check /> : <Duplicate />}
-        </button>
+        />
       </div>
-      <pre className={cn('code-editor-theme pr-20', showDiagram && 'hidden')} data-wrap={wrap}>
+      <pre className={cn('code-editor-theme pr-20', showRendered && 'hidden')} data-wrap={wrap}>
         <NodeViewContent<'code'> as='code' />
       </pre>
-      {showDiagram && (
-        // Clicking the diagram selects the whole node (same selection ring as an image/code block)
-        // instead of dropping a caret inside — preventDefault stops ProseMirror placing the caret,
-        // which would otherwise flip to source. Editing is an explicit Show source / blur action.
+      {showRendered && (
+        // Select the whole node instead of placing a caret, which would flip the block to source.
         <div
           contentEditable={false}
+          className={cn(isDashboard && 'dashboard-embed', isDiff && 'diff-embed')}
           onMouseDown={(event) => {
+            const target = event.target
+            if (!(target instanceof Element) || !event.currentTarget.contains(target)) return
+            if (target.closest('button, input')) return
             event.preventDefault()
             const pos = typeof getPos === 'function' ? getPos() : null
             if (typeof pos === 'number') editor.commands.setNodeSelection(pos)
           }}
         >
-          <MermaidDiagram definition={text} className='mermaid-diagram-frame' />
+          {isDashboard ? (
+            <Suspense fallback={null}>
+              <DashboardEmbed source={text} isStreaming={isStreaming} />
+            </Suspense>
+          ) : isDiff ? (
+            <Suspense fallback={null}>
+              <DiffEmbed source={text} isStreaming={isStreaming} wrapLines={wrap} />
+            </Suspense>
+          ) : (
+            <MermaidDiagram definition={text} className='mermaid-diagram-frame' />
+          )}
         </div>
       )}
     </NodeViewWrapper>

@@ -1,10 +1,19 @@
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ visibility: vi.fn(), workspace: vi.fn() }))
-vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: mocks.visibility }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: mocks.workspace }))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { getBlockVisibilityForCopilot } from '@/lib/mothership/block-visibility'
+
+const mocks = {
+  visibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  workspace: permissionsMockFns.mockGetWorkspaceWithOwner,
+}
 
 describe('organization catalog visibility', () => {
   it('keeps organization gates distinct without selecting or querying a workspace', async () => {

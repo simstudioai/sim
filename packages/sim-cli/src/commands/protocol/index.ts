@@ -1,9 +1,17 @@
 import { Command } from 'commander'
 import { attachChat } from './chat'
-import { attachFileGet, attachFileVersionDownload } from './files-get'
-import { attachFileUpload } from './files-upload'
+import {
+  attachFileGet,
+  attachFileVersionDownload,
+  attachProjectFileDownload,
+  attachProjectFileSnapshotExport,
+  attachProjectFileSource,
+  attachProjectFileVersionSource,
+} from './files-get'
+import { attachFileUpload, attachProjectFileUpload } from './files-upload'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
 import { attachKnowledgeExport } from './knowledge-export'
+import { attachKnowledgeImport } from './knowledge-import'
 import { attachLogsFollow } from './logs-follow'
 import { attachResourceDirectoryCommands } from './resource-directory'
 import { attachTableImport } from './tables-import'
@@ -22,6 +30,12 @@ function group(program: Command, name: string): Command {
 
 /** Attaches commands whose multi-request or binary protocols cannot be generated. */
 export function attachProtocolCommands(program: Command): void {
+  const projectFiles = group(group(program, 'projects'), 'files')
+  attachProjectFileUpload(projectFiles)
+  attachProjectFileSource(projectFiles)
+  attachProjectFileDownload(projectFiles)
+  attachProjectFileSnapshotExport(projectFiles)
+  attachProjectFileVersionSource(group(projectFiles, 'versions'))
   const files = group(program, 'files')
   attachFileUpload(files)
   attachFileGet(files)
@@ -36,6 +50,7 @@ export function attachProtocolCommands(program: Command): void {
   const knowledge = group(program, 'knowledge')
   attachKnowledgeDocumentUpload(group(knowledge, 'documents'))
   attachKnowledgeExport(knowledge)
+  attachKnowledgeImport(knowledge)
   attachResourceDirectoryCommands(knowledge, {
     kind: 'knowledge',
     resources: 'listKnowledgeBases',

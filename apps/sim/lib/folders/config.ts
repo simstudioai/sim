@@ -488,7 +488,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   /**
    * Present to satisfy the total `Record<FolderResourceType, …>`, but UNREACHABLE at runtime:
    * `servedFolderResourceTypeSchema` does not serve `'file'`, and the Files surface goes through
-   * `workspace-file-folder-manager.ts` instead. Do not treat this entry as a live path — routing
+   * `uploads/contexts/workspace/file-folder-manager.ts` instead. Do not treat this entry as a live path — routing
    * file folders through the generic engine would bypass the `workspace_file_folders:` advisory
    * lock that makes its check-then-write pairs atomic, and the name rules that keep a folder name
    * usable as a path segment.

@@ -1,17 +1,10 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
 export { Badge, type BadgeProps, badgeVariants } from './badge/badge'
 export { Banner } from './banner/banner'
-export {
-  BulkActionButton,
-  type BulkActionButtonProps,
-  bulkActionButtonVariants,
-} from './bulk-action-button/bulk-action-button'
-export { Button, buttonVariants } from './button/button'
-export {
-  CalendarDayCell,
-  type CalendarDayCellProps,
-} from './calendar/calendar-day-cell'
+export { BulkActionButton } from './bulk-action-button/bulk-action-button'
+export { Button } from './button/button'
 export { Checkbox, checkboxIconVariants, checkboxVariants } from './checkbox/checkbox'
+export { ChipChevronDown } from './chip/chevron'
 export {
   Chip,
   ChipLink,
@@ -20,7 +13,6 @@ export {
   chipVariants,
   TRIGGER_BORDER_CLASS,
 } from './chip/chip'
-export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
   chipActiveSurfaceClass,
@@ -32,85 +24,50 @@ export {
   chipFieldSurfaceClass,
   chipFieldTextClass,
   chipFilledFillTokens,
-  chipFilledSurfaceTokens,
   chipGeometryClass,
-  chipGeometryUnroundedClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
   chipPrimaryFillTokens,
   chipRadiusClass,
   disclosureChevronClass,
-} from './chip/chip-chrome'
+} from './chip/chrome'
 export {
   ChipButtonGroup,
   ChipButtonGroupItem,
-  type ChipButtonGroupItemProps,
-  type ChipButtonGroupProps,
-  chipButtonGroupItemVariants,
-  chipButtonGroupVariants,
 } from './chip-button-group/chip-button-group'
 export { ChipCombobox } from './chip-combobox/chip-combobox'
-export {
-  ChipCopyInput,
-  type ChipCopyInputProps,
-} from './chip-copy-input/chip-copy-input'
+export { ChipCopyInput } from './chip-copy-input/chip-copy-input'
 export { ChipDatePicker } from './chip-date-picker/chip-date-picker'
 export {
   ChipDropdown,
   type ChipDropdownOption,
   type ChipDropdownProps,
 } from './chip-dropdown/chip-dropdown'
-export {
-  ChipEmailsInput,
-  type ChipEmailsInputProps,
-} from './chip-emails-input/chip-emails-input'
+export { ChipEmailsInput } from './chip-emails-input/chip-emails-input'
 export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
 export {
-  type ChipConfirmAction,
-  type ChipConfirmDefaultAction,
   ChipConfirmModal,
-  type ChipConfirmModalProps,
-  type ChipConfirmText,
   type ChipConfirmTextSegment,
   ChipModal,
   ChipModalBody,
-  type ChipModalBodyProps,
   ChipModalDescription,
-  type ChipModalDescriptionProps,
-  type ChipModalDropdownOption,
-  type ChipModalEmailsFieldProps,
   ChipModalError,
-  type ChipModalErrorProps,
   ChipModalField,
   type ChipModalFieldAria,
-  type ChipModalFieldProps,
   ChipModalFooter,
   type ChipModalFooterAction,
-  type ChipModalFooterCustomAction,
-  type ChipModalFooterDefaultAction,
-  type ChipModalFooterProps,
-  type ChipModalFooterSlotAction,
   ChipModalHeader,
-  type ChipModalHeaderProps,
-  ChipModalPromptBody,
-  type ChipModalPromptBodyProps,
-  type ChipModalProps,
   ChipModalSeparator,
   ChipModalSurface,
-  type ChipModalTab,
   ChipModalTabs,
-  type ChipModalTabsProps,
   focusChipModalContent,
 } from './chip-modal/chip-modal'
-export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
-export {
-  ChipSwitch,
-  type ChipSwitchOption,
-  type ChipSwitchProps,
-} from './chip-switch/chip-switch'
-export { ChipTag, type ChipTagProps, chipTagVariants } from './chip-tag/chip-tag'
-export { ChipTextarea, type ChipTextareaProps } from './chip-textarea/chip-textarea'
-export { ChipTimePicker, type ChipTimePickerProps } from './chip-time-picker/chip-time-picker'
+export { ChipSelect, type ChipSelectOption } from './chip-select/chip-select'
+export { ChipSwitch } from './chip-switch/chip-switch'
+export { ChipTag, chipTagVariants } from './chip-tag/chip-tag'
+export { ChipTextarea } from './chip-textarea/chip-textarea'
+/** @public The documented time sibling of `ChipDatePicker`; consumers import it from the barrel. */
+export { ChipTimePicker } from './chip-time-picker/chip-time-picker'
 export {
   CODE_LINE_HEIGHT_PX,
   Code,
@@ -119,29 +76,21 @@ export {
 } from './code/code'
 export { CopyCodeButton } from './code/copy-code-button'
 export { highlight, languages } from './code/prism'
-export { CollapsibleCard, type CollapsibleCardProps } from './collapsible-card/collapsible-card'
+export { CollapsibleCard } from './collapsible-card/collapsible-card'
 export {
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
 } from './combobox/combobox'
-export {
-  ComposerActionButton,
-  type ComposerActionButtonProps,
-  composerActionButtonVariants,
-} from './composer-action-button/composer-action-button'
-export { DetailsPanel, type DetailsPanelProps } from './details-panel/details-panel'
+export { ComposerActionButton } from './composer-action-button/composer-action-button'
+export { DetailsPanel } from './details-panel/details-panel'
 export {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuItemAction,
   DropdownMenuItemLabel,
-  type DropdownMenuItemLabelProps,
   DropdownMenuLabel,
-  DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSearchInput,
@@ -153,24 +102,20 @@ export {
   DropdownMenuTrigger,
   dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
+export { MENU_STYLES } from './dropdown-menu/styles'
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
 export { Info } from './info/info'
 export {
   InfoCard,
   InfoCardItem,
-  type InfoCardItemProps,
   InfoCardList,
-  type InfoCardListProps,
-  type InfoCardProps,
 } from './info-card/info-card'
-export { Input, type InputProps } from './input/input'
-export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
+export { Input } from './input/input'
+export { InputOTP, InputOTPGroup, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
-export { Lightbox, type LightboxProps } from './lightbox/lightbox'
-export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
+export { Lightbox } from './lightbox/lightbox'
 export {
-  MODAL_SIZES,
   Modal,
   ModalBody,
   ModalClose,
@@ -178,8 +123,6 @@ export {
   ModalDescription,
   ModalFooter,
   ModalHeader,
-  ModalOverlay,
-  ModalPortal,
   ModalTabs,
   ModalTabsContent,
   ModalTabsList,
@@ -188,17 +131,16 @@ export {
   ModalTrigger,
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   type NativeSurfaceOcclusionPrepareDetail,
-  useModalDismissDisabled,
   useNativeSurfaceOcclusionReady,
 } from './modal/modal'
 export {
   OverflowText,
-  type OverflowTextProps,
   overflowFadeSizeClass,
   overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
 export { pageHeadingClassName } from './page-heading/page-heading'
+export { POPOVER_ANIMATION_CLASSES } from './popover/animation'
 export {
   Popover,
   PopoverAnchor,
@@ -213,36 +155,30 @@ export {
   PopoverTrigger,
   usePopoverContext,
 } from './popover/popover'
-export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
-export { RowActions, type RowActionsProps, rowActionsGroupClass } from './row-actions/row-actions'
+export { RowActions, rowActionsGroupClass } from './row-actions/row-actions'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'
-export { SimWordmark, type SimWordmarkProps } from './sim-wordmark/sim-wordmark'
+export { SimWordmark } from './sim-wordmark/sim-wordmark'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider } from './slider/slider'
 export {
   LogoPage,
-  type LogoPageProps,
   PAGE_CONTENT_WIDTH,
   PAGE_GUTTER,
   StatusPageContent,
   type StatusPageContentProps,
 } from './status-page/status-page'
 export { Switch } from './switch/switch'
+export { TabStripAction } from './tab-strip/action'
 export {
   TabStrip,
   type TabStripDragContext,
   type TabStripItem,
-  type TabStripProps,
   type TabStripSelectionSource,
-  type TabStripVariant,
-  tabDropIndex,
   tabStripItemSelector,
-  tabStripWheelPosition,
 } from './tab-strip/tab-strip'
-export { TabStripAction, type TabStripActionProps } from './tab-strip/tab-strip-action'
 export {
   Table,
   TableBody,
@@ -253,24 +189,16 @@ export {
   TableHeader,
   TableRow,
 } from './table/table'
-export { type FileInputOptions, TagInput, type TagItem } from './tag-input/tag-input'
+export { TagInput, type TagItem } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
-export { TimePicker, timePickerVariants } from './time-picker/time-picker'
+export { TimePicker } from './time-picker/time-picker'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export {
-  clamp,
   FloatingTooltip,
-  type FloatingTooltipHandlers,
-  type FloatingTooltipState,
-  isFocusVisible,
   isTextClipped,
   Tooltip,
-  type UseFloatingTooltipOptions,
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'
-export {
-  UploadPreviewButton,
-  type UploadPreviewButtonProps,
-} from './upload-preview-button/upload-preview-button'
+export { UploadPreviewButton } from './upload-preview-button/upload-preview-button'
 export { Wizard } from './wizard/wizard'

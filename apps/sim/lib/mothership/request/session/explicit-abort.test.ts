@@ -1,4 +1,12 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -7,22 +15,19 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
-const { mockFetchGo } = vi.hoisted(() => ({
-  mockFetchGo: vi.fn(),
-}))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
 
-vi.mock('@/lib/mothership/request/go/fetch', () => ({
-  fetchGo: mockFetchGo,
-}))
-
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: vi.fn().mockResolvedValue('https://copilot.test'),
-  getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({ 'X-Sim-Source-Env': 'test' }),
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 import { BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
 import { AbortRequest } from '@/lib/mothership/generated/protocol'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+
+const { mockFetchGo } = mothershipGoFetchMockFns
+mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://copilot.test')
+mothershipAgentUrlMockFns.mockGetMothershipSourceEnvHeaders.mockReturnValue({
+  'X-Sim-Source-Env': 'test',
+})
 
 describe('requestExplicitStreamAbort', () => {
   afterEach(() => vi.useRealTimers())

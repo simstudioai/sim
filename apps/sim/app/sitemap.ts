@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
+import { getAllEntryMeta } from '@/lib/changelog'
 import type { ContentMeta } from '@/lib/content/schema'
 import { latestModified } from '@/lib/content/utils'
 import { SITE_URL } from '@/lib/core/utils/urls'
@@ -11,7 +12,14 @@ import {
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
-import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
+import { getComparisonUpdatedAt, MODEL_COMPARISONS } from '@/app/(landing)/models/comparisons'
+import { CONTEXT_WINDOW_MODELS } from '@/app/(landing)/models/context-windows'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
+import {
+  ALL_CATALOG_MODELS,
+  getLatestModelUpdate,
+  MODEL_PROVIDERS_WITH_MODELS,
+} from '@/app/(landing)/models/utils'
 
 /** One sitemap entry per author, timestamped by their most recently updated post. */
 function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute.Sitemap {
@@ -34,7 +42,7 @@ function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute
 /**
  * Generate the public sitemap by composing static landing pages with the
  * dynamic catalogs (blog posts, library posts, published customer stories,
- * authors, integrations, model providers, and individual models).
+ * authors, integrations, model providers, individual models, and curated model comparisons).
  * Per-integration entries are emitted
  * under `/integrations/{slug}` to match the landing route at
  * `app/(landing)/integrations/[slug]`; slugs are guaranteed unique
@@ -42,19 +50,17 @@ function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL
-  const [posts, libraryPosts, customerStories] = await Promise.all([
+  const [posts, libraryPosts, customerStories, changelogEntries] = await Promise.all([
     getAllBlogPostMeta(),
     getAllLibraryPostMeta(),
     getAllCustomerStoryMeta(),
+    getAllEntryMeta(),
   ])
 
   const latestPostDateValue = latestModified(posts)
   const latestLibraryPostDate = latestModified(libraryPosts)
 
-  const modelTimes = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
-    provider.models.map((model) => new Date(model.pricing.updatedAt).getTime())
-  )
-  const latestModelDate = modelTimes.length > 0 ? new Date(Math.max(...modelTimes)) : undefined
+  const latestModelDate = getLatestModelUpdate(ALL_CATALOG_MODELS)
 
   const integrationsUpdatedAt = new Date(`${INTEGRATIONS_UPDATED_AT}T00:00:00Z`)
 
@@ -131,7 +137,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/changelog`,
-      lastModified: latestPostDateValue,
+      lastModified: latestModified(changelogEntries),
+    },
+    {
+      url: `${baseUrl}/changelog/archive`,
+      lastModified: latestModified(changelogEntries),
     },
     {
       url: `${baseUrl}/integrations`,
@@ -140,6 +150,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     {
       url: `${baseUrl}/models`,
       lastModified: latestModelDate,
+    },
+    ...Object.values(MODEL_TOOLS).map((tool) => ({
+      url: `${baseUrl}${tool.href}`,
+      lastModified: latestModelDate,
+    })),
+    {
+      url: `${baseUrl}/models/context-windows`,
+      lastModified: getLatestModelUpdate(CONTEXT_WINDOW_MODELS),
     },
     {
       url: `${baseUrl}/terms`,
@@ -183,24 +201,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const integrationPages: MetadataRoute.Sitemap = INTEGRATIONS.map((integration) => ({
     url: `${baseUrl}/integrations/${integration.slug}`,
-    lastModified: integrationsUpdatedAt,
+    lastModified: new Date(`${integration.updatedAt}T00:00:00Z`),
   }))
 
-  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) => {
+  // Reseller pages (Bedrock, Vertex, Azure, ...) list reseller-specific prices and model IDs, so
+  // they are indexed alongside the first-party pages rather than folded into them.
+  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_MODELS.flatMap((provider) => {
     if (provider.models.length === 0) return []
     return [
       {
         url: `${baseUrl}${provider.href}`,
-        lastModified: new Date(
-          Math.max(...provider.models.map((model) => new Date(model.pricing.updatedAt).getTime()))
-        ),
+        lastModified: getLatestModelUpdate(provider.models),
       },
     ]
   })
 
-  const modelEntries: MetadataRoute.Sitemap = ALL_CATALOG_MODELS.map((model) => ({
+  const modelEntries: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_MODELS.flatMap(
+    (provider) => provider.models
+  ).map((model) => ({
     url: `${baseUrl}${model.href}`,
     lastModified: new Date(model.pricing.updatedAt),
+  }))
+
+  const modelComparisonPages: MetadataRoute.Sitemap = MODEL_COMPARISONS.map((comparison) => ({
+    url: `${baseUrl}${comparison.href}`,
+    lastModified: getComparisonUpdatedAt(comparison),
   }))
 
   // Matches the max(Sim, competitor) verified-date logic each detail page's own
@@ -223,6 +248,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const pages: MetadataRoute.Sitemap = [
     ...staticPages,
+    ...changelogEntries.map((entry) => ({
+      url: entry.canonical,
+      lastModified: new Date(entry.updated ?? entry.date),
+    })),
     ...blogPages,
     ...authorPages,
     ...libraryPages,
@@ -231,6 +260,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...integrationPages,
     ...providerPages,
     ...modelEntries,
+    ...modelComparisonPages,
     ...comparisonPages,
   ]
 

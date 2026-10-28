@@ -1,14 +1,33 @@
-import type { DatabricksBaseParams, DatabricksListClustersResponse } from '@/tools/databricks/types'
+import type {
+  DatabricksListClustersParams,
+  DatabricksListClustersResponse,
+} from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListClustersResponse> = {
+export const listClustersTool: ToolConfig<
+  DatabricksListClustersParams,
+  DatabricksListClustersResponse
+> = {
   id: 'databricks_list_clusters',
   name: 'Databricks List Clusters',
   description:
-    'List all clusters in a Databricks workspace including their state, configuration, and resource details.',
+    'List a page of clusters in a Databricks workspace including their state, configuration, and resource details.',
   version: '1.0.0',
 
   params: {
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Resources per page (default 20)',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Token returned by the previous list request',
+    },
     host: {
       type: 'string',
       required: true,
@@ -25,11 +44,10 @@ export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListCl
 
   request: {
     url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      return `https://${host}/api/2.0/clusters/list`
+      const url = new URL(databricksUrl(params.host, '/api/2.1/clusters/list'))
+      url.searchParams.set('page_size', String(params.pageSize ?? 20))
+      if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
+      return url.toString()
     },
     method: 'GET',
     headers: (params) => ({
@@ -59,8 +77,18 @@ export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListCl
         autoscale?: { min_workers?: number; max_workers?: number }
         cluster_source?: string
         autotermination_minutes?: number
+        policy_id?: string
+        data_security_mode?: string
+        terminated_time?: number
+        custom_tags?: Record<string, string>
+        termination_reason?: Record<string, unknown>
         start_time?: number
       }) => ({
+        policyId: cluster.policy_id ?? null,
+        dataSecurityMode: cluster.data_security_mode ?? null,
+        terminatedTime: cluster.terminated_time ?? null,
+        customTags: cluster.custom_tags ?? null,
+        terminationReason: cluster.termination_reason ?? null,
         clusterId: cluster.cluster_id ?? '',
         clusterName: cluster.cluster_name ?? '',
         state: cluster.state ?? 'UNKNOWN',
@@ -86,17 +114,42 @@ export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListCl
       success: true,
       output: {
         clusters,
+        nextPageToken: data.next_page_token ?? null,
+        prevPageToken: data.prev_page_token ?? null,
       },
     }
   },
 
   outputs: {
+    nextPageToken: { type: 'string', nullable: true, description: 'Token for the next page' },
+    prevPageToken: { type: 'string', nullable: true, description: 'Token for the previous page' },
     clusters: {
       type: 'array',
       description: 'List of clusters in the workspace',
       items: {
         type: 'object',
         properties: {
+          policyId: { type: 'string', nullable: true, description: 'Compute policy identifier' },
+          dataSecurityMode: { type: 'string', nullable: true, description: 'Cluster access mode' },
+          terminatedTime: {
+            type: 'number',
+            nullable: true,
+            description: 'Cluster termination time in epoch milliseconds',
+          },
+          customTags: { type: 'object', nullable: true, description: 'Custom cluster tags' },
+          terminationReason: {
+            type: 'object',
+            nullable: true,
+            description: 'Reason for termination (code, type, parameters)',
+            properties: {
+              code: { type: 'string' },
+              type: { type: 'string' },
+              parameters: {
+                type: 'object',
+                description: 'Provider-specific termination parameters',
+              },
+            },
+          },
           clusterId: { type: 'string', description: 'Unique cluster identifier' },
           clusterName: { type: 'string', description: 'Cluster display name' },
           state: {
@@ -115,12 +168,12 @@ export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListCl
           numWorkers: {
             type: 'number',
             description: 'Number of worker nodes (for fixed-size clusters)',
-            optional: true,
+            nullable: true,
           },
           autoscale: {
             type: 'object',
             description: 'Autoscaling configuration (null for fixed-size clusters)',
-            optional: true,
+            nullable: true,
             properties: {
               minWorkers: { type: 'number', description: 'Minimum number of workers' },
               maxWorkers: { type: 'number', description: 'Maximum number of workers' },
@@ -137,7 +190,7 @@ export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListCl
           startTime: {
             type: 'number',
             description: 'Cluster start timestamp (epoch ms)',
-            optional: true,
+            nullable: true,
           },
         },
       },

@@ -16,12 +16,16 @@
  * keeps them honest.
  */
 
+import type { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { compareStrings } from '@sim/utils/string'
 import type { Command } from 'commander'
+import { CLI_CONTRACT } from '../packages/sim-cli/src/contract/commands'
 import { V2_OPERATIONS } from '../packages/sim-cli/src/generated/v2-api'
 import { buildProgram } from '../packages/sim-cli/src/program'
+import { calledOperations, operationOf } from '../packages/sim-cli/src/runtime/called-operations'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/cli')
@@ -55,16 +59,479 @@ const OVERVIEW_PAGE = 'commands'
 /** Generated page carrying every command at once, for search and for agents. */
 const REFERENCE_PAGE = 'reference'
 
-/**
- * Sidebar titles for groups whose command name does not title-case cleanly.
- * Everything else gets its hyphens split and each word capitalized.
- */
-const GROUP_TITLES: Record<string, string> = {
-  'audit-logs': 'Audit Logs',
-  'custom-tools': 'Custom Tools',
-  'mcp-servers': 'MCP Servers',
-  'workflow-mcp-servers': 'Workflow MCP Servers',
-  cli: 'CLI',
+interface GroupDocumentation {
+  title?: string
+  description: string
+  notes?: readonly string[]
+  related?: readonly [string, string][]
+}
+
+const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
+  'audit-logs': {
+    description:
+      'Read organization audit actions and filter by actor, resource, workspace, or time.',
+    notes: [
+      'Requires an organization Admin or owner, an OAuth login or personal API key, and enabled enterprise audit access for the deployment.',
+    ],
+    related: [
+      ['Organization permissions', '/platform/permissions'],
+      ['Authentication', '/cli/authentication'],
+    ],
+  },
+  billing: {
+    description: 'Read billing status, credit usage, and storage usage.',
+    related: [
+      ['Costs', '/platform/costs'],
+      ['Authentication', '/cli/authentication'],
+    ],
+  },
+  blocks: {
+    description:
+      'Inspect workflow blocks, integration blocks, and triggers available to the workspace.',
+    notes: [
+      'The catalog reflects the workspace’s allowed integrations, revealed preview blocks, and deployed custom blocks.',
+    ],
+  },
+  'chat-deployments': {
+    description: 'List workflow chat deployments in the workspace.',
+    related: [['Deploy or update a workflow chat', '/cli/workflows#chat-deployments']],
+  },
+  cli: {
+    title: 'Command search',
+    description: 'Find a command by describing the task you want to perform.',
+  },
+  'connector-types': {
+    description:
+      'Discover knowledge connectors and their authentication and source-configuration schemas.',
+    notes: ['Use `--detail full` to inspect a connector’s configuration before creating it.'],
+    related: [['Create and sync knowledge connectors', '/cli/knowledge#connectors']],
+  },
+  credentials: {
+    description: 'Discover providers, connect accounts, and manage credential access.',
+    notes: [
+      'Run `sim --output json credentials providers list` to inspect the provider’s fields and authentication requirements before creating a service-account credential. OAuth connection commands return a link that a person must open to authorize the connection.',
+    ],
+    related: [['Credentials', '/platform/credentials']],
+  },
+  'custom-tools': {
+    description: 'Create and manage code-backed tools that agents can call.',
+    related: [['Custom tools', '/agents/custom-tools']],
+  },
+  files: {
+    description:
+      'Browse workspace files, read or write content, manage versions, and configure sharing.',
+    related: [
+      ['Files', '/files'],
+      ['Output formats', '/cli/output'],
+    ],
+  },
+  knowledge: {
+    description: 'Manage knowledge bases, indexed documents, search, tags, and connector syncs.',
+    related: [
+      ['Knowledge Base', '/knowledgebase'],
+      ['Tags and filters', '/knowledgebase/tags'],
+      ['Export and import', '/knowledgebase/export-import'],
+    ],
+  },
+  logs: {
+    description: 'Read run diagnostics, follow new runs, and summarize failures and latency.',
+    related: [
+      ['Logs and debugging', '/logs-debugging'],
+      ['Output formats', '/cli/output'],
+    ],
+  },
+  'mcp-servers': {
+    title: 'MCP servers',
+    description:
+      'Connect external Model Context Protocol (MCP) servers so workflows can use their tools.',
+    notes: [
+      'To serve Sim workflows to MCP clients instead, use [workflow MCP servers](/cli/workflow-mcp-servers).',
+    ],
+    related: [['MCP connections', '/agents/mcp']],
+  },
+  meta: {
+    title: 'API status',
+    description: 'Inspect API availability and the calling credential’s type and expiry.',
+    related: [['Authentication', '/cli/authentication']],
+  },
+  organizations: {
+    description: 'Manage organization membership, invitations, usage, access requests, and SSO.',
+    related: [
+      ['Organizations', '/platform/organization'],
+      ['Permissions', '/platform/permissions'],
+    ],
+  },
+  'permission-groups': {
+    description:
+      'Manage organization permission groups, their configuration, and member assignments.',
+    notes: [
+      'Use the linked API request schema for the supported `--config` keys. Supplied arrays replace their entire lists; omitted settings remain unchanged on update.',
+    ],
+    related: [['Permission groups', '/platform/permissions']],
+  },
+  profiles: {
+    description: 'List profiles and add a workspace profile that shares a stored login.',
+    notes: [
+      'Adding a profile reuses the active stored login and selects a default workspace. Supply `--workspace` when running without an interactive terminal.',
+    ],
+    related: [
+      ['Configuration', '/cli/configuration'],
+      ['Authentication', '/cli/authentication'],
+    ],
+  },
+  sandboxes: {
+    description: 'Manage reusable dependency sets for Function blocks.',
+    related: [['Function sandboxes', '/workflows/blocks/function#sandboxes']],
+  },
+  secrets: {
+    description: 'Set and manage workspace or personal secrets.',
+    notes: [
+      'Personal secrets belong to the caller across workspaces. Workspace secrets are shared resources. Listings include stored values only for workspace secrets marked visible (unredacted); all other entries contain metadata.',
+    ],
+    related: [['Credentials and secrets', '/platform/credentials']],
+  },
+  selectors: {
+    description:
+      'Discover destination options for registered fields, such as calendars, channels, and tables.',
+    notes: [
+      'A selector key identifies the field’s option source. Its context accepts only declared dependencies; missing OAuth access requires a person to authorize the connection.',
+    ],
+  },
+  skills: {
+    description: 'Create reusable agent instructions and manage their editors.',
+    related: [['Skills', '/agents/skills']],
+  },
+  tables: {
+    description: 'Manage tables, rows, schemas, views, enrichment runs, imports, and exports.',
+    related: [
+      ['Tables', '/tables'],
+      ['Workflow columns', '/tables/workflow-columns'],
+    ],
+  },
+  telemetry: {
+    description: 'Inspect and change this machine’s anonymous usage-reporting preference.',
+    related: [['Usage data', '/cli/usage-data']],
+  },
+  tools: {
+    description: 'Find built-in tools, inspect their parameters, and run them.',
+    notes: [
+      'Inspect a tool with `sim tools get <toolId>` before passing its parameters to `sim tools execute`.',
+    ],
+  },
+  'workflow-mcp-servers': {
+    title: 'Workflow MCP servers',
+    description: 'Serve deployed workflows as tools for Model Context Protocol (MCP) clients.',
+    notes: [
+      'These servers expose Sim workflows. To connect a server that provides external tools, use [MCP servers](/cli/mcp-servers).',
+    ],
+    related: [['MCP connections', '/agents/mcp']],
+  },
+  workflows: {
+    description: 'Build, deploy, run, and inspect workflows from the terminal.',
+    related: [
+      ['Workflow builder', '/workflows'],
+      ['Import and workspace sync', '/cli/workflow-sync'],
+      ['Scripting and exit codes', '/cli/scripting#exit-codes'],
+    ],
+  },
+  workspaces: {
+    description: 'Read workspace access and manage reviewed fork, push, and pull operations.',
+    related: [
+      ['Workspace sync', '/cli/workflow-sync'],
+      ['Workspaces', '/platform/workspaces'],
+    ],
+  },
+}
+
+interface CommandSection {
+  title: string
+  prefixes: readonly string[]
+}
+
+const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
+  credentials: [
+    {
+      title: 'Provider discovery and connections',
+      prefixes: ['providers', 'list', 'create', 'connect', 'reconnect', 'update'],
+    },
+    { title: 'Credential members', prefixes: ['members'] },
+    { title: 'Disconnect credentials', prefixes: ['delete'] },
+  ],
+  files: [
+    { title: 'Browse and inspect', prefixes: ['ls', 'list', 'search', 'describe'] },
+    { title: 'Upload, create, and read', prefixes: ['upload', 'create', 'get', 'read'] },
+    { title: 'Edit and organize', prefixes: ['edit', 'set-content', 'rename', 'move', 'unzip'] },
+    { title: 'Sharing', prefixes: ['share'] },
+    {
+      title: 'Versions',
+      prefixes: [
+        'versions list',
+        'versions describe',
+        'versions read',
+        'versions download',
+        'versions revert',
+        'versions delete',
+      ],
+    },
+    { title: 'Archive and restore', prefixes: ['delete', 'batch-delete', 'restore'] },
+    { title: 'Folders', prefixes: ['folders', 'mkdir'] },
+  ],
+  knowledge: [
+    {
+      title: 'Knowledge bases',
+      prefixes: ['list', 'get', 'create', 'update', 'mv', 'delete', 'restore'],
+    },
+    { title: 'Search', prefixes: ['search'] },
+    { title: 'Export and import', prefixes: ['export', 'import', 'imports'] },
+    { title: 'Documents', prefixes: ['documents', 'from-workspace-files'] },
+    { title: 'Chunks', prefixes: ['chunks'] },
+    { title: 'Tags', prefixes: ['tags'] },
+    {
+      title: 'Connectors',
+      prefixes: [
+        'connectors list',
+        'connectors get',
+        'connectors create',
+        'connectors update',
+        'connectors sync',
+        'connectors documents',
+        'connectors delete',
+      ],
+    },
+    { title: 'Folders', prefixes: ['ls', 'folders', 'mkdir'] },
+  ],
+  'mcp-servers': [
+    { title: 'Server connections', prefixes: ['list', 'get', 'create', 'update'] },
+    { title: 'Tool discovery', prefixes: ['tools'] },
+    { title: 'Remove servers', prefixes: ['delete'] },
+  ],
+  organizations: [
+    { title: 'Organizations and workspaces', prefixes: ['list', 'get', 'workspaces'] },
+    { title: 'Members and credit limits', prefixes: ['members'] },
+    { title: 'Invitations', prefixes: ['invitations'] },
+    { title: 'Usage', prefixes: ['usage summary', 'usage breakdown', 'usage events'] },
+    {
+      title: 'Access requests',
+      prefixes: [
+        'access-requests discover',
+        'access-requests create',
+        'access-requests mine',
+        'access-requests cancel',
+        'access-requests list',
+        'access-requests preview',
+        'access-requests resolve',
+        'access-requests settings',
+      ],
+    },
+    {
+      title: 'Verified domains',
+      prefixes: ['domains list', 'domains add', 'domains verify', 'domains remove'],
+    },
+    {
+      title: 'SSO providers and policy',
+      prefixes: [
+        'sso providers list',
+        'sso providers get',
+        'sso providers save',
+        'sso providers primary',
+        'sso providers delete',
+        'sso policy',
+      ],
+    },
+  ],
+  'permission-groups': [
+    { title: 'Group configuration', prefixes: ['list', 'get', 'create', 'update'] },
+    { title: 'Member assignments', prefixes: ['members'] },
+    { title: 'Delete groups', prefixes: ['delete'] },
+  ],
+  skills: [
+    { title: 'Skill instructions', prefixes: ['list', 'get', 'create', 'update'] },
+    { title: 'Editors', prefixes: ['editors'] },
+    { title: 'Delete skills', prefixes: ['delete'] },
+  ],
+  tables: [
+    {
+      title: 'Tables',
+      prefixes: [
+        'list',
+        'get',
+        'create',
+        'update',
+        'move',
+        'mv',
+        'delete',
+        'batch-delete',
+        'restore',
+      ],
+    },
+    { title: 'Rows and queries', prefixes: ['rows', 'upsert'] },
+    { title: 'Columns', prefixes: ['columns'] },
+    { title: 'Saved views', prefixes: ['views'] },
+    {
+      title: 'Producer groups and runs',
+      prefixes: ['groups', 'enrichment', 'dispatches', 'cancel-runs'],
+    },
+    { title: 'Imports', prefixes: ['import', 'imports'] },
+    {
+      title: 'Exports',
+      prefixes: ['exports create', 'exports get', 'exports download', 'exports cancel'],
+    },
+    { title: 'Folders', prefixes: ['ls', 'folders', 'mkdir'] },
+  ],
+  'workflow-mcp-servers': [
+    { title: 'Servers', prefixes: ['list', 'get', 'create', 'update'] },
+    { title: 'Workflow tools', prefixes: ['tools'] },
+    { title: 'Delete servers', prefixes: ['delete'] },
+  ],
+  workflows: [
+    {
+      title: 'Workflows',
+      prefixes: ['list', 'get', 'create', 'update', 'duplicate', 'move', 'mv', 'delete', 'restore'],
+    },
+    { title: 'Draft state and edits', prefixes: ['state', 'operations', 'variables'] },
+    {
+      title: 'Deployments and versions',
+      prefixes: ['deploy', 'deployment', 'versions', 'activate', 'revert', 'rollback', 'undeploy'],
+    },
+    {
+      title: 'Run and inspect',
+      prefixes: ['run', 'runs list', 'runs get', 'runs wait', 'runs resume', 'runs cancel'],
+    },
+    { title: 'Chat deployments', prefixes: ['chat status', 'chat publish', 'chat unpublish'] },
+    { title: 'Export and import', prefixes: ['export', 'import-preview', 'import'] },
+    { title: 'Folders', prefixes: ['ls', 'folders', 'mkdir'] },
+  ],
+  workspaces: [
+    {
+      title: 'Workspace access',
+      prefixes: ['list', 'get', 'members', 'invitations', 'permission-config'],
+    },
+    {
+      title: 'Access requests',
+      prefixes: [
+        'access-requests discover',
+        'access-requests create',
+        'access-requests mine',
+        'access-requests cancel',
+      ],
+    },
+    {
+      title: 'Forks and lineage',
+      prefixes: [
+        'fork-availability',
+        'fork-resources',
+        'fork-preview',
+        'fork',
+        'lineage',
+        'children',
+      ],
+    },
+    { title: 'Mappings', prefixes: ['mappings'] },
+    { title: 'Push and pull', prefixes: ['push-preview', 'push', 'pull-preview', 'pull'] },
+    { title: 'Operation status', prefixes: ['operations'] },
+    { title: 'Exclusions and recovery', prefixes: ['sync-exclusions', 'fork-rollback', 'unlink'] },
+  ],
+}
+
+const COMMAND_NOTES: Record<string, readonly string[]> = {
+  'tables import': [
+    'Choose exactly one source: a local CSV path or `--file-id`. For a new table imported with `--file-id`, supply `--name`. With `--table-id`, omit the new-table `--name` and `--folder` flags; `--mode`, `--mapping`, and `--create-columns` apply only to an existing table.',
+    '**Replace mode deletes all existing rows before loading the CSV and cannot be undone.** It requires `--yes`; cancellation leaves only the rows already imported.',
+    'The command watches the import by default. `--no-wait` returns a queued receipt. A completed import can still report `rowsRejected`, `cellsRejected`, and `rejectedSamples`; inspect them before accepting the result.',
+  ],
+  'workflows chat publish': [
+    'Omitting `--auth-type` selects public access: anyone holding the URL can chat. Supply the complete password or allow-list settings again when replacing a restricted deployment.',
+  ],
+  'workflows runs cancel': [
+    'Canceling a paused run prevents resuming that run. Starting a new run can repeat side effects already performed.',
+  ],
+  'workflows export': [
+    'The export clears credentials, passwords, and table sub-block values, but it is not a general secret scanner. Inspect literal variables and inline configuration before sharing the document.',
+  ],
+  'organizations sso providers save': [
+    'Choose `--provider-type oidc` or `saml`. OIDC requires `--client-id` and `--client-secret`; SAML requires `--entry-point` and `--cert`. Both require an organization-verified domain. The option descriptions state which omitted fields are preserved or cleared.',
+  ],
+}
+
+const LEGACY_COMMAND_ANCHORS: Record<string, string> = {
+  'workflow-mcp-servers tools create': 'publish-workflow-as-mcp-tool',
+  'workflow-mcp-servers tools delete': 'unpublish-workflow-mcp-tool',
+  'cli search': 'find-the-command-for-a-task-described-in-plain-words',
+  'telemetry status': 'show-whether-usage-reporting-is-on-and-why-not-if-it-is-off',
+  'telemetry enable': 'turn-usage-reporting-on-for-this-machine',
+  'workflows runs wait': 'wait-for-a-run-to-reach-a-terminal-state-then-show-it',
+  'workflows chat publish': 'publish-or-replace-a-workflows-chat-deployment',
+  'workspaces operations wait':
+    'wait-for-copy-and-deployment-readiness-exit-3-for-configuration-1-for-failure-or-4-for-timeout',
+}
+
+const VERB_ORDER = [
+  'list',
+  'ls',
+  'get',
+  'status',
+  'describe',
+  'query',
+  'count',
+  'search',
+  'stats',
+  'preview',
+  'discover',
+  'create',
+  'add',
+  'upload',
+  'save',
+  'set',
+  'upsert',
+  'update',
+  'edit',
+  'apply',
+  'update-each',
+  'batch-update',
+  'usage',
+  'next-slot',
+  'sync',
+  'primary',
+  'enrich',
+  'read',
+  'download',
+  'compare',
+  'revert',
+  'wait',
+  'resume',
+  'resend',
+  'cancel',
+  'delete',
+  'batch-delete',
+  'cleanup',
+  'remove',
+  'revoke',
+  'restore',
+] as const
+
+interface ApiReferenceOperation {
+  operationId?: string
+  tags?: string[]
+}
+
+function apiReferenceLinks(): Map<string, string> {
+  const links = new Map<string, string>()
+  for (const name of fs.readdirSync(path.join(ROOT, 'apps/docs'))) {
+    if (!/^openapi-v2-.*\.json$/.test(name)) continue
+    const document = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/docs', name), 'utf8')) as {
+      paths: Record<string, Record<string, ApiReferenceOperation>>
+    }
+    for (const [route, operations] of Object.entries(document.paths)) {
+      for (const [method, operation] of Object.entries(operations)) {
+        const tag = operation.tags?.[0]
+        if (!operation.operationId || !tag) continue
+        const url = `/api-reference/${tag.toLowerCase().replaceAll(' ', '-')}/${operation.operationId}`
+        links.set(operation.operationId, url)
+        links.set(`${method.toUpperCase()} ${route}`, url)
+      }
+    }
+  }
+  return links
 }
 
 interface DocumentedCommand {
@@ -74,12 +541,7 @@ interface DocumentedCommand {
 }
 
 function titleFor(name: string): string {
-  const override = GROUP_TITLES[name]
-  if (override) return override
-  return name
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+  return GROUP_DOCUMENTATION[name]?.title ?? sentenceCase(name.replaceAll('-', ' '))
 }
 
 /**
@@ -123,42 +585,76 @@ function collectLeaves(command: Command, prefix: string[]): DocumentedCommand[] 
  * the row filter help both contain one.
  */
 function code(value: string): string {
-  return `\`${escapeTablePipes(value)}\``
+  return value.includes('\\') ? literalCode(value) : `\`${value.replace(/\|/g, '\\|')}\``
 }
 
-/**
- * Escapes a value so a Markdown table row cannot be split by its content.
- *
- * A backslash has to be doubled before pipes are escaped, or an input already
- * ending in one turns `a\` + `|` into `a\\|`: the table parser reads `\\` as an
- * escaped backslash, leaving the pipe unescaped, and the cell splits early.
- *
- * The doubling is correct inside a code span too, even though code spans do not
- * process backslash escapes — the table layer consumes one level of escaping
- * before inline parsing runs, so `a\\\|` arrives at the code span as `a\|`.
- */
+/** A JSX string keeps code containing backslashes and pipes lossless through GFM tables. */
+function literalCode(value: string): string {
+  return `<code>{${JSON.stringify(value).replaceAll('|', '\\u007c')}}</code>`
+}
+
+/** Escapes backslashes and pipes in Markdown table prose. */
 function escapeTablePipes(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
 }
 
-/**
- * Escapes prose — text NOT inside a code span — for a Markdown table cell.
- *
- * Here the entities are the right answer: MDX reads `{` as the start of a JS
- * expression and `<` as the start of a JSX tag, and both appear in help text
- * that embeds JSON examples.
- */
 function escapeCell(value: string): string {
-  return escapeTablePipes(escapeProse(value))
+  return mapCodeSpans(
+    value,
+    (text) => escapeTablePipes(escapeText(text)),
+    (span, content) => (content.includes('\\') ? literalCode(content) : span.replace(/\|/g, '\\|'))
+  )
 }
 
-/** Escapes MDX-significant characters in body prose. */
-function escapeProse(value: string): string {
+function escapeText(value: string): string {
   return value
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\{/g, '&#123;')
     .replace(/\}/g, '&#125;')
+}
+
+/** Escapes MDX-significant prose while retaining inline-code contents. */
+function escapeProse(value: string): string {
+  return mapCodeSpans(value, escapeText, (span) => span)
+}
+
+function mapCodeSpans(
+  value: string,
+  prose: (text: string) => string,
+  inlineCode: (span: string, content: string) => string
+): string {
+  const delimiters = [...value.matchAll(/`+/g)]
+  let result = ''
+  let offset = 0
+  for (let index = 0; index < delimiters.length; index += 1) {
+    const opening = delimiters[index]
+    if (!opening) continue
+    let precedingBackslashes = 0
+    for (
+      let position = opening.index - 1;
+      position >= 0 && value[position] === '\\';
+      position -= 1
+    ) {
+      precedingBackslashes += 1
+    }
+    if (precedingBackslashes % 2 !== 0) continue
+    const closingIndex = delimiters.findIndex(
+      (delimiter, candidate) => candidate > index && delimiter[0].length === opening[0].length
+    )
+    const closing = delimiters[closingIndex]
+    if (!closing) continue
+    const end = closing.index + closing[0].length
+    result +=
+      prose(value.slice(offset, opening.index)) +
+      inlineCode(
+        value.slice(opening.index, end),
+        value.slice(opening.index + opening[0].length, closing.index)
+      )
+    offset = end
+    index = closingIndex
+  }
+  return result + prose(value.slice(offset))
 }
 
 function usageLine(entry: DocumentedCommand): string {
@@ -227,8 +723,9 @@ export function describeOption(option: Command['options'][number]): string {
   if (option.argChoices && option.argChoices.length > 0) {
     parts.push(`Accepted values: ${option.argChoices.map(code).join(', ')}.`)
   }
-  if (option.defaultValue !== undefined) {
-    const fallback = formatDefault(option.defaultValue)
+  const defaultValue = option.defaultValue ?? option.defaultValueDescription
+  if (defaultValue !== undefined && !/\bdefault(?:s|ing)?\b/i.test(option.description)) {
+    const fallback = formatDefault(defaultValue)
     if (fallback) parts.push(`Defaults to ${code(fallback)}.`)
   }
   const description = parts.filter(Boolean).join(' ')
@@ -272,7 +769,7 @@ function renderOptions(entry: DocumentedCommand): string[] {
 
   const rows = options.map(
     (option) =>
-      `| ${code(option.flags)} | ${isRequiredOption(option) ? 'Yes' : 'No'} | ${describeOption(option)} |`
+      `| ${code(option.flags)} | ${isRequiredOption(option) ? 'Yes' : /\brequired (?:when|with|unless|only)/i.test(option.description) ? 'Conditional' : 'No'} | ${describeOption(option)} |`
   )
 
   return [
@@ -303,6 +800,11 @@ const ACRONYMS = new Set([
   'SSO',
   'URL',
   'YAML',
+  'OIDC',
+  'SAML',
+  'PKCE',
+  'DNS',
+  'UTC',
 ])
 
 /**
@@ -319,21 +821,73 @@ const ACRONYMS = new Set([
  * outputs are included in JSON or YAML output)") and belong in the body, not in
  * a sidebar entry.
  */
-function headingFor(entry: DocumentedCommand): string {
-  const description = entry.command.description()
-  if (!description) return `sim ${entry.path.join(' ')}`
-
-  return description
-    .replace(/\s*\([^)]*\)\s*$/, '')
+function sentenceCase(value: string): string {
+  return value
     .trim()
     .split(' ')
     .map((word, index) => {
       if (ACRONYMS.has(word)) return word
       if (index === 0) return word.charAt(0).toUpperCase() + word.slice(1)
-      // Only fold words that look Title-Cased; `--tag` or `blockName` stay put.
       return /^[A-Z][a-z]+$/.test(word) ? word.toLowerCase() : word
     })
     .join(' ')
+}
+
+function headingFor(entry: DocumentedCommand): string {
+  const description = entry.command.description()
+  return description
+    ? sentenceCase(description.replace(/\s*\([^)]*\)\s*$/, ''))
+    : `sim ${entry.path.join(' ')}`
+}
+
+function orderedCommands(entries: DocumentedCommand[]): DocumentedCommand[] {
+  const rank = (entry: DocumentedCommand): number => {
+    const verb = entry.path.at(-1)
+    const index = VERB_ORDER.findIndex((candidate) => candidate === verb)
+    return index < 0 ? VERB_ORDER.length : index
+  }
+  return [...entries].sort(
+    (left, right) =>
+      rank(left) - rank(right) || compareStrings(left.path.join(' '), right.path.join(' '))
+  )
+}
+
+/** Reads command-specific help additions without emitting the root’s help epilogue. */
+function additionalHelp(command: Command): string[] {
+  const chunks: string[] = []
+  const context = { error: false, command, write: (value: string) => chunks.push(value) }
+  const helpEvents = command as Command & EventEmitter
+  helpEvents.emit('afterHelp', context)
+  const text = chunks.join('').trim()
+  if (!text) return []
+  const [prose = '', examples] = text.split(/\nExamples:\s*\n/, 2)
+  const lines = prose
+    .split(/\n\s*\n/)
+    .flatMap((paragraph) => [escapeProse(paragraph.replace(/\s*\n\s*/g, ' ').trim()), ''])
+  if (examples) {
+    lines.push(
+      '**Examples**',
+      '',
+      '```bash',
+      ...examples
+        .trim()
+        .split('\n')
+        .map((line) => line.trim().replace(/^\$ /, '')),
+      '```',
+      ''
+    )
+  }
+  return lines
+}
+
+function relatedDocs(documentation: GroupDocumentation | undefined): string[] {
+  if (!documentation?.related?.length) return []
+  return [
+    '## Related docs',
+    '',
+    ...documentation.related.map(([label, url]) => `- [${label}](${url})`),
+    '',
+  ]
 }
 
 interface RenderOptions {
@@ -348,45 +902,64 @@ interface RenderOptions {
    * looking one up by name, not browsing by task.
    */
   commandHeadings?: boolean
+  referenceLinks?: ReadonlyMap<string, string>
 }
 
 function renderCommand(entry: DocumentedCommand, options: RenderOptions = {}): string[] {
-  const { level = 2, commandHeadings = false } = options
+  const { level = 2, commandHeadings = false, referenceLinks } = options
   const aliases = entry.command.aliases()
   const heading = commandHeadings ? `sim ${entry.path.join(' ')}` : headingFor(entry)
   const description = entry.command.description()
-
-  const lines = [`${'#'.repeat(level)} ${escapeProse(heading)}`, '']
-  if (commandHeadings && description) lines.push(escapeProse(description), '')
-  lines.push('```bash', usageLine(entry), '```')
-  // Only when the heading dropped something — otherwise this restates it.
-  if (
-    !commandHeadings &&
-    description &&
-    description !== heading &&
-    description.trimEnd().endsWith(')')
-  ) {
-    lines.push('', escapeProse(description))
+  const operation = operationOf(entry.command)
+  const spec = operation ? CLI_CONTRACT[operation] : undefined
+  const anchor = commandHeadings ? undefined : LEGACY_COMMAND_ANCHORS[entry.path.join(' ')]
+  const lines = [`${'#'.repeat(level)} ${escapeProse(heading)}${anchor ? ` [#${anchor}]` : ''}`, '']
+  if (commandHeadings && description) lines.push(escapeProse(sentenceCase(description)), '')
+  if (!commandHeadings) {
+    const qualifier = /\s*\(([^)]*)\)\s*$/.exec(description)?.[1]
+    if (qualifier)
+      lines.push(
+        escapeProse(asSentence(qualifier.charAt(0).toUpperCase() + qualifier.slice(1))),
+        ''
+      )
   }
+  if (spec?.confirm) lines.push(escapeProse(spec.confirm), '')
+  for (const note of COMMAND_NOTES[entry.path.join(' ')] ?? []) lines.push(escapeProse(note), '')
+  lines.push('```bash', usageLine(entry), '```')
   if (aliases.length > 0) {
-    const spelled = aliases.map(
-      (alias) => `\`sim ${[...entry.path.slice(0, -1), alias].join(' ')}\``
+    const spelled = aliases.map((alias) =>
+      code(`sim ${[...entry.path.slice(0, -1), alias].join(' ')}`)
     )
     lines.push('', `Also available as ${spelled.join(', ')}.`)
   }
-  lines.push(...renderArguments(entry), ...renderOptions(entry), '')
+  lines.push(
+    ...renderArguments(entry),
+    ...renderOptions(entry),
+    '',
+    ...additionalHelp(entry.command)
+  )
+  const references = operation ? [operation] : (calledOperations(entry.command) ?? [])
+  const links = references.flatMap((name) => {
+    const apiOperation = V2_OPERATIONS[name]
+    const url =
+      referenceLinks?.get(name) ??
+      referenceLinks?.get(
+        `${apiOperation.method} ${apiOperation.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
+      )
+    return url ? [`[${name}](${url})`] : []
+  })
+  if (links.length) lines.push(`API request and response schemas: ${links.join(', ')}.`, '')
   return lines
 }
 
-function frontmatter(title: string, description: string, imports: string[] = []): string[] {
+function frontmatter(title: string, description: string, hasTables = true): string[] {
   return [
     '---',
     `title: ${title}`,
     `description: ${description}`,
     '---',
     '',
-    "import { CommandTable } from '@/components/ui/command-table'",
-    ...imports,
+    ...(hasTables ? ["import { CommandTable } from '@/components/ui/command-table'"] : []),
     '',
   ]
 }
@@ -431,21 +1004,24 @@ function assertDistinctHeadings(page: string, entries: DocumentedCommand[]): voi
 function renderReferencePage(
   program: Command,
   groups: Command[],
-  globals: DocumentedCommand[]
+  globals: DocumentedCommand[],
+  referenceLinks: ReadonlyMap<string, string>
 ): string {
   const lines = [
     ...frontmatter('Complete reference', 'Every sim command, argument, and flag on a single page'),
     'Every command on one page, generated from the CLI itself. Start at the',
     '[overview](/cli/commands) to browse; this page is for searching and for tools.',
     '',
-    'Append `.mdx` to any page for its raw Markdown —',
+    'Append `.mdx` to an authored guide or CLI reference page for its raw Markdown —',
     '[`/cli/reference.mdx`](/cli/reference.mdx) is this page as plain text. The docs',
     'are also published as [`/llms.txt`](/llms.txt) and',
     '[`/llms-full.txt`](/llms-full.txt).',
     '',
     '## Global options',
     '',
-    'These apply to every command, and may be written before or after it.',
+    'Place these options before or after the command. Each command uses the settings',
+    'relevant to its action. Telemetry commands always print text; workflow export',
+    'prints a portable JSON document, or YAML when selected.',
     // Deliberately unwrapped, like the same table on the overview page:
     // `CommandTable` sizes its second column for the `Required` cell of the
     // three-column tables, which on this two-column one would crush the
@@ -459,61 +1035,100 @@ function renderReferencePage(
     '',
   ]
 
-  for (const leaf of globals) lines.push(...renderCommand(leaf, { commandHeadings: true }))
+  lines.push(
+    'Use `--help` to inspect a command. `sim --version` prints the CLI version,',
+    'takes no value, and exits without running a command. Deployment-version commands',
+    'use their documented arguments or `--to-version`.',
+    '',
+    'API schema links describe HTTP payloads. See [CLI output formats](/cli/output)',
+    'for resource unwrapping, pagination envelopes, and display formats.',
+    ''
+  )
+
+  for (const leaf of globals)
+    lines.push(...renderCommand(leaf, { commandHeadings: true, referenceLinks }))
 
   for (const group of groups) {
     lines.push(`## sim ${group.name()}`, '')
+    const documentation = GROUP_DOCUMENTATION[group.name()]
+    if (documentation) lines.push(escapeProse(documentation.description), '')
+    for (const note of documentation?.notes ?? []) lines.push(escapeProse(note), '')
     const aliases = group.aliases()
     if (aliases.length > 0) {
       lines.push(`Also spelled ${aliases.map((alias) => `\`sim ${alias}\``).join(', ')}.`, '')
     }
     for (const leaf of collectLeaves(group, [group.name()])) {
-      lines.push(...renderCommand(leaf, { level: 3, commandHeadings: true }))
+      lines.push(...renderCommand(leaf, { level: 3, commandHeadings: true, referenceLinks }))
     }
   }
 
   return `${lines.join('\n').trimEnd()}\n`
 }
 
-function renderGroupPage(group: Command): string {
+function renderGroupPage(group: Command, referenceLinks: ReadonlyMap<string, string>): string {
   const name = group.name()
   const leaves = collectLeaves(group, [name])
   const aliases = group.aliases()
-
+  const documentation = GROUP_DOCUMENTATION[name]
+  const description = documentation?.description ?? sentenceCase(group.description())
   assertDistinctHeadings(`${name}.mdx`, leaves)
-
-  const lines = [
-    ...frontmatter(
-      titleFor(name),
-      `${group.description() || `The sim ${name} commands`} — every subcommand, argument, and flag`
-    ),
-  ]
-
+  const hasTables = leaves.some(
+    (entry) =>
+      entry.command.registeredArguments.length > 0 || documentedOptions(entry.command).length > 0
+  )
+  const lines = [...frontmatter(titleFor(name), description, hasTables), description, '']
+  for (const note of documentation?.notes ?? []) lines.push(escapeProse(note), '')
   if (aliases.length > 0) {
     lines.push(
       `\`sim ${name}\` is also spelled ${aliases.map((alias) => `\`sim ${alias}\``).join(', ')}.`,
       ''
     )
   }
-
-  lines.push(
-    'Every command below also accepts the [global options](/cli/commands#global-options).',
-    ''
-  )
-
-  for (const leaf of leaves) lines.push(...renderCommand(leaf))
-
+  lines.push('These commands accept the [global options](/cli/commands#global-options).', '')
+  const sections = GROUP_SECTIONS[name]
+  if (sections) {
+    const remaining = new Set(leaves)
+    for (const section of sections) {
+      const entries: DocumentedCommand[] = []
+      for (const prefix of section.prefixes) {
+        const matches = [...remaining].filter((entry) => {
+          const relative = entry.path.slice(1).join(' ')
+          return relative === prefix || relative.startsWith(`${prefix} `)
+        })
+        for (const entry of orderedCommands(matches)) {
+          entries.push(entry)
+          remaining.delete(entry)
+        }
+      }
+      if (!entries.length) continue
+      lines.push(`## ${section.title}`, '')
+      for (const entry of entries) lines.push(...renderCommand(entry, { level: 3, referenceLinks }))
+    }
+    if (remaining.size) {
+      lines.push('## Other commands', '')
+      for (const entry of orderedCommands([...remaining]))
+        lines.push(...renderCommand(entry, { level: 3, referenceLinks }))
+    }
+  } else {
+    for (const entry of orderedCommands(leaves))
+      lines.push(...renderCommand(entry, { referenceLinks }))
+  }
+  lines.push(...relatedDocs(documentation))
   return `${lines.join('\n').trimEnd()}\n`
 }
 
 function renderIndexPage(
   program: Command,
   groups: Command[],
-  globals: DocumentedCommand[]
+  globals: DocumentedCommand[],
+  referenceLinks: ReadonlyMap<string, string>
 ): string {
   const lines = [
-    ...frontmatter('CLI Commands', 'Global options, and every sim command group'),
-    'Every `sim` command follows the same shape:',
+    ...frontmatter(
+      'CLI commands',
+      'Find command groups, global options, and login, configuration, and Chat commands.'
+    ),
+    'Resource commands use this shape:',
     '',
     '```bash',
     'sim <resource> [sub-resource] <verb> [arguments] [options]',
@@ -521,11 +1136,15 @@ function renderIndexPage(
     '',
     'Some resource groups also accept a singular alias: `sim workflow get` and',
     '`sim workflows get` are the same command. `knowledge` also answers to `kb`.',
-    'Each group’s reference lists its supported aliases.',
+    'Each group’s reference lists its supported aliases. Login, configuration, and',
+    'Chat commands appear below. To find a command for a task, use',
+    '`sim cli search "describe your task"`.',
     '',
     '## Global options',
     '',
-    'These apply to every command, and may be written before or after it.',
+    'Place these options before or after the command. Each command uses the settings',
+    'relevant to its action. Telemetry commands always print text; workflow export',
+    'prints a portable JSON document, or YAML when selected.',
     '',
     '| Option | Description |',
     '| --- | --- |',
@@ -533,19 +1152,33 @@ function renderIndexPage(
       (option) => `| ${code(option.flags)} | ${describeOption(option)} |`
     ),
     '',
+    'Use `--help` to inspect a command. Run `sim --version` to print the CLI version;',
+    '`--version` takes no value and exits without running a command. Deployment-version',
+    'commands use their documented arguments or `--to-version` instead.',
+    '',
+    'See [output formats](/cli/output) for the JSON default and display formats.',
+    '',
     '## Command groups',
     '',
     '| Group | Description |',
     '| --- | --- |',
     ...groups.map(
       (group) =>
-        `| [${code(`sim ${group.name()}`)}](/cli/${group.name()}) | ${escapeCell(group.description()) || '—'} |`
+        `| [${code(`sim ${group.name()}`)}](/cli/${group.name()}) | ${escapeCell(GROUP_DOCUMENTATION[group.name()]?.description ?? sentenceCase(group.description())) || '—'} |`
     ),
     '',
   ]
 
-  for (const leaf of globals) lines.push(...renderCommand(leaf))
+  for (const leaf of globals) lines.push(...renderCommand(leaf, { referenceLinks }))
 
+  lines.push(
+    '## Related docs',
+    '',
+    '- [Complete command reference](/cli/reference)',
+    '- [Authentication](/cli/authentication)',
+    '- [Scripting](/cli/scripting)',
+    ''
+  )
   return `${lines.join('\n').trimEnd()}\n`
 }
 
@@ -672,11 +1305,13 @@ function build(): Map<string, string> {
     ...globals,
   ])
 
+  const referenceLinks = apiReferenceLinks()
   const files = new Map<string, string>()
   files.set('meta.json', renderMeta(groups))
-  files.set(`${OVERVIEW_PAGE}.mdx`, renderIndexPage(program, groups, globals))
-  files.set(`${REFERENCE_PAGE}.mdx`, renderReferencePage(program, groups, globals))
-  for (const group of groups) files.set(`${group.name()}.mdx`, renderGroupPage(group))
+  files.set(`${OVERVIEW_PAGE}.mdx`, renderIndexPage(program, groups, globals, referenceLinks))
+  files.set(`${REFERENCE_PAGE}.mdx`, renderReferencePage(program, groups, globals, referenceLinks))
+  for (const group of groups)
+    files.set(`${group.name()}.mdx`, renderGroupPage(group, referenceLinks))
   return files
 }
 

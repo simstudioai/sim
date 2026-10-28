@@ -86,7 +86,7 @@ export const queryTool: ToolConfig<PostHogQueryParams, PostHogQueryResponse> = {
       let query: any
       try {
         query = JSON.parse(params.query)
-      } catch (e) {
+      } catch {
         // If it's not valid JSON, treat it as a raw HogQL string
         query = {
           kind: 'HogQLQuery',
@@ -101,7 +101,7 @@ export const queryTool: ToolConfig<PostHogQueryParams, PostHogQueryResponse> = {
       if (params.values) {
         try {
           body.values = JSON.parse(params.values)
-        } catch (e) {
+        } catch {
           // Ignore invalid values JSON
         }
       }

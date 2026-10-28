@@ -1,7 +1,7 @@
 import { permissionAccessRequest, user } from '@sim/db/schema'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm'
 import {
-  escapeLikePattern,
   keysetColumns,
   keysetPage,
   listOrderBy,

@@ -1,51 +1,69 @@
 ---
 title: Zoho Desk
-description: Manage Zoho Desk tickets, comments, threads, and contacts
+description: Manage Zoho Desk tickets, replies, contacts, and accounts
+integration:
+  type: "zoho_desk"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="zoho_desk"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Zoho Desk](https://www.zoho.com/desk/) is Zoho's customer support help desk. Support teams use it to receive tickets from email, web forms, chat, phone, and social channels, route them to the right department and agent, and track every customer conversation through to resolution.
+Use [Zoho Desk](https://www.zoho.com/desk/) to create, search, read, and update tickets, contacts, and accounts; send email replies; manage comments; inspect departments and agents; and download attachments. Comment and thread results include plain-text `contentText` alongside the original HTML `content`.
 
-With the Sim Zoho Desk integration, you can:
+Connect a credential, choose the organization, and fill in the selected operation's inputs. The organization picker reflects the connected account's access. Reconnect existing OAuth credentials to grant the added create, update, search, account, and department scopes. Self Client connections request the expanded scopes when minting their next access token.
 
-- **Read and filter tickets**: List tickets across an organization filtered by department, status, or priority, or fetch a single ticket by ID with its related contact, assignee, and department.
-- **Update tickets**: Change subject, status, priority, assignee, department, category, due date, and custom fields — useful for AI triage that classifies an incoming ticket and writes the result back.
-- **Work with conversations**: List and read ticket threads (the customer-facing email/chat exchange) and comments (internal agent notes), then add your own comment as public or private.
-- **Look up contacts**: Retrieve the contact behind a ticket to enrich it with data from your CRM or knowledge base.
-- **Download attachments**: Pull an attachment from a thread or comment into a Sim file you can pass to downstream blocks.
-- **Trigger on events**: Start a workflow when a ticket, comment, thread, contact, agent, task, or article changes in Zoho Desk.
+List and search operations return one page at a time. Use `nextFrom` on the new list and search operations to request the next page; searches expose at most the first 1,000 matches, so narrow the filters for larger result sets. Mutation fields left unset are omitted, while an explicitly empty string can clear fields that Zoho permits clearing.
 
-**How it works in Sim:**
-Add a Zoho Desk block to your workflow, connect your Zoho account, and pick the Organization (portal) to work in — Sim loads the list for you from the connected account. Choose an operation and fill in its parameters; the block calls the Zoho Desk API and returns structured data for downstream blocks. For comment and thread bodies, Sim adds a derived plain-text `contentText` field alongside Zoho's raw HTML `content`, so an AI agent can read the message without HTML markup.
+Trigger mode starts workflows from Zoho Desk events. Sim creates the webhook subscription on deployment and removes it on undeployment. [Webhooks require Professional or higher](https://desk.zoho.com/support/WebhookDocument.do) and a connected account with webhook permission.
 
-To trigger on Zoho Desk activity instead, use the block's trigger mode. Sim creates the webhook subscription in Zoho Desk for you and removes it automatically when the workflow is undeployed.
-
-**Requirements and limitations**
-
-> Zoho Desk webhooks require a Zoho Desk edition of **Professional or higher** — Free and Standard plans cannot create webhook subscriptions, so the trigger will fail to deploy on those plans.
->
-> Connecting a Zoho account with **OAuth** — which the trigger requires — works only for the **US data center** (`accounts.zoho.com`). To use Zoho Desk blocks from the EU, India, or Australia data centers, connect a [Self Client](/integrations/zoho-desk-service-account) instead and set its data center. The Japan, Canada, Saudi Arabia, China, and UK data centers are not supported by either path.
+Interactive OAuth, which triggers require, supports the US data center only. Blocks can instead use a [Self Client](/integrations/zoho-desk-service-account) for US, EU, India, or Australia. Japan, Canada, Saudi Arabia, China, and UK data centers are not supported by these connections.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Self clients](/integrations/zoho-desk-service-account).
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Can also trigger workflows from Zoho Desk webhook events.
+Sim requests these scopes when someone connects a Zoho Desk account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/zoho-desk` |
+| Environment variables | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `Desk.tickets.READ` | View tickets, threads, comments, and attachments |
+| `Desk.tickets.CREATE` | Create support tickets |
+| `Desk.tickets.UPDATE` | Update tickets, send replies, and manage comments |
+| `Desk.contacts.READ` | View contacts |
+| `Desk.contacts.CREATE` | Create contacts |
+| `Desk.contacts.UPDATE` | Update contacts |
+| `Desk.accounts.READ` | View customer accounts |
+| `Desk.accounts.CREATE` | Create customer accounts |
+| `Desk.accounts.UPDATE` | Update customer accounts |
+| `Desk.search.READ` | Search tickets, contacts, and accounts |
+| `Desk.departments.READ` | View departments |
+| `Desk.articles.READ` | View knowledge base articles |
+| `Desk.organization.READ` | View organization details |
+| `Desk.agents.READ` | View agents |
+| `Desk.basic.READ` | View basic data such as organizations, agents, and departments |
+| `Desk.webhooks.CREATE` | Create webhooks |
+| `Desk.webhooks.DELETE` | Delete webhooks |
+| `aaaserver.profile.READ` | View your Zoho profile |
+
+## Use the block [#usage-instructions]
+
+Create, search, and update Zoho Desk tickets, contacts, and accounts; send email replies, manage comments, inspect departments and agents, and download attachments. Trigger workflows from Zoho Desk webhook events.
 
 ## Actions
 
 ### Zoho Desk List Tickets
 
 List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -62,6 +80,9 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 | `receivedInDays` | number | No | Only tickets whose last customer response was within the last 15, 30, or 90 days \(Zoho filters on customerResponseTime, despite the name\) |
 | `sortBy` | string | No | Sort field: createdTime, customerResponseTime, or responseDueDate. Prefix with - for descending. |
 | `include` | string | No | Comma-separated related data to embed. Allowed: contacts, products, departments, team, isRead, assignee |
+| `viewId` | string | No | Saved view ID |
+| `teamIds` | string | No | Comma-separated team IDs or Unassigned |
+| `selectedFields` | string | No | Comma-separated fields to return; at most 30 system or custom fields |
 
 #### Output
 
@@ -102,9 +123,13 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 | `count` | number | Number of tickets returned |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Ticket
 
 Retrieve a single Zoho Desk ticket by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -152,9 +177,13 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk Update Ticket
 
 Update fields on an existing Zoho Desk ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -174,6 +203,20 @@ Update fields on an existing Zoho Desk ticket.
 | `resolution` | string | No | Resolution notes recorded on the ticket |
 | `classification` | string | No | Ticket classification. Zoho's system-defined values are Problem, Request, and Question; portals can define custom values. Pass "" to clear it. |
 | `customFields` | json | No | Custom field values as a JSON object, keyed by custom field API name |
+| `ticketContactId` | string | No | Existing contact ID |
+| `contact` | json | No | Contact JSON with email or lastName; use instead of contactId |
+| `productId` | string | No | Product ID |
+| `uploads` | array | No | JSON array of previously uploaded attachment IDs |
+| `email` | string | No | Ticket email address |
+| `phone` | string | No | Ticket phone number |
+| `language` | string | No | Ticket language |
+| `channel` | string | No | Ticket origin channel |
+| `webUrl` | string | No | URL to access the ticket |
+| `sharedDepartments` | array | No | JSON array of shared departments and access privileges |
+| `teamId` | string | No | Team ID |
+| `secondaryContacts` | array | No | JSON array of secondary contact IDs |
+| `entitySkills` | array | No | JSON array of skill IDs in priority order; at most 10 |
+| `disableClosureNotification` | boolean | No | Suppress the contact notification when closing the ticket |
 
 #### Output
 
@@ -213,9 +256,13 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Comments
 
 List comments on a Zoho Desk ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -226,6 +273,7 @@ List comments on a Zoho Desk ticket.
 | `from` | number | No | Pagination start index \(0-based\) |
 | `limit` | number | No | Number of comments to return \(1-100, default 50\) |
 | `sortBy` | string | No | Sort by commentedTime. Ascending by default; prefix with - for descending \(-commentedTime\). |
+| `commentInclude` | string | No | Related data to include: mentions and plainText, comma-separated |
 
 #### Output
 
@@ -255,9 +303,13 @@ List comments on a Zoho Desk ticket.
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of comments returned |
 
+</ReferenceDetails>
+
 ### Zoho Desk Add Comment
 
 Add a comment to a Zoho Desk ticket.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,6 +320,7 @@ Add a comment to a Zoho Desk ticket.
 | `content` | string | Yes | Comment content |
 | `contentType` | string | No | Content type: plainText or html. Defaults to plainText so agent-written text posts literally; pass 'html' to send markup \(Zoho's own API default is html\). |
 | `isPublic` | boolean | No | Whether the comment is public |
+| `attachmentIds` | array | No | JSON array of previously uploaded attachment IDs |
 
 #### Output
 
@@ -296,9 +349,13 @@ Add a comment to a Zoho Desk ticket.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Threads
 
 List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -353,9 +410,13 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of threads returned |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Thread
 
 Retrieve the full content of a single Zoho Desk ticket thread.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -408,9 +469,13 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Contact
 
 Retrieve a Zoho Desk contact by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -444,9 +509,13 @@ Retrieve a Zoho Desk contact by ID.
 |   ↳ `description` | string | Description |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
+</ReferenceDetails>
+
 ### Zoho Desk Get Attachment
 
 Download a Zoho Desk ticket attachment (from its href) as a file.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -462,9 +531,13 @@ Download a Zoho Desk ticket attachment (from its href) as a file.
 | --------- | ---- | ----------- |
 | `file` | file | The downloaded attachment file |
 
+</ReferenceDetails>
+
 ### Zoho Desk List Organizations
 
 List the Zoho Desk organizations (portals) the connected account can access.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -481,11 +554,1246 @@ List the Zoho Desk organizations (portals) the connected account can access.
 |   ↳ `portalName` | string | Portal name |
 | `count` | number | Number of organizations returned |
 
+</ReferenceDetails>
+
+### Zoho Desk Create Ticket
+
+Create Ticket in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `productId` | string | No | ID of the product to associate the ticket |
+| `phone` | string | No | Phone number of the ticket |
+| `subject` | string | Yes | Subject of the ticket |
+| `dueDate` | string | No | Due date of the ticket |
+| `channel` | string | No | Channel through which the ticket is being created. |
+| `language` | string | No | Language preference of the ticket |
+| `priority` | string | No | Priority of the ticket Allowed values: Medium, High, Low, or a custom priority. |
+| `assigneeId` | string | No | ID of the assignee |
+| `email` | string | No | Email ID of the ticket |
+| `subCategory` | string | No | Subcategory of the ticket |
+| `customFields` | json | No | Custom fields in the ticket JSON object. |
+| `description` | string | No | Description of the ticket |
+| `classification` | string | No | Classification type of the ticket Allowed values: Problem, Request, Question, or a custom classification. |
+| `category` | string | No | Category of the ticket |
+| `status` | string | No | Status of the ticket. Note: This can be a system-defined or custom value that falls under one of the status types: OPEN, ON HOLD, or CLOSED. |
+| `ticketContactId` | string | No | Existing contact ID for the ticket. Provide ticketContactId or a contact object to create a new contact. |
+| `departmentId` | string | Yes | ID of the department to associate the ticket |
+| `contact` | json | No | New contact JSON: email or lastName is required; firstName is optional. Provide either this or ticketContactId. |
+| `uploads` | array | No | File attachments in the ticket. For more information, refer to the Uploads section JSON array. |
+| `resolution` | string | No | Resolution notes of the ticket |
+| `webUrl` | string | No | URL to access the resource |
+| `sharedDepartments` | array | No | List of departments to which the ticket could be shared, along with the access privileges for each department JSON array. |
+| `teamId` | string | No | ID of the team to assign the ticket |
+| `secondaryContacts` | array | No | List of Secondary contacts JSON array. |
+| `entitySkills` | array | No | JSON array of up to 10 skill IDs, ordered from highest to lowest assignment priority. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticket` | object | The ticket |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `ticketNumber` | string | Human-readable ticket number |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `status` | string | Ticket status |
+|   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
+|   ↳ `priority` | string | Ticket priority |
+|   ↳ `category` | string | Ticket category |
+|   ↳ `subCategory` | string | Ticket sub-category |
+|   ↳ `classification` | string | Ticket classification |
+|   ↳ `channel` | string | Origin channel |
+|   ↳ `departmentId` | string | Department ID |
+|   ↳ `contactId` | string | Contact ID |
+|   ↳ `accountId` | string | Account ID |
+|   ↳ `assigneeId` | string | Assignee ID |
+|   ↳ `email` | string | Contact email |
+|   ↳ `phone` | string | Contact phone |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
+|   ↳ `closedTime` | string | Closed timestamp |
+|   ↳ `resolution` | string | Resolution text |
+|   ↳ `threadCount` | string | Number of threads |
+|   ↳ `commentCount` | string | Number of comments |
+|   ↳ `webUrl` | string | Web URL to the ticket |
+|   ↳ `isEscalated` | boolean | Whether the ticket is escalated |
+|   ↳ `isOverDue` | boolean | Whether the ticket is overdue |
+|   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+
+</ReferenceDetails>
+
+### Zoho Desk Search Tickets
+
+Search Tickets in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `searchEmail` | string | No | The corresponding email address associated with the ticket. example: 1. email=jack* 2.email=$\{notempty\} 3.email=$\{empty\}. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values. |
+| `searchPhone` | string | No | The phone number provided in the ticket. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values. |
+| `ticketNumber` | string | No | The ticket's serial number. Exact match. Comma-separated values. |
+| `searchAccountName` | string | No | Name of the account associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators. |
+| `searchSubject` | string | No | Subject of the ticket. Supports * wildcards. |
+| `searchDepartmentId` | string | No | ID of the department from which the entity must be fetched. If the ID is not passed, then searches in all permitted departments. Exact match. |
+| `productName` | string | No | Name of the product associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators. |
+| `_all` | string | No | Search text across all fields. Supports * wildcards; at least 3 characters. |
+| `limit` | number | No | Page size \(1-100; default 10\). |
+| `from` | number | No | Pagination start index \(0-999; search returns at most the first 1000 matches\). |
+| `dueDateRange` | string | No | Due date range as two comma-separated ISO 8601 timestamps: start,end. |
+| `ticketSearchIds` | string | No | ID of the ticket. Exact match. Comma-separated values. |
+| `searchProductId` | string | No | ID of the product associated with the ticket. Exact match. Comma-separated values. |
+| `searchContactId` | string | No | ID of the contact who raised the ticket. Exact match. Comma-separated values. |
+| `createdTimeRange` | string | No | Created time range as two comma-separated ISO 8601 timestamps: start,end. |
+| `searchPriority` | string | No | Priority of the ticket. Exact match. Comma-separated values. |
+| `searchAssigneeId` | string | No | ID of the agent who is assigned to resolve the ticket. Exact match. Comma-separated values. |
+| `searchAccountId` | string | No | ID of the account associated with the ticket. Exact match. Comma-separated values. |
+| `modifiedTimeRange` | string | No | Modified time range as two comma-separated ISO 8601 timestamps: start,end. |
+| `searchStatus` | string | No | Status of the ticket inclusive of custom status. example: 1. status=open,in progress 2. status=$\{open\}. Exact match. Comma-separated values. |
+| `ticketSearchCustomField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `searchChannel` | string | No | The channel through which the ticket was received. Exact match. Supports empty/not-empty search operators. |
+| `customerResponseTimeRange` | string | No | Customer response time range as two comma-separated ISO 8601 timestamps: start,end. |
+| `searchDescription` | string | No | Description of the ticket. Supports * wildcards. |
+| `ticketSearchSortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, customerResponseTime. Prefix with - for descending. |
+| `tag` | string | No | The tag associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators. |
+| `contactName` | string | No | The name of the contact who raised the ticket. Supports * wildcards. |
+| `searchCategory` | string | No | The category of the ticket. Supports * wildcards. Supports empty/not-empty search operators. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tickets` | array | Search Tickets results |
+|   ↳ `id` | string | Ticket ID |
+|   ↳ `ticketNumber` | string | Human-readable ticket number |
+|   ↳ `subject` | string | Ticket subject |
+|   ↳ `description` | string | Ticket description \(raw; may be HTML\) |
+|   ↳ `descriptionText` | string | Plain-text rendering of the description: HTML stripped when the body contains markup, otherwise the description verbatim |
+|   ↳ `status` | string | Ticket status |
+|   ↳ `statusType` | string | Status category \(Open/Closed/On Hold\) |
+|   ↳ `priority` | string | Ticket priority |
+|   ↳ `category` | string | Ticket category |
+|   ↳ `subCategory` | string | Ticket sub-category |
+|   ↳ `classification` | string | Ticket classification |
+|   ↳ `channel` | string | Origin channel |
+|   ↳ `departmentId` | string | Department ID |
+|   ↳ `contactId` | string | Contact ID |
+|   ↳ `accountId` | string | Account ID |
+|   ↳ `assigneeId` | string | Assignee ID |
+|   ↳ `email` | string | Contact email |
+|   ↳ `phone` | string | Contact phone |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `responseDueDate` | string | Response due date |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `modifiedTime` | string | Last modified timestamp |
+|   ↳ `customerResponseTime` | string | Time the last customer response was received |
+|   ↳ `closedTime` | string | Closed timestamp |
+|   ↳ `resolution` | string | Resolution text |
+|   ↳ `threadCount` | string | Number of threads |
+|   ↳ `commentCount` | string | Number of comments |
+|   ↳ `webUrl` | string | Web URL to the ticket |
+|   ↳ `isEscalated` | boolean | Whether the ticket is escalated |
+|   ↳ `isOverDue` | boolean | Whether the ticket is overdue |
+|   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+| `count` | number | Number of results in this page |
+| `nextFrom` | number | Next search index; null for an empty page, a reached total, or the 1000-result search window. Narrow the filters to find further matches. |
+| `totalCount` | number | Total search matches reported by Zoho, when provided |
+
+</ReferenceDetails>
+
+### Zoho Desk Move Ticket
+
+Move a ticket to another department.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `ticketId` | string | Yes | Ticket ID |
+| `departmentId` | string | Yes | ID of the department to move the ticket |
+| `forumId` | string | No | ID of the community sub-category to move the forum ticket \(forum topic converted into a ticket\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `completed` | boolean | Whether the requested operation completed successfully |
+
+</ReferenceDetails>
+
+### Zoho Desk Send Reply
+
+Send an email reply from a configured Zoho Desk sender address.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `isPrivate` | boolean | No | Specifies whether the thread is Private or Public. Forwarded threads are always private. |
+| `sendImmediately` | boolean | No | Specify whether the reply has to sent immediately |
+| `ticketId` | string | Yes | Ticket ID |
+| `replyContent` | string | Yes | Content of the thread |
+| `replyContentType` | string | No | Formatting type of the content. Applicable only for the EMAIL channel. Values supported are html and plainText \(default\). |
+| `inReplyToThreadId` | string | No | ID of the thread to which current thread is a reply, applicable only for EMAIL channel |
+| `replyDirection` | string | No | Key that returns whether the thread is incoming or outgoing |
+| `cc` | string | No | Email ID to be CC-ed. Applicable only for EMAIL channel |
+| `bcc` | string | No | Email ID to be BCC-ed., if any exist. Applicable only for EMAIL channel |
+| `hasAttach` | boolean | No | States whether the thread has attachments |
+| `ticketStatus` | string | No | Status of the ticket. Includes the custom statuses configured in your help desk portal. |
+| `replyAttachmentIds` | array | No | List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array. |
+| `to` | string | No | To email ID in the thread, applicable only for EMAIL channel |
+| `fromEmailAddress` | string | Yes | Sender email address configured in your Zoho Desk portal. |
+| `isForward` | boolean | No | Key that returns if the thread was sent as a forward. Applicable only for the EMAIL channel. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `thread` | object | The thread |
+|   ↳ `id` | string | Thread ID |
+|   ↳ `channel` | string | Thread channel |
+|   ↳ `direction` | string | Direction \(in/out\) |
+|   ↳ `content` | string | Thread content \(raw; may be HTML\) |
+|   ↳ `contentType` | string | Content type |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `summary` | string | Thread summary |
+|   ↳ `responderId` | string | Responder ID |
+|   ↳ `createdTime` | string | Created timestamp |
+|   ↳ `hasAttach` | boolean | Whether the thread has attachments |
+|   ↳ `attachmentCount` | string | Number of attachments |
+|   ↳ `fromEmailAddress` | string | From email address |
+|   ↳ `to` | string | To email address |
+|   ↳ `cc` | string | CC email address |
+|   ↳ `bcc` | string | BCC email address |
+|   ↳ `replyTo` | string | Reply-to email address |
+|   ↳ `isForward` | boolean | Whether the thread is a forward |
+|   ↳ `isContentTruncated` | boolean | Whether Zoho truncated the thread content; fetch fullContentURL for the rest |
+|   ↳ `fullContentURL` | string | URL returning the untruncated thread content |
+|   ↳ `plainText` | string | Zoho's own plain-text rendering of the thread, when it supplies one |
+|   ↳ `status` | string | Delivery status of the thread \(e.g. SUCCESS, PENDING, FAILED, DRAFT\) |
+|   ↳ `isDescriptionThread` | boolean | Whether this thread is the ticket's original description |
+|   ↳ `visibility` | string | Thread visibility \(e.g. public\) |
+|   ↳ `canReply` | boolean | Whether the thread can be replied to |
+|   ↳ `author` | object | Who sent the thread |
+|     ↳ `name` | string | Display name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|     ↳ `type` | string | Author type \(AGENT/END_USER\) |
+|     ↳ `photoURL` | string | Avatar URL |
+|   ↳ `attachments` | array | Thread attachments |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | File name |
+|     ↳ `size` | string | File size as reported by Zoho |
+|     ↳ `href` | string | Download href |
+
+</ReferenceDetails>
+
+### Zoho Desk List Contacts
+
+List Contacts in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `contactSelectedFields` | string | No | Key that returns the values of mentioned fields \(both pre-defined and custom\) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values. |
+| `contactViewId` | string | No | ID of the view to apply while fetching the resources |
+| `limit` | number | No | Page size \(1-100\). |
+| `from` | number | No | Pagination start index; use the provider index for this endpoint \(default 1\). |
+| `contactListInclude` | string | No | Secondary information related to the contact.Value supported is accounts. Comma-separated values. |
+| `contactListSortBy` | string | No | Sort field: firstName, lastName, phone, email, account, createdTime, modifiedTime. Prefix with - for descending. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Contacts records, including explicitly requested portal fields |
+|   ↳ `id` | string | Contact ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Primary email |
+|   ↳ `secondaryEmail` | string | Secondary email |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `mobile` | string | Mobile number |
+|   ↳ `accountId` | string | Associated account ID |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `type` | string | Contact type |
+|   ↳ `title` | string | Job title |
+|   ↳ `street` | string | Street |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `country` | string | Country |
+|   ↳ `zip` | string | ZIP / postal code |
+|   ↳ `description` | string | Description |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+| `count` | number | Number of results in this page |
+| `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
+
+</ReferenceDetails>
+
+### Zoho Desk Create Contact
+
+Create Contact in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `contactLastName` | string | Yes | Last name of the contact |
+| `contactAccountId` | string | No | Account to which the contact is mapped |
+| `contactFirstName` | string | No | First name of the contact |
+| `contactSecondaryEmail` | string | No | Secondary email ID of the contact |
+| `contactPhone` | string | No | Phone number of the contact |
+| `contactMobile` | string | No | Mobile number of the contact |
+| `contactOwnerId` | string | No | ID of the user who creates the contact |
+| `contactType` | string | No | Contact type |
+| `contactEmail` | string | No | Email ID of the contact |
+| `contactZip` | string | No | Zip code |
+| `contactCountry` | string | No | Contact's country of residence |
+| `contactTwitter` | string | No | Twitter ID of the contact |
+| `contactCustomFields` | json | No | User-defined fields related to the contact JSON object. |
+| `contactCity` | string | No | Contact's city of residence |
+| `contactStreet` | string | No | Contact's address |
+| `contactFacebook` | string | No | Facebook ID of the contact |
+| `contactDescription` | string | No | Contact description |
+| `contactState` | string | No | Contact's state of residence |
+| `contactTitle` | string | No | Contact title |
+| `contactLanguage` | string | No | Language preference to set for the Contact |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The contact |
+|   ↳ `id` | string | Contact ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Primary email |
+|   ↳ `secondaryEmail` | string | Secondary email |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `mobile` | string | Mobile number |
+|   ↳ `accountId` | string | Associated account ID |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `type` | string | Contact type |
+|   ↳ `title` | string | Job title |
+|   ↳ `street` | string | Street |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `country` | string | Country |
+|   ↳ `zip` | string | ZIP / postal code |
+|   ↳ `description` | string | Description |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+
+</ReferenceDetails>
+
+### Zoho Desk Update Contact
+
+Update Contact in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `contactId` | string | Yes | Contact ID |
+| `contactLastName` | string | No | Last name of the contact |
+| `contactAccountId` | string | No | Account to which the contact is mapped |
+| `contactFirstName` | string | No | First name of the contact |
+| `contactSecondaryEmail` | string | No | Secondary email ID of the contact |
+| `contactPhone` | string | No | Phone number of the contact |
+| `contactMobile` | string | No | Mobile number of the contact |
+| `contactOwnerId` | string | No | ID of the user who creates the contact |
+| `contactType` | string | No | Contact type |
+| `contactEmail` | string | No | Email ID of the contact |
+| `contactZip` | string | No | Zip code |
+| `contactCountry` | string | No | Contact's country of residence |
+| `contactTwitter` | string | No | Twitter ID of the contact |
+| `contactCustomFields` | json | No | User-defined fields related to the contact JSON object. |
+| `contactCity` | string | No | Contact's city of residence |
+| `contactStreet` | string | No | Contact's address |
+| `contactFacebook` | string | No | Facebook ID of the contact |
+| `contactDescription` | string | No | Contact description |
+| `contactState` | string | No | Contact's state of residence |
+| `contactTitle` | string | No | Contact title |
+| `contactLanguage` | string | No | Language preference to set for the Contact |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The contact |
+|   ↳ `id` | string | Contact ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Primary email |
+|   ↳ `secondaryEmail` | string | Secondary email |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `mobile` | string | Mobile number |
+|   ↳ `accountId` | string | Associated account ID |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `type` | string | Contact type |
+|   ↳ `title` | string | Job title |
+|   ↳ `street` | string | Street |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `country` | string | Country |
+|   ↳ `zip` | string | ZIP / postal code |
+|   ↳ `description` | string | Description |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+
+</ReferenceDetails>
+
+### Zoho Desk Search Contacts
+
+Search Contacts in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `searchEmail` | string | No | Email ID of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values. |
+| `searchPhone` | string | No | Phone number of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values. |
+| `searchMobile` | string | No | Mobile number of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values. |
+| `searchAccountName` | string | No | Name of the account associated with the Contact. Supports * wildcards. Supports empty/not-empty search operators. |
+| `createdTimeRange` | string | No | Key that filters contacts created in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, createdTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z |
+| `limit` | number | No | Page size \(1-100; default 10\). |
+| `from` | number | No | Pagination start index \(0-999; search returns at most the first 1000 matches\). |
+| `modifiedTimeRange` | string | No | Key that filters contacts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z |
+| `contactSearchIds` | string | No | ID of the contact. Exact match. Comma-separated values. |
+| `_all` | string | No | Search text across all fields. Supports * wildcards; at least 3 characters. |
+| `contactSearchCustomField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `searchLastName` | string | No | Last name of the contact. Supports * wildcards. |
+| `searchFirstName` | string | No | First name of the contact. Supports * wildcards. Supports empty/not-empty search operators. |
+| `fullName` | string | No | Full name of the contact. Supports * wildcards. |
+| `contactSearchSortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, lastName, firstName. Prefix with - for descending. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Search Contacts results |
+|   ↳ `id` | string | Contact ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Primary email |
+|   ↳ `secondaryEmail` | string | Secondary email |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `mobile` | string | Mobile number |
+|   ↳ `accountId` | string | Associated account ID |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `type` | string | Contact type |
+|   ↳ `title` | string | Job title |
+|   ↳ `street` | string | Street |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State |
+|   ↳ `country` | string | Country |
+|   ↳ `zip` | string | ZIP / postal code |
+|   ↳ `description` | string | Description |
+|   ↳ `cf` | json | Custom field values, keyed by custom field API name |
+| `count` | number | Number of results in this page |
+| `nextFrom` | number | Next search index; null for an empty page, a reached total, or the 1000-result search window. Narrow the filters to find further matches. |
+| `totalCount` | number | Total search matches reported by Zoho, when provided |
+
+</ReferenceDetails>
+
+### Zoho Desk List Accounts
+
+List Accounts in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `accountViewId` | string | No | ID of the view to apply while fetching the resources |
+| `limit` | number | No | Page size \(1-100\). |
+| `from` | number | No | Pagination start index; use the provider index for this endpoint \(default 1\). |
+| `accountListSortBy` | string | No | Sort field: website, email, phone, accountName, createdTime, modifiedTime. Prefix with - for descending. |
+| `accountSelectedFields` | string | No | Key that returns the values of mentioned fields \(both pre-defined and custom\) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | array | Accounts records, including explicitly requested portal fields |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
+| `count` | number | Number of results in this page |
+| `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
+
+</ReferenceDetails>
+
+### Zoho Desk Create Account
+
+Create Account in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `accountWebsite` | string | No | Website of the account |
+| `accountName` | string | Yes | Name of the account |
+| `accountPhone` | string | No | Phone number of the account |
+| `accountEmail` | string | No | Email ID of the account |
+| `accountCountry` | string | No | Country in which the account is based |
+| `accountCode` | string | No | Zip code |
+| `accountCustomFields` | json | No | User-defined fields associated with the account JSON object. |
+| `accountCity` | string | No | City in which the account is based |
+| `accountStreet` | string | No | Address of the account |
+| `accountAnnualrevenue` | number | No | Annual revenue of the account |
+| `accountDescription` | string | No | A short description of the account |
+| `accountIndustry` | string | No | Industry in which the account operates |
+| `accountState` | string | No | State in which the account is based |
+| `accountOwnerId` | string | No | ID of account owner |
+| `accountFax` | string | No | Fax number of the account |
+| `accountAssociatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The account |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
+
+</ReferenceDetails>
+
+### Zoho Desk Update Account
+
+Update Account in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `accountId` | string | Yes | Unique ID of the account |
+| `accountWebsite` | string | No | Website of the account |
+| `accountName` | string | No | Name of the account |
+| `accountPhone` | string | No | Phone number of the account |
+| `accountEmail` | string | No | Email ID of the account |
+| `accountCountry` | string | No | Country in which the account is based |
+| `accountCode` | string | No | Zip code |
+| `accountCustomFields` | json | No | User-defined fields associated with the account JSON object. |
+| `accountCity` | string | No | City in which the account is based |
+| `accountStreet` | string | No | Address of the account |
+| `accountAnnualrevenue` | number | No | Annual revenue of the account |
+| `accountDescription` | string | No | A short description of the account |
+| `accountIndustry` | string | No | Industry in which the account operates |
+| `accountState` | string | No | State in which the account is based |
+| `accountOwnerId` | string | No | ID of account owner |
+| `accountFax` | string | No | Fax number of the account |
+| `accountAssociatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The account |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
+
+</ReferenceDetails>
+
+### Zoho Desk Search Accounts
+
+Search Accounts in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `searchAccountName` | string | No | Name of the account. Supports * wildcards. |
+| `createdTimeRange` | string | No | Key that filters accounts created in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, createdTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z |
+| `limit` | number | No | Page size \(1-100; default 10\). |
+| `from` | number | No | Pagination start index \(0-999; search returns at most the first 1000 matches\). |
+| `modifiedTimeRange` | string | No | Key that filters accounts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z |
+| `accountSearchIds` | string | No | ID of the account. Exact match. Comma-separated values. |
+| `_all` | string | No | Search text across all fields. Supports * wildcards; at least 3 characters. |
+| `accountSearchCustomField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchSortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, accountName. Prefix with - for descending. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accounts` | array | Search Accounts results |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
+| `count` | number | Number of results in this page |
+| `nextFrom` | number | Next search index; null for an empty page, a reached total, or the 1000-result search window. Narrow the filters to find further matches. |
+| `totalCount` | number | Total search matches reported by Zoho, when provided |
+
+</ReferenceDetails>
+
+### Zoho Desk Get Account
+
+Get Account in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `accountInclude` | string | No | Allowed values are : owner |
+| `accountId` | string | Yes | Unique ID of the account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The account |
+|   ↳ `photoURL` | string | Account photo URL |
+|   ↳ `owner` | object | Owner |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `id` | string | Id |
+|   ↳ `website` | string | Website of the account |
+|   ↳ `accountName` | string | Name of the account |
+|   ↳ `phone` | string | Phone number of the account |
+|   ↳ `email` | string | Email ID of the account |
+|   ↳ `country` | string | Country |
+|   ↳ `code` | string | Code |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `city` | string | City |
+|   ↳ `street` | string | Street |
+|   ↳ `annualrevenue` | string | Annualrevenue |
+|   ↳ `description` | string | Description |
+|   ↳ `industry` | string | Industry |
+|   ↳ `state` | string | State |
+|   ↳ `ownerId` | string | Owner ID |
+|   ↳ `fax` | string | Fax |
+|   ↳ `modifiedTime` | string | Modified time |
+|   ↳ `isFollowing` | boolean | Is following |
+|   ↳ `isDeleted` | boolean | Is deleted |
+|   ↳ `isTrashed` | boolean | Is trashed |
+|   ↳ `associatedSLAIds` | array | Associated slaids |
+|   ↳ `webUrl` | string | Web url |
+|   ↳ `createdTime` | string | Created time |
+|   ↳ `zohoCRMAccount` | object | Zoho crmaccount |
+|     ↳ `id` | string | Id |
+|   ↳ `id` | string | Id |
+|   ↳ `layoutId` | string | Layout ID |
+|   ↳ `layoutDetails` | object | Layout details |
+|     ↳ `id` | string | Id |
+|     ↳ `layoutName` | string | Layout name |
+
+</ReferenceDetails>
+
+### Zoho Desk List Departments
+
+List Departments in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `chatStatus` | string | No | Key that filters departments based on their chat status. Values allowed are AVAILABLE, DISABLED, NOT_CREATED, and $\{UNAVAILABLE\}. $\{UNAVAILABLE\} refers to departments which are not available for chat. |
+| `searchStr` | string | No | String to search for departments by name, help center name, or description. The string must contain at least one character. Three search methods are supported: 1\) string* - Searches for departments whose name, help center name, or description start with the string, 2\) *string* - Searches for departments whose name, help center name, or description contain the string, 3\) string - Searches for departments whose name, help center name, or description is an. Exact match. for the string |
+| `isEnabled` | boolean | No | Key that filters departments based on their enabled status |
+| `limit` | number | No | Page size \(0-200; default 10\). |
+| `from` | number | No | Pagination start index \(0-based\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `departments` | array | List Departments results |
+|   ↳ `isAssignToTeamEnabled` | boolean | Whether assignment to teams is enabled |
+|   ↳ `chatStatus` | string | Chat status of the department Allowed values: AVAILABLE, DISABLED, NOT_CREATED |
+|   ↳ `hasLogo` | boolean | Whether the department has a logo |
+|   ↳ `sanitizedName` | string | Sanitized Name of the department |
+|   ↳ `isVisibleInCustomerPortal` | boolean | Whether the department is visible in the help center |
+|   ↳ `creatorId` | string | Unique ID of the user who created the department |
+|   ↳ `description` | string | Short description of the department |
+|   ↳ `isDefault` | boolean | Whether this is the default department in the help desk portal |
+|   ↳ `isEnabled` | boolean | Whether the department is enabled |
+|   ↳ `name` | string | Name of the department |
+|   ↳ `createdTime` | string | Time at which the department was created |
+|   ↳ `id` | string | Unique ID of the department |
+|   ↳ `nameInCustomerPortal` | string | Display name of the department in the help center |
+|   ↳ `associatedAgentIds` | array | ID\(s\) of the agents associated with the department |
+| `count` | number | Number of results in this page |
+| `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
+
+</ReferenceDetails>
+
+### Zoho Desk Get Department
+
+Get Department in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `lookupDepartmentId` | string | Yes | Unique ID of the department |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `department` | object | The department |
+|   ↳ `isAssignToTeamEnabled` | boolean | Whether assignment to teams is enabled |
+|   ↳ `chatStatus` | string | Chat status of the department Allowed values: AVAILABLE, DISABLED, NOT_CREATED |
+|   ↳ `hasLogo` | boolean | Whether the department has a logo |
+|   ↳ `sanitizedName` | string | Sanitized Name of the department |
+|   ↳ `isVisibleInCustomerPortal` | boolean | Whether the department is visible in the help center |
+|   ↳ `creatorId` | string | Unique ID of the user who created the department |
+|   ↳ `description` | string | Short description of the department |
+|   ↳ `isDefault` | boolean | Whether this is the default department in the help desk portal |
+|   ↳ `isEnabled` | boolean | Whether the department is enabled |
+|   ↳ `name` | string | Name of the department |
+|   ↳ `createdTime` | string | Time at which the department was created |
+|   ↳ `id` | string | Unique ID of the department |
+|   ↳ `nameInCustomerPortal` | string | Display name of the department in the help center |
+|   ↳ `associatedAgentIds` | array | ID\(s\) of the agents associated with the department |
+
+</ReferenceDetails>
+
+### Zoho Desk List Agents
+
+List Agents in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `agentListInclude` | string | No | Secondary information related to agents, The allowed values are profile, role. You can include all two values by separating them with commas in the API request. |
+| `roleIds` | string | No | Comma-separated array of role IDs. Maximum number of IDs allowed is 50. Comma-separated values. |
+| `searchStr` | string | No | String to search for agents by first name, last name, or email ID. The string must contain at least one character. The supported search methods: 1\) string* - Searches for agents whose first name, last name, or email ID start with the string, 2\) *string* - Searches for agents whose first name, last name, or email ID contain the string, 3\) string - Searches for agents whose first name, last name, or email ID is an. Exact match. for the string |
+| `cfSearchStr` | string | No | String to search for agents by custom field. The string must contain at least one character |
+| `cfFieldName` | string | No | API name of the custom field that must be used for searching and listing agents |
+| `fieldName` | string | No | Name of the field that must be used for searching and listing agents. The allowed values are: firstName, lastName, name, and emailId |
+| `isLightAgent` | boolean | No | Key that denotes if the agents must be light or non light. |
+| `sortOrder` | string | No | To sort the available list of agents in either ascending or descending order. The allowed values are: asc or desc |
+| `limit` | number | No | Page size \(0-200; default 10\). |
+| `rolePermissionType` | string | No | Types of roles and permissions of the agents to list. The allowed values are AgentPublic, AgentPersonal,AgentTeamPersonal, Admin, Light, Custom, and $\{NON_LIGHT\}. $\{NON_LIGHT\} refers to agents who are not associated with the light agent profile. |
+| `profileIds` | string | No | Comma-separated array of profile IDs. Maximum number of IDs allowed is 50. Comma-separated values. |
+| `from` | number | No | Pagination start index \(0-based\). |
+| `isConfirmed` | boolean | No | Key that denotes if the agents must be confirmed or unconfirmed. |
+| `departmentIds` | string | No | Comma-separated array of department IDs. Maximum number of IDs allowed is 50. Comma-separated values. |
+| `agentStatus` | string | No | Key that filters agents based on their activation status: ACTIVE, DISABLED, DELETED or IMPORTED |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `agents` | array | List Agents results |
+|   ↳ `lastName` | string | Last name of the agent |
+|   ↳ `extn` | string | Extension number of the agent |
+|   ↳ `roleId` | string | Role ID of the agent |
+|   ↳ `langCode` | string | Language code of the agent |
+|   ↳ `mobile` | string | Mobile number of the agent |
+|   ↳ `emailId` | string | Email ID of the agent |
+|   ↳ `associatedChatDepartmentIds` | array | Associated chat department IDs |
+|   ↳ `associatedDepartmentIds` | array | Associated department IDs |
+|   ↳ `firstName` | string | First name of the agent |
+|   ↳ `phone` | string | Phone number of the agent |
+|   ↳ `countryCode` | string | Country code of the agent |
+|   ↳ `profileId` | string | Profile ID of the agent |
+|   ↳ `rolePermissionType` | string | Role permission type of the agent. Allowed values: AgentPublic, AgentPersonal, AgentTeamPersonal, Admin, Light, Custom |
+|   ↳ `aboutInfo` | string | About information of the agent |
+|   ↳ `status` | string | Activation status of the agent. Allowed values: ACTIVE, DISABLED |
+|   ↳ `channelExpert` | array | Channel expert |
+|   ↳ `timeZone` | string | Time zone of the agent |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `photoURL` | string | URL of the image file displaying the agent's photo |
+|   ↳ `name` | string | Full name of the agent |
+|   ↳ `isConfirmed` | boolean | Indicates whether the agent is a confirmed user in the portal. Allowed values: true = confirmed, false = unconfirmed |
+|   ↳ `id` | string | Unique ID of the agent |
+|   ↳ `zuid` | string | Zoho User ID of the agent |
+|   ↳ `isZiaAgent` | boolean | Indicates whether the agent is a Zia agent or a human agent |
+|   ↳ `associatedChatDepartments` | array | Associated chat departments |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `name` | string | Full name of the department |
+|     ↳ `id` | string | Unique ID of the department |
+|   ↳ `role` | object | Role |
+|     ↳ `isDefault` | boolean | Whether this is the default role |
+|     ↳ `shareDataWithPeers` | boolean | Whether share data with peers |
+|     ↳ `immediateSubRoles` | array | Immediate sub roles |
+|     ↳ `encId` | string | Encrypted ID |
+|     ↳ `name` | string | Name of the role |
+|     ↳ `description` | string | Description |
+|     ↳ `adminRole` | boolean | Whether admin role |
+|     ↳ `reportsTo` | string | ID of the role this role reports to |
+|     ↳ `id` | string | Unique ID of the role |
+|     ↳ `isVisible` | boolean | Whether visible |
+|   ↳ `verifiedEmails` | array | Verified emails |
+|   ↳ `profile` | object | Profile |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `visible` | boolean | Whether visible |
+|     ↳ `allowedTabs` | array | Allowed tabs |
+|     ↳ `defaultProfile` | boolean | Whether default profile |
+|     ↳ `allowedPermissionNames` | array | Allowed permission names |
+|     ↳ `type` | string | Accepted values: ADMIN, STANDARD, LIGHT, CUSTOM, PORTAL |
+|     ↳ `invisibleTabs` | array | Invisible tabs |
+|     ↳ `portalProfile` | boolean | Whether portal profile |
+|     ↳ `prohibitedPermissionNames` | array | Prohibited permission names |
+|     ↳ `allowedPermissions` | array | Allowed permissions |
+|     ↳ `profileDesc` | string | Description of the profile |
+|     ↳ `createdBy` | string | ID of the user who created this record |
+|     ↳ `lightAgentProfile` | boolean | Whether light agent profile |
+|     ↳ `name` | string | Full name of the profile |
+|     ↳ `visibleTabs` | array | Visible tabs |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `modifiedBy` | string | ID of the user who last modified this record |
+|     ↳ `id` | string | Unique ID of the profile |
+|     ↳ `category` | boolean | Category |
+|     ↳ `prohibitedPermisisons` | array | Prohibited permisisons |
+|     ↳ `adminProfile` | boolean | Whether admin profile |
+|   ↳ `associatedDepartments` | array | Associated departments |
+|     ↳ `chatStatusId` | string | ID of the chat status |
+|     ↳ `chatStatus` | string | Status of chat department. Accepted values: AVAILABLE, DISABLED, NOT_CREATED |
+|     ↳ `isAssignToTeamEnabled` | boolean | Whether is assign to team enabled |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `hasLogo` | boolean | Whether has logo |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `sanitizedDeptHash` | string | Sanitized dept hash |
+|     ↳ `isVisibleInCustomerPortal` | boolean | Whether visible in the customer portal |
+|     ↳ `creatorId` | string | ID of the creator |
+|     ↳ `description` | string | Description |
+|     ↳ `associatedAgentIds` | array | Associated agent IDs |
+|     ↳ `isDefault` | boolean | Whether this is the default |
+|     ↳ `isEnabled` | boolean | Whether enabled |
+|     ↳ `name` | string | Full name of the agent |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `id` | string | Unique ID of the department |
+|     ↳ `nameInCustomerPortal` | string | Name shown in the customer portal |
+|     ↳ `status` | string | Accepted values: 0, 1, 2 |
+| `count` | number | Number of results in this page |
+| `nextFrom` | number | Next index to request; null when this page is empty. The next request may return an empty page. |
+
+</ReferenceDetails>
+
+### Zoho Desk Get Agent
+
+Get Agent in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `agentInclude` | string | No | Secondary information related to the agent. Values allowed are profile, role, associatedDepartments, associatedChatDepartments and verifiedEmails. Separate multiple values with commas. |
+| `agentId` | string | Yes | Agent ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `agent` | object | The agent |
+|   ↳ `lastName` | string | Last name of the agent |
+|   ↳ `extn` | string | Extension number of the agent |
+|   ↳ `roleId` | string | Role ID of the agent |
+|   ↳ `langCode` | string | Language code of the agent |
+|   ↳ `mobile` | string | Mobile number of the agent |
+|   ↳ `emailId` | string | Email ID of the agent |
+|   ↳ `associatedChatDepartmentIds` | array | Associated chat department IDs |
+|   ↳ `associatedDepartmentIds` | array | Associated department IDs |
+|   ↳ `firstName` | string | First name of the agent |
+|   ↳ `phone` | string | Phone number of the agent |
+|   ↳ `countryCode` | string | Country code of the agent |
+|   ↳ `profileId` | string | Profile ID of the agent |
+|   ↳ `rolePermissionType` | string | Role permission type of the agent. Allowed values: AgentPublic, AgentPersonal, AgentTeamPersonal, Admin, Light, Custom |
+|   ↳ `aboutInfo` | string | About information of the agent |
+|   ↳ `status` | string | Activation status of the agent. Allowed values: ACTIVE, DISABLED |
+|   ↳ `channelExpert` | array | Channel expert |
+|   ↳ `timeZone` | string | Time zone of the agent |
+|   ↳ `cf` | json | Cf values defined by the provider or portal configuration |
+|   ↳ `photoURL` | string | URL of the image file displaying the agent's photo |
+|   ↳ `name` | string | Full name of the agent |
+|   ↳ `isConfirmed` | boolean | Indicates whether the agent is a confirmed user in the portal. Allowed values: true = confirmed, false = unconfirmed |
+|   ↳ `id` | string | Unique ID of the agent |
+|   ↳ `zuid` | string | Zoho User ID of the agent |
+|   ↳ `isZiaAgent` | boolean | Indicates whether the agent is a Zia agent or a human agent |
+|   ↳ `associatedChatDepartments` | array | Associated chat departments |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `name` | string | Full name of the department |
+|     ↳ `id` | string | Unique ID of the department |
+|   ↳ `role` | object | Role |
+|     ↳ `isDefault` | boolean | Whether this is the default role |
+|     ↳ `shareDataWithPeers` | boolean | Whether share data with peers |
+|     ↳ `immediateSubRoles` | array | Immediate sub roles |
+|     ↳ `encId` | string | Encrypted ID |
+|     ↳ `name` | string | Name of the role |
+|     ↳ `description` | string | Description |
+|     ↳ `adminRole` | boolean | Whether admin role |
+|     ↳ `reportsTo` | string | ID of the role this role reports to |
+|     ↳ `id` | string | Unique ID of the role |
+|     ↳ `isVisible` | boolean | Whether visible |
+|   ↳ `verifiedEmails` | array | Verified emails |
+|   ↳ `profile` | object | Profile |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `visible` | boolean | Whether visible |
+|     ↳ `allowedTabs` | array | Allowed tabs |
+|     ↳ `defaultProfile` | boolean | Whether default profile |
+|     ↳ `allowedPermissionNames` | array | Allowed permission names |
+|     ↳ `type` | string | Accepted values: ADMIN, STANDARD, LIGHT, CUSTOM, PORTAL |
+|     ↳ `invisibleTabs` | array | Invisible tabs |
+|     ↳ `portalProfile` | boolean | Whether portal profile |
+|     ↳ `prohibitedPermissionNames` | array | Prohibited permission names |
+|     ↳ `allowedPermissions` | array | Allowed permissions |
+|     ↳ `profileDesc` | string | Description of the profile |
+|     ↳ `createdBy` | string | ID of the user who created this record |
+|     ↳ `lightAgentProfile` | boolean | Whether light agent profile |
+|     ↳ `name` | string | Full name of the profile |
+|     ↳ `visibleTabs` | array | Visible tabs |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `modifiedBy` | string | ID of the user who last modified this record |
+|     ↳ `id` | string | Unique ID of the profile |
+|     ↳ `category` | boolean | Category |
+|     ↳ `prohibitedPermisisons` | array | Prohibited permisisons |
+|     ↳ `adminProfile` | boolean | Whether admin profile |
+|   ↳ `associatedDepartments` | array | Associated departments |
+|     ↳ `chatStatusId` | string | ID of the chat status |
+|     ↳ `chatStatus` | string | Status of chat department. Accepted values: AVAILABLE, DISABLED, NOT_CREATED |
+|     ↳ `isAssignToTeamEnabled` | boolean | Whether is assign to team enabled |
+|     ↳ `modifiedTime` | string | Timestamp when this record was last modified \(epoch milliseconds\) |
+|     ↳ `hasLogo` | boolean | Whether has logo |
+|     ↳ `sanitizedName` | string | Sanitized name of the chat department |
+|     ↳ `sanitizedDeptHash` | string | Sanitized dept hash |
+|     ↳ `isVisibleInCustomerPortal` | boolean | Whether visible in the customer portal |
+|     ↳ `creatorId` | string | ID of the creator |
+|     ↳ `description` | string | Description |
+|     ↳ `associatedAgentIds` | array | Associated agent IDs |
+|     ↳ `isDefault` | boolean | Whether this is the default |
+|     ↳ `isEnabled` | boolean | Whether enabled |
+|     ↳ `name` | string | Full name of the agent |
+|     ↳ `createdTime` | string | Timestamp when this record was created \(epoch milliseconds\) |
+|     ↳ `id` | string | Unique ID of the department |
+|     ↳ `nameInCustomerPortal` | string | Name shown in the customer portal |
+|     ↳ `status` | string | Accepted values: 0, 1, 2 |
+
+</ReferenceDetails>
+
+### Zoho Desk Get Comment
+
+Get Comment in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `commentInclude` | string | No | Related comment data to include: mentions, plainText, or both separated by commas. |
+| `commentId` | string | Yes | Comment ID |
+| `ticketId` | string | Yes | Ticket ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | The comment |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `content` | string | Comment content \(raw; may be HTML\) |
+|   ↳ `contentType` | string | Content type \(plainText/html\) |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `isPublic` | boolean | Whether the comment is public |
+|   ↳ `commenterId` | string | Commenter ID |
+|   ↳ `commenter` | object | Who wrote the comment |
+|     ↳ `name` | string | Display name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|     ↳ `type` | string | Commenter type \(AGENT/END_USER\) |
+|     ↳ `roleName` | string | Role name |
+|     ↳ `photoURL` | string | Avatar URL |
+|   ↳ `commentedTime` | string | Commented timestamp |
+|   ↳ `modifiedTime` | string | Modified timestamp |
+|   ↳ `attachments` | array | Comment attachments |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | File name |
+|     ↳ `size` | string | File size as reported by Zoho |
+|     ↳ `href` | string | Download href |
+
+</ReferenceDetails>
+
+### Zoho Desk Update Comment
+
+Update comment content or attachments; visibility can only be set when creating a comment.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `commentId` | string | Yes | Comment ID |
+| `ticketId` | string | Yes | Ticket ID |
+| `content` | string | No | The comment content. To mention an agent: zsu\[@user:\{zuid\}\]zsu To mention a team: zsu\[@team:\{teamId\}_\{teamName\}\]zsu Note: This format can also be used to retrieve agent information. |
+| `attachmentIds` | array | No | List of file attachments included in the comment.Note: For more details on attachments, refer to the Uploads section. JSON array. |
+| `contentType` | string | No | Specifies the type of the content whether html or plainText. The default value is html. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | The comment |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `content` | string | Comment content \(raw; may be HTML\) |
+|   ↳ `contentType` | string | Content type \(plainText/html\) |
+|   ↳ `contentText` | string | Plain-text rendering of content \(HTML stripped when contentType is html\) |
+|   ↳ `isPublic` | boolean | Whether the comment is public |
+|   ↳ `commenterId` | string | Commenter ID |
+|   ↳ `commenter` | object | Who wrote the comment |
+|     ↳ `name` | string | Display name |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email address |
+|     ↳ `type` | string | Commenter type \(AGENT/END_USER\) |
+|     ↳ `roleName` | string | Role name |
+|     ↳ `photoURL` | string | Avatar URL |
+|   ↳ `commentedTime` | string | Commented timestamp |
+|   ↳ `modifiedTime` | string | Modified timestamp |
+|   ↳ `attachments` | array | Comment attachments |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | File name |
+|     ↳ `size` | string | File size as reported by Zoho |
+|     ↳ `href` | string | Download href |
+
+</ReferenceDetails>
+
+### Zoho Desk Delete Comment
+
+Delete Comment in Zoho Desk.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orgId` | string | Yes | Zoho Desk organization ID |
+| `commentId` | string | Yes | Comment ID |
+| `ticketId` | string | Yes | Ticket ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `completed` | boolean | Whether the requested operation completed successfully |
+
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Zoho Desk Event
 

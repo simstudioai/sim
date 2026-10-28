@@ -1,8 +1,14 @@
+import {
+  tokenizationAccurateMock,
+  tokenizationAccurateMockFns,
+} from '@sim/testing/mocks/tokenization-accurate.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { getConversationTokenCount } from '@/lib/memory/context-tokens'
 import { getAccurateTokenCount } from '@/lib/tokenization/accurate'
 
-vi.mock('@/lib/tokenization/accurate', () => ({ getAccurateTokenCount: vi.fn(() => 7) }))
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
+
+tokenizationAccurateMockFns.mockGetAccurateTokenCount.mockReturnValue(7)
 
 describe('bounded Agent context token estimation', () => {
   it('uses model tokenization for short ordinary context', () => {

@@ -1,31 +1,48 @@
 ---
 title: Microsoft Planner
 description: Manage tasks, plans, and buckets in Microsoft Planner
+integration:
+  type: "microsoft_planner"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_planner"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Planner](https://www.microsoft.com/en-us/microsoft-365/planner) to manage tasks, plans, and buckets. Task details include checklists and references; use the actions below to read or update them.
 {/* MANUAL-CONTENT-END */}
 
+## OAuth scopes [#oauth-scopes]
 
-## Usage Instructions
+Sim requests these scopes when someone connects a Microsoft Planner account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
-Integrate Microsoft Planner into the workflow. Manage tasks, plans, buckets, and task details including checklists and references.
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-planner` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Group.ReadWrite.All` | Read and write all groups |
+| `Group.Read.All` | Read all groups, memberships, and group content |
+| `Tasks.ReadWrite` | Read and manage Planner tasks |
+| `offline_access` | Access account when not using the application |
 
+## Use the block [#usage-instructions]
+
+Manage tasks, plans, buckets, and task details including checklists and references.
 
 ## Actions
 
 ### Read Microsoft Planner Tasks
 
 Read tasks from Microsoft Planner - get all user tasks or all tasks from a specific plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -45,9 +62,13 @@ Read tasks from Microsoft Planner - get all user tasks or all tasks from a speci
 |   ↳ `userId` | string | User ID |
 |   ↳ `planUrl` | string | Microsoft Graph API URL for the plan |
 
+</ReferenceDetails>
+
 ### Create Microsoft Planner Task
 
 Create a new task in Microsoft Planner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +95,13 @@ Create a new task in Microsoft Planner
 |   ↳ `taskId` | string | Created task ID |
 |   ↳ `taskUrl` | string | Microsoft Graph API URL for the task |
 
+</ReferenceDetails>
+
 ### Update Microsoft Planner Task
 
 Update a task in Microsoft Planner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -107,9 +132,13 @@ Update a task in Microsoft Planner
 |   ↳ `planId` | string | Parent plan ID |
 |   ↳ `taskUrl` | string | Microsoft Graph API URL for the task |
 
+</ReferenceDetails>
+
 ### Delete Microsoft Planner Task
 
 Delete a task from Microsoft Planner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -126,9 +155,13 @@ Delete a task from Microsoft Planner
 | `deleted` | boolean | Confirmation of deletion |
 | `metadata` | object | Additional metadata |
 
+</ReferenceDetails>
+
 ### List Microsoft Planner Plans
 
 List all plans shared with the current user
+
+<ReferenceDetails>
 
 #### Input
 
@@ -145,9 +178,13 @@ List all plans shared with the current user
 |   ↳ `count` | number | Number of plans returned |
 |   ↳ `userId` | string | User ID |
 
+</ReferenceDetails>
+
 ### Read Microsoft Planner Plan
 
 Get details of a specific Microsoft Planner plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -165,9 +202,13 @@ Get details of a specific Microsoft Planner plan
 |   ↳ `planId` | string | Plan ID |
 |   ↳ `planUrl` | string | Microsoft Graph API URL for the plan |
 
+</ReferenceDetails>
+
 ### Create Microsoft Planner Plan
 
 Create a new Microsoft Planner plan owned by a Microsoft 365 group
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +227,13 @@ Create a new Microsoft Planner plan owned by a Microsoft 365 group
 |   ↳ `planId` | string | Created plan ID |
 |   ↳ `groupId` | string | Owning Microsoft 365 group ID |
 
+</ReferenceDetails>
+
 ### Update Microsoft Planner Plan
 
 Rename a Microsoft Planner plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -207,9 +252,13 @@ Rename a Microsoft Planner plan
 | `metadata` | object | Metadata including planId |
 |   ↳ `planId` | string | Updated plan ID |
 
+</ReferenceDetails>
+
 ### Get Microsoft Planner Plan Details
 
 Get detailed information about a plan including category descriptions and sharing
+
+<ReferenceDetails>
 
 #### Input
 
@@ -227,9 +276,13 @@ Get detailed information about a plan including category descriptions and sharin
 | `metadata` | object | Metadata including planId |
 |   ↳ `planId` | string | Plan ID |
 
+</ReferenceDetails>
+
 ### Update Microsoft Planner Plan Details
 
 Update a plan's category (color label) descriptions and shared-with user list in Microsoft Planner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -249,9 +302,13 @@ Update a plan's category (color label) descriptions and shared-with user list in
 | `metadata` | object | Metadata including planId |
 |   ↳ `planId` | string | Plan ID |
 
+</ReferenceDetails>
+
 ### Delete Microsoft Planner Plan
 
 Delete a Microsoft Planner plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +325,13 @@ Delete a Microsoft Planner plan
 | `deleted` | boolean | Confirmation of deletion |
 | `metadata` | object | Additional metadata |
 
+</ReferenceDetails>
+
 ### List Microsoft Planner Buckets
 
 List all buckets in a Microsoft Planner plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -288,9 +349,13 @@ List all buckets in a Microsoft Planner plan
 |   ↳ `planId` | string | Plan ID |
 |   ↳ `count` | number | Number of buckets returned |
 
+</ReferenceDetails>
+
 ### Read Microsoft Planner Bucket
 
 Get details of a specific bucket
+
+<ReferenceDetails>
 
 #### Input
 
@@ -308,9 +373,13 @@ Get details of a specific bucket
 |   ↳ `bucketId` | string | Bucket ID |
 |   ↳ `planId` | string | Parent plan ID |
 
+</ReferenceDetails>
+
 ### Create Microsoft Planner Bucket
 
 Create a new bucket in a Microsoft Planner plan
+
+<ReferenceDetails>
 
 #### Input
 
@@ -329,9 +398,13 @@ Create a new bucket in a Microsoft Planner plan
 |   ↳ `bucketId` | string | Created bucket ID |
 |   ↳ `planId` | string | Parent plan ID |
 
+</ReferenceDetails>
+
 ### Update Microsoft Planner Bucket
 
 Update a bucket in Microsoft Planner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -351,9 +424,13 @@ Update a bucket in Microsoft Planner
 |   ↳ `bucketId` | string | Updated bucket ID |
 |   ↳ `planId` | string | Parent plan ID |
 
+</ReferenceDetails>
+
 ### Delete Microsoft Planner Bucket
 
 Delete a bucket from Microsoft Planner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -370,9 +447,13 @@ Delete a bucket from Microsoft Planner
 | `deleted` | boolean | Confirmation of deletion |
 | `metadata` | object | Additional metadata |
 
+</ReferenceDetails>
+
 ### Get Microsoft Planner Task Details
 
 Get detailed information about a task including checklist and references
+
+<ReferenceDetails>
 
 #### Input
 
@@ -390,9 +471,13 @@ Get detailed information about a task including checklist and references
 | `metadata` | object | Metadata including taskId |
 |   ↳ `taskId` | string | Task ID |
 
+</ReferenceDetails>
+
 ### Update Microsoft Planner Task Details
 
 Update task details including description, checklist items, and references in Microsoft Planner
+
+<ReferenceDetails>
 
 #### Input
 
@@ -413,5 +498,7 @@ Update task details including description, checklist items, and references in Mi
 | `taskDetails` | object | The updated task details object with all properties |
 | `metadata` | object | Metadata including taskId |
 |   ↳ `taskId` | string | Task ID |
+
+</ReferenceDetails>
 
 

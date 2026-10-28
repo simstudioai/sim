@@ -1,4 +1,5 @@
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import type { CustomBlockInputFieldType } from '@/blocks/custom/build-config'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
@@ -19,6 +20,7 @@ export type ProviderId =
   | 'meta'
   | 'zai'
   | 'kimi'
+  | 'kie'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'
@@ -26,11 +28,12 @@ export type ProviderId =
   | 'fireworks'
   | 'together'
   | 'baseten'
+  | 'nebius'
   | 'vllm'
   | 'litellm'
   | 'bedrock'
 
-export interface ModelTokenPricing {
+interface ModelTokenPricing {
   input: number // Per 1M tokens
   cachedInput?: number // Per 1M tokens (if supported)
   output: number // Per 1M tokens
@@ -48,17 +51,6 @@ export interface ModelPricing extends ModelTokenPricing {
 }
 
 export type ModelPricingMap = Record<string, ModelPricing>
-
-interface TokenInfo {
-  input?: number
-  output?: number
-  total?: number
-}
-
-interface TransformedResponse {
-  content: string
-  tokens?: TokenInfo
-}
 
 export interface ProviderConfig {
   id: string
@@ -300,6 +292,22 @@ export class ProviderError extends Error {
     super(message, options)
     this.name = 'ProviderError'
     this.timing = timing
+  }
+}
+
+/**
+ * A request with no input items to send: every system and user message was absent or resolved
+ * to empty. The provider would reject it on every attempt, so it is the author's to fix and is
+ * never retried or handed to a fallback model.
+ */
+export class EmptyProviderInputError extends UserFailure {
+  readonly retryable = false
+
+  constructor(
+    message = 'The Agent has no messages to send. Add a system prompt or user message, or check that the value it references (for example <start.input>) is not empty.'
+  ) {
+    super(message)
+    this.name = 'EmptyProviderInputError'
   }
 }
 

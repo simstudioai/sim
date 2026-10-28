@@ -1,10 +1,7 @@
 import { createHmac } from 'node:crypto'
-import { dbChainMock, queueTableRows, schemaMock } from '@sim/testing'
+import { queueTableRows, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
+import { describe, expect, it } from 'vitest'
 import { whatsappHandler } from './whatsapp'
 
 function reqWithHeaders(headers: Record<string, string>): NextRequest {
@@ -189,30 +186,6 @@ describe('WhatsApp webhook provider', () => {
       },
     ])
   })
-
-  async function formatMediaMessage(message: Record<string, unknown>) {
-    const result = await whatsappHandler.formatInput!({
-      webhook: { id: 'wh_media', providerConfig: {} },
-      workflow: { id: 'wf_media', userId: 'user_media' },
-      body: {
-        object: 'whatsapp_business_account',
-        entry: [
-          {
-            changes: [
-              {
-                field: 'messages',
-                value: { metadata: { phone_number_id: '12345' }, messages: [message] },
-              },
-            ],
-          },
-        ],
-      },
-      headers: {},
-      requestId: 'wa-format-media',
-    })
-
-    return result.input as Record<string, unknown>
-  }
 
   describe('handleChallenge', () => {
     function verificationRequest(): NextRequest {

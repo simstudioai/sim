@@ -1,6 +1,9 @@
-import { dbReplica } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
-import { and, asc, inArray, isNull, sql } from 'drizzle-orm'
+import { isRecordLike, omit } from '@sim/utils/object'
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
+import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
   decodeTimeCursor,
   encodeTimeCursor,
@@ -8,26 +11,21 @@ import {
   timeCursorPredicate,
   timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
-import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
+import { readBoundedSourcePage, workspaceInOrganization } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
+import { stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
 
 /**
  * The transcript no longer lives on `copilot_chats.messages` — it is assembled
  * per page from the normalized `copilot_messages` table, so `messages` is the
  * ordered list of message `content` objects rather than the DB column.
  *
- * `planArtifact` is omitted too: the column still exists only until a
- * follow-up migration can safely drop it, and nothing writes it any more, so
- * draining it would ship a dead field to every export consumer. External
- * conversation bindings are internal routing metadata and are not exported.
+ * External conversation bindings are internal routing metadata and are not
+ * exported.
  */
 type CopilotChatRow = Omit<
   typeof copilotChats.$inferSelect,
-  | 'memorySpaceId'
-  | 'messages'
-  | 'planArtifact'
-  | 'externalConversationKey'
-  | 'externalConversationMetadata'
+  'memorySpaceId' | 'messages' | 'externalConversationKey' | 'externalConversationMetadata'
 > & {
   messages: unknown[]
 }
@@ -63,55 +61,127 @@ const chatColumns = {
  * design and `data-drains` is not a CDC pipeline.
  */
 async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
-  const workspaceIds = await getOrganizationWorkspaceIds(input.organizationId)
-  if (workspaceIds.length === 0) return
-
   let cursor = decodeTimeCursor(input.cursor)
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(copilotChats.createdAt, copilotChats.id, cursor)
-
-    const metaRows = await dbReplica
-      .select(chatColumns)
-      .from(copilotChats)
-      .where(
-        and(
-          inArray(copilotChats.workspaceId, workspaceIds),
-          timeCursorStabilityBound(copilotChats.createdAt),
-          cursorClause
+    const orderBy = timeCursorOrderBy(copilotChats.createdAt, copilotChats.id)
+    const rows = await readBoundedSourcePage({
+      table: copilotChats,
+      idColumn: copilotChats.id,
+      condition: and(
+        or(
+          workspaceInOrganization(copilotChats.workspaceId, input.organizationId),
+          and(
+            isNull(copilotChats.workspaceId),
+            eq(copilotChats.organizationId, input.organizationId)
+          )
+        ),
+        timeCursorStabilityBound(copilotChats.createdAt),
+        cursorClause
+      ),
+      orderBy,
+      chunkSize: input.chunkSize,
+      measuredValue: sql`json_build_object(${sql.join(
+        Object.entries(chatColumns).flatMap(([name, column]) => [
+          sql`${name}::text`,
+          sql`${column}`,
+        ]),
+        sql`, `
+      )})`,
+      read: async (tx, ids) => {
+        const metaRows = await tx
+          .select(chatColumns)
+          .from(copilotChats)
+          .where(inArray(copilotChats.id, ids))
+          .orderBy(...orderBy)
+        const messageCondition = and(
+          inArray(copilotMessages.chatId, ids),
+          isNull(copilotMessages.deletedAt)
         )
-      )
-      .orderBy(...timeCursorOrderBy(copilotChats.createdAt, copilotChats.id))
-      .limit(input.chunkSize)
-
-    if (metaRows.length === 0) return
-
-    const chatIds = metaRows.map((r) => r.id)
-    const messageRows = await dbReplica
-      .select({ chatId: copilotMessages.chatId, content: copilotMessages.content })
-      .from(copilotMessages)
-      .where(and(inArray(copilotMessages.chatId, chatIds), isNull(copilotMessages.deletedAt)))
-      .orderBy(
-        asc(copilotMessages.chatId),
-        sql`${copilotMessages.seq} asc nulls last`,
-        asc(copilotMessages.createdAt),
-        asc(copilotMessages.id)
-      )
-    const messagesByChat = new Map<string, unknown[]>()
-    for (const m of messageRows) {
-      const existing = messagesByChat.get(m.chatId)
-      if (existing) existing.push(m.content)
-      else messagesByChat.set(m.chatId, [m.content])
-    }
-
-    const rows: CopilotChatRow[] = metaRows.map((r) => ({
-      ...r,
-      messages: messagesByChat.get(r.id) ?? [],
-    }))
-
+        const transcriptSizes = await tx
+          .select({
+            chatId: copilotMessages.chatId,
+            bytes: sql<number>`sum(octet_length(${copilotMessages.content}::text))`.mapWith(Number),
+          })
+          .from(copilotMessages)
+          .where(messageCondition)
+          .groupBy(copilotMessages.chatId)
+        const transcriptBytes = new Map(
+          transcriptSizes.map((transcript) => [transcript.chatId, transcript.bytes])
+        )
+        for (const row of metaRows) {
+          assertKnownSizeWithinLimit(
+            Buffer.byteLength(JSON.stringify({ ...row, messages: [] }), 'utf8') +
+              (transcriptBytes.get(row.id) ?? 0),
+            DATA_DRAIN_LIMITS.maxRowBytes,
+            'Drain chat record'
+          )
+        }
+        const messageRows = await tx
+          .select({ chatId: copilotMessages.chatId, content: copilotMessages.content })
+          .from(copilotMessages)
+          .where(messageCondition)
+          .orderBy(
+            asc(copilotMessages.chatId),
+            sql`${copilotMessages.seq} asc nulls last`,
+            asc(copilotMessages.createdAt),
+            asc(copilotMessages.id)
+          )
+        const messagesByChat = new Map<string, unknown[]>()
+        for (const message of messageRows) {
+          const existing = messagesByChat.get(message.chatId)
+          if (existing) existing.push(message.content)
+          else messagesByChat.set(message.chatId, [message.content])
+        }
+        return metaRows.map((row) => ({ ...row, messages: messagesByChat.get(row.id) ?? [] }))
+      },
+    })
+    if (rows.length === 0) return
     yield rows
-    const last = metaRows[metaRows.length - 1]
+    const last = rows[rows.length - 1]
     cursor = { ts: last.createdAt.toISOString(), id: last.id }
-    if (metaRows.length < input.chunkSize) return
+    if (rows.length < Math.min(input.chunkSize, DATA_DRAIN_LIMITS.pageRows)) return
+  }
+}
+
+/** A message written before content blocks keeps its tool calls in a top-level `toolCalls` list. */
+function projectLegacyToolCall(call: unknown): unknown {
+  if (!isRecordLike(call) || call.name !== 'remember') return call
+  return {
+    name: 'remember',
+    ...(typeof call.id === 'string' ? { id: call.id } : {}),
+    ...(typeof call.status === 'string' ? { status: call.status } : {}),
+  }
+}
+
+/** Tool payloads can contain private notes even when their mutation failed or targeted a shared note. */
+function projectExportMessage(message: unknown): unknown {
+  if (!isRecordLike(message)) return message
+  const projected = Array.isArray(message.toolCalls)
+    ? { ...message, toolCalls: message.toolCalls.map(projectLegacyToolCall) }
+    : message
+  if (!Array.isArray(projected.contentBlocks)) return projected
+  return {
+    ...projected,
+    contentBlocks: projected.contentBlocks.map((block: unknown) => {
+      if (!isRecordLike(block) || !isRecordLike(block.toolCall)) return block
+      if (block.toolCall.name !== 'remember') {
+        if (!isRecordLike(block.toolCall.result) || !('output' in block.toolCall.result))
+          return block
+        const parsed = persistedContentBlockSchema.safeParse(block)
+        if (!parsed.success) return { ...block, toolCall: omit(block.toolCall, ['result']) }
+        const projected = stripToolResultOutput({ contentBlocks: [parsed.data] }).contentBlocks[0]
+        return { ...block, toolCall: { ...block.toolCall, result: projected.toolCall?.result } }
+      }
+      return {
+        type: 'tool',
+        toolCall: {
+          name: 'remember',
+          ...(typeof block.toolCall.id === 'string' ? { id: block.toolCall.id } : {}),
+          ...(typeof block.toolCall.state === 'string' ? { state: block.toolCall.state } : {}),
+        },
+      }
+    }),
   }
 }
 
@@ -127,7 +197,7 @@ export const copilotChatsSource: DrainSource<CopilotChatRow> = {
       workspaceId: row.workspaceId,
       type: row.type,
       title: row.title,
-      messages: row.messages,
+      messages: row.messages.map(projectExportMessage),
       model: row.model,
       conversationId: row.conversationId,
       previewYaml: row.previewYaml,

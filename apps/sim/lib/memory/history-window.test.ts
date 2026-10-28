@@ -1,19 +1,12 @@
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { tokenizationAccurateMock } from '@sim/testing/mocks/tokenization-accurate.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/tokenization/accurate', () => ({
-  getAccurateTokenCount: (value: string) => value.length,
-}))
-vi.mock('@/providers/models', () => ({
-  PROVIDER_DEFINITIONS: {
-    test: {
-      models: [
-        { id: 'small', contextWindow: 100 },
-        { id: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0', contextWindow: 100 },
-      ],
-    },
-  },
-  getMaxOutputTokensForModel: () => 10,
-}))
+vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
+vi.mock('@/providers/models', () => providersModelsMock)
 
 import {
   selectConversationContextWindow,
@@ -21,6 +14,16 @@ import {
   selectConversationTokenWindow,
 } from '@/lib/memory/history-window'
 import type { Message } from '@/providers/types'
+
+Object.assign(providersModelsMock.PROVIDER_DEFINITIONS, {
+  test: {
+    models: [
+      { id: 'small', contextWindow: 100 },
+      { id: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0', contextWindow: 100 },
+    ],
+  },
+})
+providersModelsMockFns.mockGetMaxOutputTokensForModel.mockReturnValue(10)
 
 const user: Message[] = [{ role: 'user', content: 'question' }]
 const final: Message[] = [{ role: 'assistant', content: 'answer' }]

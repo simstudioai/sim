@@ -1,23 +1,38 @@
 import { db } from '@sim/db'
 import { workspaceVisit } from '@sim/db/schema'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { asc, desc, eq, sql } from 'drizzle-orm'
+import { WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
 
 /**
  * Stamps the user's visit to a workspace with the database clock, so visits
  * handled by different app servers order consistently. Callers must prove
  * workspace access first.
+ *
+ * @throws WorkspaceOwnerMissingError when the user row was deleted after the
+ * request's session was read.
  */
 export async function recordWorkspaceVisitRecord(
   userId: string,
   workspaceId: string
 ): Promise<void> {
-  await db
-    .insert(workspaceVisit)
-    .values({ userId, workspaceId })
-    .onConflictDoUpdate({
-      target: [workspaceVisit.userId, workspaceVisit.workspaceId],
-      set: { visitedAt: sql`now()` },
-    })
+  try {
+    await db
+      .insert(workspaceVisit)
+      .values({ userId, workspaceId })
+      .onConflictDoUpdate({
+        target: [workspaceVisit.userId, workspaceVisit.workspaceId],
+        set: { visitedAt: sql`now()` },
+      })
+  } catch (error) {
+    if (
+      getPostgresErrorCode(error) === '23503' &&
+      getPostgresConstraintName(error) === 'workspace_visit_user_id_user_id_fk'
+    ) {
+      throw new WorkspaceOwnerMissingError(userId)
+    }
+    throw error
+  }
 }
 
 /** The user's visited workspace ids, most recent first. */

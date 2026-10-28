@@ -1,13 +1,7 @@
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    throw new Error(`redirect:${path}`)
-  },
-  notFound: () => {
-    throw new Error('not-found')
-  },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/components/settings/settings-header', () => ({
   SettingsHeaderProvider: () => null,
   SettingsHeaderShell: () => null,
@@ -22,6 +16,6 @@ describe('organization settings section routing', () => {
         children: null,
         params: Promise.resolve({ organizationId: 'target-org', section: 'unknown' }),
       })
-    ).rejects.toThrow('not-found')
+    ).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })

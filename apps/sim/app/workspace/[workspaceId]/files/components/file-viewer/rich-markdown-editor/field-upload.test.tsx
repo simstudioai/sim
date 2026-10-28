@@ -36,8 +36,6 @@ afterEach(async () => {
   await vi.advanceTimersByTimeAsync(10)
   host.remove()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 async function render(
   value = 'before TARGET after',
@@ -59,6 +57,10 @@ async function render(
   )
   await act(async () => vi.advanceTimersByTimeAsync(10))
 }
+
+/** ProseMirror buffers inline atoms at a block start with an empty separator `<img>`. */
+const RENDERED_IMAGE = 'img:not(.ProseMirror-separator)'
+
 function editor() {
   return host.querySelector<HTMLElement & { editor: Editor }>('.tiptap')!.editor
 }
@@ -118,9 +120,9 @@ describe('field upload completion boundary', () => {
       expect(host.querySelector('strong')?.textContent).toBe('Tail')
       expect(host.querySelector('a')?.getAttribute('href')).toBe('/destination')
       expect(
-        Array.from(host.querySelectorAll('img')).map((image) => image.getAttribute('src'))
+        Array.from(host.querySelectorAll(RENDERED_IMAGE)).map((image) => image.getAttribute('src'))
       ).toEqual(['/api/files/view/uploaded', '/other.png'])
-      expect(host.querySelector('img')?.getAttribute('alt')).toBe('Original alt')
+      expect(host.querySelector(RENDERED_IMAGE)?.getAttribute('alt')).toBe('Original alt')
       expect(owner.getMarkdown()).toContain('width="123"')
       expect(owner.getMarkdown()).not.toContain('/inline?')
       expect(() => owner.state.doc.check()).not.toThrow()
@@ -153,10 +155,11 @@ describe('field upload completion boundary', () => {
       expect(upload).not.toHaveBeenCalled()
       expect(host.querySelector('h2')?.textContent).toBe('Caption')
       expect(owner.state.doc.textContent).toContain('Tail')
-      expect(Array.from(host.querySelectorAll('img')).map((image) => image.alt)).toEqual([
-        'One',
-        'Two',
-      ])
+      expect(
+        Array.from(host.querySelectorAll<HTMLImageElement>(RENDERED_IMAGE)).map(
+          (image) => image.alt
+        )
+      ).toEqual(['One', 'Two'])
       const images: Array<{ src: string; width: string; href: string | null }> = []
       owner.state.doc.descendants((node) => {
         if (node.type.name === 'image' || node.type.name === 'inlineImage') {

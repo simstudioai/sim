@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import type { BlockOutput } from '@/blocks/types'
 import { REFERENCE } from '@/executor/constants'
 
 const logger = createLogger('SharedResponseFormat')
@@ -47,30 +46,4 @@ export function parseResponseFormat(responseFormat?: string | object): any {
   }
 
   return undefined
-}
-
-/**
- * Try to parse the LLM response content as structured JSON and spread
- * the fields into the block output. Falls back to returning raw content.
- */
-export function processStructuredResponse(
-  result: { content?: string; model?: string; tokens?: any },
-  defaultModel: string
-): BlockOutput {
-  const content = result.content ?? ''
-  try {
-    const parsed = JSON.parse(content.trim())
-    return {
-      ...parsed,
-      model: result.model || defaultModel,
-      tokens: result.tokens || {},
-    }
-  } catch {
-    logger.warn('Failed to parse structured response, returning raw content')
-    return {
-      content,
-      model: result.model || defaultModel,
-      tokens: result.tokens || {},
-    }
-  }
 }

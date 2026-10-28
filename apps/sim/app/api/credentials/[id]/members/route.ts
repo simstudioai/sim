@@ -17,7 +17,7 @@ import {
   listCredentialMembersUseCase,
   removeCredentialMemberUseCase,
   upsertCredentialMemberUseCase,
-} from '@/lib/credentials/application/credential-members'
+} from '@/lib/credentials/application/members'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 
 const rateLimit = internalRateLimits.none({ reason: 'Preserve existing internal behavior' })
