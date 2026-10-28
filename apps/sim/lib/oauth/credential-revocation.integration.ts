@@ -89,8 +89,10 @@ async function rawTokens() {
   return row
 }
 
+/** Sealing is the default with the fixture's hex key; `false` is the operator opt-out. */
 function sealWrites(enabled: boolean) {
-  process.env.ENCRYPT_ACCOUNT_TOKENS = enabled ? 'true' : 'false'
+  if (enabled) Reflect.deleteProperty(process.env, 'ENCRYPT_ACCOUNT_TOKENS')
+  else process.env.ENCRYPT_ACCOUNT_TOKENS = 'false'
 }
 
 async function resolveToken(rowId = accountId) {
@@ -490,13 +492,24 @@ describe('OAuth refresh chains with sealed account tokens', () => {
     })
   })
 
-  it('keeps writing readable tokens when sealing is requested without a usable key', async () => {
+  it('keeps writing readable tokens when ENCRYPTION_KEY cannot seal them', async () => {
     sealWrites(true)
     process.env.ENCRYPTION_KEY = 'not-hex'.repeat(6)
     providerAnswer = REFRESHED
 
     await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
     expect(await rawTokens()).toMatchObject({ access_token: 'fresh-access' })
+  })
+
+  it('writes plaintext tokens when the operator opts out of sealing', async () => {
+    sealWrites(false)
+    providerAnswer = REFRESHED
+
+    await expect(resolveToken()).resolves.toEqual({ accessToken: 'fresh-access', refreshed: true })
+    expect(await rawTokens()).toMatchObject({
+      access_token: 'fresh-access',
+      refresh_token: 'issued-refresh',
+    })
   })
 
   it('rotates a chain stored before sealing was enabled', async () => {

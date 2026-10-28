@@ -15,6 +15,7 @@ import { validateFileOwnershipMigration } from '@sim/db/script-migrations/0033_v
 import { backfillPublicShareEntitiesMigration } from '@sim/db/script-migrations/0034_backfill_public_share_entities'
 import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0035_validate_file_workspace_binding'
 import { archiveLegacyScheduledJobsMigration } from '@sim/db/script-migrations/0036_archive_legacy_scheduled_jobs'
+import { sealAccountTokensMigration } from '@sim/db/script-migrations/0037_seal_account_tokens'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -25,7 +26,7 @@ import { repairUnknownTableRowProvenanceSecondPass } from './0006_repair_unknown
 import { repairUnknownWorkspaceFileProvenance } from './0007_repair_unknown_workspace_file_provenance'
 import { backfillCredentialGroupResourcePolicies } from './0010_backfill_credential_group_resource_policies'
 import { remapLegacyKnowledgeConnectorCredentialsMigration } from './0011_remap_legacy_knowledge_connector_credentials'
-import type { ScriptMigration } from './types'
+import { type ScriptMigration, ScriptMigrationDeferred } from './types'
 
 export type { ScriptMigration } from './types'
 
@@ -72,6 +73,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   validateFileWorkspaceBindingMigration,
   /** Scheduled jobs run again from the schedule tick; none written for the retired runner may start. */
   archiveLegacyScheduledJobsMigration,
+  /** Defers until this deployment seals account token writes; see its `up`. */
+  sealAccountTokensMigration,
 ]
 
 /**
@@ -83,6 +86,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
  *
  * Fails fast: a missing required env var or a throwing `up` aborts the run
  * before the name is recorded, so the migration retries on the next upgrade.
+ * An `up` that throws `ScriptMigrationDeferred` is left unrecorded without
+ * failing the run.
  *
  * `migrations` defaults to the registry; callers may supply a scoped list.
  */
@@ -135,7 +140,15 @@ export async function runScriptMigrations(
     }
     console.log(`Applying script migration ${migration.name}...`)
     const startedAt = Date.now()
-    await migration.up(sql)
+    try {
+      await migration.up(sql)
+    } catch (error) {
+      if (!(error instanceof ScriptMigrationDeferred)) throw error
+      console.log(
+        `Script migration ${migration.name} deferred (${error.message}); it runs again on the next migrate.`
+      )
+      continue
+    }
     await sql.begin(async (tx) => {
       for (const name of [migration.name, ...(migration.supersedes ?? [])]) {
         await tx`INSERT INTO script_migrations (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`

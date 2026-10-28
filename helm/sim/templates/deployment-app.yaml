@@ -57,6 +57,26 @@ spec:
               cd /app/packages/db
               export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
               bun run db:migrate
+          {{- /*
+            The account token backfill script migration seals with the app's key and honors its
+            ENCRYPT_ACCOUNT_TOKENS opt-out, read the way the app container reads them; without a
+            usable key it does nothing and stays pending.
+          */}}
+          env:
+            {{- $useExistingSecret := and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- range $key := list "ENCRYPTION_KEY" "ENCRYPT_ACCOUNT_TOKENS" }}
+            {{- $inline := index ($.Values.app.env | default dict) $key }}
+            - name: {{ $key }}
+            {{- if and $useExistingSecret (ne (toString $inline) "") (ne (toString $inline) "<nil>") }}
+              value: {{ $inline | quote }}
+            {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sim.appSecretName" $ }}
+                  key: {{ $key }}
+                  optional: true
+            {{- end }}
+            {{- end }}
           envFrom:
             {{- if .Values.postgresql.enabled }}
             - secretRef:

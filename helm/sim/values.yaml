@@ -108,6 +108,8 @@ app:
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
+    # A 64-hex ENCRYPTION_KEY also seals stored OAuth account tokens, and the migrations init
+    # container seals the ones stored before. Set ENCRYPT_ACCOUNT_TOKENS: "false" to opt out.
     INTERNAL_API_SECRET: ""  # REQUIRED - set via --set flag or external secret manager, used for internal service-to-service authentication
 
     # Optional: Scheduled Jobs Authentication

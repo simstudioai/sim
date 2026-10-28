@@ -41,7 +41,7 @@ Five secrets drive the security of a deployment. Generate each with `openssl ran
 | Secret | Protects | Rotatable |
 |---|---|---|
 | `BETTER_AUTH_SECRET` | Session tokens | Yes — invalidates all sessions |
-| `ENCRYPTION_KEY` | Workspace env vars, stored provider keys, MCP OAuth credentials, deployment/chat secrets | **No** — see below |
+| `ENCRYPTION_KEY` | Workspace env vars, stored provider keys, MCP OAuth credentials, connected-account OAuth tokens, deployment/chat secrets | **No** — see below |
 | `API_ENCRYPTION_KEY` | Encrypted stored API-key material when configured | Rotation needs re-encryption; existing hash-based authentication continues, but old encrypted material cannot be decrypted with a new key |
 | `INTERNAL_API_SECRET` | Service-to-service calls | Yes — roll app and realtime together |
 | `CRON_SECRET` | Background job endpoints | Yes — roll app and cron together |
@@ -51,6 +51,19 @@ Five secrets drive the security of a deployment. Generate each with `openssl ran
 </Callout>
 
 `BETTER_AUTH_SECRET` must be **identical** on the app and realtime services — they share sessions through the database, and a mismatch means realtime rejects every authenticated socket.
+
+### Account token sealing
+
+Sim seals the OAuth access and refresh tokens of connected accounts at rest with `ENCRYPTION_KEY`. Each token is encrypted and bound to its column, so a value copied from the database is unusable without the key.
+
+- **On by default** whenever `ENCRYPTION_KEY` is exactly 64 hex characters (`openssl rand -hex 32`). Each process logs `Account token sealing: enabled` with a key id at startup, never the key itself.
+- **Without a usable key**, tokens are stored in plain text and the app keeps working. Each process logs a single warning at startup: `Account token sealing: disabled (ENCRYPTION_KEY is not a 64-character hex key)`. Other features that use `ENCRYPTION_KEY` keep their current behavior.
+- **Tokens stored earlier** are sealed by the migrations container during `migrate`, in small batches. The step needs `ENCRYPTION_KEY` on the migrations container: the Helm chart and the Compose files pass the app's value. Until the key is usable, the step does nothing and stays pending, so it runs on a later `migrate` once sealing is on. It also waits for a later `migrate` when it can't finish because rows are busy, rather than failing the upgrade.
+- **Opt out** with `ENCRYPT_ACCOUNT_TOKENS=false` on the app, background workers, and migrations container. New writes are then stored in plain text, and tokens that are already sealed stay readable.
+
+<Callout type="error">
+  Once tokens are sealed, do not roll back to a release older than v0.9.33. Those releases cannot read sealed tokens, so every connected account would have to be reconnected. Opting out does not unseal stored tokens.
+</Callout>
 
 ### Storing them
 
