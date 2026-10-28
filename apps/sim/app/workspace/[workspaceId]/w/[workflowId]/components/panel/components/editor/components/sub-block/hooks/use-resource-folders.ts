@@ -74,9 +74,10 @@ export function useResourceFolders(
    * broadcast (knowledge bases and tables still wait out their stale time).
    */
   const queryClient = useQueryClient()
-  const onFilesChanged = useCallback(() => {
-    if (workspaceId) invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
-  }, [queryClient, workspaceId])
+  const onFilesChanged = useCallback(
+    () => (workspaceId ? invalidateWorkspaceFileBrowsers(queryClient, workspaceId) : undefined),
+    [queryClient, workspaceId]
+  )
   useWorkspaceInvalidationRoom(
     isFileResource ? (workspaceId ?? '') : '',
     ROOM_TYPES.WORKSPACE_FILES,
