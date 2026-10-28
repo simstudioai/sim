@@ -3,6 +3,7 @@
 import { outboxEvent } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { withUtcTimestamps } from '@sim/db/timestamps'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { generateId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -10,6 +11,8 @@ import postgres from 'postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const database = vi.hoisted(() => ({ current: undefined as PostgresJsDatabase | undefined }))
+
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@sim/db', () => ({
   get db() {
@@ -23,11 +26,14 @@ import {
   OUTBOX_PRUNE_BATCH_SIZE,
   pruneCompletedOutboxEvents,
 } from '@/lib/core/outbox/retention'
+import { writeFramedCheckpoint } from '@/lib/knowledge/documents/processing-checkpoint-store'
 
 const RECOVER = 'knowledge.document.processing.recover'
 const STORAGE_CLEANUP = 'knowledge.document.storage.cleanup'
 const ADMIN_OPERATION = 'admin.organization-member-operation'
 const OCR_CHECKPOINT_EXPIRY = 'knowledge.document.ocr-checkpoint.expire'
+const EMBEDDING_CHECKPOINT_EXPIRY = 'knowledge.document.embedding-checkpoint.expire'
+const DEPLOYMENT_EFFECT = 'workflow.deployment.sync-active-side-effects'
 
 describe('completed outbox retention in PostgreSQL', () => {
   const schemaName = `outbox_retention_${generateId().replaceAll('-', '')}`
@@ -84,6 +90,7 @@ describe('completed outbox retention in PostgreSQL', () => {
     const pruned = [
       await seed(RECOVER, 'completed', expired()),
       await seed(STORAGE_CLEANUP, 'completed', expired()),
+      await seed(OCR_CHECKPOINT_EXPIRY, 'completed', expired()),
     ]
     const kept = [
       await seed(RECOVER, 'completed', new Date(Date.now() - 60_000)),
@@ -91,7 +98,8 @@ describe('completed outbox retention in PostgreSQL', () => {
       await seed(RECOVER, 'processing', expired()),
       await seed(STORAGE_CLEANUP, 'dead_letter', expired()),
       await seed(ADMIN_OPERATION, 'completed', expired()),
-      await seed(OCR_CHECKPOINT_EXPIRY, 'completed', expired()),
+      await seed(DEPLOYMENT_EFFECT, 'completed', expired()),
+      await seed(OCR_CHECKPOINT_EXPIRY, 'pending', expired()),
     ]
 
     expect(await pruneCompletedOutboxEvents()).toBe(pruned.length)
@@ -117,5 +125,32 @@ describe('completed outbox retention in PostgreSQL', () => {
     expect(await remainingIds()).toEqual(new Set(['recover:0', 'storage:0', pending]))
     expect(await pruneCompletedOutboxEvents()).toBe(2)
     expect(await remainingIds()).toEqual(new Set([pending]))
+  })
+  it('keeps every checkpoint written after its pruned expiry gate covered by a fresh cleanup', async () => {
+    storageServiceMockFns.mockUploadFile.mockReset().mockResolvedValue(undefined)
+    const key = 'kb/embedding-checkpoint/pruned-gate.bin'
+    const write = () =>
+      writeFramedCheckpoint(key, {}, Buffer.from('vectors'), {
+        cleanupEventType: EMBEDDING_CHECKPOINT_EXPIRY,
+        cleanupIdPrefix: 'retention-test',
+        fileName: 'checkpoint.bin',
+      })
+    await write()
+    const [gate] = await database.current!.select().from(outboxEvent)
+    await database
+      .current!.update(outboxEvent)
+      .set({ status: 'completed', createdAt: expired() })
+      .where(sql`${outboxEvent.id} = ${gate.id}`)
+
+    /** The object's cleanup already ran, so a writer must not upload under the completed gate. */
+    await write()
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
+
+    expect(await pruneCompletedOutboxEvents()).toBe(1)
+    await write()
+
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(2)
+    const rows = await database.current!.select().from(outboxEvent)
+    expect(rows.map((row) => [row.id, row.status])).toEqual([[gate.id, 'pending']])
   })
 })
