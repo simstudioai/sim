@@ -26,7 +26,7 @@ import {
   isResponsesEndpoint,
 } from '@/providers/azure-openai/utils'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -716,7 +716,7 @@ async function executeChatCompletionsRequest(
       }
     )
 
-    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isPermanentGenerationError(error)) {
       throw error
     }
 

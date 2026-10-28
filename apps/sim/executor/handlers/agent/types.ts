@@ -50,6 +50,12 @@ export interface AgentInputs {
   verbosity?: string
   thinkingLevel?: string
   promptCaching?: boolean
+  // Run limits, applied only while `runLimits` is on
+  runLimits?: boolean
+  maxRunCost?: string | number
+  maxSteps?: string | number
+  maxRunDuration?: string | number
+  onRunLimit?: 'finalize' | 'fail'
   files?: unknown
   /** Ordered models tried when the request to `model` fails; see `normalizeFallbackModels`. */
   fallbackModels?: Array<Partial<FallbackModelEntry> & { model: string }>

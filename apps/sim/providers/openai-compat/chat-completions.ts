@@ -13,7 +13,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import {
-  isConversationContextError,
+  isPermanentGenerationError,
   prepareConversationGeneration,
 } from '@/providers/conversation-generation'
 import {
@@ -711,7 +711,7 @@ export async function executeChatCompletionRequest(
       `Error in ${providerName} request:`,
       errorDetails
     )
-    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isPermanentGenerationError(error)) {
       throw error
     }
 
