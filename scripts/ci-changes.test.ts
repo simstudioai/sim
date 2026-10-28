@@ -144,7 +144,7 @@ describe('CI task attribution through real Turborepo', () => {
       'apps/sim/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event.ts',
     ])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['mobile', 'seo'])
+    expect(groups(plan)).toEqual(['desktop-inbox', 'mobile', 'seo'])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
       integration: true,

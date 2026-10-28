@@ -1,3 +1,8 @@
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "executable_name" text;--> statement-breakpoint
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "target_workspace_id" text;--> statement-breakpoint
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "approved_args" jsonb;--> statement-breakpoint
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "execution_retryable" boolean DEFAULT true NOT NULL;
+--> statement-breakpoint
 CREATE TABLE "assistant_tool_permission" (
 	"organization_id" text NOT NULL,
 	"user_id" text NOT NULL,
@@ -17,3 +22,5 @@ ALTER TABLE "assistant_tool_permission" ADD CONSTRAINT "assistant_tool_permissio
 ALTER TABLE "assistant_tool_permission" ADD CONSTRAINT "assistant_tool_permission_credential_id_credential_id_fk" FOREIGN KEY ("credential_id") REFERENCES "public"."credential"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "assistant_tool_permission_credential_idx" ON "assistant_tool_permission" USING btree ("credential_id");--> statement-breakpoint
 CREATE INDEX "assistant_tool_permission_user_idx" ON "assistant_tool_permission" USING btree ("user_id");
+--> statement-breakpoint
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "assistant_action" jsonb;

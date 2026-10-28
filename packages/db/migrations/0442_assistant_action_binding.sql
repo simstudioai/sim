@@ -1,1 +1,0 @@
-ALTER TABLE "copilot_async_tool_calls" ADD COLUMN "assistant_action" jsonb;
