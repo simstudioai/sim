@@ -6005,38 +6005,30 @@ export const usageLog = pgTable(
     eventKeyUnique: uniqueIndex('usage_log_event_key_unique')
       .on(table.eventKey)
       .where(sql`${table.eventKey} IS NOT NULL`),
-    billingEntityPeriodIdx: index('usage_log_billing_entity_period_idx')
-      .on(
-        table.billingEntityType,
-        table.billingEntityId,
-        table.billingPeriodStart,
-        table.billingPeriodEnd
-      )
-      .where(sql`${table.billingEntityType} IS NOT NULL`),
     /**
-     * Covering companion to `billingEntityPeriodIdx` — not a replacement. Carries
-     * `cost` so the billing-period aggregates resolve index-only rather than taking
-     * a heap fetch per matched row.
+     * Serves every stamped-period aggregate index-only: the period sums
+     * (entity + both period stamps, optionally `user_id`), the weekly-refresh
+     * buckets (entity + `billing_period_start`, reading `created_at` and
+     * `billing_period_end` as payload), and the cycle-close range over the
+     * period stamps.
      *
-     * `userId`/`createdAt` sit immediately after the shared equality prefix because
-     * the weekly-refresh rollup filters on them and NOT on `billingPeriodEnd`;
-     * putting `billingPeriodEnd` in that slot would end the usable prefix at
-     * `billingPeriodStart` and leave that query scanning the whole period.
-     * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
-     * removes no rows and rides along as payload.
-     *
-     * `billingEntityPeriodIdx` is kept deliberately: with no high-cardinality key
-     * column it deduplicates to a fraction of this index's size, which keeps
-     * prefix-only bitmap scans cheap.
+     * Both period stamps lead, ahead of every payload column, so the hottest
+     * read (all four leading columns equal) ends its scan at the period's last
+     * entry. The planner underestimates that match badly, because the period
+     * stamps are functionally dependent on the entity and their selectivities
+     * multiply; with the stamps split by other columns it preferred a slimmer
+     * index without `cost` and fetched every matched row from the heap.
+     * `user_id` comes next for the per-user sums that filter on it; the rest is
+     * payload.
      */
-    billingPeriodCostIdx: index('usage_log_billing_period_cost_idx')
+    billingPeriodCostIdx: index('usage_log_billing_entity_period_cost_idx')
       .on(
         table.billingEntityType,
         table.billingEntityId,
         table.billingPeriodStart,
+        table.billingPeriodEnd,
         table.userId,
         table.createdAt,
-        table.billingPeriodEnd,
         table.source,
         table.cost
       )
