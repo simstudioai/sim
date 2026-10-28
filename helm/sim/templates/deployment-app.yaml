@@ -80,7 +80,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "sim.appSecretName" $ }}
                   key: {{ $key }}
-                  optional: true
+                  optional: {{ eq $key "ENCRYPT_ACCOUNT_TOKENS" }}
             {{- end }}
             {{- end }}
           envFrom:
