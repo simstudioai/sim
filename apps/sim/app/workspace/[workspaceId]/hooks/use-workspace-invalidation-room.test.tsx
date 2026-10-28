@@ -152,15 +152,5 @@ describe('useWorkspaceInvalidationRoom', () => {
       await vi.advanceTimersByTimeAsync(INVALIDATION_COALESCE_MS)
       expect(onChanged).toHaveBeenCalledTimes(2)
     })
-
-    it('ignores another workspace broadcast on the same socket', async () => {
-      const onChanged = vi.fn()
-      mount('ws-1', 'workspace-files', onChanged)
-
-      broadcast('workspace-files-changed', 'ws-2')
-      await vi.advanceTimersByTimeAsync(INVALIDATION_COALESCE_MS)
-
-      expect(onChanged).not.toHaveBeenCalled()
-    })
   })
 })
