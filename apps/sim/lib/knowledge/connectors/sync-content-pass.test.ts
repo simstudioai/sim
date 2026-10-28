@@ -20,7 +20,7 @@ import {
   uploadsMetadataMockFns,
 } from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   beginListingCheckpoint,
@@ -31,7 +31,10 @@ import {
   windowScan,
   windowScans,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
-import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  removeDisabledImages,
+  runConnectorContentPass,
+} from '@/lib/knowledge/connectors/sync-content-pass'
 import {
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
@@ -71,7 +74,6 @@ vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: hoisted.enqueueCleanup,
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
@@ -95,7 +97,12 @@ interface StoredPage {
   sourceSeenAt: Date | null
 }
 
-const SOURCE_CONFIG = { domain: 'fixture.atlassian.net', spaceKey: 'ENG' }
+/** Images on, as a new connector is created. */
+const SOURCE_CONFIG = {
+  domain: 'fixture.atlassian.net',
+  spaceKey: 'ENG',
+  imageAttachments: 'semantic',
+}
 const EXISTING: StoredPage = {
   id: 'document',
   externalId: 'page',
@@ -259,6 +266,7 @@ describe('completed listing removal counts', () => {
       docsUnchanged: 0,
       docsSkipped: 0,
       docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
     }
     const pass = await runConnectorContentPass({
       connectorId: 'connector',
@@ -449,6 +457,42 @@ function contentWrite(): Record<string, unknown> {
   expect(call).toBeDefined()
   return call![0]
 }
+
+describe('disabled image removal', () => {
+  it('keeps walking past a page that removed nothing', async () => {
+    queueTableRows(schemaMock.document, [{ id: 'detached' }])
+    queueTableRows(schemaMock.document, [{ id: 'image' }])
+    queueTableRows(schemaMock.document, [])
+    mocks.hardDelete.mockResolvedValueOnce(0).mockResolvedValueOnce(1)
+    const result: SyncResult = {
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+      docsUnchanged: 0,
+      docsSkipped: 0,
+      docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
+    }
+
+    const finished = await removeDisabledImages({
+      connectorId: 'connector',
+      connector: { knowledgeBaseId: 'kb', connectorType: 'confluence', imageRemovalPending: true },
+      lease: {
+        stillHeld: () => stillHoldsSyncLock('connector', 'run'),
+        beatIfDue: async () => undefined,
+        beatLive: async () => undefined,
+      },
+      leaseKind: 'content',
+      runId: 'run',
+      deadlineAt: Date.now() + 60_000,
+      result,
+    })
+
+    expect(finished).toBe(true)
+    expect(mocks.hardDelete.mock.calls.map((call) => call[0])).toEqual([['detached'], ['image']])
+    expect(result.docsDeleted).toBe(1)
+  })
+})
 
 describe('content pass checkpoint intent', () => {
   it('does not reconcile deletions after a user listing failed, even without the unsafe marker', async () => {

@@ -148,7 +148,7 @@ export const updateCalendarV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_update_calendar_v2',
   name: 'Google Calendar Update Calendar',
-  description: "Update a secondary calendar's metadata. Returns API-aligned fields only.",
+  description: "Update a secondary calendar's metadata.",
   version: '2.0.0',
   oauth: updateCalendarTool.oauth,
   params: updateCalendarTool.params,

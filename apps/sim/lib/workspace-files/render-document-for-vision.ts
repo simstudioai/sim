@@ -3,7 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { executeInSandbox } from '@/lib/execution/remote-sandbox'
 import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { MAX_VISION_OUTPUT_BYTES, readSandboxJpeg } from '@/lib/workspace-files/vision-output'
 
 const MAX_PAGES = 20

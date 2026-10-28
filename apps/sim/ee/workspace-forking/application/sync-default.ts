@@ -67,8 +67,10 @@ export const setForkSyncDefault = defineForkUseCase<
       }
       // Rank 6: lock the live members whose value differs, in id order, since a multi-row
       // UPDATE locks in plan order and could deadlock against other multi-workspace writers.
-      // NO KEY UPDATE keeps FK inserts into these workspaces (KEY SHARE) from queueing behind
-      // the write. Nothing else writes this column under the lineage lock, so the filter holds.
+      // NO KEY UPDATE keeps plain FK inserts into these workspaces (KEY SHARE) from queueing
+      // behind the write; policy readers (`lockActiveWorkspace`, FOR SHARE) do wait, so they
+      // observe the flipped value. Nothing else writes this column under the lineage lock, so
+      // the filter holds.
       const toChange = await tx
         .select({ id: workspace.id })
         .from(workspace)

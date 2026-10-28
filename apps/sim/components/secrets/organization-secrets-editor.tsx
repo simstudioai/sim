@@ -4,7 +4,6 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { SecretsEditor } from '@/components/secrets/secrets-editor'
 import { SettingsPanel } from '@/components/settings/settings-panel'
-import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -24,7 +23,6 @@ interface OrganizationSecretsEditorProps {
 export function OrganizationSecretsEditor({ mode }: OrganizationSecretsEditorProps) {
   const { organization, viewer } = useOrganizationContext()
   const router = useRouter()
-  useSettingsBeforeUnload()
   const secrets = useOrganizationSecrets(organization.id, mode, mode === 'member' || viewer.isAdmin)
   const save = useSaveOrganizationSecrets(organization.id)
   const routes = organizationRoutes(organization.id)

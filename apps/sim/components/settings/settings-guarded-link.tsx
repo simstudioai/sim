@@ -20,6 +20,7 @@ export function SettingsGuardedLink({ href, onNavigate, ...props }: SettingsGuar
     <Link
       {...props}
       href={href}
+      data-settings-navigation='managed'
       onNavigate={(event) => {
         const { isDirty, navigationBlocked, requestLeave } = useSettingsDirtyStore.getState()
         if (isDirty || navigationBlocked) {

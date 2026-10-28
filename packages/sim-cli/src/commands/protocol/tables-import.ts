@@ -1,16 +1,13 @@
-import { setTimeout as sleep } from 'node:timers/promises'
 import { type Command, Option } from 'commander'
-import { writeStderr } from '#sim-cli/output/io'
-import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
-import { clientFrom } from '../../context'
 import type {
   CompleteTableImportResponse,
   CreateTableImportResponse,
   GetTableImportResponse,
 } from '../../generated/v2-api'
-import { V2_OPERATIONS } from '../../generated/v2-api'
-import { SimApiError, type SimClient } from '../../http/client'
+import { SimApiError } from '../../http/client'
+import { apiCommand } from '../../runtime/called-operations'
 import { coerce, encodeFolderPath, type FieldSpec } from '../../runtime/request'
+import { watchImport } from '../../transfer/import-watch'
 import { contentTypeFor, localFile } from '../../transfer/local-file'
 import { finishUploadSession } from '../../transfer/upload-session'
 import { printProtocolResult } from './result'
@@ -29,9 +26,6 @@ interface ImportOptions {
   wait: boolean
   yes?: boolean
 }
-
-const IMPORT_POLL_MS = 1500
-const IMPORT_SETTLED = new Set(['completed', 'failed', 'canceled', 'expired'])
 
 function tableNameFrom(fileName: string): string {
   const stem = fileName.replace(/\.[^.]+$/, '')
@@ -92,32 +86,6 @@ function progressLine(job: TableImport): string {
   return `${job.status}… ${job.rowsProcessed} rows${suffix}`
 }
 
-async function watchImport(
-  client: SimClient,
-  workspaceId: string,
-  job: TableImport
-): Promise<TableImport> {
-  let current = job
-  let reported: string | null = null
-
-  while (!IMPORT_SETTLED.has(current.status)) {
-    await sleep(IMPORT_POLL_MS)
-    const next = await client.request<{ data: TableImport }>(
-      `/api/v2/tables/imports/${encodeURIComponent(current.id)}`,
-      { query: { workspaceId } }
-    )
-    current = next.data
-    const line = progressLine(current)
-    if (hasProgressTerminal() && line !== reported) {
-      reported = line
-      writeStderr(`\r${styles().dim(line)}\u001b[K`)
-    }
-  }
-
-  if (hasProgressTerminal() && reported !== null) writeStderr('\r\u001b[K')
-  return current
-}
-
 function validateTargetOptions(options: ImportOptions): boolean {
   const intoExisting = Boolean(options.tableId)
   const misplaced = intoExisting
@@ -144,14 +112,23 @@ function validateTargetOptions(options: ImportOptions): boolean {
 }
 
 export function attachTableImport(tables: Command): void {
-  tables
-    .command('import')
-    .argument('[path]', 'Local CSV file to import; omit when using --file-id')
+  const [importCommand, connectImport] = apiCommand(tables, 'import', [
+    'createTableImport',
+    'createTableImportPartUrls',
+    'completeTableImport',
+    'cancelTableImport',
+    'getTableImport',
+  ])
+  importCommand
+    .argument(
+      '[path]',
+      'Local CSV file to import; choose exactly one source: this path or --file-id'
+    )
     .allowExcessArguments(false)
     .description('Import a CSV, into a new table by default')
     .option(
       '--name <name>',
-      'Identifier for the new table: letters, numbers, and underscores; defaults to the sanitized file name'
+      'Name for a new table: letters, numbers, and underscores. A local CSV defaults to its sanitized filename; required with --file-id unless --table-id names an existing table'
     )
     .option('--table-id <id>', 'Import into this existing table instead of creating one')
     .addOption(
@@ -170,8 +147,8 @@ export function attachTableImport(tables: Command): void {
     // required for a single shape of the command.
     .option('-y, --yes', 'Confirm this destructive operation (required with --mode replace)')
     .option('--no-wait', 'Return once the import is queued instead of watching it')
-    .action(async (path: string | undefined, options: ImportOptions, command: Command) => {
-      const { client, profile } = clientFrom(command)
+    .action(async (path: string | undefined, options: ImportOptions) => {
+      const { client, profile } = connectImport()
       const workspaceId = client.requireWorkspace()
 
       if (Boolean(path) === Boolean(options.fileId)) {
@@ -219,41 +196,43 @@ export function attachTableImport(tables: Command): void {
         }
       }
 
-      const started = await client.request<CreateTableImportResponse>(
-        V2_OPERATIONS.createTableImport.path,
-        {
-          method: 'POST',
-          body: {
-            workspaceId,
-            source,
-            target,
-            ...(options.mapping
-              ? { mapping: await jsonFlag(options.mapping, 'mapping', 'object') }
-              : {}),
-            ...(options.createColumns
-              ? { createColumns: await jsonFlag(options.createColumns, 'create-columns', 'array') }
-              : {}),
-            ...(options.timezone ? { timezone: options.timezone } : {}),
-          },
-        }
-      )
+      const started = await client.request<CreateTableImportResponse>('createTableImport', {
+        body: {
+          workspaceId,
+          source,
+          target,
+          ...(options.mapping
+            ? { mapping: await jsonFlag(options.mapping, 'mapping', 'object') }
+            : {}),
+          ...(options.createColumns
+            ? { createColumns: await jsonFlag(options.createColumns, 'create-columns', 'array') }
+            : {}),
+          ...(options.timezone ? { timezone: options.timezone } : {}),
+        },
+      })
 
       let job: TableImport = started.data.session
       if (path) {
         if (!local || !started.data.uploadToken || !started.data.transfer) {
           throw new Error('Local table import did not return an upload transfer')
         }
-        job = await finishUploadSession<CompleteTableImportResponse['data']>(
+        const completed: CompleteTableImportResponse['data'] = await finishUploadSession(
           client,
           workspaceId,
           {
-            basePath: `/api/v2/tables/imports/${encodeURIComponent(job.id)}`,
+            operations: {
+              parts: 'createTableImportPartUrls',
+              complete: 'completeTableImport',
+              abort: 'cancelTableImport',
+            },
+            params: { importId: job.id },
             uploadToken: started.data.uploadToken,
             transfer: started.data.transfer,
             size: local.size,
           },
           path
         )
+        job = completed
       }
 
       if (!options.wait) {
@@ -267,7 +246,17 @@ export function attachTableImport(tables: Command): void {
         return
       }
 
-      const finished = await watchImport(client, workspaceId, job)
+      const finished = await watchImport(
+        job,
+        async (current) =>
+          (
+            await client.request<{ data: TableImport }>('getTableImport', {
+              params: { importId: current.id },
+              query: { workspaceId },
+            })
+          ).data,
+        progressLine
+      )
       if (finished.status !== 'completed') {
         throw new SimApiError(
           `Import ${finished.status}${finished.error ? `: ${finished.error}` : ''}`,

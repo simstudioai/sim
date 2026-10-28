@@ -1,9 +1,11 @@
+import { workspace } from '@sim/db/schema'
 import { createBlock } from '@sim/testing/factories'
+import { dbChainMock, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing/mocks/workflows-persistence-utils.mock'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { FolderCollectionFullError } from '@/lib/folders/errors'
@@ -22,6 +24,11 @@ import {
 
 const mockSaveWorkflowToNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
+
+beforeEach(() => {
+  resetDbChainMock()
+  queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
+})
 
 describe('buildWorkflowNameRegistry', () => {
   it('excludes the workflow itself so a replace can keep its own name', () => {
@@ -294,7 +301,7 @@ describe('copyWorkflowStateIntoTarget source tool identities', () => {
         async () => {
           mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
           await copyWorkflowStateIntoTarget({
-            tx: { insert: () => ({ values: () => Promise.resolve() }) } as unknown as DbOrTx,
+            tx: dbChainMock.db as unknown as DbOrTx,
             targetWorkflowId: 'wf-child',
             targetWorkspaceId: 'ws-child',
             userId: 'user',
@@ -358,7 +365,7 @@ describe('copied MCP configuration normalization', () => {
       },
     })
     await copyWorkflowStateIntoTarget({
-      tx: { insert: () => ({ values: () => Promise.resolve() }) } as unknown as DbOrTx,
+      tx: dbChainMock.db as unknown as DbOrTx,
       targetWorkflowId: 'wf-child',
       targetWorkspaceId: 'ws-target',
       userId: 'target-user',
@@ -396,9 +403,7 @@ describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () =>
     async () => {
       mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
       const seenCanonicalModes: Array<Record<string, 'basic' | 'advanced'> | undefined> = []
-      const tx = {
-        insert: () => ({ values: () => Promise.resolve() }),
-      } as unknown as DbOrTx
+      const tx = dbChainMock.db as unknown as DbOrTx
 
       await copyWorkflowStateIntoTarget({
         tx,
@@ -484,11 +489,7 @@ describe('copyWorkflowStateIntoTarget webhook path pinning', () => {
     resolveBlockId: (_targetWorkflowId: string, sourceBlockId: string) => `tgt-${sourceBlockId}`,
   }
 
-  /** `replace` mode updates the existing target workflow row; stub just that chain. */
-  const stubTx = () =>
-    ({
-      update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
-    }) as unknown as DbOrTx
+  const stubTx = () => dbChainMock.db as unknown as DbOrTx
 
   function writtenSubBlocks() {
     const state = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)?.[1] as {
@@ -549,8 +550,7 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     resolveBlockId: (_t: string, sourceBlockId: string) => `tgt-${sourceBlockId}`,
   }
 
-  const stubTx = () =>
-    ({ update: () => ({ set: () => ({ where: () => Promise.resolve() }) }) }) as unknown as DbOrTx
+  const stubTx = () => dbChainMock.db as unknown as DbOrTx
 
   function writtenBlock() {
     const state = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)?.[1] as {

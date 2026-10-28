@@ -1,4 +1,5 @@
 import { type SQL, sql } from 'drizzle-orm'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
 
 const LOCK_TAG_PATTERN = /^[a-z][a-z0-9_]*$/
@@ -13,6 +14,24 @@ const LOCK_TAG_PATTERN = /^[a-z][a-z0-9_]*$/
 function lockTag(tag: string): SQL {
   if (!LOCK_TAG_PATTERN.test(tag)) throw new Error(`Invalid advisory lock tag: ${tag}`)
   return sql.raw(`/*lock='${tag}'*/`)
+}
+
+/**
+ * Bounds lock waits in `acquire` by `timeoutMs` (SQLSTATE 55P03 past it), then restores the
+ * caller's own `lock_timeout` so the bound never reaches the work done under the locks.
+ */
+export async function withLockTimeout<T>(
+  tx: DbTransaction,
+  timeoutMs: number,
+  acquire: () => Promise<T>
+): Promise<T> {
+  const [setting] = await tx.execute<{ previous: string }>(
+    sql`SELECT current_setting('lock_timeout') AS previous`
+  )
+  await tx.execute(sql`SELECT set_config('lock_timeout', ${`${timeoutMs}ms`}, true)`)
+  const result = await acquire()
+  await tx.execute(sql`SELECT set_config('lock_timeout', ${setting?.previous ?? '0'}, true)`)
+  return result
 }
 
 /**
@@ -42,6 +61,24 @@ export async function tryAcquireAdvisoryXactLock(
   const [lock] = await tx.execute<{ acquired: boolean }>(
     sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${key}, 0)) AS acquired ${lockTag(tag)}`
   )
+  return Boolean(lock?.acquired)
+}
+
+/**
+ * Tries every transaction-scoped advisory lock in `keys` in one round trip, without
+ * waiting, so their order cannot deadlock. Returns whether all are held; locks taken
+ * alongside a refusal stay held until the transaction ends, so a caller that sees
+ * `false` should abort it.
+ */
+export async function tryAcquireAdvisoryXactLocks(
+  tx: DbTransaction,
+  tag: string,
+  keys: readonly string[]
+): Promise<boolean> {
+  if (keys.length === 0) return true
+  const [lock] = await tx.execute<{ acquired: boolean }>(sql`
+    SELECT bool_and(pg_try_advisory_xact_lock(hashtextextended(key, 0))) AS acquired
+    FROM unnest(${textArrayLiteral(keys)}) AS key ${lockTag(tag)}`)
   return Boolean(lock?.acquired)
 }
 

@@ -14,31 +14,28 @@ import {
   mothershipChatStatusMock,
   mothershipChatStatusMockFns,
 } from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockRunHeadlessCopilotLifecycle,
-  mockAcquirePendingChatStream,
-  mockReleasePendingChatStream,
-  mockAuthorizeTaskWake,
-} = vi.hoisted(() => ({
-  mockRunHeadlessCopilotLifecycle: vi.fn(),
-  mockAcquirePendingChatStream: vi.fn(),
-  mockReleasePendingChatStream: vi.fn(),
-  mockAuthorizeTaskWake: vi.fn(),
-}))
+const { mockAcquirePendingChatStream, mockReleasePendingChatStream, mockAuthorizeTaskWake } =
+  vi.hoisted(() => ({
+    mockAcquirePendingChatStream: vi.fn(),
+    mockReleasePendingChatStream: vi.fn(),
+    mockAuthorizeTaskWake: vi.fn(),
+  }))
 
 vi.mock('@/lib/mothership/tasks/application/prepare-wake', () => ({
   authorizeTaskWake: mockAuthorizeTaskWake,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 vi.mock('@/lib/mothership/request/session/abort', () => ({
   acquirePendingChatStream: mockAcquirePendingChatStream,
   releasePendingChatStream: mockReleasePendingChatStream,
@@ -49,6 +46,7 @@ import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { runWakeTurn } from '@/lib/mothership/tasks/wake'
 
 const { mockCheckWorkspaceAccess } = permissionsMockFns
+const { mockRunHeadlessCopilotLifecycle } = mothershipHeadlessLifecycleMockFns
 const { mockAppendCopilotChatMessages } = mothershipChatMessagesMockFns
 const { mockBuildIntegrationToolSchemas } = mothershipChatPayloadMockFns
 const { mockPublishStatusChanged } = mothershipChatStatusMockFns

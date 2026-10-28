@@ -33,7 +33,7 @@ export const TinyFishBlock: BlockConfig = {
   description: 'Automate and read the live web',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate TinyFish into the workflow. Give a web agent a natural-language goal and let it drive a real browser on any site, queue and track long-running automations, search the web, and fetch pages as clean markdown.',
+    'Give a web agent a natural-language goal and let it drive a real browser on supported, reachable sites, queue and track long-running automations, search the web, and fetch pages as clean markdown.',
   docsLink: 'https://docs.sim.ai/integrations/tinyfish',
   category: 'tools',
   integrationType: IntegrationType.AI,

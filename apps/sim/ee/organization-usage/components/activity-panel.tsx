@@ -115,7 +115,7 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
             )}
           </div>
           {breakdown.isError ? (
-            <SettingsEmptyState variant='inline' tone='error'>
+            <SettingsEmptyState variant='inline'>
               Couldn't load the breakdown.{' '}
               <Chip onClick={() => void breakdown.refetch()}>Retry</Chip>
             </SettingsEmptyState>

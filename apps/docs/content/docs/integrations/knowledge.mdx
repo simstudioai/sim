@@ -1,31 +1,29 @@
 ---
 title: Knowledge
-description: Use vector search
+description: Search knowledge bases and manage documents and chunks
+integration:
+  type: "knowledge"
+  color: "#00B0B0"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="knowledge"
-  color="#00B0B0"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the Knowledge block to search a Sim knowledge base and manage its documents and chunks from a workflow. The reference below also covers tags, connector inspection, and connector sync. See [Using knowledge in workflows](/knowledgebase/using-in-workflows) for configuration and examples.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.
-
-
+Search knowledge bases and list, retrieve, create, upsert, or delete documents. Upload, list, update, or delete chunks, list tag definitions, and set document tags during creation or upsert. Inspect connectors and trigger syncs.
 
 ## Actions
 
 ### Knowledge Search
 
 Search for similar content in a knowledge base by relevance
+
+<ReferenceDetails>
 
 #### Input
 
@@ -59,9 +57,13 @@ Search for similar content in a knowledge base by relevance
 | `totalResults` | number | Total number of results found |
 | `cost` | object | Cost information for the search operation |
 
+</ReferenceDetails>
+
 ### Knowledge Upload Chunk
 
 Upload a new chunk to a document in a knowledge base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -89,9 +91,13 @@ Upload a new chunk to a document in a knowledge base
 | `documentName` | string | Name of the document the chunk was added to |
 | `cost` | object | Cost information for the upload operation |
 
+</ReferenceDetails>
+
 ### Knowledge Create Document
 
 Create a new document in a knowledge base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -116,9 +122,13 @@ Create a new document in a knowledge base
 | `message` | string | Success or error message describing the operation result |
 | `documentId` | string | ID of the created document |
 
+</ReferenceDetails>
+
 ### Knowledge Upsert Document
 
 Create or update a document in a knowledge base. If a document with the given ID or filename already exists, it will be replaced with the new content.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +156,13 @@ Create or update a document in a knowledge base. If a document with the given ID
 | `message` | string | Success or error message describing the operation result |
 | `documentId` | string | ID of the upserted document |
 
+</ReferenceDetails>
+
 ### Knowledge List Tags
 
 List all tag definitions for a knowledge base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -170,9 +184,13 @@ List all tag definitions for a knowledge base
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `totalTags` | number | Total number of tag definitions |
 
+</ReferenceDetails>
+
 ### Knowledge List Documents
 
 List documents in a knowledge base with optional filtering, search, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -207,9 +225,13 @@ List documents in a knowledge base with optional filtering, search, and paginati
 | `limit` | number | Page size used |
 | `offset` | number | Offset used for pagination |
 
+</ReferenceDetails>
+
 ### Knowledge Get Document
 
 Get full details of a single document including tags, connector metadata, and processing status
+
+<ReferenceDetails>
 
 #### Input
 
@@ -239,9 +261,13 @@ Get full details of a single document including tags, connector metadata, and pr
 | `externalId` | string | External ID from the source system |
 | `tags` | object | Tag values keyed by tag slot \(tag1-7, number1-5, date1-2, boolean1-3\) |
 
+</ReferenceDetails>
+
 ### Knowledge Delete Document
 
 Delete a document from a knowledge base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -257,9 +283,13 @@ Delete a document from a knowledge base
 | `documentId` | string | ID of the deleted document |
 | `message` | string | Confirmation message |
 
+</ReferenceDetails>
+
 ### Knowledge List Chunks
 
 List chunks for a document in a knowledge base with optional filtering and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -291,9 +321,13 @@ List chunks for a document in a knowledge base with optional filtering and pagin
 | `limit` | number | Page size used |
 | `offset` | number | Offset used for pagination |
 
+</ReferenceDetails>
+
 ### Knowledge Update Chunk
 
 Update the content or enabled status of a chunk in a knowledge base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -318,9 +352,13 @@ Update the content or enabled status of a chunk in a knowledge base
 | `enabled` | boolean | Whether the chunk is enabled |
 | `updatedAt` | string | Last update timestamp |
 
+</ReferenceDetails>
+
 ### Knowledge Delete Chunk
 
 Delete a chunk from a document in a knowledge base
+
+<ReferenceDetails>
 
 #### Input
 
@@ -338,9 +376,13 @@ Delete a chunk from a document in a knowledge base
 | `documentId` | string | ID of the parent document |
 | `message` | string | Confirmation message |
 
+</ReferenceDetails>
+
 ### Knowledge List Connectors
 
 List all connectors for a knowledge base, showing sync status, type, and document counts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -367,9 +409,13 @@ List all connectors for a knowledge base, showing sync status, type, and documen
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `totalConnectors` | number | Total number of connectors |
 
+</ReferenceDetails>
+
 ### Knowledge Get Connector
 
 Get detailed connector information including recent sync logs for monitoring sync health
+
+<ReferenceDetails>
 
 #### Input
 
@@ -405,9 +451,13 @@ Get detailed connector information including recent sync logs for monitoring syn
 |   ↳ `docsUnchanged` | number | Documents unchanged |
 |   ↳ `errorMessage` | string | Error message if sync failed |
 
+</ReferenceDetails>
+
 ### Knowledge Trigger Sync
 
 Trigger a manual sync for a knowledge base connector
+
+<ReferenceDetails>
 
 #### Input
 
@@ -422,5 +472,7 @@ Trigger a manual sync for a knowledge base connector
 | --------- | ---- | ----------- |
 | `connectorId` | string | ID of the connector that was synced |
 | `message` | string | Status message from the sync trigger |
+
+</ReferenceDetails>
 
 

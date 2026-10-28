@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { type BuildOptions, build } from 'esbuild'
 import postcss from 'postcss'
@@ -34,50 +34,40 @@ rmSync(generatedIcon, { force: true, recursive: true })
 cpSync(appIcon, generatedIcon, { recursive: true })
 console.log(`• Selecting desktop icon: ${appIcon}`)
 
-function compileNativeHelpSearch(): void {
-  const outputDirectory = 'dist/native'
-  rmSync(outputDirectory, { force: true, recursive: true })
+/** Bundle the native helper; packaged builds sign it with the desktop distribution identity. */
+function compileComputerUse(): void {
   if (process.platform !== 'darwin') return
-
-  const nodeExecutable = execFileSync('node', ['-p', 'process.execPath'], {
-    encoding: 'utf8',
-  }).trim()
-  const nodeIncludeDirectory = join(dirname(nodeExecutable), '..', 'include', 'node')
-  const nodeApiHeader = join(nodeIncludeDirectory, 'node_api.h')
-  if (!existsSync(nodeApiHeader)) {
-    throw new Error(`Could not find Node-API headers at ${nodeApiHeader}`)
+  const bundle = 'dist/native/Sim Computer Use.app'
+  const binaryDirectory = join(bundle, 'Contents', 'MacOS')
+  mkdirSync(binaryDirectory, { recursive: true })
+  cpSync('native/computer-use/Info.plist', join(bundle, 'Contents', 'Info.plist'))
+  const parts: string[] = []
+  for (const arch of ['arm64', 'x86_64']) {
+    const output = join('dist/native', `computer-use-${arch}`)
+    execFileSync(
+      'xcrun',
+      [
+        'swiftc',
+        '-parse-as-library',
+        '-O',
+        '-target',
+        `${arch}-apple-macosx14.0`,
+        'native/computer-use/ComputerUse.swift',
+        '-o',
+        output,
+      ],
+      { stdio: 'inherit' }
+    )
+    parts.push(output)
   }
-
-  mkdirSync(outputDirectory, { recursive: true })
   execFileSync(
     'xcrun',
-    [
-      'clang++',
-      '-std=c++17',
-      '-DNAPI_VERSION=8',
-      '-fobjc-arc',
-      '-fblocks',
-      '-bundle',
-      '-undefined',
-      'dynamic_lookup',
-      '-mmacosx-version-min=12.0',
-      '-arch',
-      'arm64',
-      '-arch',
-      'x86_64',
-      '-I',
-      nodeIncludeDirectory,
-      '-framework',
-      'AppKit',
-      '-framework',
-      'Foundation',
-      '-o',
-      join(outputDirectory, 'help-search.node'),
-      'native/help-search.mm',
-    ],
+    ['lipo', '-create', ...parts, '-output', join(binaryDirectory, 'SimComputerUse')],
     { stdio: 'inherit' }
   )
-  console.log('• Compiled native macOS documentation Help search')
+  for (const part of parts) rmSync(part)
+  execFileSync('codesign', ['--force', '--sign', '-', bundle], { stdio: 'inherit' })
+  console.log('• Compiled native macOS Computer Use helper')
 }
 
 const common = {
@@ -138,7 +128,8 @@ const renderer: BuildOptions = {
 }
 
 async function run(): Promise<void> {
-  compileNativeHelpSearch()
+  execFileSync(process.execPath, ['run', 'scripts/build-native.ts'], { stdio: 'inherit' })
+  compileComputerUse()
   if (watch) {
     const { context } = await import('esbuild')
     const rendererCtx = await context(renderer)

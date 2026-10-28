@@ -90,7 +90,7 @@ interface GmailModifyV2Response {
 export const gmailRemoveLabelV2Tool: InternalToolConfig<GmailLabelParams, GmailModifyV2Response> = {
   id: 'gmail_remove_label_v2',
   name: 'Gmail Remove Label',
-  description: 'Remove label(s) from a Gmail message. Returns API-aligned fields only.',
+  description: 'Remove label(s) from a Gmail message.',
   version: '2.0.0',
   oauth: gmailRemoveLabelTool.oauth,
   params: gmailRemoveLabelTool.params,

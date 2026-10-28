@@ -8,7 +8,7 @@ import {
   recordSandboxProcess,
   reportUnsettledSandboxProcess,
   settleSandboxProcess,
-} from '@/lib/execution/remote-sandbox/execution-observer'
+} from '@/lib/execution/remote-sandbox/observer'
 
 const { recover } = vi.hoisted(() => ({ recover: vi.fn() }))
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
@@ -19,7 +19,7 @@ vi.mock('@/lib/mothership/request/tools/sandbox-recovery', () => ({
 import { withToolExecutionLifetime } from '@/lib/mothership/request/tools/execution-lifetime'
 
 const {
-  mockClaimSimToolExecution: claim,
+  mockClaimToolExecution: claim,
   mockRenewSimToolExecutionLease: renew,
   mockCompleteOwnedSimToolCall: complete,
   mockSettleSimToolExecution: settle,

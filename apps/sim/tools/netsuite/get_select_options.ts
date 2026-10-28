@@ -1,5 +1,5 @@
 import type { NetSuiteGetSelectOptionsParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,6 +11,7 @@ export const netsuiteGetSelectOptionsTool: InternalToolConfig<
   name: 'NetSuite Get Select Options',
   description: 'Retrieve valid select values for one or more fields on a new or existing record.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     recordType: {

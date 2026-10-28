@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname } from 'node:path'
+import { stripTrailingSlashes } from '@sim/utils/string'
 import { lock } from 'proper-lockfile'
 import { embeddedProfile } from '../embed-context'
 import {
@@ -581,17 +582,6 @@ export function deleteProfile(profile: string): { config: boolean; credentials: 
   if (config) writeIni(configPath(), configDoc, false)
 
   return { config, credentials }
-}
-
-/**
- * Removes every trailing `/`. A backward scan rather than `/\/+$/`: that regex
- * restarts at each `/` in a long run that does not reach the end, so it is
- * quadratic in the run length.
- */
-function stripTrailingSlashes(value: string): string {
-  let end = value.length
-  while (end > 0 && value.charCodeAt(end - 1) === 0x2f) end--
-  return value.slice(0, end)
 }
 
 /**

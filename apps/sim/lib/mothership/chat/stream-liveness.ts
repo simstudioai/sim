@@ -2,7 +2,8 @@ import { db } from '@sim/db'
 import { copilotChats, copilotRuns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { isDurableStreamRun } from '@/lib/mothership/request/lifecycle/durable-run'
 import { getChatStreamLockOwners } from '@/lib/mothership/request/session'
 
 const logger = createLogger('ChatStreamLiveness')
@@ -83,7 +84,7 @@ export async function reconcileChatStreamMarkers(
                 orphaned.map((candidate) => candidate.streamId!)
               ),
               notInArray(copilotRuns.status, ['complete', 'error', 'cancelled']),
-              sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`
+              isDurableStreamRun(copilotRuns.requestContext)
             )
           )
       : []

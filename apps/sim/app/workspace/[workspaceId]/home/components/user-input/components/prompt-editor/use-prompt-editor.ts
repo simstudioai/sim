@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toast } from '@sim/emcn'
 import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { escapeRegExp } from '@sim/utils/string'
+import { isChatContext } from '@/lib/mothership/chat/context'
 import { isWorkspaceOwnedContext } from '@/lib/mothership/chat/context-ownership'
 import {
   attachSelectionContextToClipboard,
@@ -22,7 +23,11 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
 import { useSkillAutoMention } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-skill-auto-mention'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { computeMentionRanges } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
+import type {
+  ChatMessageContext,
+  MothershipResource,
+} from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
   useIntegrationAutoMention,
@@ -31,14 +36,18 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
   areContextsEqual,
+  computeMentionHighlightRanges,
+  extractContextTokens,
   filterContextsPresentInMessage,
   prepareContextForInsert,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
   uniqueContextLabel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
+import { isTouchMobileViewport } from '@/hooks/use-is-mobile'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -100,9 +109,9 @@ function getCaretAnchor(
  */
 export interface PromptEditorKeyPolicy {
   /**
-   * Enter without Shift (and not composing): the newline is suppressed and
-   * this fires instead — after the open mention/skills menu has had its chance
-   * to confirm a selection. Omit to keep native newline insertion.
+   * Desktop Enter without Shift (and not composing) submits after any open
+   * mention/skills menu has had its chance to confirm a selection. Mobile
+   * Enter inserts a newline. Omit to keep native newline insertion everywhere.
    */
   onSubmit?: () => void
   /**
@@ -111,6 +120,8 @@ export interface PromptEditorKeyPolicy {
    * `false` to fall through to native caret movement.
    */
   onArrowUpOnEmpty?: () => boolean
+  /** Plain arrows at a collapsed start/end caret; menus keep priority. */
+  onNavigateHistory?: (direction: -1 | 1) => boolean
 }
 
 export interface UsePromptEditorProps {
@@ -334,9 +345,13 @@ export function usePromptEditor({
    * Programmatically replaces the editor text. Chipifies by default so any
    * seeded prose (template, transcript, queued message) registers its
    * integration / skill chips; pass `{ chipify: false }` for verbatim text.
+   * `{ seed: true }` treats the text like `initialValue`, re-chipified once
+   * the skill list loads while it stays untouched.
    */
-  const setValue = useCallback((text: string, options?: { chipify?: boolean }) => {
+  const setValue = useCallback((text: string, options?: { chipify?: boolean; seed?: boolean }) => {
     const next = options?.chipify === false ? text : applyAutoMentionsRef.current(text)
+    seedRef.current = null
+    if (options?.seed) seedRef.current = next
     atInsertPosRef.current = null
     pendingCursorRef.current = null
     mentionRangeRef.current = null
@@ -350,6 +365,52 @@ export function usePromptEditor({
     valueRef.current = next
     setValueState(next)
   }, [])
+
+  /** Restores recorded chip identities even before the resource and skill pickers load. */
+  const restorePrompt = useCallback(
+    (text: string, contexts: ChatMessageContext[] = []) => {
+      const restoredContexts = new Map<string, ChatContext>()
+      let hasUnavailableContexts = false
+      for (const saved of contexts) {
+        const integration =
+          saved.kind === 'integration' && typeof saved.label === 'string'
+            ? getIntegrationMatcher().byName.get(saved.label.toLowerCase())
+            : undefined
+        const context = integration ? { ...saved, blockType: integration.blockType } : saved
+        if (!isChatContext(context)) {
+          hasUnavailableContexts = true
+          continue
+        }
+        const token = extractContextTokens([context])[0]
+        if (token) restoredContexts.set(restoreSkillTriggerText(token), context)
+      }
+      for (const range of computeMentionRanges(text, [])) {
+        const token = text.slice(range.start, range.end)
+        if (restoredContexts.has(token) || !isChatContext(range.context)) continue
+        restoredContexts.set(token, { ...range.context, label: token.slice(1) })
+      }
+      const parts: string[] = []
+      let offset = 0
+      for (const range of computeMentionHighlightRanges(text, [...restoredContexts.keys()])) {
+        const context = restoredContexts.get(range.token)
+        if (context?.kind !== 'skill' && context?.kind !== 'mcp') continue
+        // Stored slashes need boundaries so a skill never captures a path or a longer name.
+        const before = text[range.start - 1]
+        const after = text.slice(range.end, range.end + 2)
+        if (before && !/[\s([{"'`]/.test(before)) continue
+        if (!/^(?:[\s,;:!?)\]}"'`]|\.(?![\w-])|$)/.test(after)) continue
+        parts.push(text.slice(offset, range.start), SKILL_CHIP_TRIGGER)
+        offset = range.start + 1
+      }
+      parts.push(text.slice(offset))
+      const value = parts.join('')
+      const activeContexts = filterContextsPresentInMessage([...restoredContexts.values()], value)
+      setValue(value, { chipify: false })
+      contextManagementRef.current.setSelectedContexts(activeContexts)
+      return { value, contexts: activeContexts, hasUnavailableContexts }
+    },
+    [setValue]
+  )
 
   /** The user-visible text as of the last edit, fresher than `value` mid-event. */
   const getValue = useCallback(() => valueRef.current, [])
@@ -949,14 +1010,36 @@ export function usePromptEditor({
         }
       }
 
-      if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (valueRef.current.length === 0 && policy?.onArrowUpOnEmpty?.()) {
+      if (
+        (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.nativeEvent.isComposing &&
+        !e.defaultPrevented &&
+        e.currentTarget.selectionStart === e.currentTarget.selectionEnd
+      ) {
+        if (e.key === 'ArrowUp' && valueRef.current.length === 0 && policy?.onArrowUpOnEmpty?.()) {
+          e.preventDefault()
+          return
+        }
+
+        const direction = e.key === 'ArrowUp' ? -1 : 1
+        const boundary = direction === -1 ? 0 : valueRef.current.length
+        if (e.currentTarget.selectionStart === boundary && policy?.onNavigateHistory?.(direction)) {
           e.preventDefault()
           return
         }
       }
 
-      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && policy?.onSubmit) {
+      if (
+        e.key === 'Enter' &&
+        !e.shiftKey &&
+        !e.nativeEvent.isComposing &&
+        !isTouchMobileViewport() &&
+        policy?.onSubmit
+      ) {
         e.preventDefault()
         policy.onSubmit()
         return
@@ -1049,6 +1132,15 @@ export function usePromptEditor({
     setValueState(textarea.value)
   }, [])
 
+  // Keystrokes typed into the server-rendered textarea before hydration never
+  // reach React. Compared with the mounted value: `valueRef` leads the DOM
+  // while an edit made during mount is still uncommitted.
+  const mountedValueRef = useRef(initialValue)
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea && textarea.value !== mountedValueRef.current) adoptDomValue(textarea)
+  }, [textareaRef, adoptDomValue])
+
   // Selection one change ago, used to infer which edge of a range moved. Kept
   // current by the `selectionchange` listener below — which fires on EVERY
   // caret/selection change (typing, arrows, clicks, programmatic), unlike
@@ -1080,6 +1172,8 @@ export function usePromptEditor({
    * Shift+arrows, drag, and double-click all select chips whole.
    */
   const handleSelectAdjust = useCallback(() => {
+    // A programmatic edit can precede React's commit; selection still sees the old DOM.
+    if (valueRef.current !== value) return
     const textarea = textareaRef.current
     if (!textarea) return
     const start = textarea.selectionStart ?? 0
@@ -1116,9 +1210,14 @@ export function usePromptEditor({
     }
 
     const focusPos = textarea.selectionDirection === 'backward' ? start : end
+    // Restoring the caret must not open a picker for an unfinished mention in saved text.
+    if (pendingCursorRef.current !== null) {
+      if (start === end && pendingCursorRef.current === focusPos) return
+      pendingCursorRef.current = null
+    }
     syncMentionState(textarea, textarea.value, focusPos)
     syncSlashState(textarea, textarea.value, focusPos)
-  }, [textareaRef, mentionTokens, adoptDomValue, syncMentionState, syncSlashState])
+  }, [textareaRef, mentionTokens, adoptDomValue, syncMentionState, syncSlashState, value])
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
@@ -1175,7 +1274,7 @@ export function usePromptEditor({
 
     // Portable chip links (`[label](sim:kind/id)`) re-create their chip on
     // paste-back. Rewrite each link span to its `@label ` token (the trailing
-    // space is REQUIRED so useContextManagement's sync effect doesn't purge the
+    // space is REQUIRED so useContextManagement's pruning doesn't purge the
     // freshly-added context) and register the contexts directly.
     const pastedText = pastedPlainText
     const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
@@ -1198,7 +1297,7 @@ export function usePromptEditor({
         pastedContexts.push(ctx)
         // Insert the kind-correct token (skill EM-SPACE sentinel, slash `/`, `@`
         // else) so the chip re-renders with its proper trigger glyph and the
-        // context-sync effect (keyed on the same per-kind prefix) keeps it. Append
+        // context pruning (keyed on the same per-kind prefix) keeps it. Append
         // a single separator ONLY when the next source char is non-whitespace
         // (chip→chip / chip→word); existing whitespace and end-of-string already
         // supply the boundary, so re-pasting never accumulates spaces.
@@ -1312,7 +1411,7 @@ export function usePromptEditor({
     (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       // When the selection holds a portable chip (skill or resource) we take over
       // the clipboard, so the selected text must be removed here (default prevented).
-      // Either way the context-sync effect prunes contexts whose token is now gone.
+      // Either way the context pruning drops contexts whose token is now gone.
       if (!writeSanitizedClipboard(e)) return
       const textarea = e.currentTarget
       const start = textarea.selectionStart ?? 0
@@ -1332,6 +1431,7 @@ export function usePromptEditor({
     /** Replaces the registered contexts (draft / queued-message restore). */
     setContexts: contextManagement.setSelectedContexts,
     setValue,
+    restorePrompt,
     getValue,
     getPlainValue,
     getActiveContexts,

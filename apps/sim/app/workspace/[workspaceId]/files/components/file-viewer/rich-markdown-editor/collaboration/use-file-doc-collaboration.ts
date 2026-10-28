@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/file-doc'
+import { type QueryFilters, useQueryClient } from '@tanstack/react-query'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { FileDocProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
 import { useReportFileDocOthers } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 /** The live collaboration binding the editor wires into TipTap's Collaboration
  * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
@@ -22,6 +24,7 @@ export interface FileDocCollaboration {
    * provider is consumed for its readiness signal (`synced`) and fatal `join-error`.
    */
   provider: FileDocProvider | null
+  canWrite: boolean
   /**
    * The local caret identity published to awareness: `name`/`color` for CollaborationCaret,
    * and `clientId` so the caret activity extension can tag each caret node (see
@@ -38,10 +41,11 @@ interface UseFileDocCollaborationParams {
   userName: string
   /**
    * Whether to establish collaboration. Decided once at editor mount — only for a
-   * live, editable, non-streaming workspace document. When `false` the hook
+   * live, readable, non-streaming workspace document. When `false` the hook
    * returns `null` and the editor stays fully local.
    */
   enabled: boolean
+  onWriteAccessLost?: () => void
 }
 
 /**
@@ -57,13 +61,15 @@ export function useFileDocCollaboration({
   userId,
   userName,
   enabled,
+  onWriteAccessLost,
 }: UseFileDocCollaborationParams): FileDocCollaboration | null {
   const { socket } = useSocket()
+  const queryClient = useQueryClient()
+  const onWriteAccessLostRef = useRef(onWriteAccessLost)
+  onWriteAccessLostRef.current = onWriteAccessLost
 
   // The Y.Doc + Awareness are the editor's authoritative binding — created once
   // and stable for the hook's life (see sim-react-performance: lazy-init ref).
-  // Only allocated when collaboration is enabled, so read-only / streaming /
-  // round-trip-unsafe views never build a Yjs document they won't use.
   const docRef = useRef<Y.Doc | null>(null)
   const awarenessRef = useRef<Awareness | null>(null)
   // Created ONCE and kept stable for the whole editor lifetime. The editor freezes these into
@@ -97,6 +103,7 @@ export function useFileDocCollaboration({
   }, [])
 
   const [provider, setProvider] = useState<FileDocProvider | null>(null)
+  const [canWrite, setCanWrite] = useState(false)
 
   useEffect(() => {
     if (!enabled || !socket) return
@@ -105,15 +112,30 @@ export function useFileDocCollaboration({
     const doc = docRef.current as Y.Doc
     const awareness = awarenessRef.current as Awareness
     const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, {
-      workspaceId,
+      owner: { entityType: 'workspace', entityId: workspaceId },
       userId,
     })
+    setCanWrite(fileProvider.canWrite)
+    const reloadAfterWriteLoss = async () => {
+      onWriteAccessLostRef.current?.()
+      const filters: QueryFilters[] = [
+        { queryKey: workspaceFilesKeys.contentFile(workspaceId, fileId) },
+        { queryKey: workspaceFilesKeys.record(workspaceId, fileId) },
+        { queryKey: workspaceFilesKeys.workspaceLists(workspaceId) },
+      ]
+      await Promise.all(filters.map((filter) => queryClient.cancelQueries(filter)))
+      await Promise.all(filters.map((filter) => queryClient.resetQueries(filter)))
+    }
+    fileProvider.on('permission', setCanWrite)
+    fileProvider.on('write-access-lost', reloadAfterWriteLoss)
     setProvider(fileProvider)
     return () => {
+      fileProvider.off('permission', setCanWrite)
+      fileProvider.off('write-access-lost', reloadAfterWriteLoss)
       fileProvider.destroy()
       setProvider(null)
     }
-  }, [enabled, socket, fileId, workspaceId, userId])
+  }, [enabled, socket, fileId, workspaceId, userId, queryClient])
 
   const reportOthers = useReportFileDocOthers()
   const reportOthersRef = useRef(reportOthers)
@@ -172,9 +194,10 @@ export function useFileDocCollaboration({
             doc: docRef.current as Y.Doc,
             awareness: awarenessRef.current as Awareness,
             provider,
+            canWrite,
             user,
           }
         : null,
-    [enabled, provider, user]
+    [enabled, provider, canWrite, user]
   )
 }

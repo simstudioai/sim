@@ -477,6 +477,7 @@ export const accountDeletionBlockerSchema = z.object({
     'shared_workspace',
     'organization_workspace',
     'data_drain_owner',
+    'project_lifecycle',
   ]),
   /** A sentence naming both the obstacle and the way out. */
   message: z.string(),

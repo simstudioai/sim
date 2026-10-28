@@ -16,7 +16,10 @@ import {
   wireFallback,
 } from '@sim/deployment-config/env-capabilities'
 import integrationsJson from '@sim/deployment-config/integrations.json'
-import { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS } from '@sim/deployment-config/service-account-metadata'
+import {
+  CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS,
+  getServiceAccountMetadata,
+} from '@sim/deployment-config/service-account-metadata'
 import { describe, expect, it, vi } from 'vitest'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -691,6 +694,8 @@ describe('env capabilities', () => {
         if (integration.authType !== 'oauth' || !integration.oauthServiceId) return []
         if (resolveOAuthClientCapabilityId(integration.oauthServiceId)) return []
         if (credentialConfiguredServices.has(integration.oauthServiceId)) return []
+        const serviceAccount = getServiceAccountMetadata(integration.oauthServiceId)
+        if (serviceAccount && serviceAccount.deploymentRequirement === undefined) return []
         return [integration.slug]
       })
 

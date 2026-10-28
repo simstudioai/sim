@@ -74,7 +74,8 @@ describe('PdfParser cancellation', () => {
   })
 
   it('cancels a stalled text reader at the extraction deadline and returns a partial result', async () => {
-    vi.useFakeTimers()
+    // Fakes only the deadline clock: the shared event-loop turnstile must keep real immediates.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     const reader = {
       cancel: vi.fn().mockResolvedValue(undefined),
       read: vi
@@ -94,8 +95,7 @@ describe('PdfParser cancellation', () => {
     mockOpenPdfDocument.mockResolvedValueOnce(pdf)
 
     const parsing = new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
-    await vi.advanceTimersByTimeAsync(0)
-    expect(reader.read).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(reader.read).toHaveBeenCalledTimes(2))
 
     await vi.advanceTimersByTimeAsync(60_000)
     const result = await parsing
@@ -153,5 +153,90 @@ describe('PdfParser cancellation', () => {
     ).rejects.toMatchObject({ name: 'FileParserError', code: 'complexity_limit' })
     expect(pdf.getPage).not.toHaveBeenCalled()
     expect(pdf.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('lets timers run between CPU-bound pages instead of holding the event loop for the whole document', async () => {
+    const pageCount = 12
+    let timerFired = false
+    let timerFiredBeforeLastPage = false
+    const { pdf } = pdfWithPageText(pageCount, (pageNumber) => {
+      const busyUntil = performance.now() + 5
+      while (performance.now() < busyUntil) {}
+      if (pageNumber === pageCount) timerFiredBeforeLastPage = timerFired
+      return 'page text'
+    })
+    mockOpenPdfDocument.mockResolvedValueOnce(pdf)
+
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+    await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
+
+    expect(timerFiredBeforeLastPage).toBe(true)
+  })
+
+  it('shares one event-loop slice across concurrent parses instead of giving each its own', async () => {
+    const parseCount = 8
+    for (let i = 0; i < parseCount; i++) {
+      const { pdf } = pdfWithPageText(20, () => {
+        const busyUntil = performance.now() + 2
+        while (performance.now() < busyUntil) {}
+        return 'page text'
+      })
+      mockOpenPdfDocument.mockResolvedValueOnce(pdf)
+    }
+    let longestTimerWait = 0
+    let probing = true
+    let lastTick = performance.now()
+    const probe = () => {
+      const now = performance.now()
+      longestTimerWait = Math.max(longestTimerWait, now - lastTick)
+      lastTick = now
+      if (probing) setTimeout(probe, 0)
+    }
+    setTimeout(probe, 0)
+
+    await Promise.all(
+      Array.from({ length: parseCount }, () => new PdfParser().parseBuffer(Buffer.from('%PDF-1.4')))
+    )
+    probing = false
+
+    expect(longestTimerWait).toBeLessThan(40)
+  })
+
+  it('lets timers run while one page streams a huge content stream', async () => {
+    const chunkCount = 12
+    let timerFired = false
+    let timerFiredBeforeLastChunk = false
+    let chunksRead = 0
+    const reader = {
+      cancel: vi.fn().mockResolvedValue(undefined),
+      read: vi.fn(async () => {
+        const busyUntil = performance.now() + 5
+        while (performance.now() < busyUntil) {}
+        chunksRead++
+        if (chunksRead === chunkCount) timerFiredBeforeLastChunk = timerFired
+        if (chunksRead > chunkCount) return { done: true }
+        return { value: { items: [{ str: `chunk ${chunksRead} ` }] }, done: false }
+      }),
+    }
+    const page = {
+      cleanup: vi.fn(),
+      streamTextContent: vi.fn(() => ({ getReader: () => reader })),
+    }
+    const pdf = {
+      destroy: vi.fn().mockResolvedValue(undefined),
+      getPage: vi.fn().mockResolvedValue(page),
+      numPages: 1,
+    }
+    mockOpenPdfDocument.mockResolvedValueOnce(pdf)
+
+    setTimeout(() => {
+      timerFired = true
+    }, 0)
+    const result = await new PdfParser().parseBuffer(Buffer.from('%PDF-1.4'))
+
+    expect(timerFiredBeforeLastChunk).toBe(true)
+    expect(result.content).toContain(`chunk ${chunkCount}`)
   })
 })

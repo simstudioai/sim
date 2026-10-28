@@ -5,7 +5,7 @@ import { ChipLink } from '@sim/emcn'
 import { formatDateTime } from '@sim/utils/formatting'
 import { SettingsActionChip } from '@/components/settings/settings-header'
 import type { SecretUsageEntryPayload, SecretUsageScope } from '@/lib/api/contracts'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
@@ -103,11 +103,7 @@ export function SecretUsagePanel({ workspaceId, secretName, scope }: SecretUsage
   )
 
   if (isError) {
-    return (
-      <SettingsEmptyState variant='inline' tone='error'>
-        Could not load usage.
-      </SettingsEmptyState>
-    )
+    return <SettingsEmptyState variant='inline'>Could not load usage.</SettingsEmptyState>
   }
 
   return (

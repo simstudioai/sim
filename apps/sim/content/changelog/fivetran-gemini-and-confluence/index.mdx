@@ -1,0 +1,39 @@
+---
+slug: fivetran-gemini-and-confluence
+title: 'Fivetran workflows, Gemini 4 Argon, and Confluence images'
+description: 'Manage Fivetran syncs from Sim workflows, use Gemini 4 Argon in your agents, and search the text inside Confluence image attachments.'
+seoTitle: 'Fivetran syncs, Gemini 4 Argon, and Confluence images'
+date: '2026-10-13T23:00:00Z'
+authors: [waleed]
+tags: [Integrations, Models, Knowledge]
+ogImage: /changelog/fivetran-sync-menu-v1.jpg
+ogAlt: 'Fivetran sync operations in the Sim workflow editor'
+technical: false
+draft: false
+release:
+  versions: [v0.9.20, v0.9.21]
+---
+
+<div className="mx-auto max-w-lg">
+<ChangelogImage
+  src="/changelog/fivetran-sync-menu-v1.jpg"
+  alt="Fivetran sync operations in the Sim workflow editor"
+  width="486"
+  height="226"
+/>
+</div>
+
+[Fivetran](/integrations/fivetran) is now available in Sim workflows. Check connection status and sync history, start or re-run a sync, and choose which schemas and tables to sync. Fivetran events can also start a workflow when a sync or transformation succeeds or fails.
+
+Connect your Fivetran account with an API key and secret, then select a connection in the block. Your Fivetran permissions determine which resources and actions are available. [Set up Fivetran](https://docs.sim.ai/integrations/fivetran).
+
+### Also in v0.9.21
+
+- **[Gemini 4 Argon](/models/google/gemini-4-argon)** is available in the Agent block, with low, medium, or high thinking levels and support for tools, image inputs, and structured outputs.
+
+### Also in v0.9.20
+
+- **Confluence image attachments:** Turn tables, scans, and screenshots into searchable text with [Read with AI](https://docs.sim.ai/knowledgebase/connectors), enabled by default for new Confluence connectors and opt-in for existing ones, with model usage billed per image.
+- **Search:** Confluence and Jira searches can return relevant partial matches when exact results are scarce, and Confluence results include matching passages.
+
+See the complete technical notes for [v0.9.20](https://github.com/simstudioai/sim/releases/tag/v0.9.20) and [v0.9.21](https://github.com/simstudioai/sim/releases/tag/v0.9.21).

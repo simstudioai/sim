@@ -12,9 +12,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -46,7 +46,7 @@ export const POST = withRouteHandler(
       const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
       if (!workflowRecord) {
-        return notFoundResponse('Workflow')
+        return adminNotFoundResponse('Workflow')
       }
 
       const result = await performFullDeploy({
@@ -57,9 +57,9 @@ export const POST = withRouteHandler(
       })
 
       if (!result.success) {
-        if (result.errorCode === 'not_found') return notFoundResponse('Workflow state')
-        if (result.errorCode === 'validation') return badRequestResponse(result.error!)
-        return internalErrorResponse(result.error || 'Failed to deploy workflow')
+        if (result.errorCode === 'not_found') return adminNotFoundResponse('Workflow state')
+        if (result.errorCode === 'validation') return adminBadRequestResponse(result.error!)
+        return adminInternalErrorResponse(result.error || 'Failed to deploy workflow')
       }
 
       const isDeployed = Boolean(result.activeDeployment)
@@ -80,7 +80,7 @@ export const POST = withRouteHandler(
       return singleResponse(response)
     } catch (error) {
       logger.error(`Admin API: Failed to deploy workflow ${workflowId}`, { error })
-      return internalErrorResponse('Failed to deploy workflow')
+      return adminInternalErrorResponse('Failed to deploy workflow')
     }
   })
 )
@@ -97,7 +97,7 @@ export const DELETE = withRouteHandler(
       const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
       if (!workflowRecord) {
-        return notFoundResponse('Workflow')
+        return adminNotFoundResponse('Workflow')
       }
 
       const result = await performFullUndeploy({
@@ -108,7 +108,7 @@ export const DELETE = withRouteHandler(
       })
 
       if (!result.success) {
-        return internalErrorResponse(result.error || 'Failed to undeploy workflow')
+        return adminInternalErrorResponse(result.error || 'Failed to undeploy workflow')
       }
 
       logger.info(`Admin API: Undeployed workflow ${workflowId}`)
@@ -121,7 +121,7 @@ export const DELETE = withRouteHandler(
       return singleResponse(response)
     } catch (error) {
       logger.error(`Admin API: Failed to undeploy workflow ${workflowId}`, { error })
-      return internalErrorResponse('Failed to undeploy workflow')
+      return adminInternalErrorResponse('Failed to undeploy workflow')
     }
   })
 )

@@ -162,7 +162,7 @@ export const workspaceFileRecordSchema = z.object({
   contentUpdatedAt: z.coerce.date().nullable().optional(),
   revision: z.string().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
-  vfsNamespace: z.literal('uploads').optional(),
+  vfsNamespace: z.enum(['uploads', 'tests', 'changelog']).optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 
@@ -181,8 +181,6 @@ export const extractWorkspaceFileResponseSchema = workspaceFileSuccessSchema.ext
   extractedCount: z.number().int().nonnegative(),
   skippedCount: z.number().int().nonnegative(),
 })
-
-export type ExtractWorkspaceFileResponse = z.output<typeof extractWorkspaceFileResponseSchema>
 
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',

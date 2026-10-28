@@ -1,10 +1,10 @@
 import { OtterIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildOtterOutputs,
   otterSetupInstructions,
   otterTriggerOptions,
 } from '@/triggers/otter/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const otterConversationSharedTrigger: TriggerConfig = {

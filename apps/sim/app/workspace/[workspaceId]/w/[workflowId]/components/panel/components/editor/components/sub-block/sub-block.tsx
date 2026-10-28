@@ -9,9 +9,10 @@ import {
   TriangleAlert,
 } from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
-import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {
   CheckboxList,
   Code,
@@ -121,10 +122,10 @@ interface SubBlockProps {
  * Supports boolean, condition objects, and functions that return conditions.
  *
  * @param config - The sub-block configuration containing requirement rules
- * @param subBlockValues - Current values of all subblocks for condition evaluation
+ * @param values - Flat sibling values for condition evaluation
  * @returns `true` if the field is required based on current context
  */
-const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string, any>): boolean => {
+const isFieldRequired = (config: SubBlockConfig, values?: Record<string, any>): boolean => {
   if (!config.required) return false
   if (typeof config.required === 'boolean') return config.required
 
@@ -141,7 +142,7 @@ const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string,
     },
     values: Record<string, any>
   ): boolean => {
-    const fieldValue = values[cond.field]?.value
+    const fieldValue = values[cond.field]
     const condValue = cond.value
 
     let match: boolean
@@ -154,7 +155,7 @@ const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string,
     if (cond.not) match = !match
 
     if (cond.and) {
-      const andFieldValue = values[cond.and.field]?.value
+      const andFieldValue = values[cond.and.field]
       const andCondValue = cond.and.value
       let andMatch: boolean
       if (Array.isArray(andCondValue)) {
@@ -169,8 +170,9 @@ const isFieldRequired = (config: SubBlockConfig, subBlockValues?: Record<string,
     return match
   }
 
-  const condition = typeof config.required === 'function' ? config.required() : config.required
-  return evalCond(condition, subBlockValues || {})
+  const condition =
+    typeof config.required === 'function' ? config.required(values) : config.required
+  return evalCond(condition, values || {})
 }
 
 /**
@@ -199,7 +201,7 @@ const getPreviewValue = (
  *
  * @param config - The sub-block configuration defining the label content
  * @param isValidJson - Whether the JSON content is valid (for code blocks)
- * @param subBlockValues - Current values of all subblocks for evaluating conditional requirements
+ * @param requiredValues - Flat sibling values for evaluating conditional requirements
  * @param wandState - State and handlers for the inline AI generate feature
  * @param canonicalToggle - Metadata and handlers for the basic/advanced mode toggle
  * @param canonicalToggleIsDisabled - Whether the canonical toggle is disabled (includes dependsOn gating)
@@ -210,7 +212,7 @@ const getPreviewValue = (
 const renderLabel = (
   config: SubBlockConfig,
   isValidJson: boolean,
-  subBlockValues?: Record<string, any>,
+  requiredValues?: Record<string, any>,
   wandState?: {
     isSearchActive: boolean
     searchQuery: string
@@ -246,7 +248,7 @@ const renderLabel = (
   if (config.type === 'switch') return null
   if (!config.title) return null
 
-  const required = isFieldRequired(config, subBlockValues)
+  const required = isFieldRequired(config, requiredValues)
   const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
   const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
   const showCopy = copyState?.showCopyButton && !wandState?.isPreview
@@ -473,8 +475,7 @@ function SubBlockComponent({
   labelSuffix,
   dependencyContext,
 }: SubBlockProps): JSX.Element {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
@@ -618,6 +619,12 @@ function SubBlockComponent({
     | null
     | undefined
 
+  const requiredValues =
+    !isPreview && dependencyContext
+      ? dependencyContext
+      : subBlockValues
+        ? buildSubBlockValues(subBlockValues)
+        : undefined
   const contextValues = dependencyContext ?? (isPreview ? subBlockValues : undefined)
 
   const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
@@ -957,7 +964,7 @@ function SubBlockComponent({
               blockId={blockId}
               subBlock={config}
               disabled={isDisabled}
-              required={isFieldRequired(config, subBlockValues)}
+              required={isFieldRequired(config, requiredValues)}
               isPreview={isPreview}
               previewValue={previewValue}
             />
@@ -1249,7 +1256,7 @@ function SubBlockComponent({
       {renderLabel(
         config,
         isValidJson,
-        subBlockValues,
+        requiredValues,
         {
           isSearchActive,
           searchQuery,

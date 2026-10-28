@@ -1,6 +1,7 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import { isPrivateIp } from '@sim/security/ssrf'
+import { omit } from '@sim/utils/object'
 import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
@@ -125,6 +126,11 @@ function requestHref(input: string | URL | Request): string {
   return String(input)
 }
 
+/** Drops the caller's `redirect` mode, so the guard follows under per-hop validation. */
+function withoutRedirectMode(init: RequestInit | undefined): RequestInit | undefined {
+  return init?.redirect === undefined ? init : omit(init, ['redirect'])
+}
+
 /**
  * Wraps the transport's same-origin fetch so a request to any other origin is
  * judged as content and validated per request, never inheriting the configured
@@ -137,15 +143,21 @@ function requestHref(input: string | URL | Request): string {
  * {@link MCP_EGRESS_PROFILE} (honors the allowlist, permits loopback off-hosted)
  * or, worse, be pinned onto the server's private address. Same-origin requests —
  * the JSON-RPC transport itself — keep the persistent guarded path.
+ *
+ * Both paths follow redirects themselves whatever `redirect` mode arrives: the SDK
+ * also hands this fetch to its direct `auth()` calls (coordinated refresh), which
+ * send `redirect: 'manual'` and follow only same-origin hops on their own.
  */
 function splitByConfiguredOrigin(
   sameOrigin: typeof fetch,
   serverUrl: string | undefined
 ): typeof fetch {
-  if (!serverUrl || !URL.canParse(serverUrl)) return sameOrigin
-  const configuredOrigin = new URL(serverUrl).origin
-  const crossOrigin = createSsrfGuardedMcpFetch({ serverUrl })
-  return async (input, init) => {
+  const configuredOrigin =
+    serverUrl && URL.canParse(serverUrl) ? new URL(serverUrl).origin : undefined
+  const crossOrigin = configuredOrigin ? createSsrfGuardedMcpFetch({ serverUrl }) : undefined
+  return async (input, callerInit) => {
+    const init = withoutRedirectMode(callerInit)
+    if (!crossOrigin) return sameOrigin(input, init)
     const target = requestHref(input)
     const sameAsConfigured = URL.canParse(target) && new URL(target).origin === configuredOrigin
     return sameAsConfigured ? sameOrigin(input, init) : crossOrigin(target, init)
@@ -342,19 +354,24 @@ function releaseStreamOnSettle(
  * `Response` is a detached in-memory copy. Only our own deadline is relabeled to `McpError`.
  *
  * @param timeoutMs Per-request deadline in ms (defaults to 30s; override for tests).
+ * @param followRedirects Who decides how a redirect is handled. `'guard'` (default) ignores
+ *   the request's `redirect` mode and always follows under per-hop validation, because the
+ *   SDK's `auth()`/discovery sends `redirect: 'manual'` and would otherwise drop a
+ *   cross-origin hop. `'caller'` honors it, for the auth-type probe that needs a 3xx as is.
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
  * @throws McpError if a request exceeds `timeoutMs`
  */
 export function createSsrfGuardedMcpFetch(
-  options: { serverUrl?: string; timeoutMs?: number } = {}
+  options: { serverUrl?: string; timeoutMs?: number; followRedirects?: 'caller' | 'guard' } = {}
 ): FetchLike {
-  const { serverUrl, timeoutMs = OAUTH_FETCH_TIMEOUT_MS } = options
+  const { serverUrl, timeoutMs = OAUTH_FETCH_TIMEOUT_MS, followRedirects = 'guard' } = options
   // The origin the operator configured. A leg that stays on it is the server
   // they chose; everything else was named by that server's metadata.
   let configuredOrigin: string | undefined
   if (serverUrl && URL.canParse(serverUrl)) configuredOrigin = new URL(serverUrl).origin
 
-  return (async (url, init) => {
+  return (async (url, callerInit) => {
+    const init = followRedirects === 'guard' ? withoutRedirectMode(callerInit) : callerInit
     const target = typeof url === 'string' ? url : url.href
     const host = URL.canParse(target) ? new URL(target).host : target
     const sameAsConfigured =

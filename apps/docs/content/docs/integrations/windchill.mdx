@@ -1,42 +1,43 @@
 ---
 title: Windchill
 description: Manage documents, revisions, and content in PTC Windchill
+integration:
+  type: "windchill"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="windchill"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[PTC Windchill](https://www.ptc.com/en/products/windchill) is the product lifecycle management system manufacturers use as the system of record for engineering data. Documents in Windchill are controlled objects: each one carries a number, a revision and iteration, a lifecycle state, folder placement, security labels, and a checkout status that decides who is allowed to change it right now.
+Use [PTC Windchill](https://www.ptc.com/en/products/windchill) REST Services (WRS) 2.7 to manage engineering documents. Documents have a number, revision and iteration, lifecycle state, folder, security labels, and checkout status.
 
-This integration talks to Windchill REST Services (WRS) 2.7 over OData — the query protocol Windchill exposes its data through — using a Basic-authenticated service account. Point it at a complete versioned service root — `https://your-host/Windchill/servlet/odata/v6` — and your agents can:
+## Connection and identifiers
 
-- **Find and read documents**: list documents with an OData filter, sort order, field selection, page size, and a latest-version-only switch; fetch a single document by its object identifier (OID); and walk a document's structure through its usage links to see child documents with their versions and states.
-- **Create and update**: create one document or a batch of them in a container and optional folder, and patch editable attributes on one or many documents. Name, Number, and Organization are rejected here and have their own operation, because Windchill changes those through a separate action and refuses it while a document is checked out.
-- **Run the version and lifecycle cycle**: check documents out and back in with notes, undo a checkout, revise to the next revision, read the lifecycle states a document is actually allowed to move to, and transition it to one of them.
-- **Move files**: download a document's primary content, or a specific attachment by its OID, into a Sim file — and upload files as primary content or attachments. Sim handles Windchill's CSRF token and its multi-step upload handshake for you.
+Connect with a Basic-authenticated account and a complete versioned OData service root, such as `https://your-host/Windchill/servlet/odata/v6`. OAuth-fronted deployments are not supported. Most actions require an object identifier (OID), such as `OR:wt.doc.WTDocument:48796581`, returned by a list or get action; a document number is not an OID.
 
-Bulk actions are atomic on Windchill's side: PTC documents that if the action fails for any object in the collection, the entire action is rolled back and nothing changes.
+## Working with documents
 
-Two limits are worth knowing before you build. Windchill identifies everything by OID (`OR:wt.doc.WTDocument:48796581`), so most operations need an OID you got from a list or get call rather than a document number. And this integration supports Basic authentication only — Windchill deployments fronted by OAuth are not currently supported.
+List actions accept OData filters, sorting, field selection, page size, and latest-version filtering. Structure lookup follows usage links to child documents, including their versions and states.
+
+Create one document or a batch in a container and optional folder. Update editable attributes separately from **Update Common Properties**, which changes Name, Number, and Organization and is refused while the document is checked out.
+
+Check out and check in documents with notes, undo checkout, revise, inspect valid state transitions, or change lifecycle state. Bulk lifecycle and document actions use atomic provider requests: a rejected object rolls back the collection action.
+
+Download primary content or an attachment by OID as a Sim file. Upload primary content to a document that has none, or add attachments. Sim handles the CSRF token and multi-step upload handshake.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.
-
-
 
 ## Actions
 
 ### Windchill List Documents
 
 List documents with an OData query, sorting, and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -79,9 +80,13 @@ List documents with an OData query, sorting, and pagination
 |   ↳ `totalCount` | number | Total matching items |
 |   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
+</ReferenceDetails>
+
 ### Windchill Get Document
 
 Get a WT.Document by OID
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +119,13 @@ Get a WT.Document by OID
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Get Document Structure
 
 Retrieve recursive document usage links and their parent and child documents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -172,9 +181,13 @@ Retrieve recursive document usage links and their parent and child documents
 |   ↳ `totalCount` | number | Total matching items |
 |   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
+</ReferenceDetails>
+
 ### Windchill Get Valid State Transitions
 
 Get lifecycle states a document can transition to from its current state
+
+<ReferenceDetails>
 
 #### Input
 
@@ -194,9 +207,13 @@ Get lifecycle states a document can transition to from its current state
 |   ↳ `value` | string | Internal state value |
 |   ↳ `display` | string | Displayed state value |
 
+</ReferenceDetails>
+
 ### Windchill Get Primary Content
 
 Get primary-content metadata for a document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -224,9 +241,13 @@ Get primary-content metadata for a document
 |   ↳ `urlLocation` | string | URL-data location |
 |   ↳ `externalLocation` | string | External-storage location |
 
+</ReferenceDetails>
+
 ### Windchill List Attachments
 
 List attachment metadata for a document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -259,9 +280,13 @@ List attachment metadata for a document
 |   ↳ `totalCount` | number | Total matching items |
 |   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
+</ReferenceDetails>
+
 ### Windchill Create Document
 
 Create one WT.Document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -300,9 +325,13 @@ Create one WT.Document
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Create Documents
 
 Create several documents in one atomic Windchill request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -335,9 +364,13 @@ Create several documents in one atomic Windchill request
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Document
 
 Update one document's editable attributes
+
+<ReferenceDetails>
 
 #### Input
 
@@ -371,9 +404,13 @@ Update one document's editable attributes
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Common Properties
 
 Update a document's Name, Number, and other common properties
+
+<ReferenceDetails>
 
 #### Input
 
@@ -407,9 +444,13 @@ Update a document's Name, Number, and other common properties
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Documents
 
 Update several documents' editable attributes in one atomic request
+
+<ReferenceDetails>
 
 #### Input
 
@@ -442,9 +483,13 @@ Update several documents' editable attributes in one atomic request
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Delete Document
 
 Delete one document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -461,11 +506,15 @@ Delete one document
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
+
+</ReferenceDetails>
 
 ### Windchill Delete Documents
 
 Delete multiple documents atomically
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -481,11 +530,15 @@ Delete multiple documents atomically
 | --------- | ---- | ----------- |
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the operation |
+
+</ReferenceDetails>
 
 ### Windchill Check Out Document
 
 Check out one document
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -517,11 +570,15 @@ Check out one document
 |   ↳ `checkoutState` | string | Checkout state |
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
+
+</ReferenceDetails>
 
 ### Windchill Check Out Documents
 
 Check out multiple documents atomically
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -553,11 +610,15 @@ Check out multiple documents atomically
 |   ↳ `checkoutState` | string | Checkout state |
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
+
+</ReferenceDetails>
 
 ### Windchill Check In Document
 
 Check in one document
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -591,11 +652,15 @@ Check in one document
 |   ↳ `checkoutState` | string | Checkout state |
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
+
+</ReferenceDetails>
 
 ### Windchill Check In Documents
 
 Check in multiple documents atomically
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -630,9 +695,13 @@ Check in multiple documents atomically
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Undo Check Out Document
 
 Undo checkout for one document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -665,9 +734,13 @@ Undo checkout for one document
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Undo Check Out Documents
 
 Undo checkout for multiple documents atomically
+
+<ReferenceDetails>
 
 #### Input
 
@@ -700,9 +773,13 @@ Undo checkout for multiple documents atomically
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Revise Document
 
 Create a new revision of one document
+
+<ReferenceDetails>
 
 #### Input
 
@@ -736,9 +813,13 @@ Create a new revision of one document
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Revise Documents
 
 Create new revisions of multiple documents atomically
+
+<ReferenceDetails>
 
 #### Input
 
@@ -771,9 +852,13 @@ Create new revisions of multiple documents atomically
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Set Lifecycle State
 
 Transition a document to a valid lifecycle state
+
+<ReferenceDetails>
 
 #### Input
 
@@ -808,9 +893,13 @@ Transition a document to a valid lifecycle state
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Update Document Security Labels
 
 Update installed security-label attributes for one or more documents
+
+<ReferenceDetails>
 
 #### Input
 
@@ -843,9 +932,13 @@ Update installed security-label attributes for one or more documents
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 
+</ReferenceDetails>
+
 ### Windchill Download Primary Content
 
 Download primary content into a canonical UserFile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -866,9 +959,13 @@ Download primary content into a canonical UserFile
 | `fileName` | string | Downloaded file name |
 | `mimeType` | string | Downloaded content MIME type |
 
+</ReferenceDetails>
+
 ### Windchill Upload Primary Content
 
 Upload a primary-content file to a document that has none
+
+<ReferenceDetails>
 
 #### Input
 
@@ -888,9 +985,13 @@ Upload a primary-content file to a document that has none
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
 
+</ReferenceDetails>
+
 ### Windchill Download Attachment
 
 Download a document attachment into a canonical UserFile
+
+<ReferenceDetails>
 
 #### Input
 
@@ -912,9 +1013,13 @@ Download a document attachment into a canonical UserFile
 | `fileName` | string | Downloaded file name |
 | `mimeType` | string | Downloaded content MIME type |
 
+</ReferenceDetails>
+
 ### Windchill Upload Attachments
 
 Upload one or more files as document attachments
+
+<ReferenceDetails>
 
 #### Input
 
@@ -933,5 +1038,7 @@ Upload one or more files as document attachments
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
+
+</ReferenceDetails>
 
 

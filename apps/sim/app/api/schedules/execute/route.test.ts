@@ -87,7 +87,7 @@ const {
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
@@ -107,6 +107,11 @@ vi.mock('@/lib/execution/manual-cancellation', () => ({
 }))
 
 vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
+
+/** The job lane has its own integration suite. */
+vi.mock('@/lib/mothership/jobs/lane', () => ({
+  runJobLane: vi.fn(async () => ({ claimed: 0 })),
+}))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),

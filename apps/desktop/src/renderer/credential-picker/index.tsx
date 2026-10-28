@@ -57,7 +57,7 @@ function CredentialPicker({ configuration, api }: CredentialPickerProps) {
         align='start'
         sideOffset={0}
         avoidCollisions={false}
-        className='w-[320px] max-w-none'
+        className='w-[320px] max-w-none max-md:max-w-none!'
         aria-label='Saved passwords'
         onOpenAutoFocus={(event) => {
           event.preventDefault()

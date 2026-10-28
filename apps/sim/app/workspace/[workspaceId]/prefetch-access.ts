@@ -1,10 +1,12 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import type { QueryClient } from '@tanstack/react-query'
 import { discoverAccessRequestsContract } from '@/lib/api/contracts/access-requests'
+import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
 import {
   type UserPermissionConfig,
   userPermissionConfigSchema,
 } from '@/lib/api/contracts/permission-groups'
+import { readIntegrationAvailability } from '@/lib/integrations/application/read-availability'
 import { readUserPermissionConfig } from '@/lib/permission-groups/application/read-user-config'
 import { PLATFORM_FEATURES } from '@/lib/permission-groups/features'
 import {
@@ -12,6 +14,10 @@ import {
   accessRequestKeys,
   workspaceFeatureDiscoveryQuery,
 } from '@/hooks/queries/utils/access-request-keys'
+import {
+  INTEGRATION_AVAILABILITY_STALE_TIME,
+  integrationAvailabilityKeys,
+} from '@/hooks/queries/utils/integration-availability-keys'
 import {
   PERMISSION_GROUPS_STALE_TIME,
   permissionGroupKeys,
@@ -24,14 +30,24 @@ export async function prefetchWorkspaceAccess(
   principal: SessionPrincipal
 ): Promise<void> {
   const queryKey = permissionGroupKeys.userConfig(workspaceId)
-  await queryClient.prefetchQuery({
-    queryKey,
-    queryFn: async () =>
-      userPermissionConfigSchema.parse(
-        await readUserPermissionConfig.execute({ principal, input: { workspaceId } })
-      ),
-    staleTime: PERMISSION_GROUPS_STALE_TIME,
-  })
+  await Promise.all([
+    queryClient.prefetchQuery({
+      queryKey,
+      queryFn: async () =>
+        userPermissionConfigSchema.parse(
+          await readUserPermissionConfig.execute({ principal, input: { workspaceId } })
+        ),
+      staleTime: PERMISSION_GROUPS_STALE_TIME,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: integrationAvailabilityKeys.environments(),
+      queryFn: async () =>
+        getAllowedIntegrationsContract.response.schema.parse(
+          await readIntegrationAvailability.execute({ principal, input: undefined })
+        ),
+      staleTime: INTEGRATION_AVAILABILITY_STALE_TIME,
+    }),
+  ])
 
   const policy = queryClient.getQueryData<UserPermissionConfig>(queryKey)
   if (

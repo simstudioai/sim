@@ -9,7 +9,7 @@ import {
   isWorkspaceScopedContext,
   type StorageContext,
 } from '@/lib/uploads/shared/types'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('FileMetadata')
 

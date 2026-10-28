@@ -1,15 +1,19 @@
+import { isRecordLike } from '@sim/utils/object'
+import { RULESET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateRulesetRuleParams,
   CloudflareRulesetResponse,
 } from '@/tools/cloudflare/types'
 import {
+  appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
-  emptyRuleset,
-  mapRuleset,
+  mapCloudflareRuleset,
   parseJsonObjectParam,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createRulesetRuleTool: ToolConfig<
   CloudflareCreateRulesetRuleParams,
@@ -22,6 +26,39 @@ export const createRulesetRuleTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    exposed_credential_check: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Configuration for exposed credential checking. Fields: password_expression, username_expression.',
+    },
+    id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The unique ID of the rule.',
+    },
+    logging: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "JSON object. An object configuring the rule's logging behavior. Fields: enabled.",
+    },
+    ratelimit: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "JSON object. An object configuring the rule's rate limit behavior. Fields: characteristics, counting_expression, mitigation_timeout, period, requests_per_period, requests_to_origin, score_per_period, score_response_header_name.",
+    },
+    dry_run: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'dry run',
+    },
     zoneId: {
       type: 'string',
       required: true,
@@ -89,8 +126,13 @@ export const createRulesetRuleTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}/rules`,
+    url: (params) => {
+      const url = new URL(
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/${safeUrlPathSegment(params.rulesetId, 'rulesetId')}/rules`
+      )
+      appendParam(url, 'dry_run', params.dry_run)
+      return url.toString()
+    },
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
@@ -108,72 +150,31 @@ export const createRulesetRuleTool: ToolConfig<
       const position = parseJsonObjectParam(params.position, 'Position')
       if (position) body.position = position
 
+      if (params.exposed_credential_check !== undefined && params.exposed_credential_check !== '')
+        body.exposed_credential_check = parseJsonObjectParam(
+          params.exposed_credential_check,
+          'exposed_credential_check'
+        )
+      if (params.id !== undefined && params.id !== '') body.id = params.id
+      if (params.logging !== undefined && params.logging !== '')
+        body.logging = parseJsonObjectParam(params.logging, 'logging')
+      if (params.ratelimit !== undefined && params.ratelimit !== '')
+        body.ratelimit = parseJsonObjectParam(params.ratelimit, 'ratelimit')
       return body
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: emptyRuleset(),
-        error: cloudflareErrorMessage(data, 'Failed to create ruleset rule'),
-      }
+  transformResponse: async (response: Response, params) => {
+    const data = await readCloudflareResponse(response)
+    const success =
+      response.ok &&
+      data.success === true &&
+      (isRecordLike(data.result) || (params?.dry_run === true && data.result === null))
+    return {
+      success,
+      output: mapCloudflareRuleset(data.result),
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to create ruleset rule') } : {}),
     }
-
-    return { success: true, output: mapRuleset(data.result) }
   },
-
-  outputs: {
-    id: { type: 'string', description: 'Ruleset identifier' },
-    name: { type: 'string', description: 'Ruleset name' },
-    description: { type: 'string', description: 'Ruleset description' },
-    kind: { type: 'string', description: 'Ruleset kind (managed, custom, root, or zone)' },
-    phase: { type: 'string', description: 'Phase the ruleset runs in' },
-    version: { type: 'string', description: 'Ruleset version after the change', optional: true },
-    last_updated: {
-      type: 'string',
-      description: 'RFC 3339 timestamp of the last change',
-      optional: true,
-    },
-    rules: {
-      type: 'array',
-      description: 'Rules in the ruleset after the change, in evaluation order',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Rule identifier' },
-          version: { type: 'string', description: 'Rule version', optional: true },
-          action: { type: 'string', description: 'Action the rule performs' },
-          action_parameters: {
-            type: 'json',
-            description: 'Action-specific parameters',
-            optional: true,
-          },
-          expression: { type: 'string', description: 'Filter expression' },
-          description: { type: 'string', description: 'Rule description' },
-          enabled: { type: 'boolean', description: 'Whether the rule is enabled' },
-          ref: { type: 'string', description: 'Rule reference tag', optional: true },
-          last_updated: {
-            type: 'string',
-            description: 'RFC 3339 timestamp of the last change',
-            optional: true,
-          },
-          categories: {
-            type: 'array',
-            description: 'Managed-rule categories',
-            items: { type: 'string', description: 'Category tag' },
-          },
-          logging: { type: 'json', description: 'Logging configuration', optional: true },
-          ratelimit: {
-            type: 'json',
-            description: 'Rate limiting configuration',
-            optional: true,
-          },
-        },
-      },
-    },
-  },
+  outputs: RULESET_OUTPUTS,
 }

@@ -7,6 +7,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   ListPartsCommand,
   PutObjectCommand,
   S3Client,
@@ -33,10 +34,7 @@ import type {
   MultipartCompletionPolicy,
   StoredObjectInfo,
 } from '@/lib/uploads/shared/types'
-import {
-  sanitizeFilenameForMetadata,
-  sanitizeStorageMetadata,
-} from '@/lib/uploads/utils/file-utils'
+import { sanitizeFilenameForMetadata, sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 
 let _s3Client: S3Client | null = null
@@ -414,6 +412,32 @@ export async function deleteManyFromS3(
   }
 
   return { failed }
+}
+
+/**
+ * Lists one page of object keys under `prefix` in `bucket`, resuming from `continuationToken`
+ * when given; `nextContinuationToken` is set while the listing has more.
+ */
+export async function listS3ObjectKeyPage(params: {
+  bucket: string
+  prefix: string
+  maxKeys: number
+  continuationToken?: string
+  signal: AbortSignal
+}): Promise<{ keys: string[]; nextContinuationToken?: string }> {
+  const page = await getS3Client().send(
+    new ListObjectsV2Command({
+      Bucket: params.bucket,
+      Prefix: params.prefix,
+      MaxKeys: params.maxKeys,
+      ...(params.continuationToken ? { ContinuationToken: params.continuationToken } : {}),
+    }),
+    { abortSignal: params.signal }
+  )
+  const keys = (page.Contents ?? []).flatMap((object) => (object.Key ? [object.Key] : []))
+  return page.IsTruncated && page.NextContinuationToken
+    ? { keys, nextContinuationToken: page.NextContinuationToken }
+    : { keys }
 }
 
 /**

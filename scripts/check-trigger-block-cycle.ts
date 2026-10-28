@@ -71,13 +71,17 @@ function resolveSpecifier(specifier: string, importer: string): string | null {
  * Breadth-first so the reported chain is the shortest one. A depth-first walk reports
  * whichever path it wandered down, which can be dozens of hops long and unreadable.
  */
-function findPathToBlocks(entry: string): { path: string[]; visited: number } {
+function findInvalidDependency(entry: string): { path: string[]; visited: number } {
   const importedBy = new Map<string, string | null>([[entry, null]])
   const queue: string[] = [entry]
 
   while (queue.length > 0) {
     const file = queue.shift() as string
-    if (file.startsWith(`${FORBIDDEN_DIR}/`) || file === `${FORBIDDEN_DIR}.ts`) {
+    if (
+      file.startsWith(`${FORBIDDEN_DIR}/`) ||
+      file === `${FORBIDDEN_DIR}.ts` ||
+      (entry === join(APP, 'triggers/registry.ts') && file === join(APP, 'triggers/index.ts'))
+    ) {
       const chain: string[] = []
       let cursor: string | null = file
       while (cursor) {
@@ -122,10 +126,10 @@ for (const entry of ENTRIES) {
     continue
   }
 
-  const { path, visited } = findPathToBlocks(entryPath)
+  const { path, visited } = findInvalidDependency(entryPath)
   if (path.length > 0) {
     failed = true
-    console.error(`\n✗ ${entry} can statically reach blocks/:\n`)
+    console.error(`\n✗ ${entry} has a circular initialization dependency:\n`)
     console.error(`    ${path.join('\n      -> ')}\n`)
   } else if (verbose) {
     console.log(`✓ ${entry} — ${visited} modules reachable, none under blocks/`)
@@ -134,7 +138,9 @@ for (const entry of ENTRIES) {
 
 if (failed) {
   console.error(
-    'The triggers <-> blocks import cycle is back. Block configs call getTrigger() at module\n' +
+    'Trigger definitions must not reach their registry barrel or blocks during initialization.\n' +
+      'Import buildTriggerSubBlocks from @/triggers/subblocks instead of @/triggers.\n' +
+      'Block configs call getTrigger() at module\n' +
       'scope, so a static triggers -> blocks edge makes module evaluation order load-bearing:\n' +
       'importing @/triggers before @/blocks throws\n' +
       "  ReferenceError: Cannot access 'TRIGGER_REGISTRY' before initialization\n\n" +
@@ -146,4 +152,4 @@ if (failed) {
   process.exit(1)
 }
 
-console.log('✓ check-trigger-block-cycle: triggers/ has no static path into blocks/')
+console.log('✓ check-trigger-block-cycle: trigger initialization has no registry or block cycle')

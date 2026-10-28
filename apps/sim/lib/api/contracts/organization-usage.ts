@@ -308,6 +308,29 @@ export const organizationUsageEventsResponseSchema = z.object({
 })
 export type OrganizationUsageEventPage = z.output<typeof organizationUsageEventsResponseSchema>
 
+const organizationUsageCalendarResponseSchema = z.object({
+  days: z
+    .array(
+      z.object({
+        date: z.iso.date(),
+        credits: z.number().int().nonnegative(),
+        hasCost: z.boolean(),
+      })
+    )
+    .length(365),
+})
+export type OrganizationUsageCalendar = z.output<typeof organizationUsageCalendarResponseSchema>
+
+export const getOrganizationUsageCalendarContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/usage/calendar',
+  params: z.object({ id: organizationIdSchema }),
+  query: organizationUsageWindowQuerySchema
+    .pick({ timezone: true })
+    .extend(usageWorkspaceScopeShape),
+  response: { mode: 'json', schema: organizationUsageCalendarResponseSchema },
+})
+
 export const getOrganizationUsageOverviewContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/usage/overview',

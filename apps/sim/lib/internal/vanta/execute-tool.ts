@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type {
   InternalToolOperationHandler,
@@ -21,6 +22,15 @@ export const executeVantaTool: InternalToolOperationHandler<InternalToolOperatio
   request
 ) => {
   request.signal?.throwIfAborted()
+  const input = request.input
+  const hasSavedToken =
+    isRecordLike(input) && typeof input.accessToken === 'string' && input.accessToken.length > 0
+  if (!hasSavedToken) {
+    return Response.json(
+      { success: false, error: 'Connect a Vanta credential before running this operation' },
+      { status: 400 }
+    )
+  }
   const schema =
     request.toolId === 'vanta_upload_document_file'
       ? vantaUploadDocumentFileInputSchema

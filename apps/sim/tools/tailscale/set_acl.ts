@@ -1,96 +1,68 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface TailscaleSetAclParams {
-  apiKey: string
-  tailnet: string
-  acl: string
-  ifMatch?: string
-}
-
-interface TailscaleSetAclResponse extends ToolResponse {
-  output: {
-    acl: string
-    etag: string
-  }
-}
+import type { TailscaleSetAclParams, TailscaleSetAclResponse } from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
+import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleSetAclTool: ToolConfig<TailscaleSetAclParams, TailscaleSetAclResponse> = {
   id: 'tailscale_set_acl',
   name: 'Tailscale Set ACL',
-  description: 'Replace the ACL policy file for the tailnet',
+  description: 'Replace the tailnet policy file',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     tailnet: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description: 'Tailnet ID, legacy name, or "-" for the token’s default tailnet',
     },
     acl: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The new ACL policy file, as a JSON string',
+      description: 'Complete tailnet policy file in JSON or HuJSON',
     },
     ifMatch: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'ETag from a prior Get ACL call to avoid overwriting concurrent updates. Use "ts-default" to only replace an untouched default policy file.',
+      description: 'ETag from Get ACL, or ts-default to replace only an untouched default policy',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/acl`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/acl`,
     method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${params.apiKey.trim()}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      }
-      if (params.ifMatch) headers['If-Match'] = `"${params.ifMatch.trim().replace(/^"|"$/g, '')}"`
-      return headers
-    },
+    headers: (params) => ({
+      Authorization: `Bearer ${params.apiKey.trim()}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(params.ifMatch ? { 'If-Match': `"${params.ifMatch.trim().replace(/^"|"$/g, '')}"` } : {}),
+    }),
     body: (params) => params.acl.trim(),
   },
-
   transformResponse: async (response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { acl: '', etag: '' },
-        error: (data as Record<string, string>).message ?? 'Failed to set ACL',
-      }
-    }
-
-    const etag = response.headers.get('ETag') ?? ''
-    const data = await response.json()
-
+    await assertTailscaleResponse(response)
+    const data: Record<string, unknown> = await response.json()
     return {
       success: true,
-      output: {
-        acl: JSON.stringify(data, null, 2),
-        etag,
-      },
+      output: { acl: JSON.stringify(data, null, 2), etag: response.headers.get('ETag') ?? '' },
     }
   },
-
   outputs: {
-    acl: { type: 'string', description: 'Updated ACL policy as JSON string' },
+    acl: {
+      type: 'string',
+      description: 'Tailnet policy file as a JSON string',
+    },
     etag: {
       type: 'string',
-      description: 'ETag for the new ACL version (use with If-Match header for future updates)',
+      description: 'Policy ETag for conditional updates',
       optional: true,
     },
   },

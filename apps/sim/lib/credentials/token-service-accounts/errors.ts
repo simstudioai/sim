@@ -8,6 +8,7 @@ import { truncate } from '@sim/utils/string'
  */
 export type TokenServiceAccountValidationCode =
   | 'invalid_credentials'
+  | 'permission_conflict'
   | 'site_not_found'
   | 'provider_unavailable'
 
@@ -98,8 +99,11 @@ export async function fetchProvider(
   options?: FetchProviderOptions
 ): Promise<Response> {
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS) })
+    const timeout = AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS)
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+    return await fetch(url, { ...init, signal })
   } catch (error) {
+    init.signal?.throwIfAborted()
     const causeCode = (error as { cause?: { code?: unknown } })?.cause?.code
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
     // resolver failure and stays provider_unavailable.

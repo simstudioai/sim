@@ -118,10 +118,9 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
   })
 
   /**
-   * The bucketed dedupe replaced an O(n^2) linear rescan. This pins it to a
-   * transcription of the original algorithm over randomized inputs, so any
-   * divergence in which overlapping match wins shows up as a diff rather than
-   * as a subtly wrong result the fixed examples above would miss.
+   * Pins the bucketed dedupe to a plain linear-scan oracle over randomized
+   * inputs, so any divergence in which overlapping match wins shows up as a
+   * diff rather than as a subtly wrong result the fixed examples would miss.
    */
   describe('bucketed dedupe matches the original linear scan', () => {
     function scopeKey(match: WorkflowSearchMatch): string | null {
@@ -145,7 +144,7 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
       return false
     }
 
-    /** Straight transcription of the pre-optimization implementation. */
+    /** The plain linear-scan dedupe, as an oracle. */
     function referenceDedupe(matches: WorkflowSearchMatch[]): WorkflowSearchMatch[] {
       const deduped: WorkflowSearchMatch[] = []
       for (const match of matches) {
@@ -215,11 +214,7 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
       })
     }
 
-    /**
-     * A sequential sweep, not a handful of hand-picked seeds. An earlier version
-     * pinned 8 seeds that happened to be clean while 7.7% of the space diverged,
-     * so the count is what gives this test its power - keep it wide.
-     */
+    /** A wide sequential sweep: a handful of hand-picked seeds can all be clean while divergences hide elsewhere. */
     it('agrees with the original scan across 400 seeded inputs', () => {
       const diverged: number[] = []
 
@@ -234,9 +229,9 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
     })
 
     /**
-     * The exact shape that broke the `maxEnd` short-circuit: a shorter range
-     * evicts a longer one but ends further right, so a stale `maxEnd` let the
-     * next match skip the overlap scan and leak through as a duplicate.
+     * A shorter range evicts a longer one but ends further right; a stale
+     * `maxEnd` would let the next match skip the overlap scan and leak through
+     * as a duplicate.
      */
     it.each([
       {
@@ -297,9 +292,8 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
 
     /**
      * Pins the asymptotics, not a stopwatch. 20k disjoint hits in one scope run
-     * in single-digit ms bucketed; the O(n^2) rescan this replaced took ~30s on
-     * the same input, so the bound has roughly three orders of magnitude of
-     * headroom and only trips on a genuine complexity regression.
+     * in single-digit ms; a quadratic rescan takes ~30s on the same input, so
+     * the bound only trips on a genuine complexity regression.
      */
     it('stays sub-quadratic on a single scope full of disjoint ranges', () => {
       const matches = Array.from({ length: 20_000 }, (_, index) =>

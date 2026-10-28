@@ -479,7 +479,7 @@ function extractWorkspaceIdFromExecutionKey(key: string): string | null {
 }
 
 /**
- * Controllable mock functions for `@/lib/uploads/utils/file-utils`.
+ * Controllable mock functions for `@/lib/uploads/utils/file`.
  *
  * The real module is pure, so every default is a faithful port of the real helper
  * (tables included). Override per test only where the unit under test must see a
@@ -507,7 +507,7 @@ export const fileUtilsMockFns = {
   mockCreateFileContentFromBase64: vi.fn(createFileContentFromBase64),
   mockGetFileExtension: vi.fn(getFileExtension),
   mockIsMarkdownFile: vi.fn((file: { type?: string | null; name: string }) => {
-    if (file.type === 'text/markdown') return true
+    if (file.type?.split(';', 1)[0].trim().toLowerCase() === 'text/markdown') return true
     const ext = getFileExtension(file.name)
     return ext === 'md' || ext === 'markdown'
   }),
@@ -576,6 +576,10 @@ export const fileUtilsMockFns = {
   mockInferContextFromKey: vi.fn(inferContextFromKey),
   mockTryInferContextFromKey: vi.fn(tryInferContextFromKey),
   mockIsPublicStorageContext: vi.fn(isPublicStorageContext),
+  mockIsPublicStorageKey: vi.fn((key: string) => {
+    const context = tryInferContextFromKey(key)
+    return context !== null && isPublicStorageContext(context)
+  }),
   mockResolveTrustedFileContext: vi.fn((key: string, context?: string): string => {
     try {
       return inferContextFromKey(key)
@@ -692,11 +696,11 @@ export const fileUtilsMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/uploads/utils/file-utils`. Constants are the real values.
+ * Static mock module for `@/lib/uploads/utils/file`. Constants are the real values.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+ * vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
  * ```
  */
 export const fileUtilsMock = {
@@ -735,6 +739,7 @@ export const fileUtilsMock = {
   inferContextFromKey: fileUtilsMockFns.mockInferContextFromKey,
   tryInferContextFromKey: fileUtilsMockFns.mockTryInferContextFromKey,
   isPublicStorageContext: fileUtilsMockFns.mockIsPublicStorageContext,
+  isPublicStorageKey: fileUtilsMockFns.mockIsPublicStorageKey,
   resolveTrustedFileContext: fileUtilsMockFns.mockResolveTrustedFileContext,
   parseInternalFileUrl: fileUtilsMockFns.mockParseInternalFileUrl,
   resolveHttpsUrlFromFileInput: fileUtilsMockFns.mockResolveHttpsUrlFromFileInput,

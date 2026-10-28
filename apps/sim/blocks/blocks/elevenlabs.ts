@@ -32,7 +32,7 @@ export const ElevenLabsBlock: BlockConfig = {
   description: 'Generate and transform audio with ElevenLabs',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate ElevenLabs into the workflow. Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.',
+    'Convert text to speech, generate sound effects, transform voices, isolate audio, and manage voices, models, and account settings.',
   docsLink: 'https://docs.sim.ai/integrations/elevenlabs',
   category: 'tools',
   integrationType: IntegrationType.AI,

@@ -20,6 +20,73 @@ type DocsRedirect = Awaited<ReturnType<NonNullable<NextConfig['redirects']>>>[nu
  * modules would make match order an emergent property of two files.
  */
 const PATH_REDIRECTS: DocsRedirect[] = [
+  // The academy was removed; each lesson redirects to the reference page covering its topic.
+  { source: '/academy', destination: '/introduction', permanent: true },
+  { source: '/academy/agents/intro', destination: '/agents', permanent: true },
+  { source: '/academy/agents/block', destination: '/workflows/blocks/agent', permanent: true },
+  { source: '/academy/agents/memory', destination: '/workflows/blocks/agent', permanent: true },
+  { source: '/academy/agents/skills', destination: '/agents/skills', permanent: true },
+  {
+    source: '/academy/agents/tool-calling',
+    destination: '/workflows/blocks/agent',
+    permanent: true,
+  },
+  { source: '/academy/chat/intro', destination: '/chat', permanent: true },
+  { source: '/academy/chat/building', destination: '/chat/workflows', permanent: true },
+  { source: '/academy/files/intro', destination: '/files', permanent: true },
+  { source: '/academy/files/object', destination: '/files/passing-files', permanent: true },
+  { source: '/academy/knowledge-bases/intro', destination: '/knowledgebase', permanent: true },
+  {
+    source: '/academy/knowledge-bases/connectors',
+    destination: '/knowledgebase/connectors',
+    permanent: true,
+  },
+  { source: '/academy/tables/intro', destination: '/tables', permanent: true },
+  {
+    source: '/academy/tables/operations',
+    destination: '/tables/using-in-workflows',
+    permanent: true,
+  },
+  {
+    source: '/academy/tables/workflow-columns',
+    destination: '/tables/workflow-columns',
+    permanent: true,
+  },
+  { source: '/academy/workflows/intro', destination: '/workflows', permanent: true },
+  {
+    source: '/academy/workflows/branching',
+    destination: '/workflows/blocks/condition',
+    permanent: true,
+  },
+  { source: '/academy/workflows/loops', destination: '/workflows/blocks/loop', permanent: true },
+  {
+    source: '/academy/workflows/subworkflows',
+    destination: '/workflows/blocks/workflow',
+    permanent: true,
+  },
+  {
+    source: '/academy/workflows/deployment',
+    destination: '/workflows/deployment',
+    permanent: true,
+  },
+  { source: '/academy/workflows/logs', destination: '/logs-debugging', permanent: true },
+  {
+    source: '/academy/use-cases/document-extraction',
+    destination: '/files/using-in-workflows',
+    permanent: true,
+  },
+  {
+    source: '/academy/use-cases/monitoring-research',
+    destination: '/workflows/triggers/schedule',
+    permanent: true,
+  },
+  {
+    source: '/academy/use-cases/sales-data-enrichment',
+    destination: '/tables/workflow-columns',
+    permanent: true,
+  },
+  { source: '/academy/use-cases/slack-it-triage', destination: '/chat', permanent: true },
+  { source: '/academy/:path*', destination: '/introduction', permanent: true },
   ...Object.entries(integrationNavigation.redirects).map(([from, to]) => ({
     source: `/integrations/${from}`,
     destination: `/integrations/${to}`,
@@ -31,6 +98,10 @@ const PATH_REDIRECTS: DocsRedirect[] = [
     permanent: true,
   },
   { source: '/api-reference', destination: '/api-reference/getting-started', permanent: true },
+  // sdks/* folded into api-reference/
+  { source: '/sdks', destination: '/api-reference/getting-started', permanent: true },
+  { source: '/sdks/typescript', destination: '/api-reference/typescript', permanent: true },
+  { source: '/sdks/python', destination: '/api-reference/python', permanent: true },
   // building-agents/agents merged into the building-agents overview
   { source: '/building-agents/agents', destination: '/agents', permanent: true },
   // form deployment removed
@@ -137,6 +208,8 @@ const PATH_REDIRECTS: DocsRedirect[] = [
     destination: '/workflows/triggers/:slug',
     permanent: true,
   },
+  // the API trigger merged into the Start block; calling a workflow is documented under API deployment
+  { source: '/triggers/api', destination: '/workflows/deployment/api', permanent: true },
   { source: '/deployment', destination: '/workflows/deployment', permanent: true },
   {
     source: '/deployment/:path*',

@@ -77,6 +77,7 @@ export type ResolvedSecretIncompletenessReason =
   | 'table-run-state-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
   | 'workspace-file-provenance-unknown'
+  | 'project-file-provenance-unavailable'
   | 'file-source-unidentified'
   | 'table-snapshot-unsafe-for-mount'
   | 'restored-provenance-untrusted'
@@ -416,6 +417,18 @@ export interface ImportResolvedSecretTraceProvenanceOptions {
    * `source-provenance-incomplete` from a symptom into an address.
    */
   origin?: string
+  /**
+   * Takes the import's entry decrypt-failure summary in place of the registry's own error line,
+   * for a caller that reports the failure itself with the context the registry lacks.
+   */
+  onDecryptFailure?: (failure: ProvenanceDecryptFailure) => void
+}
+
+/** Entry decrypt failures of one provenance import, summarised. */
+export interface ProvenanceDecryptFailure {
+  error: string
+  failedEntryCount: number
+  totalEntryCount: number
 }
 
 export interface ExportResolvedSecretTraceProvenanceForValueOptions {
@@ -965,7 +978,7 @@ export class ResolvedSecretTraceRegistry {
    * A staged registry filters values for one operation and is then discarded. Its caller owns the
    * reporting and says it with strictly more context — the real input path for a value filter, the
    * execution for a display read — so the registry's own summary lines would only restate it.
-   * Entry-level detail still logs — the caller cannot reconstruct it.
+   * Entry decrypt failures still log unless the caller takes them through `onDecryptFailure`.
    */
   private readonly staged: boolean
   /**
@@ -1693,11 +1706,10 @@ export class ResolvedSecretTraceRegistry {
 
     const sameScope = scopesMatch(provenance.scope, this.scope)
     let importedAll = true
-    let decryptFailures = 0
-    let firstDecryptError: string | undefined
+    let decryptFailure: ProvenanceDecryptFailure | undefined
     for (const entry of provenance.entries) {
       try {
-        const { decrypted } = await decryptSecret(entry.encryptedValue)
+        const { decrypted } = await decryptSecret(entry.encryptedValue, { logFailure: false })
         this.addActiveEntry(
           {
             name: entry.name ?? '',
@@ -1709,8 +1721,12 @@ export class ResolvedSecretTraceRegistry {
         )
       } catch (error) {
         importedAll = false
-        decryptFailures += 1
-        firstDecryptError ??= getErrorMessage(error, 'Unknown error')
+        decryptFailure ??= {
+          error: getErrorMessage(error, 'Unknown error'),
+          failedEntryCount: 0,
+          totalEntryCount: provenance.entries.length,
+        }
+        decryptFailure.failedEntryCount += 1
         this.markIncomplete('entry-decrypt-failed', { origin: options.origin })
       }
     }
@@ -1719,16 +1735,53 @@ export class ResolvedSecretTraceRegistry {
      * Summarised rather than logged per entry: one rotated or corrupt key fails every entry in the
      * bundle, and a bundle may carry up to MAX_PROVENANCE_ENTRIES of them.
      */
-    if (decryptFailures > 0) {
-      logger.error('Provenance entries could not be decrypted', {
-        error: firstDecryptError,
-        failedEntryCount: decryptFailures,
-        totalEntryCount: provenance.entries.length,
-        scopeWorkspaceId: this.scope?.workspaceId,
-      })
+    if (decryptFailure) {
+      if (options.onDecryptFailure) {
+        options.onDecryptFailure(decryptFailure)
+      } else {
+        logger.error('Provenance entries could not be decrypted', {
+          ...decryptFailure,
+          scopeWorkspaceId: this.scope?.workspaceId,
+        })
+      }
     }
 
     return importedAll
+  }
+
+  /** Imports one item's trusted evidence atomically, leaving this registry unchanged on refusal. */
+  async tryImportProvenance(
+    provenances: Iterable<ResolvedSecretTraceProvenanceV1>,
+    options: ImportResolvedSecretTraceProvenanceOptions & { value?: unknown }
+  ): Promise<boolean> {
+    const staged = new ResolvedSecretTraceRegistry([], this.scope, { staged: true })
+    for (const provenance of provenances) {
+      if (!(await staged.importProvenance(provenance, options)) || !staged.isComplete())
+        return false
+    }
+
+    let entries = [...staged.activeEntries.values()]
+    if (options.value !== undefined) {
+      const filtered = staged.exportProvenanceForValue(options.value)
+      if (!filtered.complete) return false
+      const selected = new Set(
+        filtered.entries.map((entry) =>
+          activeEntryKey({
+            name: entry.name ?? '',
+            plaintext: '',
+            encryptedValue: entry.encryptedValue,
+            anonymous: entry.name === undefined,
+          })
+        )
+      )
+      entries = entries.filter((entry) => selected.has(activeEntryKey(entry)))
+    }
+
+    /** No await separates the capacity check from activation, including across concurrent calls. */
+    if (this.isPermanentlyIncomplete() || this.activeEntryBytesAfter(entries) === undefined)
+      return false
+    for (const entry of entries) this.addActiveEntry(entry, { propagated: true })
+    return true
   }
 
   /**
@@ -2578,6 +2631,22 @@ export class ResolvedSecretTraceRegistry {
     if (copied) target.inheritIncompletenessReasonsFrom(this)
   }
 
+  private activeEntryBytesAfter(entries: Iterable<ActiveSecretEntry>): number | undefined {
+    let count = this.activeEntries.size
+    let bytes = this.activeProvenanceEntryBytes
+    for (const entry of entries) {
+      if (this.activeEntries.has(activeEntryKey(entry))) continue
+      bytes += (count === 0 ? 0 : 1) + serializedProvenanceEntryByteSize(toProvenanceEntry(entry))
+      count += 1
+      if (
+        count > MAX_PROVENANCE_ENTRIES ||
+        this.completeProvenanceEnvelopeBytes + bytes > MAX_SERIALIZED_PROVENANCE_BYTES
+      )
+        return undefined
+    }
+    return bytes
+  }
+
   private addActiveEntry(entry: ActiveSecretEntry, options: { propagated?: boolean } = {}): void {
     const key = activeEntryKey(entry)
     const existing = this.activeEntries.get(key)
@@ -2596,22 +2665,14 @@ export class ResolvedSecretTraceRegistry {
       return
     }
 
-    const entryBytes = serializedProvenanceEntryByteSize(toProvenanceEntry(entry))
-    const separatorBytes = this.activeEntries.size === 0 ? 0 : 1
-    if (
-      this.activeEntries.size >= MAX_PROVENANCE_ENTRIES ||
-      this.completeProvenanceEnvelopeBytes +
-        this.activeProvenanceEntryBytes +
-        separatorBytes +
-        entryBytes >
-        MAX_SERIALIZED_PROVENANCE_BYTES
-    ) {
+    const nextEntryBytes = this.activeEntryBytesAfter([entry])
+    if (nextEntryBytes === undefined) {
       this.markIncomplete('provenance-capacity-exceeded')
       return
     }
     this.activeEntries.set(key, entry)
     if (options.propagated) this.propagatedEntryKeys.add(key)
-    this.activeProvenanceEntryBytes += separatorBytes + entryBytes
+    this.activeProvenanceEntryBytes = nextEntryBytes
     this.modelEgressRevision += 1
   }
 

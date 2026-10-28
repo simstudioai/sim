@@ -4,14 +4,18 @@ import { SimApiError } from 'sim/embed'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import {
+  isScratchReference,
+  readScratchFile,
+} from '@/lib/mothership/agent-cli/engines/scratch-file-read'
+import {
   type AgentCliEngine,
   type AgentCliFlags,
   type AgentCliRuntime,
   agentCliFail,
 } from '@/lib/mothership/agent-cli/types'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
-import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { decodeFileVisual } from '@/lib/workspace-files/decode-file-visual'
 
@@ -106,6 +110,8 @@ export const fileViewCommand: AgentCliEngine = {
     const reference = positionals[0]
     if (!reference) return agentCliFail('files view requires a workspace file reference.')
     try {
+      if (isScratchReference(reference))
+        return await readScratchFile(reference, runtime, { ...flags, render: true }, {})
       if (
         runtime.chatOrganizationId &&
         runtime.chatId &&

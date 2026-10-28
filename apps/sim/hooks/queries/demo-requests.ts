@@ -6,6 +6,7 @@ import {
   type DemoRequestResult,
   submitDemoRequestContract,
 } from '@/lib/api/contracts/demo-requests'
+import { captureClientEvent } from '@/lib/posthog/client'
 
 const logger = createLogger('DemoRequestMutation')
 
@@ -19,6 +20,11 @@ export function useSubmitDemoRequest() {
   return useMutation({
     mutationFn: async (variables: DemoRequestBody): Promise<DemoRequestResult> => {
       return requestJson(submitDemoRequestContract, { body: variables })
+    },
+    onSuccess: (_result, variables) => {
+      captureClientEvent('landing_demo_request_submitted', {
+        company_size: variables.companySize,
+      })
     },
     onError: (error) => {
       logger.error('Failed to submit demo request:', error)

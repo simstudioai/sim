@@ -15,12 +15,10 @@ import {
   getPostgresErrorCode,
 } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
-import {
-  type BillingAttributionSnapshot,
-  toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
 import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import {
   getHighestPriorityPersonalSubscription,
@@ -37,6 +35,11 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { FOREIGN_KEY_VIOLATION } from '@/lib/core/errors/database-query-error'
+import {
+  type ExecutionScope,
+  ExecutionScopeDeletedError,
+} from '@/lib/core/errors/execution-scope-deleted'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -44,6 +47,7 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
+import { getJsonByteSize } from '@/lib/logs/execution/json-byte-size'
 import { redactLargeValueRefs } from '@/lib/logs/execution/pii-large-values'
 import { type RedactablePayload, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -79,6 +83,7 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
+import { isLiveExecutionState } from '@/executor/execution/snapshot-serializer'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')
@@ -90,6 +95,7 @@ const logger = createLogger('ExecutionLogger')
  */
 const execDb = dbFor('exec')
 const MAX_EXECUTION_DATA_BYTES = 3 * 1024 * 1024
+const EXECUTION_DATA_SIZE_PROBE_LIMIT = MAX_EXECUTION_DATA_BYTES + 1
 const MAX_TRACE_IO_BYTES = 8 * 1024
 const MAX_WORKFLOW_VALUE_BYTES = 512 * 1024
 const EXECUTION_LOG_STATEMENT_TIMEOUT_MS = 30_000
@@ -98,7 +104,6 @@ const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
 // Bounds the wait for the per-execution usage-reconcile advisory lock. Generous
 // (favor waiting over dropping a charge); only trips on a pathological lock hold.
 const USAGE_RECONCILE_LOCK_TIMEOUT_MS = 10_000
-const FOREIGN_KEY_VIOLATION = '23503'
 /** The log's snapshot foreign key as Postgres names it (identifiers are cut at 63 bytes). */
 const STATE_SNAPSHOT_FOREIGN_KEY = 'workflow_execution_logs_state_snapshot_id_workflow_execution_sn'
 
@@ -136,80 +141,6 @@ type UsageThresholdEmailContext =
       orgLimit: number
       orgUsageBefore: number
     }
-
-function getJsonByteSize(
-  value: unknown,
-  maxBytes = MAX_EXECUTION_DATA_BYTES + 1
-): number | undefined {
-  const seen = new WeakSet<object>()
-  let bytes = 0
-
-  const add = (amount: number) => {
-    bytes += amount
-    if (bytes > maxBytes) {
-      throw new Error('json_size_limit_reached')
-    }
-  }
-
-  const visit = (item: unknown): void => {
-    if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
-      add(4)
-      return
-    }
-    if (item === null) {
-      add(4)
-      return
-    }
-    if (typeof item === 'string') {
-      add(Buffer.byteLength(JSON.stringify(item), 'utf8'))
-      return
-    }
-    if (typeof item === 'bigint') {
-      add(Buffer.byteLength(JSON.stringify(item.toString()), 'utf8'))
-      return
-    }
-    if (typeof item === 'number' || typeof item === 'boolean') {
-      add(Buffer.byteLength(JSON.stringify(item) ?? 'null', 'utf8'))
-      return
-    }
-    if (typeof item !== 'object') {
-      add(4)
-      return
-    }
-    if (seen.has(item)) {
-      return
-    }
-    seen.add(item)
-
-    if (Array.isArray(item)) {
-      add(2)
-      item.forEach((entry, index) => {
-        if (index > 0) add(1)
-        visit(entry)
-      })
-      return
-    }
-
-    const entries = Object.entries(item)
-    add(2)
-    entries.forEach(([key, entry], index) => {
-      if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol') return
-      if (index > 0) add(1)
-      add(Buffer.byteLength(JSON.stringify(key), 'utf8') + 1)
-      visit(entry)
-    })
-  }
-
-  try {
-    visit(value)
-    return bytes
-  } catch (error) {
-    if (getErrorMessage(error) === 'json_size_limit_reached') {
-      return maxBytes + 1
-    }
-    return undefined
-  }
-}
 
 function describeValue(value: unknown): string {
   if (value === null) return 'null'
@@ -329,6 +260,27 @@ function summarizeTraceSpansForExecutionData(traceSpans?: TraceSpan[]): TraceSpa
   })
 }
 
+/** Puts each loop or parallel scope's own provenance back onto its masked copy. */
+function restoreSubflowScopeProvenance(
+  redactedScopes: Record<string, unknown> | undefined,
+  originalScopes: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!redactedScopes) return redactedScopes
+  const scopes = { ...redactedScopes }
+  for (const [scopeId, originalScope] of Object.entries(originalScopes ?? {})) {
+    const redactedScope = scopes[scopeId]
+    if (!isRecordLike(redactedScope) || !isRecordLike(originalScope)) continue
+    scopes[scopeId] = {
+      ...redactedScope,
+      ...filterUndefined({
+        inputResolvedSecretTraceProvenance: originalScope.inputResolvedSecretTraceProvenance,
+        resolvedSecretTraceProvenance: originalScope.resolvedSecretTraceProvenance,
+      }),
+    }
+  }
+  return scopes
+}
+
 function summarizeExecutionState(executionState?: SerializableExecutionState) {
   if (!executionState) {
     return undefined
@@ -347,13 +299,13 @@ function recordStoredByteSize(executionData: ExecutionData): {
   executionData: ExecutionData
   storedBytes?: number
 } {
-  const firstBytes = getJsonByteSize(executionData)
+  const firstBytes = getJsonByteSize(executionData, EXECUTION_DATA_SIZE_PROBE_LIMIT)
   if (firstBytes === undefined) {
     return { executionData }
   }
 
   const withFirstSize = { ...executionData, executionDataStoredBytes: firstBytes }
-  const secondBytes = getJsonByteSize(withFirstSize)
+  const secondBytes = getJsonByteSize(withFirstSize, EXECUTION_DATA_SIZE_PROBE_LIMIT)
   if (secondBytes === undefined || secondBytes === firstBytes) {
     return { executionData: withFirstSize, storedBytes: secondBytes ?? firstBytes }
   }
@@ -361,7 +313,7 @@ function recordStoredByteSize(executionData: ExecutionData): {
   const withSecondSize = { ...executionData, executionDataStoredBytes: secondBytes }
   return {
     executionData: withSecondSize,
-    storedBytes: getJsonByteSize(withSecondSize) ?? secondBytes,
+    storedBytes: getJsonByteSize(withSecondSize, EXECUTION_DATA_SIZE_PROBE_LIMIT) ?? secondBytes,
   }
 }
 
@@ -373,6 +325,47 @@ async function setExecutionLogWriteTimeouts(trx: Pick<typeof db, 'execute'>): Pr
   await trx.execute(
     sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${EXECUTION_LOG_IDLE_TIMEOUT_MS}ms'`)
   )
+}
+
+/**
+ * Throws {@link ExecutionScopeDeletedError} when the run's workspace no longer exists. Deleting a
+ * workspace cascades its log rows away, so a missing log under a missing workspace is a run whose
+ * owner deleted it, not a lost row.
+ */
+async function assertExecutionWorkspaceExists(
+  client: Pick<typeof db, 'select'>,
+  executionId: string,
+  workspaceId: string | null | undefined
+): Promise<void> {
+  if (!workspaceId) return
+  if (!(await workspaceRowExists(client, workspaceId))) {
+    throw new ExecutionScopeDeletedError(executionId, 'workspace')
+  }
+}
+
+async function workspaceRowExists(
+  client: Pick<typeof db, 'select'>,
+  workspaceId: string
+): Promise<boolean> {
+  const [row] = await client
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+  return row !== undefined
+}
+
+/**
+ * Whether a missing workflow is explained by its whole workspace having been deleted, which the
+ * completion then reports as a deleted run. A failed lookup reports `false`, keeping the error.
+ */
+async function isWorkspaceDeleted(workspaceId: string | null | undefined): Promise<boolean> {
+  if (!workspaceId) return false
+  try {
+    return !(await workspaceRowExists(execDb, workspaceId))
+  } catch {
+    return false
+  }
 }
 
 function countTraceSpans(traceSpans?: TraceSpan[]): number {
@@ -415,7 +408,7 @@ export class ExecutionLogger {
     executionData: ExecutionData,
     executionId: string
   ): ExecutionData {
-    const originalBytes = getJsonByteSize(executionData)
+    const originalBytes = getJsonByteSize(executionData, EXECUTION_DATA_SIZE_PROBE_LIMIT)
     if (originalBytes === undefined || originalBytes <= MAX_EXECUTION_DATA_BYTES) {
       return executionData
     }
@@ -777,7 +770,17 @@ export class ExecutionLogger {
     // the log's large values must get the logs policy applied like inline content
     // does. Masking is idempotent, so already-masked spans are unaffected; a ref
     // that can't be materialized/re-stored falls back to a marker.
-    const working = await redactLargeValueRefs(payload, {
+    // A completed run hands over live execution state rather than a JSON clone;
+    // normalize it (Dates to strings, undefined dropped) so masking sees the
+    // same shapes the persisted state will have. Other states are JSON already.
+    const normalizedPayload = !isLiveExecutionState(payload.executionState)
+      ? payload
+      : {
+          ...payload,
+          // utils-lint-allow: JSON normalization of the state, not a deep clone
+          executionState: JSON.parse(JSON.stringify(payload.executionState)),
+        }
+    const working = await redactLargeValueRefs(normalizedPayload, {
       entityTypes: config.entityTypes,
       language: config.language,
       customPatterns: config.customPatterns,
@@ -796,18 +799,19 @@ export class ExecutionLogger {
     })
   }
 
-  /** Restores server-only lifecycle metadata after broad execution-state PII masking. */
+  /**
+   * Restores server-only lifecycle metadata after broad execution-state PII masking. The masker
+   * walks every string leaf, so it can rewrite a substring of an encrypted provenance entry or an
+   * id and make it unusable; these fields carry no user content, so the originals go back verbatim.
+   */
   private preservePrivateExecutionStateMetadata(
     redactedState: SerializableExecutionState | undefined,
     originalState: SerializableExecutionState | undefined
   ): SerializableExecutionState | undefined {
-    if (!redactedState) return redactedState
+    if (!redactedState || !originalState) return redactedState
 
-    const provenance = originalState?.resolvedSecretTraceProvenance
-    const provenanceCheckpointVersion = originalState?.resolvedSecretTraceCheckpointVersion
-    const trustedLargeValueAccess = originalState?.trustedLargeValueAccess
     const blockStates = { ...redactedState.blockStates }
-    for (const [blockId, originalBlockState] of Object.entries(originalState?.blockStates ?? {})) {
+    for (const [blockId, originalBlockState] of Object.entries(originalState.blockStates)) {
       const redactedBlockState = blockStates[blockId]
       if (redactedBlockState && originalBlockState.resolvedSecretTraceProvenance) {
         blockStates[blockId] = {
@@ -817,8 +821,7 @@ export class ExecutionLogger {
       }
     }
     const blockLogs = redactedState.blockLogs.map((log, index) => {
-      const displayProvenance =
-        originalState?.blockLogs[index]?.displayResolvedSecretTraceProvenance
+      const displayProvenance = originalState.blockLogs[index]?.displayResolvedSecretTraceProvenance
       return displayProvenance
         ? { ...log, displayResolvedSecretTraceProvenance: displayProvenance }
         : log
@@ -828,17 +831,26 @@ export class ExecutionLogger {
       ...redactedState,
       blockStates,
       blockLogs,
-      ...(provenance !== undefined ? { resolvedSecretTraceProvenance: provenance } : {}),
-      ...(originalState?.workflowVariableResolvedSecretTraceProvenance !== undefined
-        ? {
-            workflowVariableResolvedSecretTraceProvenance:
-              originalState.workflowVariableResolvedSecretTraceProvenance,
-          }
-        : {}),
-      ...(provenanceCheckpointVersion !== undefined
-        ? { resolvedSecretTraceCheckpointVersion: provenanceCheckpointVersion }
-        : {}),
-      ...(trustedLargeValueAccess !== undefined ? { trustedLargeValueAccess } : {}),
+      ...filterUndefined({
+        loopExecutions: restoreSubflowScopeProvenance(
+          redactedState.loopExecutions,
+          originalState.loopExecutions
+        ),
+        parallelExecutions: restoreSubflowScopeProvenance(
+          redactedState.parallelExecutions,
+          originalState.parallelExecutions
+        ),
+        sourceExecutionId: originalState.sourceExecutionId,
+        trustedLargeValueAccess: originalState.trustedLargeValueAccess,
+        resolvedSecretTraceProvenance: originalState.resolvedSecretTraceProvenance,
+        workflowVariableResolvedSecretTraceProvenance:
+          originalState.workflowVariableResolvedSecretTraceProvenance,
+        workflowInputResolvedSecretTraceProvenance:
+          originalState.workflowInputResolvedSecretTraceProvenance,
+        finalOutputResolvedSecretTraceProvenance:
+          originalState.finalOutputResolvedSecretTraceProvenance,
+        resolvedSecretTraceCheckpointVersion: originalState.resolvedSecretTraceCheckpointVersion,
+      }),
     }
   }
 
@@ -893,8 +905,31 @@ export class ExecutionLogger {
     return pii.traceSpans as TraceSpan[]
   }
 
+  /**
+   * Which of a run's scopes no longer exists, read by primary key: the workspace first, since
+   * deleting it also deletes the workflow. `null` when both still exist.
+   */
+  async findDeletedExecutionScope(params: {
+    workspaceId: string
+    workflowId: string
+  }): Promise<ExecutionScope | null> {
+    if (!(await workspaceRowExists(execDb, params.workspaceId))) return 'workspace'
+    const [workflowRow] = await execDb
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.id, params.workflowId))
+      .limit(1)
+    return workflowRow ? null : 'workflow'
+  }
+
+  /**
+   * Writes the run's terminal log state. Throws {@link ExecutionScopeDeletedError} when the log
+   * row is gone because `workspaceId` was deleted, before any redaction, storage, or billing work.
+   */
   async completeWorkflowExecution(params: {
     executionId: string
+    /** The run's workspace, checked only when its log row is missing. */
+    workspaceId?: string
     endedAt: string
     totalDurationMs: number
     costSummary: {
@@ -960,6 +995,8 @@ export class ExecutionLogger {
         workflowId: existingLog.workflowId ?? undefined,
         workspaceId: existingLog.workspaceId ?? undefined,
       })
+    } else {
+      await assertExecutionWorkspaceExists(execDb, executionId, params.workspaceId)
     }
     const existingExecutionData = existingLog?.executionData as
       | WorkflowExecutionLog['executionData']
@@ -1252,7 +1289,8 @@ export class ExecutionLogger {
         executionId,
         actorUserId,
         exactBillingContext,
-        status !== 'pending'
+        status !== 'pending',
+        existingLog.workspaceId
       )
     }
 
@@ -1315,6 +1353,13 @@ export class ExecutionLogger {
             (currentLog?.status === 'completed' || currentLog?.status === 'failed'))
         if (competingTerminalStateWon) {
           return { updatedLog: currentLog, completionPersisted: false }
+        }
+        if (!currentLog) {
+          await assertExecutionWorkspaceExists(
+            tx,
+            executionId,
+            existingLog?.workspaceId ?? params.workspaceId
+          )
         }
         throw new Error(`Workflow log not found for execution ${executionId}`)
       }
@@ -1498,7 +1543,9 @@ export class ExecutionLogger {
      * reconcile across boundaries, so they are written once — at the terminal
      * boundary, where the summary already holds the run's cumulative tokens.
      */
-    isTerminalBoundary = true
+    isTerminalBoundary = true,
+    /** The run's workspace, read only to explain a missing workflow. */
+    workspaceId?: string | null
   ): Promise<ExecutionUsageRecording> {
     const statsLog = logger.withMetadata({ workflowId: workflowId ?? undefined, executionId })
 
@@ -1524,7 +1571,11 @@ export class ExecutionLogger {
         .limit(1)
 
       if (!workflowRecord) {
-        statsLog.error('Workflow not found for usage recording')
+        if (await isWorkspaceDeleted(workspaceId)) {
+          statsLog.info("Skipped usage recording: the run's workspace was deleted")
+        } else {
+          statsLog.error('Workflow not found for usage recording')
+        }
         return NO_USAGE_RECORDED
       }
 
@@ -1722,7 +1773,7 @@ export class ExecutionLogger {
         // flow and only matters under a cross-process double-completion of the
         // same execution, where it stops a stale already-billed read from
         // dropping the larger delta.
-        await db.transaction(async (tx) => {
+        await dbFor('billing').transaction(async (tx) => {
           await tx.execute(
             sql`select set_config('lock_timeout', ${`${USAGE_RECONCILE_LOCK_TIMEOUT_MS}ms`}, true)`
           )

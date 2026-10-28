@@ -14,6 +14,14 @@
  */
 const NUL_CHARACTER = '\u0000'
 
+/**
+ * The characters JavaScript's `\s` and `trim()` treat as whitespace, spelled out as a bracket
+ * expression both JavaScript and PostgreSQL regular expressions accept, so a SQL expression can
+ * normalize whitespace exactly as its TypeScript twin does.
+ */
+export const WHITESPACE_CHARACTER_CLASS =
+  '[ \\t\\n\\v\\f\\r\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]'
+
 /** Reports whether `value` carries a `U+0000`. See {@link NUL_CHARACTER}. */
 export function containsNulCharacter(value: string): boolean {
   return value.includes(NUL_CHARACTER)
@@ -134,12 +142,28 @@ export function isValidEmailSyntax(email: string, allowDomains = false): boolean
 }
 
 /**
- * Matches UTF-16 code units that Postgres JSONB rejects: unpaired surrogate
- * halves (e.g. produced by `slice()` cutting an astral character like 𝐀 in
- * half) and the NUL character, which jsonb cannot store at all.
+ * Matches an unpaired UTF-16 surrogate half — e.g. one produced by `slice()`
+ * cutting an astral character like 😀 in half. Such a string has no UTF-8
+ * encoding, so a peer that re-encodes it strictly (Python's JSON response
+ * encoder, for one) throws on it.
  */
-const JSONB_UNSAFE =
-  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|\u0000/g
+const UNPAIRED_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/**
+ * Replaces every unpaired surrogate with U+FFFD (�), the same result as the
+ * ES2024 `String.prototype.toWellFormed`, which the shared ES2022 lib target
+ * does not type. Length-preserving, so indices into the input stay valid.
+ */
+export function toWellFormed(str: string): string {
+  return str.replace(UNPAIRED_SURROGATE, '\uFFFD')
+}
+
+/**
+ * Matches UTF-16 code units that Postgres JSONB rejects: unpaired surrogate
+ * halves (see {@link UNPAIRED_SURROGATE}) and the NUL character, which
+ * jsonb cannot store at all.
+ */
+const JSONB_UNSAFE = new RegExp(`${UNPAIRED_SURROGATE.source}|\\u0000`, 'g')
 
 /**
  * Replaces unpaired UTF-16 surrogates and NUL characters with U+FFFD (�) so
@@ -369,6 +393,17 @@ const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/g
  */
 export function escapeRegExp(value: string): string {
   return value.replace(REGEX_METACHARACTERS, '\\$&')
+}
+
+/**
+ * Removes every trailing `/`. A backward scan rather than `/\/+$/`: that regex
+ * restarts at each `/` in a long run that does not reach the end, so it is
+ * quadratic in the run length.
+ */
+export function stripTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value.charCodeAt(end - 1) === 0x2f) end--
+  return value.slice(0, end)
 }
 
 /**

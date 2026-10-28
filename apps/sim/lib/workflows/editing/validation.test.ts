@@ -345,6 +345,30 @@ describe('validateInputsForBlock', () => {
     ).toBe(false)
   })
 
+  it('stores input-format rows with legacy or aliased types unchanged', () => {
+    const rows = [
+      { name: 'payload', type: 'json' },
+      { name: 'title', type: 'short-input' },
+      { name: 'message' },
+    ]
+    expect(
+      validateValueForSubBlockType(
+        { id: 'inputFormat', type: 'input-format' },
+        rows,
+        'inputFormat',
+        'start_trigger',
+        'start-1'
+      )
+    ).toEqual({
+      valid: true,
+      value: [
+        { name: 'payload', type: 'json' },
+        { name: 'title', type: 'short-input' },
+        { name: 'message' },
+      ],
+    })
+  })
+
   describe('model-fallback-list', () => {
     const config = { id: 'fallbackModels', type: 'model-fallback-list' as const }
     const validate = (value: unknown) =>
@@ -374,8 +398,9 @@ describe('validateInputsForBlock', () => {
       )
     })
 
-    it('refuses sim-auto, unknown models, missing models, and non-arrays', () => {
+    it('refuses sim-auto, evaluation models, unknown models, missing models, and non-arrays', () => {
       expect(validate([{ model: 'sim-auto' }]).valid).toBe(false)
+      expect(validate([{ model: 'jev-latest' }]).valid).toBe(false)
       expect(validate([{ model: 'definitely-not-a-model-9000' }]).valid).toBe(false)
       expect(validate([{ apiKey: '{{KEY}}' }]).valid).toBe(false)
       expect(validate({ model: 'claude-sonnet-5' }).valid).toBe(false)

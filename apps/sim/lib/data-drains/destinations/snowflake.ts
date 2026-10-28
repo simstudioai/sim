@@ -193,8 +193,8 @@ function quoteIdentifier(name: string): string {
 function buildStatement(config: SnowflakeDestinationConfig, rowCount: number): string {
   const column = quoteIdentifier(config.column ?? 'DATA')
   const target = `${quoteIdentifier(config.database)}.${quoteIdentifier(config.schema)}.${quoteIdentifier(config.table)}`
-  const placeholders = Array.from({ length: rowCount }, () => '(PARSE_JSON(?))').join(', ')
-  return `INSERT INTO ${target} (${column}) VALUES ${placeholders}`
+  const placeholders = Array.from({ length: rowCount }, () => '(?)').join(', ')
+  return `INSERT INTO ${target} (${column}) SELECT PARSE_JSON(column1) FROM VALUES ${placeholders}`
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -261,7 +261,6 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
       lastError = error
       logger.warn('Snowflake request failed', {
         attempt,
-        error: toError(error).message,
       })
       if (input.signal.aborted || attempt === EXECUTE_MAX_ATTEMPTS) throw error
       await interruptibleSleep(
@@ -367,7 +366,6 @@ async function pollStatement(input: PollInput): Promise<void> {
       logger.warn('Snowflake poll request failed, retrying', {
         attempt: retryAttempt,
         delayMs: delay,
-        error: toError(error).message,
       })
       await interruptibleSleep(delay, input.signal)
       skipIntervalSleep = true

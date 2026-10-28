@@ -33,7 +33,6 @@ import {
   isInboxEnabled,
   isSandboxDeploymentEntitled,
   isSandboxesEnabled,
-  isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
@@ -636,27 +635,6 @@ export async function isOrganizationFeatureEntitled(
 }
 
 /**
- * Check if user has access to SSO feature
- * Returns true if:
- * - SSO_ENABLED env var is set (self-hosted override), OR
- * - User is admin/owner of an enterprise organization
- *
- * In non-production environments, returns true for convenience.
- */
-export async function hasSSOAccess(userId: string): Promise<boolean> {
-  try {
-    if (isSsoEnabled && !isHosted) {
-      return true
-    }
-
-    return isEnterpriseOrgAdminOrOwner(userId)
-  } catch (error) {
-    logger.error('Error checking SSO access', { error, userId })
-    return false
-  }
-}
-
-/**
  * Check whether a workspace is entitled to workspace-scoped enterprise features
  * — today, copilot BYOK. Entitlement follows the workspace's billing entity:
  * - self-hosted override honored via ACCESS_CONTROL_ENABLED, OR
@@ -664,19 +642,17 @@ export async function hasSSOAccess(userId: string): Promise<boolean> {
  * - the workspace belongs to an enterprise-plan organization (org-mode), OR
  * - the billed user has an individual enterprise subscription (personal workspace).
  *
+ * Rejects uncertain billing reads so Copilot cannot switch to hosted credentials
+ * when enterprise entitlement is temporarily unavailable.
+ *
  * Org-scoped Access Control (Permission Groups) gates on
  * {@link isOrganizationOnEnterprisePlan} instead — it has no workspace to resolve.
  */
 export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<boolean> {
-  try {
-    if (!isBillingEnabled) return true
-    if (isAccessControlEnabled && !isHosted) return true
+  if (!isBillingEnabled) return true
+  if (isAccessControlEnabled && !isHosted) return true
 
-    return await hasWorkspaceTierAccess(workspaceId, isPlanEnterprise)
-  } catch (error) {
-    logger.error('Error checking workspace enterprise plan status', { error, workspaceId })
-    return false
-  }
+  return hasWorkspaceTierAccess(workspaceId, isPlanEnterprise, { onError: 'throw' })
 }
 
 /**
@@ -698,12 +674,9 @@ interface WorkspaceTierAccessOptions {
    */
   onMissingWorkspace?: boolean
   /**
-   * What a subscription-read failure resolves to. By default the reads soft-fail
-   * to "no subscription", which a one-shot gate correctly reads as a denial. A
-   * caller that *caches* the answer must pass `'throw'`: a swallowed failure is
-   * indistinguishable from a real lapse, and caching it would hold the gate
-   * shut for a whole TTL over a momentary outage. Honored on the `retention`
-   * reads, which are the only ones a cached caller uses.
+   * What a subscription-read failure resolves to. Callers that cache the answer
+   * or select credentials must pass 'throw': an unavailable read is neither a
+   * confirmed lapse nor permission to switch to a hosted credential.
    */
   onError?: 'return-null' | 'throw'
 }
@@ -759,7 +732,7 @@ async function hasWorkspaceTierAccess(
   if (ws.organizationId) {
     const [billingBlocked, orgSub] = await Promise.all([
       isOrganizationBillingBlocked(ws.organizationId),
-      getOrganizationSubscriptionUsable(ws.organizationId),
+      getOrganizationSubscriptionUsable(ws.organizationId, readOptions),
     ])
     if (!orgSub) return false
     if (!hasUsableSubscriptionAccess(orgSub.status, billingBlocked)) return false
@@ -767,7 +740,7 @@ async function hasWorkspaceTierAccess(
   }
 
   const [billedSub, billingStatus] = await Promise.all([
-    getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
+    getHighestPriorityPersonalSubscription(ws.billedAccountUserId, readOptions),
     getEffectiveBillingStatus(ws.billedAccountUserId),
   ])
   if (!billedSub) return false

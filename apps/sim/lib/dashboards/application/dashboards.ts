@@ -12,7 +12,7 @@ import {
 } from '@/lib/dashboards/repository'
 import { parseDashboardSpec } from '@/lib/dashboards/spec'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const authorizationOptions = {
   delegation: { audience: 'sim:workspaces', isWithinScope: () => true },

@@ -30,7 +30,7 @@ import {
   generateToolInputSchema,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const MAX_LISTED_WORKFLOW_MCP_SERVERS = 100
 const MAX_LISTED_WORKFLOW_MCP_TOOLS = 2000

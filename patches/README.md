@@ -89,3 +89,63 @@ rich-text mode, preserving the chart document's untrusted-markup boundary.
 `apps/sim/lib/charts/tooltip.test.ts` exercises actual ECharts tooltip rendering,
 font overrides, generated tokens, and box sizing. Remove this patch when an
 upstream release provides equivalent font handling and these tests pass.
+
+# Next.js application Vary preservation
+
+`next@16.4.1` replaces application `Vary` values when the Node App Page handler
+sets its router cache dimensions. The docs proxy's `Vary: Accept` therefore
+vanishes from the final HTML response, allowing downstream caches to confuse
+HTML with negotiated Markdown.
+
+The pinned patch applies the merging semantics of [upstream PR #98104](https://github.com/vercel/next.js/pull/98104)
+at Next's native Node outgoing-header merger, which is used before the bundled
+App Page handler. Both published CommonJS and ESM entry points preserve existing
+Vary fields and add later fields without case-sensitive duplicates. Wildcards
+remain intact, and native header validation still rejects invalid values.
+
+Vary writes become cumulative across Node server responses in both the docs and
+Sim workspaces; explicit header removal, cookie handling, other headers, router
+selection, cache lifetimes, and authentication are unchanged. Edge SSR and direct
+handlers outside Next's Node server are outside this patch's scope.
+
+The `docs content negotiation` CI workflow builds and serves the actual docs,
+then runs `apps/docs/scripts/test-negotiation-e2e.ts`. Its HTTP checks verify
+HTML → Markdown → HTML at one URL, `Vary: Accept` on both representations, and
+preservation of Next's router dimensions. It uploads a JSON report and server
+log. The HTML checks fail with the unpatched dependency even when the proxy
+already sets `Vary: Accept`. `test:headers:e2e` exercises the actual CommonJS and
+ESM mergers over loopback HTTP for string/array fields, mixed casing, wildcards,
+invalid values, other-header replacement, and middleware cookies. Its checks
+fail independently when the merge or validation guard is removed. CI uploads
+both reports.
+
+To repeat against a running production docs server:
+
+```bash
+DOCS_E2E_BASE_URL=http://127.0.0.1:3001 \
+DOCS_NEGOTIATION_REPORT_PATH=/tmp/docs-negotiation.json \
+bun run --cwd apps/docs test:negotiation:e2e
+```
+
+Remove the patch when upgrading to a release with equivalent Vary preservation,
+and retain the HTTP regression check.
+
+# Zod collection size bounds
+
+`zod@4.3.6` runs an array's `.max()`/`.length()` (and a set's or map's `.max()`/`.size()`)
+only after it has parsed every element, so a small body against a bounded schema builds an
+issue per malformed element before the bound is reported. An unauthenticated request to the
+public chat endpoint can turn under a megabyte of JSON into gigabytes of issues
+(GHSA-mrhx-c7xc-m3w5).
+
+The version-pinned patch backports the leading size gate from
+[upstream PR #6652](https://github.com/colinhacks/zod/pull/6652), released in 4.6.6, to the
+ESM and CommonJS builds. A container larger than its leading upper bound skips its elements
+and returns unchanged; its own size check then reports the single `too_big` issue. Any input
+within its bounds parses exactly as before. The bound check is skipped, as upstream, for
+`skipChecks` and backward (encode) parses.
+
+Zod 4.6 is not a drop-in upgrade: it rejects absent `unknown`/`any` object keys, requires
+seconds in ISO datetimes, and emits root `$ref` JSON Schema for schemas with an `id`.
+`@trigger.dev/core`, which the root override puts on this zod, relies on the first.
+Remove this patch when upgrading zod to 4.6.6 or later.

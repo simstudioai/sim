@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { loggerMock } from '@sim/testing'
 import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
 import {
@@ -15,7 +16,7 @@ const { mockSnapshotFromJson, mockIsTimedOut } = vi.hoisted(() => ({
   mockIsTimedOut: vi.fn(() => false),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/table/cascade-lock', () => ({ withCascadeLock: vi.fn() }))
 vi.mock('@/lib/table/deps', () => ({ isExecCancelled: vi.fn(() => false) }))
@@ -28,6 +29,7 @@ vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: { fromJSON: mockSnapshotFromJson },
 }))
 
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 
 const { mockFindCellContextByExecutionId } = tableWorkflowColumnsMockFns
@@ -94,14 +96,29 @@ describe('executeResumeJob terminal errors', () => {
 
     await expect(executeResumeJob(payload)).rejects.toBe(rawError)
 
-    expect(resumeExecutionLogger.error).toHaveBeenCalledWith('Background resume execution failed', {
-      errorType: 'error',
-      hasStack: true,
-    })
+    expect(resumeExecutionLogger.error).toHaveBeenCalledWith(
+      'Background resume execution failed',
+      expect.objectContaining({ errorType: 'error', hasStack: true, failureKind: 'internal' })
+    )
     const loggerPayload = JSON.stringify(resumeExecutionLogger.error.mock.calls)
     expect(loggerPayload).not.toContain(secret)
     expect(loggerPayload).not.toContain('__var_')
     expect(rawError.message).toContain(secret)
+  })
+
+  it('does not log again a failure the resumed run already logged', async () => {
+    const rawError = new Error('resume blew up')
+    mockStartResumeExecution.mockImplementation(async () => {
+      logFailureOnce(createLogger('ResumeBoundary'), 'Resume execution failed', rawError, {
+        executionId: payload.parentExecutionId,
+      })
+      throw rawError
+    })
+    resumeExecutionLogger.error.mockClear()
+
+    await expect(executeResumeJob(payload)).rejects.toBe(rawError)
+
+    expect(resumeExecutionLogger.error).not.toHaveBeenCalled()
   })
 
   it('starts a legacy attempt deadline before deserializing the full snapshot', async () => {

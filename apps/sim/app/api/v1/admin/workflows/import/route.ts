@@ -15,7 +15,7 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workspace } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   assertFolderInWorkspace,
@@ -28,18 +28,17 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
 } from '@/app/api/v1/admin/responses'
 import { extractWorkflowMetadata, type WorkflowImportRequest } from '@/app/api/v1/admin/types'
 
@@ -67,7 +66,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       /**
@@ -93,7 +92,7 @@ export const POST = withRouteHandler(
       const { data: workflowData, errors } = parseWorkflowJson(workflowContent)
 
       if (!workflowData || errors.length > 0) {
-        return badRequestResponse(`Invalid workflow: ${errors.join(', ')}`)
+        return adminBadRequestResponse(`Invalid workflow: ${errors.join(', ')}`)
       }
 
       const parsedWorkflow =
@@ -113,18 +112,6 @@ export const POST = withRouteHandler(
       )
 
       const workflowId = generateId()
-      const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, folderId || null)
-
-      await db.insert(workflow).values(
-        await buildNewWorkflowRow(db, {
-          id: workflowId,
-          userId: workspaceData.ownerId,
-          workspaceId,
-          folderId: folderId || null,
-          name: dedupedName,
-          description: workflowDescription,
-        })
-      )
 
       /**
        * Same normalization the editor and the v1 import API run, via the one
@@ -137,13 +124,16 @@ export const POST = withRouteHandler(
         logger.warn('Admin API: normalized imported workflow with warnings', { warnings })
       }
 
-      const saveResult = await saveWorkflowToNormalizedTables(
-        workflowId,
-        {
-          ...workflowData,
-          ...preparedState,
-        },
-        {
+      const created = await createWorkflowWithState({
+        id: workflowId,
+        userId: workspaceData.ownerId,
+        workspaceId,
+        folderId: folderId || null,
+        name: workflowName,
+        description: workflowDescription,
+        variables: normalizeImportedVariables(workflowData.variables),
+        state: { ...workflowData, ...preparedState },
+        governance: {
           /**
            * Actorless. This is the platform-admin surface: the caller is a Sim
            * operator restoring data, not a member of the target workspace, so no
@@ -152,42 +142,36 @@ export const POST = withRouteHandler(
            */
           workspaceId: null,
           subjectUserId: null,
-        }
-      )
+        },
+      })
 
-      if (!saveResult.success) {
-        await db.delete(workflow).where(eq(workflow.id, workflowId))
-        return internalErrorResponse(`Failed to save workflow state: ${saveResult.error}`)
-      }
-
-      const variablesRecord = normalizeImportedVariables(workflowData.variables)
-      if (Object.keys(variablesRecord).length > 0) {
-        await db
-          .update(workflow)
-          .set({ variables: variablesRecord, updatedAt: new Date() })
-          .where(eq(workflow.id, workflowId))
+      if (!created.success) {
+        return adminInternalErrorResponse(`Failed to save workflow state: ${created.error}`)
       }
 
       logger.info(
-        `Admin API: Imported workflow ${workflowId} (${dedupedName}) into workspace ${workspaceId}`
+        `Admin API: Imported workflow ${workflowId} (${created.workflow.name}) into workspace ${workspaceId}`
       )
 
       const response: ImportSuccessResponse = {
         workflowId,
-        name: dedupedName,
+        name: created.workflow.name,
         success: true,
       }
 
       return NextResponse.json(response)
     } catch (error) {
+      if (asOrchestrationError(error)?.code === 'not_found') {
+        return adminNotFoundResponse('Workspace')
+      }
       if (error instanceof FolderNotFoundError) {
-        return badRequestResponse(error.message)
+        return adminBadRequestResponse(error.message)
       }
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
       logger.error('Admin API: Failed to import workflow', { error })
-      return internalErrorResponse('Failed to import workflow')
+      return adminInternalErrorResponse('Failed to import workflow')
     }
   })
 )

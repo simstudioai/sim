@@ -9,8 +9,8 @@ import type { DiscordSendMessageInput } from '@/lib/internal/discord/schema'
 import { createInternalToolFilesResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file-utils.server'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('DiscordOperations')

@@ -48,7 +48,7 @@ export const getOrganizationTool: ToolConfig<
   id: 'posthog_get_organization',
   name: 'PostHog Get Organization',
   description:
-    'Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information.',
+    'Get a PostHog organization by ID, including its settings, features, usage, and teams.',
   version: '1.0.0',
   errorExtractor: 'posthog-errors',
 

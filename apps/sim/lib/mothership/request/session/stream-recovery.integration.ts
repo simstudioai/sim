@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * Recovery of a Chat run whose Sim controller died after its replay ring lost its
  * head, against real Redis and PostgreSQL through the production reconnect route and
@@ -61,7 +62,7 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
-  claimSimToolExecution,
+  claimToolExecution,
   completeOwnedSimToolCall,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
@@ -195,7 +196,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Stream recovery fixture',
       ownerId: userId,
@@ -221,7 +222,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
       await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     }
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await closeRedisConnection()
   })
@@ -265,7 +266,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
       args: {},
     })
     expect(
-      await claimSimToolExecution({ toolCallId: simCallId, runId, userId, ownerToken: 'dead' })
+      await claimToolExecution({ toolCallId: simCallId, runId, userId, ownerToken: 'dead' })
     ).toEqual({ outcome: 'claimed' })
     await completeOwnedSimToolCall(
       { toolCallId: simCallId, status: 'completed', result: storedResult },

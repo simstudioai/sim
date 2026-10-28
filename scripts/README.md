@@ -2,8 +2,8 @@
 
 `generate-docs.ts` compiles the per-service **integration** pages under
 `apps/docs/content/docs/integrations/` from the block/tool/trigger registry in
-`apps/sim`. The ontology it encodes: everything is a block, and an integration is one
-block that has **Actions** and, optionally, a **Trigger**.
+`apps/sim`. The block selects the available actions; the trigger registry adds supported events.
+Some services have triggers without an action block.
 
 > **Golden rule:** the generated `.mdx` files are *derived artifacts*, not the source of
 > truth. Do not hand-edit them — your changes are overwritten on the next run. The only
@@ -16,9 +16,10 @@ For a service like Gmail, three TS sources define it:
 
 | Source | What it is | What it feeds in the page |
 | --- | --- | --- |
-| `apps/sim/blocks/blocks/<service>.ts` | The **block**: `type`, `name`, `category` (`tools` for integrations), `bgColor`, config sub-blocks, `tools.access` (which actions it exposes), an optional `triggers` capability, `outputs` | Header / `BlockInfoCard`, Usage Instructions, and *which* actions + trigger appear |
+| `apps/sim/blocks/blocks/<service>.ts` | The **block**: `type`, `name`, `category` (`tools` for integrations), `bgColor`, config sub-blocks, `tools.access` (which actions it exposes), an optional `triggers` capability, `outputs` | Title and integration icon metadata, use guidance, and the available actions |
 | `apps/sim/tools/<service>/*.ts` | Each **action's** params + outputs | Every `### <action>` → `#### Input` / `#### Output` under `## Actions` |
 | `apps/sim/triggers/<provider>/` | The **trigger's** config fields + outputs | The `## Triggers` section |
+| `apps/sim/lib/oauth/**` and auth capability metadata | Requested scopes, callback routes, client configuration and deployment gates | `## OAuth scopes` |
 | `apps/sim/components/icons.tsx` | The brand glyph | The page icon |
 
 The block references actions by id in `tools.access`; the generator looks each one up in
@@ -32,12 +33,14 @@ from the repo root). One pass (`generateAllBlockDocs`):
 1. **Copies icons** `apps/sim/components/icons.tsx` → `apps/docs/components/icons.tsx` and
    builds `apps/docs/components/ui/icon-mapping.ts`.
 2. **Block pass** — for each integration block (`category: 'tools'`, plus the `memory` /
-   `knowledge` / `table` exceptions), writes `integrations/<service>.mdx`:
-   `BlockInfoCard` + Usage Instructions + `## Actions`.
+   `knowledge` / `table` / `enrichment` / `logs` / `deployments` exceptions), writes `integrations/<service>.mdx`:
+   integration frontmatter + preserved introduction + `## OAuth scopes` when applicable +
+   `## Use the block` + `## Actions`. Credential requirements precede the action reference.
 3. **Trigger pass** (`generateAllTriggerDocs`) — reads `apps/sim/triggers/<provider>/` and
-   **appends a `## Triggers` section** to that service's page, or writes a standalone page
-   for trigger-only services.
-4. Writes `integrations/meta.json` and regenerates the landing page's `integrations.json`.
+   adds `## Triggers` after the action reference and before shared input schemas or
+   authored operational notes, or writes a standalone page for trigger-only services.
+4. Writes `integrations/meta.json`, the public integration catalog and its client metadata,
+   counts and icons. Review these outputs alongside the MDX.
 
 ### Hand-written pages it never touches
 
@@ -61,10 +64,16 @@ every regeneration:
 {/* MANUAL-CONTENT-END */}
 ```
 
-Supported section names: `intro` (after the `BlockInfoCard` — the most common),
-`usage`, `configuration`, `outputs`, `notes`. The merge is by marker name
-(`extractManualContent` + `mergeWithManualContent`), so a section is re-inserted at the
-matching spot in the freshly generated structure.
+The merge uses the marker name (`extractManualContent` + `mergeWithManualContent`).
+`intro` follows the frontmatter and MDX imports; `usage` follows **Use the block**; `outputs` and
+`notes` follow matching generated headings when those headings exist. A section without
+an insertion anchor is appended intact, including custom marker names. Do not move useful
+setup or limits into a fallback section when readers need them before acting.
+
+The displayed **Use the block**, **OAuth scopes**, and **JSON input schemas** headings
+preserve the older `usage-instructions`, `oauth-scopes`, and `json-input-schemas` anchor IDs.
+Keep those IDs stable when editing the template. Action names, schema type names and
+parameter/output paths are literal identifiers; preserve their meaning and order.
 
 > If you **move** the output folder, reseed manual content from the old location first —
 > the generator only preserves markers it finds in the *existing output file*, so a fresh
@@ -81,8 +90,8 @@ matching spot in the freshly generated structure.
 
 Section labels link to their `index.mdx` overview; the adjacent arrow expands their
 children. Keep `index` out of a non-root folder's `meta.json` pages array so Fumadocs
-uses it as the folder link instead of a duplicate child. Root tabs such as CLI and
-Academy still list `index` because their root label is not a sidebar row.
+uses it as the folder link instead of a duplicate child. Root tabs such as CLI still
+list `index` because their root label is not a sidebar row.
 
 Register hand-written integration guides under `guides` in
 `apps/docs/content/integration-navigation.json`. The key is the existing MDX filename
@@ -113,5 +122,10 @@ content files or changing links, search results, or the docs manifest.
 
 ## CI
 
-The generator runs in CI on pushes to the main branch and commits the regenerated docs
-back. Keep block/tool/trigger metadata accurate in `apps/sim` and the docs follow.
+CI checks generated freshness through `bun run check:docs` and the public catalog through
+`bun run check:integration-catalog`. Regenerate locally and commit the outputs with their
+owning source changes. Run the generator a second time and confirm it produces no further
+changes. Check that every authored region and registered guide survives, all action/trigger
+and field references remain complete, preserved anchors work, and the production docs build
+renders the affected pages. The separate main-branch docs workflow updates search embeddings;
+it does not author or commit these integration references.

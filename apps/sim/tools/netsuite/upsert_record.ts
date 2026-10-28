@@ -1,5 +1,5 @@
 import type { NetSuiteResponse, NetSuiteUpsertRecordParams } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,6 +11,7 @@ export const netsuiteUpsertRecordTool: InternalToolConfig<
   name: 'NetSuite Upsert Record',
   description: 'Create or update a NetSuite record by external ID with PUT.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     recordType: {

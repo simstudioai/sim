@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, isPrimaryPoolClient } from '@sim/db'
 import type { SessionPolicySettings } from '@sim/db/schema'
 import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -57,7 +57,7 @@ export async function getSessionPolicy(
   if (!organizationId) return NO_POLICY
 
   /** Uncommitted policy reads must neither consume nor populate the shared cache. */
-  const cached = executor === db ? policyCache.get(organizationId) : undefined
+  const cached = isPrimaryPoolClient(executor) ? policyCache.get(organizationId) : undefined
   if (cached) return cached
 
   try {
@@ -78,7 +78,7 @@ export async function getSessionPolicy(
           idleTimeoutHours: settings.idleTimeoutHours ?? null,
         }
       : NO_POLICY
-    if (executor === db) policyCache.set(organizationId, policy)
+    if (isPrimaryPoolClient(executor)) policyCache.set(organizationId, policy)
     return policy
   } catch (error) {
     logger.error('Failed to resolve session policy; applying no policy', {

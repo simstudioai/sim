@@ -5,7 +5,11 @@ import {
   usageLimitReadSchema,
   usageLimitUpdateSchema,
 } from '@/lib/billing/application/usage-limit-validation'
-import { BillingCallbackBody, BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
+import {
+  BillingCallbackBody,
+  BillingCallbackHeaders,
+  UsageUpgrade,
+} from '@/lib/mothership/generated/billing'
 
 const booleanQueryParamSchema = z
   .preprocess((value) => {
@@ -247,19 +251,6 @@ export const getUserBillingContract = defineRouteContract({
   },
 })
 
-export const getOrganizationBillingContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/billing',
-  query: billingQuerySchema.extend({
-    context: z.literal('organization'),
-    id: z.string().min(1),
-  }),
-  response: {
-    mode: 'json',
-    schema: organizationBillingApiResponseSchema,
-  },
-})
-
 export const getUsageLimitContract = defineRouteContract({
   method: 'GET',
   path: '/api/usage',
@@ -328,8 +319,9 @@ export const billingSwitchPlanResponseSchema = z.object({
  * limit writes the tag with this payload verbatim into its durable log.
  */
 export const usageUpgradePayloadSchema = z.object({
-  reason: z.literal('usage_limit'),
-  action: z.enum(['upgrade_plan', 'increase_limit']),
+  /** `job_run_budget`: a scheduled job's run reached its own spend cap, not the payer's plan. */
+  reason: UsageUpgrade.shape.reason,
+  action: UsageUpgrade.shape.action,
   message: z.string(),
 })
 export type UsageUpgradePayload = z.infer<typeof usageUpgradePayloadSchema>
@@ -394,7 +386,6 @@ export const billingUpdateCostContract = defineRouteContract({
 export type BillingUsageData = z.infer<typeof billingUsageDataSchema>
 export type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSchema>
 export type SubscriptionApiResponse = z.infer<typeof subscriptionApiResponseSchema>
-export type OrganizationBillingApiResponse = z.infer<typeof organizationBillingApiResponseSchema>
 export type UsageLimitApiResponse = z.infer<typeof usageLimitApiResponseSchema>
 export type InvoiceItem = z.infer<typeof invoiceItemSchema>
 export type InvoicesApiResponse = z.infer<typeof invoicesApiResponseSchema>

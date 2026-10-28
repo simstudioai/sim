@@ -22,7 +22,7 @@ vi.mock('@/lib/logs/list-logs', () => ({
   readLogs: hoisted.readLogs,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

@@ -31,8 +31,8 @@ export type FeatureFlagContext = AppConfigGateContext
 /**
  * The single definition of a feature flag. Everything about a flag lives in one
  * place: its name (the registry key), a human-readable `description`, and the
- * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on
- * globally).
+ * optional `fallback` secret consulted when AppConfig is not the source of truth.
+ * A null fallback keeps the flag off outside AppConfig.
  *
  * Gating by workspace/org/user/admin is deliberately NOT part of a definition — it lives only
  * in the hosted AppConfig document, so no environment can grant access from a code
@@ -40,8 +40,8 @@ export type FeatureFlagContext = AppConfigGateContext
  */
 interface FeatureFlagDefinition {
   description: string
-  /** Env/secret key consulted when AppConfig isn't the source of truth. Truthy ⇒ on. */
-  fallback: keyof typeof env
+  /** Null means AppConfig-only; otherwise a truthy env/secret enables the fallback. */
+  fallback: keyof typeof env | null
 }
 
 /** The single registry of known flags. To add a flag, add one entry here. */
@@ -51,17 +51,33 @@ const FEATURE_FLAGS = {
       'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
     fallback: 'DASHBOARDS',
   },
+  'mothership-computer-use': {
+    description:
+      'Enable native macOS computer use in Mothership. Supports global and organization rollout; ' +
+      'personal workspaces follow the global switch. Each device must also opt in.',
+    fallback: 'MSHIP_COMPUTER_USE',
+  },
+  'mothership-search-integration-tools': {
+    description:
+      'Give Search Assistant read-only integration discovery, calls, and matching prompt ' +
+      'instructions. Global AppConfig on/off only; disabled by default with no env fallback.',
+    fallback: null,
+  },
+  'workflow-tests': {
+    description:
+      'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',
+    fallback: 'WORKFLOW_TESTS',
+  },
+  changelog: {
+    description:
+      'Enable the workspace Changelog: the Changelog page, changelog/<id>.md release bodies, and the Sim changelog tool. Supports global and organization rollout; disabled by default.',
+    fallback: 'CHANGELOG',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +
       'models. Global on/off only; disabled uses Astra with simplified effort labels.',
     fallback: 'MSHIP_MODEL_SELECTOR',
-  },
-  'mothership-plan-mode': {
-    description:
-      'Show and admit Mothership Plan conversations. Global on/off only, shared by organization ' +
-      'and workspace surfaces.',
-    fallback: 'MSHIP_PLAN_MODE',
   },
   'agent-memory-history': {
     description:
@@ -87,45 +103,44 @@ const FEATURE_FLAGS = {
       'resolveTriggerRegion, so the whole deployment switches regions together.',
     fallback: 'TRIGGER_EU_REGION',
   },
-  'tables-v2-api': {
+  projects: {
     description:
-      'Gate the internal predicate-grammar table query route (POST /api/table/[tableId]/query), ' +
-      'its only caller. When off, that route returns 403 naming the gate (post-authz, so the ' +
-      'masquerade 404 served nobody and broke the table_v2 block confusingly). Despite the ' +
-      'name it does NOT gate any /api/v2/tables route. Gated by userId/orgId/admins via ' +
-      'AppConfig; off-AppConfig falls back to TABLES_V2_API.',
-    fallback: 'TABLES_V2_API',
-  },
-  'table-row-ttl': {
-    description:
-      'Enable TTL columns and the scheduled cleanup that removes expired table rows. ' +
-      'Global on/off only; existing TTL data remains readable when disabled.',
-    fallback: 'TABLE_ROW_TTL',
-  },
-  'credential-groups': {
-    description:
-      'Managed connected accounts, including organization account pools and their settings UI. ' +
-      'Uses orgId targeting only; workspace callers resolve their canonical organization. Hosted ' +
-      'owners also require an active Enterprise subscription. Organization Search additionally ' +
-      'requires knowledge-member-access. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
-    fallback: 'CREDENTIAL_GROUPS',
+      'Expose Projects and Project-scoped features, including files and memories. Global on/off only; ' +
+      'workspace creation assigns Projects and lifecycle protections apply either way. ' +
+      'Off-AppConfig falls back to PROJECTS.',
+    fallback: 'PROJECTS',
   },
   'knowledge-member-access': {
     description:
       'Organization Search (live) and the permission-aware workspace connector modes: members ' +
-      '(per-member sync, which also requires credential-groups) and admin (source ACL ' +
+      '(per-member sync, which also requires the Credential Groups entitlement) and admin (source ACL ' +
       'mirroring, independent of managed identities). Organization Search UI, MCP, and ' +
-      'search APIs require this flag and credential-groups for the canonical orgId; ' +
+      'search APIs require this flag and the Credential Groups entitlement for the canonical orgId; ' +
       'user/admin/workspace targeting cannot enable another organization. Workspace connector ' +
       'modes use workspaceId; workspace retrieval defaults may additionally use user/admin ' +
       'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
+  'isolated-vm-local-workers': {
+    description:
+      'Kill switch: run JavaScript sandbox workers as local child processes even where ' +
+      'IVM_REMOTE_WORKER_URL names a dedicated worker host. Global on/off only; off by default, ' +
+      'so a configured host is used unless this is turned on. AppConfig-only: when AppConfig is ' +
+      'unreachable the host stays in use.',
+    fallback: null,
+  },
+  'mothership-abandoned-run-takeover-disabled': {
+    description:
+      'Kill switch for Sim taking over Chat runs whose controller died (a deploy or a crash) and ' +
+      're-running their interrupted tool. Global on/off only; on stops every takeover scan. ' +
+      'Off by default, so takeovers run unless this is turned on.',
+    fallback: null,
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**
  * The closed set of known feature flags. Derived from the registry, so a flag
- * cannot exist — or be checked — without a definition (and its mandatory fallback).
+ * cannot exist — or be checked — without a definition (and its explicit fallback policy).
  */
 export type FeatureFlagName = keyof typeof FEATURE_FLAGS
 
@@ -135,7 +150,7 @@ function fallbackFlags(): FeatureFlagsConfig {
   for (const [name, def] of Object.entries(FEATURE_FLAGS) as Array<
     [string, FeatureFlagDefinition]
   >) {
-    flags[name] = { enabled: isTruthy(env[def.fallback]) }
+    flags[name] = { enabled: def.fallback !== null && isTruthy(env[def.fallback]) }
   }
   return flags
 }
@@ -182,7 +197,8 @@ export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
       environment: env.APPCONFIG_ENVIRONMENT as string,
       profile: FEATURE_FLAGS_PROFILE,
     },
-    parseGateConfig
+    parseGateConfig,
+    { shareWithTriggerRuns: true }
   )
 
   return value ?? fallbackFlags()

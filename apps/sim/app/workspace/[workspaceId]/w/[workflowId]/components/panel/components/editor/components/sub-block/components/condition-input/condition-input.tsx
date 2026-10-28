@@ -13,7 +13,6 @@ import {
 } from '@sim/emcn'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import {
@@ -21,6 +20,7 @@ import {
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
 } from '@/lib/workflows/sanitization/references'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import {
   checkEnvVarTrigger,
@@ -136,8 +136,7 @@ export function ConditionInput({
 }: ConditionInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const isRouterMode = mode === 'router'
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)

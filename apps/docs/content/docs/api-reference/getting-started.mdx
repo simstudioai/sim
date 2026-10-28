@@ -1,121 +1,113 @@
 ---
-title: Getting Started
-description: Base URL, OpenAPI specification, first API call, response format, error handling, and pagination
+title: Getting started
+description: Make a v2 API call, inspect its result, and handle pagination and errors.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+Use the v2 API to run workflows and manage resources you can access. This guide makes a first call to a deployed workflow, then explains asynchronous execution, response envelopes, and pagination.
 
 ## Base URL
 
-All API requests are made to:
+Sim Cloud uses `https://www.sim.ai`, with API paths under `/api/v2`. There is no `api.sim.ai` host. For self-hosted Sim, replace the origin with your deployment URL.
 
-```
-https://www.sim.ai
-```
+Download the [OpenAPI 3.1 specification](/openapi.json) for client generation, request validation, and API tooling.
 
-## OpenAPI specification
+Official SDKs wrap these calls: [TypeScript](/api-reference/typescript) (`bun add simstudio-ts-sdk`) and [Python](/api-reference/python) (`pip install simstudio-sdk`). The [CLI](/cli) (`bun add -g sim`) runs workflows and manages resources from a terminal.
 
-Download the [complete OpenAPI 3.1 specification](/openapi.json) as JSON for client generation, request validation, and API tooling.
-
-## Quick Start
+## Run a deployed workflow [#quick-start]
 
 <Steps>
-
 <Step>
-### Get your API key
+### Create an API key
 
-Open **Account settings** → **Sim API keys** to create a personal key, or **Workspace settings** → **Sim API keys** for a workspace key. These examples and the SDKs use API keys; the CLI also supports browser sign-in with `sim login`. See [Authentication](/api-reference/authentication) for key types and OAuth permissions.
+Open **Account settings → Sim API keys** for a personal key, or **Workspace settings → Sim API keys** for a workspace key. Set `SIM_API_KEY` in your server environment. See [Authentication](/api-reference/authentication) for key types, access policies, and OAuth tokens. The CLI also supports browser sign-in with `sim login`.
 </Step>
-
 <Step>
-### Find your workflow ID
+### Find the workflow ID
 
-Open a workflow in the Sim editor. The workflow ID is in the URL:
+Open the workflow in the workflow builder. Its URL contains the ID:
 
-```
+```text
 https://www.sim.ai/workspace/{workspaceId}/w/{workflowId}
 ```
 
-You can also use the [List Workflows](/api-reference/workflows/listWorkflows) endpoint to get all workflow IDs in a workspace.
+Set `WORKFLOW_ID` to that value. You can also use [List workflows](/api-reference/workflows/listWorkflows) to find IDs in a workspace.
 </Step>
-
 <Step>
-### Deploy your workflow
+### Deploy the workflow
 
-A workflow must be deployed before it can be executed via the API. Click the **Deploy** button in the editor toolbar, or use the dashboard to manage deployments.
+Open **Deploy** in the workflow builder and deploy the version you want to run. Deployment requires workspace **Admin** access and the applicable deployment permission.
+
+These examples run the active deployment. Draft edits take effect after you deploy an update. V2 also supports explicit manual draft execution for personal-key or OAuth callers with write access; see [Execute workflow](/api-reference/workflows/executeWorkflowV2).
 </Step>
-
 <Step>
-### Make your first request
+### Call and inspect the result
+
+Place named workflow input fields inside `input`. Replace the example input with fields your deployed trigger accepts.
 
 <Tabs items={['curl', 'TypeScript', 'Python']}>
   <Tab value="curl">
     ```bash
-    curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
-      -H "Content-Type: application/json" \
-      -H "X-API-Key: YOUR_API_KEY" \
+    curl --fail-with-body -X POST \
+      "https://www.sim.ai/api/v2/workflows/$WORKFLOW_ID/execute" \
+      -H "X-API-Key: $SIM_API_KEY" \
+      -H 'Content-Type: application/json' \
       -d '{"input": {}}'
     ```
   </Tab>
   <Tab value="TypeScript">
     ```typescript
-    const response = await fetch(
-      `https://www.sim.ai/api/v2/workflows/${workflowId}/execute`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': process.env.SIM_API_KEY!,
-        },
-        body: JSON.stringify({ input: {} }),
-      }
-    )
+    const apiKey = process.env.SIM_API_KEY
+    const workflowId = process.env.WORKFLOW_ID
+    if (!apiKey || !workflowId) throw new Error('Set SIM_API_KEY and WORKFLOW_ID')
 
-    const data = await response.json()
-    console.log(data.data.output)
+    const response = await fetch(`https://www.sim.ai/api/v2/workflows/${workflowId}/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+      body: JSON.stringify({ input: {} }),
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+
+    const result = await response.json()
+    process.stdout.write(JSON.stringify({ status: result.data.status, output: result.data.output }))
     ```
   </Tab>
   <Tab value="Python">
     ```python
-    import requests
     import os
+    import requests
 
+    workflow_id = os.environ["WORKFLOW_ID"]
     response = requests.post(
         f"https://www.sim.ai/api/v2/workflows/{workflow_id}/execute",
-        headers={
-            "Content-Type": "application/json",
-            "X-API-Key": os.environ["SIM_API_KEY"],
-        },
+        headers={"X-API-Key": os.environ["SIM_API_KEY"]},
         json={"input": {}},
+        timeout=30,
     )
-
-    data = response.json()
-    print(data["data"]["output"])
+    response.raise_for_status()
+    result = response.json()["data"]
+    print(result["status"], result["output"])
     ```
   </Tab>
 </Tabs>
-</Step>
 
+A successful HTTP request can contain a failed workflow run. Always inspect `data.status` and `data.error`. A client timeout limits how long your application waits; it does not extend the server's execution limit or prove no run started.
+</Step>
 </Steps>
 
-## Sync vs Async Execution
+## Synchronous and asynchronous execution [#sync-vs-async-execution]
 
-By default, workflow executions are **synchronous** — the API blocks until the workflow completes and returns the result directly.
-
-For long-running workflows, use **asynchronous execution** by passing `async: true`:
+The default waits for the workflow to settle and returns a run resource. For a long-running deployed workflow, set `async: true` to receive HTTP `202` with a run ID:
 
 ```bash
-curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: YOUR_API_KEY" \
+curl --fail-with-body -X POST \
+  "https://www.sim.ai/api/v2/workflows/$WORKFLOW_ID/execute" \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H 'Content-Type: application/json' \
   -d '{"input": {}, "async": true}'
 ```
-
-Keyed callers can optionally provide `X-Run-Id: my-run-123` to choose the run ID. Run IDs cannot be reused; a duplicate returns `409`.
-
-This returns immediately with a `runId` and `statusUrl`:
 
 ```json
 {
@@ -126,20 +118,33 @@ This returns immediately with a `runId` and `statusUrl`:
 }
 ```
 
-Poll the run status endpoint until the status is terminal:
+Async requires an API key or OAuth token. It cannot be combined with streaming, manual draft execution, or output-shaping options. An optional integer `executionTimeoutSeconds` from `1` to `604800` can shorten the account's execution policy, but cannot extend it. See the [execution request](/api-reference/workflows/executeWorkflowV2) for compatible options.
+
+Set `RUN_ID` to the returned ID and poll with a delay:
 
 ```bash
-curl https://www.sim.ai/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true \
-  -H "X-API-Key: YOUR_API_KEY"
+curl --fail-with-body \
+  "https://www.sim.ai/api/v2/workflows/$WORKFLOW_ID/runs/$RUN_ID?includeOutput=true" \
+  -H "X-API-Key: $SIM_API_KEY"
 ```
 
-<Callout type="info">
-  Execution status transitions follow: `queued` → `running` → `completed`, `failed`, `cancelled`, or `paused`. The `data.output` field is populated for completed executions when `includeOutput=true`.
-</Callout>
+| Status | Action |
+| --- | --- |
+| `queued`, `pending`, `running`, `redacting` | Continue polling; `redacting` is a transient output-redaction state |
+| `completed` | Read `data.output` when `includeOutput=true` |
+| `failed` | Inspect `data.error` |
+| `cancelled` | Stop polling |
+| `paused` | Inspect pause details and the resume condition; the workflow has not completed |
 
-## Response Format
+Runs need not pass through every state. A human pause requires submitted input; a time pause can resume automatically. See [Get workflow run](/api-reference/workflow-runs/getWorkflowRunV2) and the effective [data retention policy](/platform/enterprise/data-retention).
 
-Successful v2 responses wrap the run resource in `data`:
+Authenticated callers can send `X-Run-Id` to choose a run ID. It is a one-shot claim: reuse returns `409`, not the original response. After an uncertain enqueue or lost response, reconcile the original run ID before starting another run. A missing record does not by itself prove that no work started.
+
+For SSE tokens or a synchronous NDJSON response with heartbeats, see [API streaming](/workflows/deployment/api#streaming).
+
+## Response format
+
+Single-resource v2 JSON responses wrap the resource in `data`. For example, a synchronous execution returns:
 
 ```json
 {
@@ -148,15 +153,22 @@ Successful v2 responses wrap the run resource in `data`:
     "workflowId": "{workflowId}",
     "status": "completed",
     "output": { "result": "Hello, world!" },
+    "blockOutputs": null,
     "error": null,
+    "startedAt": "2026-10-13T12:00:00.000Z",
+    "endedAt": "2026-10-13T12:00:00.842Z",
     "durationMs": 842
   }
 }
 ```
 
-## Error Handling
+List responses use `data` as an array and include `nextCursor` when applicable. Streams and binary downloads have their own response formats.
 
-The API uses standard HTTP status codes. v2 errors include a stable code and human-readable message:
+Cost units are endpoint-specific: Logs APIs report USD; Billing and workflow-run resources report credits. Read the field description before combining amounts.
+
+## Handle failed requests [#error-handling]
+
+Rejected v2 requests use HTTP error status codes and a stable code/message envelope:
 
 ```json
 {
@@ -167,19 +179,23 @@ The API uses standard HTTP status codes. v2 errors include a stable code and hum
 }
 ```
 
-| Status | Meaning | What to do |
+| Status | Meaning | Action |
 | --- | --- | --- |
-| `400` | Invalid request parameters | Check the `details` array for specific field errors |
-| `401` | Missing or invalid API key | Verify your `X-API-Key` header |
-| `403` | Access denied | Check you have permission for this resource |
-| `404` | Resource not found | Verify the ID exists and belongs to your workspace |
-| `429` | Rate limit exceeded | Wait for the duration in the `Retry-After` header |
+| `400` | Invalid request | Check the published schema and `error.details`, when present |
+| `401` | Missing, invalid, or expired credential | Check the API key or OAuth token and its header |
+| `402` | Usage limit exceeded | Inspect billing status and account policy |
+| `403` | Access denied | Check role, scope, resource access, and permission policies |
+| `404` | Resource not found or concealed | Check the ID and selected workspace |
+| `409` | State, preview, or run-ID conflict | Follow the endpoint's conflict/reconciliation procedure |
+| `429` | Rate or capacity limit | Honor `Retry-After` before retrying an admitted-safe request |
+
+Other statuses and endpoint-specific recovery are documented in each reference. `error.details` may be a validation-issue array or an object with additional context. An execution that started and failed instead returns a run resource with `status: "failed"`.
 
 ### Unrecognized fields are rejected
 
-Every v2 endpoint validates the request against its published schema — path parameters, query string, and body — and answers `400` for any field it does not declare. A misspelled parameter is an error rather than a silent no-op, so `?limt=20` fails instead of quietly returning an unbounded list.
+V2 validates path parameters, query strings, and bodies against the published schema. Unknown fields return `400`; for example, `?limt=20` is an error. The rule also applies to endpoints with no query parameters: omit tracking tags, cache busters, and other undeclared fields.
 
-This holds for endpoints that declare no query parameters at all. Do not append tracking tags, cache busters, or other extra parameters to a v2 URL; send only what the endpoint documents.
+A validation error can look like:
 
 ```json
 {
@@ -193,28 +209,40 @@ This holds for endpoints that declare no query parameters at all. Do not append 
 }
 ```
 
-<Callout type="info">
-  Use [Get Billing Status](/api-reference/billing/getBillingStatus) to inspect current credit and storage usage.
-</Callout>
-
-## Rate Limits
-
-Rate limits depend on your subscription plan and apply separately to synchronous and asynchronous executions.
-
-When rate limited, the API returns a `429` response with a `Retry-After` header indicating how many seconds to wait before retrying.
-
 ## Pagination
 
-List endpoints (workflows, logs, audit logs) use **cursor-based pagination**:
+Paginated list endpoints, including workflows, logs, and audit logs, return an opaque `nextCursor`. Keep the workspace, filters, and sort choices the same when requesting the next page. A missing or `null` cursor means there is no next page.
+
+This example requires `WORKSPACE_ID`, `SIM_API_KEY`, and `jq`:
 
 ```bash
-# First page
-curl "https://www.sim.ai/api/v2/logs?limit=20" \
-  -H "X-API-Key: YOUR_API_KEY"
+PAGE=$(curl --silent --show-error --fail-with-body --get \
+  'https://www.sim.ai/api/v2/logs' \
+  -H "X-API-Key: $SIM_API_KEY" \
+  --data-urlencode "workspaceId=$WORKSPACE_ID" \
+  --data-urlencode 'limit=20')
 
-# Next page — use the nextCursor from the previous response
-curl "https://www.sim.ai/api/v2/logs?limit=20&cursor=abc123" \
-  -H "X-API-Key: YOUR_API_KEY"
+CURSOR=$(printf '%s' "$PAGE" | jq -r '.nextCursor // empty')
+if [ -n "$CURSOR" ]; then
+  curl --fail-with-body --get 'https://www.sim.ai/api/v2/logs' \
+    -H "X-API-Key: $SIM_API_KEY" \
+    --data-urlencode "workspaceId=$WORKSPACE_ID" \
+    --data-urlencode 'limit=20' \
+    --data-urlencode "cursor=$CURSOR"
+fi
 ```
 
-The response includes a `nextCursor` field. When `nextCursor` is absent or `null`, you have reached the last page.
+Some endpoints return an unpaginated bounded inventory or a provider-specific partial result. Follow that endpoint's pagination and truncation fields.
+
+## Rate limits
+
+V2 request limits apply to the credential and its user or workspace. Workflow execution also applies separate synchronous/asynchronous execution buckets, quota, and concurrency policy. Plan and deployment configuration determine the effective limits.
+
+A rate-limited request returns `429`; `Retry-After` gives seconds to wait. Inspect [Billing status](/api-reference/billing/getBillingStatus) for a workspace's current credits and storage. Async mode does not bypass admission or usage limits.
+
+## Related docs
+
+- [Authentication](/api-reference/authentication)
+- [Python SDK](/api-reference/python) and [TypeScript SDK](/api-reference/typescript)
+- [Execute workflow](/api-reference/workflows/executeWorkflowV2)
+- [Workflow imports and workspace sync](/api-reference/workflow-sync)

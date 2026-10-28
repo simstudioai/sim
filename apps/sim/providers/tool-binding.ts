@@ -52,7 +52,7 @@ export const BINDABLE_SUBBLOCK_KINDS: Partial<Record<SubBlockType, BoundResource
  * would hard-fail agent blocks that resolve a credential id from a variable today — a real
  * regression in exchange for a cosmetic label. It would also buy nothing: what reaches the model is
  * the resource's workspace display name, never the configured id, and those names already reach
- * every run in the workspace through `executor/handlers/credential/credential-handler.ts`.
+ * every run in the workspace through `executor/handlers/credential/handler.ts`.
  */
 const RESOURCE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 

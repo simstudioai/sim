@@ -1,4 +1,8 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import { fileCopyOperation } from '@/lib/workspace-files/application/copy-operation'
+
+/** Compound copy admission remains separate from workspace-only file operations. */
+export const fileCopyOperations = Object.freeze({ copy: fileCopyOperation })
 
 const ALL_COPILOT_PRINCIPAL_POLICY = {
   principalKinds: [
@@ -25,8 +29,14 @@ const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 /**
- * Version history admits direct callers only; delegated version access is a separate decision.
+ * Chat may list, read and revert versions as the delegating user: a version text read refuses a
+ * delegated caller unless the surface's content gate admits the snapshot's secret provenance, and a
+ * revert writes a new, undoable version that reinstates that provenance. Deleting a version purges
+ * history irreversibly, so it admits direct callers only. Download stays direct-only too, but it
+ * is not a hard boundary for a writer: reverting to a version and downloading the current file
+ * reaches the same bytes, with provenance tracked at each step.
  */
+const VERSION_HISTORY_PRINCIPAL_POLICY = ALL_COPILOT_PRINCIPAL_POLICY
 const DIRECT_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
 } as const
@@ -39,6 +49,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   readMetadata: defineWorkspaceOperation({
@@ -47,6 +58,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   readContent: defineWorkspaceOperation({
@@ -55,6 +67,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'sourced',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   searchContent: defineWorkspaceOperation({
@@ -63,6 +76,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'sourced',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   download: defineWorkspaceOperation({
@@ -71,6 +85,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'sourced',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   compiledCheck: defineWorkspaceOperation({
@@ -86,6 +101,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   rename: defineWorkspaceOperation({
@@ -94,6 +110,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   /**
@@ -114,6 +131,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   updateContent: defineWorkspaceOperation({
@@ -122,6 +140,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'sourced',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   updateMetadata: defineWorkspaceOperation({
@@ -130,6 +149,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   move: defineWorkspaceOperation({
@@ -138,6 +158,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
@@ -146,6 +167,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   restore: defineWorkspaceOperation({
@@ -154,6 +176,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   listVersions: defineWorkspaceOperation({
@@ -162,7 +185,8 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    contentDelivery: 'none',
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   readVersion: defineWorkspaceOperation({
     id: 'files.versions.read',
@@ -170,7 +194,8 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    contentDelivery: 'none',
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   readVersionContent: defineWorkspaceOperation({
     id: 'files.versions.read_content',
@@ -178,7 +203,8 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    contentDelivery: 'sourced',
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   downloadVersion: defineWorkspaceOperation({
     id: 'files.versions.download',
@@ -194,7 +220,8 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...DIRECT_PRINCIPAL_POLICY,
+    contentDelivery: 'none',
+    ...VERSION_HISTORY_PRINCIPAL_POLICY,
   }),
   deleteVersion: defineWorkspaceOperation({
     id: 'files.versions.delete',
@@ -210,6 +237,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'sourced',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   updateShare: defineWorkspaceOperation({
@@ -218,6 +246,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'files.use',
+    contentDelivery: 'sourced',
     ...HUMAN_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   listFolders: defineWorkspaceOperation({
@@ -226,6 +255,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   createFolder: defineWorkspaceOperation({
@@ -234,6 +264,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   updateFolder: defineWorkspaceOperation({
@@ -242,6 +273,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   deleteFolder: defineWorkspaceOperation({
@@ -250,6 +282,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   restoreFolder: defineWorkspaceOperation({
@@ -258,6 +291,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   uploadCreate: defineWorkspaceOperation({
@@ -266,6 +300,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...UPLOAD_PRINCIPAL_POLICY,
   }),
   /**
@@ -288,6 +323,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...UPLOAD_PRINCIPAL_POLICY,
   }),
   uploadComplete: defineWorkspaceOperation({
@@ -296,6 +332,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...UPLOAD_PRINCIPAL_POLICY,
   }),
   uploadCancel: defineWorkspaceOperation({
@@ -304,6 +341,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
+    contentDelivery: 'none',
     ...UPLOAD_PRINCIPAL_POLICY,
   }),
 } as const

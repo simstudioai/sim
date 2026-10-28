@@ -9,6 +9,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { presentWorkflowLint } from '@/app/api/v2/lib/workflow-lint'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -28,6 +29,7 @@ export const POST = defineV2JsonRoute({
     name: body.name,
     description: body.description ?? undefined,
     requestId: generateRequestId(),
+    lintDeployedVersion: true,
   }),
   useCase: deployWorkflow,
   present: (result) => ({
@@ -37,6 +39,7 @@ export const POST = defineV2JsonRoute({
       deployedAt: result.deployedAt?.toISOString() ?? null,
       version: result.version,
       warnings: result.warnings ?? [],
+      lint: result.lint ? presentWorkflowLint(result.lint) : null,
       activeDeployment: result.activeDeployment ?? null,
       latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
     },

@@ -6,12 +6,11 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, inArray, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
 import {
   recordSandboxCliBuildFailure,
   recordSandboxImageCleanupFailure,
 } from '@/lib/core/execution-limits/metrics'
-import { runDetached } from '@/lib/core/utils/background'
 import {
   buildTimeoutError,
   providerBuildError,
@@ -19,7 +18,7 @@ import {
 } from '@/lib/execution/remote-sandbox/build-errors'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
-import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import type { SandboxSpec } from '@/lib/execution/remote-sandbox/spec'
 import {
   SANDBOX_BASE_RELEASE_REFRESH_CODE,
   type SandboxImageBuild,
@@ -28,6 +27,7 @@ import {
   type SandboxImageStatus,
   type SandboxProviderId,
 } from '@/lib/execution/remote-sandbox/types'
+import type { sandboxImageBuildTask } from '@/background/sandbox-image-build'
 
 const logger = createLogger('SandboxImageRegistry')
 
@@ -284,28 +284,20 @@ async function enqueueSandboxImageBuild(
   payload: SandboxImageBuildPayload,
   attemptAt: Date
 ): Promise<void> {
-  if (!isTriggerDevEnabled) {
-    runDetached('sandbox-image-build', () => runSandboxImageBuild(payload))
-    return
-  }
-  // Dynamically imported so Trigger.dev stays out of the web bundle's static graph.
-  const [{ sandboxImageBuildTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-    import('@/background/sandbox-image-build'),
-    import('@trigger.dev/sdk'),
-    import('@/lib/core/async-jobs/region'),
-  ])
-  await tasks.trigger<typeof sandboxImageBuildTask>(SANDBOX_IMAGE_BUILD_TASK_ID, payload, {
-    // Keyed by the claim, not by the spec alone. Concurrent saves are already
-    // collapsed by the conditional update above — only one caller gets a row back,
-    // so only one reaches here. A spec-only key would instead suppress the *next*
-    // legitimate attempt: Trigger.dev returns the finished run rather than starting
-    // one, leaving the row `pending` with no worker and unclaimable until it goes
-    // stale. That is half an hour of a save-to-retry doing nothing.
-    idempotencyKey: sandboxBuildIdempotencyKey(payload.provider, payload.specHash, attemptAt),
-    // Still short, so even a duplicate delivery of one attempt cannot linger.
-    idempotencyKeyTTL: '5m',
-    tags: [`sandboxSpec:${payload.specHash}`],
-    region: await resolveTriggerRegion(),
+  await dispatchBackgroundTask<typeof sandboxImageBuildTask>(SANDBOX_IMAGE_BUILD_TASK_ID, payload, {
+    runInProcess: runSandboxImageBuild,
+    trigger: {
+      // Keyed by the claim, not by the spec alone. Concurrent saves are already
+      // collapsed by the conditional update above — only one caller gets a row back,
+      // so only one reaches here. A spec-only key would instead suppress the *next*
+      // legitimate attempt: Trigger.dev returns the finished run rather than starting
+      // one, leaving the row `pending` with no worker and unclaimable until it goes
+      // stale. That is half an hour of a save-to-retry doing nothing.
+      idempotencyKey: sandboxBuildIdempotencyKey(payload.provider, payload.specHash, attemptAt),
+      // Still short, so even a duplicate delivery of one attempt cannot linger.
+      idempotencyKeyTTL: '5m',
+      tags: [`sandboxSpec:${payload.specHash}`],
+    },
   })
 }
 

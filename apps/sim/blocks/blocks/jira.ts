@@ -15,11 +15,11 @@ const ATTACHMENT_FIELD = ['attachmentFiles', 'files'] as const
 export const JiraBlock: BlockConfig = {
   type: 'jira',
   name: 'Jira',
-  description: 'Interact with Jira',
+  description: 'Manage Jira issues, comments, attachments, and worklogs',
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
-    'Integrate Jira into the workflow. Can read, write, and update issues. Can also trigger workflows based on Jira webhook events.',
+    'Read, write, and update issues. Trigger workflows based on Jira webhook events.',
   docsLink: 'https://docs.sim.ai/integrations/jira',
   category: 'tools',
   integrationType: IntegrationType.Productivity,

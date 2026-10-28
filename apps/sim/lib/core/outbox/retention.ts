@@ -2,17 +2,16 @@ import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
-import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
-import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 
 const logger = createLogger('OutboxRetention')
 
 /** How long a completed event stays readable for operators after it was enqueued. */
 export const COMPLETED_OUTBOX_RETENTION_MS = 7 * 24 * 60 * 60_000
 /**
- * Rows deleted per type per run. The processor runs once a minute, so each type drains at most
- * 1,000 rows × 1,440 runs = 1.44M rows a day: a steady trickle whose WAL and dead tuples
- * autovacuum absorbs, yet five times what recovery can enqueue (200 per run × 1,440 runs).
+ * Most rows deleted per type per run. Recovery enqueues only inside a run, at most 200 per run, so
+ * a 1,000-row prune keeps five times its pace however often the processor runs.
  */
 export const OUTBOX_PRUNE_BATCH_SIZE = 1_000
 

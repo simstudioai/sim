@@ -2,6 +2,7 @@ import {
   ApiError,
   type GenerateContentParameters,
   type GenerateContentResponse,
+  GoogleGenAI,
 } from '@google/genai'
 import { providersMock } from '@sim/testing/mocks/providers.mock'
 import {
@@ -10,6 +11,8 @@ import {
 } from '@sim/testing/mocks/providers-conversation-history.mock'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { classifyFailure } from '@/lib/core/errors/failure-log'
+import { isNonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
@@ -118,6 +121,7 @@ describe('Vertex Gemini request compatibility', () => {
   })
 
   it.each([
+    'gemini-4-argon',
     'vertex/gemini-3.8-flash',
     'vertex/gemini-3.7-flash',
     'vertex/gemini-3.6-flash',
@@ -131,6 +135,21 @@ describe('Vertex Gemini request compatibility', () => {
     expect(params.config).not.toHaveProperty('temperature')
     expect(params.config?.thinkingConfig).toEqual({
       thinkingLevel: 'MEDIUM',
+      includeThoughts: false,
+    })
+  })
+
+  /** Omitting thinkingConfig leaves Gemini 3 thinking at its default, so 'none' must send a level. */
+  it.each([
+    ['vertex/gemini-3.6-flash', 'MINIMAL'],
+    ['vertex/gemini-3.8-flash', 'LOW'],
+    ['vertex/projects/p/locations/global/publishers/google/models/gemini-3.8-flash', 'LOW'],
+  ])("sends the lowest thinking level for 'none' on %s", async (model, thinkingLevel) => {
+    const generateContent = vi.fn().mockResolvedValue(textTurn())
+    await run(model, generateContent, { thinkingLevel: 'none' })
+
+    expect(generateContent.mock.calls[0][0].config.thinkingConfig).toEqual({
+      thinkingLevel,
       includeThoughts: false,
     })
   })
@@ -395,4 +414,38 @@ describe('Gemini block cost with implicit prompt caching', () => {
     })
     expect(response.cost).toEqual(calculateCost(MODEL, 100_000, 1_000))
   })
+})
+
+describe('Gemini request with no user content', () => {
+  function runAgainstSdk(request: Partial<ProviderRequest>) {
+    return executeGeminiRequest({
+      ai: new GoogleGenAI({ apiKey: 'test-key' }),
+      model: 'gemini-2.5-flash',
+      providerType: 'google',
+      request: { model: 'gemini-2.5-flash', apiKey: 'test-key', ...request },
+    }).catch((caught: unknown) => caught)
+  }
+
+  it.each([
+    ['only a system prompt', { systemPrompt: 'You are terse.', messages: [] }],
+    [
+      'messages that all resolved to empty',
+      {
+        messages: [
+          { role: 'system' as const, content: '' },
+          { role: 'user' as const, content: '' },
+        ],
+      },
+    ],
+  ])(
+    'refuses %s as a nonretryable author failure instead of the SDK opaque error',
+    async (_label, request) => {
+      const error = await runAgainstSdk(request)
+
+      expect(error).toMatchObject({ name: 'EmptyProviderInputError' })
+      expect((error as Error).message).toContain('no user message')
+      expect(isNonRetryableExecutionError(error)).toBe(true)
+      expect(classifyFailure(error)).toBe('user')
+    }
+  )
 })

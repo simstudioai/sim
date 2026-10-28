@@ -1,9 +1,5 @@
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { permissionGroupsResolveMockFns } from '@sim/testing/mocks/permission-groups-resolve.mock'
-import {
-  workspaceContextMock,
-  workspaceContextMockFns,
-} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mothershipBlockDetailSchema } from '@/lib/api/contracts/mothership-catalog'
 import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/catalog'
@@ -11,7 +7,6 @@ import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { inputFormatValueSchema } from '@/lib/workflows/input-format-schema'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
-const workspaceContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
 permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockImplementation(
   async () => permissionConfig.current
 )
@@ -33,12 +28,6 @@ vi.mock('@/lib/integrations/tool-projection', () => ({
 }))
 
 const viewer = { workspaceId: 'ws', userId: 'user' }
-
-const queryAvailability = vi.hoisted(() =>
-  vi.fn(async () => ({ enabled: false, reason: 'Not enabled' }))
-)
-vi.mock('@/lib/table/query-availability', () => ({ getTableQueryAvailability: queryAvailability }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 function blockDetail(): V2BlockDetail {
   return {
@@ -82,10 +71,6 @@ function ok(stdout: string) {
 
 describe('curateBlockDetail', () => {
   beforeEach(() => {
-    queryAvailability.mockClear()
-    workspaceContext
-      .mockReset()
-      .mockResolvedValue({ workspaceId: 'ws', workspaceOrganizationId: 'canonical-target-org' })
     permissionConfig.current = null
     denied.current = { needsProjection: new Map(), fullyDenied: new Set() }
   })
@@ -141,53 +126,6 @@ describe('curateBlockDetail', () => {
       ).toEqual([{ name: 'documents', type: 'file[]', value: '[]' }])
     }
   )
-
-  it('projects rollout eligibility only for permitted operations using the target organization', async () => {
-    const original = { ...blockDetail(), toolIds: ['table_query_rows_v2'] }
-    const staleChatContext = { ...viewer, organizationId: 'unrelated-chat-org' }
-    const result = await curateBlockDetail(ok(JSON.stringify(original)), staleChatContext)
-    expect(JSON.parse(result.stdout).operationAvailability).toEqual({
-      table_query_rows_v2: { enabled: false, reason: 'Not enabled' },
-    })
-    expect(queryAvailability).toHaveBeenLastCalledWith({
-      userId: 'user',
-      orgId: 'canonical-target-org',
-    })
-    expect(workspaceContext).toHaveBeenCalledWith('ws')
-    workspaceContext.mockClear()
-    queryAvailability.mockClear()
-    const legacy = await curateBlockDetail(
-      ok(JSON.stringify({ ...original, toolIds: ['table_query_rows'] })),
-      viewer
-    )
-    expect(JSON.parse(legacy.stdout)).not.toHaveProperty('operationAvailability')
-    expect(queryAvailability).not.toHaveBeenCalled()
-    expect(workspaceContext).not.toHaveBeenCalled()
-  })
-
-  it('uses the canonical organization when the workspace viewer has no organization context', async () => {
-    await curateBlockDetail(
-      ok(JSON.stringify({ ...blockDetail(), toolIds: ['table_query_rows_v2'] })),
-      viewer
-    )
-    expect(queryAvailability).toHaveBeenCalledWith({
-      userId: 'user',
-      orgId: 'canonical-target-org',
-    })
-  })
-
-  it('does not evaluate rollout for a denied typed query operation', async () => {
-    permissionConfig.current = { deniedTools: ['table_query_rows_v2'] }
-    denied.current = {
-      fullyDenied: new Set(),
-      needsProjection: new Map([['slack', new Set(['query'])]]),
-    }
-    const original = { ...blockDetail(), toolIds: ['table_query_rows_v2', 'slack_send'] }
-    const result = await curateBlockDetail(ok(JSON.stringify(original)), viewer)
-    expect(JSON.parse(result.stdout)).not.toHaveProperty('operationAvailability')
-    expect(workspaceContext).not.toHaveBeenCalled()
-    expect(queryAvailability).not.toHaveBeenCalled()
-  })
 
   it('drops denied operations and their tools from a partially denied block', async () => {
     permissionConfig.current = { deniedTools: ['slack_canvas'] }

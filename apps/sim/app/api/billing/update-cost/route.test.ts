@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import {
   billingAttributionMock,
   billingAttributionMockFns,
@@ -9,6 +10,7 @@ import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-
 import {
   billingUsageLogMock,
   billingUsageLogMockFns,
+  MockCumulativeUsageInFlightError,
 } from '@sim/testing/mocks/billing-usage-log.mock'
 import {
   billingUsageMonitorMock,
@@ -17,7 +19,8 @@ import {
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { sleep } from '@sim/utils/helpers'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BillingInFlightCode } from '@/lib/mothership/generated/billing'
 
 const {
   mockCheckAndBillOverageThreshold,
@@ -46,7 +49,7 @@ vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
@@ -748,6 +751,42 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     })
   })
 
+  it('answers a retryable in-flight 503 while another attempt of the request is recorded', async () => {
+    const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
+    mockRecordCumulativeUsage.mockRejectedValueOnce(
+      new MockCumulativeUsageInFlightError(`update-cost:${billingRequestId}`)
+    )
+
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          userId: 'user-1',
+          cost: 0.5,
+          model: 'claude-opus-4.8',
+          source: 'workspace-chat',
+          idempotencyKey: billingRequestId,
+        },
+        {
+          'x-api-key': 'internal',
+          'x-sim-billing-protocol': 'direct-v1',
+          'x-sim-billing-request-id': billingRequestId,
+          'x-sim-billing-account-decision': 'serialized-account-decision',
+        }
+      ),
+      createRouteContext({})
+    )
+
+    expect(res.status).toBe(503)
+    expect(res.headers.get('retry-after')).toBe('5')
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      code: BillingInFlightCode,
+      retryable: true,
+    })
+    expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
+  })
+
   it('retries modern settlement on a duplicate cumulative callback before returning 409', async () => {
     const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
     mockRecordCumulativeUsage
@@ -1255,58 +1294,73 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
     expect(body.usageExceeded).toBe(false)
   })
 
-  it('answers not exceeded when the standing read outlasts the callback budget', async () => {
-    mockCheckAttributedUsageLimits.mockImplementation(async () => {
-      await sleep(1500)
-      return { isExceeded: true, scope: 'payer' }
-    })
-    const startedAt = Date.now()
-
-    const res = await POST(attributedCallback())
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
-    expect(Date.now() - startedAt).toBeLessThan(1400)
-  })
-
-  it('does not pause a run on a verdict read across the end of its period', async () => {
-    const straddling = {
-      ...CURRENT_ATTRIBUTION,
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: new Date(Date.now() + 40).toISOString(),
-        source: 'stripe' as const,
-      },
-    }
-    mockRefreshAttributionPeriod.mockResolvedValue(straddling)
-    mockCheckAttributedUsageLimits.mockImplementation(async () => {
-      await sleep(80)
-      return { isExceeded: true, scope: 'payer' }
+  describe('on a fake clock', () => {
+    beforeEach(() => {
+      // Only the clock the deadline and period checks read, so mocked I/O still settles.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     })
 
-    const body = await (await POST(attributedCallback())).json()
+    afterEach(() => {
+      vi.useRealTimers()
+    })
 
-    expect(body.usageExceeded).toBe(false)
-  })
+    it('answers not exceeded when the standing read outlasts the callback budget', async () => {
+      mockCheckAttributedUsageLimits.mockImplementation(async () => {
+        await sleep(1500)
+        return { isExceeded: true, scope: 'payer' }
+      })
 
-  it('reloads a cached current period once it has ended', async () => {
-    const ending = {
-      ...CURRENT_ATTRIBUTION,
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: new Date(Date.now() + 50).toISOString(),
-      },
-    }
-    mockRefreshAttributionPeriod
-      .mockResolvedValueOnce(ending)
-      .mockResolvedValue(CURRENT_ATTRIBUTION)
-    refuseOnlyCurrentPeriod()
-    await POST(attributedCallback())
-    await sleep(100)
+      const pending = POST(attributedCallback())
+      await vi.advanceTimersByTimeAsync(1000)
+      const res = await pending
 
-    const body = await (await POST(attributedCallback())).json()
+      expect(res.status).toBe(200)
+      await expect(res.json()).resolves.toMatchObject({ success: true, usageExceeded: false })
+      // Settle the abandoned read so no later test coalesces onto it.
+      await vi.advanceTimersByTimeAsync(500)
+    })
 
-    expect(body.usageExceeded).toBe(true)
+    it('does not pause a run on a verdict read across the end of its period', async () => {
+      const straddling = {
+        ...CURRENT_ATTRIBUTION,
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: new Date(Date.now() + 40).toISOString(),
+          source: 'stripe' as const,
+        },
+      }
+      mockRefreshAttributionPeriod.mockResolvedValue(straddling)
+      mockCheckAttributedUsageLimits.mockImplementation(async () => {
+        await sleep(80)
+        return { isExceeded: true, scope: 'payer' }
+      })
+
+      const pending = POST(attributedCallback())
+      await vi.advanceTimersByTimeAsync(80)
+      const body = await (await pending).json()
+
+      expect(body.usageExceeded).toBe(false)
+    })
+
+    it('reloads a cached current period once it has ended', async () => {
+      const ending = {
+        ...CURRENT_ATTRIBUTION,
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: new Date(Date.now() + 50).toISOString(),
+        },
+      }
+      mockRefreshAttributionPeriod
+        .mockResolvedValueOnce(ending)
+        .mockResolvedValue(CURRENT_ATTRIBUTION)
+      refuseOnlyCurrentPeriod()
+      await POST(attributedCallback())
+      await vi.advanceTimersByTimeAsync(100)
+
+      const body = await (await POST(attributedCallback())).json()
+
+      expect(body.usageExceeded).toBe(true)
+    })
   })
 
   it('keeps a recorded charge successful when the gate read fails', async () => {

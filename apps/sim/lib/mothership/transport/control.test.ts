@@ -5,11 +5,21 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlers = vi.hoisted(() => ({
+  memory: vi.fn(),
+  recall: vi.fn(),
   read: vi.fn(),
   status: vi.fn(),
   prepare: vi.fn(),
   wake: vi.fn(),
   catalog: vi.fn(),
+}))
+vi.mock('@/lib/mothership/memory/application/read-scope', () => ({
+  MEMORY_SCOPE_AUDIENCE: 'memory',
+  readMemoryScope: { execute: handlers.memory },
+}))
+vi.mock('@/lib/mothership/chat/application/read-recall-chats', () => ({
+  RECALL_CHATS_AUDIENCE: 'recall',
+  readRecallChats: { execute: handlers.recall },
 }))
 vi.mock('@/lib/mothership/integrations/application/catalog', () => ({
   INTEGRATION_CATALOG_AUDIENCE: 'catalog',
@@ -223,4 +233,52 @@ it('routes catalog reads through catalog-specific delegated authority', async ()
     }),
     input,
   })
+})
+
+it('routes memory through the same use case for both delivery scopes', async () => {
+  handlers.memory.mockResolvedValue({ userId: 'user', organizationId: 'org', workspaceId: null })
+  for (const owner of [scope, { userId: 'user', organizationId: 'org', chatId: 'chat' }]) {
+    expect(
+      (
+        await executeSimControl({
+          ...request({ kind: 'memory_scope', input: { chatId: 'chat' } }),
+          scope: owner,
+        })
+      ).status
+    ).toBe(200)
+    expect(handlers.memory).toHaveBeenLastCalledWith({
+      input: { chatId: 'chat' },
+      principal: expect.objectContaining({
+        subjectUserId: 'user',
+        audience: 'memory',
+        resourceScope: { chatId: 'chat' },
+      }),
+    })
+  }
+})
+
+it("routes a chat's other chats through the same use case for both delivery scopes", async () => {
+  handlers.recall.mockResolvedValue({ userId: 'user', chats: [] })
+  for (const owner of [scope, { userId: 'user', organizationId: 'org', chatId: 'chat' }]) {
+    const result = await executeSimControl({
+      ...request({ kind: 'recall_chats', input: { chatId: 'chat', limit: 50 } }),
+      scope: owner,
+    })
+    expect(result).toEqual({ status: 200, body: JSON.stringify({ userId: 'user', chats: [] }) })
+    expect(handlers.recall).toHaveBeenLastCalledWith({
+      input: { chatId: 'chat', limit: 50 },
+      principal: expect.objectContaining({
+        subjectUserId: 'user',
+        audience: 'recall',
+        resourceScope: { chatId: 'chat' },
+      }),
+    })
+  }
+  expect(
+    (
+      await executeSimControl(
+        request({ kind: 'recall_chats', input: { chatId: 'another-chat', limit: 50 } })
+      )
+    ).status
+  ).toBe(403)
 })

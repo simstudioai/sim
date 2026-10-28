@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { databaseMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMemberOrganizationId,
@@ -144,5 +144,35 @@ describe('getSessionCookieCacheVersion', () => {
     await expect(getSecurityPolicyVersion('cookie-org')).resolves.toBe(7)
     expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
     expect(limit).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('shared caches behind a sub-pool client', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    invalidateMembershipCache('pool-user')
+    invalidateSecurityPolicyVersionCache('pool-org')
+  })
+
+  /**
+   * Better Auth reads the cookie-cache version on every cached-session request through the auth
+   * pool, not `db`; caching only reads made through `db` would cost two queries per request.
+   */
+  it('serves a repeat cookie-cache version from cache when read through the auth pool', async () => {
+    const authPool: typeof db = Object.create(db)
+    databaseMockFns.mockIsPrimaryPoolClient.mockImplementation(
+      (executor) => executor === db || executor === authPool
+    )
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ organizationId: 'pool-org' }])
+      .mockResolvedValueOnce([{ version: 3 }])
+
+    await expect(getSessionCookieCacheVersion({ userId: 'pool-user' }, authPool)).resolves.toBe(
+      'pool-org:3'
+    )
+    await expect(getSessionCookieCacheVersion({ userId: 'pool-user' }, authPool)).resolves.toBe(
+      'pool-org:3'
+    )
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
   })
 })

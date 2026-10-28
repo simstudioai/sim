@@ -4,7 +4,11 @@ import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
-import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import {
+  type CopilotRouteUseCase,
+  copilotRequestPrincipal,
+  isCopilotRequest,
+} from '@/lib/api/server/routes/copilot-request'
 import {
   methodMatchesContract,
   requireJsonRouteDefinition,
@@ -79,17 +83,19 @@ export const v2ApiKeyAuth = {
 
 export interface V2RateLimitPolicy {
   readonly kind: 'public_api'
+  /** `cost` charges a request that performs several operations, such as a batched read. */
   enforce(
     request: NextRequest,
     auth: V2ApiKeyAuthContext,
-    operation: ApplicationOperation
+    operation: ApplicationOperation,
+    cost?: number
   ): Promise<NextResponse | null>
 }
 
 export const v2RateLimits = {
   publicApi: {
     kind: 'public_api',
-    async enforce(request, auth, operation) {
+    async enforce(request, auth, operation, cost = 1) {
       const plan = (auth.rateLimitSubscription?.plan ?? 'free') as SubscriptionPlan
       const config = getRateLimit(plan, 'api-endpoint')
       const buckets = await Promise.all(
@@ -97,7 +103,8 @@ export const v2RateLimits = {
           try {
             return await rateLimiter.checkRateLimitDirectOrThrow(
               `v2:${operation.id}:${subjectId}`,
-              config
+              config,
+              cost
             )
           } catch (error) {
             throw new V2RouteInfrastructureError('rate_limit', error)
@@ -368,11 +375,6 @@ type V2AdmissionAuth =
       keyType?: undefined
       keyExpiresAt?: undefined
     }
-
-type CopilotRouteUseCase = Pick<
-  OperationUseCase<ApplicationOperation, unknown, unknown>,
-  'operation' | 'delegationAudience'
->
 
 async function admitRateLimitedV2Request(
   request: NextRequest,

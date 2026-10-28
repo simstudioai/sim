@@ -40,6 +40,17 @@ const TEST_EXECUTION_CONTEXT = {
   userId: 'user-1',
 }
 
+/** Wraps `leaf` in `depth` levels built by `level`, innermost first. */
+function nest(
+  depth: number,
+  level: (child: unknown, index: number) => unknown,
+  leaf: unknown = 'leaf'
+): unknown {
+  let value = leaf
+  for (let index = 0; index < depth; index++) value = level(value, index)
+  return value
+}
+
 describe('compactExecutionPayload', () => {
   beforeEach(() => {
     clearLargeValueCacheForTests()
@@ -126,6 +137,51 @@ describe('compactExecutionPayload', () => {
       name: 'PayloadSizeLimitError',
       label: 'Workflow execution response',
     })
+  })
+
+  it('spills or rejects an oversized child of an object whose toJSON serializes small', async () => {
+    const value = () => ({ nested: { toJSON: () => 1, big: 'x'.repeat(2000) } })
+    const options = { thresholdBytes: 500, ...TEST_EXECUTION_CONTEXT }
+
+    const compacted = await compactExecutionPayload(value(), options)
+    expect(isLargeValueRef(compacted.nested.big)).toBe(true)
+
+    await expect(
+      compactExecutionPayload(value(), { ...options, rejectLargeValues: true })
+    ).rejects.toMatchObject({ name: 'PayloadSizeLimitError', maxBytes: 500, observedBytes: 2002 })
+  })
+
+  it('sizes a parent by what toJSON returns under its key, not on its own', async () => {
+    const compacted = await compactExecutionPayload(
+      { wrapper: { inner: { toJSON: (key: string) => (key === '' ? 'ok' : 'x'.repeat(2000)) } } },
+      { thresholdBytes: 500, ...TEST_EXECUTION_CONTEXT }
+    )
+
+    expect(isLargeValueRef(compacted.wrapper)).toBe(true)
+  })
+
+  it('spills a value exactly one byte over the threshold, counting JSON escapes and omissions', async () => {
+    const payload = () => ({
+      text: 'é"\\\n😀\ud800 line',
+      lone: 'a\udc00b',
+      list: [undefined, () => 1, 1.5, -0, Number.NaN, 'ünï'],
+      omitted: undefined,
+      fn: () => 1,
+      nested: { empty: {}, none: null, '키"': [[]] },
+    })
+    const bytes = Buffer.byteLength(JSON.stringify(payload()), 'utf8')
+
+    const fitting = await compactExecutionPayload(
+      { payload: payload() },
+      { thresholdBytes: bytes, preserveRoot: true, ...TEST_EXECUTION_CONTEXT }
+    )
+    expect(isLargeValueRef(fitting.payload)).toBe(false)
+
+    const over = await compactExecutionPayload(
+      { payload: payload() },
+      { thresholdBytes: bytes - 1, preserveRoot: true, ...TEST_EXECUTION_CONTEXT }
+    )
+    expect(over.payload).toMatchObject({ __simLargeValueRef: true, size: bytes })
   })
 
   it('does not double-spill existing refs', async () => {
@@ -256,6 +312,68 @@ describe('compactExecutionPayload', () => {
 
     expect(compacted).toEqual([manifest, manifest])
     expect(compacted.every(isLargeArrayManifest)).toBe(true)
+  })
+
+  it('spills subflow results once their aggregate is one byte over the threshold', async () => {
+    const results = () => [{ text: 'é"\\'.repeat(5) }, undefined, [1, null], 'plain']
+    const bytes = Buffer.byteLength(JSON.stringify({ results: results() }), 'utf8')
+
+    const fitting = await compactSubflowResults(results(), {
+      thresholdBytes: bytes,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+    expect(fitting).toEqual(results())
+
+    const over = await compactSubflowResults(results(), {
+      thresholdBytes: bytes - 1,
+      ...TEST_EXECUTION_CONTEXT,
+    })
+    expect(over.map((result) => isLargeValueRef(result))).toEqual([true, false, true, true])
+  })
+
+  it('reuses already-compacted subflow entries instead of rebuilding them', async () => {
+    const unchanged = { rows: [{ id: 1, data: { name: 'a' } }], meta: { count: 1 } }
+    const file = { id: 'f1', key: 'k1', url: 'u', name: 'a.txt', size: 3, type: 'text/plain' }
+    const withBase64 = { file: { ...file, base64: 'YWJj' }, other: { kept: true } }
+
+    const [reused, stripped] = (await compactSubflowResults([unchanged, withBase64], {})) as [
+      typeof unchanged,
+      typeof withBase64,
+    ]
+
+    expect(reused).toBe(unchanged)
+    expect(stripped).not.toBe(withBase64)
+    expect(stripped.file).toEqual(file)
+    expect(stripped.other).toBe(withBase64.other)
+  })
+
+  it('compacts trees nested deeper than one synchronous stack can walk', async () => {
+    // Both overflow an unbroken synchronous walk even on Vitest's larger worker stack.
+    const plain = nest(10_000, (child) => ({ child }))
+    // A Date has a toJSON, so every level serializes its subtree from where the walk stands.
+    const datePerLevel = nest(8_000, (child, index) => ({ at: new Date(index), child }))
+    const datePerLevelCompacted = nest(8_000, (child) => ({ at: {}, child }))
+
+    expect(JSON.stringify(await compactExecutionPayload(plain))).toBe(JSON.stringify(plain))
+    expect(JSON.stringify(await compactExecutionPayload(datePerLevel))).toBe(
+      JSON.stringify(datePerLevelCompacted)
+    )
+  })
+
+  it('compacts an object shared across a resumed walk where the walk first reaches it', async () => {
+    const shared = { text: 'x'.repeat(8192) }
+    const depth = 300
+    const deep = nest(depth, (child) => ({ child }), { shared })
+
+    const compacted = await compactExecutionPayload(
+      { deep, later: shared },
+      { thresholdBytes: 4096, preserveRoot: true, ...TEST_EXECUTION_CONTEXT }
+    )
+
+    let tail = compacted.deep as Record<string, unknown>
+    for (let index = 0; index < depth; index++) tail = tail.child as Record<string, unknown>
+    expect(isLargeValueRef((tail.shared as { text: unknown }).text)).toBe(true)
+    expect(compacted.later).toBe(shared)
   })
 
   it('rejects durable compaction when storage context is incomplete', async () => {

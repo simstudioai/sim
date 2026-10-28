@@ -5,8 +5,9 @@ import { BLOG_SECTION, buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blo
 import { ContentPostPage } from '@/app/(landing)/components'
 
 /**
- * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
- * `loading.tsx` with a 200 status first.
+ * Unknown params 404 before rendering when this route is prerendered. The production image renders
+ * every route dynamically, so there the page's own `notFound()` is what 404s - which is why no
+ * `loading.tsx` may wrap this segment: its Suspense boundary commits a 200 before `notFound()` runs.
  */
 export const dynamicParams = false
 
@@ -23,7 +24,7 @@ export async function generateMetadata({
   const { slug } = await params
   const post = await getPostBySlug(slug)
   if (!post || post.draft) return {}
-  return buildPostMetadata(post)
+  return buildPostMetadata(post, BLOG_SECTION)
 }
 
 export const revalidate = 86400
@@ -32,7 +33,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const { slug } = await params
   const post = await getPostBySlug(slug)
   if (!post || post.draft) notFound()
-  const related = await getRelatedPosts(slug, 3)
+  const related = await getRelatedPosts(slug)
 
   return (
     <ContentPostPage

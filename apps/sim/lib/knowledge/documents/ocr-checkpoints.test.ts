@@ -12,26 +12,27 @@ const hoisted = vi.hoisted(() => ({
   executeOcr: vi.fn(),
 }))
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/knowledge/model-input-provenance', () => ({
+vi.mock(import('@/lib/knowledge/model-input-provenance'), async (importOriginal) => ({
+  ...(await importOriginal()),
   getKnowledgeOpaqueModelInputRegistry: hoisted.provenance,
   assertKnowledgeOpaqueModelInputSafe: hoisted.provenance,
 }))
 
 vi.mock('@/lib/file-parsers', () => fileParsersMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock('@/lib/internal/mistral/operations', () => ({ executeMistralParse: hoisted.executeOcr }))
 
 import { PDFDocument } from 'pdf-lib'
 import { env } from '@/lib/core/config/env'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
 import {
   cleanupOcrCheckpoint,
   createOcrCheckpoints,
-  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
 } from '@/lib/knowledge/documents/ocr-checkpoints'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
+import { processDocument } from '@/lib/knowledge/documents/processor'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = {

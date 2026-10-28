@@ -25,6 +25,8 @@ export const usePanelStore = create<PanelState>()(
           document.documentElement.style.setProperty('--panel-width', `${clampedWidth}px`)
         }
       },
+      isMobilePanelOpen: false,
+      setIsMobilePanelOpen: (open) => set({ isMobilePanelOpen: open }),
       activeTab: DEFAULT_TAB,
       setActiveTab: (tab) => {
         set({ activeTab: tab })

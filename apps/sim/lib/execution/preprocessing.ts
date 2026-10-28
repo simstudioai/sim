@@ -11,10 +11,11 @@ import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
+import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import {
   type AdmissionErrorDescriptor,
   getReservationDenialDescriptor,
@@ -36,6 +37,7 @@ import {
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
+import { claimBlockedRunLog } from '@/lib/execution/blocked-run-log'
 import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -97,6 +99,14 @@ export interface PreprocessExecutionOptions {
    * again on its final attempt so an exhausted retry still records the row.
    */
   suppressRetryableFailureLogs?: boolean
+  /**
+   * Record at most one admission-gate error row per workflow and gate within
+   * the blocked-run log window. Set by unattended surfaces (webhooks, pollers)
+   * whose senders resend refused deliveries, so each resend does not write a
+   * new execution row and trace archive. Ignored when the caller supplies its
+   * own `loggingSession`, which it expects preprocessing to complete.
+   */
+  throttleErrorLogs?: boolean
 
   workspaceId?: string
   loggingSession?: LoggingSession
@@ -145,6 +155,11 @@ export interface PreprocessExecutionError {
    */
   retryAfterMs?: number
   cause?: Record<string, unknown>
+  /**
+   * Set when the workflow's own state refused the run; see {@link isWorkflowStateRejection}.
+   * Internal: unlike `code`, no surface copies it onto a response.
+   */
+  workflowState?: 'not_found' | 'not_attached' | 'not_deployed'
 }
 
 /**
@@ -163,6 +178,20 @@ function retryAfterMsFrom(retryAfterSeconds: number | undefined): { retryAfterMs
 }
 
 export const WORKFLOW_NOT_DEPLOYED_CODE = 'WORKFLOW_NOT_DEPLOYED'
+
+/** A rate-limit quota denial, distinct from the retryable concurrency-slot 429. */
+export const RATE_LIMIT_EXCEEDED_CODE = 'RATE_LIMIT_EXCEEDED'
+
+/**
+ * Whether the workflow's own state refused the run: deleted or archived, not attached to a
+ * workspace, or not deployed. Produced only after a successful read (a failed read is a 5xx), and
+ * these rejections write no execution log by design, so callers need not wait for one.
+ */
+export function isWorkflowStateRejection(
+  error: Pick<PreprocessExecutionError, 'workflowState'>
+): boolean {
+  return error.workflowState !== undefined
+}
 
 export interface PreprocessExecutionSuccess {
   success: true
@@ -351,6 +380,7 @@ export async function preprocessExecution(
     skipConcurrencyReservation = false,
     logPreprocessingErrors = true,
     suppressRetryableFailureLogs = false,
+    throttleErrorLogs = false,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
     triggerData,
@@ -370,6 +400,24 @@ export async function preprocessExecution(
   /** True when this failure's log row is deferred to a caller that will requeue it. */
   const isFailureLogSuppressed = (failure: PreprocessExecutionError): boolean =>
     suppressRetryableFailureLogs && failure.statusCode >= 500 && failure.retryable === true
+
+  /** Records an admission gate's error row, at most once per gate and outcome per window when throttled. */
+  const recordGateFailure = async (
+    gate: 'ban' | 'usage' | 'rate-limit' | 'reservation',
+    failure: PreprocessExecutionError,
+    record: Parameters<typeof logPreprocessingError>[0]
+  ): Promise<void> => {
+    if (isFailureLogSuppressed(failure)) return
+    if (
+      throttleErrorLogs &&
+      logPreprocessingErrors &&
+      !providedLoggingSession &&
+      !(await claimBlockedRunLog(workflowId, `${gate}:${failure.code ?? failure.statusCode}`))
+    ) {
+      return
+    }
+    await recordPreprocessingError(record)
+  }
 
   logger.info(`[${requestId}] Starting execution preprocessing`, {
     workflowId,
@@ -426,6 +474,7 @@ export async function preprocessExecution(
           error: {
             message: 'Workflow not found',
             statusCode: 404,
+            workflowState: 'not_found',
           },
         }
       }
@@ -461,6 +510,7 @@ export async function preprocessExecution(
       error: {
         message: 'Workflow not found',
         statusCode: 404,
+        workflowState: 'not_found',
       },
     }
   } else {
@@ -474,6 +524,7 @@ export async function preprocessExecution(
         error: {
           message: 'Workflow not found',
           statusCode: 404,
+          workflowState: 'not_found',
         },
       }
     }
@@ -490,6 +541,7 @@ export async function preprocessExecution(
         message:
           'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
         statusCode: 403,
+        workflowState: 'not_attached',
       },
     }
   }
@@ -504,6 +556,7 @@ export async function preprocessExecution(
         message: 'Workflow is not deployed',
         statusCode: 403,
         code: WORKFLOW_NOT_DEPLOYED_CODE,
+        workflowState: 'not_deployed',
       },
     }
   }
@@ -649,6 +702,7 @@ export async function preprocessExecution(
             error: {
               message: 'Account suspended',
               statusCode: 403,
+              code: ADMISSION_REJECTION_CODE.ACCOUNT_SUSPENDED,
             },
           },
           recordError: {
@@ -737,6 +791,10 @@ export async function preprocessExecution(
                   usageCheck.message ||
                   'Usage limit exceeded. Please upgrade your plan to continue.',
                 statusCode: 402,
+                // An unreadable ledger fails closed; that is no verdict on the payer, so senders retry.
+                ...(usageCheck.reason === 'usage_unavailable'
+                  ? { retryable: true }
+                  : { code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED }),
               },
             },
             recordError: {
@@ -835,7 +893,7 @@ export async function preprocessExecution(
                * (`EXECUTION_CONCURRENCY_LIMIT`, retryable in seconds) — the two
                * need different caller behavior.
                */
-              code: 'RATE_LIMIT_EXCEEDED',
+              code: RATE_LIMIT_EXCEEDED_CODE,
               retryAfterMs: info.retryAfterMs ?? Math.max(0, info.resetAt.getTime() - Date.now()),
             },
           },
@@ -885,16 +943,24 @@ export async function preprocessExecution(
 
   const readGateFailure = banFailure ?? usageResult.failure
   if (readGateFailure) {
-    if (readGateFailure.recordError && !isFailureLogSuppressed(readGateFailure.response.error)) {
-      await recordPreprocessingError(readGateFailure.recordError)
+    if (readGateFailure.recordError) {
+      await recordGateFailure(
+        banFailure ? 'ban' : 'usage',
+        readGateFailure.response.error,
+        readGateFailure.recordError
+      )
     }
     return readGateFailure.response
   }
 
   const rateLimitFailure = await runRateLimitGate()
   if (rateLimitFailure) {
-    if (rateLimitFailure.recordError && !isFailureLogSuppressed(rateLimitFailure.response.error)) {
-      await recordPreprocessingError(rateLimitFailure.recordError)
+    if (rateLimitFailure.recordError) {
+      await recordGateFailure(
+        'rate-limit',
+        rateLimitFailure.response.error,
+        rateLimitFailure.recordError
+      )
     }
     return rateLimitFailure.response
   }
@@ -949,7 +1015,18 @@ export async function preprocessExecution(
           constraint: reservation.reason,
         })
 
-        await recordPreprocessingError({
+        const failure: PreprocessExecutionError = {
+          message,
+          statusCode: descriptor.statusCode,
+          code: descriptor.code,
+          retryable: descriptor.retryable,
+          ...retryAfterMsFrom(descriptor.retryAfterSeconds),
+          cause: {
+            code: descriptor.code,
+            constraint: reservation.reason,
+          },
+        }
+        await recordGateFailure('reservation', failure, {
           workflowId,
           executionId,
           triggerType,
@@ -961,20 +1038,7 @@ export async function preprocessExecution(
           triggerData,
         })
 
-        return {
-          success: false,
-          error: {
-            message,
-            statusCode: descriptor.statusCode,
-            code: descriptor.code,
-            retryable: descriptor.retryable,
-            ...retryAfterMsFrom(descriptor.retryAfterSeconds),
-            cause: {
-              code: descriptor.code,
-              constraint: reservation.reason,
-            },
-          },
-        }
+        return { success: false, error: failure }
       }
     } catch (error) {
       logger.error(`[${requestId}] Admission reservation infrastructure unavailable`, {

@@ -1,9 +1,13 @@
 {
-  "title": "Search",
+  "title": "Sim Search",
   "pages": [
+    "---User guides---",
+    "quickstart",
+    "find-content",
+    "ask-questions",
+    "troubleshooting",
+    "---Connect sources---",
     "connect-your-account",
-    "generic-secrets",
-    "mcp",
     "coda",
     "confluence",
     "fireflies",
@@ -20,6 +24,8 @@
     "lucid",
     "notion",
     "slack",
-    "zoom"
+    "zoom",
+    "mcp",
+    "generic-secrets"
   ]
 }

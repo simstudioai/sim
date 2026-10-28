@@ -12,9 +12,9 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
+import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'
 
 const logger = createLogger('InboxCleanup')
-const INBOX_CLEANUP_EVENT = 'inbox.resources.cleanup'
 const MAX_DELETION_POLLS = 120
 const DELETION_POLL_INTERVAL_MS = 30_000
 

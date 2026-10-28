@@ -1,11 +1,14 @@
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import type { CopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ToolExecutionContext {
+  /** Trusted server-selected benchmark policy; never populated from model tool arguments. */
+  benchmark?: 'plan' | 'tool-free' | 'distill' | 'reconstruct' | 'resolve'
   /** Worker endpoint chosen at turn admission; retained for cost delivery. */
   mothershipBaseURL?: string
   /** Trusted entry point for Search metering; never read from model arguments. */
@@ -34,6 +37,8 @@ export interface ToolExecutionContext {
   boundWorkflowExecutionId?: string
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
+  /** In-process authoring admission; never supplied by model arguments or checkpoint JSON. */
+  copilotResourceAdmission?: CopilotResourceAdmission
   /** Trusted lifecycle classification stamped by the server, never from model parameters. */
   copilotInteractionMode?: 'interactive' | 'headless'
   requestMode?: string

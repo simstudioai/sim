@@ -8,7 +8,7 @@ import {
   acceptEnterpriseOwnerClaimContract,
   type EnterpriseOwnerClaimDetails,
 } from '@/lib/api/contracts/enterprise-owner-claims'
-import { client, useSession } from '@/lib/auth/auth-client'
+import { client, useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'

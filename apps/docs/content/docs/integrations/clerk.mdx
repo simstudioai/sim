@@ -1,42 +1,31 @@
 ---
 title: Clerk
 description: Manage users, organizations, and sessions in Clerk
+integration:
+  type: "clerk"
+  color: "#131316"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="clerk"
-  color="#131316"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Clerk](https://clerk.com/) is a comprehensive identity infrastructure platform that helps you manage users, authentication, and sessions for your applications.
+Use [Clerk](https://clerk.com/) to manage application users, organizations, memberships, invitations, and sessions with a Clerk secret key. Read or update profiles, ban or lock users, and revoke sessions from a workflow.
 
-In Sim, the Clerk integration lets your agents automate user and session management through easy-to-use API-based tools. Agents can securely list users, update user profiles, manage organizations, monitor sessions, and revoke access directly in your workflow.
-
-With Clerk, you can:
-
-- **Authenticate users and manage sessions**: Seamlessly control sign-in, sign-up, and session lifecycle for your users.
-- **List and update users**: Automatically pull user lists, update user attributes, or view profile details as part of your agent tasks.
-- **Manage organizations and memberships**: Add or update organizations and administer user memberships with clarity.
-- **Monitor and revoke sessions**: See active or past user sessions, and revoke access immediately if needed for security.
-
-The integration enables real-time, auditable management of your user base—all from within Sim. Connected agents can automate onboarding, enforce policies, keep directories up to date, and react to authentication events or organizational changes, helping you run secure and flexible processes using Clerk as your identity engine.
+The integration also manages allowlist and blocklist identifiers, JWT templates, and actor tokens. These are backend administration operations; use the action reference to select the operation and required identifiers.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Clerk authentication and user management into your workflow. Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.
-
-
+Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.
 
 ## Actions
 
 ### List Users from Clerk
 
 List all users in your Clerk application with optional filtering and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -85,9 +74,13 @@ List all users in your Clerk application with optional filtering and pagination
 | `totalCount` | number | Total number of users matching the query |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get User from Clerk
 
 Retrieve a single user by their ID from Clerk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +128,13 @@ Retrieve a single user by their ID from Clerk
 | `unsafeMetadata` | json | Unsafe metadata \(modifiable from frontend\) |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create User in Clerk
 
 Create a new user in your Clerk application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -182,9 +179,13 @@ Create a new user in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update User in Clerk
 
 Update an existing user in your Clerk application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -231,9 +232,13 @@ Update an existing user in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete User from Clerk
 
 Delete a user from your Clerk application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +256,13 @@ Delete a user from your Clerk application
 | `deleted` | boolean | Whether the user was deleted |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Ban User in Clerk
 
 Ban a user, preventing them from signing in
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +285,13 @@ Ban a user, preventing them from signing in
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Unban User in Clerk
 
 Remove a ban from a user, allowing them to sign in again
+
+<ReferenceDetails>
 
 #### Input
 
@@ -301,9 +314,13 @@ Remove a ban from a user, allowing them to sign in again
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Lock User in Clerk
 
 Lock a user account, blocking sign-in attempts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -326,9 +343,13 @@ Lock a user account, blocking sign-in attempts
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Unlock User in Clerk
 
 Unlock a previously locked user account
+
+<ReferenceDetails>
 
 #### Input
 
@@ -351,9 +372,13 @@ Unlock a previously locked user account
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get User OAuth Access Token from Clerk
 
 Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO
+
+<ReferenceDetails>
 
 #### Input
 
@@ -377,9 +402,13 @@ Retrieve a user's OAuth access token for a connected external provider (e.g. Goo
 |   ↳ `publicMetadata` | json | Public metadata associated with the token |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Organizations from Clerk
 
 List all organizations in your Clerk application with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -413,9 +442,13 @@ List all organizations in your Clerk application with optional filtering
 | `totalCount` | number | Total number of organizations |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Organization from Clerk
 
 Retrieve a single organization by ID or slug from Clerk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +476,13 @@ Retrieve a single organization by ID or slug from Clerk
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Organization in Clerk
 
 Create a new organization in your Clerk application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -478,9 +515,13 @@ Create a new organization in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Organization in Clerk
 
 Update an existing organization in your Clerk application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -512,9 +553,13 @@ Update an existing organization in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete Organization from Clerk
 
 Delete an organization from your Clerk application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -532,9 +577,13 @@ Delete an organization from your Clerk application
 | `deleted` | boolean | Whether the organization was deleted |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Organization Memberships from Clerk
 
 List members of a Clerk organization with optional filtering and pagination
+
+<ReferenceDetails>
 
 #### Input
 
@@ -570,9 +619,13 @@ List members of a Clerk organization with optional filtering and pagination
 | `totalCount` | number | Total number of memberships |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Add Organization Member in Clerk
 
 Add a user as a member of a Clerk organization with a given role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -604,9 +657,13 @@ Add a user as a member of a Clerk organization with a given role
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Update Organization Membership in Clerk
 
 Change a member's role within a Clerk organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -638,9 +695,13 @@ Change a member's role within a Clerk organization
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Remove Organization Member from Clerk
 
 Remove a member from a Clerk organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -671,9 +732,13 @@ Remove a member from a Clerk organization
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Organization Invitation in Clerk
 
 Invite a user by email to join a Clerk organization with a given role
+
+<ReferenceDetails>
 
 #### Input
 
@@ -711,9 +776,13 @@ Invite a user by email to join a Clerk organization with a given role
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Organization Invitations from Clerk
 
 List pending and past invitations for a Clerk organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -750,9 +819,13 @@ List pending and past invitations for a Clerk organization
 | `totalCount` | number | Total number of invitations |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Sessions from Clerk
 
 List sessions for a user or client in your Clerk application
+
+<ReferenceDetails>
 
 #### Input
 
@@ -783,9 +856,13 @@ List sessions for a user or client in your Clerk application
 | `totalCount` | number | Total number of sessions |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get Session from Clerk
 
 Retrieve a single session by ID from Clerk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -810,9 +887,13 @@ Retrieve a single session by ID from Clerk
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Revoke Session in Clerk
 
 Revoke a session to immediately invalidate it
+
+<ReferenceDetails>
 
 #### Input
 
@@ -837,9 +918,13 @@ Revoke a session to immediately invalidate it
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Allowlist Identifiers from Clerk
 
 List email/phone/web3-wallet identifiers on your Clerk instance allowlist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -863,9 +948,13 @@ List email/phone/web3-wallet identifiers on your Clerk instance allowlist
 | `totalCount` | number | Total number of allowlist identifiers |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Allowlist Identifier in Clerk
 
 Add an email, phone number, or web3 wallet to your Clerk instance allowlist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -887,9 +976,13 @@ Add an email, phone number, or web3 wallet to your Clerk instance allowlist
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete Allowlist Identifier from Clerk
 
 Remove an identifier from your Clerk instance allowlist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -907,9 +1000,13 @@ Remove an identifier from your Clerk instance allowlist
 | `deleted` | boolean | Whether the identifier was deleted |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List Blocklist Identifiers from Clerk
 
 List email/phone/web3-wallet identifiers on your Clerk instance blocklist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -930,9 +1027,13 @@ List email/phone/web3-wallet identifiers on your Clerk instance blocklist
 | `totalCount` | number | Total number of blocklist identifiers |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Blocklist Identifier in Clerk
 
 Add an email, phone number, or web3 wallet to your Clerk instance blocklist to prevent sign-ups
+
+<ReferenceDetails>
 
 #### Input
 
@@ -952,9 +1053,13 @@ Add an email, phone number, or web3 wallet to your Clerk instance blocklist to p
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Delete Blocklist Identifier from Clerk
 
 Remove an identifier from your Clerk instance blocklist
+
+<ReferenceDetails>
 
 #### Input
 
@@ -972,9 +1077,13 @@ Remove an identifier from your Clerk instance blocklist
 | `deleted` | boolean | Whether the identifier was deleted |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### List JWT Templates from Clerk
 
 List custom JWT templates configured on your Clerk instance
+
+<ReferenceDetails>
 
 #### Input
 
@@ -999,9 +1108,13 @@ List custom JWT templates configured on your Clerk instance
 | `totalCount` | number | Total number of JWT templates |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Get JWT Template from Clerk
 
 Retrieve a single custom JWT template by ID from Clerk
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1025,9 +1138,13 @@ Retrieve a single custom JWT template by ID from Clerk
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Create Actor Token in Clerk
 
 Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1053,9 +1170,13 @@ Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for s
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 ### Revoke Actor Token in Clerk
 
 Revoke an actor token before it is used or expires
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1078,15 +1199,19 @@ Revoke an actor token before it is used or expires
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Clerk Organization Created
 
 Trigger workflow when a Clerk organization is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1111,12 +1236,13 @@ Trigger workflow when a Clerk organization is created
 | `maxAllowedMemberships` | number | Maximum allowed memberships \(data.max_allowed_memberships\) |
 | `createdAt` | number | Organization creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Organization Deleted
 
 Trigger workflow when a Clerk organization is deleted
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1136,12 +1262,13 @@ Trigger workflow when a Clerk organization is deleted
 | `organizationId` | string | Deleted Clerk organization ID \(data.id\) |
 | `deleted` | boolean | Whether the organization was deleted \(data.deleted\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Organization Membership Created
 
 Trigger workflow when a Clerk organization membership is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1164,12 +1291,13 @@ Trigger workflow when a Clerk organization membership is created
 | `userId` | string | User ID of the member \(data.public_user_data.user_id\) |
 | `createdAt` | number | Membership creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Organization Membership Deleted
 
 Trigger workflow when a Clerk organization membership is deleted
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1189,12 +1317,13 @@ Trigger workflow when a Clerk organization membership is deleted
 | `membershipId` | string | Deleted membership ID \(data.id\) |
 | `deleted` | boolean | Whether the membership was deleted \(data.deleted\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Organization Membership Updated
 
 Trigger workflow when a Clerk organization membership is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1217,12 +1346,13 @@ Trigger workflow when a Clerk organization membership is updated
 | `userId` | string | User ID of the member \(data.public_user_data.user_id\) |
 | `createdAt` | number | Membership creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Organization Updated
 
 Trigger workflow when a Clerk organization is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1247,13 +1377,14 @@ Trigger workflow when a Clerk organization is updated
 | `maxAllowedMemberships` | number | Maximum allowed memberships \(data.max_allowed_memberships\) |
 | `createdAt` | number | Organization creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Session Created
 
 Trigger workflow when a Clerk session is created
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1275,13 +1406,14 @@ Trigger workflow when a Clerk session is created
 | `status` | string | Session status \(data.status\) |
 | `createdAt` | number | Session creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Session Ended
 
 Trigger workflow when a Clerk session ends
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1303,13 +1435,14 @@ Trigger workflow when a Clerk session ends
 | `status` | string | Session status \(data.status\) |
 | `createdAt` | number | Session creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Session Removed
 
 Trigger workflow when a Clerk session is removed
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1331,13 +1464,14 @@ Trigger workflow when a Clerk session is removed
 | `status` | string | Session status \(data.status\) |
 | `createdAt` | number | Session creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Session Revoked
 
 Trigger workflow when a Clerk session is revoked
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1359,12 +1493,13 @@ Trigger workflow when a Clerk session is revoked
 | `status` | string | Session status \(data.status\) |
 | `createdAt` | number | Session creation timestamp \(data.created_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk User Created
 
 Trigger workflow when a Clerk user is created
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1393,12 +1528,13 @@ Trigger workflow when a Clerk user is created
 | `createdAt` | number | User creation timestamp \(data.created_at\) |
 | `updatedAt` | number | User last update timestamp \(data.updated_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk User Deleted
 
 Trigger workflow when a Clerk user is deleted
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1418,12 +1554,13 @@ Trigger workflow when a Clerk user is deleted
 | `userId` | string | Deleted Clerk user ID \(data.id\) |
 | `deleted` | boolean | Whether the user was deleted \(data.deleted\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk User Updated
 
 Trigger workflow when a Clerk user is updated
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1452,12 +1589,13 @@ Trigger workflow when a Clerk user is updated
 | `createdAt` | number | User creation timestamp \(data.created_at\) |
 | `updatedAt` | number | User last update timestamp \(data.updated_at\) |
 
-
----
+</ReferenceDetails>
 
 ### Clerk Webhook
 
 Trigger workflow on any Clerk webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -1474,4 +1612,6 @@ Trigger workflow on any Clerk webhook event
 | `timestamp` | number | Timestamp in milliseconds when the event occurred |
 | `instance_id` | string | Identifier of your Clerk instance |
 | `data` | json | Raw event `data` object \(shape varies by event type\) |
+
+</ReferenceDetails>
 

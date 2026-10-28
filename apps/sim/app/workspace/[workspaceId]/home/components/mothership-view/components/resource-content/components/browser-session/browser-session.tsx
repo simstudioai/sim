@@ -69,6 +69,7 @@ import { addMothershipContext } from '@/lib/mothership/events'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
+import { BrowserPageDialogModal } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-dialog'
 import { BrowserPageIssueView } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-issue'
 import {
   type BrowserPanelOverlay,
@@ -523,6 +524,13 @@ export function BrowserSession({
       false
     )
   }, [permissionRequest, respondToPermission, visible])
+
+  // The shell answers page dialogs itself until this renderer declares it shows them.
+  useEffect(() => {
+    sendBrowserPanelAction('enable-page-dialogs', {}, scopeId)
+  }, [scopeId])
+  const answerPageDialog = (requestId: string, accept: boolean) =>
+    sendBrowserPanelAction('respond-dialog', { requestId, allowed: accept }, scopeId)
 
   const permissionModalOpen = shouldShowBrowserPermissionRequest(
     permissionRequest?.requestId,
@@ -1373,6 +1381,11 @@ export function BrowserSession({
         request={permissionRequest}
         open={permissionModalOpen}
         onDecision={respondToPermission}
+      />
+      <BrowserPageDialogModal
+        dialog={pageState?.dialog}
+        open={visible && !permissionModalOpen}
+        onAnswer={answerPageDialog}
       />
     </div>
   )

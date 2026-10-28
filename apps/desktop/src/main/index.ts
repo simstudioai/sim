@@ -1,14 +1,28 @@
+import { release } from 'node:os'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OpenDialogOptions, Session, WebContents } from 'electron'
-import { app, BrowserWindow, crashReporter, dialog, net, session, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  crashReporter,
+  dialog,
+  globalShortcut,
+  Notification,
+  net,
+  powerSaveBlocker,
+  session,
+  shell,
+} from 'electron'
 import {
   beginAccountDataTeardown,
+  captureAccountDataGeneration,
   completeDeploymentScopedTeardown,
   getAccountDataTeardownKind,
   getAccountDataTeardownOrigin,
   initializeAccountDataRecovery,
+  isAccountDataGenerationCurrent,
   isAccountDataTeardownRequired,
   prepareAccountDataTeardownForQuit,
   retryAccountDataTeardown,
@@ -17,9 +31,13 @@ import {
 import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   activateBrowserScope as activateAgentBrowserScope,
+  cancelTool as cancelAgentBrowserTool,
   clearBrowserProfile as clearAgentBrowserProfile,
   closeBrowserSession as closeAgentBrowserSession,
+  executeTool as executeAgentBrowserTool,
+  hasBrowserScopeSession,
   initDriver as initBrowserAgentDriver,
+  restoreBrowserScope as restoreAgentBrowserScope,
 } from '@/main/browser-agent/driver'
 import {
   canReportPanelBounds,
@@ -36,6 +54,8 @@ import {
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
 import { attachClientInfo } from '@/main/client-info'
+import { NativeComputerUseClient } from '@/main/computer-use/native-client'
+import { ComputerUseService } from '@/main/computer-use/service'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -47,6 +67,10 @@ import {
 import { attachContextMenu } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
 import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
+import { createApprovalNotifier } from '@/main/desktop-executor/approval-notifier'
+import { createDesktopToolRunner } from '@/main/desktop-executor/runner'
+import { createDesktopExecutorService } from '@/main/desktop-executor/service'
+import { createSleepBlocker } from '@/main/desktop-executor/sleep-blocker'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
@@ -56,7 +80,9 @@ import {
 } from '@/main/help-search'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
-import { LocalFilesystemService } from '@/main/local-filesystem'
+import { LocalFilePermissions } from '@/main/local-file-permissions'
+import { executeLocalFileRequest } from '@/main/local-files'
+import { LocalFilesystemService, mountVfsRoot } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
 import {
   attachLocalPageProtocol,
@@ -65,7 +91,7 @@ import {
   registerLocalPageScheme,
 } from '@/main/local-pages'
 import { installApplicationMenu } from '@/main/menu'
-import { openExternalSafe } from '@/main/navigation'
+import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
 import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
@@ -75,12 +101,14 @@ import {
   createSessionLifecycleCoordinator,
   decideStartRoute,
   handleConnectIntercept,
+  isSessionCookieName,
   readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
 import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
+import { createRunLedger } from '@/main/terminal/run-ledger'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
@@ -146,16 +174,89 @@ function main(): void {
       join(userDataPath, 'local-filesystem-grants.json')
     ),
   })
-  const scopeEvents = new ScopedEventRouter()
-  const terminal = new TerminalRegistry({
-    load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
-    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
-    migrate: (fromScopeId, toScopeId) =>
-      desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
-    disposeScope: (scopeId) => {
-      desktopChatSessions.deleteScope(processOrigin, scopeId)
+  const computerNative = new NativeComputerUseClient(
+    join(
+      app.isPackaged ? process.resourcesPath : join(__dirname, 'native'),
+      'Sim Computer Use.app',
+      'Contents',
+      'MacOS',
+      'SimComputerUse'
+    ),
+    () => computerUse.invalidateSnapshots()
+  )
+  let computerStopShortcutRegistered = false
+  const computerStopShortcut = 'CommandOrControl+Shift+Escape'
+  const computerUse = new ComputerUseService({
+    config,
+    supported: process.platform === 'darwin' && Number.parseInt(release(), 10) >= 23,
+    native: computerNative,
+    openPermissionSettings: (permission) =>
+      shell.openExternal(
+        permission === 'accessibility'
+          ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+          : 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+      ),
+    setStopShortcutActive: (active) => {
+      if (active && !computerStopShortcutRegistered) {
+        computerStopShortcutRegistered = globalShortcut.register(computerStopShortcut, () =>
+          computerUse.cancel()
+        )
+      } else if (!active && computerStopShortcutRegistered) {
+        globalShortcut.unregister(computerStopShortcut)
+        computerStopShortcutRegistered = false
+      }
+      return computerStopShortcutRegistered
+    },
+    approveApp: async (target, signal) => {
+      const result = await dialog.showMessageBox({
+        type: 'question',
+        title: 'Computer Use',
+        message: `Allow Mothership to use ${target.displayName}?`,
+        detail: `Mothership can read and operate this app, including taking screenshots. App: ${target.bundleId}`,
+        buttons: ['Allow for This Task', 'Always Allow', 'Cancel'],
+        defaultId: 2,
+        cancelId: 2,
+        noLink: true,
+        signal,
+      })
+      return result.response === 0 ? 'once' : result.response === 1 ? 'always' : 'deny'
+    },
+    onActivity: (activity) => {
+      for (const win of getWindows()) {
+        if (isAppOrigin(win.webContents.getURL(), appOrigin())) {
+          win.webContents.send('computer-use:activity', activity)
+        }
+      }
     },
   })
+  const localFilePermissions = new LocalFilePermissions(
+    localFilesystem,
+    () => config.get('fullFileAccess') === true,
+    () => {
+      desktopSettings.setFullFileAccess(true)
+    }
+  )
+  const clearLocalFileAccess = async () => {
+    config.set('fullFileAccess', false)
+    const saved = config.flush()
+    await localFilesystem.forgetAll()
+    if (!saved) throw new Error('Full file access could not be disabled')
+  }
+  const scopeEvents = new ScopedEventRouter()
+  const terminal = new TerminalRegistry(
+    {
+      load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
+      save: (scopeId, snapshot) =>
+        desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
+      migrate: (fromScopeId, toScopeId) =>
+        desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
+      disposeScope: (scopeId) => {
+        desktopChatSessions.deleteScope(processOrigin, scopeId)
+      },
+    },
+    undefined,
+    createRunLedger(join(userDataPath, 'terminal-runs'))
+  )
   const preloadPath = join(__dirname, 'preload.cjs')
 
   const windows = new Set<BrowserWindow>()
@@ -285,6 +386,7 @@ function main(): void {
       origin: appOrigin,
       events,
       getWindows,
+      stopLocalActions: () => computerUse.cancel(),
       clearHandoffState: async () => {
         const stores = [
           { label: 'sign-in handoff state', clear: () => handoff.clear() },
@@ -306,9 +408,25 @@ function main(): void {
           // Shells are account-scoped runtime state. Leaving them alive across
           // sign-out would stream the previous account's output into the next
           // renderer and keep its local processes running invisibly.
-          { label: 'terminal sessions', clear: () => terminal.dispose() },
+          {
+            label: 'background executor',
+            clear: async () => {
+              approvalNotifier.clear()
+              await desktopExecutor.signOut()
+            },
+          },
+          {
+            label: 'terminal sessions',
+            // Agent commands are stopped by their own process groups first: closing a shell only
+            // hangs up its foreground, and a tmux run outlives the Sim terminal entirely.
+            clear: async () => {
+              await terminal.stopAgentCommands()
+              terminal.dispose()
+            },
+          },
           { label: 'task resource state', clear: clearDesktopChatSessions },
-          { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+          { label: 'local filesystem grants', clear: clearLocalFileAccess },
+          { label: 'computer use', clear: () => computerUse.reset() },
         ]
         const outcomes = await Promise.allSettled(
           stores.map(({ clear }) => Promise.resolve().then(clear))
@@ -492,6 +610,9 @@ function main(): void {
 
   const desktopSettings = createDesktopSettingsService({
     config,
+    onFullFileAccessChanged: (preferences) => {
+      broadcast('desktop:settings:full-file-access-changed', preferences)
+    },
     getMainWindow,
     openMainWindowAt: (route) => void openMainWindowAt(route),
     setAutoDownloadUpdates: (enabled) => updater?.setAutoDownload(enabled),
@@ -501,10 +622,19 @@ function main(): void {
     // pinned strip survive, so switching back on resumes rather than restarts.
     setBrowserEnabled: (enabled) => {
       if (!enabled) closeAgentBrowserSession()
+      desktopExecutor.refreshRegistration()
     },
     setTerminalEnabled: (enabled) => {
-      if (!enabled) terminal.dispose()
+      // Agent commands are stopped by their process groups first; a tmux run outlives its shell.
+      if (!enabled) {
+        void terminal.stopAgentCommands().then(() => {
+          // Switched back on while the commands stopped: the shells opened since are the user's.
+          if (!desktopSettings.getPreferences().terminalEnabled) terminal.dispose()
+        })
+      }
+      desktopExecutor.refreshRegistration()
     },
+    setPreventSleepWhileRunning: () => sleepBlocker.refresh(),
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
     setTerminalDefaultZoom: (zoom) => {
@@ -531,13 +661,94 @@ function main(): void {
     },
   })
 
+  const sleepBlocker = createSleepBlocker({
+    enabled: () => desktopSettings.getPreferences().preventSleepWhileRunning ?? true,
+    powerSaveBlocker,
+  })
+
+  const approvalNotifier = createApprovalNotifier({
+    preferences: () => desktopSettings.getPreferences(),
+    focusedChatId: () => {
+      const win = focusedAppWindow()
+      if (!win) return null
+      const route = routeFromAppUrl(win.webContents.getURL())
+      return route ? (/\/chat\/([^/?#]+)/.exec(route)?.[1] ?? null) : null
+    },
+    openRoute: (route) => void openMainWindowAt(route),
+    createNotification: (options) =>
+      Notification.isSupported() ? new Notification(options) : null,
+  })
+
+  const desktopExecutor = createDesktopExecutorService({
+    userDataPath,
+    origin: appOrigin,
+    appSession: ensureAppSession,
+    preferences: () => desktopSettings.getPreferences(),
+    accountDataAvailable,
+    onApprovals: (items) => approvalNotifier.update(items),
+    onBusyChange: (busy) => sleepBlocker.setBusy(busy),
+    // A result the model has makes a tmux run it handed back as still going collectable across a
+    // restart.
+    onResultDelivered: (toolCallId) => terminal.markRunDelivered(toolCallId),
+    // A result the model never got leaves such a run with no one to come back to it, so it is
+    // stopped, as the launch sweep stops a previous process's.
+    onResultNotDelivered: (toolCallId) => void terminal.stopUndeliveredRun(toolCallId),
+    runner: createDesktopToolRunner({
+      preferences: () => desktopSettings.getPreferences(),
+      accountDataAvailable,
+      browser: {
+        executeTool: (scopeId, tool, params, toolCallId) =>
+          executeAgentBrowserTool(scopeId, tool, params, toolCallId, undefined, {
+            background: true,
+          }),
+        cancelTool: cancelAgentBrowserTool,
+        hasSession: hasBrowserScopeSession,
+        restoreScope: restoreAgentBrowserScope,
+      },
+      terminal,
+      localFiles: {
+        request: async (call, request, signal) => {
+          const generation = captureAccountDataGeneration()
+          const origin = appOrigin()
+          const authorization = { toolName: call.toolName, args: call.args }
+          try {
+            const access = await localFilePermissions.authorize(authorization, {
+              parent: async () => getMainWindow(),
+              origin,
+              generation,
+              signal,
+              isCurrent: () =>
+                isAccountDataGenerationCurrent(generation) &&
+                accountDataAvailable() &&
+                appOrigin() === origin,
+              revalidate: () => desktopExecutor.revalidateCall(call),
+            })
+            return await executeLocalFileRequest(request, authorization, access)
+          } catch (error) {
+            return { ok: false, error: getErrorMessage(error) }
+          }
+        },
+      },
+      imports: {
+        importEntry: (request, signal) => desktopExecutor.importEntry(request, signal),
+      },
+      localFilesystem: {
+        handle: (request) => localFilesystem.handle(request),
+        vfsRoot: mountVfsRoot,
+      },
+    }),
+  })
+
   const serverWindow = createServerWindow({
     config,
     defaultOrigin: DEFAULT_ORIGIN,
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
-    prepareDeploymentScopedStateChange: () => beginAccountDataTeardown('deployment', appOrigin()),
+    prepareDeploymentScopedStateChange: () => {
+      computerUse.cancel()
+      return beginAccountDataTeardown('deployment', appOrigin())
+    },
     clearDeploymentScopedState: async () => {
       await waitForAccountDataMutations()
       // allSettled, not sequential awaits: these are independent stores, and a
@@ -545,7 +756,8 @@ function main(): void {
       // that would have cleared fine still holding the outgoing deployment's
       // access. Each failure is named so the picker can say what survived.
       const stores = [
-        { label: 'local file access', clear: () => localFilesystem.forgetAll() },
+        { label: 'local file access', clear: clearLocalFileAccess },
+        { label: 'computer use', clear: () => computerUse.reset() },
         {
           label: 'built-in browser sessions',
           clear: () => clearAgentBrowserProfile({ settingsPersistence: 'server-repair' }),
@@ -627,6 +839,8 @@ function main(): void {
     // now be released without leaving a cancelled quit in a degraded state.
     tray?.destroy()
     tray = null
+    computerUse.cancel()
+    if (computerStopShortcutRegistered) globalShortcut.unregister(computerStopShortcut)
     localFilesystem.close()
     quiesceBrowserSessions()
     terminal.dispose()
@@ -663,7 +877,8 @@ function main(): void {
       }
       const stores = [
         { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
-        { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+        { label: 'local filesystem grants', clear: clearLocalFileAccess },
+        { label: 'computer use', clear: () => computerUse.reset() },
         {
           label: 'browser site history',
           clear: () => {
@@ -674,7 +889,14 @@ function main(): void {
         ...(kind === 'account' && origin
           ? [
               { label: 'sign-in handoff state', clear: () => handoff.clear() },
-              { label: 'terminal sessions', clear: () => terminal.dispose() },
+              { label: 'background executor', clear: () => desktopExecutor.signOut() },
+              {
+                label: 'terminal sessions',
+                clear: async () => {
+                  await terminal.stopAgentCommands()
+                  terminal.dispose()
+                },
+              },
               { label: 'task resource state', clear: clearDesktopChatSessions },
               {
                 label: 'app session storage',
@@ -699,6 +921,11 @@ function main(): void {
         logger.error('Account-data recovery remains incomplete', { stores: failures })
       }
     }
+
+    // The same user's tmux runs from a previous process: one whose pane the model has, or will get
+    // from recovery, is left to the model, which may come back to it; any other has nothing left
+    // to collect what it does, so it is stopped, while its pane still carries its tag.
+    void desktopExecutor.pendingResults().then((pending) => terminal.stopUncollectableRuns(pending))
 
     if (!accountDataAvailable()) {
       logger.warn(
@@ -760,6 +987,7 @@ function main(): void {
         scopeEvents.sendTerminal(scopeId, 'terminal:command', { ...event, scopeId }),
     })
     registerIpcHandlers({
+      computerUse,
       appOrigin,
       allowHttpLocalhost,
       accountDataAvailable,
@@ -770,6 +998,7 @@ function main(): void {
         if (win) loadHealthByWindow.get(win)?.retry()
       },
       localFilesystem,
+      localFilePermissions,
       terminal,
       settings: desktopSettings,
       getWindowState: (sender) => ({
@@ -842,7 +1071,15 @@ function main(): void {
         getConfiguration: () => serverWindow.getConfiguration(),
         setOrigin: (origin) => serverWindow.setOrigin(origin),
       },
+      getExecutorDevice: () => desktopExecutor.getDevice(),
     })
+    if (accountDataAvailable()) {
+      // A sign-in, or a session rotation, binds the device to the new session.
+      ensureAppSession().cookies.on('changed', (_event, cookie, _cause, removed) => {
+        if (!removed && isSessionCookieName(cookie.name)) desktopExecutor.refreshRegistration()
+      })
+      desktopExecutor.start()
+    }
     await ensureMainWindow()
     installApplicationMenu({
       config,
@@ -851,6 +1088,9 @@ function main(): void {
       allowHttpLocalhost,
       openSettings,
       openServerSettings: () => serverWindow.open(),
+      openFolderAccess: (parent) => {
+        if (accountDataAvailable()) localFilesystem.showAccessMenu(parent)
+      },
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       handleFocusedResourceShortcut: (win, shortcut) =>

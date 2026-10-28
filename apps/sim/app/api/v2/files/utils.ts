@@ -4,14 +4,12 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { buildFolderPath } from '@/lib/folders/paths'
 import { workspaceResourceWebUrl } from '@/lib/resources'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import {
-  findUserEmailsByIds,
-  getUserEmailsByIds,
-  requireResolvedUserEmail,
-} from '@/lib/users/queries'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/file-version-store'
+import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
+import { toFileVersion } from '@/lib/workspace-files/api'
 import type { ReadWorkspaceFileTextResult } from '@/lib/workspace-files/application/read-workspace-file-text'
+import { projectFileVersionAuthors } from '@/lib/workspace-files/application/version-authors'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 /** Shared serialization for the v2 files surface. */
@@ -93,34 +91,8 @@ export function toV2FileText({
   }
 }
 
-function serializeV2FileVersion(
-  record: WorkspaceFileVersionRecord,
-  emailByUserId: Map<string, string>
-): V2FileVersion {
-  return {
-    fileId: record.fileId,
-    version: record.version,
-    isCurrent: record.isCurrent,
-    size: record.size,
-    contentType: record.contentType,
-    source: record.source,
-    authors: record.authorUserIds.map((id) => ({ id, email: emailByUserId.get(id) ?? null })),
-    restoredFromVersion: record.restoredFromVersion,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-    supersededAt: record.supersededAt?.toISOString() ?? null,
-  }
-}
-
-/** Serializes file versions, resolving every author's email in one query. */
-export async function toV2FileVersions(
-  records: WorkspaceFileVersionRecord[]
-): Promise<V2FileVersion[]> {
-  const emailByUserId = await findUserEmailsByIds(records.flatMap((record) => record.authorUserIds))
-  return records.map((record) => serializeV2FileVersion(record, emailByUserId))
-}
-
+/** Serializes one version, resolving its authors' emails. */
 export async function toV2FileVersion(record: WorkspaceFileVersionRecord): Promise<V2FileVersion> {
-  const [version] = await toV2FileVersions([record])
-  return version
+  const [version] = await projectFileVersionAuthors([record])
+  return toFileVersion(version)
 }

@@ -1,11 +1,12 @@
 import type { OutputCondition, SubBlockConfig } from '@/blocks/types'
 
 export interface TriggerOutput {
+  nullable?: boolean
   type?: string
   description?: string | TriggerOutput
   /** Restricts which trigger configurations surface this output in the tag dropdown. */
   condition?: OutputCondition
-  [key: string]: TriggerOutput | OutputCondition | string | undefined
+  [key: string]: TriggerOutput | OutputCondition | string | boolean | undefined
 }
 
 export interface TriggerConfig {

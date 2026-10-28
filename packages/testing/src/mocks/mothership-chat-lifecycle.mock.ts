@@ -14,11 +14,13 @@ import { vi } from 'vitest'
 export const mothershipChatLifecycleMockFns = {
   mockLoadCopilotChatMessages: vi.fn(),
   mockLoadChatMcpServerIds: vi.fn(),
+  mockLoadChatFileAttachmentsNamed: vi.fn(),
   mockGetAccessibleCopilotChatAuth: vi.fn(),
   mockGetAccessibleCopilotChatForCancellation: vi.fn(),
-  mockGetAccessibleCopilotChat: vi.fn(),
   mockGetAccessibleCopilotChatWithMessages: vi.fn(),
   mockResolveOrCreateChat: vi.fn(),
+  mockAuthorizeChatWorkflowRead: vi.fn(),
+  mockIsChatModeAvailable: vi.fn(async () => true),
 }
 
 /**
@@ -32,11 +34,13 @@ export const mothershipChatLifecycleMockFns = {
 export const mothershipChatLifecycleMock = {
   loadCopilotChatMessages: mothershipChatLifecycleMockFns.mockLoadCopilotChatMessages,
   loadChatMcpServerIds: mothershipChatLifecycleMockFns.mockLoadChatMcpServerIds,
+  loadChatFileAttachmentsNamed: mothershipChatLifecycleMockFns.mockLoadChatFileAttachmentsNamed,
   getAccessibleCopilotChatAuth: mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth,
   getAccessibleCopilotChatForCancellation:
     mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatForCancellation,
-  getAccessibleCopilotChat: mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChat,
   getAccessibleCopilotChatWithMessages:
     mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatWithMessages,
   resolveOrCreateChat: mothershipChatLifecycleMockFns.mockResolveOrCreateChat,
+  authorizeChatWorkflowRead: mothershipChatLifecycleMockFns.mockAuthorizeChatWorkflowRead,
+  isChatModeAvailable: mothershipChatLifecycleMockFns.mockIsChatModeAvailable,
 }

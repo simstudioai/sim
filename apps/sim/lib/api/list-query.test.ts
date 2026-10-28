@@ -14,6 +14,7 @@ import {
   keysetAfter,
   listOrderBy,
   numberKey,
+  preciseTimestampKey,
   searchFilter,
   textKey,
   timestampKey,
@@ -105,6 +106,21 @@ describe('timestampKey', () => {
   it('rejects a cursor value that is not a parseable timestamp', () => {
     expect(createdKey.bind('not-a-date')).toBeNull()
     expect(createdKey.bind(1700000000000)).toBeNull()
+  })
+})
+
+describe('preciseTimestampKey', () => {
+  const preciseKey = preciseTimestampKey<{ at: string }>(thing.createdAt, (r) => r.at)
+
+  /** A cursor is caller-controlled, and each of these would reach the cast and 500. */
+  it.each([
+    ['a millisecond cursor', '2024-01-01T00:00:00.123Z'],
+    ['an impossible calendar day', '2024-02-30T00:00:00.000000Z'],
+    ['an impossible clock time', '2024-01-01T24:00:00.000000Z'],
+    ['year zero', '0000-01-01T00:00:00.000000Z'],
+    ['a non-string value', 1700000000000],
+  ])('rejects %s', (_case, value) => {
+    expect(preciseKey.bind(value)).toBeNull()
   })
 })
 

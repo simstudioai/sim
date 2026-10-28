@@ -1,10 +1,18 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, Input, toast } from '@sim/emcn'
+import {
+  Button,
+  cn,
+  Input,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  toast,
+  useScrollEdges,
+} from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
-import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
@@ -21,8 +29,12 @@ import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replac
 import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import {
+  useScopedWorkflowId,
+  useWorkflowScope,
+} from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands'
 import { ReplacementControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/components'
 import { useWorkflowResourceReplacementOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-resource-replacement-options'
 import {
@@ -32,6 +44,7 @@ import {
 import {
   useFloatBoundarySync,
   useFloatDrag,
+  useFloatLayout,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlock } from '@/blocks'
@@ -43,7 +56,9 @@ import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
+import { useChatStore } from '@/stores/chat/store'
+import { useVariablesModalStore } from '@/stores/modals/variables/store'
+import { usePanelEditorSearchStore, usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -56,9 +71,7 @@ const SEARCH_PANEL_EXPANDED_HEIGHT = 156
 function getDefaultSearchPanelPosition() {
   if (typeof window === 'undefined') return { x: 100, y: 100 }
 
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getPanelWidth()
   const x = window.innerWidth - 8 - panelWidth - 32 - SEARCH_PANEL_WIDTH
   const y = 40
   return { x, y }
@@ -70,12 +83,8 @@ function constrainSearchPanelPosition(position: { x: number; y: number }, height
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
-  const terminalHeight = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
-  )
+  const panelWidth = getPanelWidth()
+  const terminalHeight = getTerminalHeight()
 
   return {
     x: Math.max(
@@ -134,11 +143,10 @@ interface WorkflowSearchReplacePanelProps {
 }
 
 function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string | undefined
-  const routeWorkflowId = params.workflowId as string | undefined
+  const { workspaceId } = useWorkflowScope()
+  const scopedWorkflowId = useScopedWorkflowId()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const workflowId = activeWorkflowId ?? routeWorkflowId
+  const workflowId = activeWorkflowId ?? scopedWorkflowId
   const currentWorkflow = useCurrentWorkflow()
   const workflowSubblockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : undefined
@@ -160,6 +168,9 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     collaborativeUpdateIterationCount,
   } = useCollaborativeWorkflow()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const controlsRef = useRef<HTMLDivElement>(null)
+  const controlsEdges = useScrollEdges(controlsRef)
   const [isApplying, setIsApplying] = useState(false)
   const [isReplaceExpanded, setIsReplaceExpanded] = useState(false)
   const [resourceReplacementByContext, setResourceReplacementByContext] = useState<
@@ -288,16 +299,20 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
   const panelHeight = isReplaceExpanded
     ? SEARCH_PANEL_EXPANDED_HEIGHT
     : SEARCH_PANEL_COLLAPSED_HEIGHT
-  const actualPosition = useMemo(
-    () => constrainSearchPanelPosition(position ?? getDefaultSearchPanelPosition(), panelHeight),
-    [panelHeight, position]
+  const { isFloatingLayout, updatePosition } = useFloatLayout({
+    ref: panelRef,
+    onPositionChange: setPosition,
+  })
+  const actualPosition = constrainSearchPanelPosition(
+    position ?? getDefaultSearchPanelPosition(),
+    panelHeight
   )
 
   const { handleMouseDown } = useFloatDrag({
     position: actualPosition,
     width: SEARCH_PANEL_WIDTH,
     height: panelHeight,
-    onPositionChange: setPosition,
+    onPositionChange: updatePosition,
   })
 
   useFloatBoundarySync({
@@ -305,7 +320,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     position: actualPosition,
     width: SEARCH_PANEL_WIDTH,
     height: panelHeight,
-    onPositionChange: setPosition,
+    onPositionChange: updatePosition,
   })
 
   const handleSelectMatch = useCallback(
@@ -313,12 +328,17 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       setActiveMatchId(matchId)
       const match = hydratedMatches.find((candidate) => candidate.id === matchId)
       if (!match) return
+      if (!isFloatingLayout()) {
+        useChatStore.getState().setIsChatOpen(false)
+        useVariablesModalStore.getState().setIsOpen(false)
+        usePanelStore.getState().setIsMobilePanelOpen(match.blockType !== 'note')
+      }
       usePanelEditorStore.getState().setCurrentBlockId(match.blockId)
       usePanelEditorSearchStore.getState().setActiveSearchTarget({
         ...createActiveSearchTarget(match, query),
       })
     },
-    [hydratedMatches, query, setActiveMatchId]
+    [hydratedMatches, isFloatingLayout, query, setActiveMatchId]
   )
 
   const activeMatchIndex = hydratedMatches.findIndex((match) => match.id === activeMatchId)
@@ -553,7 +573,8 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     <div
       role='dialog'
       aria-label='Search and replace'
-      className='fixed z-[var(--z-dropdown)] flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
+      ref={panelRef}
+      className='fixed z-[var(--z-dropdown)] flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2 max-md:relative max-md:top-auto! max-md:left-auto! max-md:max-h-[50%] max-md:min-h-0! max-md:w-full! max-md:shrink-0 max-md:rounded-none'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -563,8 +584,10 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
     >
       <div
         role='presentation'
-        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
-        onMouseDown={handleMouseDown}
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing max-md:h-11 max-md:cursor-default'
+        onMouseDown={(event) => {
+          if (isFloatingLayout()) handleMouseDown(event)
+        }}
       >
         <div className='flex min-w-0 items-center'>
           <span className='truncate text-[var(--text-primary)] text-small'>Search and replace</span>
@@ -578,7 +601,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           <Button
             aria-label='Close search'
             variant='ghost'
-            className='size-[26px] p-0'
+            className='size-[26px] p-0 max-md:pointer-coarse:size-11'
             onClick={close}
           >
             <X className='size-[14px]' />
@@ -586,71 +609,77 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         </div>
       </div>
 
-      <div className='grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
-        <Button
-          variant='ghost'
-          className='size-8 p-0'
-          aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
-          onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
-        >
-          <ChevronRight
-            className={cn(
-              'size-[14px] text-[var(--text-icon)] transition-transform',
-              isReplaceExpanded && 'rotate-90'
-            )}
-          />
-        </Button>
-        <Input
-          ref={searchInputRef}
-          value={query}
-          placeholder='Search'
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter') return
-            event.preventDefault()
-            handleMoveActiveMatch(event.shiftKey ? -1 : 1)
-          }}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <Button
-          aria-label='Previous match'
-          variant='ghost'
-          className='size-8 p-0'
-          disabled={hydratedMatches.length === 0}
-          onClick={() => handleMoveActiveMatch(-1)}
-        >
-          <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
-        </Button>
-        <Button
-          aria-label='Next match'
-          variant='ghost'
-          className='size-8 p-0'
-          disabled={hydratedMatches.length === 0}
-          onClick={() => handleMoveActiveMatch(1)}
-        >
-          <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
-        </Button>
-
-        {isReplaceExpanded && (
-          <div className='col-start-2 col-end-5'>
-            <ReplacementControls
-              replacement={replacement}
-              compatibleResourceOptions={compatibleResourceOptions}
-              usesResourceReplacement={usesResourceReplacement}
-              eligibleCount={eligibleMatchIds.length}
-              disabled={!userPermissions.canEdit || searchReadOnly}
-              isApplying={isApplying}
-              canReplaceActive={Boolean(
-                activeMatch?.editable && hasReplacement && !activeReplacementIssue
+      <div
+        ref={controlsRef}
+        className={cn('min-h-0 max-md:overflow-y-auto max-md:overscroll-contain', scrollFadeClass)}
+        {...scrollFadeAttributes(controlsEdges)}
+      >
+        <div className='grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5 max-md:pointer-coarse:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem_2.75rem]'>
+          <Button
+            variant='ghost'
+            className='size-8 p-0 max-md:pointer-coarse:size-11'
+            aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
+            onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
+          >
+            <ChevronRight
+              className={cn(
+                'size-[14px] text-[var(--text-icon)] transition-transform',
+                isReplaceExpanded && 'rotate-90'
               )}
-              canReplaceAll={Boolean(
-                eligibleMatchIds.length > 0 && hasReplacement && !allReplacementIssue
-              )}
-              onReplacementChange={handleReplacementChange}
-              onReplaceActive={handleReplaceActive}
-              onReplaceAll={handleReplaceAll}
             />
-          </div>
-        )}
+          </Button>
+          <Input
+            ref={searchInputRef}
+            value={query}
+            placeholder='Search'
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return
+              event.preventDefault()
+              handleMoveActiveMatch(event.shiftKey ? -1 : 1)
+            }}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <Button
+            aria-label='Previous match'
+            variant='ghost'
+            className='size-8 p-0 max-md:pointer-coarse:size-11'
+            disabled={hydratedMatches.length === 0}
+            onClick={() => handleMoveActiveMatch(-1)}
+          >
+            <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
+          </Button>
+          <Button
+            aria-label='Next match'
+            variant='ghost'
+            className='size-8 p-0 max-md:pointer-coarse:size-11'
+            disabled={hydratedMatches.length === 0}
+            onClick={() => handleMoveActiveMatch(1)}
+          >
+            <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+          </Button>
+
+          {isReplaceExpanded && (
+            <div className='col-start-2 col-end-5'>
+              <ReplacementControls
+                replacement={replacement}
+                compatibleResourceOptions={compatibleResourceOptions}
+                usesResourceReplacement={usesResourceReplacement}
+                eligibleCount={eligibleMatchIds.length}
+                disabled={!userPermissions.canEdit || searchReadOnly}
+                isApplying={isApplying}
+                canReplaceActive={Boolean(
+                  activeMatch?.editable && hasReplacement && !activeReplacementIssue
+                )}
+                canReplaceAll={Boolean(
+                  eligibleMatchIds.length > 0 && hasReplacement && !allReplacementIssue
+                )}
+                onReplacementChange={handleReplacementChange}
+                onReplaceActive={handleReplaceActive}
+                onReplaceAll={handleReplaceAll}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

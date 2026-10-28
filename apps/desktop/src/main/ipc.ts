@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import {
   BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS,
   type BrowserPanelAction,
@@ -9,6 +10,9 @@ import {
   isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
+  ComputerUseError,
+  type ComputerUseToolFailure,
+  type DesktopExecutorDevice,
   type DesktopNotificationPayload,
   type DesktopServerChangeResult,
   type DesktopServerConfiguration,
@@ -31,6 +35,10 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
+import {
+  captureAccountDataGeneration,
+  isAccountDataGenerationCurrent,
+} from '@/main/account-data-generation'
 import {
   type BrowserToolQueueBoundary,
   cancelActiveTool,
@@ -78,12 +86,14 @@ import {
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { listSites } from '@/main/browser-sites'
+import type { ComputerUseService } from '@/main/computer-use/service'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
+import type { LocalFilePermissions } from '@/main/local-file-permissions'
 import { executeLocalFileRequest } from '@/main/local-files'
-import type { LocalFilesystemService } from '@/main/local-filesystem'
+import type { LocalFileAccess, LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
@@ -304,10 +314,11 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
   if (typeof raw !== 'object' || raw === null) {
     return null
   }
-  const { title, body, route } = raw as {
+  const { title, body, route, background } = raw as {
     title?: unknown
     body?: unknown
     route?: unknown
+    background?: unknown
   }
   if (
     typeof title !== 'string' ||
@@ -322,10 +333,16 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
   if (route !== undefined && (typeof route !== 'string' || !isSafeInternalPath(route))) {
     return null
   }
-  return { title, body, ...(route !== undefined ? { route } : {}) }
+  return {
+    title,
+    body,
+    ...(route !== undefined ? { route } : {}),
+    ...(background === true ? { background: true } : {}),
+  }
 }
 
 export interface IpcDeps {
+  computerUse?: ComputerUseService
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
   /** False while local account-data persistence is unavailable or teardown must be retried. */
@@ -334,6 +351,7 @@ export interface IpcDeps {
   isLocalPageUrl: (url: string) => boolean
   retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
+  localFilePermissions: LocalFilePermissions
   terminal: TerminalRegistry
   scopeEvents: Pick<
     ScopedEventRouter,
@@ -374,6 +392,8 @@ export interface IpcDeps {
     getConfiguration: () => DesktopServerConfiguration
     setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
+  /** The device a new chat turn may bind to, or null while Sim has not enabled one. */
+  getExecutorDevice: () => DesktopExecutorDevice | null
 }
 
 /**
@@ -514,21 +534,19 @@ async function fetchDesktopToolAuthorization(
   deps: IpcDeps,
   toolCallId: unknown,
   claim = false,
-  onFailureStatus?: (status: number) => void
+  onFailureStatus?: (status: number) => void,
+  authorizationPath = '/api/desktop/tool/authorize'
 ): Promise<DesktopToolAuthorization | null> {
   if (!isDesktopToolCallId(toolCallId)) return null
   const startedAt = Date.now()
   try {
-    const response = await event.sender.session.fetch(
-      `${deps.appOrigin()}/api/desktop/tool/authorize`,
-      {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolCallId, ...(claim ? { claim: true } : {}) }),
-        signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
-      }
-    )
+    const response = await event.sender.session.fetch(`${deps.appOrigin()}${authorizationPath}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolCallId, ...(claim ? { claim: true } : {}) }),
+      signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
+    })
     if (!response.ok) {
       onFailureStatus?.(response.status)
       logger.warn('Desktop tool authorization was rejected', {
@@ -578,10 +596,13 @@ async function authorizeLocalFilesystemTool(
   request: unknown
 ): Promise<boolean> {
   if (typeof request !== 'object' || request === null) return false
+  // Claimed like an import: the server sees the read picked up, and refuses one it already
+  // failed as never started.
   const authorization = await fetchDesktopToolAuthorization(
     event,
     deps,
-    (request as { requestId?: unknown }).requestId
+    (request as { requestId?: unknown }).requestId,
+    true
   )
   return authorization
     ? deps.localFilesystem.isAuthorizedClientToolRequest(request, authorization)
@@ -595,6 +616,8 @@ async function authorizeLocalFilesystemTool(
  * unvalidated args they must parse themselves.
  */
 export function registerIpcHandlers(deps: IpcDeps): void {
+  const activeLocalFiles = new Map<string, Set<AbortController>>()
+  let activeLocalFileCount = 0
   const browserScopeBySender = new WeakMap<WebContents, string>()
   const terminalScopeBySender = new WeakMap<WebContents, string>()
   const browserPendingScopesBySender = new WeakMap<WebContents, Set<string>>()
@@ -684,6 +707,84 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   }
 
   const channels: Record<string, ChannelSpec> = {
+    'computer-use:get-activity': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: null,
+      handler: () => deps.computerUse?.getActivity() ?? null,
+    },
+    'computer-use:status': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: null,
+      handler: () => deps.computerUse?.getStatus(),
+    },
+    'computer-use:set-enabled': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: (enabled) => {
+        if (typeof enabled !== 'boolean')
+          throw new Error('A boolean Computer Use preference is required.')
+        return deps.computerUse?.setEnabled(enabled)
+      },
+    },
+    'computer-use:request-permission': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: (permission) => {
+        if (permission !== 'accessibility' && permission !== 'screenCapture')
+          throw new Error('Unknown Computer Use permission.')
+        return deps.computerUse?.requestPermission(permission)
+      },
+    },
+    'computer-use:list-permissions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: [],
+      handler: () => deps.computerUse?.listAppPermissions() ?? [],
+    },
+    'computer-use:revoke-app': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: undefined,
+      handler: (bundleId) => {
+        if (typeof bundleId !== 'string' || bundleId.length > 255)
+          throw new Error('Invalid app identifier.')
+        deps.computerUse?.revokeApp(bundleId)
+      },
+    },
+    'computer-use:cancel': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: undefined,
+      handler: (toolCallId) => {
+        if (toolCallId !== undefined && !isDesktopToolCallId(toolCallId))
+          throw new Error('Invalid tool call identifier.')
+        deps.computerUse?.cancel(toolCallId)
+      },
+    },
+    'computer-use:execute-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: undefined,
+      handler: (scopeId, toolCallId, params) => {
+        if (!deps.computerUse || typeof scopeId !== 'string' || typeof toolCallId !== 'string')
+          throw new Error('Computer Use is unavailable.')
+        return deps.computerUse.execute(toolCallId, scopeId, params)
+      },
+    },
     'desktop:open-external': {
       kind: 'invoke',
       gate: 'any',
@@ -754,8 +855,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requiresAccountData: true,
       passSender: true,
       denied: { ok: false, error: 'Local file tools are unavailable from this page.' },
-      handler: (_sender, request, authorization) =>
-        executeLocalFileRequest(request, authorization as DesktopToolAuthorization),
+      handler: (_sender, request, authorization, access) =>
+        executeLocalFileRequest(
+          request,
+          authorization as DesktopToolAuthorization,
+          access as LocalFileAccess
+        ),
     },
     'desktop:local-filesystem': {
       kind: 'invoke',
@@ -767,6 +872,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         error: 'Local filesystem access is not allowed from this page.',
       },
       handler: (request) => deps.localFilesystem.handle(request),
+    },
+    'desktop-executor:get-device': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: () => deps.getExecutorDevice(),
     },
     'desktop:settings:get': {
       kind: 'invoke',
@@ -791,6 +902,26 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (enabled) =>
         typeof enabled === 'boolean'
           ? deps.settings.setBrowserSearchSuggestionsEnabled(enabled)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-full-file-access': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      requiresAccountData: true,
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setFullFileAccess(enabled)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-prevent-sleep': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setPreventSleepWhileRunning(enabled)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:set-appearance': {
@@ -2022,6 +2153,59 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return spec.denied
         }
         let handlerArgs = args
+        if (channel === 'computer-use:execute-tool') {
+          if (!deps.computerUse?.isEnabled())
+            throw new Error('Computer Use is switched off on this Mac.')
+          const toolCallId = args[0]
+          if (!isDesktopToolCallId(toolCallId)) throw new Error('Invalid tool call identifier.')
+          const computerUse = deps.computerUse
+          let ownerEnded = false
+          const cancelOwnedTool = (): void => {
+            if (ownerEnded) return
+            ownerEnded = true
+            computerUse.cancel(toolCallId)
+          }
+          const onNavigation = (
+            _event: unknown,
+            _url: string,
+            isInPlace: boolean,
+            isMainFrame: boolean
+          ): void => {
+            if (!isInPlace && isMainFrame) cancelOwnedTool()
+          }
+          /** A crashed renderer cannot send pagehide or Stop; main owns the action lifetime. */
+          event.sender.on('destroyed', cancelOwnedTool)
+          event.sender.on('render-process-gone', cancelOwnedTool)
+          event.sender.on('did-start-navigation', onNavigation)
+          try {
+            if (event.sender.isDestroyed()) throw new Error('Computer Use session ended.')
+            return await computerUse.executeAuthorized(toolCallId, async () => {
+              const authorization = await fetchDesktopToolAuthorization(
+                event,
+                deps,
+                toolCallId,
+                false,
+                undefined,
+                '/api/desktop/computer/authorize'
+              )
+              if (!authorization || authorization.toolName !== 'computer') {
+                throw new Error('This is not an authorized pending Computer Use action.')
+              }
+              if (!senderAllowed(event, spec.gate) || !deps.accountDataAvailable())
+                throw new Error('Computer Use session ended.')
+              return { scopeId: authorization.chatId, input: authorization.args }
+            })
+          } catch (error) {
+            /** Electron drops custom Error properties; keep native dispatch certainty in data. */
+            if (error instanceof ComputerUseError)
+              return { kind: 'error', error: error.details } satisfies ComputerUseToolFailure
+            throw error
+          } finally {
+            event.sender.removeListener('destroyed', cancelOwnedTool)
+            event.sender.removeListener('render-process-gone', cancelOwnedTool)
+            event.sender.removeListener('did-start-navigation', onNavigation)
+          }
+        }
         if (channel === 'browser-agent:execute-tool') {
           const toolCallId = args[0]
           const requestedTool = args[1]
@@ -2106,30 +2290,81 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           }
         }
         if (channel === 'desktop:local-files') {
+          const generation = captureAccountDataGeneration()
+          const origin = deps.appOrigin()
           const request = args[0]
-          if (!isRecordLike(request)) return { ok: false, error: 'Invalid local file request.' }
-          let failureStatus: number | undefined
-          const authorization = await fetchDesktopToolAuthorization(
-            event,
-            deps,
-            request.toolCallId,
-            request.operation === 'manifest',
-            (status) => {
-              failureStatus = status
-            }
-          )
-          if (failureStatus === 409)
+          if (!isRecordLike(request) || !isDesktopToolCallId(request.toolCallId))
+            return { ok: false, error: 'Invalid local file request.' }
+          const key = JSON.stringify([event.sender.id, request.toolCallId])
+          if (request.operation === 'cancel') {
+            for (const pending of activeLocalFiles.get(key) ?? []) pending.abort()
+            return { ok: false, error: 'Local file operation cancelled.' }
+          }
+          if (activeLocalFileCount >= 128)
             return {
               ok: false,
-              code: 'ALREADY_STARTED',
-              error: 'This import is already running or was already started.',
+              error: 'Too many local file operations are running. Try again later.',
             }
-          if (
-            !authorization ||
-            !['read_local_file', 'import_local_files'].includes(authorization.toolName)
-          )
-            return { ok: false, error: 'This is not an authorized pending local file tool call.' }
-          handlerArgs = [request, authorization]
+          const controller = new AbortController()
+          const controllers = activeLocalFiles.get(key) ?? new Set<AbortController>()
+          controllers.add(controller)
+          activeLocalFiles.set(key, controllers)
+          activeLocalFileCount++
+          try {
+            let failureStatus: number | undefined
+            const authorization = await fetchDesktopToolAuthorization(
+              event,
+              deps,
+              request.toolCallId,
+              request.operation === 'manifest' || request.operation === 'read',
+              (status) => {
+                failureStatus = status
+              }
+            )
+            if (failureStatus === 409)
+              return {
+                ok: false,
+                code: 'ALREADY_STARTED',
+                error: 'This import is already running or was already started.',
+              }
+            if (
+              !authorization ||
+              !['read_local_file', 'import_local_files'].includes(authorization.toolName)
+            )
+              return { ok: false, error: 'This is not an authorized pending local file tool call.' }
+            if (
+              authorization.toolName === 'read_local_file'
+                ? request.operation !== 'read'
+                : request.operation !== 'manifest' && request.operation !== 'chunk'
+            )
+              return { ok: false, error: 'The operation does not match the pending tool call.' }
+            const parent = deps.getWindowForContents(event.sender)
+            if (!parent)
+              return { ok: false, error: 'A desktop window is required to approve file access.' }
+            const access = await deps.localFilePermissions.authorize(authorization, {
+              parent: async () => parent,
+              origin,
+              generation,
+              signal: controller.signal,
+              isCurrent: () =>
+                isAccountDataGenerationCurrent(generation) &&
+                deps.accountDataAvailable() &&
+                deps.appOrigin() === origin &&
+                isAppOriginSender(event, origin),
+              revalidate: async () =>
+                isDeepStrictEqual(
+                  authorization,
+                  await fetchDesktopToolAuthorization(event, deps, request.toolCallId)
+                ),
+            })
+            return await spec.handler(event.sender, request, authorization, access)
+          } catch (error) {
+            return { ok: false, error: getErrorMessage(error) }
+          } finally {
+            controllers.delete(controller)
+            if (controllers.size === 0) activeLocalFiles.delete(key)
+            activeLocalFileCount--
+          }
         }
         if (spec.passSender) {
           handlerArgs = [event.sender, ...handlerArgs]

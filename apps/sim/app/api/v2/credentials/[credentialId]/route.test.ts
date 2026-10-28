@@ -22,10 +22,10 @@ vi.mock('@/lib/credentials/application/service-account', () => ({
   },
 }))
 
-import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import { CredentialProviderOperationError } from '@/lib/credentials/application/crud'
 import { PATCH } from '@/app/api/v2/credentials/[credentialId]/route'
 
-vi.mock('@/lib/credentials/application/credential-crud', async () => {
+vi.mock('@/lib/credentials/application/crud', async () => {
   const { OrchestrationError: BaseError } = await import('@/lib/core/orchestration/types')
   class MockCredentialProviderOperationError extends BaseError {
     constructor(
@@ -119,6 +119,33 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
     })
     expect(body).not.toContain('rotated-secret')
     expect(body).not.toContain('MUST_NOT_LEAK_CIPHERTEXT')
+  })
+
+  it('forwards a complete OCI rotation tuple with an omitted replacement passphrase', async () => {
+    const request = patchRequest({
+      tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+      userOcid: 'ocid1.user.oc1..replacement',
+      fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+      privateKey: '-----BEGIN PRIVATE KEY-----\nreplacement\n-----END PRIVATE KEY-----',
+      region: 'us-ashburn-1',
+    })
+    const response = await PATCH(request, context)
+
+    expect(response.status).toBe(200)
+    expect(mocks.update).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: {
+        tenancyOcid: 'ocid1.tenancy.oc1..tenant',
+        userOcid: 'ocid1.user.oc1..replacement',
+        fingerprint: '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff',
+        privateKey: '-----BEGIN PRIVATE KEY-----\nreplacement\n-----END PRIVATE KEY-----',
+        region: 'us-ashburn-1',
+        credentialId: CREDENTIAL_ID,
+        assertedWorkspaceId: WORKSPACE_ID,
+      },
+      request,
+    })
+    expect(JSON.stringify(await response.json())).not.toContain('PRIVATE KEY')
   })
 
   it('clears a description with an explicit null and leaves an omitted field alone', async () => {

@@ -14,12 +14,13 @@ import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
-import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import { readFrameActivity } from '@/lib/mothership/tools/activity'
 import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
   normalizeToolActivityDescription,
   refineStreamingCliToolName,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the
@@ -72,6 +73,8 @@ export interface ToolNode extends NodeBase {
   status: NodeStatus
   args?: Record<string, unknown>
   activity?: ToolActivity
+  /** A gateway call rebound to its resolved operation, whose arguments are the operation's own. */
+  resolvedOperation?: boolean
   streamingArgs?: string
   uiTitle?: string
   /** Model-authored activity text preserved across stream and snapshot replay. */
@@ -240,6 +243,7 @@ function rebindResolvedIntegrationCall(node: ToolNode, toolName: string): void {
   if (description) node.integrationDescription = description
   node.name = toolName
   node.streamingArgs = undefined
+  node.resolvedOperation = true
 }
 
 /**
@@ -524,6 +528,8 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           seq,
           tsMs
         )
+        const args = isRecordLike(payload.arguments) ? payload.arguments : undefined
+        const frameActivity = readFrameActivity({ toolName, args }, node)
         rebindResolvedIntegrationCall(node, toolName)
         node.activityDescription ??= normalizeToolActivityDescription(payload.activityDescription)
         // Sim stamps this onto the call frame for a tool it is holding behind a
@@ -538,16 +544,17 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // back into an ordinary running row without waiting for the result.
           node.status = 'running'
         }
-        if (isRecordLike(payload.arguments)) {
-          node.args = payload.arguments
-          const activity = ToolActivity.safeParse(payload.arguments.activity)
-          if (!node.activity && activity.success) node.activity = activity.data
-        }
-        // Only the snapshot-replay path (contentBlocksToModel) carries this
-        // field — the live wire never does; it restores the rebound gateway
-        // description across a preserve-state rebuild.
+        // Only the snapshot-replay path (contentBlocksToModel) carries `activity`
+        // and `integrationDescription` — the live wire never does; they restore
+        // the grouping and the rebound gateway description across a rebuild.
+        const restoredActivity = isRecordLike(payload.activity)
+          ? ToolActivity.safeParse(payload.activity)
+          : undefined
+        if (restoredActivity?.success) node.activity = restoredActivity.data
         const restoredDescription = asString(payload.integrationDescription)
         if (restoredDescription) node.integrationDescription = restoredDescription
+        if (args) node.args = args
+        node.activity ??= frameActivity
         const ui = isRecordLike(payload.ui) ? payload.ui : undefined
         if (ui?.hidden === true) node.hidden = true
       } else if (phase === MothershipStreamV1ToolPhase.args_delta) {
@@ -561,9 +568,10 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         )
         const delta = asString(payload.argumentsDelta)
         if (delta) node.streamingArgs = (node.streamingArgs ?? '') + delta
-        // Progressive CLI title: upgrade the placeholder to the specific verb as
-        // soon as enough argv tokens have streamed to name the command — the
-        // browser mirror of the server handler's refinement.
+        // Progressive CLI title: upgrade the row's placeholder to the specific verb
+        // as soon as enough argv tokens have streamed to name the command — the
+        // browser mirror of the server handler's refinement. The activity header
+        // holds it back until the model's description arrives.
         if (delta && (node.name === 'sim_cli' || node.name.startsWith('cli_'))) {
           const refined = refineStreamingCliToolName(node.streamingArgs ?? '')
           if (refined && refined !== node.name) node.name = refined

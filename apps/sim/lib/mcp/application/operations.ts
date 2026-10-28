@@ -44,6 +44,7 @@ export const mcpServerOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   listManagedConnections: defineWorkspaceOperation({
@@ -59,6 +60,7 @@ export const mcpServerOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...DISCOVERY_PRINCIPAL_POLICY,
   }),
   executeTool: defineWorkspaceOperation({
@@ -66,6 +68,7 @@ export const mcpServerOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...EXECUTION_PRINCIPAL_POLICY,
   }),
   /**
@@ -90,6 +93,7 @@ export const mcpServerOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -106,6 +110,7 @@ export const mcpServerOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   listWorkflowDeploymentTools: defineWorkspaceOperation({
@@ -114,6 +119,7 @@ export const mcpServerOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   createWorkflowDeploymentServer: defineWorkspaceOperation({
@@ -122,6 +128,7 @@ export const mcpServerOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -143,6 +150,7 @@ export const mcpServerOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   deleteWorkflowDeploymentServer: defineWorkspaceOperation({
@@ -151,6 +159,7 @@ export const mcpServerOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   deployWorkflowTool: defineWorkspaceOperation({
@@ -159,6 +168,7 @@ export const mcpServerOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   undeployWorkflowTool: defineWorkspaceOperation({
@@ -167,6 +177,7 @@ export const mcpServerOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.mcp',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
@@ -175,6 +186,7 @@ export const mcpServerOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
@@ -183,6 +195,7 @@ export const mcpServerOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   register: defineWorkspaceOperation({
@@ -191,6 +204,7 @@ export const mcpServerOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
@@ -199,6 +213,7 @@ export const mcpServerOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   reconfigure: defineWorkspaceOperation({
@@ -207,7 +222,18 @@ export const mcpServerOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
+  }),
+  /** Pointing a server at another host or path; deployed workflows pin servers by id. */
+  changeDestination: defineWorkspaceOperation({
+    id: 'mcp_servers.change_destination',
+    oauthScope: 'api:write',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'mcp_tools.use',
+    contentDelivery: 'none',
+    ...HUMAN_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'mcp_servers.delete',
@@ -215,6 +241,7 @@ export const mcpServerOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'mcp_tools.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
 } as const

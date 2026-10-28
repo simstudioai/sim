@@ -82,7 +82,7 @@ export const CrunchbaseBlock: BlockConfig = {
   name: 'Crunchbase',
   description: 'Search and look up companies, people, funding rounds, and acquisitions',
   longDescription:
-    'Integrates the Crunchbase Data API into the workflow. Search organizations, people, funding rounds, and acquisitions with filter predicates, reach the other 39 collections through the generic search and lookup operations, page a single related-entity card past its 100-item cap, autocomplete names into identifiers, follow the deleted-entity feed, and list the fields each collection publishes. Which collections and fields resolve depends on your Crunchbase license.',
+    'Search and retrieve organizations, people, funding rounds, acquisitions, and other configured collections. Use field metadata to construct queries, page related-entity cards, autocomplete identifiers, and follow deleted records. Available collections and fields depend on your Crunchbase license.',
   docsLink: 'https://docs.sim.ai/integrations/crunchbase',
   category: 'tools',
   integrationType: IntegrationType.Sales,

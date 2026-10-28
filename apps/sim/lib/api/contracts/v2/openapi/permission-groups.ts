@@ -42,7 +42,7 @@ const MEMBER = {
   userEmail: 'member@example.com',
   userImage: null,
 }
-const AUTHORITY = `Requires organization admin or owner access and active Access Control. ${WORKSPACE_API_KEY_DENIED}`
+const AUTHORITY = `Requires organization Admin or owner access and active Access Control. ${WORKSPACE_API_KEY_DENIED}`
 
 export const permissionGroupOpenApiRoutes = [
   defineOpenApiRoute(
@@ -50,11 +50,14 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.list,
       operationId: 'listPermissionGroups',
-      summary: 'List Permission Groups',
+      summary: 'List permission groups',
       description: `List permission groups in an organization with cursor pagination. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'List Permission Groups result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'A page of permission groups with resolved settings.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
@@ -72,8 +75,8 @@ export const permissionGroupOpenApiRoutes = [
       response: documentedSchema(
         v2ListPermissionGroupsContract.response.schema,
         'ListPermissionGroupsResponse',
-        'List Permission Groups response',
-        'List Permission Groups result.',
+        'List permission groups response',
+        'A page of permission groups with resolved settings.',
         [{ data: [GROUP], nextCursor: null }]
       ),
     }
@@ -83,11 +86,14 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.create,
       operationId: 'createPermissionGroup',
-      summary: 'Create Permission Group',
+      summary: 'Create permission group',
       description: `Create a permission group. A non-default group requires workspaces and initially governs everyone in them. Creating a default group demotes the previous default to an inactive group until it is assigned workspaces. Overlapping all-member scopes conflict. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Create Permission Group result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The created group, its resolved settings, and workspace scope.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
@@ -100,15 +106,15 @@ export const permissionGroupOpenApiRoutes = [
       body: documentedSchema(
         v2CreatePermissionGroupContract.body,
         'CreatePermissionGroupRequest',
-        'Create Permission Group request',
-        'Create Permission Group inputs.',
+        'Create permission group request',
+        'Group name, initial restrictions, and default or workspace-specific scope.',
         [{ name: 'Restricted', workspaceIds: ['workspace-123'] }]
       ),
       response: documentedSchema(
         v2CreatePermissionGroupContract.response.schema,
         'CreatePermissionGroupResponse',
-        'Create Permission Group response',
-        'Create Permission Group result.',
+        'Create permission group response',
+        'The created group, its resolved settings, and workspace scope.',
         [{ data: GROUP }]
       ),
     }
@@ -118,11 +124,14 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.read,
       operationId: 'getPermissionGroup',
-      summary: 'Get Permission Group',
-      description: `Get a permission group and its resolved restrictions. ${AUTHORITY}`,
+      summary: 'Get permission group',
+      description: `Get a permission group and its resolved settings. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'Get Permission Group result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The group, its resolved settings, and workspace scope.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
@@ -135,8 +144,8 @@ export const permissionGroupOpenApiRoutes = [
       response: documentedSchema(
         v2GetPermissionGroupContract.response.schema,
         'GetPermissionGroupResponse',
-        'Get Permission Group response',
-        'Get Permission Group result.',
+        'Get permission group response',
+        'The group, its resolved settings, and workspace scope.',
         [{ data: GROUP }]
       ),
     }
@@ -146,11 +155,14 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.update,
       operationId: 'updatePermissionGroup',
-      summary: 'Update Permission Group',
+      summary: 'Update permission group',
       description: `Update a permission group. Omitted fields remain unchanged; config keys are patched and supplied arrays replace their lists. Promoting a group to default demotes the previous default; demoting without workspaceIds leaves it inactive. Overlapping member or all-member scopes conflict. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Update Permission Group result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The updated group with resolved settings and workspace scope.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
@@ -163,15 +175,15 @@ export const permissionGroupOpenApiRoutes = [
       body: documentedSchema(
         v2UpdatePermissionGroupContract.body,
         'UpdatePermissionGroupRequest',
-        'Update Permission Group request',
-        'Update Permission Group inputs.',
+        'Update permission group request',
+        'Group fields and restriction keys to change; supplied lists replace their contents.',
         [{ description: 'Restricted workspace access' }]
       ),
       response: documentedSchema(
         v2UpdatePermissionGroupContract.response.schema,
         'UpdatePermissionGroupResponse',
-        'Update Permission Group response',
-        'Update Permission Group result.',
+        'Update permission group response',
+        'The updated group with resolved settings and workspace scope.',
         [{ data: GROUP }]
       ),
     }
@@ -181,11 +193,14 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.delete,
       operationId: 'deletePermissionGroup',
-      summary: 'Delete Permission Group',
+      summary: 'Delete permission group',
       description: `Permanently delete a permission group and its membership assignments. Members then inherit any other applicable restrictions. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'Delete Permission Group result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'Acknowledgement that the group and its assignments were deleted.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
@@ -198,8 +213,8 @@ export const permissionGroupOpenApiRoutes = [
       response: documentedSchema(
         v2DeletePermissionGroupContract.response.schema,
         'DeletePermissionGroupResponse',
-        'Delete Permission Group response',
-        'Delete Permission Group result.',
+        'Delete permission group response',
+        'Acknowledgement that the group and its assignments were deleted.',
         [{ data: { id: 'group-123', deleted: true } }]
       ),
     }
@@ -209,12 +224,12 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.listMembers,
       operationId: 'listPermissionGroupMembers',
-      summary: 'List Permission Group Members',
+      summary: 'List permission group members',
       description: `List explicit membership assignments in a permission group with cursor pagination. An empty inherit group applies to everyone in its workspaces. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_ERRORS,
       success: {
-        description: 'List Permission Group Members result.',
+        description: 'A page of explicit group membership assignments.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -234,8 +249,8 @@ export const permissionGroupOpenApiRoutes = [
       response: documentedSchema(
         v2ListPermissionGroupMembersContract.response.schema,
         'ListPermissionGroupMembersResponse',
-        'List Permission Group Members response',
-        'List Permission Group Members result.',
+        'List permission group members response',
+        'A page of explicit group membership assignments.',
         [{ data: [MEMBER], nextCursor: null }]
       ),
     }
@@ -245,11 +260,14 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.addMember,
       operationId: 'addPermissionGroupMember',
-      summary: 'Add Permission Group Member',
+      summary: 'Add permission group member',
       description: `Assign an organization member to a permission group. An existing assignment or membership in another group targeting the same workspace returns a conflict. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'Add Permission Group Member result.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The new explicit membership assignment.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(
@@ -262,15 +280,15 @@ export const permissionGroupOpenApiRoutes = [
       body: documentedSchema(
         v2AddPermissionGroupMemberContract.body,
         'AddPermissionGroupMemberRequest',
-        'Add Permission Group Member request',
-        'Add Permission Group Member inputs.',
+        'Add permission group member request',
+        'The organization member to assign to this group.',
         [{ userId: 'user-123' }]
       ),
       response: documentedSchema(
         v2AddPermissionGroupMemberContract.response.schema,
         'AddPermissionGroupMemberResponse',
-        'Add Permission Group Member response',
-        'Add Permission Group Member result.',
+        'Add permission group member response',
+        'The new explicit membership assignment.',
         [
           {
             data: {
@@ -291,12 +309,12 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.removeMember,
       operationId: 'removePermissionGroupMember',
-      summary: 'Remove Permission Group Member',
+      summary: 'Remove permission group member',
       description: `Remove a member by user identifier. Removing the last member from an inherit group makes it govern everyone in its workspaces; a conflicting all-member group prevents the removal. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
-        description: 'Remove Permission Group Member result.',
+        description: 'Acknowledgement that the explicit assignment was removed.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -311,8 +329,8 @@ export const permissionGroupOpenApiRoutes = [
       response: documentedSchema(
         v2RemovePermissionGroupMemberContract.response.schema,
         'RemovePermissionGroupMemberResponse',
-        'Remove Permission Group Member response',
-        'Remove Permission Group Member result.',
+        'Remove permission group member response',
+        'Acknowledgement that the explicit assignment was removed.',
         [{ data: { userId: 'user-123', deleted: true } }]
       ),
     }
@@ -322,12 +340,12 @@ export const permissionGroupOpenApiRoutes = [
     {
       applicationOperation: permissionGroupOperations.bulkAddMembers,
       operationId: 'bulkAddPermissionGroupMembers',
-      summary: 'Bulk Add Permission Group Members',
+      summary: 'Bulk add permission group members',
       description: `Assign up to 1000 selected organization members, or the entire organization roster, atomically. Existing assignments are skipped and users outside the organization are ignored. Any overlapping membership conflict rejects the entire batch. ${AUTHORITY}`,
       tags: ['Permission Groups'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
-        description: 'Bulk Add Permission Group Members result.',
+        description: 'Counts of added members and existing assignments skipped.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -342,15 +360,15 @@ export const permissionGroupOpenApiRoutes = [
       body: documentedSchema(
         v2BulkAddPermissionGroupMembersContract.body,
         'BulkAddPermissionGroupMembersRequest',
-        'Bulk Add Permission Group Members request',
-        'Bulk Add Permission Group Members inputs.',
+        'Bulk add permission group members request',
+        'Selected organization members or the entire current organization roster.',
         [{ userIds: ['user-123'] }]
       ),
       response: documentedSchema(
         v2BulkAddPermissionGroupMembersContract.response.schema,
         'BulkAddPermissionGroupMembersResponse',
-        'Bulk Add Permission Group Members response',
-        'Bulk Add Permission Group Members result.',
+        'Bulk add permission group members response',
+        'Counts of added members and existing assignments skipped.',
         [{ data: { added: 1, skipped: 0 } }]
       ),
     }

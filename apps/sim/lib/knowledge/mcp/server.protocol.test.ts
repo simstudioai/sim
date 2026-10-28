@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { apiServerRoutesMock } from '@sim/testing/mocks/api-server-routes.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -12,6 +13,7 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('@/lib/core/utils/after-response', () => ({ afterResponse: vi.fn() }))
 vi.mock('@/lib/knowledge/mcp/activity', () => ({ recordOrganizationSearchMcpActivity: vi.fn() }))
 vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
+  ...apiServerRoutesMock,
   v2RateLimits: { publicApi: { enforce: vi.fn().mockResolvedValue(null) } },
 }))
 vi.mock('@/lib/sim-search/live/application', () => ({
@@ -75,6 +77,9 @@ describe('Search MCP protocol', () => {
       const search = await client.callTool({ name: 'search', arguments: { query: 'release' } })
       expect(search.isError).not.toBe(true)
       expect(search.content).toEqual([{ type: 'text', text: expect.stringContaining(documentId) }])
+      expect(mocks.liveSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ input: expect.objectContaining({ topK: 30 }) })
+      )
       const read = await client.callTool({ name: 'read_document', arguments: { documentId } })
       expect(read.isError).not.toBe(true)
       expect(read.content).toEqual([

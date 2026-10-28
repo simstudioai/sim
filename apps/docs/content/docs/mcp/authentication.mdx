@@ -1,15 +1,15 @@
 ---
 title: Authentication
-description: Sign in with OAuth, or connect with an API key
+description: Choose OAuth access or an API key, and revoke access when it is no longer needed.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
+Use OAuth for an app that supports browser sign-in. Use an API key for a client that needs a fixed credential. Both remain subject to the credential's current resource access and operation permissions.
+
 ## OAuth
 
-Most apps sign in with OAuth. The first time you connect, your app opens Sim in
-the browser, you sign in, and you approve its access. The app then holds a
-token that renews itself; you do not copy any secret.
+On first connection, your app opens Sim in the browser. Sign in and review the requested access before approving it. The app stores a one-hour access token, so you do not copy a secret. With `offline_access`, it can refresh access for up to 30 days from the initial grant; after that, sign in again. Refreshing does not extend that fixed lifetime.
 
 The approval screen names the app and what it can do:
 
@@ -18,9 +18,7 @@ The approval screen names the app and what it can do:
 | Read-only | `api:read` | Reading workspaces, workflows, runs, tables, files, knowledge bases, and logs |
 | Full | `api:write` | Everything above, plus creating, changing, running, deploying, and deleting |
 
-Most apps request full access. To connect an app for reads only, configure it
-to request the `api:read` scope; changes then fail with an insufficient-scope
-error.
+For reads only, configure the app to request `api:read`; changes then fail with an insufficient-scope error. A token's scope does not grant a workspace role or bypass resource permissions.
 
 Tokens are issued for the Sim MCP server itself. An app cannot take one to
 another service and use it there.
@@ -53,18 +51,22 @@ claude mcp add --transport http sim https://mcp.sim.ai/mcp \
 }
 ```
 
-A personal key acts as you in every workspace you can access. A workspace key
-reaches only its own workspace, and a few account-level operations refuse it;
-`search_operations` marks them `personalCredentialOnly`.
+A personal key uses your current access in the workspaces you can reach. A workspace key reaches only its own workspace and follows workspace-key operation and role policies rather than its creator's human permission group. Some operations refuse workspace keys; `search_operations` marks them `personalCredentialOnly`.
+
+The Cursor process must receive `SIM_API_KEY` for its environment interpolation to work. For a self-hosted deployment, replace the Cloud URL in both examples with your server URL.
 
 <Callout type="warn">
-  An API key does not expire until you revoke it. Prefer OAuth for any app that
-  can open a browser, and store keys in your app's secret or environment
+  Keys created in Sim settings have no default expiration. Revoke a key when it is no longer needed. Prefer OAuth for an app that
+  supports browser sign-in, and store keys in your app's secret or environment
   settings rather than in a shared config file.
 </Callout>
 
 ## Organization policy
 
-The server follows your organization's access policy. If an administrator turns
-off **OAuth apps** or **personal API keys** for your permission group, requests
-with that credential are refused in the affected workspaces.
+Organization policy can restrict personal credentials in affected workspaces. The **Personal API Keys** policy applies to personal API-key and OAuth requests; OAuth requests also require **OAuth App Access**. OAuth approval and refresh remain subject to organization policy. See [Permission groups](/platform/enterprise/access-control) for policy resolution.
+
+## Related docs
+
+- [Connect an app](/mcp/overview) for server URLs and client configuration
+- [API authentication](/api-reference/authentication) for key creation and credential scope
+- [Tools](/mcp/tools) for read and write operation behavior

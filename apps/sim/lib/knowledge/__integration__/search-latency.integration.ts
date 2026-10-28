@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createLogger, Logger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -685,7 +686,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     await db.execute(sql`ANALYZE document`)
     await db.execute(sql`ANALYZE embedding`)
     await db.execute(sql`ANALYZE embedding_search`)
-    await db.execute(sql`ANALYZE embedding_keyword_search`)
     if (evictSharedBuffers) await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_buffercache`)
     report.server = (
       await db.execute(sql`SELECT version(), current_setting('work_mem') AS work_mem,
@@ -712,7 +712,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     for (const fixture of process.env.KNOWLEDGE_SEARCH_PERFORMANCE_KEEP_DATABASE === 'true'
       ? []
       : [ids, unrelated, fullWidthFixture]) {
-      await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
       await db.delete(organization).where(eq(organization.id, fixture.organizationId))
       await db.delete(user).where(eq(user.id, fixture.aliceId))
       await db.delete(user).where(eq(user.id, fixture.bobId))

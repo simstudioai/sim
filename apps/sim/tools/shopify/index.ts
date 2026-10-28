@@ -1,30 +1,29 @@
-// Product Tools
-
 export { shopifyAdjustInventoryTool } from './adjust_inventory'
 export { shopifyCancelOrderTool } from './cancel_order'
-// Customer Tools
 export { shopifyCreateCustomerTool } from './create_customer'
-// Fulfillment Tools
 export { shopifyCreateFulfillmentTool } from './create_fulfillment'
 export { shopifyCreateProductTool } from './create_product'
+export { shopifyCreateProductVariantsTool } from './create_product_variants'
 export { shopifyDeleteCustomerTool } from './delete_customer'
 export { shopifyDeleteProductTool } from './delete_product'
 export { shopifyGetCollectionTool } from './get_collection'
 export { shopifyGetCustomerTool } from './get_customer'
+export { shopifyGetFulfillmentTool } from './get_fulfillment'
+export { shopifyGetFulfillmentOrderTool } from './get_fulfillment_order'
 export { shopifyGetInventoryLevelTool } from './get_inventory_level'
-// Order Tools
+export { shopifyGetJobTool } from './get_job'
 export { shopifyGetOrderTool } from './get_order'
 export { shopifyGetProductTool } from './get_product'
-// Collection Tools
 export { shopifyListCollectionsTool } from './list_collections'
 export { shopifyListCustomersTool } from './list_customers'
-// Inventory Tools
+export { shopifyListFulfillmentOrdersTool } from './list_fulfillment_orders'
 export { shopifyListInventoryItemsTool } from './list_inventory_items'
-// Location Tools
 export { shopifyListLocationsTool } from './list_locations'
 export { shopifyListOrdersTool } from './list_orders'
 export { shopifyListProductsTool } from './list_products'
 export * from './types'
 export { shopifyUpdateCustomerTool } from './update_customer'
+export { shopifyUpdateFulfillmentTrackingTool } from './update_fulfillment_tracking'
 export { shopifyUpdateOrderTool } from './update_order'
 export { shopifyUpdateProductTool } from './update_product'
+export { shopifyUpdateProductVariantsTool } from './update_product_variants'

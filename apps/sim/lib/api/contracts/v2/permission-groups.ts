@@ -43,17 +43,17 @@ export const v2PermissionGroupSchema = z
     name: z.string().describe('Group name, unique within the organization.'),
     description: z.string().nullable().describe('Optional description of the group.'),
     config: permissionGroupFullConfigSchema.describe(
-      'Resolved restrictions. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none.'
+      'Resolved group settings. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none. defaultAgentModel selects the default for new Agent blocks without restricting model selection.'
     ),
     isDefault: z
       .boolean()
       .describe(
-        'Whether this is the organization default, which applies to everyone across all its workspaces regardless of member assignments.'
+        'Whether this is the organization fallback group. It governs a human caller with no applicable workspace-specific group; its own membership assignments do not limit its audience. Organization-level actions use the default group.'
       ),
     membershipMode: z
       .string()
       .describe(
-        'An empty inherit group governs everyone in its workspaces; an empty explicit group governs nobody.'
+        'When no explicit assignments exist, an `inherit` group governs every member in its targeted workspaces. An empty `explicit` group, including a SCIM-managed group, governs nobody.'
       ),
     workspaceIds: z
       .array(z.string())
@@ -65,7 +65,8 @@ export const v2PermissionGroupSchema = z
   .meta({
     id: 'V2PermissionGroup',
     title: 'Permission group',
-    description: 'An organization permission group and its resolved restrictions.',
+    description:
+      'An organization permission group and its resolved settings for human callers. Workspace API keys use their workspace role and operation policy without a user permission group.',
   })
 export type V2PermissionGroup = z.output<typeof v2PermissionGroupSchema>
 
@@ -114,9 +115,7 @@ export const v2CreatePermissionGroupBodySchema = createPermissionGroupBodySchema
       'Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group.'
     ),
     config: configPatchSchema
-      .describe(
-        'Permission restrictions to set. Omitted keys use the default permission configuration.'
-      )
+      .describe('Group settings to set. Omitted keys use the default permission configuration.')
       .optional(),
   })
   .strict()
@@ -129,7 +128,7 @@ export const v2UpdatePermissionGroupBodySchema = updatePermissionGroupBodySchema
   .safeExtend({
     config: configPatchSchema
       .describe(
-        'Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list.'
+        'Patch of group settings. Omitted keys remain unchanged; each supplied array replaces that entire list.'
       )
       .optional(),
   })

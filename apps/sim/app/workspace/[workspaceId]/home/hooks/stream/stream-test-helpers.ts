@@ -26,6 +26,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
       invalidateQueries: vi.fn(),
       cancelQueries: vi.fn(),
       setQueryData: vi.fn(),
+      isFetching: vi.fn(() => 0),
       // double-cast-allowed: minimal QueryClient stub for stream-loop unit fixtures
     } as unknown as QueryClient,
     assistantId: 'assistant-1',
@@ -39,8 +40,10 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     setActiveResourceId: vi.fn(),
     addResource: vi.fn(() => true),
     removeResource: vi.fn(),
+    discardPendingResourceUpsert: vi.fn(),
     startClientWorkflowTool: vi.fn(),
     startClientLocalFilesystemTool: vi.fn(),
+    startClientComputerTool: vi.fn(),
     startClientBrowserTool: vi.fn(),
     startClientTerminalTool: vi.fn(),
     startBrowserAgentRun: vi.fn(),

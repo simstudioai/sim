@@ -15,6 +15,7 @@ import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import { MAX_RICH_MEMORY_PAGE_BYTES, PlainMemoryReadBudget } from '@/lib/memory/read-budget'
 import {
   bindMemorySecretProvenanceToMessages,
+  MEMORY_SECRET_PROVENANCE_COLUMNS,
   readBoundMemorySecretProvenance,
   replaceMemorySecretProvenanceInTx,
 } from '@/lib/memory/secret-provenance'
@@ -234,9 +235,7 @@ export async function readConversationPrefix(input: ReadConversationPrefixInput)
       storageVersion: memory.storageVersion,
       data: memory.data,
       secretProvenanceVersion: memory.secretProvenanceVersion,
-      provenanceContentHash: memorySecretProvenance.contentHash,
-      provenanceStatus: memorySecretProvenance.status,
-      provenanceEntries: memorySecretProvenance.entries,
+      ...MEMORY_SECRET_PROVENANCE_COLUMNS,
     })
     .from(memory)
     .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))

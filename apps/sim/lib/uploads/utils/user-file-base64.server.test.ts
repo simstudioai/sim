@@ -54,11 +54,11 @@ afterAll(resetRedisConfigMock)
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
+vi.mock('@/lib/uploads/contexts/execution/file-manager', () => ({
   downloadExecutionFile: storageServiceMockFns.mockDownloadFile,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 

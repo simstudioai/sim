@@ -1,4 +1,6 @@
+import { createLogger } from '@sim/logger'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
@@ -36,6 +38,7 @@ import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
  */
 
 import {
+  createDeferred,
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
@@ -54,11 +57,12 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
@@ -71,7 +75,7 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
-import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
@@ -80,6 +84,9 @@ import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptio
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
+import { vantaListFrameworksTool } from '@/tools/vanta/list_frameworks'
+import { vantaSubmitDocumentTool } from '@/tools/vanta/submit_document'
+import { vantaUploadDocumentFileTool } from '@/tools/vanta/upload_document_file'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
@@ -158,10 +165,10 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -174,7 +181,7 @@ vi.mock('@/executor/utils/credential-token', () => ({
     mockResolveExecutorCredentialToken(...args),
 }))
 
-vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
+vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
 
@@ -188,7 +195,7 @@ const mockRegistryTools: Record<string, any> = {
   stripe_list_subscriptions: stripeListSubscriptionsTool,
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
-  github_search_issues_v2: searchIssuesV2Tool,
+  github_search_users_v2: searchUsersV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -414,7 +421,11 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 })
 
 import type { QueryClient } from '@tanstack/react-query'
+import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
+import { ApiBlockHandler } from '@/executor/handlers/api/handler'
+import { buildBlockExecutionError } from '@/executor/utils/errors'
+import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
 import { createToolConfig, getTool } from '@/tools/utils'
@@ -434,6 +445,15 @@ const mockResolveWorkspaceFileReference =
 const mockAssertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
 
 const mockToolsLogger = getMockLogger('Tools')
+
+/** Every level, so a secret-leak assertion holds wherever a failure's severity lands. */
+function allToolLogCalls() {
+  return [
+    mockToolsLogger.error.mock.calls,
+    mockToolsLogger.warn.mock.calls,
+    mockToolsLogger.info.mock.calls,
+  ]
+}
 
 /**
  * Overlay the mock tools onto the REAL registry object instead of vi.mock:
@@ -1108,6 +1128,78 @@ describe('executeTool Function', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('logs a fault that rethrows one object every time once per occurrence, not once per process', async () => {
+    /** A rejected dynamic `import()` or memoized rejected promise rethrows the same object. */
+    const persistentFault = new Error('internal operation module failed to load')
+    mockAssertPermissionsAllowed.mockRejectedValue(persistentFault)
+    mockToolsLogger.error.mockClear()
+
+    for (const executionId of ['execution-a', 'execution-b']) {
+      const result = await executeTool(
+        'http_request',
+        { url: 'https://example.com' },
+        { executionContext: createToolExecutionContext({ userId: 'user-123', executionId }) }
+      )
+      expect(result.success).toBe(false)
+    }
+
+    const toolFailureLogs = mockToolsLogger.error.mock.calls.filter(([message]) =>
+      String(message).includes('Error executing tool http_request')
+    )
+    expect(toolFailureLogs).toHaveLength(2)
+  })
+
+  it.each([
+    [400, 'user'],
+    [500, 'internal'],
+  ] as const)(
+    'attributes an in-process operation %i to Sim, never to a third party',
+    async (status, kind) => {
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        jsonResponse({ error: 'operation failed' }, status)
+      )
+
+      const result = await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', accessKeyId: 'access-key', secretAccessKey: 'secret-key' },
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-456',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+          }),
+        }
+      )
+
+      expect(result.success).toBe(false)
+      expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe(kind)
+    }
+  )
+
+  it('never logs the response body of an in-process operation failure', async () => {
+    const rowContent = 'author-row-content-7f3a'
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      jsonResponse({ error: 'duplicate row', details: { row: rowContent } }, 400)
+    )
+
+    const result = await executeTool(
+      'sts_get_caller_identity',
+      { region: 'us-east-1', accessKeyId: 'access-key', secretAccessKey: 'secret-key' },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(rowContent)
+  })
+
   it('preserves a registered operation failure without turning it into success', async () => {
     const mockTool = {
       id: 'test_registered_operation_failure',
@@ -1605,8 +1697,8 @@ describe('executeTool Function', () => {
         error: untrustedDetail,
       })
       expect(JSON.stringify(result)).not.toContain(untrustedHeader)
-      expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedDetail)
-      expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedHeader)
+      expect(JSON.stringify(allToolLogCalls())).not.toContain(untrustedDetail)
+      expect(JSON.stringify(allToolLogCalls())).not.toContain(untrustedHeader)
       expect(registry.isComplete()).toBe(true)
     }
   )
@@ -1760,7 +1852,8 @@ describe('executeTool Function', () => {
         JSON.stringify({
           success: false,
           error: `Execution failed with ${secret} via ${runtimeAlias}`,
-          output: { result: null, stdout: 'trace', cost },
+          output: { result: null, stdout: 'author-stdout-91c', cost },
+          debug: { lineContent: 'author-source-line-55a', stack: 'author-stack-3e1' },
           __resolvedSecretNames: ['API_KEY'],
         }),
         {
@@ -1788,8 +1881,17 @@ describe('executeTool Function', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
     expect(result.output?.cost).toEqual(cost)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(secret)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(runtimeAlias)
+    for (const authorContent of [
+      'author-stdout-91c',
+      'author-source-line-55a',
+      'author-stack-3e1',
+    ]) {
+      expect(JSON.stringify(allToolLogCalls())).not.toContain(authorContent)
+    }
+    /** A Function's 422 is the author's code throwing, not a third party refusing. */
+    expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe('user')
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(
       runtimeAlias
@@ -1826,8 +1928,8 @@ describe('executeTool Function', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
-    expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(secret)
+    expect(JSON.stringify(allToolLogCalls())).not.toContain(runtimeAlias)
   })
 
   it('does not lift an invalid sandbox cost from a Function error response', async () => {
@@ -2620,6 +2722,9 @@ describe('executeTool Function', () => {
     mockToolsLogger.error.mockImplementation(() => {
       throw originalError
     })
+    mockToolsLogger.warn.mockImplementation(() => {
+      throw originalError
+    })
 
     const execution = executeTool(
       'function_execute',
@@ -2663,6 +2768,9 @@ describe('executeTool Function', () => {
     mockToolsLogger.error.mockImplementation(() => {
       throw originalError
     })
+    mockToolsLogger.warn.mockImplementation(() => {
+      throw originalError
+    })
 
     const execution = executeTool(
       'function_execute',
@@ -2700,6 +2808,9 @@ describe('executeTool Function', () => {
     )
     const originalError = new Error('Box failed')
     mockToolsLogger.error.mockImplementation(() => {
+      throw originalError
+    })
+    mockToolsLogger.warn.mockImplementation(() => {
       throw originalError
     })
 
@@ -5776,6 +5887,90 @@ describe('Centralized Error Handling', () => {
     // Should fall back to HTTP status text when both parsing methods fail
     expect(result.error).toBe('Internal Server Error')
   })
+
+  describe('failure attribution across the block boundary', () => {
+    const apiBlock: SerializedBlock = {
+      id: 'api-1',
+      position: { x: 0, y: 0 },
+      config: { tool: 'http_request', params: {} },
+      inputs: {},
+      outputs: {},
+      metadata: { id: 'api', name: 'Call' },
+      enabled: true,
+    }
+
+    /** Runs the real API block handler over the real `executeTool`, wrapped as the block executor wraps it. */
+    async function failApiBlock(response: Response): Promise<Error> {
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+      mockSecureFetchWithPinnedIP.mockResolvedValue(toSecureFetchResponse(response))
+      const thrown = await new ApiBlockHandler()
+        .execute(createToolExecutionContext(), apiBlock, {
+          url: 'https://example.com/test',
+          method: 'GET',
+        })
+        .then(
+          () => undefined,
+          (error: unknown) => error
+        )
+      expect(thrown).toBeInstanceOf(Error)
+      return buildBlockExecutionError({ block: apiBlock, error: thrown as Error })
+    }
+
+    it.each(['<html>upstream gateway</html>', ''])(
+      'attributes a non-JSON 2xx body to the provider when a transform reads JSON (%j)',
+      async (body) => {
+        const originalTransform = tools.http_request.transformResponse
+        tools.http_request.transformResponse = async (response) => ({
+          success: true,
+          output: await response.json(),
+        })
+        try {
+          const blockError = await failApiBlock(new Response(body, { status: 200 }))
+          expect(classifyFailure(blockError)).toBe('third_party_server')
+        } finally {
+          tools.http_request.transformResponse = originalTransform
+        }
+      }
+    )
+
+    it.each([
+      [404, 'third_party_client'],
+      [503, 'third_party_server'],
+    ] as const)(
+      'attributes an upstream %i to the third party, logged once by the tool layer',
+      async (status, kind) => {
+        const blockError = await failApiBlock(jsonResponse({ error: 'rejected' }, status))
+        expect(classifyFailure(blockError)).toBe(kind)
+        expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', blockError)).toBeUndefined()
+      }
+    )
+
+    it.each([
+      [
+        'a provider rejection a transform reports as a plain Error',
+        new Error('channel_not_found'),
+        'third_party_client',
+      ],
+      ['a bug in the transform itself', new TypeError('data.channel is undefined'), 'internal'],
+      [
+        'a parser bug in the transform itself',
+        new SyntaxError('invalid transform configuration'),
+        'internal',
+      ],
+    ] as const)('attributes %s', async (_name, transformError, kind) => {
+      const originalTransform = tools.http_request.transformResponse
+      tools.http_request.transformResponse = async () => {
+        throw transformError
+      }
+      try {
+        const blockError = await failApiBlock(jsonResponse({ ok: false }))
+        expect(classifyFailure(blockError)).toBe(kind)
+        expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', blockError)).toBeUndefined()
+      } finally {
+        tools.http_request.transformResponse = originalTransform
+      }
+    })
+  })
 })
 
 describe('MCP Tool Execution', () => {
@@ -6093,6 +6288,58 @@ describe('Hosted Key Injection', () => {
   afterEach(() => {
     vi.resetAllMocks()
     cleanupEnvVars()
+  })
+
+  it('stops before provider dispatch and billing when BYOK resolution fails', async () => {
+    setEnvFlags({ isHosted: true })
+    mockGetBYOKKey.mockRejectedValueOnce(new Error('BYOK credentials unavailable'))
+    mockRateLimiterFns.acquireKey.mockResolvedValue({
+      success: true,
+      key: 'platform-fixture-key',
+      keyIndex: 0,
+      envVarName: 'TEST_HOSTED_KEY',
+    })
+    const request = vi.fn(async () => jsonResponse({ ok: true }))
+    vi.stubGlobal('fetch', request)
+    tools.test_byok_failure = {
+      id: 'test_byok_failure',
+      name: 'BYOK fixture',
+      description: 'Credential failure fixture',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: { type: 'per_request', cost: 0.005 },
+        rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+    const metered = vi.fn(async () => {})
+    try {
+      const result = await observeServiceCosts(metered, () =>
+        executeTool(
+          'test_byok_failure',
+          {},
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              copilotToolExecution: true,
+            }),
+          }
+        )
+      )
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('BYOK credentials unavailable')
+      expect(request).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(metered).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_byok_failure')
+      resetEnvFlagsMock()
+    }
   })
 
   it('should not inject hosted key when tool has no hosting config', async () => {
@@ -7196,24 +7443,24 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
       requestMode: 'assistant' as const,
     },
   })
-  it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
+  it('executes the existing user lookup tool using the selected personal OAuth account', async () => {
     const { getToolMetadata } = await import('@/tools/metadata')
-    expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
-      id: 'github_search_issues_v2',
+    expect(getToolMetadata('github_search_users_v2')).toMatchObject({
+      id: 'github_search_users_v2',
       params: { apiKey: { required: true } },
     })
     const params = {
       credentialId: 'own-account',
-      q: 'repo:simstudioai/sim is:pr author:icecrasher321',
+      q: 'icecrasher321 in:login',
     }
-    const result = await executeTool('github_search_issues_v2', params, options())
+    const result = await executeTool('github_search_users_v2', params, options())
     expect(result.success, result.error).toBe(true)
     expect(result.output).toMatchObject({ total_count: 137, incomplete_results: false })
     expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialId: 'own-account',
         userId: 'person',
-        toolId: 'github_search_issues_v2',
+        toolId: 'github_search_users_v2',
         copilotExecutionContext: expect.objectContaining({ organizationId: 'org' }),
       })
     )
@@ -7229,13 +7476,306 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('rejects model-supplied credentials before resolving any account or requesting GitHub', async () => {
     const result = await executeTool(
-      'github_search_issues_v2',
-      { credentialId: 'own-account', q: 'is:pr', apiKey: 'injected-admin-token' },
+      'github_search_users_v2',
+      { credentialId: 'own-account', q: 'icecrasher321', apiKey: 'injected-admin-token' },
       options()
     )
     expect(result.success).toBe(false)
     expect(result.error).toContain('cannot supply the apiKey')
     expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+})
+
+describe('Vanta saved credential rejection recovery', () => {
+  const credentialId = 'vanta-saved-credential'
+  const apiDomain = 'https://api.vanta.com'
+  const context = () => createToolExecutionContext({ userId: 'user-1' })
+  let resolutions: number
+
+  beforeEach(() => {
+    Object.assign(tools, {
+      vanta_list_frameworks: vantaListFrameworksTool,
+      vanta_submit_document: vantaSubmitDocumentTool,
+      vanta_upload_document_file: vantaUploadDocumentFileTool,
+    })
+    mockGetInternalToolOperationHandler.mockResolvedValue(executeVantaTool)
+    resolutions = 0
+    mockResolveExecutorCredentialToken.mockImplementation(async (input) => {
+      if (input.credentialId !== credentialId || input.userId !== 'user-1') {
+        throw new Error('Credential authority changed')
+      }
+      resolutions++
+      return {
+        credentialType: 'service_account',
+        accessToken: resolutions === 1 ? 'old-token' : 'fresh-token',
+        apiDomain,
+      }
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(tools, 'vanta_list_frameworks')
+    Reflect.deleteProperty(tools, 'vanta_submit_document')
+    Reflect.deleteProperty(tools, 'vanta_upload_document_file')
+  })
+
+  it('re-authorizes the same saved credential and retries a rejected token at its trusted origin', async () => {
+    const requests: Array<{ url: string; authorization: string | null }> = []
+    mockResolveExecutorCredentialToken.mockImplementation(async (input) => {
+      if (input.credentialId !== credentialId || input.userId !== 'user-1') {
+        throw new Error('Credential authority changed')
+      }
+      resolutions++
+      return {
+        credentialType: 'service_account',
+        accessToken: resolutions === 1 ? 'old-token' : 'fresh-token',
+        apiDomain: resolutions === 1 ? apiDomain : 'https://api.vanta-gov.com',
+      }
+    })
+    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        url: String(url),
+        authorization: new Headers(init?.headers).get('authorization'),
+      })
+      return requests.length === 1
+        ? Response.json({ error: 'Token expired' }, { status: 401 })
+        : Response.json({ results: { data: [{ id: 'soc2', displayName: 'SOC 2' }] } })
+    })
+
+    const result = await executeTool(
+      'vanta_list_frameworks',
+      { oauthCredential: credentialId, apiDomain: 'https://attacker.example' },
+      { executionContext: context() }
+    )
+
+    expect(result).toMatchObject({ success: true, output: { frameworks: [{ id: 'soc2' }] } })
+    expect(requests).toEqual([
+      { url: `${apiDomain}/v1/frameworks`, authorization: 'Bearer old-token' },
+      { url: 'https://api.vanta-gov.com/v1/frameworks', authorization: 'Bearer fresh-token' },
+    ])
+  })
+
+  it('rebuilds the complete multipart evidence upload after authentication rejection', async () => {
+    const uploads: Array<{
+      token: string | null
+      name: string
+      body: string
+      description: FormDataEntryValue | null
+    }> = []
+    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(String(url), init)
+      const form = await request.formData()
+      const file = form.get('file')
+      if (!(file instanceof File)) throw new Error('Evidence file missing')
+      uploads.push({
+        token: request.headers.get('authorization'),
+        name: file.name,
+        body: await file.text(),
+        description: form.get('description'),
+      })
+      return uploads.length === 1
+        ? Response.json({ error: 'Token expired' }, { status: 401 })
+        : Response.json({ id: 'uploaded-evidence', fileName: file.name })
+    })
+
+    const result = await executeTool(
+      'vanta_upload_document_file',
+      {
+        oauthCredential: credentialId,
+        documentId: 'document-1',
+        fileContent: Buffer.from('audit evidence').toString('base64'),
+        fileName: 'evidence.txt',
+        description: 'Quarterly access review',
+      },
+      { executionContext: context() }
+    )
+
+    expect(result).toMatchObject({ success: true, output: { upload: { id: 'uploaded-evidence' } } })
+    expect(uploads).toEqual([
+      {
+        token: 'Bearer old-token',
+        name: 'evidence.txt',
+        body: 'audit evidence',
+        description: 'Quarterly access review',
+      },
+      {
+        token: 'Bearer fresh-token',
+        name: 'evidence.txt',
+        body: 'audit evidence',
+        description: 'Quarterly access review',
+      },
+    ])
+  })
+
+  it('stops after a second authentication rejection', async () => {
+    const tokens: Array<string | null> = []
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      tokens.push(new Headers(init?.headers).get('authorization'))
+      return Response.json({ error: 'Token rejected' }, { status: tokens.length > 2 ? 503 : 401 })
+    })
+    const result = await executeTool(
+      'vanta_submit_document',
+      { oauthCredential: credentialId, documentId: 'document-1' },
+      { executionContext: context() }
+    )
+    expect(result.success).toBe(false)
+    expect(tokens).toEqual(['Bearer old-token', 'Bearer fresh-token'])
+  })
+
+  it.each([403, 429, 503])(
+    'does not replay a document submission after status %s',
+    async (status) => {
+      const methods: Array<string | undefined> = []
+      vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+        methods.push(init?.method)
+        return Response.json({ error: 'Provider rejected the request' }, { status })
+      })
+      const result = await executeTool(
+        'vanta_submit_document',
+        { oauthCredential: credentialId, documentId: 'document-1' },
+        { executionContext: context() }
+      )
+      expect(result.success).toBe(false)
+      expect(methods).toEqual(['POST'])
+    }
+  )
+
+  it('does not replay a document submission after a network failure', async () => {
+    const methods: Array<string | undefined> = []
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      methods.push(init?.method)
+      throw new Error('Connection reset')
+    })
+    const result = await executeTool(
+      'vanta_submit_document',
+      { oauthCredential: credentialId, documentId: 'document-1' },
+      { executionContext: context() }
+    )
+    expect(result.success).toBe(false)
+    expect(methods).toEqual(['POST'])
+  })
+
+  it('stops without another provider request when credential authorization is revoked', async () => {
+    const tokens: Array<string | null> = []
+    mockResolveExecutorCredentialToken.mockImplementation(async () => {
+      resolutions++
+      if (resolutions > 1) throw new Error('Credential access denied')
+      return { credentialType: 'service_account', accessToken: 'old-token', apiDomain }
+    })
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      tokens.push(new Headers(init?.headers).get('authorization'))
+      return Response.json({ error: 'Token expired' }, { status: 401 })
+    })
+    const result = await executeTool(
+      'vanta_list_frameworks',
+      { oauthCredential: credentialId },
+      { executionContext: context() }
+    )
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Credential access denied'),
+    })
+    expect(tokens).toEqual(['Bearer old-token'])
+  })
+
+  it('does not start another provider request after cancellation', async () => {
+    const controller = new AbortController()
+    const tokens: Array<string | null> = []
+    vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+      tokens.push(new Headers(init?.headers).get('authorization'))
+      controller.abort()
+      return Response.json({ error: 'Token expired' }, { status: 401 })
+    })
+    const result = await executeTool(
+      'vanta_list_frameworks',
+      { oauthCredential: credentialId },
+      { executionContext: context(), signal: controller.signal }
+    )
+    expect(result.success).toBe(false)
+    expect(tokens).toEqual(['Bearer old-token'])
+  })
+
+  it.each([
+    { label: 'initial resolution cancellation', retry: false, timeout: false },
+    { label: 'retry resolution cancellation', retry: true, timeout: false },
+    { label: 'retry resolution timeout', retry: true, timeout: true },
+  ])(
+    'settles $label while the authorized resolver is still pending',
+    async ({ retry, timeout }) => {
+      vi.useFakeTimers()
+      const controller = new AbortController()
+      const entered = createDeferred<void>()
+      const released = createDeferred<void>()
+      const tokens: Array<string | null> = []
+      let settled: ToolResponse | undefined
+      mockResolveExecutorCredentialToken.mockImplementation(async () => {
+        resolutions++
+        if (!retry || resolutions > 1) {
+          entered.resolve()
+          await released.promise
+        }
+        return {
+          credentialType: 'service_account',
+          accessToken: resolutions === 1 ? 'old-token' : 'fresh-token',
+          apiDomain,
+        }
+      })
+      vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+        tokens.push(new Headers(init?.headers).get('authorization'))
+        return Response.json({ error: 'Token expired' }, { status: 401 })
+      })
+      const execution = executeTool(
+        'vanta_list_frameworks',
+        { oauthCredential: credentialId, timeout: 100 },
+        { executionContext: context(), signal: controller.signal }
+      ).then((result) => {
+        settled = result
+        return result
+      })
+      try {
+        await entered.promise
+        if (timeout) await vi.advanceTimersByTimeAsync(100)
+        else controller.abort(new Error('Caller cancelled credential wait'))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(settled).toMatchObject({
+          success: false,
+          error: expect.stringMatching(/cancel|abort|timed? ?out/i),
+        })
+        expect(tokens).toEqual(retry ? ['Bearer old-token'] : [])
+      } finally {
+        released.resolve()
+        await execution
+        await vi.advanceTimersByTimeAsync(0)
+        vi.useRealTimers()
+      }
+      expect(tokens).toEqual(retry ? ['Bearer old-token'] : [])
+    }
+  )
+
+  it('keeps the original operation deadline across the retried provider request', async () => {
+    vi.useFakeTimers()
+    try {
+      const tokens: Array<string | null> = []
+      vi.stubGlobal('fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+        tokens.push(new Headers(init?.headers).get('authorization'))
+        await vi.advanceTimersByTimeAsync(60)
+        return tokens.length === 1
+          ? Response.json({ error: 'Token expired' }, { status: 401 })
+          : Response.json({ results: { data: [] } })
+      })
+      const result = await executeTool(
+        'vanta_list_frameworks',
+        { oauthCredential: credentialId, timeout: 100 },
+        { executionContext: context() }
+      )
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringMatching(/abort|timed? ?out/i),
+      })
+      expect(tokens).toEqual(['Bearer old-token', 'Bearer fresh-token'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

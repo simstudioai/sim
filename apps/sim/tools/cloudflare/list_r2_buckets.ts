@@ -1,15 +1,18 @@
+import { toRecord } from '@sim/utils/object'
+import { R2_BUCKET_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListR2BucketsParams,
   CloudflareListR2BucketsResponse,
-  CloudflareRawR2Bucket,
 } from '@/tools/cloudflare/types'
 import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
+  mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listR2BucketsTool: ToolConfig<
   CloudflareListR2BucketsParams,
@@ -22,6 +25,12 @@ export const listR2BucketsTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    order: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Order buckets by name. Allowed values: name.',
+    },
     accountId: {
       type: 'string',
       required: true,
@@ -75,7 +84,7 @@ export const listR2BucketsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/r2/buckets`
       )
       appendParam(url, 'name_contains', params.name_contains)
       appendParam(url, 'start_after', params.start_after)
@@ -84,7 +93,7 @@ export const listR2BucketsTool: ToolConfig<
       appendParam(url, 'per_page', params.per_page)
       // `direction` only means something alongside an ordering field, and `name`
       // is the sole value Cloudflare documents for `order`.
-      if (params.direction) url.searchParams.append('order', 'name')
+      appendParam(url, 'order', params.order || (params.direction ? 'name' : undefined))
       return url.toString()
     },
     method: 'GET',
@@ -96,65 +105,45 @@ export const listR2BucketsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<{ buckets?: CloudflareRawR2Bucket[] }>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { buckets: [], cursor: null },
-        error: cloudflareErrorMessage(data, 'Failed to list R2 buckets'),
-      }
-    }
-
-    const buckets = Array.isArray(data.result?.buckets) ? data.result.buckets : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = toRecord(data.result).buckets
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        buckets: buckets.map((bucket) => ({
-          name: bucket.name ?? '',
-          creation_date: bucket.creation_date ?? null,
-          location: bucket.location ?? null,
-          storage_class: bucket.storage_class ?? null,
-          jurisdiction: bucket.jurisdiction ?? null,
-        })),
+        buckets: rows.map((row) => mapCloudflareFields(row, R2_BUCKET_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
         cursor: data.result_info?.cursor ?? null,
       },
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to list r2 buckets') } : {}),
     }
   },
-
   outputs: {
     buckets: {
       type: 'array',
-      description: 'R2 buckets in the account',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: 'Bucket name' },
-          creation_date: { type: 'string', description: 'Creation timestamp', optional: true },
-          location: {
-            type: 'string',
-            description:
-              'Location hint the bucket was created with (apac, eeur, enam, weur, wnam, or oc)',
-            optional: true,
-          },
-          storage_class: {
-            type: 'string',
-            description: 'Default storage class (Standard or InfrequentAccess)',
-            optional: true,
-          },
-          jurisdiction: {
-            type: 'string',
-            description: 'Data-residency jurisdiction (default, eu, or fedramp)',
-            optional: true,
-          },
+      description: 'Buckets',
+      items: { type: 'object', properties: R2_BUCKET_OUTPUTS },
+    },
+    total_count: {
+      type: 'number',
+      description:
+        'Total active buckets in the requested jurisdiction, independent of filtering or pagination. Eventually consistent for accounts with elevated bucket limits. Falls back to this page’s bucket count when the API omits the total.',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: {
+        ...RESULT_INFO_OUTPUTS,
+        total_count: {
+          ...RESULT_INFO_OUTPUTS.total_count,
+          description:
+            'Total active buckets in the requested jurisdiction, independent of filtering or pagination. Eventually consistent for accounts with elevated bucket limits.',
         },
       },
     },
-    cursor: {
-      type: 'string',
-      description: 'Pagination cursor to pass to the next call',
-      optional: true,
-    },
+    cursor: { type: 'string', description: 'Cursor for the next page', nullable: true },
   },
 }

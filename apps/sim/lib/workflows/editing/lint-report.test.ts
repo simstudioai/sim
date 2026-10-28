@@ -1,5 +1,6 @@
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   collectUnresolvedReferences: vi.fn(async () => []),
@@ -22,8 +23,10 @@ import {
   NO_ENTRY_BLOCK_NOTE,
   REFERENCES_UNCHECKED_NOTE,
 } from '@/lib/workflows/editing/lint-report'
+import { getBlock } from '@/blocks/registry'
 
 const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockGetBlock = getBlock as Mock
 
 const scope = { workflowId: 'workflow-1', workspaceId: 'workspace-1', subjectUserId: 'user-1' }
 
@@ -216,5 +219,49 @@ describe('buildWorkflowLintReport table fields', () => {
     await expect(buildWorkflowLintReport(graph, scope, { requireComplete: true })).rejects.toThrow(
       'Workflow table schema checks could not complete'
     )
+  })
+})
+
+describe('buildWorkflowLintReport JSON fields', () => {
+  const registryStub = mockGetBlock.getMockImplementation()
+
+  beforeEach(() => {
+    mockGetBlock.mockImplementation((type: string) =>
+      type === 'table_v2'
+        ? { type, subBlocks: [{ id: 'data', type: 'code', language: 'json' }], outputs: {} }
+        : { type, category: 'triggers', subBlocks: [], outputs: {} }
+    )
+  })
+
+  afterEach(() => {
+    mockGetBlock.mockImplementation(registryStub ?? (() => undefined))
+  })
+
+  /**
+   * An unquoted string reference in Table row JSON reported nothing anywhere
+   * before run time, so a deploy went live with a block that failed on every run.
+   */
+  it('reports a string reference written unquoted in a JSON field, whoever the caller is', async () => {
+    const start = {
+      ...block('start', 'start_trigger'),
+      subBlocks: { inputFormat: { value: [{ name: 'order_id', type: 'string' }] } },
+    }
+    const insert = {
+      ...block('insert', 'table_v2'),
+      subBlocks: { data: { value: '{"order_id": <start.order_id>}' } },
+    }
+    const report = await buildWorkflowLintReport(
+      { blocks: { start, insert }, edges: [edge('start', 'insert')] } as never,
+      { ...scope, subjectUserId: null }
+    )
+
+    expect(report.unresolvedReferences).toEqual([
+      expect.objectContaining({
+        blockId: 'insert',
+        field: 'data',
+        kind: 'block-output',
+        value: ['<start.order_id>'],
+      }),
+    ])
   })
 })

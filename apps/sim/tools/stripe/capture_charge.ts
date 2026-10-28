@@ -37,7 +37,8 @@ export const stripeCaptureChargeTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Amount to capture in cents (defaults to full amount)',
+      description:
+        'Amount to capture in the currency’s smallest unit (defaults to the full amount)',
     },
   },
 

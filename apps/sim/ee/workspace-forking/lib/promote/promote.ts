@@ -29,6 +29,7 @@ import {
   type ForkRemapKind,
 } from '@/lib/workflows/references/remap-references'
 import { getMcpServerMetaByIds } from '@/lib/workflows/references/resources'
+import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
 import {
   findWorkspaceOperationReceipt,
   lockWorkspaceOperationRequest,
@@ -629,6 +630,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       await acquireForkTargetLock(tx, targetWorkspaceId)
       await acquireForkEdgeLock(tx, edge.childWorkspaceId)
       await lockForkRevision(tx, revisionScope)
+      /** Before any target write, so a concurrent archive and this promote lock in one order. */
+      await lockActiveWorkspace(tx, targetWorkspaceId)
       if (admission) {
         await assertForkPreviewFresh(tx, revisionScope, admission)
       }

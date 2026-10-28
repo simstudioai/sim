@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { observeContentOutsideModel } from '@/lib/core/application'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
 import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
@@ -16,10 +18,9 @@ import {
 import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
-  getBoundWorkspaceFileSecretProvenance,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -133,23 +134,27 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         if (totalInputBytes + fileRecord.size > MAX_MEDIA_BYTES) {
           throw new Error(`Input files exceed the ${MAX_MEDIA_BYTES} byte limit`)
         }
-        const fileProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
-          fileId: fileRecord.id,
-          key: fileRecord.key,
-          context: fileRecord.storageContext ?? 'workspace',
-        })
+        /** The output file carries every input's provenance, merged below; no input reaches a model. */
+        const {
+          file,
+          content: buffer,
+          secretProvenance,
+        } = await observeContentOutsideModel(() =>
+          executeCopilotFileUseCase(
+            context,
+            readWorkspaceFileContent,
+            {
+              fileId: fileRecord.id,
+              assertedWorkspaceId: workspaceId,
+              maxBytes: MAX_MEDIA_BYTES,
+              includeSecretProvenance: true,
+            },
+            { fileId: fileRecord.id }
+          )
+        )
+        const fileProvenance = secretProvenance ?? { status: 'unknown' as const }
         inputRequiresOpaqueError ||=
           fileProvenance.status !== 'exact' || fileProvenance.entries.length > 0
-        const { content: buffer } = await executeCopilotFileUseCase(
-          context,
-          readWorkspaceFileContent,
-          {
-            fileId: fileRecord.id,
-            assertedWorkspaceId: workspaceId,
-            maxBytes: MAX_MEDIA_BYTES,
-          },
-          { fileId: fileRecord.id }
-        )
         totalInputBytes += buffer.length
         if (totalInputBytes > MAX_MEDIA_BYTES) {
           throw new Error(`Input files exceed the ${MAX_MEDIA_BYTES} byte limit`)
@@ -157,8 +162,8 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         inputProvenances.push(fileProvenance)
         mediaFiles.push({
           buffer,
-          mimeType: fileRecord.type || 'application/octet-stream',
-          name: fileRecord.name,
+          mimeType: file.type || 'application/octet-stream',
+          name: file.name,
         })
       }
 
@@ -241,7 +246,8 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         downloadUrl: written.downloadUrl,
       }
     } catch (error) {
-      const errorMessage = getErrorMessage(error, '')
+      const errorMessage =
+        asOrchestrationError(error)?.code === 'internal' ? '' : getErrorMessage(error, '')
       const projection = inputRequiresOpaqueError
         ? undefined
         : errorMessage

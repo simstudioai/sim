@@ -165,11 +165,18 @@ function encodeSegment(segment: string, paramName: string): string {
  *   number or a bigint is stringified, since an LLM can emit a numeric-looking
  *   id as a JSON number; any other non-string kind is rejected by name.
  * @param paramName - The parameter name, used to name the offender in errors.
+ * @param options.allowSeparators - Percent-encode `/` and `\` instead of
+ *   rejecting them, for opaque ids (such as base64) that may legitimately
+ *   contain them. Empty values and dot segments are still rejected.
  * @returns The trimmed, percent-encoded segment, safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, is a dot
- *   segment, contains a path separator, or cannot be encoded.
+ *   segment, contains a path separator (unless allowed), or cannot be encoded.
  */
-export function safeUrlPathSegment(value: string | number | bigint, paramName: string): string {
+export function safeUrlPathSegment(
+  value: string | number | bigint,
+  paramName: string,
+  options?: { allowSeparators?: boolean }
+): string {
   const trimmed = toGuardedString(value, paramName).trim()
 
   if (!trimmed) {
@@ -180,7 +187,7 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
     throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
   }
 
-  if (trimmed.includes('/') || trimmed.includes('\\')) {
+  if (!options?.allowSeparators && (trimmed.includes('/') || trimmed.includes('\\'))) {
     throw new Error(`${paramName} cannot contain a path separator`)
   }
 

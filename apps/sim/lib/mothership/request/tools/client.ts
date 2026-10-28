@@ -4,17 +4,27 @@ import { filterUndefined, isPlainRecord } from '@sim/utils/object'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncTerminalCompletionSnapshot,
+  getTerminalConfirmationStatus,
   isAsyncTerminalConfirmationStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { replaceTerminalAsyncToolCallResult } from '@/lib/mothership/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
-import { waitForToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
+import {
+  getToolConfirmation,
+  waitForToolConfirmation,
+} from '@/lib/mothership/persistence/tool-confirm'
 import {
   type ClientToolUnsealFailureReason,
+  SEALED_CLIENT_TOOL_PROJECTION_FIELD,
+  sealProjectedClientToolCompletion,
   unsealClientToolCompletion,
   unsealClientToolContext,
+  unsealProjectedClientToolCompletion,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
-import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import {
+  inspectToolResultForCopilot,
+  TOOL_RESULT_UNAVAILABLE_ERROR,
+} from '@/lib/mothership/request/tools/resolved-secret-result'
 import {
   boundRunResultForModel,
   presentWorkflowLogsForModel,
@@ -23,7 +33,6 @@ import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionExecutionId,
   getWorkflowToolCompletionMessage,
-  getWorkflowToolConfirmationStatus,
   getWorkflowToolLaunchError,
   type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
@@ -43,7 +52,8 @@ const logger = createLogger('CopilotClientToolWaiter')
 export async function waitForToolCompletion(
   toolCallId: string,
   timeoutMs: number | null,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  settleOverdue?: () => Promise<unknown>
 ): Promise<AsyncTerminalCompletionSnapshot | null> {
   const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal, {
     acceptStatus: (status) =>
@@ -51,6 +61,7 @@ export async function waitForToolCompletion(
       status === MothershipStreamV1ToolOutcome.error ||
       status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
       status === MothershipStreamV1ToolOutcome.cancelled,
+    ...(settleOverdue ? { settleOverdue } : {}),
   })
   if (decision && isAsyncTerminalConfirmationStatus(decision.status)) {
     return { ...decision, status: decision.status }
@@ -66,6 +77,8 @@ interface WaitForClientToolCompletionOptions {
   timeoutMs: number | null
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
+  /** See `waitForToolConfirmation`: enforces the call's server-side deadlines while it waits. */
+  settleOverdue?: () => Promise<unknown>
 }
 
 function getGenericCompletionMessage(status: AsyncTerminalCompletionSnapshot['status']): string {
@@ -75,8 +88,26 @@ function getGenericCompletionMessage(status: AsyncTerminalCompletionSnapshot['st
   return 'Tool failed'
 }
 
+function unavailableClientCompletion(
+  status: AsyncTerminalCompletionSnapshot['status']
+): AsyncTerminalCompletionSnapshot {
+  return {
+    status:
+      status === MothershipStreamV1ToolOutcome.cancelled
+        ? status
+        : MothershipStreamV1ToolOutcome.error,
+    message: TOOL_RESULT_UNAVAILABLE_ERROR,
+    data: {
+      error: TOOL_RESULT_UNAVAILABLE_ERROR,
+      resultWithheld: true,
+      outcomeUnknown: true,
+      doNotRetry: true,
+    },
+  }
+}
+
 /**
- * Restores a generic browser/terminal result from its sealed transport envelope,
+ * Restores a client result from its sealed transport envelope,
  * projects active Secrets values, then replaces the durable row before delivery.
  */
 export async function waitForClientToolCompletion({
@@ -86,13 +117,27 @@ export async function waitForClientToolCompletion({
   timeoutMs,
   abortSignal,
   registry,
+  settleOverdue,
 }: WaitForClientToolCompletionOptions): Promise<AsyncTerminalCompletionSnapshot | null> {
-  const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
+  const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal, settleOverdue)
   if (!completion) return null
+
+  const binding = runId ? { toolCallId, runId, userId } : undefined
+  if (
+    isPlainRecord(completion.data) &&
+    Object.hasOwn(completion.data, SEALED_CLIENT_TOOL_PROJECTION_FIELD)
+  ) {
+    const recovered = binding
+      ? await unsealProjectedClientToolCompletion(completion.data, {
+          ...binding,
+          status: completion.status,
+        })
+      : null
+    return recovered ?? unavailableClientCompletion(completion.status)
+  }
 
   const toolRegistry = registry?.forkForInputPaths([])
   const genericMessage = getGenericCompletionMessage(completion.status)
-  const binding = runId ? { toolCallId, runId, userId } : undefined
   const registryCanImport = toolRegistry !== undefined && !toolRegistry.isPermanentlyIncomplete()
   const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
@@ -119,7 +164,7 @@ export async function waitForClientToolCompletion({
     if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
         if (sealingAttempted) {
-          /** The durable row is replaced below, so report the failing guard before it is lost. */
+          /** Report the refusing guard without exposing or replacing the durable source. */
           logger.error('Client tool provenance could not be restored', {
             toolCallId,
             runId,
@@ -156,7 +201,7 @@ export async function waitForClientToolCompletion({
   } finally {
     finishPendingActivation?.()
   }
-  if (!toolRegistry?.isComplete()) content = null
+  if (!toolRegistry?.isComplete() || !content) return unavailableClientCompletion(completion.status)
 
   const rawOutput: Record<string, unknown> = {
     ...(content?.message !== undefined ? { message: content.message } : {}),
@@ -171,6 +216,7 @@ export async function waitForClientToolCompletion({
     },
     toolRegistry
   )
+  if (!projection.safe) return unavailableClientCompletion(completion.status)
   const projected = projection.result
   const projectedOutput = isPlainRecord(projected.output) ? projected.output : undefined
   const modelSucceeded = succeeded && projected.success
@@ -201,22 +247,48 @@ export async function waitForClientToolCompletion({
           ? 'cancelled'
           : 'failed'
     try {
+      if (!binding) return unavailableClientCompletion(completion.status)
+      const receipt = await sealProjectedClientToolCompletion({
+        ...binding,
+        status: modelSucceeded
+          ? 'success'
+          : completion.status === 'cancelled'
+            ? 'cancelled'
+            : 'error',
+        message,
+        data: terminalData,
+      })
       const updated = await replaceTerminalAsyncToolCallResult({
         toolCallId,
         status,
-        result: terminalData,
+        result: receipt,
         error: modelSucceeded ? null : message,
+        expectedResult: completion.data,
       })
       if (!updated) {
-        logger.warn('Client tool row was no longer terminal during safe payload update', {
-          toolCallId,
-        })
+        const winner = await getToolConfirmation(toolCallId)
+        const recovered =
+          winner && isAsyncTerminalConfirmationStatus(winner.status)
+            ? await unsealProjectedClientToolCompletion(winner.data, {
+                ...binding,
+                status: winner.status,
+              })
+            : null
+        return (
+          recovered ??
+          unavailableClientCompletion(
+            winner && isAsyncTerminalConfirmationStatus(winner.status)
+              ? winner.status
+              : completion.status
+          )
+        )
       }
     } catch (error) {
       logger.warn('Failed to persist projected client tool result', {
         toolCallId,
         error: getErrorMessage(error),
       })
+      return unavailableClientCompletion(completion.status)
     }
   }
 
@@ -275,10 +347,7 @@ export async function waitForWorkflowToolCompletion({
 
   try {
     completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
-    if (!completion) {
-      toolRegistry?.markIncomplete('client-tool-completion-missing')
-      return null
-    }
+    if (!completion) return null
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
     const launchError = getWorkflowToolLaunchError(completion.data)
@@ -314,7 +383,7 @@ export async function waitForWorkflowToolCompletion({
     if (!trustedExecution.contentAvailable) {
       toolRegistry?.markIncomplete('client-tool-content-unavailable')
       return structuralWorkflowCompletion(
-        getWorkflowToolConfirmationStatus(trustedExecution.status),
+        getTerminalConfirmationStatus(trustedExecution.status),
         workflowId,
         executionId
       )
@@ -330,7 +399,7 @@ export async function waitForWorkflowToolCompletion({
           origin: 'copilotToolClient.workflowExecution',
         })
       return structuralWorkflowCompletion(
-        getWorkflowToolConfirmationStatus(trustedExecution.status),
+        getTerminalConfirmationStatus(trustedExecution.status),
         workflowId,
         executionId
       )
@@ -370,7 +439,7 @@ export async function waitForWorkflowToolCompletion({
   if (!completion || !trustedExecution || !workflowId) return completion
 
   const executionId = trustedExecution.executionId
-  const status = getWorkflowToolConfirmationStatus(trustedExecution.status)
+  const status = getTerminalConfirmationStatus(trustedExecution.status)
   const genericMessage = getWorkflowToolCompletionMessage(status)
   const error =
     status !== MothershipStreamV1ToolOutcome.success

@@ -4,11 +4,14 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderToReadableStream } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBrandingProvider,
+  mockIsDesktopPresenceAvailable,
+  mockHasSignedInDesktopExecutor,
+  mockWorkspaceChrome,
   mockGetOrgWhitelabelSettings,
   mockPrefetchWorkspaceHostContext,
   mockPrefetchWorkspaceSidebar,
@@ -16,6 +19,11 @@ const {
   mockPrefetchWorkspaceForkAvailability,
 } = vi.hoisted(() => ({
   mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
+  mockIsDesktopPresenceAvailable: vi.fn(() => false),
+  mockHasSignedInDesktopExecutor: vi.fn(async () => false),
+  mockWorkspaceChrome: vi.fn(
+    ({ children }: { children: ReactNode; sidebar: ReactNode }) => children
+  ),
   mockGetOrgWhitelabelSettings: vi.fn(),
   mockPrefetchWorkspaceHostContext: vi.fn(),
   mockPrefetchWorkspaceSidebar: vi.fn(),
@@ -64,7 +72,16 @@ vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
-  WorkspaceChrome: ({ children }: { children: ReactNode }) => children,
+  WorkspaceChrome: mockWorkspaceChrome,
+  WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
+}))
+
+vi.mock('@/lib/desktop/executor/presence', () => ({
+  isDesktopPresenceAvailable: mockIsDesktopPresenceAvailable,
+}))
+
+vi.mock('@/lib/desktop/executor/repository', () => ({
+  hasSignedInDesktopExecutor: mockHasSignedInDesktopExecutor,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
@@ -161,7 +178,7 @@ describe('WorkspaceLayout host context', () => {
       children: <div>Workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-b' }),
     })
-    renderToStaticMarkup(element)
+    await new Response(await renderToReadableStream(element)).text()
 
     expect(mockGetOrgWhitelabelSettings).toHaveBeenCalledWith('org-b')
     expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalledWith('org-a')
@@ -194,7 +211,7 @@ describe('WorkspaceLayout host context', () => {
       children: <div>Secret workspace child</div>,
       params: Promise.resolve({ workspaceId: 'workspace-denied' }),
     })
-    const html = renderToStaticMarkup(element)
+    const html = await new Response(await renderToReadableStream(element)).text()
 
     expect(html).toContain('Workspace access denied')
     expect(html).not.toContain('Secret workspace child')
@@ -202,4 +219,36 @@ describe('WorkspaceLayout host context', () => {
     expect(mockPrefetchWorkspaceAccess).not.toHaveBeenCalled()
     expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalled()
   })
+
+  async function sidebarProps() {
+    mockWorkspaceChrome.mockClear()
+    const element = await WorkspaceLayout({
+      children: <div>Workspace child</div>,
+      params: Promise.resolve({ workspaceId: 'workspace-b' }),
+    })
+    await new Response(await renderToReadableStream(element)).text()
+    return mockWorkspaceChrome.mock.calls[0][0].sidebar
+  }
+
+  it('tells the sidebar the desktop executor runs only where presence is tracked', async () => {
+    mockIsDesktopPresenceAvailable.mockReturnValue(false)
+    mockHasSignedInDesktopExecutor.mockResolvedValue(true)
+
+    expect(await sidebarProps()).toMatchObject({
+      props: { desktopExecutor: { available: false, registered: false } },
+    })
+    mockHasSignedInDesktopExecutor.mockResolvedValue(false)
+  })
+
+  it.each([true, false])(
+    'tells the sidebar whether the viewer has a desktop that runs their turns (%s)',
+    async (registered) => {
+      mockIsDesktopPresenceAvailable.mockReturnValue(true)
+      mockHasSignedInDesktopExecutor.mockResolvedValueOnce(registered)
+
+      expect(await sidebarProps()).toMatchObject({
+        props: { desktopExecutor: { available: true, registered } },
+      })
+    }
+  )
 })

@@ -33,20 +33,17 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
-import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import { ProjectConflictError } from '@/lib/projects/errors'
+import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
-import {
-  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
-  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
-  WorkspaceBillingAccountRemovalError,
-} from '@/lib/workspaces/utils'
+import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  conflictResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminConflictResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { AdminWorkspaceMember } from '@/app/api/v1/admin/types'
@@ -69,7 +66,7 @@ export const GET = withRouteHandler(
       const workspaceData = await getWorkspaceById(workspaceId)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const [memberData] = await db
@@ -95,7 +92,7 @@ export const GET = withRouteHandler(
         .limit(1)
 
       if (!memberData) {
-        return notFoundResponse('Workspace member')
+        return adminNotFoundResponse('Workspace member')
       }
 
       const data: AdminWorkspaceMember = {
@@ -115,7 +112,7 @@ export const GET = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to get workspace member', { error, workspaceId, memberId })
-      return internalErrorResponse('Failed to get workspace member')
+      return adminInternalErrorResponse('Failed to get workspace member')
     }
   })
 )
@@ -132,7 +129,7 @@ export const PATCH = withRouteHandler(
       const workspaceData = await getWorkspaceById(workspaceId)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const [existingMember] = await db
@@ -153,7 +150,7 @@ export const PATCH = withRouteHandler(
         .limit(1)
 
       if (!existingMember) {
-        return notFoundResponse('Workspace member')
+        return adminNotFoundResponse('Workspace member')
       }
 
       const [workspaceBilling] = await db
@@ -166,7 +163,7 @@ export const PATCH = withRouteHandler(
         workspaceBilling?.billedAccountUserId === existingMember.userId &&
         permissionLevel !== 'admin'
       ) {
-        return badRequestResponse('Workspace billing account must retain admin permissions')
+        return adminBadRequestResponse('Workspace billing account must retain admin permissions')
       }
 
       const now = new Date()
@@ -183,7 +180,7 @@ export const PATCH = withRouteHandler(
         .returning({ id: permissions.id })
 
       if (updated.length === 0) {
-        return conflictResponse('Workspace member changed during the update. Retry.')
+        return adminConflictResponse('Workspace member changed during the update. Retry.')
       }
 
       const [userData] = await db
@@ -228,7 +225,7 @@ export const PATCH = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to update workspace member', { error, workspaceId, memberId })
-      return internalErrorResponse('Failed to update workspace member')
+      return adminInternalErrorResponse('Failed to update workspace member')
     }
   })
 )
@@ -244,7 +241,7 @@ export const DELETE = withRouteHandler(
       const workspaceData = await getWorkspaceById(workspaceId)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const [existingMember] = await db
@@ -263,7 +260,7 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (!existingMember) {
-        return notFoundResponse('Workspace member')
+        return adminNotFoundResponse('Workspace member')
       }
 
       const [workspaceBilling] = await db
@@ -273,33 +270,25 @@ export const DELETE = withRouteHandler(
         .limit(1)
 
       if (workspaceBilling?.billedAccountUserId === existingMember.userId) {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'Cannot remove the workspace billing account. Please reassign billing first.'
         )
       }
 
-      await db.transaction(async (tx) => {
-        await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
-          tx,
+      const removed = await db.transaction(async (tx) => {
+        const result = await revokeWorkspaceAccessTx(tx, {
           workspaceId,
-          departingUserId: existingMember.userId,
+          userId: existingMember.userId,
+          expectedPermissionId: existingMember.id,
         })
-
-        const workflowOwnershipReassignment =
-          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
-            tx,
-            workspaceIds: [workspaceId],
-            departingUserId: existingMember.userId,
-          })
-        if (workflowOwnershipReassignment.unresolved.length > 0) {
+        if (!result.revoked) {
+          if (result.reason === 'membership-changed') return null
           throw new WorkspaceBillingAccountRemovalError()
         }
-
-        await tx.delete(permissions).where(eq(permissions.id, memberId))
-
-        await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, existingMember.userId)
-        await removeWorkspaceSkillMembershipsTx(tx, workspaceId, existingMember.userId)
+        return result
       })
+      if (!removed) return adminNotFoundResponse('Workspace member')
+      deliverRunStops(removed.stoppedRuns)
 
       logger.info(`Admin API: Removed member ${memberId} from workspace ${workspaceId}`, {
         userId: existingMember.userId,
@@ -323,11 +312,12 @@ export const DELETE = withRouteHandler(
         workspaceId,
       })
     } catch (error) {
+      if (error instanceof ProjectConflictError) return adminConflictResponse(error.message)
       if (error instanceof WorkspaceBillingAccountRemovalError) {
-        return badRequestResponse(error.message)
+        return adminBadRequestResponse(error.message)
       }
       logger.error('Admin API: Failed to remove workspace member', { error, workspaceId, memberId })
-      return internalErrorResponse('Failed to remove workspace member')
+      return adminInternalErrorResponse('Failed to remove workspace member')
     }
   })
 )

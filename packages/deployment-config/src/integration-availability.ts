@@ -102,6 +102,17 @@ function resolveOAuthIntegrationAvailability(
         missingFields: [],
       }
     }
+    if (serviceAccount && serviceAccount.deploymentRequirement === undefined) {
+      return {
+        type: integration.type,
+        slug: integration.slug,
+        name: integration.name,
+        state: 'limited',
+        oauthAvailable: false,
+        serviceAccountAvailable: true,
+        missingFields: [],
+      }
+    }
     throw new Error(
       `OAuth integration ${integration.slug} has no OAuth client capability definition`
     )

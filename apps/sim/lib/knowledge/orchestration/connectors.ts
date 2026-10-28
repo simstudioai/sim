@@ -13,7 +13,7 @@ import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import {
   hasWorkspaceLiveSyncAccess,
   isOrganizationOnEnterprisePlan,
@@ -60,6 +60,7 @@ import {
 import type { PreparedConnectorPermissions } from '@/lib/knowledge/connectors/permission-config'
 import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
+import { isImageExtractionEnabled } from '@/lib/knowledge/documents/image-extraction-policy'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -72,6 +73,7 @@ import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
 import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import { getConnectorMeta } from '@/connectors/registry'
 import { findSourceSelectionError } from '@/connectors/selection'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
@@ -471,7 +473,7 @@ export async function performCreateKnowledgeConnector(
   try {
     created = await db.transaction(async (tx) => {
       if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
-      await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR UPDATE`)
+      await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR NO KEY UPDATE`)
 
       const activeKb = await tx
         .select({ id: knowledgeBase.id })
@@ -958,6 +960,17 @@ export async function performUpdateKnowledgeConnector(
     values.lastSyncAt = null
     values.listingCheckpoint = null
     values.directoryCheckpoint = null
+    const imageExtraction = getConnectorMeta(existing.connectorType)?.imageExtraction
+    if (imageExtraction) {
+      /** Turning images off queues removal of the indexed ones; turning them back on cancels it. */
+      if (isImageExtractionEnabled(imageExtraction, sourceConfigToStore)) {
+        values.imageRemovalPending = false
+      } else if (
+        isImageExtractionEnabled(imageExtraction, existing.sourceConfig as Record<string, unknown>)
+      ) {
+        values.imageRemovalPending = true
+      }
+    }
   }
   if (updates.syncIntervalMinutes !== undefined) {
     values.syncIntervalMinutes = updates.syncIntervalMinutes

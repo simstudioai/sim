@@ -70,7 +70,7 @@ export const dropcontactEnrichContactTool: ToolConfig<
   id: 'dropcontact_enrich_contact',
   name: 'Dropcontact Enrich Contact',
   description:
-    'Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then polls until the result is ready (up to 2 minutes). Charges 1 credit only when a verified email is returned. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL.',
+    'Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then makes up to 24 polls, waiting five seconds before each attempt. Dropcontact charges 1 credit for successful email enrichment or for checking an email supplied for verification. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL.',
   version: '1.0.0',
 
   hosting: dropcontactHosting<DropcontactEnrichContactParams>((_params, output) => {

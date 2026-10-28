@@ -70,11 +70,3 @@ export function requireRedis() {
 
   return redis
 }
-
-/**
- * Reset the cached storage method.
- * Only use for testing purposes.
- */
-export function resetStorageMethod(): void {
-  cachedStorageMethod = null
-}

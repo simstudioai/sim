@@ -24,7 +24,7 @@ const hoisted = vi.hoisted(() => ({
   shared: vi.fn(),
   revoke: vi.fn(),
   validateGrant: vi.fn(),
-  memberApps: vi.fn(),
+  memberApp: vi.fn(),
   adoptMemberApp: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
@@ -45,9 +45,13 @@ vi.mock('@/lib/internal/slack/oauth', () => ({
   validateSlackBotAuthorization: hoisted.validateGrant,
 }))
 vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
-vi.mock('@/lib/credential-groups/organization-slack-app', () => ({
-  loadOrganizationSlackMemberApps: hoisted.memberApps,
+vi.mock('@/lib/credential-groups/organization-slack-app', async (importOriginal) => ({
+  requireSearchBotMatchesMemberApp: (
+    await importOriginal<typeof import('@/lib/credential-groups/organization-slack-app')>()
+  ).requireSearchBotMatchesMemberApp,
+  resolveOrganizationSlackMemberApp: hoisted.memberApp,
   adoptOrganizationSlackMemberApp: hoisted.adoptMemberApp,
+  lockOrganizationSlackApp: vi.fn(),
 }))
 vi.mock('@/lib/internal/slack/search-client', () => ({
   verifySlackSearchBot: hoisted.verify,
@@ -99,7 +103,7 @@ beforeEach(() => {
   m.revoke.mockResolvedValue(undefined)
   m.validateGrant.mockReset()
   m.ensureGroup.mockResolvedValue({ id: 'accounts' })
-  m.memberApps.mockReset().mockResolvedValue([])
+  m.memberApp.mockReset().mockResolvedValue({ app: null, scopes: [] })
   urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
   m.membership.mockResolvedValue([{ role: 'admin' }])
   m.rows.mockReset().mockResolvedValue([])
@@ -310,9 +314,7 @@ describe('shared app completion', () => {
     }
 
     beforeEach(() => {
-      m.memberApps.mockResolvedValue([
-        { configuration: { slack: { ...memberApp, scopes: ['im:history'] } } },
-      ])
+      m.memberApp.mockResolvedValue({ app: memberApp, scopes: ['im:history'] })
       m.consume.mockResolvedValue({
         ...attempt,
         sharedApp: { id: sharedApp.id, revision: sharedApp.revision },
@@ -427,17 +429,7 @@ describe('connect an app already installed through a Slack manifest', () => {
   })
 
   it('rejects a token from a different app than member indexing', async () => {
-    m.memberApps.mockResolvedValue([
-      {
-        configuration: {
-          slack: {
-            appId: 'AOTHER',
-            teamId: 'T1',
-            scopes: [],
-          },
-        },
-      },
-    ])
+    m.memberApp.mockResolvedValue({ app: { appId: 'AOTHER', teamId: 'T1' }, scopes: [] })
     await expect(connect()).rejects.toThrow('same Slack app and workspace')
     expect(db.transaction).not.toHaveBeenCalled()
   })

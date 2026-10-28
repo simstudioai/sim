@@ -3,6 +3,9 @@ exact = true
 # Supply-chain gate: only install package versions published at least 7 days ago
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
+# Explicit framework pins must install before their release reaches the age threshold: a
+# security release of Next.js or Electron is pinned exactly the day it ships.
+minimumReleaseAgeExcludes = ["next", "@next/env", "electron"]
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }

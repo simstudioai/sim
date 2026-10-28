@@ -1,31 +1,29 @@
 ---
 title: Hex
 description: Run and manage Hex projects
+integration:
+  type: "hex"
+  color: "#14151A"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="hex"
-  color="#14151A"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Hex](https://hex.tech/) to run analytics projects, inspect results and run status, and manage workspace collections and groups. Connect with a Hex API token.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Hex into your workflow. Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.
-
-
+Run projects, check run status, manage collections and groups (including membership and deactivating users), list users, and view data connections. Requires a Hex API token.
 
 ## Actions
 
 ### Hex Cancel Run
 
 Cancel an active Hex project run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -43,9 +41,13 @@ Cancel an active Hex project run.
 | `projectId` | string | Project UUID |
 | `runId` | string | Run UUID that was cancelled |
 
+</ReferenceDetails>
+
 ### Hex Create Collection
 
 Create a new collection in the Hex workspace to organize projects.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -66,9 +68,13 @@ Create a new collection in the Hex workspace to organize projects.
 |   ↳ `email` | string | Creator email |
 |   ↳ `id` | string | Creator UUID |
 
+</ReferenceDetails>
+
 ### Hex Create Group
 
 Create a new group in the Hex workspace, optionally with initial members.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -86,9 +92,13 @@ Create a new group in the Hex workspace, optionally with initial members.
 | `name` | string | Group name |
 | `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Hex Deactivate User
 
 Deactivate a user in the Hex workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -104,9 +114,13 @@ Deactivate a user in the Hex workspace.
 | `success` | boolean | Whether the user was successfully deactivated |
 | `userId` | string | User UUID that was deactivated |
 
+</ReferenceDetails>
+
 ### Hex Delete Group
 
 Delete a group from the Hex workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -122,9 +136,13 @@ Delete a group from the Hex workspace.
 | `success` | boolean | Whether the group was successfully deleted |
 | `groupId` | string | Group UUID that was deleted |
 
+</ReferenceDetails>
+
 ### Hex Get Collection
 
 Retrieve details for a specific Hex collection by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +162,13 @@ Retrieve details for a specific Hex collection by its ID.
 |   ↳ `email` | string | Creator email |
 |   ↳ `id` | string | Creator UUID |
 
+</ReferenceDetails>
+
 ### Hex Get Data Connection
 
 Retrieve details for a specific data connection including type, description, and configuration flags.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -167,9 +189,13 @@ Retrieve details for a specific data connection including type, description, and
 | `includeMagic` | boolean | Whether Magic AI features are enabled |
 | `allowWritebackCells` | boolean | Whether writeback cells are allowed |
 
+</ReferenceDetails>
+
 ### Hex Get Group
 
 Retrieve details for a specific Hex group.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -186,9 +212,13 @@ Retrieve details for a specific Hex group.
 | `name` | string | Group name |
 | `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Hex Get Project
 
 Get metadata and details for a specific Hex project by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -220,9 +250,13 @@ Get metadata and details for a specific Hex project by its ID.
 | `archivedAt` | string | ISO 8601 archived timestamp |
 | `trashedAt` | string | ISO 8601 trashed timestamp |
 
+</ReferenceDetails>
+
 ### Hex Get Project Runs
 
 Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -254,9 +288,13 @@ Retrieve API-triggered runs for a Hex project with optional filtering by status 
 | `nextPage` | string | Cursor for the next page of runs |
 | `previousPage` | string | Cursor for the previous page of runs |
 
+</ReferenceDetails>
+
 ### Hex Get Queried Tables
 
 Return the warehouse tables queried by a Hex project, including data connection and table names.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +314,13 @@ Return the warehouse tables queried by a Hex project, including data connection 
 |   ↳ `tableName` | string | Table name |
 | `total` | number | Total number of tables returned |
 
+</ReferenceDetails>
+
 ### Hex Get Run Status
 
 Check the status of a Hex project run by its run ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -302,9 +344,13 @@ Check the status of a Hex project run by its run ID.
 | `traceId` | string | Trace ID for debugging |
 | `projectVersion` | number | Project version number |
 
+</ReferenceDetails>
+
 ### Hex List Collections
 
 List all collections in the Hex workspace.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -331,9 +377,13 @@ List all collections in the Hex workspace.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
+</ReferenceDetails>
+
 ### Hex List Data Connections
 
 List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -362,9 +412,13 @@ List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, Big
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
+</ReferenceDetails>
+
 ### Hex List Groups
 
 List all groups in the Hex workspace with optional sorting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -389,9 +443,13 @@ List all groups in the Hex workspace with optional sorting.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
+</ReferenceDetails>
+
 ### Hex List Projects
 
 List all projects in your Hex workspace with optional filtering by status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -435,9 +493,13 @@ List all projects in your Hex workspace with optional filtering by status.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
+</ReferenceDetails>
+
 ### Hex List Users
 
 List all users in the Hex workspace with optional filtering and sorting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -466,9 +528,13 @@ List all users in the Hex workspace with optional filtering and sorting.
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
 
+</ReferenceDetails>
+
 ### Hex Run Project
 
 Execute a published Hex project. Optionally pass input parameters and control caching behavior.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -495,9 +561,13 @@ Execute a published Hex project. Optionally pass input parameters and control ca
 | `traceId` | string | Trace ID for debugging |
 | `projectVersion` | number | Project version number |
 
+</ReferenceDetails>
+
 ### Hex Update Collection
 
 Update the name or description of an existing Hex collection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -519,9 +589,13 @@ Update the name or description of an existing Hex collection.
 |   ↳ `email` | string | Creator email |
 |   ↳ `id` | string | Creator UUID |
 
+</ReferenceDetails>
+
 ### Hex Update Group
 
 Rename a Hex group or add/remove members from it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -541,9 +615,13 @@ Rename a Hex group or add/remove members from it.
 | `name` | string | Group name |
 | `createdAt` | string | Creation timestamp |
 
+</ReferenceDetails>
+
 ### Hex Update Project
 
 Update a Hex project status label (e.g., endorsement or custom workspace statuses).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -575,5 +653,7 @@ Update a Hex project status label (e.g., endorsement or custom workspace statuse
 | `createdAt` | string | Creation timestamp |
 | `archivedAt` | string | Archived timestamp |
 | `trashedAt` | string | Trashed timestamp |
+
+</ReferenceDetails>
 
 

@@ -249,6 +249,8 @@ export async function resolveWorkflowIdForUser(
  * Adds settled runs to a workflow's `runCount` and stamps `lastRunAt`. The
  * increment happens in SQL: concurrent runs of one workflow settle at the same
  * time, and a read-then-write would let one overwrite the other's count.
+ * Resolves `null` when the workflow was deleted while its run settled, which
+ * leaves nothing to count.
  */
 export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
   try {
@@ -261,8 +263,8 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
       .where(eq(workflowTable.id, workflowId))
       .returning({ runCount: workflowTable.runCount })
     if (!updated) {
-      logger.error(`Workflow ${workflowId} not found`)
-      throw new Error(`Workflow ${workflowId} not found`)
+      logger.info(`Skipped run count for deleted workflow ${workflowId}`)
+      return null
     }
 
     return {

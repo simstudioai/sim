@@ -21,7 +21,7 @@ import {
   requireBillingCallbackAttribution,
   resolveLegacyV0BillingAttribution,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   type MidRunUsageVerdict,
   readMidRunAccountUsageVerdict,
@@ -30,6 +30,7 @@ import {
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
+  CumulativeUsageInFlightError,
   CumulativeUsagePeriodClosedError,
   recordCumulativeUsage,
 } from '@/lib/billing/core/usage-log'
@@ -43,17 +44,19 @@ import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { BillingInFlightCode } from '@/lib/mothership/generated/billing'
 import { BILLING_CALLBACK_OUTCOME } from '@/lib/mothership/generated/billing-protocol-v1'
 import { BillingRouteOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { recordJobRunSpend } from '@/lib/mothership/jobs/budget'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('BillingUpdateCostAPI')
 /**
  * How long a cost callback waits on the payer's standing. The worker gives up on the whole
- * callback after 5 s, and a cold gate read can wait on the ledger far longer; past this the
+ * callback after 15 s, and a cold gate read can wait on the ledger far longer; past this the
  * callback answers not-exceeded. The abandoned read keeps running and caches its admission, and
  * the next step or re-check reads a refusal again.
  */
@@ -82,8 +85,8 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * once it crosses the limit instead of at its next admission, with the card the worker writes
  * to its log. The payer is the attributed run's, or the one a direct-v1 run was admitted with.
  * A duplicate callback answers too: it is often a retry whose first answer was lost. An
- * admission is cached per payer and actor for the gate TTL and a refusal is always re-read, so
- * steady-state steps cost no ledger read. The charge is
+ * admission is cached per payer and actor (briefly once near the limit) and a refusal is always
+ * re-read, so most steps cost no ledger read. The charge is
  * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
  * refusal to the next step or re-check rather than ending a paying run on a database blip,
  * and so does a verdict read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}. An exceeded
@@ -117,6 +120,28 @@ async function readUsageStanding(
       billingAttribution ?? verdict.payer,
       verdict.scope
     ),
+  }
+}
+
+/**
+ * Adds a scheduled job run's own spend cap to the payer's standing. A payer over its plan limit
+ * keeps the plan card; otherwise a job run at its cap pauses with the job's card. A cap that
+ * cannot be read answers as the payer's standing alone, like a standing read that fails.
+ */
+async function withJobRunBudget(
+  verdict: BillingUsageVerdict,
+  billingRequestId: string | undefined,
+  cumulativeCostUsd: number
+): Promise<BillingUsageVerdict> {
+  if (verdict.usageExceeded || !billingRequestId) return verdict
+  try {
+    const card = await recordJobRunSpend(billingRequestId, cumulativeCostUsd)
+    return card ? { usageExceeded: true, usageUpgrade: card } : verdict
+  } catch (error) {
+    logger.warn('Job run spend could not be recorded; answering the payer standing alone', {
+      error: toError(error).message,
+    })
+    return verdict
   }
 }
 
@@ -440,7 +465,11 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       await checkAndBillOverageThreshold(userId, undefined, { onError: 'throw' })
     }
 
-    const usageVerdict = await readUsageStanding(userId, billingAttribution, accountDecision)
+    const usageVerdict = await withJobRunBudget(
+      await readUsageStanding(userId, billingAttribution, accountDecision),
+      billingRequestId,
+      cost
+    )
     const duration = Date.now() - startTime
 
     // Same-or-lower cumulative than already recorded: nothing new to bill.
@@ -507,6 +536,32 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
           requestId,
         },
         { status: 409 }
+      )
+    }
+
+    /**
+     * Another attempt of this request is still being recorded, so this one's outcome is unknown:
+     * the caller resends later, and the monotonic top-up applies the higher cumulative once.
+     */
+    if (error instanceof CumulativeUsageInFlightError) {
+      logger.info(`[${requestId}] Cost update already in flight for this request`, {
+        eventKey: error.eventKey,
+        duration,
+      })
+      // The closed outcome set has no in-flight value, so the span matches the retryable settlement
+      // 503; the body's BILLING_REQUEST_IN_FLIGHT code and the INFO line above tell them apart.
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
+      span.setAttribute(TraceAttr.HttpStatusCode, 503)
+      span.setAttribute(TraceAttr.BillingDurationMs, duration)
+      return NextResponse.json(
+        {
+          success: false,
+          code: BillingInFlightCode,
+          error: 'Billing request already in flight',
+          retryable: true,
+          requestId,
+        },
+        { status: 503, headers: { 'Retry-After': '5' } }
       )
     }
 

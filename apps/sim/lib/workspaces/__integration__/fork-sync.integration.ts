@@ -9,6 +9,7 @@ import {
   knowledgeBase,
   outboxEvent,
   permissions,
+  project,
   user,
   userTableDefinitions,
   workflow,
@@ -21,6 +22,7 @@ import {
   workspaceOperationReceipt,
   workspaceSandbox,
 } from '@sim/db/schema'
+import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -144,7 +146,7 @@ describe('authorized fork and sync against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: sourceWorkspaceId,
       name: 'Fork source fixture',
       ownerId: userId,
@@ -183,9 +185,13 @@ describe('authorized fork and sync against PostgreSQL', () => {
     })
   })
   afterAll(async () => {
-    for (const id of createdWorkspaceIds) await db.delete(workspace).where(eq(workspace.id, id))
-    await db.delete(workspace).where(eq(workspace.id, sourceWorkspaceId))
-    await db.delete(user).where(eq(user.id, userId))
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(workspace)
+        .where(inArray(workspace.id, [sourceWorkspaceId, ...createdWorkspaceIds]))
+      await tx.delete(project).where(eq(project.ownerId, userId))
+      await tx.delete(user).where(eq(user.id, userId))
+    })
     await db.$client.end()
   })
 
@@ -1208,9 +1214,11 @@ describe('authorized fork and sync against PostgreSQL', () => {
     const childWorkspaceId = generateId()
     const sourceWorkspaceId = generateId()
     createdWorkspaceIds.push(sourceWorkspaceId, childWorkspaceId)
-    await db.insert(workspace).values(
-      [sourceWorkspaceId, childWorkspaceId].map((id) => ({
+    await insertWorkspaceFixture(
+      db,
+      [childWorkspaceId, sourceWorkspaceId].map((id) => ({
         id,
+        forkedFromWorkspaceId: id === childWorkspaceId ? sourceWorkspaceId : null,
         name: 'Knowledge copy fixture',
         ownerId: userId,
         billedAccountUserId: userId,

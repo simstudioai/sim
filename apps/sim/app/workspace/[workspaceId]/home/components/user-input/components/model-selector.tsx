@@ -9,39 +9,57 @@ import {
 } from '@sim/emcn'
 import { Brain, Check, Sparkles } from '@sim/emcn/icons'
 import {
+  MOTHERSHIP_EFFORT_OPTIONS,
   MOTHERSHIP_MODEL_OPTIONS,
   MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
-  mothershipEffortOptions,
+  type MothershipEffort,
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
 import { ModelSettingTrigger } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-setting-trigger'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipChatHistory,
+  useSetMothershipChatEffort,
+} from '@/hooks/queries/mothership-chats'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 
 /** Model, reasoning effort, and Fast mode for Build chat composers. */
-export function ModelSelector() {
+export function ModelSelector({ plan = false }: { plan?: boolean }) {
+  const usePreferenceStore = plan ? useMothershipPlanEffortStore : useMothershipEffortStore
   const advanced = useFeatureFlag('mothership-model-selector')
-  const selection = useMothershipEffortStore((state) => state.modelSelection)
-  const setModel = useMothershipEffortStore((state) => state.setModel)
-  const setFastMode = useMothershipEffortStore((state) => state.setFastMode)
-  const storedEffort = useMothershipEffortStore((state) => state.effort)
-  const { effort, modelSelection } = resolveMothershipModelSettings(
-    { effort: storedEffort, modelSelection: selection },
-    advanced
+  const selection = usePreferenceStore((state) => state.modelSelection)
+  const setModel = usePreferenceStore((state) => state.setModel)
+  const setFastMode = usePreferenceStore((state) => state.setFastMode)
+  const { chatId } = useChatSurface()
+  const { data: chatHistory } = useMothershipChatHistory(chatId)
+  const chatPick = useMothershipEffortStore((state) =>
+    chatId ? state.chatEfforts[chatId]?.effort : undefined
   )
-  const options = advanced
-    ? mothershipEffortOptions(modelSelection.model)
-    : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
-  const setEffort = useMothershipEffortStore((state) => state.setEffort)
+  const newChatEffort = useMothershipEffortStore((state) => state.newChatEffort)
+  const setNewChatEffort = useMothershipEffortStore((state) => state.setNewChatEffort)
+  const { mutate: saveChatEffort } = useSetMothershipChatEffort(chatId)
+  const effortChoice = chatId ? (chatPick ?? chatHistory?.effort) : newChatEffort
+  const { effort, modelSelection } = resolveMothershipModelSettings(
+    { effort: effortChoice ?? undefined, modelSelection: selection },
+    advanced,
+    plan
+  )
+  const options = modelSelection ? MOTHERSHIP_EFFORT_OPTIONS : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
+  const setEffort = (choice: MothershipEffort) => {
+    if (chatId) saveChatEffort(choice)
+    else setNewChatEffort(choice)
+  }
+
   const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
-  const modelLabel =
-    MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)?.label ??
-    modelSelection.model
 
   return (
     <div className='flex items-center gap-[inherit]'>
-      {advanced && (
+      {advanced && modelSelection && (
         <>
           {modelSelection.model !== 'claude-opus-5-5' && (
             <FastModeToggle
@@ -53,7 +71,10 @@ export function ModelSelector() {
           <DropdownMenu modal={false}>
             <ModelSettingTrigger
               label='Model'
-              valueLabel={modelLabel}
+              valueLabel={
+                MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
+                  ?.label ?? modelSelection.model
+              }
               icon={Sparkles}
               showChevron
             />

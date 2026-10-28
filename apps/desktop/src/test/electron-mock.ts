@@ -99,6 +99,10 @@ export const net = {
   fetch: vi.fn(),
 }
 
+export const powerMonitor = {
+  on: vi.fn(),
+}
+
 export const session = {
   fromPartition: vi.fn(),
 }
@@ -393,6 +397,7 @@ export const electronMock = {
   screen,
   Menu,
   net,
+  powerMonitor,
   session,
   protocol,
   ipcMain,

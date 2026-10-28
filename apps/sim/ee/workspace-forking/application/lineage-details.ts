@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
-import { readForkSyncNewWorkflowsExcluded } from '@/lib/workflows/persistence/new-workflow-row'
+import { and, eq, isNull } from 'drizzle-orm'
 import { getEffectiveWorkspacePermission } from '@/lib/workspaces/permissions/utils'
 import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
 import { getUndoableRunForTarget } from '@/ee/workspace-forking/lib/promote/promote-run-store'
@@ -24,6 +23,21 @@ async function withViewerAccess<T extends { id: string; organizationId: string |
 import { defineForkUseCase } from '@/ee/workspace-forking/application/authorized-fork-use-case'
 import { forkOperations } from '@/ee/workspace-forking/application/operations'
 
+/**
+ * The workspace's `forkSyncNewWorkflowsExcluded` policy: whether a workflow created now
+ * starts outside fork sync. `false` for an archived or missing workspace: a wrongly-synced
+ * workflow is visible and fixable in the Forks list, while a wrongly-excluded one silently
+ * stops syncing.
+ */
+async function readForkSyncNewWorkflowsExcluded(workspaceId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ excluded: workspace.forkSyncNewWorkflowsExcluded })
+    .from(workspace)
+    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+    .limit(1)
+  return row?.excluded ?? false
+}
+
 export const getWorkspaceForkLineageDetails = defineForkUseCase({
   operation: forkOperations.discover,
   availability: true,
@@ -40,7 +54,7 @@ export const getWorkspaceForkLineageDetails = defineForkUseCase({
       getForkChildren(workspaceId),
       getUndoableRunForTarget(db, workspaceId),
       // Lineage-uniform, so this workspace's own value is the lineage's value.
-      readForkSyncNewWorkflowsExcluded(db, workspaceId),
+      readForkSyncNewWorkflowsExcluded(workspaceId),
     ])
 
     const [parent, children] = await Promise.all([

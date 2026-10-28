@@ -1,0 +1,2854 @@
+{
+  "apps/sim/app/(auth)/oauth/sign-in/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/(interfaces)/chat/components/message/components/file-download.test.tsx": {
+    "TS2683": 1
+  },
+  "apps/sim/app/.well-known/oauth-protected-resource/api/mcp/search/organizations/[organizationId]/route.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/app/api/auth/[...all]/route.test.ts": {
+    "TS2554": 14
+  },
+  "apps/sim/app/api/auth/forget-password/route.test.ts": {
+    "TS2554": 8
+  },
+  "apps/sim/app/api/auth/instagram/authorize/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/auth/oauth/credentials/route.test.ts": {
+    "TS2322": 1,
+    "TS2345": 2,
+    "TS2554": 5
+  },
+  "apps/sim/app/api/auth/oauth/token/route.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2554": 11,
+    "TS2739": 2
+  },
+  "apps/sim/app/api/auth/oauth2/authorize/route.test.ts": {
+    "TS2345": 2,
+    "TS2554": 22
+  },
+  "apps/sim/app/api/auth/oauth2/callback/quickbooks/route.test.ts": {
+    "TS2554": 3
+  },
+  "apps/sim/app/api/auth/oauth2/callback/shopify/route.test.ts": {
+    "TS2554": 4
+  },
+  "apps/sim/app/api/auth/oauth2/register/route.test.ts": {
+    "TS2554": 7
+  },
+  "apps/sim/app/api/auth/oauth2/revoke/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/auth/oauth2/token/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 14
+  },
+  "apps/sim/app/api/auth/reset-password/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/auth/shopify/authorize/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/auth/sso/resolve/route.test.ts": {
+    "TS2554": 3
+  },
+  "apps/sim/app/api/billing/invoices/route.test.ts": {
+    "TS2554": 4
+  },
+  "apps/sim/app/api/billing/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 4
+  },
+  "apps/sim/app/api/billing/switch-plan/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/billing/update-cost/replay.live.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/billing/update-cost/route.test.ts": {
+    "TS2554": 51
+  },
+  "apps/sim/app/api/billing/update-cost/worker.live.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/blocks/visibility/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/chat/[identifier]/otp/route.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/app/api/chat/[identifier]/route.test.ts": {
+    "TS18048": 4
+  },
+  "apps/sim/app/api/chat/validate/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/cli/auth/approve/route.test.ts": {
+    "TS2554": 10
+  },
+  "apps/sim/app/api/cli/auth/poll/route.test.ts": {
+    "TS2554": 7
+  },
+  "apps/sim/app/api/copilot/api-keys/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/copilot/api-keys/validate/route.test.ts": {
+    "TS2554": 55
+  },
+  "apps/sim/app/api/copilot/chat/stop/route.test.ts": {
+    "TS18046": 2,
+    "TS2345": 1,
+    "TS2554": 1,
+    "TS2571": 2
+  },
+  "apps/sim/app/api/copilot/feedback/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/copilot/tool-permission/route.test.ts": {
+    "TS2554": 3
+  },
+  "apps/sim/app/api/credential-groups/slack-managed-users/callback/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/cron/cleanup-file-versions/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/cron/cleanup-stale-executions/route.test.ts": {
+    "TS2554": 3
+  },
+  "apps/sim/app/api/cron/cleanup-table-row-ttl/route.test.ts": {
+    "TS2554": 4
+  },
+  "apps/sim/app/api/cron/renew-subscriptions/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/desktop/auth/handoff/route.test.ts": {
+    "TS2554": 5
+  },
+  "apps/sim/app/api/desktop/tool/file/route.test.ts": {
+    "TS2322": 1,
+    "TS2554": 5
+  },
+  "apps/sim/app/api/files/authorization.test.ts": {
+    "TS2322": 1,
+    "TS2345": 2
+  },
+  "apps/sim/app/api/files/delete/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 1
+  },
+  "apps/sim/app/api/files/export/[id]/route.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/app/api/files/serve/[...path]/route.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/app/api/files/uploads/finalizers.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/app/api/files/uploads/route.test.ts": {
+    "TS2554": 4
+  },
+  "apps/sim/app/api/folders/reorder/route.test.ts": {
+    "TS2554": 3
+  },
+  "apps/sim/app/api/folders/route.test.ts": {
+    "TS2352": 1,
+    "TS2554": 5
+  },
+  "apps/sim/app/api/guardrails/mask-batch/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/guardrails/pii/validate/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/internal/file-doc/seed/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/invitations/[id]/resend/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/invitations/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/knowledge/connectors/directory-sync/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/knowledge/connectors/member-sync/route.test.ts": {
+    "TS2554": 4
+  },
+  "apps/sim/app/api/knowledge/connectors/sync/route.test.ts": {
+    "TS2554": 4
+  },
+  "apps/sim/app/api/knowledge/github/setup/redirects.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/knowledge/slack/oauth/callback/route.test.ts": {
+    "TS2554": 8
+  },
+  "apps/sim/app/api/link-preview/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/logs/export/route.test.ts": {
+    "TS2554": 9
+  },
+  "apps/sim/app/api/logs/stats/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/mcp/discover/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 2
+  },
+  "apps/sim/app/api/mcp/events/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/mcp/oauth/callback/route.test.ts": {
+    "TS2554": 7
+  },
+  "apps/sim/app/api/mcp/serve/[serverId]/route.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/app/api/mcp/servers/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/mcp/servers/test-connection/route.test.ts": {
+    "TS2554": 5
+  },
+  "apps/sim/app/api/mothership/chats/[chatId]/fork/route.test.ts": {
+    "TS2488": 1,
+    "TS2571": 3
+  },
+  "apps/sim/app/api/mothership/chats/read/route.test.ts": {
+    "TS2554": 3
+  },
+  "apps/sim/app/api/mothership/events/route.test.ts": {
+    "TS2554": 10
+  },
+  "apps/sim/app/api/organizations/[id]/permission-groups/[groupId]/route.test.ts": {
+    "TS2550": 2
+  },
+  "apps/sim/app/api/organizations/route.test.ts": {
+    "TS2554": 3,
+    "TS2769": 1
+  },
+  "apps/sim/app/api/pinned-items/route.test.ts": {
+    "TS2352": 1,
+    "TS2554": 2
+  },
+  "apps/sim/app/api/providers/baseten/models/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/providers/ollama-cloud/models/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/providers/ollama/models/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/providers/together/models/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/providers/vllm/models/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/resume/poll/route.test.ts": {
+    "TS2367": 1,
+    "TS2554": 10
+  },
+  "apps/sim/app/api/schedules/execute/route.test.ts": {
+    "TS2739": 30
+  },
+  "apps/sim/app/api/schedules/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/selectors/execute/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/skills/route.test.ts": {
+    "TS2554": 6
+  },
+  "apps/sim/app/api/table/[tableId]/columns/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/table/[tableId]/delete-async/route.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/app/api/table/[tableId]/export/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/table/[tableId]/import/route.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1
+  },
+  "apps/sim/app/api/table/[tableId]/restore/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/table/[tableId]/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/table/[tableId]/rows/find/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/table/capability-gate.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/table/executor-capability-exemption.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2554": 2
+  },
+  "apps/sim/app/api/table/import-csv/route.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2554": 8
+  },
+  "apps/sim/app/api/table/utils.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/app/api/tools/custom/route.test.ts": {
+    "TS2345": 2,
+    "TS2554": 1
+  },
+  "apps/sim/app/api/users/me/subscription/[id]/transfer/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/users/me/usage-limits/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 1
+  },
+  "apps/sim/app/api/users/me/usage-logs/cursor-route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/users/me/usage-logs/export/route.test.ts": {
+    "TS2554": 5
+  },
+  "apps/sim/app/api/users/me/usage-logs/route.test.ts": {
+    "TS2554": 3
+  },
+  "apps/sim/app/api/v1/audit-logs/[id]/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/v1/audit-logs/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 3
+  },
+  "apps/sim/app/api/v1/capability-gate.test.ts": {
+    "TS2345": 1,
+    "TS2554": 6
+  },
+  "apps/sim/app/api/v1/knowledge/[id]/documents/route.test.ts": {
+    "TS2578": 1
+  },
+  "apps/sim/app/api/v1/knowledge/search/route.test.ts": {
+    "TS2322": 1,
+    "TS2554": 4
+  },
+  "apps/sim/app/api/v1/logs/projection.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/v1/tables/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/v1/workflows/[id]/export/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/v1/workflows/[id]/rollback/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/v1/workflows/import/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 5
+  },
+  "apps/sim/app/api/v2/access-requests.test.ts": {
+    "TS2345": 14
+  },
+  "apps/sim/app/api/v2/chat/route.test.ts": {
+    "TS18046": 1,
+    "TS2353": 1,
+    "TS7053": 1
+  },
+  "apps/sim/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/app/api/v2/knowledge/search/route.application.test.ts": {
+    "TS2540": 1
+  },
+  "apps/sim/app/api/v2/tables/presenters.test.ts": {
+    "TS2345": 5,
+    "TS2739": 7
+  },
+  "apps/sim/app/api/v2/uploads/[uploadId]/route.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/app/api/v2/workflows/[workflowId]/duplicate/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/v2/workflows/[workflowId]/execute/route.test.ts": {
+    "TS2769": 3
+  },
+  "apps/sim/app/api/v2/workflows/[workflowId]/export/route.test.ts": {
+    "TS18048": 3
+  },
+  "apps/sim/app/api/v2/workflows/[workflowId]/operations/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/v2/workflows/[workflowId]/restore/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/v2/workflows/[workflowId]/state/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/v2/workflows/[workflowId]/versions/[version]/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/webhooks/[id]/reactivation-gate.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1
+  },
+  "apps/sim/app/api/webhooks/agentmail/route.test.ts": {
+    "TS2554": 6
+  },
+  "apps/sim/app/api/webhooks/quickbooks/[appKey]/route.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/app/api/webhooks/route.test.ts": {
+    "TS2554": 15
+  },
+  "apps/sim/app/api/webhooks/slack/route.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/app/api/webhooks/tiktok/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/webhooks/trigger/[path]/route.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/app/api/workflows/[id]/chat/status/route.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/api/workflows/[id]/execute/response-block.test.ts": {
+    "TS2305": 1
+  },
+  "apps/sim/app/api/workflows/[id]/execute/route.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/app/api/workflows/[id]/variables/route.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/app/api/workflows/middleware.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/app/api/workflows/route.test.ts": {
+    "TS2345": 1,
+    "TS2554": 2
+  },
+  "apps/sim/app/api/workspace-events/poll/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/api/workspaces/invitations/route.test.ts": {
+    "TS2322": 1,
+    "TS2554": 1
+  },
+  "apps/sim/app/api/workspaces/route.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/credential-groups/enroll/[token]/page.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/app/desktop/auth/page.test.tsx": {
+    "TS2345": 1
+  },
+  "apps/sim/app/desktop/connect/page.test.tsx": {
+    "TS2345": 1
+  },
+  "apps/sim/app/o/[organizationId]/home/organization-home.test.tsx": {
+    "TS2698": 1
+  },
+  "apps/sim/app/o/[organizationId]/settings/components/integrations/search-source-setup.test.tsx": {
+    "TS2339": 31,
+    "TS2345": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown.test.ts": {
+    "TS2353": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/collab-streaming-integration.test.ts": {
+    "TS2353": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider.test.ts": {
+    "TS2550": 3
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/dirty-on-open.test.ts": {
+    "TS2578": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/field-lifecycle.test.tsx": {
+    "TS2550": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/field-upload.test.tsx": {
+    "TS2322": 2,
+    "TS2550": 3
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-collaboration.test.tsx": {
+    "TS2345": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-resize.test.tsx": {
+    "TS2345": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/keymap.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/link-input-rule.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/list-input-rules.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-storage.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission.test.ts": {
+    "TS2684": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-conflicts.test.tsx": {
+    "TS2550": 6
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-transitions.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/components/message-content/message-content.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.test.ts": {
+    "TS2493": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session.test.ts": {
+    "TS2769": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase.test.ts": {
+    "TS2322": 3
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
+    "TS2304": 1,
+    "TS2322": 4,
+    "TS2353": 1,
+    "TS2550": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/providers/workspace-scope-sync.test.tsx": {
+    "TS2345": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail.test.tsx": {
+    "TS2322": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/settings/components/browser/components/passwords-view/passwords-view.test.tsx": {
+    "TS2322": 3
+  },
+  "apps/sim/app/workspace/[workspaceId]/settings/components/byok/byok.test.tsx": {
+    "TS2339": 4
+  },
+  "apps/sim/app/workspace/[workspaceId]/settings/components/general/components/privacy-view.test.tsx": {
+    "TS2550": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-filter/table-filter.test.tsx": {
+    "TS7017": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-event-stream.test.ts": {
+    "TS2739": 3
+  },
+  "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/utils.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/slack-setup-wizard/slack-setup-wizard.test.tsx": {
+    "TS2339": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities.test.tsx": {
+    "TS2339": 2,
+    "TS2739": 3
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution.test.tsx": {
+    "TS2322": 4,
+    "TS2345": 5,
+    "TS2353": 1,
+    "TS2554": 1,
+    "TS7006": 2
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/utils.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/background/async-execution-correlation.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/background/async-preprocessing-correlation.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/background/cleanup-soft-deletes.test.ts": {
+    "TS18046": 2,
+    "TS2345": 3,
+    "TS2352": 2,
+    "TS2493": 2,
+    "TS7006": 2
+  },
+  "apps/sim/background/cleanup-stale-executions.test.ts": {
+    "TS18048": 2,
+    "TS2493": 1,
+    "TS2677": 1
+  },
+  "apps/sim/background/cleanup-tasks.test.ts": {
+    "TS18046": 3
+  },
+  "apps/sim/background/drain-governed-subject.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/background/knowledge-connector-member-sync.test.ts": {
+    "TS2741": 7
+  },
+  "apps/sim/background/knowledge-processing.test.ts": {
+    "TS2339": 3,
+    "TS2345": 29,
+    "TS2571": 1
+  },
+  "apps/sim/background/webhook-execution.test.ts": {
+    "TS2345": 1,
+    "TS2353": 1
+  },
+  "apps/sim/background/workflow-column-execution.test.ts": {
+    "TS2345": 5,
+    "TS2352": 1
+  },
+  "apps/sim/background/workflow-group-governed-subject.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/blocks/blocks/airtable.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/blocks/blocks/ashby.test.ts": {
+    "TS18048": 11
+  },
+  "apps/sim/blocks/blocks/cloudtrail.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/blocks/blocks/crowdstrike.test.ts": {
+    "TS2722": 1
+  },
+  "apps/sim/blocks/blocks/file.test.ts": {
+    "TS18048": 2,
+    "TS2345": 4,
+    "TS2554": 2,
+    "TS2722": 13
+  },
+  "apps/sim/blocks/blocks/gitlab.test.ts": {
+    "TS18048": 7
+  },
+  "apps/sim/blocks/blocks/google_drive.test.ts": {
+    "TS18048": 1,
+    "TS2554": 4
+  },
+  "apps/sim/blocks/blocks/instagram.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/blocks/blocks/jotform.test.ts": {
+    "TS18048": 1,
+    "TS2339": 1
+  },
+  "apps/sim/blocks/blocks/mem0.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/blocks/blocks/microsoft_ad.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/blocks/blocks/mintlify.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/blocks/blocks/mssql.test.ts": {
+    "TS18048": 1,
+    "TS2339": 2
+  },
+  "apps/sim/blocks/blocks/outlook.test.ts": {
+    "TS18048": 2
+  },
+  "apps/sim/blocks/blocks/slack.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/blocks/blocks/supabase.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/blocks/blocks/tiktok.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/blocks/selector-backed-subblocks.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/blocks/utils.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/blocks/visibility/visibility.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/components/integrations/slack-app-manifest.test.tsx": {
+    "TS2339": 1
+  },
+  "apps/sim/components/settings/navigation.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/components/ui/generated-password-input.test.tsx": {
+    "TS2339": 12
+  },
+  "apps/sim/connectors/coda/coda.live.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/connectors/sharepoint/sharepoint.test.ts": {
+    "TS2339": 4
+  },
+  "apps/sim/ee/access-control/components/group-detail.test.tsx": {
+    "TS2345": 1
+  },
+  "apps/sim/ee/access-control/hooks/permission-groups.test.tsx": {
+    "TS2741": 3
+  },
+  "apps/sim/ee/access-requests/lib/application/authorization.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/ee/access-requests/lib/catalog.test.ts": {
+    "TS2345": 1,
+    "TS2740": 17
+  },
+  "apps/sim/ee/scim/lib/identity/resolve-user.test.ts": {
+    "TS18046": 2
+  },
+  "apps/sim/ee/scim/lib/projection/auto-map.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/ee/scim/lib/projection/reconcile-user.test.ts": {
+    "TS2345": 15
+  },
+  "apps/sim/ee/scim/lib/reconcile/job.test.ts": {
+    "TS2345": 6
+  },
+  "apps/sim/ee/sso/components/sso-settings.test.tsx": {
+    "TS2339": 2
+  },
+  "apps/sim/ee/workspace-forking/components/fork-sync/copy-reconciliation.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/ee/workspace-forking/components/fork-sync/use-fork-sync.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/ee/workspace-forking/lib/copy/copy-files.test.ts": {
+    "TS2345": 1,
+    "TS2554": 1
+  },
+  "apps/sim/ee/workspace-forking/lib/copy/copy-workflows.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2739": 1
+  },
+  "apps/sim/ee/workspace-forking/lib/copy/workflow-mcp-attachments.test.ts": {
+    "TS2322": 4
+  },
+  "apps/sim/ee/workspace-forking/lib/promote/promote.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/ee/workspace-forking/lib/promote/rollback.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/executor/dag/construction/edges.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/executor/execution/block-executor.test.ts": {
+    "TS2339": 6,
+    "TS2493": 6,
+    "TS2741": 8
+  },
+  "apps/sim/executor/execution/edge-manager.test.ts": {
+    "TS2322": 4
+  },
+  "apps/sim/executor/execution/engine.test.ts": {
+    "TS2322": 2,
+    "TS2339": 2,
+    "TS2345": 29,
+    "TS2430": 1,
+    "TS2741": 2
+  },
+  "apps/sim/executor/execution/executor.test.ts": {
+    "TS2322": 1,
+    "TS2339": 4,
+    "TS2739": 3,
+    "TS2741": 5
+  },
+  "apps/sim/executor/execution/snapshot-serializer.test.ts": {
+    "TS2322": 1,
+    "TS2353": 1
+  },
+  "apps/sim/executor/execution/snapshot.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/executor/execution/test-hooks.test.ts": {
+    "TS2339": 3
+  },
+  "apps/sim/executor/handlers/agent/handler.test.ts": {
+    "TS18046": 2,
+    "TS2339": 3,
+    "TS2345": 1,
+    "TS2352": 1,
+    "TS7006": 1
+  },
+  "apps/sim/executor/handlers/agent/memory.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/executor/handlers/condition/handler.test.ts": {
+    "TS2322": 2,
+    "TS2561": 1,
+    "TS2739": 4,
+    "TS2769": 3
+  },
+  "apps/sim/executor/handlers/evaluator/handler.test.ts": {
+    "TS18048": 1,
+    "TS2345": 1
+  },
+  "apps/sim/executor/handlers/mothership/handler.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2352": 1,
+    "TS2532": 1
+  },
+  "apps/sim/executor/handlers/pi/cloud/authoring/backend.test.ts": {
+    "TS2345": 4,
+    "TS2353": 1,
+    "TS2769": 1
+  },
+  "apps/sim/executor/handlers/pi/cloud/review/backend.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/executor/handlers/variables/handler.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/executor/handlers/workflow/handler.test.ts": {
+    "TS2493": 1,
+    "TS2571": 1
+  },
+  "apps/sim/executor/orchestrators/loop.test.ts": {
+    "TS2322": 1,
+    "TS2352": 1,
+    "TS2741": 1
+  },
+  "apps/sim/executor/orchestrators/node.test.ts": {
+    "TS2322": 1,
+    "TS2345": 2,
+    "TS2741": 1
+  },
+  "apps/sim/executor/orchestrators/parallel.test.ts": {
+    "TS2739": 3
+  },
+  "apps/sim/executor/utils/block-data.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/executor/utils/errors.test.ts": {
+    "TS2741": 4
+  },
+  "apps/sim/executor/utils/file-tool-processor.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/executor/utils/resolved-secret-content-projection.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/executor/utils/run-from-block.test.ts": {
+    "TS2353": 9
+  },
+  "apps/sim/executor/variables/resolver.test.ts": {
+    "TS2352": 3
+  },
+  "apps/sim/executor/variables/resolvers/loop.test.ts": {
+    "TS2345": 18
+  },
+  "apps/sim/executor/variables/resolvers/parallel.test.ts": {
+    "TS2345": 19
+  },
+  "apps/sim/hooks/queries/credential-groups.test.tsx": {
+    "TS2741": 1
+  },
+  "apps/sim/hooks/queries/folders.test.ts": {
+    "TS2322": 1,
+    "TS2551": 1
+  },
+  "apps/sim/hooks/queries/kb/connectors-cache.test.tsx": {
+    "TS2550": 1
+  },
+  "apps/sim/hooks/queries/kb/connectors.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/hooks/queries/mothership-chat-effort.test.tsx": {
+    "TS2550": 2
+  },
+  "apps/sim/hooks/queries/mothership-chats.test.ts": {
+    "TS2550": 4
+  },
+  "apps/sim/hooks/queries/organization.test.tsx": {
+    "TS2339": 7
+  },
+  "apps/sim/hooks/queries/scoped-credentials-mutations.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/hooks/queries/search-integrations.test.tsx": {
+    "TS2550": 1
+  },
+  "apps/sim/hooks/queries/table-analytics.test.tsx": {
+    "TS2741": 1
+  },
+  "apps/sim/hooks/queries/tables.test.ts": {
+    "TS2339": 1,
+    "TS2345": 3,
+    "TS2352": 1,
+    "TS2551": 4
+  },
+  "apps/sim/hooks/queries/utils/folder-tree.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/hooks/queries/utils/reset-organization-search-access.test.ts": {
+    "TS2550": 2
+  },
+  "apps/sim/hooks/queries/workflow-mcp-servers.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/hooks/queries/workflow-search-replace.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/hooks/use-autosave.test.tsx": {
+    "TS2345": 1,
+    "TS2493": 1,
+    "TS2550": 1
+  },
+  "apps/sim/hooks/use-execution-stream.test.tsx": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/admin/member-operation.test.ts": {
+    "TS2739": 3
+  },
+  "apps/sim/lib/api/client/request.test.ts": {
+    "TS2352": 1,
+    "TS2493": 4
+  },
+  "apps/sim/lib/api/contracts/tables-predicate.test.ts": {
+    "TS2456": 1
+  },
+  "apps/sim/lib/api/contracts/v1/tables/index.test.ts": {
+    "TS2769": 1
+  },
+  "apps/sim/lib/api/contracts/v2/workflow-deployment-requests.test.ts": {
+    "TS18048": 4
+  },
+  "apps/sim/lib/api/cursor-binding.test.ts": {
+    "TS2769": 1
+  },
+  "apps/sim/lib/api/list-convention.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/api/list-keyset-paging.test.ts": {
+    "TS2554": 4
+  },
+  "apps/sim/lib/api/server/routes/definition.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/api/server/routes/scim-route.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/lib/api/server/routes/v2-body-lifecycle-route.test.ts": {
+    "TS18046": 3,
+    "TS2322": 2,
+    "TS2741": 4
+  },
+  "apps/sim/lib/auth/constants.test.ts": {
+    "TS2339": 4
+  },
+  "apps/sim/lib/auth/credential-access.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/auth/oauth-provider-adapter-guard.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/auth/oauth-provider-metadata.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/auth/principal.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/lib/auth/security-policy.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/auth/session-hooks.test.ts": {
+    "TS2345": 9
+  },
+  "apps/sim/lib/auth/session-policy.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/billing/application/usage-limits.test.ts": {
+    "TS2322": 1,
+    "TS2353": 2
+  },
+  "apps/sim/lib/billing/authorization.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/lib/billing/core/attribution.test.ts": {
+    "TS2345": 6
+  },
+  "apps/sim/lib/billing/core/subscription.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/lib/billing/core/usage.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/billing/credits/weekly-refresh.test.ts": {
+    "TS2352": 1,
+    "TS2493": 1,
+    "TS2739": 1
+  },
+  "apps/sim/lib/billing/enterprise-outbox.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/billing/enterprise-provisioning.test.ts": {
+    "TS2345": 2,
+    "TS2739": 16
+  },
+  "apps/sim/lib/billing/organization.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/billing/organizations/lock-order.test.ts": {
+    "TS2345": 2,
+    "TS2352": 1,
+    "TS2493": 2
+  },
+  "apps/sim/lib/billing/organizations/member-limits.test.ts": {
+    "TS2352": 1,
+    "TS2493": 1
+  },
+  "apps/sim/lib/billing/organizations/membership-reconciliation.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/billing/webhooks/outbox-handlers.test.ts": {
+    "TS2739": 4
+  },
+  "apps/sim/lib/billing/workspace-permissions.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/browser-agent/transport.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/catalog/application/reads.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/catalog/projection/sweep.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/charts/option.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/charts/spec.test.ts": {
+    "TS2341": 1
+  },
+  "apps/sim/lib/collab-doc/converter.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/collab-doc/persist.test.ts": {
+    "TS2339": 2,
+    "TS2550": 2
+  },
+  "apps/sim/lib/collab-doc/seed.test.ts": {
+    "TS2339": 3,
+    "TS2550": 2
+  },
+  "apps/sim/lib/core/application/authorized-workspace-use-case.test.ts": {
+    "TS2345": 1,
+    "TS2741": 2
+  },
+  "apps/sim/lib/core/application/locked-credential-authorization.test.ts": {
+    "TS2739": 3
+  },
+  "apps/sim/lib/core/application/organization-authorization.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/core/application/workspace-authorization.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/lib/core/async-jobs/backends/trigger-dev.test.ts": {
+    "TS18046": 2
+  },
+  "apps/sim/lib/core/config/env-capabilities.test.ts": {
+    "TS18046": 3
+  },
+  "apps/sim/lib/core/config/env.dom.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/core/config/feature-flags.test.ts": {
+    "TS2307": 1,
+    "TS2664": 1
+  },
+  "apps/sim/lib/core/config/redis.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/core/execution-limits/types.test.ts": {
+    "TS2307": 2,
+    "TS2664": 1
+  },
+  "apps/sim/lib/core/idempotency/service.test.ts": {
+    "TS2339": 1,
+    "TS2493": 1
+  },
+  "apps/sim/lib/core/network/application/read-organization-network.test.ts": {
+    "TS2345": 1,
+    "TS2352": 1,
+    "TS2353": 1
+  },
+  "apps/sim/lib/core/network/gateway.server.test.ts": {
+    "TS2740": 2
+  },
+  "apps/sim/lib/core/network/resource-scope.server.test.ts": {
+    "TS18048": 1,
+    "TS2322": 1,
+    "TS2739": 1
+  },
+  "apps/sim/lib/core/rate-limiter/hosted-key/rate-limiter.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/core/rate-limiter/provider-admission.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/core/rate-limiter/rate-limiter.test.ts": {
+    "TS2307": 4,
+    "TS2352": 1,
+    "TS2664": 2
+  },
+  "apps/sim/lib/core/rate-limiter/storage/factory.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/core/security/encryption.test.ts": {
+    "TS2352": 2
+  },
+  "apps/sim/lib/core/security/guarded-request-fetch.server.test.ts": {
+    "TS2307": 2,
+    "TS2664": 1
+  },
+  "apps/sim/lib/core/security/pinned-fetch.server.test.ts": {
+    "TS2307": 2,
+    "TS2664": 1
+  },
+  "apps/sim/lib/core/security/ssrf-guarded-lookup.test.ts": {
+    "TS2307": 2,
+    "TS2664": 1
+  },
+  "apps/sim/lib/core/utils/request-attribution.test.ts": {
+    "TS2769": 2
+  },
+  "apps/sim/lib/credential-groups/application/authorization.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/lib/credential-groups/application/list-credentials.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/lib/credential-groups/application/manage-access.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/credential-groups/application/manage-groups.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/credential-groups/application/organization-access.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/credential-groups/application/public-enrollment.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/credential-groups/application/slack-managed-users.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/credential-groups/oauth.test.ts": {
+    "TS2345": 10
+  },
+  "apps/sim/lib/credential-groups/organization-account-options.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/lib/credential-groups/organization-provider-setup.test.ts": {
+    "TS2345": 5,
+    "TS2769": 1
+  },
+  "apps/sim/lib/credential-groups/provider-configuration.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/credential-groups/slack-managed-users.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/credential-groups/slack-provider.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/credential-groups/standard-oauth-provider.test.ts": {
+    "TS2739": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/credentials/application/authorized-credential-use-case.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/credentials/application/crud.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/credentials/application/list-workspace-credentials.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/credentials/application/managed-oauth-delegation.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/lib/credentials/application/resolve-organization-personal-token.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/credentials/application/service-account.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/credentials/connect-draft.test.ts": {
+    "TS18048": 2,
+    "TS2493": 2
+  },
+  "apps/sim/lib/credentials/orchestration/index.test.ts": {
+    "TS2352": 2,
+    "TS2493": 2
+  },
+  "apps/sim/lib/credentials/secret-mount-options.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/custom-tools/application/use-cases.test.ts": {
+    "TS2322": 3
+  },
+  "apps/sim/lib/data-drains/destinations/azure-blob.test.ts": {
+    "TS2345": 2,
+    "TS2352": 1
+  },
+  "apps/sim/lib/data-drains/destinations/bigquery.test.ts": {
+    "TS2345": 1,
+    "TS2352": 3
+  },
+  "apps/sim/lib/data-drains/destinations/datadog.test.ts": {
+    "TS2352": 3,
+    "TS2493": 2
+  },
+  "apps/sim/lib/data-drains/destinations/gcs.test.ts": {
+    "TS2345": 1,
+    "TS2352": 3
+  },
+  "apps/sim/lib/data-drains/destinations/s3-transport.test.ts": {
+    "TS2322": 1,
+    "TS2739": 3
+  },
+  "apps/sim/lib/data-drains/destinations/s3.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/lib/data-drains/destinations/snowflake.test.ts": {
+    "TS2352": 2,
+    "TS2493": 2
+  },
+  "apps/sim/lib/data-drains/destinations/webhook.test.ts": {
+    "TS2741": 7
+  },
+  "apps/sim/lib/desktop/preferences-loading.test.ts": {
+    "TS2550": 1,
+    "TS2740": 1
+  },
+  "apps/sim/lib/desktop/update-feed.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/embeddings/client.test.ts": {
+    "TS2339": 1,
+    "TS2741": 18
+  },
+  "apps/sim/lib/execution/cancel-workflow-execution.test.ts": {
+    "TS2740": 1
+  },
+  "apps/sim/lib/execution/event-buffer.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/execution/files.test.ts": {
+    "TS2322": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/execution/payloads/large-value-metadata.test.ts": {
+    "TS2339": 2,
+    "TS2493": 1
+  },
+  "apps/sim/lib/execution/payloads/prune-metadata-sql.test.ts": {
+    "TS2345": 1,
+    "TS2749": 1
+  },
+  "apps/sim/lib/execution/payloads/serializer.test.ts": {
+    "TS2322": 1,
+    "TS2339": 1,
+    "TS2740": 1
+  },
+  "apps/sim/lib/execution/remote-sandbox/conformance.test.ts": {
+    "TS2741": 8
+  },
+  "apps/sim/lib/execution/remote-sandbox/fellows-digest.test.ts": {
+    "TS2550": 1,
+    "TS2739": 1,
+    "TS7006": 1
+  },
+  "apps/sim/lib/execution/remote-sandbox/resolve.test.ts": {
+    "TS2345": 3,
+    "TS2739": 8
+  },
+  "apps/sim/lib/execution/remote-sandbox/session-sandbox.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/execution/remote-sandbox/spec.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/file-parsers/odf-text.test.ts": {
+    "TS2739": 4
+  },
+  "apps/sim/lib/file-parsers/ooxml-encryption.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/lib/file-parsers/ooxml-presentation.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/file-parsers/ooxml-preview-guard.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/file-parsers/pdf-parser-cancellation.test.ts": {
+    "TS2352": 4
+  },
+  "apps/sim/lib/file-parsers/pdfjs-server.test.ts": {
+    "TS2322": 1,
+    "TS2352": 1
+  },
+  "apps/sim/lib/file-parsers/pptx-parser.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/file-parsers/sheet-display-text.test.ts": {
+    "TS2694": 1
+  },
+  "apps/sim/lib/folders/application-folder-caps.test.ts": {
+    "TS2353": 1,
+    "TS2741": 2
+  },
+  "apps/sim/lib/folders/cascade.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/folders/queries.test.ts": {
+    "TS2322": 2,
+    "TS2741": 2
+  },
+  "apps/sim/lib/function-execution/application/execute-chat-function.test.ts": {
+    "TS2322": 2,
+    "TS2353": 1
+  },
+  "apps/sim/lib/global-work/summary.test.ts": {
+    "TS2493": 1
+  },
+  "apps/sim/lib/integrations/credential-visibility.server.test.ts": {
+    "TS4104": 1
+  },
+  "apps/sim/lib/internal/a2a/operations.test.ts": {
+    "TS2345": 1,
+    "TS2739": 2
+  },
+  "apps/sim/lib/internal/agiloft/client.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/internal/agiloft/operations.test.ts": {
+    "TS2322": 1,
+    "TS2739": 2
+  },
+  "apps/sim/lib/internal/box/execute-tool.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/internal/box/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/brex/execute-tool.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/lib/internal/brex/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/buffer/operations.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/internal/clickup/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/cloudtrail/execute-tool.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/internal/docusign/operations.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/internal/dropbox/execute-tool.test.ts": {
+    "TS2339": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/internal/dropbox/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/elevenlabs/operations.test.ts": {
+    "TS2345": 1,
+    "TS2741": 2
+  },
+  "apps/sim/lib/internal/file/operations.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/internal/file/parser.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/internal/function/execute.test.ts": {
+    "TS2322": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/internal/gmail/operations.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/internal/google-drive/file-input.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/guardrails/operations.test.ts": {
+    "TS2739": 1,
+    "TS2741": 4
+  },
+  "apps/sim/lib/internal/iam/client.test.ts": {
+    "TS2322": 3
+  },
+  "apps/sim/lib/internal/instagram/execute-tool.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/internal/instagram/operations.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/internal/jira/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/lambda/projection-contract.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/llm/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/mail/attachment-materialization.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/mssql/query.test.ts": {
+    "TS18048": 5,
+    "TS2493": 3
+  },
+  "apps/sim/lib/internal/oci/client.server.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/internal/onedrive/operations.test.ts": {
+    "TS2305": 1
+  },
+  "apps/sim/lib/internal/oracle-epm/client.server.test.ts": {
+    "TS2550": 1
+  },
+  "apps/sim/lib/internal/oracle-fusion/client.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/internal/oracledb/oracle-worker.test.ts": {
+    "TS2502": 1
+  },
+  "apps/sim/lib/internal/oracledb/public-contract.test.ts": {
+    "TS18048": 1,
+    "TS2353": 1
+  },
+  "apps/sim/lib/internal/outlook/operations.test.ts": {
+    "TS2305": 1
+  },
+  "apps/sim/lib/internal/pipedrive/operations.test.ts": {
+    "TS2305": 1
+  },
+  "apps/sim/lib/internal/postgresql/client.test.ts": {
+    "TS2493": 2
+  },
+  "apps/sim/lib/internal/quiver/operations.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/internal/s3/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/sailpoint/execute-tool.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/sap-concur/client.test.ts": {
+    "TS2339": 8
+  },
+  "apps/sim/lib/internal/sap-concur/operations.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/lib/internal/sftp/client.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/lib/internal/sftp/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/sharepoint/execute-tool.test.ts": {
+    "TS2339": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/internal/sharepoint/operations.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/internal/slack/execute-tool.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/lib/internal/slack/operations.test.ts": {
+    "TS2305": 1
+  },
+  "apps/sim/lib/internal/ssm/execute-tool.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/internal/stagehand/execute-tool.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/lib/internal/stagehand/schema-conversion.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/internal/stt/execute-tool.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/internal/twilio-voice/operations.test.ts": {
+    "TS2305": 1
+  },
+  "apps/sim/lib/internal/vanta/execute-tool.test.ts": {
+    "TS2339": 3
+  },
+  "apps/sim/lib/internal/vanta/file-input.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/lib/internal/vanta/operations.test.ts": {
+    "TS2305": 1,
+    "TS2322": 2
+  },
+  "apps/sim/lib/internal/video/operations.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/internal/whatsapp/upload.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/lib/internal/windchill/operations.test.ts": {
+    "TS2322": 4,
+    "TS2739": 3
+  },
+  "apps/sim/lib/invitations/application/manage-invitation.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/invitations/application/send-invitation-batch.test.ts": {
+    "TS2322": 2,
+    "TS2345": 2
+  },
+  "apps/sim/lib/invitations/core.test.ts": {
+    "TS2345": 4,
+    "TS2352": 1,
+    "TS2493": 1
+  },
+  "apps/sim/lib/invitations/direct-grant.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/invitations/organization-invitations.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/invitations/resend-policy.test.ts": {
+    "TS2345": 4,
+    "TS2741": 1
+  },
+  "apps/sim/lib/invitations/workspace-invitations.test.ts": {
+    "TS2322": 3,
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/access/availability.test.ts": {
+    "TS18046": 1
+  },
+  "apps/sim/lib/knowledge/application/connector-access.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/application/connectors.test.ts": {
+    "TS2322": 10,
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/application/contexts.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/knowledge/application/documents.test.ts": {
+    "TS2322": 2,
+    "TS2739": 1
+  },
+  "apps/sim/lib/knowledge/application/read-original-document.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/application/search-integrations.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/knowledge/application/search-sources.test.ts": {
+    "TS2322": 1,
+    "TS2345": 2
+  },
+  "apps/sim/lib/knowledge/application/search.test.ts": {
+    "TS2345": 1,
+    "TS2769": 1
+  },
+  "apps/sim/lib/knowledge/application/sim-search.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/application/slack-search/identity.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/knowledge/application/slack-search/ingress.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/knowledge/application/slack-search/installations.test.ts": {
+    "TS2352": 2
+  },
+  "apps/sim/lib/knowledge/application/slack-search/onboarding.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/knowledge/application/slack-search/setup.test.ts": {
+    "TS2352": 2
+  },
+  "apps/sim/lib/knowledge/application/slack-search/stop.test.ts": {
+    "TS2352": 2
+  },
+  "apps/sim/lib/knowledge/chunks/keyset-sql.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/knowledge/connectors/directory-queue.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/knowledge/connectors/error.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/connectors/google-company-scheduler.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/lib/knowledge/connectors/member-observations.test.ts": {
+    "TS2554": 1
+  },
+  "apps/sim/lib/knowledge/connectors/member-provisioning.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/knowledge/connectors/member-sync-engine.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/knowledge/connectors/sync-content-pass.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/connectors/sync-engine.test.ts": {
+    "TS2322": 2,
+    "TS2345": 14,
+    "TS2739": 1,
+    "TS2741": 3
+  },
+  "apps/sim/lib/knowledge/connectors/sync-persistence.test.ts": {
+    "TS2345": 2,
+    "TS2769": 1
+  },
+  "apps/sim/lib/knowledge/documents/indexing-usage.test.ts": {
+    "TS2345": 2,
+    "TS2739": 2
+  },
+  "apps/sim/lib/knowledge/documents/processing-lane.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/knowledge/documents/processing-payload.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/knowledge/documents/processing-provider-continuation.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/knowledge/documents/processing-queue.test.ts": {
+    "TS2345": 4,
+    "TS2532": 1
+  },
+  "apps/sim/lib/knowledge/documents/processing-recovery-queue-transport.test.ts": {
+    "TS2540": 2
+  },
+  "apps/sim/lib/knowledge/documents/processing-recovery-queue.test.ts": {
+    "TS2540": 2
+  },
+  "apps/sim/lib/knowledge/documents/processing-source.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/knowledge/documents/retry-processing-grace.test.ts": {
+    "TS2554": 1,
+    "TS2739": 2
+  },
+  "apps/sim/lib/knowledge/documents/service.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/knowledge/documents/storage-cleanup.test.ts": {
+    "TS18046": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/documents/workspace-source-provenance.test.ts": {
+    "TS2339": 1,
+    "TS2345": 4
+  },
+  "apps/sim/lib/knowledge/mcp/route-handler.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/orchestration/connector-access.test.ts": {
+    "TS2345": 1,
+    "TS2741": 3
+  },
+  "apps/sim/lib/knowledge/orchestration/connectors.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/knowledge/orchestration/documents.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/knowledge/projection/enqueue.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/knowledge/reranker.test.ts": {
+    "TS2540": 2
+  },
+  "apps/sim/lib/knowledge/search/diagnostics.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/knowledge/search/prewarm.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/knowledge/search/queries.test.ts": {
+    "TS2345": 4,
+    "TS2493": 1,
+    "TS2554": 1,
+    "TS2739": 1,
+    "TS2740": 3,
+    "TS7006": 4
+  },
+  "apps/sim/lib/knowledge/search/snippet.test.ts": {
+    "TS2550": 1
+  },
+  "apps/sim/lib/knowledge/service.test.ts": {
+    "TS2322": 1,
+    "TS2353": 1,
+    "TS2769": 1
+  },
+  "apps/sim/lib/knowledge/vector-columns.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/logs/api/route-policies.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/logs/application/read-execution-snapshot.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/logs/execution/logger.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/logs/execution/logging-session.test.ts": {
+    "TS2322": 5,
+    "TS2345": 1,
+    "TS2741": 3
+  },
+  "apps/sim/lib/logs/execution/pii-large-values.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/logs/execution/trace-secret-projection.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/logs/execution/trace-spans/trace-spans.test.ts": {
+    "TS2741": 8
+  },
+  "apps/sim/lib/logs/fetch-log-detail.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/logs/folder-scope.test.ts": {
+    "TS2559": 2
+  },
+  "apps/sim/lib/mcp/application/execute-managed-tool.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mcp/application/execute-tool.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mcp/application/operation-access.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mcp/application/operations.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mcp/application/use-cases.test.ts": {
+    "TS2322": 9,
+    "TS2345": 4
+  },
+  "apps/sim/lib/mcp/client.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/mcp/connection-manager.test.ts": {
+    "TS2345": 9
+  },
+  "apps/sim/lib/mcp/middleware.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/mcp/oauth/coordinated-fetch.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mcp/service-pool.test.ts": {
+    "TS2322": 1,
+    "TS2345": 3
+  },
+  "apps/sim/lib/mcp/service.test.ts": {
+    "TS2345": 1,
+    "TS2556": 1
+  },
+  "apps/sim/lib/mcp/tool-validation.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/memory/agent-turn-session.test.ts": {
+    "TS2741": 4
+  },
+  "apps/sim/lib/memory/message-provenance.test.ts": {
+    "TS4104": 1
+  },
+  "apps/sim/lib/memory/replay-provenance.test.ts": {
+    "TS2339": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/memory/retrieval.test.ts": {
+    "TS2322": 2,
+    "TS2345": 1
+  },
+  "apps/sim/lib/messaging/email/mailer.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/messaging/email/providers/gmail.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mothership/agent-cli/engines/file-read.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/mothership/agent-cli/engines/lint-scope.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/mothership/agent-cli/engines/universal-grep.test.ts": {
+    "TS2550": 6
+  },
+  "apps/sim/lib/mothership/agent-cli/engines/workflow-inputs.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/agent-cli/file-provenance.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/mothership/agent-cli/file-round-trip-provenance.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mothership/agent-cli/file-upload-origin.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mothership/agent-cli/saved-run-read.live.test.ts": {
+    "TS2741": 7,
+    "TS2769": 1
+  },
+  "apps/sim/lib/mothership/agent-cli/services.test.ts": {
+    "TS2345": 2,
+    "TS2353": 1
+  },
+  "apps/sim/lib/mothership/application/execute-table-use-case.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/application/execute-workflow-use-case.test.ts": {
+    "TS2820": 1
+  },
+  "apps/sim/lib/mothership/block-visibility.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mothership/chat/lifecycle.test.ts": {
+    "TS2571": 1
+  },
+  "apps/sim/lib/mothership/chat/messages-store.test.ts": {
+    "TS18048": 7,
+    "TS2493": 1
+  },
+  "apps/sim/lib/mothership/chat/payload.test.ts": {
+    "TS2322": 3,
+    "TS2345": 1,
+    "TS2353": 1
+  },
+  "apps/sim/lib/mothership/chat/persisted-message.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/mothership/chat/post.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2550": 2
+  },
+  "apps/sim/lib/mothership/chat/terminal-state.test.ts": {
+    "TS18046": 2,
+    "TS2571": 1
+  },
+  "apps/sim/lib/mothership/inbox/executor.test.ts": {
+    "TS2353": 4
+  },
+  "apps/sim/lib/mothership/request/application/read-control.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/request/context/result.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/mothership/request/go/file-preview-adapter.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/request/handlers/handlers.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/mothership/request/lifecycle/stream-retry.test.ts": {
+    "TS2341": 2
+  },
+  "apps/sim/lib/mothership/request/session/buffer.test.ts": {
+    "TS2339": 4,
+    "TS2698": 1
+  },
+  "apps/sim/lib/mothership/request/session/event.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/lib/mothership/request/session/recovery.test.ts": {
+    "TS2532": 2
+  },
+  "apps/sim/lib/mothership/request/session/writer.test.ts": {
+    "TS2345": 1,
+    "TS7006": 1
+  },
+  "apps/sim/lib/mothership/request/tools/desktop-wait.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mothership/request/tools/executor.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2741": 8
+  },
+  "apps/sim/lib/mothership/request/tools/permission.test.ts": {
+    "TS2339": 3
+  },
+  "apps/sim/lib/mothership/request/tools/workflow-client-fallback.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/mothership/request/tools/workflow-context.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/resources/search.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/mothership/tasks/wake.test.ts": {
+    "TS18046": 2
+  },
+  "apps/sim/lib/mothership/tool-executor/executor.test.ts": {
+    "TS2345": 3,
+    "TS2741": 3
+  },
+  "apps/sim/lib/mothership/tools/client/completion.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/mothership/tools/client/run-tool-execution.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/lib/mothership/tools/handlers/function-execute-file-mounts.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/mothership/tools/handlers/function-execute-provenance.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/mothership/tools/handlers/function-execute-table-mounts.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/lib/mothership/tools/handlers/workbench-confidentiality.live.test.ts": {
+    "TS2339": 1,
+    "TS2345": 3,
+    "TS2769": 1
+  },
+  "apps/sim/lib/mothership/tools/handlers/workflow/mutations.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/tools/handlers/workflow/withheld-run-result.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/tools/server/knowledge/workspace-search.test.ts": {
+    "TS18046": 1
+  },
+  "apps/sim/lib/mothership/tools/server/workspaces.test.ts": {
+    "TS2345": 1,
+    "TS2352": 1
+  },
+  "apps/sim/lib/mothership/vfs/operations.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/oauth/github-repositories.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/oauth/oauth.test.ts": {
+    "TS2348": 1,
+    "TS2353": 2
+  },
+  "apps/sim/lib/organizations/instance-org.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/organizations/members/lifecycle.test.ts": {
+    "TS2345": 6
+  },
+  "apps/sim/lib/permission-groups/application/group-membership.test.ts": {
+    "TS2345": 6
+  },
+  "apps/sim/lib/permission-groups/config-scope.server.test.ts": {
+    "TS2739": 3
+  },
+  "apps/sim/lib/permission-groups/group-manager.test.ts": {
+    "TS2550": 2
+  },
+  "apps/sim/lib/permission-groups/mutation.test.ts": {
+    "TS2550": 1
+  },
+  "apps/sim/lib/pinned-items/resources.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/posthog/server.test.ts": {
+    "TS2769": 2
+  },
+  "apps/sim/lib/pptx-renderer/renderer/echarts-runtime-render.test.ts": {
+    "TS2341": 1
+  },
+  "apps/sim/lib/secrets/usage/record.test.ts": {
+    "TS2339": 2,
+    "TS2493": 1
+  },
+  "apps/sim/lib/selectors/manifest.test.ts": {
+    "TS2339": 3
+  },
+  "apps/sim/lib/selectors/server/integration-access.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/settings/application/workspace-section-access.test.ts": {
+    "TS2345": 1,
+    "TS2739": 3
+  },
+  "apps/sim/lib/sim-search/connectors.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/sim-search/live/application.test.ts": {
+    "TS2345": 1,
+    "TS2353": 1
+  },
+  "apps/sim/lib/sim-search/live/discussion-reads.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/sim-search/live/scoped-search.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/skills/access.test.ts": {
+    "TS2367": 1
+  },
+  "apps/sim/lib/slack-search/shared-app.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/table/api/route-policies.test.ts": {
+    "TS18047": 2
+  },
+  "apps/sim/lib/table/application/columns.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/table/application/exports.test.ts": {
+    "TS2322": 2,
+    "TS2741": 1
+  },
+  "apps/sim/lib/table/application/groups.test.ts": {
+    "TS2345": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/table/application/operations.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/table/application/rows.test.ts": {
+    "TS2322": 4,
+    "TS2353": 2,
+    "TS2739": 5,
+    "TS2741": 1
+  },
+  "apps/sim/lib/table/application/runs.test.ts": {
+    "TS2345": 2,
+    "TS2353": 1
+  },
+  "apps/sim/lib/table/application/tables.test.ts": {
+    "TS2322": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/table/bulk-update-concurrency.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/lib/table/delete-runner.test.ts": {
+    "TS2502": 1
+  },
+  "apps/sim/lib/table/dispatcher.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/table/events.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/table/jobs/service.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/table/orchestration/import.test.ts": {
+    "TS2698": 4
+  },
+  "apps/sim/lib/table/rows/bulk-update-patch-validation.test.ts": {
+    "TS2353": 4
+  },
+  "apps/sim/lib/table/rows/cursor.test.ts": {
+    "TS2322": 10
+  },
+  "apps/sim/lib/table/rows/executions.test.ts": {
+    "TS2352": 1,
+    "TS2493": 3
+  },
+  "apps/sim/lib/table/rows/secret-provenance.test.ts": {
+    "TS2493": 4
+  },
+  "apps/sim/lib/table/run-column-governed-subject.test.ts": {
+    "TS2352": 1,
+    "TS2493": 1
+  },
+  "apps/sim/lib/table/secret-provenance-selection.test.ts": {
+    "TS18046": 1,
+    "TS2345": 3,
+    "TS2741": 1,
+    "TS7006": 1
+  },
+  "apps/sim/lib/table/service-filter-threading.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/table/sql.test.ts": {
+    "TS2352": 2,
+    "TS2353": 4
+  },
+  "apps/sim/lib/table/update-row.test.ts": {
+    "TS18047": 2,
+    "TS2493": 1,
+    "TS2739": 7,
+    "TS2741": 2
+  },
+  "apps/sim/lib/table/views/service.test.ts": {
+    "TS2322": 5
+  },
+  "apps/sim/lib/table/workflow-columns.test.ts": {
+    "TS2741": 4
+  },
+  "apps/sim/lib/table/workflow-groups/service.test.ts": {
+    "TS2352": 2,
+    "TS2493": 2
+  },
+  "apps/sim/lib/terminal/transport.test.ts": {
+    "TS2322": 5,
+    "TS2352": 2,
+    "TS2493": 2
+  },
+  "apps/sim/lib/tool-execution/application/execute-tool.test.ts": {
+    "TS2322": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/uploads/client/download.test.ts": {
+    "TS2550": 1,
+    "TS2683": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/uploads/client/upload-session.test.ts": {
+    "TS2322": 7
+  },
+  "apps/sim/lib/uploads/contexts/organization-logo/application.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/uploads/core/storage-service.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/uploads/providers/blob/client.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/uploads/providers/google-cloud-storage/client.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/uploads/providers/s3/client.test.ts": {
+    "TS2345": 7
+  },
+  "apps/sim/lib/uploads/server/heic.test.ts": {
+    "TS7016": 1
+  },
+  "apps/sim/lib/uploads/server/metadata.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/uploads/upload-session/service.test.ts": {
+    "TS2339": 1,
+    "TS2345": 1
+  },
+  "apps/sim/lib/uploads/utils/fetch-external-url.server.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/lib/uploads/utils/model-input.test.ts": {
+    "TS2339": 1,
+    "TS2345": 1,
+    "TS2739": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/uploads/utils/user-file-base64.server.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/users/account-deletion.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/users/application/authorized-apps.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/users/application/preferences.test.ts": {
+    "TS18048": 1,
+    "TS2493": 1
+  },
+  "apps/sim/lib/webhooks/deploy.test.ts": {
+    "TS2740": 1
+  },
+  "apps/sim/lib/webhooks/polling/google-calendar.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/webhooks/polling/rss.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/webhooks/processor.test.ts": {
+    "TS2322": 2,
+    "TS2740": 4
+  },
+  "apps/sim/lib/webhooks/providers/ashby.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/lib/webhooks/providers/bitbucket.test.ts": {
+    "TS2698": 1,
+    "TS7053": 1
+  },
+  "apps/sim/lib/webhooks/providers/checkr.test.ts": {
+    "TS2339": 4
+  },
+  "apps/sim/lib/webhooks/providers/emailbison.test.ts": {
+    "TS2344": 1,
+    "TS2722": 2
+  },
+  "apps/sim/lib/webhooks/providers/github.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/lib/webhooks/providers/gmail.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/webhooks/providers/grain.test.ts": {
+    "TS2344": 1
+  },
+  "apps/sim/lib/webhooks/providers/granola.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/webhooks/providers/microsoft-teams.test.ts": {
+    "TS2339": 2
+  },
+  "apps/sim/lib/webhooks/providers/quickbooks.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/webhooks/providers/slack.test.ts": {
+    "TS2531": 1,
+    "TS2739": 6
+  },
+  "apps/sim/lib/webhooks/providers/twilio.test.ts": {
+    "TS2353": 1,
+    "TS2739": 1
+  },
+  "apps/sim/lib/webhooks/providers/whatsapp.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/webhooks/providers/zoho-desk.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/lib/webhooks/slack-execution-stream.test.ts": {
+    "TS2339": 1,
+    "TS2550": 1,
+    "TS2741": 4
+  },
+  "apps/sim/lib/workflows/application/list-workflow-runs.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/application/operations.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/workflows/application/read-workflow-graph.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/application/read-workflow-lint-refs.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/application/replace-workflow-state.test.ts": {
+    "TS2322": 4
+  },
+  "apps/sim/lib/workflows/application/resolve-workflow-outputs.test.ts": {
+    "TS2322": 3
+  },
+  "apps/sim/lib/workflows/application/run-workflow-from-copilot.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/blocks/canvas-sentence-validation.test.ts": {
+    "TS2741": 6
+  },
+  "apps/sim/lib/workflows/comparison/compare.test.ts": {
+    "TS2739": 1,
+    "TS2741": 14
+  },
+  "apps/sim/lib/workflows/comparison/format-description.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/comparison/normalize.test.ts": {
+    "TS2322": 2,
+    "TS2741": 1
+  },
+  "apps/sim/lib/workflows/comparison/redact.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/workflows/custom-blocks/child-execution.test.ts": {
+    "TS2339": 5
+  },
+  "apps/sim/lib/workflows/dynamic-handle-topology.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/workflows/editing/operations.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/workflows/editing/validation.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/executor/execute-service.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/workflows/executor/execute-workflow.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/workflows/executor/execution-core.test.ts": {
+    "TS2352": 2,
+    "TS2739": 5
+  },
+  "apps/sim/lib/workflows/executor/execution-status.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/workflows/migrations/subblock-migrations.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/operations/export-workflow.test.ts": {
+    "TS18047": 1,
+    "TS7053": 1
+  },
+  "apps/sim/lib/workflows/operations/import-export-roundtrip.test.ts": {
+    "TS2339": 1,
+    "TS2352": 1
+  },
+  "apps/sim/lib/workflows/persistence/persist-block-access-gate.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/workflows/references/dependent-reconfigs.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/references/import-configuration.test.ts": {
+    "TS2345": 3,
+    "TS2353": 1
+  },
+  "apps/sim/lib/workflows/references/import-plan.test.ts": {
+    "TS2345": 7
+  },
+  "apps/sim/lib/workflows/references/manifest.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/workflows/references/remap-references.test.ts": {
+    "TS2820": 1
+  },
+  "apps/sim/lib/workflows/response-security.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/sanitization/subblocks.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/lib/workflows/search-replace/indexer.test.ts": {
+    "TS2322": 29
+  },
+  "apps/sim/lib/workflows/search-replace/replacements.test.ts": {
+    "TS2322": 6
+  },
+  "apps/sim/lib/workflows/streaming/nested-output-options.test.ts": {
+    "TS2769": 1
+  },
+  "apps/sim/lib/workflows/streaming/resolve-output-selectors.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/workflows/streaming/streaming.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/lib/workflows/subblocks/visibility.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/workspace-events/rules.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/lib/workspace-files/application/edit-workspace-file-content.test.ts": {
+    "TS2345": 1,
+    "TS2741": 1
+  },
+  "apps/sim/lib/workspace-files/application/file-versions.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/lib/workspace-files/application/list-workspace-files.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/lib/workspace-files/application/operations.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/lib/workspace-files/application/read-stored-workspace-file-record-by-key.test.ts": {
+    "TS2322": 1,
+    "TS2339": 1
+  },
+  "apps/sim/lib/workspace-files/application/update-workspace-file-content.test.ts": {
+    "TS2345": 3
+  },
+  "apps/sim/lib/workspace-files/page-document.server.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/workspace-files/queries.test.ts": {
+    "TS2488": 1
+  },
+  "apps/sim/lib/workspace-files/search/admission.test.ts": {
+    "TS2550": 1
+  },
+  "apps/sim/lib/workspace-files/search/dispatcher.test.ts": {
+    "TS2345": 1,
+    "TS2493": 4,
+    "TS2550": 1,
+    "TS7031": 1
+  },
+  "apps/sim/lib/workspace-files/search/regex.test.ts": {
+    "TS2550": 1
+  },
+  "apps/sim/lib/workspace-files/search/repository.test.ts": {
+    "TS2493": 1,
+    "TS2550": 1
+  },
+  "apps/sim/lib/workspaces/application/manage-permissions.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/workspaces/application/remove-member.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/workspaces/create.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/lib/workspaces/policy.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/lib/workspaces/public-queries.test.ts": {
+    "TS2352": 1,
+    "TS2493": 1
+  },
+  "apps/sim/providers/__fixtures__/anthropic/fixtures.test.ts": {
+    "TS2339": 1,
+    "TS2345": 7
+  },
+  "apps/sim/providers/anthropic/core.test.ts": {
+    "TS2353": 3,
+    "TS2740": 5
+  },
+  "apps/sim/providers/anthropic/streaming-tool-loop.test.ts": {
+    "TS4104": 1
+  },
+  "apps/sim/providers/anthropic/utils.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/providers/attachments.test.ts": {
+    "TS2769": 2
+  },
+  "apps/sim/providers/azure-openai/index.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/providers/baseten/index.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/providers/bedrock/index.test.ts": {
+    "TS2345": 2,
+    "TS2353": 3
+  },
+  "apps/sim/providers/bedrock/streaming-tool-loop.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/providers/conversation-generation.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/providers/conversation-smoke.live.test.ts": {
+    "TS18048": 2
+  },
+  "apps/sim/providers/conversation-summary.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/providers/deepseek/index.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/providers/fireworks/index.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/providers/gemini/core.streaming.test.ts": {
+    "TS2353": 3
+  },
+  "apps/sim/providers/gemini/core.test.ts": {
+    "TS2353": 3,
+    "TS2741": 1
+  },
+  "apps/sim/providers/groq/index.test.ts": {
+    "TS18046": 1,
+    "TS2345": 1,
+    "TS2353": 1,
+    "TS2739": 2
+  },
+  "apps/sim/providers/index.test.ts": {
+    "TS2322": 4,
+    "TS2339": 2,
+    "TS2353": 4,
+    "TS2741": 3
+  },
+  "apps/sim/providers/kie/index.test.ts": {
+    "TS2353": 1
+  },
+  "apps/sim/providers/litellm/index.test.ts": {
+    "TS7006": 2
+  },
+  "apps/sim/providers/mistral/index.test.ts": {
+    "TS2339": 6,
+    "TS2345": 2,
+    "TS2352": 1
+  },
+  "apps/sim/providers/nebius/index.live.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/providers/ollama/index.test.ts": {
+    "TS2339": 4,
+    "TS7006": 2
+  },
+  "apps/sim/providers/openai-compat/streaming-tool-loop.test.ts": {
+    "TS2345": 1,
+    "TS2352": 1,
+    "TS2353": 1,
+    "TS2493": 1
+  },
+  "apps/sim/providers/openai/core.response-status.test.ts": {
+    "TS18046": 1,
+    "TS2353": 1
+  },
+  "apps/sim/providers/openrouter/index.test.ts": {
+    "TS18046": 1
+  },
+  "apps/sim/providers/runtime-context.test.ts": {
+    "TS2554": 7
+  },
+  "apps/sim/providers/settled-tool-streams.test.ts": {
+    "TS2322": 2,
+    "TS2345": 1,
+    "TS2353": 1
+  },
+  "apps/sim/providers/specialist-reasoning.test.ts": {
+    "TS2322": 1,
+    "TS2345": 1,
+    "TS2739": 1
+  },
+  "apps/sim/providers/streaming-execution.test.ts": {
+    "TS2322": 4
+  },
+  "apps/sim/providers/together/index.test.ts": {
+    "TS18046": 1,
+    "TS2741": 1
+  },
+  "apps/sim/providers/transport.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/providers/utils.test.ts": {
+    "TS2345": 2,
+    "TS2353": 2,
+    "TS2554": 20
+  },
+  "apps/sim/providers/vllm/index.test.ts": {
+    "TS18046": 1,
+    "TS2339": 8
+  },
+  "apps/sim/providers/xai/billing.test.ts": {
+    "TS2353": 3
+  },
+  "apps/sim/providers/xai/index.test.ts": {
+    "TS18046": 1,
+    "TS2322": 1,
+    "TS2353": 1
+  },
+  "apps/sim/serializer/private-inputs.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/stores/reset-all-stores.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/stores/terminal/console/store.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/stores/undo-redo/utils.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/stores/workflows/workflow/store.test.ts": {
+    "TS2339": 1
+  },
+  "apps/sim/tools/ashby/ashby.live.test.ts": {
+    "TS2345": 25
+  },
+  "apps/sim/tools/ashby/ashby.test.ts": {
+    "TS2339": 3,
+    "TS2345": 50
+  },
+  "apps/sim/tools/assistant-execution.test.ts": {
+    "TS2554": 2
+  },
+  "apps/sim/tools/binary-downloads.test.ts": {
+    "TS2345": 1,
+    "TS2554": 1
+  },
+  "apps/sim/tools/bitbucket/pipelines.test.ts": {
+    "TS2322": 1,
+    "TS2352": 1
+  },
+  "apps/sim/tools/circleback/circleback.test.ts": {
+    "TS2352": 4
+  },
+  "apps/sim/tools/cloudflare/cloudflare.test.ts": {
+    "TS2339": 44,
+    "TS2352": 1,
+    "TS7053": 5
+  },
+  "apps/sim/tools/databricks/databricks.test.ts": {
+    "TS2532": 1
+  },
+  "apps/sim/tools/datadog/datadog.test.ts": {
+    "TS2349": 2
+  },
+  "apps/sim/tools/daytona/sandbox_path_safety.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/tools/dynatrace/dynatrace.test.ts": {
+    "TS2322": 16
+  },
+  "apps/sim/tools/enrow-hosting.test.ts": {
+    "TS2345": 8,
+    "TS2352": 3
+  },
+  "apps/sim/tools/falai-hosting.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/tools/file-message-operation-security.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/tools/file-message-operations.test.ts": {
+    "TS2322": 2
+  },
+  "apps/sim/tools/file-message-provider-clients.test.ts": {
+    "TS2345": 1
+  },
+  "apps/sim/tools/file/search.test.ts": {
+    "TS18048": 1,
+    "TS2722": 1
+  },
+  "apps/sim/tools/github/branch_protection_and_workflow_runs.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/tools/github/create_pr_review.test.ts": {
+    "TS18048": 1,
+    "TS2339": 1
+  },
+  "apps/sim/tools/github/list_review_threads.test.ts": {
+    "TS2322": 3
+  },
+  "apps/sim/tools/gitlab/access.test.ts": {
+    "TS2349": 5
+  },
+  "apps/sim/tools/gitlab/groups.test.ts": {
+    "TS2349": 7
+  },
+  "apps/sim/tools/gmail/read.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/tools/harmonic/harmonic.test.ts": {
+    "TS2345": 1,
+    "TS2739": 5,
+    "TS2741": 8
+  },
+  "apps/sim/tools/hunter/hunter.test.ts": {
+    "TS2352": 2
+  },
+  "apps/sim/tools/index.test.ts": {
+    "TS2339": 2,
+    "TS2345": 3,
+    "TS2550": 1,
+    "TS2741": 1,
+    "TS7031": 1
+  },
+  "apps/sim/tools/jotform/jotform.test.ts": {
+    "TS2352": 15
+  },
+  "apps/sim/tools/knowledge/knowledge.test.ts": {
+    "TS2322": 2,
+    "TS2339": 6
+  },
+  "apps/sim/tools/linkedin/share_post.test.ts": {
+    "TS2345": 5
+  },
+  "apps/sim/tools/llm/chat.test.ts": {
+    "TS2739": 1
+  },
+  "apps/sim/tools/logfire/get_trace.test.ts": {
+    "TS2349": 1
+  },
+  "apps/sim/tools/managed_agent/list_events.test.ts": {
+    "TS2352": 3
+  },
+  "apps/sim/tools/managed_agent/respond_tool_confirmation.test.ts": {
+    "TS2741": 2
+  },
+  "apps/sim/tools/microsoft_ad/add_user_app_role_assignment.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/tools/microsoft_ad/list_user_devices.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/tools/microsoft_dynamics_365/dynamics_crm.test.ts": {
+    "TS2339": 2,
+    "TS2532": 2
+  },
+  "apps/sim/tools/modal/call_function.test.ts": {
+    "TS2345": 4
+  },
+  "apps/sim/tools/modal/chat_completion.test.ts": {
+    "TS2741": 1
+  },
+  "apps/sim/tools/model-input-selectors.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/tools/nested-model-input-adapters.test.ts": {
+    "TS2345": 1,
+    "TS2739": 2
+  },
+  "apps/sim/tools/netsuite/netsuite.test.ts": {
+    "TS18048": 1
+  },
+  "apps/sim/tools/notion/responses.test.ts": {
+    "TS2532": 3
+  },
+  "apps/sim/tools/okta/tools.test.ts": {
+    "TS2345": 17,
+    "TS2349": 7
+  },
+  "apps/sim/tools/opaque-model-input-selectors.test.ts": {
+    "TS2722": 4
+  },
+  "apps/sim/tools/params.test.ts": {
+    "TS2345": 5
+  },
+  "apps/sim/tools/pitchbook/pitchbook.test.ts": {
+    "TS2532": 3
+  },
+  "apps/sim/tools/quickbooks/api_accuracy.test.ts": {
+    "TS2339": 4,
+    "TS2349": 1,
+    "TS2677": 1,
+    "TS2769": 4
+  },
+  "apps/sim/tools/quickbooks/purchasing_utils.test.ts": {
+    "TS2345": 3,
+    "TS2741": 1,
+    "TS2820": 1
+  },
+  "apps/sim/tools/quickbooks/sales_utils.test.ts": {
+    "TS2345": 5,
+    "TS2349": 2,
+    "TS2741": 12
+  },
+  "apps/sim/tools/semrush/semrush.test.ts": {
+    "TS2345": 5
+  },
+  "apps/sim/tools/serper/search.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/tools/servicenow/servicenow.test.ts": {
+    "TS2345": 13,
+    "TS7053": 1
+  },
+  "apps/sim/tools/slack/agent_sessions.test.ts": {
+    "TS2349": 1
+  },
+  "apps/sim/tools/slack/canvas.test.ts": {
+    "TS2739": 13
+  },
+  "apps/sim/tools/slack/list_channels.test.ts": {
+    "TS2353": 3
+  },
+  "apps/sim/tools/slack_lists/operations.test.ts": {
+    "TS2345": 2
+  },
+  "apps/sim/tools/snowflake/sql.test.ts": {
+    "TS18048": 3
+  },
+  "apps/sim/tools/snowflake/utils.test.ts": {
+    "TS18048": 2,
+    "TS2339": 1,
+    "TS2741": 16,
+    "TS7006": 1
+  },
+  "apps/sim/tools/splunk/requests.test.ts": {
+    "TS2345": 3,
+    "TS2349": 5,
+    "TS2352": 1
+  },
+  "apps/sim/tools/sqs/contract-guards.test.ts": {
+    "TS18048": 14
+  },
+  "apps/sim/tools/square/idempotency.test.ts": {
+    "TS18046": 4
+  },
+  "apps/sim/tools/table/response.test.ts": {
+    "TS7053": 1
+  },
+  "apps/sim/tools/tinyfish/tinyfish.test.ts": {
+    "TS2352": 2
+  },
+  "apps/sim/tools/vercel/edge_config_path_safety.test.ts": {
+    "TS2322": 4
+  },
+  "apps/sim/tools/whatsapp/whatsapp.test.ts": {
+    "TS2349": 1
+  },
+  "apps/sim/tools/zoho_desk/list_tickets.test.ts": {
+    "TS2352": 2
+  },
+  "apps/sim/tools/zoho_desk/update_ticket.test.ts": {
+    "TS2352": 1
+  },
+  "apps/sim/triggers/greenhouse/utils.test.ts": {
+    "TS2739": 2
+  },
+  "apps/sim/triggers/vercel/utils.test.ts": {
+    "TS2739": 1
+  }
+}

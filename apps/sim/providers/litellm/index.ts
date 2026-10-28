@@ -22,7 +22,11 @@ import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compa
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -371,7 +375,7 @@ export const litellmProvider: ProviderConfig = {
         }
 
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1})`
         )
 
         const toolsStartTime = Date.now()
@@ -802,7 +806,7 @@ export const litellmProvider: ProviderConfig = {
         }
       }
 
-      logger.error('Error in LiteLLM request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in LiteLLM request:', {
         error: errorMessage,
         errorType,
         errorCode,

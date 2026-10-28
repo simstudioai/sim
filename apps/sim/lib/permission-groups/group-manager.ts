@@ -1,7 +1,12 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
+import {
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
+  project,
+} from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -17,6 +22,7 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
+import { resolveAvailableAgentDefaultModel } from '@/lib/permission-groups/model-access.server'
 import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
 import {
   findWorkspacesNotInOrganization,
@@ -54,6 +60,23 @@ async function validateWorkspaces(
     )
 }
 
+async function validateProjectRestrictions(
+  organizationId: string,
+  ids: string[] | undefined,
+  tx: DbOrTx
+) {
+  if (!ids?.length) return
+  const projects = await tx
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.organizationId, organizationId), inArray(project.id, ids)))
+  if (projects.length !== new Set(ids).size)
+    throw new OrchestrationError(
+      'validation',
+      'A restricted Project does not belong to this organization'
+    )
+}
+
 async function assertAvailableName(
   organizationId: string,
   name: string,
@@ -76,6 +99,12 @@ async function demoteDefault(organizationId: string, now: Date, tx: DbOrTx) {
     .where(
       and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, true))
     )
+}
+
+function validateAgentDefault(config: PermissionGroupConfig) {
+  if (config.defaultAgentModel && !resolveAvailableAgentDefaultModel(config)) {
+    throw new OrchestrationError('validation', 'Agent default must be an available, allowed model')
+  }
 }
 
 async function insertWorkspaceLinks(
@@ -114,7 +143,14 @@ export async function createPermissionGroupRecord(
       'validation',
       'Select at least one workspace when the group targets specific workspaces'
     )
+  const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...input.config }
+  validateAgentDefault(config)
   return withPermissionGroupMutation(organizationId, async (tx) => {
+    await validateProjectRestrictions(
+      organizationId,
+      input.config?.deniedPartialAccessProjectIssues,
+      tx
+    )
     await validateWorkspaces(organizationId, workspaceIds, tx)
     await assertAvailableName(organizationId, input.name, tx)
     const now = new Date()
@@ -123,7 +159,7 @@ export async function createPermissionGroupRecord(
       organizationId,
       name: input.name,
       description: input.description || null,
-      config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...input.config },
+      config,
       createdBy: actorUserId,
       createdAt: now,
       updatedAt: now,
@@ -151,6 +187,11 @@ export async function updatePermissionGroupRecord(
   updates: PermissionGroupChanges
 ) {
   return withPermissionGroupMutation(organizationId, async (tx) => {
+    await validateProjectRestrictions(
+      organizationId,
+      updates.config?.deniedPartialAccessProjectIssues,
+      tx
+    )
     const group = await requirePermissionGroup(organizationId, groupId, tx)
     if (updates.name !== undefined)
       await assertAvailableName(organizationId, updates.name, tx, groupId)
@@ -202,6 +243,7 @@ export async function updatePermissionGroupRecord(
     const config = updates.config
       ? { ...parsePermissionGroupConfig(group.config), ...updates.config }
       : parsePermissionGroupConfig(group.config)
+    validateAgentDefault(config)
     const [updated] = await tx
       .update(permissionGroup)
       .set({

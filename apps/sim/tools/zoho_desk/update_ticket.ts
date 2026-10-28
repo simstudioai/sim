@@ -1,11 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+import { parseZohoDeskJson, readZohoDeskResponse } from '@/tools/zoho_desk/request'
 import type { ZohoDeskResponse, ZohoDeskUpdateTicketParams } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_TICKET_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
-  getZohoDeskErrorMessage,
-  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -145,15 +145,132 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
       visibility: 'user-or-llm',
       description: 'Custom field values as a JSON object, keyed by custom field API name',
     },
+    ticketContactId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Existing contact ID',
+    },
+    contact: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Contact JSON with email or lastName; use instead of contactId',
+    },
+    productId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Product ID',
+    },
+    uploads: {
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON array of previously uploaded attachment IDs',
+    },
+    email: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ticket email address',
+    },
+    phone: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ticket phone number',
+    },
+    language: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ticket language',
+    },
+    channel: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ticket origin channel',
+    },
+    webUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'URL to access the ticket',
+    },
+    sharedDepartments: {
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 10,
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON array of shared departments and access privileges',
+    },
+    teamId: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Team ID' },
+    secondaryContacts: {
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+      maxItems: 20,
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON array of secondary contact IDs',
+    },
+    entitySkills: {
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+      maxItems: 10,
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON array of skill IDs in priority order; at most 10',
+    },
+    disableClosureNotification: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Suppress the contact notification when closing the ticket',
+    },
   },
 
   request: {
-    url: (params) =>
-      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}`,
+    url: (params) => {
+      const url = new URL(
+        `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'Ticket ID')}`
+      )
+      if (params.disableClosureNotification != null)
+        url.searchParams.set(
+          'disableClosureNotification',
+          String(params.disableClosureNotification)
+        )
+      return url.toString()
+    },
     method: 'PATCH',
     headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => {
       const body = omitUnset({
+        contactId: params.ticketContactId,
+        contact: parseZohoDeskJson(params.contact, 'contact', 'object'),
+        productId: params.productId,
+        uploads: parseZohoDeskJson(params.uploads, 'uploads', 'array'),
+        email: params.email,
+        phone: params.phone,
+        language: params.language,
+        channel: params.channel,
+        webUrl: params.webUrl,
+        sharedDepartments: parseZohoDeskJson(
+          params.sharedDepartments,
+          'sharedDepartments',
+          'array'
+        ),
+        teamId: params.teamId,
+        secondaryContacts: parseZohoDeskJson(
+          params.secondaryContacts,
+          'secondaryContacts',
+          'array'
+        ),
+        entitySkills: parseZohoDeskJson(params.entitySkills, 'entitySkills', 'array'),
+
         subject: params.subject,
         status: params.status,
         priority: params.priority,
@@ -168,7 +285,7 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
         // Zoho's ticket PATCH documents both `cf` and `customFields`, but marks
         // `customFields` deprecated. Its own sample body sends `cf`, so that is
         // what we use.
-        cf: params.customFields,
+        cf: parseZohoDeskJson(params.customFields, 'customFields', 'object'),
       })
       // Zoho rejects an empty PATCH; fail early with an actionable message
       // instead of surfacing an opaque Zoho error for a no-op update.
@@ -182,14 +299,7 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
   },
 
   transformResponse: async (response) => {
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(
-        getZohoDeskErrorMessage(data, `Failed to update ticket (HTTP ${response.status})`)
-      )
-    }
-    // The PATCH response is the updated ticket, so derive `descriptionText` the
-    // same way get_ticket does - the shared output map declares it.
+    const data = await readZohoDeskResponse(response)
     return {
       success: true,
       output: { ticket: withDerivedContentText(data) },

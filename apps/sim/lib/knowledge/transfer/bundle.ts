@@ -36,7 +36,7 @@ import {
   MAX_KNOWLEDGE_BUNDLE_DOCUMENTS,
   SUPPORTED_FIELD_TYPES,
 } from '@/lib/knowledge/constants'
-import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
+import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/processing-error'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
 
@@ -279,4 +279,23 @@ export function toManifestDocument(
 /** Serializes a vector as little-endian float32, which is lossless for pgvector's `real` storage. */
 export function encodeVectorBase64(vector: readonly number[]): string {
   return Buffer.from(Float32Array.from(vector).buffer).toString('base64')
+}
+
+/**
+ * Reads a vector written by {@link encodeVectorBase64}, or `null` when it does not
+ * hold exactly `dimension` finite coordinates.
+ */
+export function decodeVectorBase64(encoded: string, dimension: number): number[] | null {
+  const byteLength = dimension * Float32Array.BYTES_PER_ELEMENT
+  // Checked before decoding, so an oversized field is refused without allocating it.
+  if (encoded.length !== Math.ceil(byteLength / 3) * 4) return null
+  const bytes = Buffer.from(encoded, 'base64')
+  if (bytes.byteLength !== byteLength) return null
+  const vector = new Array<number>(dimension)
+  for (let index = 0; index < dimension; index++) {
+    const value = bytes.readFloatLE(index * Float32Array.BYTES_PER_ELEMENT)
+    if (!Number.isFinite(value)) return null
+    vector[index] = value
+  }
+  return vector
 }

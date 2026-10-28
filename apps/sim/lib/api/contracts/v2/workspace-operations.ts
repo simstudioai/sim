@@ -38,11 +38,13 @@ export const v2OperationReportSchema = z
       .string()
       .min(1)
       .max(128)
-      .describe('Stable client request ID for reconciliation and identical retries.'),
+      .describe(
+        'Client request ID used to commit this operation. Reuse identical mutation inputs with this ID after an uncertain response.'
+      ),
     workspaceId: workspaceIdSchema.describe('Explicit current workspace scope.'),
     kind: z
       .enum(['workflow_import', 'workspace_fork', 'workspace_push', 'workspace_pull'])
-      .describe('Resource or operation kind.'),
+      .describe('Type of committed workspace operation.'),
     applied: z
       .literal(true)
       .describe('The business transaction committed, including when follow-up work fails.'),
@@ -54,7 +56,7 @@ export const v2OperationReportSchema = z
         'requires_configuration',
         'failed',
       ])
-      .describe('Current operation or deployment outcome.'),
+      .describe('Operation status; failed follow-up work does not undo the committed transaction.'),
     resourceIds: z
       .array(z.string().min(1).max(256))
       .max(5000)
@@ -87,14 +89,14 @@ export const v2OperationReportSchema = z
             .number()
             .int()
             .min(1)
-            .describe('Reference format or deployment version number.'),
+            .describe('Deployment version number for this admitted attempt.'),
           status: z
             .enum(['preparing', 'activating', 'active', 'failed', 'superseded'])
-            .describe('Current operation or deployment outcome.'),
+            .describe('Status of this exact admitted deployment attempt.'),
           ready: z
             .boolean()
             .describe(
-              'Whether the operation passes its current apply or deployment readiness checks.'
+              'Whether this exact deployment attempt is active and all required components are ready.'
             ),
           pendingComponents: z
             .array(z.string().max(128))
@@ -119,7 +121,7 @@ export const v2OperationReportSchema = z
       .object({
         status: z
           .enum(['pending', 'completed', 'failed'])
-          .describe('Current operation or deployment outcome.'),
+          .describe('Background resource-copy status.'),
         copied: z.number().int().min(0).describe('Number of resources copied successfully.'),
         failed: z.number().int().min(0).describe('Number of resources that failed to copy.'),
       })
@@ -128,8 +130,8 @@ export const v2OperationReportSchema = z
   })
   .meta({
     id: 'WorkspaceOperationReport',
-    title: 'WorkspaceOperationReport',
-    description: 'The WorkspaceOperationReport result.',
+    title: 'Workspace operation receipt',
+    description: 'Committed operation receipt, resource copies, and exact deployment readiness.',
   })
 export const v2WorkspaceOperationParamsSchema = z
   .object({
@@ -149,8 +151,9 @@ export const v2ListWorkspaceOperationsQuerySchema = z
       .min(1)
       .max(128)
       .optional()
-      .describe('Find an uncertain mutation by its original request ID.')
-      .describe('Stable client request ID for reconciliation and identical retries.'),
+      .describe(
+        'Find an uncertain mutation by the original client request ID; keep the same filter while paging.'
+      ),
   })
   .strict()
 export const v2GetWorkspaceOperationContract = defineRouteContract({

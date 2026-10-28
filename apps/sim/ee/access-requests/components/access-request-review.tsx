@@ -86,7 +86,7 @@ export function AccessRequestReview({
         )}
         {preview.isError && (
           <ChipModalField type='custom' title='Unable to load preview'>
-            <p className='text-[var(--text-error)] text-sm'>{preview.error.message}</p>
+            <p className='text-[var(--text-muted)] text-sm'>{preview.error.message}</p>
             <Chip onClick={() => void preview.refetch()}>Try again</Chip>
           </ChipModalField>
         )}

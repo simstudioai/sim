@@ -18,10 +18,10 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -77,11 +77,13 @@ describe('readWorkspaceFileContent', () => {
     expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
       includeDeleted: true,
       includeChatUploads: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.getFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
       includeDeleted: true,
       throwOnError: true,
       includeChatUploads: true,
+      includeOwnedFiles: true,
     })
     expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 512 })
     expect(mocks.getSecretProvenance).not.toHaveBeenCalled()

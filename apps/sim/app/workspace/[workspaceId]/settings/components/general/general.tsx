@@ -6,6 +6,7 @@ import {
   Button,
   Chip,
   ChipCombobox,
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -17,14 +18,16 @@ import {
   Label,
   Switch,
   Tooltip,
+  toast,
 } from '@sim/emcn'
 import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
@@ -47,6 +50,7 @@ import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
   useResetPassword,
+  useSignOutOtherDevices,
   useUpdateUserProfile,
   useUserProfile,
 } from '@/hooks/queries/user-profile'
@@ -70,7 +74,7 @@ const TIMEZONE_OPTIONS = getTimezoneOptions()
  * to grid) so they line up as one column instead of three differently-sized
  * pills. Wide enough for the longest common timezone label.
  */
-const DROPDOWN_TRIGGER_CLASS = 'w-[240px] shrink-0'
+const DROPDOWN_TRIGGER_CLASS = 'w-full shrink-0 md:w-[240px]'
 
 /**
  * Extracts initials from a user's name.
@@ -118,6 +122,8 @@ export function General() {
   })
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const resetPassword = useResetPassword()
+  const [showSignOutOtherDevicesModal, setShowSignOutOtherDevicesModal] = useState(false)
+  const signOutOtherDevices = useSignOutOtherDevices()
 
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false)
 
@@ -221,6 +227,14 @@ export function General() {
     )
   }
 
+  const confirmSignOutOtherDevices = () => {
+    signOutOtherDevices.mutate(undefined, {
+      onSuccess: () => toast.success('Signed out of other devices'),
+      onError: (error) => toast.error(getErrorMessage(error)),
+      onSettled: () => setShowSignOutOtherDevicesModal(false),
+    })
+  }
+
   const handleThemeChange = async (value: string) => {
     await updateSetting.mutateAsync({ key: 'theme', value: value as 'system' | 'light' | 'dark' })
   }
@@ -288,6 +302,11 @@ export function General() {
     ...(session?.user?.id && !isAuthDisabled
       ? [
           { id: 'sign-out', text: 'Sign out', onSelect: () => signOutAndRedirect(router.push) },
+          {
+            id: 'sign-out-other-devices',
+            text: 'Sign out other devices',
+            onSelect: () => setShowSignOutOtherDevicesModal(true),
+          },
           {
             id: 'reset-password',
             text: 'Reset password',
@@ -427,7 +446,7 @@ export function General() {
 
         <SettingsSection label='Preferences'>
           <div className='flex flex-col gap-4'>
-            <div className='flex items-center justify-between'>
+            <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
               <Label>Theme</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
@@ -447,7 +466,7 @@ export function General() {
               </div>
             </div>
 
-            <div className='flex items-center justify-between gap-4'>
+            <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4'>
               <Label>Timezone</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipCombobox
@@ -552,7 +571,7 @@ export function General() {
               />
             </div>
 
-            <div className='flex items-center justify-between'>
+            <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
               <Label>Snap to grid</Label>
               <div className={DROPDOWN_TRIGGER_CLASS}>
                 <ChipSelect
@@ -639,6 +658,19 @@ export function General() {
           }}
         />
       </ChipModal>
+
+      <ChipConfirmModal
+        open={showSignOutOtherDevicesModal}
+        onOpenChange={setShowSignOutOtherDevicesModal}
+        title='Sign out other devices'
+        text='This device and your authorized apps stay signed in.'
+        confirm={{
+          label: 'Sign out',
+          onClick: confirmSignOutOtherDevices,
+          pending: signOutOtherDevices.isPending,
+          pendingLabel: 'Signing out...',
+        }}
+      />
 
       <DeleteAccountModal
         open={showDeleteAccountModal}

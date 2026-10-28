@@ -11,11 +11,11 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetail } from '@/lib/logs/fetch-log-detail'
-import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/log-projection'
+import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/projection'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
 export interface ReadLogDetailInput {
   workspaceId: string

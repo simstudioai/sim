@@ -1,4 +1,4 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env bun
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
@@ -153,7 +153,10 @@ const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
 
 const integrationNavigation = JSON.parse(
   fs.readFileSync(path.join(rootDir, 'apps/docs/content/integration-navigation.json'), 'utf-8')
-) as { guides: Record<string, unknown>; redirects: Record<string, string> }
+) as {
+  guides: Record<string, { integration?: string; title: string }>
+  redirects: Record<string, string>
+}
 
 /**
  * Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must
@@ -269,6 +272,12 @@ const INTEGRATION_CATEGORY_VALUES: ReadonlySet<IntegrationType> = new Set(
   Object.values(IntegrationType)
 )
 
+interface BlockOperation {
+  label: string
+  id: string
+  group?: string
+}
+
 /**
  * Defensive shape for blocks parsed out of source files. Fields stay loose
  * (`string`) so the AST-style extractor can populate them progressively; the
@@ -287,7 +296,7 @@ interface BlockConfig {
   tools?: {
     access?: string[]
   }
-  operations?: OperationInfo[]
+  operations?: BlockOperation[]
   /**
    * Param names the block itself supplies — via a `subBlocks` field (id or
    * `canonicalParamId`) or via its `tools.config.params` mapper.
@@ -506,7 +515,7 @@ interface IconRef {
 /**
  * Check mode (`--check`): render every generated artifact in memory and compare
  * it against the committed file instead of writing, so CI can fail on docs
- * drift the same way `tool-metadata:check` fails on stale tool metadata. Check
+ * drift the same way `check:tool-metadata` fails on stale tool metadata. Check
  * mode performs no filesystem mutations.
  *
  * The pipeline writes some pages twice per run — the block pass writes the base
@@ -628,7 +637,7 @@ async function addTriggerProviderIcons(
 
 /**
  * Generate icon mapping from block definitions.
- * Docs need hidden historical version keys so old BlockInfoCard references and
+ * Docs need hidden historical version keys so older integration pages and
  * versioned docs links still render icons, while landing only needs visible blocks.
  */
 export async function generateIconMappings(): Promise<{
@@ -639,7 +648,10 @@ export async function generateIconMappings(): Promise<{
   try {
     console.log('Generating icon mapping from block definitions...')
 
-    const docs: Record<string, IconRef> = {}
+    // OCI credential setup has no product block from which docs can derive its family icon.
+    const docs: Record<string, IconRef> = {
+      oci: { name: 'OracleIcon', source: '@/components/icons' },
+    }
     const visible: Record<string, IconRef> = {}
     const coreBlockTypes = new Set<string>()
     const blockFiles = (await sourceGlob(`${BLOCKS_PATH}/*.ts`)).sort()
@@ -744,10 +756,6 @@ export async function generateIconMappings(): Promise<{
   }
 }
 
-/**
- * Write the icon mapping to the docs app
- * This file is imported by BlockInfoCard to resolve icons automatically
- */
 /**
  * Sort strings to match Biome's organizeImports order:
  * case-insensitive character-by-character, uppercase before lowercase as tiebreaker.
@@ -1241,12 +1249,12 @@ export function extractBlockSuppliedParamIds(
 
 /**
  * Extract operation options from the subBlock with id: 'operation' (if present).
- * Returns { label, id } pairs — label is the display name, id is the option's id field
- * (used to construct the tool ID as `{blockType}_{id}`).
+ * Preserves labels, operation identifiers and optional groups from the operation selector.
+ * Identifiers construct tool IDs as `{blockType}_{id}`.
  * Parses the subBlocks array using brace/bracket counting to safely traverse
  * the nested structure without eval or a full AST parser.
  */
-function extractOperationsFromContent(blockContent: string): { label: string; id: string }[] {
+function extractOperationsFromContent(blockContent: string): BlockOperation[] {
   const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(blockContent)
   if (!subBlocksMatch) return []
 
@@ -1272,7 +1280,7 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
         if (optArrayEnd === -1) return []
         const optionsContent = objContent.substring(optArrayStart + 1, optArrayEnd - 1)
 
-        const pairs: { label: string; id: string }[] = []
+        const pairs: BlockOperation[] = []
         const optionObjectRegex = /\{[^{}]*\}/g
         let m
         while ((m = optionObjectRegex.exec(optionsContent)) !== null) {
@@ -1280,7 +1288,12 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
           const labelMatch = /label\s*:\s*['"]([^'"]+)['"]/.exec(optObj)
           const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(optObj)
           if (labelMatch) {
-            pairs.push({ label: labelMatch[1], id: idMatch ? idMatch[1] : '' })
+            const group = extractStringPropertyFromContent(optObj, 'group')
+            pairs.push({
+              label: labelMatch[1],
+              id: idMatch ? idMatch[1] : '',
+              ...(group ? { group } : {}),
+            })
           }
         }
         return pairs
@@ -1854,25 +1867,28 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
           ? exportStarts.map((start, i) => content.substring(start, exportStarts[i + 1]))
           : [content]
 
+      const evaluatedTriggers = await loadTriggerRegistry()
       for (const segment of segments) {
         const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
-        const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
 
         // Deprecated triggers stay registered for existing workflows but are
         // excluded from generated documentation.
         if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         if (idMatch && nameMatch) {
+          const trigger = evaluatedTriggers[idMatch[1]]
           registry.set(idMatch[1], {
             id: idMatch[1],
-            name: nameMatch[1],
-            description: descMatch?.[1] ?? '',
+            name: trigger?.name ?? nameMatch[1],
+            description:
+              trigger?.description ??
+              extractStringPropertyFromContent(segment, 'description', true) ??
+              '',
           })
         }
       }
 
-      const evaluatedTriggers = await loadTriggerRegistry()
       const factoryExportRegex =
         /export\s+const\s+\w+(?:\s*:\s*TriggerConfig)?\s*=\s*\w+\s*\(\s*['"]([^'"]+)['"]/g
       let factoryExportMatch: RegExpExecArray | null
@@ -2141,6 +2157,29 @@ export const INTEGRATION_METADATA: readonly IntegrationMetadata[] = JSON.parse($
       )
     )
 
+    const totalsPath = path.join(INTEGRATIONS_CATALOG_PATH, 'integration-totals.ts')
+    const totals = {
+      integrations: integrations.length,
+      actions: integrations.reduce((sum, integration) => sum + integration.operationCount, 0),
+      triggers: integrations.reduce((sum, integration) => sum + integration.triggerCount, 0),
+      integrationsWithTriggers: integrations.filter((integration) => integration.triggerCount > 0)
+        .length,
+    }
+    emitGeneratedFile(
+      totalsPath,
+      formatGeneratedSource(
+        `/**
+ * Generated by scripts/generate-docs.ts from the public integration catalog.
+ * Catalog-wide counts that every public integration claim is derived from, kept
+ * apart from the catalog itself so marketing surfaces import the counts, not the list.
+ */
+export const INTEGRATION_TOTALS = ${JSON.stringify(totals)} as const
+`,
+        totalsPath,
+        rootDir
+      )
+    )
+
     const jsonPath = path.join(INTEGRATIONS_CATALOG_PATH, 'integrations.json')
     // `JSON.stringify` always expands every array across multiple lines, but Biome's
     // JSON formatter inlines short arrays of primitive strings. Pre-collapse those
@@ -2155,12 +2194,30 @@ export const INTEGRATION_METADATA: readonly IntegrationMetadata[] = JSON.parse($
         }
       )
 
-    // `updatedAt` is re-stamped only when the integrations content actually
-    // changes, so sitemap/JSON-LD freshness never churns on no-op regens.
+    // Each entry keeps its own `updatedAt` until that entry's content changes, so one
+    // integration's edit never re-dates every other page's sitemap/JSON-LD freshness.
+    // The catalog-wide `updatedAt` is re-stamped on any real change (it dates the hub).
     const previous = fs.existsSync(jsonPath)
-      ? (JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as { integrations?: unknown })
+      ? (JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as {
+          integrations?: Array<Record<string, unknown>>
+        })
       : null
-    if (previous?.integrations && serialize(previous.integrations) === serialize(integrations)) {
+    const today = new Date().toISOString().slice(0, 10)
+    const previousBySlug = new Map(
+      (previous?.integrations ?? []).map((entry) => [entry.slug, entry] as const)
+    )
+    const datedIntegrations = integrations.map((integration) => {
+      const prior = previousBySlug.get(integration.slug)
+      if (!prior) return { ...integration, updatedAt: today }
+      const { updatedAt: priorUpdatedAt, ...priorContent } = prior
+      const unchanged =
+        typeof priorUpdatedAt === 'string' && serialize(priorContent) === serialize(integration)
+      return { ...integration, updatedAt: unchanged ? priorUpdatedAt : today }
+    })
+    if (
+      previous?.integrations &&
+      serialize(previous.integrations) === serialize(datedIntegrations)
+    ) {
       console.log(`✓ Integration data unchanged: ${integrations.length} integrations → ${jsonPath}`)
       return
     }
@@ -2170,8 +2227,10 @@ export const INTEGRATION_METADATA: readonly IntegrationMetadata[] = JSON.parse($
       return
     }
 
-    const updatedAt = new Date().toISOString().slice(0, 10)
-    fs.writeFileSync(jsonPath, `${serialize({ updatedAt, integrations })}\n`)
+    fs.writeFileSync(
+      jsonPath,
+      `${serialize({ updatedAt: today, integrations: datedIntegrations })}\n`
+    )
     console.log(`✓ Integration data written: ${integrations.length} integrations → ${jsonPath}`)
   } catch (error) {
     // Surface taxonomy violations (missing/invalid `integrationType`) loudly —
@@ -2333,17 +2392,20 @@ function extractBlockConfigFromContent(
         : ownOutputs
     const toolsAccess = extractToolsAccessFromContent(blockContent)
 
-    // For tools.access, if not found directly, check if it's derived from base via map
+    /** Versioned mapped spreads retain their base tools alongside explicit additions. */
     let finalToolsAccess = toolsAccess
-    if (toolsAccess.length === 0 && baseConfig?.tools?.access) {
+    if (baseConfig?.tools?.access) {
       // Check if there's a map operation on base tools
       // Pattern: access: (SomeBlock.tools?.access || []).map((toolId) => `${toolId}_v2`)
       const mapMatch = blockContent.match(
-        /access\s*:\s*\(\s*\w+Block\.tools\?\.access\s*\|\|\s*\[\]\s*\)\.map\s*\(\s*\(\s*\w+\s*\)\s*=>\s*`\$\{\s*\w+\s*\}_v(\d+)`\s*\)/
+        /access\s*:\s*(?:\[\s*\.\.\.)?\(\s*\w+Block\.tools\?\.access\s*\|\|\s*\[\]\s*\)\.map\s*\(\s*\(\s*\w+\s*\)\s*=>\s*`\$\{\s*\w+\s*\}_v(\d+)`\s*\)/
       )
       if (mapMatch) {
         const versionSuffix = `_v${mapMatch[1]}`
-        finalToolsAccess = baseConfig.tools.access.map((tool) => `${tool}${versionSuffix}`)
+        finalToolsAccess = [
+          ...baseConfig.tools.access.map((tool) => `${tool}${versionSuffix}`),
+          ...toolsAccess,
+        ]
       }
       const replacement = blockContent.match(
         /access\s*:\s*\w+Block\.tools\.access\.map\s*\(\s*\(\s*(\w+)\s*\)\s*=>\s*\1\s*===\s*['"]([^'"]+)['"]\s*\?\s*['"]([^'"]+)['"]\s*:\s*\1\s*\)/
@@ -2759,9 +2821,22 @@ function extractToolsAccessFromContent(content: string): string[] {
   if (toolsEnd === -1) return []
 
   const toolsContent = content.substring(toolsStart, toolsEnd)
-  const accessMatch = toolsContent.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
+  const accessMatch = /access\s*:\s*\[/.exec(toolsContent)
   if (!accessMatch) return []
-  return [...accessMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1])
+  const start = accessMatch.index + accessMatch[0].lastIndexOf('[')
+  const end = findMatchingClose(toolsContent, start, '[', ']')
+  if (end === -1) return []
+  const source = ts.createSourceFile(
+    'tool-access.ts',
+    `const access = ${toolsContent.slice(start, end)}`,
+    ts.ScriptTarget.Latest,
+    true
+  )
+  const statement = source.statements[0]
+  if (!statement || !ts.isVariableStatement(statement)) return []
+  const array = statement.declarationList.declarations[0]?.initializer
+  if (!array || !ts.isArrayLiteralExpression(array)) return []
+  return array.elements.flatMap((element) => (ts.isStringLiteral(element) ? [element.text] : []))
 }
 
 /**
@@ -2807,20 +2882,20 @@ function resolveConstReference(
     return constResolutionCache.get(cacheKey)!
   }
 
-  const typesFilePath = path.join(rootDir, `apps/sim/tools/${toolPrefix}/types.ts`)
-  if (!fs.existsSync(typesFilePath)) {
-    return null
+  const constRegex = new RegExp(`export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`)
+  let typesContent = ''
+  let constMatch: RegExpExecArray | null = null
+  for (const fileName of ['types.ts', 'outputs.ts']) {
+    const sourcePath = path.join(rootDir, `apps/sim/tools/${toolPrefix}/${fileName}`)
+    if (!fs.existsSync(sourcePath)) continue
+    const content = readSourceFile(sourcePath)
+    const match = constRegex.exec(content)
+    if (match) {
+      typesContent = content
+      constMatch = match
+      break
+    }
   }
-
-  const typesContent = readSourceFile(typesFilePath)
-
-  // Find the const definition
-  // Pattern: export const CONST_NAME = { ... } as const
-  const constRegex = new RegExp(
-    `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
-    'g'
-  )
-  const constMatch = constRegex.exec(typesContent)
 
   if (!constMatch) {
     return null
@@ -2970,7 +3045,7 @@ function resolveConstFromTypesContent(
   }
 
   const constRegex = new RegExp(
-    `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
+    `\\b(?:export\\s+)?const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
     'g'
   )
   const constMatch = constRegex.exec(typesContent)
@@ -3041,7 +3116,7 @@ function parseConstFieldContent(
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
-    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
+    const propsConstMatch = findTopLevelMatch(fieldContent, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
         propsConstMatch[1],
@@ -3103,7 +3178,7 @@ function parseConstFieldContent(
         }
 
         // Check for properties in items - either inline or const reference
-        const itemsPropsConstMatch = itemsContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+        const itemsPropsConstMatch = findTopLevelMatch(itemsContent, PROPERTIES_CONST_PATTERN)
         if (itemsPropsConstMatch) {
           const resolvedProps = resolveConstFromTypesContent(
             itemsPropsConstMatch[1],
@@ -3514,7 +3589,7 @@ export function extractToolInfo(
           name: paramName,
           type: typeMatch ? typeMatch[1] : 'string',
           required: requiredMatch ? requiredMatch[1] === 'true' : false,
-          description: descriptionMatch ? descriptionMatch[1] : 'No description',
+          description: descriptionMatch ? descriptionMatch[1] : '',
         })
       }
     }
@@ -3583,7 +3658,7 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
 
   for (const [key, output] of Object.entries(outputs)) {
     let type = 'unknown'
-    let description = `${key} output from the tool`
+    let description = ''
 
     if (typeof output === 'object' && output !== null) {
       if (output.type) {
@@ -4299,7 +4374,7 @@ export async function getToolInfo(
         name,
         type: typeof param.type === 'string' ? param.type : 'string',
         required: param.required === true,
-        description: typeof param.description === 'string' ? param.description : 'No description',
+        description: typeof param.description === 'string' ? param.description : '',
       }))
 
     return {
@@ -4307,8 +4382,11 @@ export async function getToolInfo(
       params,
       outputs:
         isFactoryToolDeclaration(toolName, toolFileContent) ||
+        toolPrefix === 'buffer' ||
+        toolPrefix === 'cloudflare' ||
         toolPrefix === 'sailpoint' ||
         toolPrefix === 'otter' ||
+        toolPrefix === 'plane' ||
         toolName === 'file_edit' ||
         hasWrappedToolBase(toolName, toolFileContent)
           ? (generatedOutputs ?? sourceInfo?.outputs ?? {})
@@ -4349,10 +4427,10 @@ function mergeWithManualContent(
   Object.entries(manualSections).forEach(([sectionName, content]) => {
     const insertionPoints: Record<string, { regex: RegExp }> = {
       intro: {
-        regex: /<BlockInfoCard[\s\S]*?(\/>|<\/svg>`}\s*\/>)/,
+        regex: /^---\n[\s\S]*?\n---\n(?:\nimport [^\n]+\n)*/,
       },
       usage: {
-        regex: /## Usage Instructions/,
+        regex: /## Use the block \[#usage-instructions\]/,
       },
       outputs: {
         regex: /## Outputs/,
@@ -4476,17 +4554,43 @@ async function generateMarkdownForBlock(
   } = blockConfig
 
   let toolsSection = ''
+  let hasReferenceDetails = false
+  const inputSchemas = new Map<string, string>()
   if (tools.access?.length) {
     toolsSection = '## Actions\n\n'
 
     const displayNames = await loadToolDisplayNames()
+    const actionNames = tools.access.map(
+      (tool) => displayNames.get(tool) ?? displayNames.get(stripVersionSuffix(tool)) ?? tool
+    )
+    const operationGroups = new Map(
+      (blockConfig.operations ?? []).flatMap((operation) =>
+        operation.group
+          ? [[`${stripVersionSuffix(type)}_${operation.id}`, operation.group] as const]
+          : []
+      )
+    )
+    const orderedGroups = tools.access.map((tool) => operationGroups.get(stripVersionSuffix(tool)))
+    const groupRuns = orderedGroups.filter((group, index) => group !== orderedGroups[index - 1])
+    const groupActions =
+      new Set(actionNames).size < actionNames.length &&
+      orderedGroups.every((group) => group !== undefined) &&
+      new Set(orderedGroups).size === groupRuns.length
+    const actionHeading = groupActions ? '####' : '###'
+    const fieldHeading = groupActions ? '#####' : '####'
+    let activeGroup: string | undefined
 
     for (const tool of tools.access) {
+      const group = groupActions ? operationGroups.get(stripVersionSuffix(tool)) : undefined
+      if (group && group !== activeGroup) {
+        toolsSection += `### ${group} [#actions-${tool}]\n\n`
+        activeGroup = group
+      }
       // Prefer the tool's own name ("A2A Send Message") over its id — the id is an
       // implementation detail, and these headings are what the page's table of
       // contents shows. Falls back to the id for a tool missing from the metadata.
       const heading = displayNames.get(tool) ?? displayNames.get(stripVersionSuffix(tool))
-      toolsSection += `### ${heading ?? stripVersionSuffix(tool)}\n\n`
+      toolsSection += `${actionHeading} ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
       const toolInfo = await getToolInfo(tool, userSettableParamIds)
@@ -4497,34 +4601,47 @@ async function generateMarkdownForBlock(
           toolsSection += `${escapedToolDescription}\n\n`
         }
 
-        toolsSection += '#### Input\n\n'
-        toolsSection += '| Parameter | Type | Required | Description |\n'
-        toolsSection += '| --------- | ---- | -------- | ----------- |\n'
+        let fields = ''
+        fields += `${fieldHeading} Input\n\n`
+        fields += '| Parameter | Type | Required | Description |\n'
+        fields += '| --------- | ---- | -------- | ----------- |\n'
 
         if (toolInfo.params.length > 0) {
           for (const param of toolInfo.params) {
-            const escapedDescription = param.description
-              ? escapeMdxCell(param.description)
-              : 'No description'
+            const schema = param.description.match(
+              /^(.*?)\n\n(```graphql\n(?:input|enum) (\w+)[\s\S]*\n```)$/s
+            )
+            let description = schema?.[1] ?? param.description
+            if (schema) {
+              inputSchemas.set(schema[3], schema[2])
+              description = `${escapeMdxCell(description)} <a href="#${schema[3].toLowerCase()}">Schema</a>`
+            } else {
+              description = description ? escapeMdxCell(description) : ''
+            }
 
-            toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${escapedDescription} |\n`
+            fields += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${description} |\n`
           }
         }
 
-        toolsSection += '\n#### Output\n\n'
+        fields += `\n${fieldHeading} Output\n\n`
 
         if (Object.keys(toolInfo.outputs).length > 0) {
-          toolsSection += '| Parameter | Type | Description |\n'
-          toolsSection += '| --------- | ---- | ----------- |\n'
+          fields += '| Parameter | Type | Description |\n'
+          fields += '| --------- | ---- | ----------- |\n'
 
-          toolsSection += formatOutputStructure(toolInfo.outputs)
+          fields += formatOutputStructure(toolInfo.outputs)
+        } else if (
+          Object.hasOwn(await loadToolOutputs(), tool) &&
+          Object.keys((await loadToolOutputs())[tool]).length === 0
+        ) {
+          fields += 'No output fields.\n'
         } else if (Object.keys(outputs).length > 0) {
-          toolsSection += '| Parameter | Type | Description |\n'
-          toolsSection += '| --------- | ---- | ----------- |\n'
+          fields += '| Parameter | Type | Description |\n'
+          fields += '| --------- | ---- | ----------- |\n'
 
           for (const [key, output] of Object.entries(outputs)) {
             let type = 'string'
-            let description = `${key} output from the tool`
+            let description = ''
 
             if (typeof output === 'string') {
               type = output
@@ -4539,10 +4656,16 @@ async function generateMarkdownForBlock(
 
             const escapedDescription = escapeMdxCell(description)
 
-            toolsSection += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
+            fields += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
           }
         } else {
-          toolsSection += 'This tool does not produce any outputs.\n'
+          fields += 'No output fields are documented for this action.\n'
+        }
+        if (tools.access.length > 6 || (fields.match(/^\|/gm)?.length ?? 0) > 24) {
+          hasReferenceDetails = true
+          toolsSection += `<ReferenceDetails>\n\n${fields}\n</ReferenceDetails>\n`
+        } else {
+          toolsSection += fields
         }
       }
 
@@ -4550,34 +4673,43 @@ async function generateMarkdownForBlock(
     }
   }
 
+  if (inputSchemas.size) {
+    toolsSection += '## JSON input schemas [#json-input-schemas]\n\n'
+    toolsSection +=
+      'These GraphQL type definitions describe the JSON inputs. `!` marks required values, and brackets mark arrays. Fields with a provider default can be omitted.\n\n'
+    for (const [name, definition] of inputSchemas) {
+      toolsSection += `### ${name}\n\n${definition}\n\n`
+    }
+  }
+
   let usageInstructions = ''
   if (longDescription) {
-    usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`
+    usageInstructions = `## Use the block [#usage-instructions]\n\n${longDescription}\n\n`
   }
 
   const oauthScopesSection = oauthCredential
     ? await buildOAuthScopesSection(oauthCredential, tools.access ?? [])
     : ''
-
+  const connectionGuides = Object.entries(integrationNavigation.guides)
+    .filter(([, guide]) => guide.integration === stripVersionSuffix(type))
+    .map(([slug, guide]) => `[${guide.title}](/integrations/${slug})`)
+  const connectionSection = connectionGuides.length
+    ? `Connection guides: ${connectionGuides.join(' · ')}.\n\n`
+    : ''
   return `---
 title: ${name}
 description: ${description}
+integration:
+  type: ${JSON.stringify(type)}
+  color: ${JSON.stringify(bgColor || '#F5F5F5')}
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="${type}"
-  color="${bgColor || '#F5F5F5'}"
-/>
-
-${usageInstructions}
-
-${toolsSection}${oauthScopesSection}
+${hasReferenceDetails ? 'import { ReferenceDetails } from "@/components/ui/reference-details"\n' : ''}
+${connectionSection}${oauthScopesSection}${usageInstructions}${toolsSection}
 `
 }
 
-const OAUTH_SCOPES_HEADING = '## OAuth Scopes'
+const OAUTH_SCOPES_HEADING = '## OAuth scopes [#oauth-scopes]'
 const DATAVERSE_ENVIRONMENT_SCOPE = '<environment-url>/.default'
 const DATAVERSE_SAMPLE_ENVIRONMENT = 'https://yourorg.crm.dynamics.com'
 const SELF_HOSTING_OAUTH_GUIDE = '/platform/self-hosting/integrations-oauth'
@@ -4703,7 +4835,7 @@ async function buildOAuthScopesSection(
   section += requested.length
     ? `Sim requests these scopes when someone connects ${article} ${service.name} account. `
     : `Sim requests no OAuth scopes for ${service.name}. `
-  section += `On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](${SELF_HOSTING_OAUTH_GUIDE}) for the full setup.\n\n`
+  section += `For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](${SELF_HOSTING_OAUTH_GUIDE}) for setup.\n\n`
 
   const providerIds = [service.providerId, ...(service.additionalProviderIds ?? [])]
   const redirects = providerIds.flatMap((providerId) => {
@@ -5060,7 +5192,6 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
       for (const segment of segments) {
         const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
-        const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const providerMatch = /\bprovider\s*:\s*['"]([^'"]+)['"]/.exec(segment)
 
         if (!idMatch || !nameMatch || !providerMatch) continue
@@ -5075,7 +5206,10 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
         registry.set(idMatch[1], {
           id: idMatch[1],
           name: nameMatch[1],
-          description: descMatch?.[1] ?? '',
+          description:
+            registryTrigger?.description ??
+            extractStringPropertyFromContent(segment, 'description', true) ??
+            '',
           provider: providerMatch[1],
           polling,
           outputs: normalizeTriggerOutputs(registryTrigger?.outputs ?? {}),
@@ -5179,10 +5313,6 @@ function toSemanticType(uiType: string): string {
 }
 
 /**
- * Generate MDX content for a single trigger provider page.
- * Matches the structure of tool docs: ## Triggers, ### `trigger_id`, #### Configuration / Output.
- */
-/**
  * Build the "## Triggers" section for an integration page. A trigger is a block
  * that starts a workflow, so this is appended to the service's actions page (or
  * used as the body of a trigger-only service page).
@@ -5193,11 +5323,9 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
 
   let typeNote = ''
   if (allPolling) {
-    typeNote =
-      '\nThese run on a schedule \\(**polling-based**\\) — they check for new data rather than receiving push notifications.\n'
+    typeNote = '\nThese triggers poll for new data on a schedule.\n'
   } else if (mixedTypes) {
-    typeNote =
-      '\nSome of these are **polling-based** \\(checked on a schedule\\) while others are push-based webhooks.\n'
+    typeNote = '\nSome triggers poll on a schedule; others receive webhooks from the service.\n'
   }
 
   let triggersSection = ''
@@ -5226,21 +5354,36 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
       outputSection += '\n'
     }
 
-    const separator = i < triggers.length - 1 ? '\n---\n\n' : ''
+    const fields = configSection + outputSection
+    const foldFields =
+      fields.length > 0 && (triggers.length > 6 || (fields.match(/^\|/gm)?.length ?? 0) > 24)
+    const separator = !foldFields && i < triggers.length - 1 ? '\n---\n\n' : ''
 
     triggersSection += `### ${trigger.name}\n\n`
     const escapedTriggerDescription = escapeMdxProse(trigger.description)
     triggersSection += `${escapedTriggerDescription}\n\n`
-    triggersSection += configSection
-    triggersSection += outputSection
+    triggersSection += foldFields
+      ? `<ReferenceDetails label="Configuration and outputs">\n\n${fields}</ReferenceDetails>\n\n`
+      : fields
     triggersSection += separator
   }
 
   return `## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 ${typeNote}
 ${triggersSection}`
+}
+
+function withReferenceDetailsImport(markdown: string): string {
+  if (!markdown.includes('<ReferenceDetails') || markdown.includes('import { ReferenceDetails }')) {
+    return markdown
+  }
+
+  return markdown.replace(
+    /^(---\n[\s\S]*?\n---\n)/,
+    '$1\nimport { ReferenceDetails } from "@/components/ui/reference-details"\n'
+  )
 }
 
 /** Standalone page for a trigger-only service (no actions block). */
@@ -5253,22 +5396,18 @@ function generateTriggerProviderDoc(
   const providerName = formatTriggerProviderName(provider)
   return `---
 title: ${providerName}
-description: ${providerName} triggers for automating workflows
+description: Start workflows from ${providerName} events
+integration:
+  type: ${JSON.stringify(blockType)}
+  color: ${JSON.stringify(providerColor)}
 ---
-
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard
-  type="${blockType}"
-  color="${providerColor}"
-/>
 
 ${buildTriggersSection(triggers)}`
 }
 
 /**
  * Build a map of block-type → bgColor from all block definitions.
- * Used to pick provider colours for the BlockInfoCard on trigger pages.
+ * Used to pick provider colors for integration headers on trigger pages.
  */
 async function buildProviderColorMap(): Promise<Map<string, string>> {
   const colorMap = new Map<string, string>()
@@ -5368,16 +5507,20 @@ async function generateAllTriggerDocs(): Promise<void> {
       const existing = readGeneratedFile(outputFilePath)
 
       if (existing?.includes('\n## Actions')) {
-        // Actions page generated this run by the block pass — add the Triggers
-        // section after Actions and before any OAuth Scopes section.
         if (!existing.includes('\n## Triggers')) {
           const triggersSection = buildTriggersSection(triggers)
-          const scopesIndex = existing.indexOf(`\n${OAUTH_SCOPES_HEADING}\n`)
+          const insertionIndexes = [
+            existing.indexOf('\n## JSON input schemas [#json-input-schemas]\n'),
+            existing.indexOf('\n{/* MANUAL-CONTENT-START:notes */}'),
+          ].filter((index) => index >= 0)
+          const insertionIndex = insertionIndexes.length
+            ? Math.min(...insertionIndexes)
+            : existing.length
           emitGeneratedFile(
             outputFilePath,
-            scopesIndex === -1
-              ? `${existing}\n${triggersSection}`
-              : `${existing.slice(0, scopesIndex)}\n${triggersSection}${existing.slice(scopesIndex)}`
+            withReferenceDetailsImport(
+              `${existing.slice(0, insertionIndex)}\n${triggersSection}${existing.slice(insertionIndex)}`
+            )
           )
         }
       } else {
@@ -5394,7 +5537,7 @@ async function generateAllTriggerDocs(): Promise<void> {
           Object.keys(manualSections).length > 0
             ? mergeWithManualContent(markdown, existing, manualSections)
             : markdown
-        emitGeneratedFile(outputFilePath, finalContent)
+        emitGeneratedFile(outputFilePath, withReferenceDetailsImport(finalContent))
       }
 
       generatedProviders.push(blockType)
@@ -5472,6 +5615,13 @@ function updateMetaJson() {
 
 if (import.meta.main) {
   CHECK_ONLY = process.argv.includes('--check')
+  const metadataProcess = Bun.spawn(
+    ['bun', path.join(__dirname, 'sync-tool-metadata.ts'), ...(CHECK_ONLY ? ['--check'] : [])],
+    { cwd: rootDir, stdout: 'inherit', stderr: 'inherit' }
+  )
+  const metadataExitCode = await metadataProcess.exited
+  if (metadataExitCode !== 0) process.exit(metadataExitCode)
+
   console.log(
     CHECK_ONLY
       ? 'Checking generated documentation freshness...'

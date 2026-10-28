@@ -41,6 +41,7 @@ import {
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import {
+  buildToolParamVisibilityMap,
   isSubBlockRequired,
   resolveToolParamRequired,
 } from '@/lib/workflows/tool-input/param-visibility'
@@ -49,7 +50,6 @@ import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isEnvVarReference, isReference } from '@/executor/constants'
-import type { ParameterVisibility } from '@/tools/types'
 
 /**
  * Resource kinds the fork remapper rewrites across workspaces, derived from the
@@ -1690,22 +1690,13 @@ function collectClearedToolParamDependents(
     // (a model-supplied param is not the user's to fill) and then this collector would mark it
     // required, which SKIPS the target's redeploy in `promote.ts` - leaving the fork silently
     // running its previous deployed version.
-    const paramVisibilityById = new Map<string, ParameterVisibility | undefined>()
-    for (const resolved of getToolInputParamConfigs({
-      tool: { ...tool, type: tool.type, params: mergedParams },
-      toolIndex: index,
-      parentCanonicalModes,
-    })) {
-      if (!resolved.authoritative) continue
-      const visibility = resolved.config.paramVisibility
-      paramVisibilityById.set(resolved.paramId, visibility)
-      if (
-        resolved.config.canonicalParamId &&
-        !paramVisibilityById.has(resolved.config.canonicalParamId)
-      ) {
-        paramVisibilityById.set(resolved.config.canonicalParamId, visibility)
-      }
-    }
+    const paramVisibilityById = buildToolParamVisibilityMap(
+      getToolInputParamConfigs({
+        tool: { ...tool, type: tool.type, params: mergedParams },
+        toolIndex: index,
+        parentCanonicalModes,
+      })
+    )
     for (const cfg of toolConfig.subBlocks) {
       if (!cfg.dependsOn || !cfg.id) continue
       // Only flag a param the TARGET tool had configured (not one the source carried in).

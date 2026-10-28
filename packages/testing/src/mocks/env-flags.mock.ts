@@ -15,6 +15,7 @@ interface EnvFlagsMockState {
   isChatEnabled: boolean
   isStatusNoticePreviewEnabled: boolean
   isCopilotToolPermissionsEnabled: boolean
+  isMothershipBenchmarkEnabled: boolean
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
   isAuthDisabled: boolean
@@ -39,6 +40,7 @@ interface EnvFlagsMockState {
   isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
   isCustomBlocksEnabled: boolean
+  isCredentialGroupsEnabled: boolean
   isDataRetentionEnabled: boolean
   isDataDrainsEnabled: boolean
   isSessionPoliciesEnabled: boolean
@@ -67,6 +69,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isChatEnabled: true,
   isStatusNoticePreviewEnabled: false,
   isCopilotToolPermissionsEnabled: false,
+  isMothershipBenchmarkEnabled: false,
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,
   isAuthDisabled: false,
@@ -97,6 +100,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
   isCustomBlocksEnabled: false,
+  isCredentialGroupsEnabled: false,
   isDataRetentionEnabled: false,
   isDataDrainsEnabled: false,
   isForkingEnabled: false,

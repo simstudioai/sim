@@ -51,7 +51,7 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
   readEvents: hoisted.events,
   getLatestSeq: async () => null,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
 const mockResolveOrganizationBillingAttribution =
   billingAttributionMockFns.mockResolveOrganizationBillingAttribution

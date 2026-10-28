@@ -1,8 +1,5 @@
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
-import {
-  loadCatalogWorkspaceContext,
-  resolveCatalogGate,
-} from '@/lib/catalog/application/catalog-context'
+import { loadCatalogWorkspaceContext, resolveCatalogGate } from '@/lib/catalog/application/context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { resolveVisibleToolId, resolveVisibleToolIds } from '@/lib/catalog/application/tool-scope'
 import { type CatalogToolDetail, projectToolDetail } from '@/lib/catalog/projection/tool'

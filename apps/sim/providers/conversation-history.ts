@@ -7,6 +7,7 @@ import type { ConversationProtocol, ConversationUsage } from '@/lib/memory/conve
 import { getConversationPrefixHash } from '@/providers/conversation-prefix'
 import { priceModelUsage, resolveModelCostPolicy } from '@/providers/cost-policy'
 import { providerHistoryAdapters } from '@/providers/history-adapters'
+import { recordModelStepCost } from '@/providers/run-usage-limit'
 import { getProviderRuntimeContext, type ProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderId, ProviderRequest, ProviderToolConfig } from '@/providers/types'
 
@@ -89,20 +90,45 @@ export function getConversationBinding(providerId: ProviderId, request: Provider
     .digest('hex')
 }
 
-/** Called with a complete provider message, including streaming terminal responses. */
+function priceRequestUsage(request: ProviderRequest, usage: ConversationUsage) {
+  return priceModelUsage(
+    request.model,
+    usage,
+    resolveModelCostPolicy(request.model, request.isBYOK)
+  )
+}
+
+/**
+ * Called with a complete provider message, including streaming terminal responses. Its billed
+ * cost counts toward the run's usage limit whether or not the Agent keeps a conversation.
+ */
 export async function captureProviderConversationStep(
   request: ProviderRequest,
   protocol: ConversationProtocol,
   value: unknown,
   usage?: ConversationUsage,
-  options?: { requestHistory?: readonly unknown[] }
+  options?: {
+    requestHistory?: readonly unknown[]
+    /** Answer retained by the provider when its terminal native message has no text. */
+    fallbackAssistantContent?: string
+  }
 ): Promise<void> {
   const runtime = getConversationRequestContext(request)
+  const priced = usage ? { usage, cost: priceRequestUsage(request, usage) } : undefined
+  if (priced) recordModelStepCost(runtime, priced.cost)
   if (!runtime?.agentConversation || !runtime.conversationProvider) return
   try {
     const captured = providerHistoryAdapters[protocol].capture(value)
     await runtime.agentConversation.captureStep({
       ...captured,
+      ...(options?.fallbackAssistantContent !== undefined
+        ? {
+            assistant: {
+              ...captured.assistant,
+              content: captured.assistant.content || options.fallbackAssistantContent,
+            },
+          }
+        : {}),
       calls: captured.calls.map((call) => {
         const tool = request.tools?.find((candidate) => candidate.id === call.toolId)
         return {
@@ -119,16 +145,7 @@ export async function captureProviderConversationStep(
           ? { prefixHash: getConversationPrefixHash(options.requestHistory) }
           : {}),
       },
-      ...(usage
-        ? {
-            usage,
-            cost: priceModelUsage(
-              request.model,
-              usage,
-              resolveModelCostPolicy(request.model, request.isBYOK)
-            ),
-          }
-        : {}),
+      ...priced,
     })
   } catch {
     logger.warn('Agent conversation capture unavailable')
@@ -136,21 +153,21 @@ export async function captureProviderConversationStep(
 }
 
 /**
- * Saves model usage outside captured exchanges, including discarded decisions at the tool limit.
+ * Saves model usage outside captured exchanges, including discarded decisions at the tool limit,
+ * and counts it toward the run's usage limit.
  * The current provider response already counts these tokens; only a later attempt adds this journal usage.
  */
 export async function recordProviderConversationUsage(
   request: ProviderRequest,
   usage: ConversationUsage | undefined
 ): Promise<void> {
-  const session = getConversationRequestContext(request)?.agentConversation
-  if (!usage || !session?.recordContextUsage) return
+  if (!usage) return
+  const runtime = getConversationRequestContext(request)
+  const cost = priceRequestUsage(request, usage)
+  recordModelStepCost(runtime, cost)
+  const session = runtime?.agentConversation
+  if (!session?.recordContextUsage) return
   try {
-    const cost = priceModelUsage(
-      request.model,
-      usage,
-      resolveModelCostPolicy(request.model, request.isBYOK)
-    )
     await session.recordContextUsage({
       tokens: usage,
       cost: { input: cost.input, output: cost.output, total: cost.total, toolCost: 0 },

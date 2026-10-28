@@ -43,6 +43,7 @@ Examples:
   $ sim workflows export 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 > wf.json
   $ sim workflows import --workflow @wf.json
   $ sim knowledge export 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 -o ./kb.simkb.zip
+  $ sim knowledge import ./kb.simkb.zip --name "Docs (copy)"
   $ sim whoami --profile dev
 `
 
@@ -61,6 +62,13 @@ best match rather than repeating similar searches, then run
 \`<command> --help\` for its flags.
 === END AGENT COMMAND DISCOVERY ===
 `
+
+/**
+ * Executable but unpublished until launch, so kept out of `--help` and `sim cli` search. The
+ * Mothership command inventory still lists them, marked `unpublished`, because the worker routes
+ * to them only when Sim enables the feature for a turn.
+ */
+export const UNPUBLISHED_GROUPS: ReadonlySet<string> = new Set(['projects'])
 
 /** The root's own value-taking options, which consume the token after them. */
 const ROOT_VALUE_FLAGS: ReadonlySet<string> = new Set([
@@ -148,7 +156,13 @@ function addVersionOption(program: Command): void {
  * release.
  */
 export function buildProgram(
-  options: { version?: boolean; helpText?: string; program?: Command; env?: NodeJS.ProcessEnv } = {}
+  options: {
+    version?: boolean
+    helpText?: string
+    program?: Command
+    env?: NodeJS.ProcessEnv
+    hostCommands?: boolean
+  } = {}
 ): Command {
   const env = options.env ?? process.env
   const program = options.program ?? new Command()
@@ -164,21 +178,27 @@ export function buildProgram(
     .addOption(
       new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
     )
-  for (const command of [
-    loginCommand,
-    logoutCommand,
-    whoamiCommand,
-    profilesCommand,
-    configureCommand,
-  ])
-    program.addCommand(command())
-  const update = updateCommand()
-  program.addCommand(update)
-  program.addCommand(telemetryCommand())
+  if (options.hostCommands !== false) {
+    for (const command of [
+      loginCommand,
+      logoutCommand,
+      whoamiCommand,
+      profilesCommand,
+      configureCommand,
+    ])
+      program.addCommand(command())
+    const update = updateCommand()
+    program.addCommand(update)
+    program.addCommand(telemetryCommand())
+    program.hook('preAction', async (_program, command) => {
+      if (command === update) return
+      await announceUpdateIfAvailable()
+    })
+  }
   program.addCommand(cliCommand())
 
   for (const command of buildGeneratedCommands()) {
-    program.addCommand(command)
+    program.addCommand(command, { hidden: UNPUBLISHED_GROUPS.has(command.name()) })
   }
 
   attachCredentialCommands(program)
@@ -189,11 +209,6 @@ export function buildProgram(
   program.addHelpText('beforeAll', ({ command }) =>
     detectCodingAgent(env) !== undefined && command.commands.length > 0 ? AGENT_DISCOVERY_NOTE : ''
   )
-
-  program.hook('preAction', async (_program, command) => {
-    if (command === update) return
-    await announceUpdateIfAvailable()
-  })
 
   refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)

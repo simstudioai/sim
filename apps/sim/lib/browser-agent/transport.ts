@@ -36,6 +36,7 @@ import type {
   SimDesktopBrowserAgentApi,
 } from '@sim/desktop-bridge'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
+import { browserToolTimeoutMessage } from '@sim/desktop-bridge/tool-results'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getDesktopBridge, isBrowserAgentEnabled } from '@/lib/desktop'
@@ -243,11 +244,7 @@ export async function executeBrowserTool(
                     error: toError(error).message,
                   })
                 }
-                reject(
-                  new BrowserOutcomeUnknownError(
-                    `The browser did not respond within ${timeoutMs}ms. Its outcome is unknown and the action may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.`
-                  )
-                )
+                reject(new BrowserOutcomeUnknownError(browserToolTimeoutMessage(timeoutMs)))
               }, timeoutMs)
             }),
           ])

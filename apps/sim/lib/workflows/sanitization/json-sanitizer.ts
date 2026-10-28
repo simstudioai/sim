@@ -6,7 +6,7 @@ import {
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
-import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
+import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/extractor'
 import { getBlock } from '@/blocks/registry'
 import type {
   BlockRetryConfig,

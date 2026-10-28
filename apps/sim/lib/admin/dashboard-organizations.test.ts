@@ -48,12 +48,11 @@ vi.mock('@/lib/billing/enterprise-provisioning', () => ({
   getLatestEnterpriseProvisionings: vi.fn(async () => hoistedMocks.provisionings),
 }))
 vi.mock('@/lib/billing/enterprise-outbox', () => ({
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE: 'stripe.sync-enterprise-metadata',
   enterpriseMetadataSyncPayloadSchema: { safeParse: vi.fn() },
   resolveEnterpriseMetadataIntent: hoistedMocks.resolveMetadataIntent,
 }))
 vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/billing/validation/seat-management', () => ({

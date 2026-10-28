@@ -1,17 +1,16 @@
 ---
 title: Affinity
 description: Read and write companies, people, lists, notes, and relationships in Affinity
+integration:
+  type: "affinity"
+  color: "#1B1C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="affinity"
-  color="#1B1C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Affinity](https://www.affinity.co/) is a CRM for companies, people, opportunities, and relationship data. Its v2 integration can read and update records, lists, field values, notes, interactions, and transcripts.
+[Affinity](https://www.affinity.co/) is a CRM for companies, people, opportunities, and relationship data. Its v2 integration reads companies, people, opportunities, lists, interactions, and transcripts; creates lists and reminders; manages notes; and updates field values and dropdown options.
 
 Discover a workspace’s list fields and dropdown options before writing values. Use bulk field operations for multiple changes and follow the field-value change feed from a stored cursor for incremental sync. Relationship and inferred-connection operations help find introduction paths; Semantic Search finds companies from an investment description.
 
@@ -25,18 +24,17 @@ Generate an API key from the **Manage Apps** page in your Affinity settings; it 
 Some Affinity endpoints are still marked BETA — company, person, and list-entry search, the per-entity field-value reads, the inferred-connection operations, and the user operations. Affinity may change those without notice or versioning.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrates the Affinity v2 API into the workflow. Read and search companies, people, and opportunities, page the rows of any list or saved view, read and write field values one at a time or a hundred at once, write and reply to notes, create reminders, follow logged calls, emails, meetings, and transcripts, find warm introductions through shared work and investment history, search notes and files by keyword, find companies from a description in plain language, and follow the field-value change feed for delta sync. What each operation can reach depends on the permissions granted to the API key.
-
-
+Read companies, people, opportunities, lists, and saved views; search companies, people, and list entries. Page through the rows of a list or saved view. Read field values and update them individually or in batches of up to 100 on one company, person, or list entry. Read, create, update, delete, and reply to notes; list or create reminders; retrieve logged calls, emails, chat messages, meetings, and transcripts. Search notes and files by keyword, find companies from a plain-language description with Semantic Search, discover possible introduction paths through shared work and investment history, and follow the field-value change feed for incremental synchronization. Access depends on the API key holder’s permissions.
 
 ## Actions
 
 ### Affinity Batch Update Entity Fields
 
 Write up to 100 non-list field values on one company or person in a single request.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -53,9 +51,13 @@ Write up to 100 non-list field values on one company or person in a single reque
 | --------- | ---- | ----------- |
 | `operation` | string | The batch operation Affinity performed |
 
+</ReferenceDetails>
+
 ### Affinity Batch Update List Entry Fields
 
 Write up to 100 field values on one list row in a single request. Requires the "Export data from Lists" permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +74,13 @@ Write up to 100 field values on one list row in a single request. Requires the "
 | --------- | ---- | ----------- |
 | `operation` | string | The batch operation Affinity performed |
 
+</ReferenceDetails>
+
 ### Affinity Create List
 
 Create a list. Its type fixes which entities it can hold, and the API key holder becomes its creator and owner.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -97,9 +103,13 @@ Create a list. Its type fixes which entities it can hold, and the API key holder
 | `createdAt` | string | When the list was created |
 | `type` | string | company, opportunity, or person — the entity kind the list holds |
 
+</ReferenceDetails>
+
 ### Affinity Create List Field Dropdown Option
 
 Add a selectable option to a dropdown field on a list. A ranked or status option also needs a rank and a color.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +137,13 @@ Add a selectable option to a dropdown field on a list. A ranked or status option
 | `statusCategory` | string | open, won, lost, or on-hold, on status options |
 | `winRate` | number | Win rate of a status option |
 
+</ReferenceDetails>
+
 ### Affinity Create Merge
 
 Fold a duplicate company or person into the record you are keeping. The merge runs asynchronously — poll the returned task to see it finish. Requires the "Manage duplicates" permission and an admin role.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +160,13 @@ Fold a duplicate company or person into the record you are keeping. The merge ru
 | --------- | ---- | ----------- |
 | `taskUrl` | string | URL of the merge task to poll for completion |
 
+</ReferenceDetails>
+
 ### Affinity Create Note
 
 Write a note — attached to companies, persons, and opportunities, anchored to a meeting, call, or chat message, or posted as a reply to an existing note.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -190,9 +208,13 @@ Write a note — attached to companies, persons, and opportunities, anchored to 
 | `companiesPreview` | json | Attached companies, with a count |
 | `opportunitiesPreview` | json | Attached opportunities, with a count |
 
+</ReferenceDetails>
+
 ### Affinity Create Reminder
 
 Create a reminder on one company, person, or opportunity. A recurring reminder resets whenever the chosen signal happens instead of firing once.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -228,9 +250,13 @@ Create a reminder on one company, person, or opportunity. A recurring reminder r
 | `createdAt` | string | When the reminder was created |
 | `updatedAt` | string | When the reminder was last updated |
 
+</ReferenceDetails>
+
 ### Affinity Delete List Field Dropdown Option
 
 Permanently delete a dropdown option on a list field. Every list entry currently set to it is cleared, and those values cannot be recovered.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -248,9 +274,13 @@ Permanently delete a dropdown option on a list field. Every list entry currently
 | `success` | boolean | Whether Affinity accepted the change |
 | `id` | string | Identifier of the resource that was changed |
 
+</ReferenceDetails>
+
 ### Affinity Delete Note
 
 Delete a note you created. Deleting a root note also deletes its replies; deleting a reply removes only that reply.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -266,9 +296,13 @@ Delete a note you created. Deleting a root note also deletes its replies; deleti
 | `success` | boolean | Whether Affinity accepted the change |
 | `id` | string | Identifier of the resource that was changed |
 
+</ReferenceDetails>
+
 ### Affinity Get Company
 
 Look up one company by ID. Field data is returned only for the Field IDs or Field Types asked for.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -295,9 +329,13 @@ Look up one company by ID. Field data is returned only for the Field IDs or Fiel
 |   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
+</ReferenceDetails>
+
 ### Affinity Get Current User
 
 Verify an Affinity API key and return the tenant, the user behind the key, and the scopes the grant carries.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -323,9 +361,13 @@ Verify an Affinity API key and return the tenant, the user behind the key, and t
 |   ↳ `scopes` | array | Scopes available to the grant |
 |   ↳ `createdAt` | string | When the grant was created |
 
+</ReferenceDetails>
+
 ### Affinity Get Entity Field Value
 
 Read one non-list field value from a company or person.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -346,9 +388,13 @@ Read one non-list field value from a company or person.
 | `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 | `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
+</ReferenceDetails>
+
 ### Affinity Get List
 
 Read one list — its name, type, owner, and privacy setting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -369,9 +415,13 @@ Read one list — its name, type, owner, and privacy setting.
 | `createdAt` | string | When the list was created |
 | `type` | string | company, opportunity, or person — the entity kind the list holds |
 
+</ReferenceDetails>
+
 ### Affinity Get List Entry
 
 Read one row of a list with its entity. Field data is returned only for the Field IDs or Field Types asked for.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -394,9 +444,13 @@ Read one row of a list with its entity. Field data is returned only for the Fiel
 | `creatorId` | number | User who added the entity |
 | `entity` | json | The company, person, or opportunity on the row, including its field values |
 
+</ReferenceDetails>
+
 ### Affinity Get List Entry Field
 
 Read one field value on a list row.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -417,9 +471,13 @@ Read one field value on a list row.
 | `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 | `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
+</ReferenceDetails>
+
 ### Affinity Get List Field Dropdown Option
 
 Read one dropdown option on a list field.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -442,9 +500,13 @@ Read one dropdown option on a list field.
 | `statusCategory` | string | open, won, lost, or on-hold, on status options |
 | `winRate` | number | Win rate of a status option |
 
+</ReferenceDetails>
+
 ### Affinity Get Merge
 
 Read the status of one company or person merge, including why it failed if it did.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -469,9 +531,13 @@ Read the status of one company or person merge, including why it failed if it di
 | `primaryPersonId` | number | Person kept by a person merge |
 | `duplicatePersonId` | number | Person folded in by a person merge |
 
+</ReferenceDetails>
+
 ### Affinity Get Merge Task
 
 Read one merge task and how its merges are progressing. Poll this after starting a merge.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -489,9 +555,13 @@ Read one merge task and how its merges are progressing. Poll this after starting
 | `status` | string | in-progress, success, or failed |
 | `resultsSummary` | json | Counts of the grouped merges as \{total, inProgress, success, failed\} |
 
+</ReferenceDetails>
+
 ### Affinity Get Note
 
 Read one note with its body, author, mentions, and attached records.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -525,9 +595,13 @@ Read one note with its body, author, mentions, and attached records.
 | `companiesPreview` | json | Attached companies, with a count |
 | `opportunitiesPreview` | json | Attached opportunities, with a count |
 
+</ReferenceDetails>
+
 ### Affinity Get Opportunity
 
 Read one opportunity and the list it belongs to. Its field data lives on the list entry.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -547,9 +621,13 @@ Read one opportunity and the list it belongs to. Its field data lives on the lis
 | `isRestricted` | boolean | Whether list permissions restrict access to the opportunity |
 | `isRedacted` | boolean | Whether the opportunity fields were redacted |
 
+</ReferenceDetails>
+
 ### Affinity Get Person
 
 Look up one person by ID. Field data is returned only for the Field IDs or Field Types asked for.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -577,9 +655,13 @@ Look up one person by ID. Field data is returned only for the Field IDs or Field
 |   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
 |   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
 
+</ReferenceDetails>
+
 ### Affinity Get Saved View
 
 Read one saved view — its name, kind, and creation date.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -598,9 +680,13 @@ Read one saved view — its name, kind, and creation date.
 | `type` | string | sheet, board, or dashboard |
 | `createdAt` | string | When the saved view was created |
 
+</ReferenceDetails>
+
 ### Affinity Get Transcript
 
 Read one transcript with its first 100 fragments. Page the fragments endpoint for a longer meeting.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -619,9 +705,13 @@ Read one transcript with its first 100 fragments. Page the fragments endpoint fo
 | `languageCode` | string | Language the meeting was held in |
 | `fragmentsPreview` | json | The first 100 fragments, with a total count |
 
+</ReferenceDetails>
+
 ### Affinity Get User
 
 Read one internal user. A user and their person record share the same numeric ID, so a person ID works here.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -643,9 +733,13 @@ Read one internal user. A user and their person record share the same numeric ID
 | `status` | string | active, invited, or deactivated |
 | `role` | string | Account role, for callers with the Manage Users permission |
 
+</ReferenceDetails>
+
 ### Affinity List Calls
 
 Page through logged calls and their participants. Only calls the API key holder can see are returned.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -675,9 +769,13 @@ Page through logged calls and their participants. Only calls the API key holder 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Chat Messages
 
 Page through logged chat messages and their participants. Only messages the API key holder can see are returned.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -710,9 +808,13 @@ Page through logged chat messages and their participants. Only messages the API 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Companies
 
 Page through companies. Companies come back without field data unless Field IDs or Field Types asks for it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -745,9 +847,13 @@ Page through companies. Companies come back without field data unless Field IDs 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Coworker Connections
 
 Find warm paths into a company through shared work history: who in your Affinity data once worked alongside the people you want to reach. Grouped by target, strongest first.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -771,9 +877,13 @@ Find warm paths into a company through shared work history: who in your Affinity
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Emails
 
 Page through email metadata — subject, participants, and timestamps. Affinity never exposes email bodies through the API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -803,9 +913,13 @@ Page through email metadata — subject, participants, and timestamps. Affinity 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Entity Field Values
 
 Page through a company's or person's non-list field values. List fields are not returned here — read those through the list entry.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -833,9 +947,13 @@ Page through a company's or person's non-list field values. List fields are not 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Entity List Entries
 
 Page through a company's or person's rows across every list, each carrying that list's field values and when the entity was added.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -867,9 +985,13 @@ Page through a company's or person's rows across every list, each carrying that 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Entity Lists
 
 List every list a company or person appears on that the caller can view.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -896,9 +1018,13 @@ List every list a company or person appears on that the caller can view.
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Entity Notes
 
 List the notes relevant to one company, person, or opportunity — directly attached notes plus notes reaching it through its people and meetings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -941,9 +1067,13 @@ List the notes relevant to one company, person, or opportunity — directly atta
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Entity Relationships
 
 List who knows a company or person, scored 0.0 to 1.0 by how much the two actually interact. Strongest first by default.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -982,9 +1112,13 @@ List who knows a company or person, scored 0.0 to 1.0 by how much the two actual
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Field Dropdown Options
 
 List the selectable options on a dropdown or ranked-dropdown company or person field. Writing such a field needs the option ID, not its text.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1012,9 +1146,13 @@ List the selectable options on a dropdown or ranked-dropdown company or person f
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Field Metadata
 
 List the non-list company or person fields, with the value type, filter operators, and sort support of each. Start here to find the Field IDs the read and write tools take.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1044,9 +1182,13 @@ List the non-list company or person fields, with the value type, filter operator
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Field Value Changes
 
 Page through field value changes across the whole workspace. Built for delta sync: follow nextCursor to the end of a run, then resume from the last cursor next time.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1076,9 +1218,13 @@ Page through field value changes across the whole workspace. Built for delta syn
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Investor Executive Connections
 
 Find warm paths into a company through investment history: which investors in your Affinity data backed a company the people you want to reach once led. Grouped by target, strongest first.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1102,9 +1248,13 @@ Find warm paths into a company through investment history: which investors in yo
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List List Entries
 
 Page through the rows of a list. Rows come back without field data unless Field IDs or Field Types asks for it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1132,9 +1282,13 @@ Page through the rows of a list. Rows come back without field data unless Field 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List List Entry Field Value Changes
 
 Page through the history of one list row — who changed which field, when, and to what.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1165,9 +1319,13 @@ Page through the history of one list row — who changed which field, when, and 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List List Entry Fields
 
 Page through every field value on one list row, including the list-specific columns. All fields are returned unless narrowed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1195,9 +1353,13 @@ Page through every field value on one list row, including the list-specific colu
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List List Field Dropdown Options
 
 List the selectable options on a dropdown, ranked-dropdown, or status-dropdown field of a list.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1225,9 +1387,13 @@ List the selectable options on a dropdown, ranked-dropdown, or status-dropdown f
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List List Fields
 
 List the fields available on one list, including its list-specific columns. Use these Field IDs when reading or writing list entries.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1257,9 +1423,13 @@ List the fields available on one list, including its list-specific columns. Use 
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Lists
 
 Page through the lists in the organization that the caller can view.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1286,9 +1456,13 @@ Page through the lists in the organization that the caller can view.
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Meetings
 
 Page through past and upcoming meetings with their organizer and attendees.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1319,9 +1493,13 @@ Page through past and upcoming meetings with their organizer and attendees.
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Merge Tasks
 
 Page through merge tasks, each summarizing how many of its merges are in progress, succeeded, or failed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1345,9 +1523,13 @@ Page through merge tasks, each summarizing how many of its merges are in progres
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Merges
 
 Page through the company or person merges the organization has run, with the status and the records involved in each.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1378,9 +1560,13 @@ Page through the company or person merges the organization has run, with the sta
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Note Attached Companies
 
 List the companies directly attached to one note.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1405,9 +1591,13 @@ List the companies directly attached to one note.
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Note Attached Opportunities
 
 List the opportunities directly attached to one note.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1435,9 +1625,13 @@ List the opportunities directly attached to one note.
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Note Attached Persons
 
 List the persons directly attached to one note.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1464,9 +1658,13 @@ List the persons directly attached to one note.
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Note Replies
 
 Page through the replies on one note, including AI Notetaker replies.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1508,9 +1706,13 @@ Page through the replies on one note, including AI Notetaker replies.
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Notes
 
 Page through every note the caller can see. Replies are excluded.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1552,9 +1754,13 @@ Page through every note the caller can see. Replies are excluded.
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Opportunities
 
 Page through opportunities. Field data lives on the list entry, not here — read it through the list or saved view the opportunity belongs to.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1580,9 +1786,13 @@ Page through opportunities. Field data lives on the list entry, not here — rea
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Persons
 
 Page through persons. Persons come back without field data unless Field IDs or Field Types asks for it.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1616,9 +1826,13 @@ Page through persons. Persons come back without field data unless Field IDs or F
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Reminders
 
 Page through the reminders the caller can see. Filter by status to surface what is overdue.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1655,9 +1869,13 @@ Page through the reminders the caller can see. Filter by status to surface what 
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Saved View Entries
 
 Page through the rows of a saved view. The view's own filters and columns decide which rows and which field data come back.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1684,9 +1902,13 @@ Page through the rows of a saved view. The view's own filters and columns decide
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Saved Views
 
 List the saved views on a list that the caller can view.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1710,9 +1932,13 @@ List the saved views on a list that the caller can view.
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity List Transcript Fragments
 
 Page through everything said in a meeting, segment by segment with the speaker.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1738,9 +1964,13 @@ Page through everything said in a meeting, segment by segment with the speaker.
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Transcripts
 
 Page through meeting transcript metadata. Read one transcript to get what was actually said.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1762,9 +1992,13 @@ Page through meeting transcript metadata. Read one transcript to get what was ac
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity List Users
 
 Page through the internal users in the organization. Email addresses and roles are returned only to callers with the "Manage Users" permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1793,9 +2027,13 @@ Page through the internal users in the organization. Email addresses and roles a
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 
+</ReferenceDetails>
+
 ### Affinity Search Companies
 
 Search companies by filters, sorts, and a free-text term. Requires the "Export All Organizations directory" permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1833,9 +2071,13 @@ Search companies by filters, sorts, and a free-text term. Requires the "Export A
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity Search Files
 
 Search files by keyword, ordered by relevance. Narrow to specific files or to one company, or leave both unset to search the whole account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1857,9 +2099,13 @@ Search files by keyword, ordered by relevance. Narrow to specific files or to on
 |   ↳ `preview` | string | Snippet of the file around the match |
 | `count` | number | Number of matches returned |
 
+</ReferenceDetails>
+
 ### Affinity Search List Entries
 
 Search the rows of one list by filters, sorts, and a free-text term. Requires the "Export data from Lists" permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1893,9 +2139,13 @@ Search the rows of one list by filters, sorts, and a free-text term. Requires th
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity Search Notes
 
 Search notes by keyword, ordered by relevance. Narrow to specific notes or to one company, or leave both unset to search the whole account.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1916,9 +2166,13 @@ Search notes by keyword, ordered by relevance. Narrow to specific notes or to on
 |   ↳ `preview` | string | Snippet of the note around the match |
 | `count` | number | Number of matches returned |
 
+</ReferenceDetails>
+
 ### Affinity Search Persons
 
 Search persons by filters, sorts, and a free-text term. Requires the "Export All People directory" permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1957,9 +2211,13 @@ Search persons by filters, sorts, and a free-text term. Requires the "Export All
 | `prevCursor` | string | Cursor for the previous page, or null on the first page |
 | `totalCount` | number | Total size of the collection, only when Total Count was requested |
 
+</ReferenceDetails>
+
 ### Affinity Semantic Search
 
 Find companies from a description in plain language — industry, technology, stage, or business model. Currently searches companies only.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1985,9 +2243,13 @@ Find companies from a description in plain language — industry, technology, st
 | `entityType` | string | The entity kind that was searched |
 | `explanation` | string | How the search read the prompt |
 
+</ReferenceDetails>
+
 ### Affinity Update Entity Field Value
 
 Write one non-list field value on a company or person. The value type must match how the field is defined.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2006,9 +2268,13 @@ Write one non-list field value on a company or person. The value type must match
 | `success` | boolean | Whether Affinity accepted the change |
 | `id` | string | Identifier of the resource that was changed |
 
+</ReferenceDetails>
+
 ### Affinity Update List Entry Field
 
 Write one field value on a list row. Requires the "Export data from Lists" permission.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2027,9 +2293,13 @@ Write one field value on a list row. Requires the "Export data from Lists" permi
 | `success` | boolean | Whether Affinity accepted the change |
 | `id` | string | Identifier of the resource that was changed |
 
+</ReferenceDetails>
+
 ### Affinity Update List Field Dropdown Option
 
 Change a dropdown option on a list field. Every field is optional — supply only what should change, and only fields the option's kind actually has.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2052,9 +2322,13 @@ Change a dropdown option on a list field. Every field is optional — supply onl
 | `success` | boolean | Whether Affinity accepted the change |
 | `id` | string | Identifier of the resource that was changed |
 
+</ReferenceDetails>
+
 ### Affinity Update Note
 
 Rewrite a note's body or replace which records it is attached to. Each list of IDs replaces that association wholesale, an empty list clears it, and omitting one leaves it untouched. A note's type cannot be changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -2073,5 +2347,7 @@ Rewrite a note's body or replace which records it is attached to. Each list of I
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether Affinity accepted the change |
 | `id` | string | Identifier of the resource that was changed |
+
+</ReferenceDetails>
 
 

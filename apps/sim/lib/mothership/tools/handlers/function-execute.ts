@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { omit, toRecord } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { ContentRefusedError, observeContentDelivery } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   durableSecretProvenanceFromEnvelope,
@@ -13,9 +14,10 @@ import {
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
-import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/execution-observer'
-import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/observer'
+import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
+import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import {
   createSandboxMountBudget,
   MAX_INLINE_MOUNT_FILE_BYTES,
@@ -31,6 +33,7 @@ import { resolveCopilotFilePrincipal } from '@/lib/mothership/auth/file-delegati
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
 import { recordServiceCost } from '@/lib/mothership/billing/service-observer'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { WorkbenchSecretNames } from '@/lib/mothership/generated/workbench'
 import { applySecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type {
@@ -44,22 +47,23 @@ import {
   type MaterializedCopilotCodeSecrets,
   materializeCopilotCodeSecrets,
 } from '@/lib/mothership/tools/secret-mount-materializer.server'
-import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { readTableSnapshot } from '@/lib/table/application/read-table-snapshot'
 import {
-  findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
   parseChatUploadReference,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { importWorkspaceFileSnapshotProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/vfs/path'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
-import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/folders'
+import {
+  findActiveWorkspaceFilesByReference,
+  queryWorkspaceFilePage,
+} from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
-import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,
@@ -74,46 +78,47 @@ const MAX_MOUNTED_FILES = 500
 const DEFAULT_TIMEOUT_SECONDS = 60
 const MAX_TIMEOUT_SECONDS = 300
 
-/** Keeps mount bytes, canonical classification and budget together until they enter the runtime. */
+/** An input the run asked for that was not mounted, and why; paths are the model's own. */
+export interface ExcludedInput {
+  path: string
+  reason: string
+}
+
+const UNVERIFIED_INPUT_REASON =
+  'Its secret provenance could not be verified, so code was not executed.'
+
+/**
+ * Mounts one file whose classification the installed gate admits. A file the gate refuses is left
+ * out and reported. The caller stops before executing code if any requested mount is refused;
+ * refused bytes never enter workbench history or disable later calls without those inputs.
+ */
 async function pushWorkspaceFileMount(
-  sandboxFiles: SandboxFile[],
+  mounts: ResolvedInputMounts,
   record: WorkspaceFileRecord,
   mountPath: string,
-  mounted: SandboxMountBudget,
   workspaceId: string,
   principal: Principal,
-  registry?: ResolvedSecretTraceRegistry,
   signal?: AbortSignal
 ): Promise<void> {
-  if (!registry) {
-    throw new Error(
-      `Input file "${mountPath}" cannot be mounted because its secret provenance is unavailable.`
-    )
-  }
-  const result = await readWorkspaceFileMount.execute({
-    principal,
-    input: {
-      fileId: record.id,
-      assertedWorkspaceId: workspaceId,
-      mountPath,
-      budget: mounted,
-      signal,
-    },
-  })
   try {
-    const imported = await importWorkspaceFileSnapshotProvenance({
-      workspaceId,
-      provenance: result.secretProvenance,
-      resourceId: record.id,
-      registry,
+    const result = await readWorkspaceFileMount.execute({
+      principal,
+      input: {
+        fileId: record.id,
+        assertedWorkspaceId: workspaceId,
+        mountPath,
+        budget: mounts.budget,
+        signal,
+      },
     })
-    if (!imported) registry.markIncomplete('mounted-file-provenance-unavailable')
-  } catch {
-    registry.markIncomplete('mounted-file-provenance-unavailable')
+    signal?.throwIfAborted()
+    mounts.files.push(result.mount)
+    Object.assign(mounts.budget, result.budget)
+  } catch (error) {
+    if (!(error instanceof ContentRefusedError)) throw error
+    signal?.throwIfAborted()
+    mounts.excluded.push({ path: mountPath, reason: UNVERIFIED_INPUT_REASON })
   }
-  signal?.throwIfAborted()
-  sandboxFiles.push(result.mount)
-  Object.assign(mounted, result.budget)
 }
 
 /**
@@ -191,12 +196,11 @@ function refField(ref: unknown, key: 'path' | 'tableId' | 'sandboxPath'): string
  * is the honest not-found rather than a hint to go looking elsewhere.
  */
 async function resolveMountableWorkspaceFile(
-  allFiles: WorkspaceFileRecord[],
+  listed: WorkspaceFileRecord | null | undefined,
   filePath: string,
   workspaceId: string,
   principal: Principal
 ): Promise<WorkspaceFileRecord> {
-  const listed = findWorkspaceFileRecord(allFiles, filePath)
   if (listed) return listed
 
   if (parseChatUploadReference(filePath) !== null) {
@@ -224,13 +228,24 @@ async function resolveMountableWorkspaceFile(
   )
 }
 
+/** The inputs a run mounts, those it left out, and the mount budget they spent. */
+interface ResolvedInputMounts {
+  files: SandboxFile[]
+  excluded: ExcludedInput[]
+  budget: SandboxMountBudget
+}
+
+/**
+ * Resolves a run's file, directory and table inputs into mounts. Every stored item is decided by
+ * the gate the caller installed, so the run's registry learns each mounted file's secrets and a
+ * refused item is reported rather than mounted.
+ */
 export async function resolveInputFiles(
   context: ToolExecutionContext,
   inputFiles?: unknown[],
   inputTables?: unknown[],
-  inputDirectories?: unknown[],
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
-): Promise<SandboxFile[]> {
+  inputDirectories?: unknown[]
+): Promise<{ files: SandboxFile[]; excluded: ExcludedInput[] }> {
   const workspaceId = context.workspaceId
   if ((inputFiles?.length ?? 0) > MAX_MOUNTED_FILES) throw new Error('Too many input files')
   const organizationId = context.chatOrganizationId ?? context.organizationId
@@ -284,15 +299,18 @@ export async function resolveInputFiles(
   if (!workspaceId) {
     if (inputFiles?.length || inputTables?.length || inputDirectories?.length)
       throw new Error('An explicit workspace is required for workspace input mounts')
-    return attachments
+    return { files: attachments, excluded: [] }
   }
   const filePrincipal =
     inputFiles?.length || inputDirectories?.length
       ? resolveCopilotFilePrincipal(context)
       : undefined
-  const sandboxFiles: SandboxFile[] = [...attachments]
-  const mounted = createSandboxMountBudget()
-  mounted.buffered = attachments.reduce(
+  const mounts: ResolvedInputMounts = {
+    files: [...attachments],
+    excluded: [],
+    budget: createSandboxMountBudget(),
+  }
+  mounts.budget.buffered = attachments.reduce(
     (total, file) => total + ('content' in file ? Buffer.byteLength(file.content, 'base64') : 0),
     0
   )
@@ -306,28 +324,29 @@ export async function resolveInputFiles(
         `Too many input files (${inputFiles.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount fewer files.`
       )
     }
-    const { files: allFiles } = await listAllWorkspaceFiles.execute({
+    const { files: listedFiles } = await findActiveWorkspaceFilesByReference.execute({
       principal: filePrincipal,
-      input: { workspaceId, scope: 'active' },
+      input: {
+        workspaceId,
+        references: inputFiles.flatMap((fileRef) => refField(fileRef, 'path') ?? []),
+      },
     })
     for (const fileRef of inputFiles) {
       const filePath = refField(fileRef, 'path')
       if (!filePath) continue
       const record = await resolveMountableWorkspaceFile(
-        allFiles,
+        listedFiles.get(filePath),
         filePath,
         workspaceId,
         filePrincipal
       )
       const mountPath = refField(fileRef, 'sandboxPath') ?? getSandboxWorkspaceFilePath(record)
       await pushWorkspaceFileMount(
-        sandboxFiles,
+        mounts,
         record,
         mountPath,
-        mounted,
         workspaceId,
         filePrincipal,
-        resolvedSecretTraceRegistry,
         context.abortSignal
       )
     }
@@ -341,10 +360,7 @@ export async function resolveInputFiles(
       principal: filePrincipal,
       input: { workspaceId },
     })
-    const { files: allFiles } = await listAllWorkspaceFiles.execute({
-      principal: filePrincipal,
-      input: { workspaceId, scope: 'active' },
-    })
+    const childrenByParent = indexFolderChildren(folders)
     for (const dirRef of inputDirectories) {
       const dirPath = refField(dirRef, 'path')
       if (!dirPath) continue
@@ -362,13 +378,25 @@ export async function resolveInputFiles(
       const mountRoot =
         refField(dirRef, 'sandboxPath') ??
         `/home/user/files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}`
-      const descendants = allFiles.filter((file) => {
-        if (!file.folderPath) return false
-        return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)
+      const { files: descendants, nextKeys } = await queryWorkspaceFilePage.execute({
+        principal: filePrincipal,
+        input: {
+          workspaceId,
+          folderScope: {
+            folderIds: new Set([
+              folder.id,
+              ...collectDescendantFolderIdsFrom(childrenByParent, folder.id),
+            ]),
+            includeRootItems: false,
+          },
+          sortBy: 'uploadedAt',
+          sortOrder: 'asc',
+          limit: MAX_MOUNTED_FILES,
+        },
       })
-      if (descendants.length > MAX_MOUNTED_FILES) {
+      if (nextKeys) {
         throw new Error(
-          `Input directory contains too many files (${descendants.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount a smaller directory or individual files.`
+          `Input directory contains more than ${MAX_MOUNTED_FILES} files. Mount a smaller directory or individual files.`
         )
       }
       logger.info('Mounting workspace directory for run_function', {
@@ -381,7 +409,7 @@ export async function resolveInputFiles(
           candidate.path !== folder.path && candidate.path.startsWith(`${folder.path}/`)
       )
       if (descendants.length === 0 && childFolders.length === 0) {
-        sandboxFiles.push({ path: `${mountRoot}/.keep`, content: '' })
+        mounts.files.push({ path: `${mountRoot}/.keep`, content: '' })
         continue
       }
       for (const childFolder of childFolders) {
@@ -394,7 +422,7 @@ export async function resolveInputFiles(
         })
         if (!hasFiles) {
           const relativeFolder = childFolder.path.slice(folder.path.length).replace(/^\/+/, '')
-          sandboxFiles.push({ path: `${mountRoot}/${relativeFolder}/.keep`, content: '' })
+          mounts.files.push({ path: `${mountRoot}/${relativeFolder}/.keep`, content: '' })
         }
       }
       for (const record of descendants) {
@@ -402,13 +430,11 @@ export async function resolveInputFiles(
           record.folderPath?.slice(folder.path.length).replace(/^\/+/, '') ?? ''
         const relativePath = [relativeFolder, record.name].filter(Boolean).join('/')
         await pushWorkspaceFileMount(
-          sandboxFiles,
+          mounts,
           record,
           `${mountRoot}/${relativePath}`,
-          mounted,
           workspaceId,
           filePrincipal,
-          resolvedSecretTraceRegistry,
           context.abortSignal
         )
       }
@@ -419,25 +445,22 @@ export async function resolveInputFiles(
     for (const tableRef of inputTables) {
       const tableId = refField(tableRef, 'tableId') ?? refField(tableRef, 'path')
       if (!tableId) continue
-      if (!resolvedSecretTraceRegistry) {
-        throw new Error(
-          `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
-        )
-      }
       try {
         const result = await executeCopilotTableUseCase(context, readTableSnapshot, {
           workspaceId,
           reference: tableId,
           sandboxPath: refField(tableRef, 'sandboxPath'),
-          budget: mounted,
+          budget: mounts.budget,
           signal: context.abortSignal,
         })
-        if (result.unsafeProvenance)
-          resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
-        sandboxFiles.push(result.mount)
-        Object.assign(mounted, result.budget)
+        mounts.files.push(result.mount)
+        Object.assign(mounts.budget, result.budget)
       } catch (error) {
         context.abortSignal?.throwIfAborted()
+        if (error instanceof ContentRefusedError) {
+          mounts.excluded.push({ path: tableId, reason: UNVERIFIED_INPUT_REASON })
+          continue
+        }
         logger.error('Table input mount failed', { error, tableId })
         throw new Error(
           messageForCopilotTableError(error, 'Table input could not be read. Retry the mount.')
@@ -446,7 +469,7 @@ export async function resolveInputFiles(
     }
   }
 
-  return sandboxFiles
+  return { files: mounts.files, excluded: mounts.excluded }
 }
 
 async function importMountedProvenance(
@@ -499,6 +522,8 @@ export async function executeFunctionExecute(
     'sandboxSessionKey',
     // Server-derived from resolved inputs; a model-supplied mount would skip their provenance.
     '_sandboxFiles',
+    // Stored-file mounts by raw key bypass the classified `inputs`; Chat names files by path.
+    'files',
     PRIVATE_SECRET_PROVENANCE_FIELD,
   ])
   // One persistent session sandbox per chat: files and installed packages
@@ -611,16 +636,27 @@ export async function executeFunctionExecute(
       ]
 
       if (inputFiles?.length || inputTables?.length || inputDirectories.length) {
-        const resolved = await resolveInputFiles(
-          context,
-          inputFiles,
-          inputTables,
-          inputDirectories,
-          mountedRegistry
+        /** Mounted bytes reach the run's own registry, whose output then crosses into Chat's. */
+        const resolved = await observeContentDelivery(
+          createRegistryContentGate({
+            registry: mountedRegistry,
+            workspaceId: context.workspaceId,
+            organizationId: context.chatOrganizationId ?? context.organizationId,
+            actorUserId: context.userId,
+          }),
+          () => resolveInputFiles(context, inputFiles, inputTables, inputDirectories)
         )
-        if (resolved.length > 0) {
+        if (resolved.excluded.length > 0) {
+          return {
+            success: false,
+            error:
+              'One or more requested inputs could not be mounted safely. Code was not executed.',
+            output: { codeExecuted: false, excludedInputs: resolved.excluded },
+          }
+        }
+        if (resolved.files.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
-          enrichedParams._sandboxFiles = [...existing, ...resolved]
+          enrichedParams._sandboxFiles = [...existing, ...resolved.files]
 
           const provenance = mountedRegistry.exportProvenance()
           const bundle: PrivateSecretProvenanceBundleV1 = {

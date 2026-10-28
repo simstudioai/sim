@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /** Real PostgreSQL coverage for storage ownership changes and document lifecycle accounting. */
 
 import { execFile } from 'node:child_process'
@@ -26,8 +27,10 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
-import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/deletion'
-import { KNOWLEDGE_CONNECTOR_DETACH_EVENT } from '@/lib/knowledge/connectors/detachment'
+import {
+  KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
+  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+} from '@/lib/knowledge/connectors/outbox-events'
 import { createContentSyncLease, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
 import {
@@ -128,7 +131,7 @@ afterAll(async () => {
         )
       )
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }

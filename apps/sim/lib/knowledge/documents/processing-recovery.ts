@@ -7,17 +7,18 @@ import {
   assertBillingAttributionOwner,
   resolveSystemBillingAttribution,
   resolveSystemOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import type { DbOrTx } from '@/lib/db/types'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   createDocumentProcessingPayload,
   createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
 } from '@/lib/knowledge/documents/processing-payload'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
 import {
   DOCUMENT_LIVENESS_BATCH_SIZE,
@@ -28,7 +29,6 @@ import {
 
 const logger = createLogger('KnowledgeDocumentRecovery')
 
-export const KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT = 'knowledge.document.processing.recover'
 export const DOCUMENT_RECOVERY_BATCH_SIZE = 200
 const RECOVERY_RUNTIME_MS = 20_000
 const MAX_RECOVERY_CANDIDATE_BATCHES = 4

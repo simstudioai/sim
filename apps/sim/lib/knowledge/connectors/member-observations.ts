@@ -26,8 +26,8 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbOrTx } from '@/lib/db/types'
-import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import { walkReconciliationWindows } from '@/lib/knowledge/connectors/reconciliation-window'
 import {
   ACL_CHANGE_BATCH_SIZE,

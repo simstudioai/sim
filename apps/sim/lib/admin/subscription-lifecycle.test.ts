@@ -2,6 +2,7 @@ import { outboxEvent, subscription } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
 import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { stripeClientMock } from '@sim/testing/mocks/stripe.mock'
@@ -24,6 +25,7 @@ vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMo
 vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 
 import {
   refundDashboardSubscriptionPayment,
@@ -98,6 +100,7 @@ describe('admin subscription cancellation', () => {
 
   it('requeues the same dead-lettered period-end cancellation operation', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: activeSubscription.id }])
+    queueTableRows(outboxEvent, [{ subscriptionId: 'sub-row-1' }])
     queueTableRows(outboxEvent, [
       {
         id: 'outbox-1',
@@ -126,6 +129,7 @@ describe('admin subscription cancellation', () => {
   })
 
   it('replays an immediate cancellation after the webhook removed active entitlement', async () => {
+    queueTableRows(outboxEvent, [])
     queueTableRows(outboxEvent, [
       {
         id: 'outbox-1',
@@ -149,6 +153,7 @@ describe('admin subscription cancellation', () => {
   })
 
   it('rejects reuse of a cancellation operation id with different timing', async () => {
+    queueTableRows(outboxEvent, [])
     queueTableRows(outboxEvent, [
       {
         id: 'outbox-1',

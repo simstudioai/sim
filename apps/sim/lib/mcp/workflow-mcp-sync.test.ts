@@ -14,7 +14,7 @@ const { mocks } = vi.hoisted(() => ({
 vi.mock('@/lib/mcp/server-locks', () => ({
   acquireWorkflowMcpServerLock: mocks.acquireLock,
 }))
-vi.mock('@/lib/workflows/triggers/trigger-utils', () => ({
+vi.mock('@/lib/workflows/triggers/utils', () => ({
   hasValidStartBlockInState: mocks.hasValidStartBlock,
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)

@@ -108,6 +108,9 @@ export const isStatusNoticePreviewEnabled = isTruthy(getEnv('NEXT_PUBLIC_STATUS_
  */
 export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISSIONS_ENABLED)
 
+/** Deployment-only opt-in; authenticated resource permissions still apply. */
+export const isMothershipBenchmarkEnabled = isTruthy(env.MOTHERSHIP_BENCHMARK_ENABLED)
+
 /**
  * Is billing enforcement enabled.
  *
@@ -296,13 +299,15 @@ export const isEnterpriseEnabled =
 /**
  * Reads a feature's own flag as a tri-state, picking the server var or its
  * browser twin for the current runtime. `undefined` means the operator left it
- * unset, which is what lets the master switch and legacy default apply.
+ * unset, which is what lets the master switch and legacy default apply. A
+ * server-only feature passes a `null` twin.
  */
 function explicitEnterpriseFlag(
   serverValue: boolean | string | undefined,
-  clientKey: string
+  clientKey: string | null
 ): boolean | undefined {
-  return typeof window === 'undefined' ? envBoolean(serverValue) : envBoolean(getEnv(clientKey))
+  if (typeof window === 'undefined') return envBoolean(serverValue)
+  return clientKey ? envBoolean(getEnv(clientKey)) : undefined
 }
 
 /**
@@ -317,7 +322,7 @@ function explicitEnterpriseFlag(
 function enterpriseFeatureEnabled(
   feature: EnterpriseFeature,
   serverValue: boolean | string | undefined,
-  clientKey: string
+  clientKey: string | null
 ): boolean {
   const explicit = explicitEnterpriseFlag(serverValue, clientKey)
   if (isBillingEnabled) return explicit ?? false
@@ -470,6 +475,17 @@ export const isSessionPoliciesEnabled = enterpriseFeatureEnabled(
   'sessionPolicies',
   env.SESSION_POLICIES_ENABLED,
   'NEXT_PUBLIC_SESSION_POLICIES_ENABLED'
+)
+
+/**
+ * Are Credential Groups (managed connected accounts) enabled on a deployment
+ * without billing. Server-only: the browser learns availability from the
+ * credential-groups routes, so there is no `NEXT_PUBLIC_` twin.
+ */
+export const isCredentialGroupsEnabled = enterpriseFeatureEnabled(
+  'credentialGroups',
+  env.CREDENTIAL_GROUPS,
+  null
 )
 
 /**

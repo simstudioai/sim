@@ -9,7 +9,7 @@ paths:
 
 ## Absolute Imports
 
-**Always use absolute imports.** Never use relative imports, except that a barrel `index.ts` re-exports its own siblings relatively (`export { X } from './x'`).
+**Always use absolute imports.** Never use relative imports, except that a barrel `index.ts` re-exports its own siblings relatively (`export { X } from './x'`). `check:source-conventions` ratchets this per file.
 
 ```typescript
 // ✓ Good
@@ -62,13 +62,7 @@ import { CORE_TRIGGER_TYPES } from '@/app/workspace/.../utils'
 
 ## Import Order
 
-1. React/core libraries
-2. External libraries
-3. UI components (`@sim/emcn`, `@/components/ui`)
-4. Utilities (`@/lib/...`)
-5. Stores (`@/stores/...`)
-6. Feature imports
-7. CSS imports
+Biome's `organizeImports` (`biome.json`) owns import order; `bun run lint` autofixes it.
 
 ## Type Imports
 

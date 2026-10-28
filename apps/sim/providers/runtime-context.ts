@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord, toRecordOrNull } from '@sim/utils/object'
 import {
   durableSecretProvenanceFromRegistry,
   importDurableSecretProvenance,
@@ -17,11 +17,17 @@ import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
 } from '@/executor/constants'
+import type { ExecutionTestHooks, MockedToolCall } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
+import type { TokenUsageCost } from '@/providers/pricing'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { ProviderId } from '@/providers/types'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
+import { getToolParams } from '@/tools/metadata'
 import type { ToolResponse } from '@/tools/types'
 
 export interface ProviderRuntimeContext {
@@ -36,6 +42,8 @@ export interface ProviderRuntimeContext {
   toolIdByWireId?: ReadonlyMap<string, string>
   /** Failed canonical Function cost omitted from provider tool-result collections. */
   failedFunctionToolCost?: { total: number }
+  /** Billed cost of this request's settled model steps and tool calls, charged if the run stops it. */
+  settledCost?: TokenUsageCost
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -110,17 +118,59 @@ function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
   }
 }
 
-function accumulateFailedFunctionToolCost(
+function toolCostTotal(result: ToolResponse): number {
+  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return 0
+  const total = result.output.cost.total
+  return typeof total === 'number' && Number.isFinite(total) && total > 0 ? total : 0
+}
+
+function accumulateToolCost(
   toolId: string,
   result: ToolResponse,
-  accumulator: ProviderRuntimeContext['failedFunctionToolCost']
+  runtime: ProviderRuntimeContext | undefined
 ): void {
-  if (toolId !== 'function_execute' || result.success || !accumulator) return
-  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return
+  const total = toolCostTotal(result)
+  if (total === 0 || !runtime) return
+  const failedFunction = toolId === 'function_execute' && !result.success
+  // A stop bills what success would: successful tool results plus failed Function runs.
+  if (runtime.settledCost && (result.success || failedFunction)) runtime.settledCost.total += total
+  if (failedFunction && runtime.failedFunctionToolCost) {
+    runtime.failedFunctionToolCost.total += total
+  }
+}
 
-  const total = result.output.cost.total
-  if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
-    accumulator.total += total
+/** The arguments a model sent a tool: no internal context, credentials, or fixed configuration. */
+function modelSuppliedToolInput(
+  toolId: string,
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  const declared = getToolParams(toolId)
+  // MCP and custom tools declare their arguments only in the schema the model was given.
+  const dynamicArgs = declared
+    ? undefined
+    : toRecord(toRecordOrNull(params._toolSchema)?.properties ?? {})
+  const input: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(params)) {
+    const visibility = declared?.[key]?.visibility
+    const isArgument = declared
+      ? Object.hasOwn(declared, key)
+      : Object.hasOwn(dynamicArgs ?? {}, key)
+    if (isArgument && visibility !== 'user-only' && visibility !== 'hidden') input[key] = value
+  }
+  return input
+}
+
+/** A test's answer to a tool call; a rejected mock becomes the tool's failure. */
+async function resolveMockedTool(
+  testHooks: ExecutionTestHooks,
+  call: MockedToolCall,
+  abortSignal: AbortSignal | undefined
+): Promise<ToolResponse> {
+  try {
+    return { success: true, output: await testHooks.resolveToolMock(call, abortSignal) }
+  } catch (error) {
+    if (abortSignal?.aborted) throw error
+    return { success: false, output: {}, error: getErrorMessage(error) }
   }
 }
 
@@ -224,6 +274,36 @@ export async function executeProviderTool(
         : registry.forkForToolCall()
     : undefined
 
+  const callerContext = options.executionContext ?? runtimeContext?.executionContext
+  const testHooks = callerContext?.testHooks
+  const callerBlockId =
+    isRecordLike(params._context) && typeof params._context.blockId === 'string'
+      ? stripCloneSuffixes(params._context.blockId)
+      : undefined
+  if (
+    testHooks &&
+    callerBlockId &&
+    !memoryRetrieval &&
+    testHooks.mocksTool(callerBlockId, executionToolId)
+  ) {
+    const input = projectResolvedSecretModelContent(
+      modelSuppliedToolInput(executionToolId, params),
+      registry
+    )
+    const response: ToolResponse = input.safe
+      ? await resolveMockedTool(
+          testHooks,
+          { blockId: callerBlockId, toolId: executionToolId, input: toRecord(input.value) },
+          callerContext?.abortSignal
+        )
+      : {
+          success: false,
+          output: {},
+          error: `Mocked tool "${executionToolId}" has inputs whose secrets cannot be redacted`,
+        }
+    return { rawResponse: response, modelResponse: response }
+  }
+
   try {
     const executionContext = options.executionContext ?? runtimeContext?.executionContext
     const result = memoryRetrieval
@@ -233,11 +313,7 @@ export async function executeProviderTool(
           ...(executionContext ? { executionContext } : {}),
           resolvedSecretTraceRegistry: toolCallRegistry,
         })
-    accumulateFailedFunctionToolCost(
-      executionToolId,
-      result,
-      runtimeContext?.failedFunctionToolCost
-    )
+    accumulateToolCost(executionToolId, result, runtimeContext)
     if (!registry || !toolCallRegistry) {
       return recordResult({ rawResponse: result, modelResponse: withoutChildTraceHandle(result) })
     }
@@ -249,12 +325,8 @@ export async function executeProviderTool(
     return recordResult({ rawResponse: result, modelResponse })
   } catch (error) {
     if (!registry || !toolCallRegistry) throw error
-    const errorName =
-      error && typeof error === 'object' && 'name' in error ? String(error.name) : undefined
     registry.mergeToolCallRegistry(toolCallRegistry)
-    if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
-      throw error
-    }
+    if (isAbortError(error)) throw error
     const rawResponse: ToolResponse = {
       success: false,
       output: {},

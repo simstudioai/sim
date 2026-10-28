@@ -222,7 +222,7 @@ export const createV2Tool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendar
   {
     id: 'google_calendar_create_v2',
     name: 'Google Calendar Create Event',
-    description: 'Create a new event in Google Calendar. Returns API-aligned fields only.',
+    description: 'Create a new event in Google Calendar.',
     version: '2.0.0',
     oauth: createTool.oauth,
     params: createTool.params,

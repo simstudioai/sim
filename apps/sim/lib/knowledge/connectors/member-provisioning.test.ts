@@ -16,7 +16,7 @@ vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvi
 vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
 

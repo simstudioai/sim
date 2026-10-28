@@ -1,4 +1,5 @@
 import { type RefObject, useEffect } from 'react'
+import { isMobileViewport } from '@/hooks/use-is-mobile'
 
 interface UseChatInputFocusProps {
   textareaRef: RefObject<HTMLTextAreaElement | null>
@@ -8,7 +9,7 @@ interface UseChatInputFocusProps {
 export function useChatInputFocus({ textareaRef }: UseChatInputFocusProps) {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      if (!document.hasFocus()) return
+      if (isMobileViewport() || !document.hasFocus()) return
       const active = document.activeElement
       if (
         active instanceof HTMLElement &&

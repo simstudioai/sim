@@ -141,33 +141,50 @@ describe('copilot chat stream replay route', () => {
     })
   })
 
-  it('stops replay polling when run becomes cancelled', async () => {
-    getLatestRunForStream
-      .mockResolvedValueOnce({
-        status: 'active',
-        executionId: 'exec-1',
-        id: 'run-1',
+  it.each([0, 2 * 60 * 60_000])(
+    'delivers cancellation after %i ms of replay',
+    async (elapsedMs) => {
+      const now = Date.now()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+      readEvents.mockImplementationOnce(async () => {
+        clock.mockReturnValue(now + elapsedMs)
+        return []
       })
-      .mockResolvedValueOnce({
-        status: 'cancelled',
-        executionId: 'exec-1',
-        id: 'run-1',
-      })
+      getLatestRunForStream
+        .mockResolvedValueOnce({
+          status: 'active',
+          executionId: 'exec-1',
+          id: 'run-1',
+        })
+        .mockResolvedValue({
+          status: 'cancelled',
+          executionId: 'exec-1',
+          id: 'run-1',
+        })
 
-    const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
-    )
+      const response = await GET(
+        new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+      )
 
-    const chunks = await readAllChunks(response)
-    expect(chunks[0]).toBe(': accepted\n\n')
-    expect(chunks.join('')).toContain(
-      JSON.stringify({
-        status: MothershipStreamV1CompletionStatus.cancelled,
-        reason: 'terminal_status',
-      })
-    )
-    expect(getLatestRunForStream).toHaveBeenCalledTimes(2)
-  })
+      const chunks = await readAllChunks(response)
+      if (elapsedMs >= 3_600_000) {
+        expect(chunks.join('')).not.toContain('"type":"complete"')
+        const reattached = await GET(
+          new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+        )
+        chunks.push(...(await readAllChunks(reattached)))
+      }
+      expect(chunks[0]).toBe(': accepted\n\n')
+      expect(chunks.join('')).toContain(
+        JSON.stringify({
+          status: MothershipStreamV1CompletionStatus.cancelled,
+          reason: 'terminal_status',
+        })
+      )
+      expect(getLatestRunForStream).toHaveBeenCalledTimes(elapsedMs >= 3_600_000 ? 3 : 2)
+      clock.mockRestore()
+    }
+  )
 
   it('emits structured terminal replay error when run metadata disappears', async () => {
     getLatestRunForStream

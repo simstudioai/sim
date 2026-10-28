@@ -11,16 +11,16 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import {
+  resolveWorkflowFolderPath,
+  workflowFolderPathForId,
+} from '@/lib/workflows/application/folders'
+import { WorkflowImportError } from '@/lib/workflows/application/import-error'
 import type {
   ImportWorkflowInput,
   ImportWorkflowOutcome,
 } from '@/lib/workflows/application/import-export'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import {
-  resolveWorkflowFolderPath,
-  workflowFolderPathForId,
-} from '@/lib/workflows/application/workflow-folders'
-import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 import { resolveImportedMetadata } from '@/lib/workflows/operations/import-workflow'
 import { createWorkflowInTransaction } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
@@ -47,7 +47,8 @@ import { assertWorkflowPreviewFits } from '@/lib/workflows/references/preview-li
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
+import { WORKSPACE_WORKFLOWS_CHANGED_EVENT } from '@/lib/workspaces/operations/outbox-events'
 import {
   findWorkspaceOperationReceipt,
   insertWorkspaceOperationReceipt,
@@ -342,7 +343,7 @@ export async function applyMappedWorkflowImport(
           },
         }
         await insertWorkspaceOperationReceipt(tx, requestHash, report)
-        await enqueueOutboxEvent(tx, 'workspace.workflows.changed', {
+        await enqueueOutboxEvent(tx, WORKSPACE_WORKFLOWS_CHANGED_EVENT, {
           workspaceId: context.workspaceId,
         })
         return receiptResult(report, false)

@@ -5,7 +5,7 @@ export const imapPollingTrigger: TriggerConfig = {
   id: 'imap_poller',
   name: 'IMAP Email Trigger',
   provider: 'imap',
-  description: 'Triggers when new emails are received via IMAP (works with any email provider)',
+  description: 'Start a workflow when an IMAP-enabled mailbox receives matching messages.',
   version: '1.0.0',
   icon: MailServerIcon,
   polling: true,

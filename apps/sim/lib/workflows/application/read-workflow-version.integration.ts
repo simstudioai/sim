@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, user, workflow, workflowDeploymentVersion, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -47,6 +48,23 @@ function snapshot(
           deployKey: { id: 'deployKey', type: 'short-input', value: `private-${value}` },
         },
       },
+      ads: {
+        id: 'ads',
+        type: 'google_ads',
+        name: 'Ads',
+        enabled: true,
+        position: { x: 600, y: 0 },
+        outputs: {},
+        subBlocks: {
+          customerId: { id: 'customerId', type: 'short-input', value: '1234567890' },
+          developerToken: { id: 'developerToken', type: 'short-input', value: 'retired-secret' },
+          _removed_developerToken: {
+            id: '_removed_developerToken',
+            type: 'short-input',
+            value: 'parked-secret',
+          },
+        },
+      },
     },
     edges: [],
     loops: {},
@@ -81,7 +99,7 @@ beforeAll(async () => {
       updatedAt: now,
     }))
   )
-  await db.insert(workspace).values({
+  await insertWorkspaceFixture(db, {
     id: workspaceId,
     name: 'Version read fixture',
     ownerId,
@@ -111,7 +129,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(inArray(user.id, [ownerId, outsiderId]))
   await db.$client.end()
 })
@@ -184,6 +202,14 @@ describe('deployment version representations through the authorized application 
       'knowledgeBaseSelector'
     )
     expect(pinned.version.state.blocks.convex.subBlocks.deployKey.value).toBeNull()
+    expect(pinned.version.state.blocks.ads.subBlocks).not.toHaveProperty('developerToken')
+    expect(pinned.version.state.blocks.ads.subBlocks).not.toHaveProperty('_removed_developerToken')
+    expect(pinned.version.state.blocks.ads.subBlocks.customerId.value).toBe('1234567890')
+    const original = await readWorkflowVersion.execute({
+      principal: sessionPrincipal,
+      input: { workflowId, version: 1, includeCredentialValues: true },
+    })
+    expect(original.version.state).toEqual(snapshots[0])
     const stored = await db
       .select({ state: workflowDeploymentVersion.state })
       .from(workflowDeploymentVersion)

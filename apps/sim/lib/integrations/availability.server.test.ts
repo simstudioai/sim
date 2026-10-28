@@ -105,6 +105,18 @@ describe('integration availability', () => {
     expect(resolveOAuthClientCapabilityId('quickbooks')).toBeNull()
   })
 
+  it('routes a service-account-only integration through limited account connection', () => {
+    expect(availabilityFor('vanta')).toEqual({
+      type: 'vanta',
+      slug: 'vanta',
+      name: 'Vanta',
+      state: 'limited',
+      oauthAvailable: false,
+      serviceAccountAvailable: true,
+      missingFields: [],
+    })
+  })
+
   it('keeps custom bots available when the Slack OAuth client is partial', () => {
     expect(availabilityFor('slack_v2', { SLACK_CLIENT_ID: 'client' })).toMatchObject({
       state: 'limited',

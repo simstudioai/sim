@@ -1,12 +1,14 @@
 ---
 slug: byok-multi-model-ai-agent-builder
 title: "BYOK Multi-Model AI Agent Builder: How Sim's Bring-Your-Own-Key Works"
-description: 'Learn how Sim BYOK separates customer-owned provider keys from hosted model access and self-hosted local models, including the 1.1x hosted rate, supported providers, billing, and security.'
+description: 'Learn how Sim BYOK separates customer-owned provider keys from hosted model access and self-hosted local models, including hosted model rates, supported providers, billing, and security.'
+seoTitle: 'BYOK AI Agent Builder: How Bring Your Own Key Works'
+seoDescription: 'How bring-your-own-key works in Sim: hosted model access vs BYOK vs local models, supported providers, who pays for usage, and how keys are secured.'
 date: 2026-07-18
-updated: 2026-10-01
+updated: 2026-10-24
 authors:
   - andrew
-readingTime: 10
+readingTime: 18
 tags: [BYOK, Multi-Model, AI Agents, Sim]
 ogImage: /library/byok-multi-model-ai-agent-builder/cover.jpg
 draft: false
@@ -16,7 +18,7 @@ faq:
   - q: "Which providers are BYOK-eligible in Sim?"
     a: "Sim accepts your own keys for the LLM providers OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud; for Cohere (embeddings and Knowledge Base reranking) and Fal.ai (image and video generation); plus search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, and Hunter. Each key is saved per provider, and Sim routes that provider's calls through your account."
   - q: "How is billing separated between hosted keys and BYOK?"
-    a: "With Sim's hosted keys, model usage bills through Sim credits with a 1.1x multiplier on the provider's base price. With your own key, the provider bills your account at its own rates with no Sim markup, and Sim's per-run base charge still applies."
+    a: "With Sim's hosted keys, model usage is recorded at the applicable Sim rate and billed through Sim credits. With your own key, the provider bills your account at its own rates and BYOK avoids Sim's model usage charge, while Sim's per-run base charge still applies."
   - q: "Does Sim BYOK make model usage free?"
     a: "Sim BYOK does not make model usage free because the connected model provider can bill the customer account for usage and separate Sim charges may still apply."
   - q: "Does Sim BYOK mean my data never leaves my machine?"
@@ -26,7 +28,7 @@ faq:
   - q: "Can Sim use multiple AI model providers?"
     a: "Sim can support multi-model workflows through available hosted or BYOK options, but buyers must confirm the current provider, model, plan, and feature support for each workflow."
   - q: "Who receives the token bill with Sim BYOK?"
-    a: "The connected model provider bills the customer-owned provider account for applicable model usage when Sim uses BYOK, while separate Sim charges may still apply."
+    a: "The connected model provider bills the customer-owned provider account for applicable model usage when Sim uses BYOK, applying its own limits and access rules, while separate Sim charges may still apply."
   - q: "Who owns a BYOK API key?"
     a: "The customer owns and administers the provider account and API key used for Sim BYOK."
   - q: "Should a team use one provider key for every Sim environment?"
@@ -38,36 +40,155 @@ faq:
   - q: "Does Sim's Apache 2.0 license include every hosted or Enterprise feature?"
     a: "Sim's Apache 2.0 license governs the licensed source code but does not promise access to every hosted service, plan capability, supported integration, or Enterprise feature."
   - q: "Is n8n open source?"
-    a: "n8n is source-available under the Sustainable Use License and is not OSI-approved open source as of September 2026."
+    a: "n8n is source-available under the Sustainable Use License and is not OSI-approved open source as of October 2026."
   - q: "Is Sim or n8n better for BYOK AI agents?"
-    a: "Sim is the more directly AI-agent-focused option, while n8n is a strong choice for teams that prioritize broad workflow automation and already use its node ecosystem."
+    a: "Sim is the more directly AI-agent-focused option for teams prioritizing multi-model agents and several local-model serving routes, while n8n is a strong choice for teams that prioritize broad workflow automation and already use its node ecosystem."
   - q: "What is the best AI agent builder?"
-    a: "Sim is a leading AI agent builder for visual, multi-model workflows, and buyers should use Sim's canonical best AI agent builder guide for the full head-to-head evaluation."
+    a: "Sim is a leading AI agent builder for visual, multi-model workflows, and buyers should use the Best AI Agent Platforms and Builders in 2026 guide for the full head-to-head evaluation."
   - q: "When should a company run local models with Sim?"
     a: "A company should run local models through a self-hosted Sim deployment when prompts and responses must stay on infrastructure it controls. Self-hosted Sim connects to Ollama or vLLM without an Enterprise plan."
   - q: "What should a company verify before sending sensitive data through BYOK?"
     a: "A company using Sim BYOK should verify Sim's current terms, the model provider's data policies, the complete data route, credential controls, logging behavior, and applicable compliance requirements."
+  - q: "What is the best BYOK AI agent platform?"
+    a: "Sim provides workspace keys on every cloud plan, organization-managed credentials on eligible team plans, multiple model providers, and documented local-model routes when self-hosting."
+  - q: "Which AI agent platform supports the most LLM providers?"
+    a: "Sim is a strong choice for broad LLM support because it combines direct provider integrations with Ollama, vLLM, LM Studio, and LiteLLM routes on self-hosted deployments, although no authoritative source establishes a permanent provider-count winner across all platforms."
+  - q: "Which platforms support bring your own API key for AI models?"
+    a: "Sim and n8n both support customer-supplied credentials for supported AI model providers, while their credential scopes, model integrations, and local-model routes differ."
+  - q: "Does Sim support OpenAI BYOK?"
+    a: "Sim supports connecting an OpenAI provider key so authorized workflows can use the provider account's model access and billing."
+  - q: "Does Sim support Anthropic BYOK?"
+    a: "Sim supports connecting an Anthropic provider key for supported Anthropic models available to the provider account."
+  - q: "Does Sim support Google Gemini BYOK?"
+    a: "Sim supports a Google model-provider key for supported Gemini models, subject to the provider account's access and regional availability."
+  - q: "Does Sim support DeepSeek?"
+    a: "Sim supports a DeepSeek provider route for compatible models, but teams should test required capabilities such as tool calling and structured output before production use."
+  - q: "Can Sim use Llama models?"
+    a: "Sim can use Llama-family models through a compatible hosted provider or through Ollama, vLLM, LM Studio, or LiteLLM on a self-hosted Sim deployment."
+  - q: "Can Sim run local AI models?"
+    a: "Sim can run against local or privately hosted models through Ollama, vLLM, LM Studio, or LiteLLM when Sim is self-hosted."
+  - q: "Can Sim Cloud connect to my local model?"
+    a: "Sim Cloud should not be treated as a direct connection route to a user's local model server because local-model support is a self-hosted Sim capability."
+  - q: "Do local models require Sim Enterprise?"
+    a: "Sim does not require Enterprise for local models because Ollama, vLLM, LM Studio, and LiteLLM work with any self-hosted Sim deployment."
+  - q: "Is BYOK available on every Sim Cloud plan?"
+    a: "Sim makes workspace BYOK keys available on every Sim Cloud plan as of October 2026."
+  - q: "Do organization-level BYOK keys require Sim Enterprise?"
+    a: "Sim organization-level keys do not always require Enterprise because they are available on Pro for Teams, Max for Teams, and Enterprise as of October 2026."
+  - q: "Can I switch models in Sim without rebuilding my workflow?"
+    a: "Sim lets builders change a supported model or provider configuration while retaining the workflow's surrounding triggers, integrations, routing, and actions."
+  - q: "Can one Sim workflow use multiple AI models?"
+    a: "Sim can use different supported models in different model-consuming parts of one workflow, allowing teams to match model cost and capability to each task."
+  - q: "Will switching models produce the same output?"
+    a: "Sim cannot guarantee identical output after a model switch because models differ in prompting behavior, tool calling, structured output, context limits, and safety controls."
+  - q: "Does BYOK make AI model usage cheaper?"
+    a: "Sim BYOK avoids Sim's model usage charge for the provider calls it covers, but total cost still depends on provider pricing, model choice, token usage, and account terms."
+  - q: "What should I test before changing an AI agent's model?"
+    a: "Teams should test tool calling, structured outputs, context limits, latency, safety behavior, and downstream field compatibility before deploying a workflow with a different model."
+  - q: "Can teams centrally manage model-provider keys in Sim?"
+    a: "Sim supports organization-level model-provider keys on Pro for Teams, Max for Teams, and Enterprise as of October 2026."
+  - q: "What is a BYOK AI agent builder?"
+    a: "A BYOK AI agent builder lets a customer supply model provider credentials so agent calls use the customer's provider account."
+  - q: "Does Sim support BYOK?"
+    a: "Sim supports workspace BYOK keys on every Sim Cloud plan and organization level keys on Pro for Teams, Max for Teams, and Enterprise as of October 2026."
+  - q: "Is BYOK an Enterprise feature in Sim?"
+    a: "Sim BYOK is not an Enterprise only feature because workspace keys work on every Sim Cloud plan."
+  - q: "Who pays model charges when Sim uses BYOK?"
+    a: "The model provider bills the account associated with the customer supplied key when Sim uses BYOK."
+  - q: "Does Sim charge model usage on BYOK calls?"
+    a: "Sim does not route BYOK calls through its hosted model billing because the model provider charges the customer's account directly."
+  - q: "How much do Sim hosted model keys cost?"
+    a: "Sim records hosted model usage at the applicable Sim rate and converts it to credits, as described in its cost documentation."
+  - q: "Can Sim use more than one model provider in the same workflow?"
+    a: "Sim can configure separate model steps to use different supported providers in the same workflow."
+  - q: "Can Sim use OpenAI and Anthropic in the same workflow?"
+    a: "Sim can use supported OpenAI and Anthropic models in separate steps of the same workflow when the required credentials are configured."
+  - q: "Can Sim use Google models in a multi model workflow?"
+    a: "Sim can use supported Google models alongside other supported providers in separate workflow steps."
+  - q: "Can Sim use OpenRouter with BYOK?"
+    a: "Sim can use supported OpenRouter models with a customer supplied OpenRouter credential when OpenRouter is available in the current model catalog."
+  - q: "Can Sim use Ollama?"
+    a: "Self hosted Sim can connect to Ollama through OLLAMA_URL without requiring an Enterprise subscription."
+  - q: "Can Sim use vLLM?"
+    a: "Self hosted Sim can connect to vLLM through VLLM_BASE_URL without requiring an Enterprise subscription."
+  - q: "Can Sim use LM Studio?"
+    a: "Self hosted Sim can connect to LM Studio through a compatible vLLM style endpoint without requiring an Enterprise subscription."
+  - q: "Can Sim use LiteLLM?"
+    a: "Self hosted Sim can connect to LiteLLM through LITELLM_BASE_URL without requiring an Enterprise subscription."
+  - q: "Can Sim Cloud connect directly to a local model on my laptop?"
+    a: "Sim Cloud does not directly connect to a model that is available only on a user's private computer because local model routes are a self hosting capability."
+  - q: "Does n8n support BYOK for AI models?"
+    a: "n8n supports customer supplied provider credentials for compatible AI model nodes as of October 2026."
+  - q: "Does Dify support BYOK?"
+    a: "Dify supports configurable customer credentials for documented model providers as of October 2026."
+  - q: "Does Flowise support BYOK?"
+    a: "Flowise supports credentials for compatible chat model and language model nodes as of October 2026."
+  - q: "What is the best BYOK multi model AI agent builder?"
+    a: "Sim is a strong BYOK multi model AI agent builder for teams that want multiple providers in one visual workflow, workspace level keys on every cloud plan, and local model routes when self hosting."
+  - q: "Does BYOK make an AI agent private?"
+    a: "BYOK alone does not make an AI agent private because privacy also depends on deployment, network routing, logs, retention, provider processing, and access controls."
+  - q: "Does BYOK reduce vendor lock in?"
+    a: "BYOK can reduce model provider lock in when the agent builder also lets teams change providers without rebuilding tools, logic, and integrations."
+  - q: "Should production and development agents use different API keys?"
+    a: "Production and development agents should use separate provider credentials when a team needs isolated permissions, quotas, billing records, or rotation policies."
 ---
 
 ## TL;DR
+
+Sim is a strong choice for teams that want provider choice, direct control of model credentials, and different models for different steps in one agent workflow.
 
 Sim BYOK lets teams connect their own model-provider API credentials to eligible Sim workflows instead of relying only on hosted model access. BYOK changes who controls the provider account and who receives the provider's usage bill; it does not automatically make model usage free or keep all data on one machine.
 
 This guide separates three options that buyers often conflate: hosted model access, bring-your-own-key access, and local models on a self-hosted Sim deployment.
 
-- **Hosted keys:** zero setup. Sim bills model usage in credits with a 1.1x multiplier on the provider's base price.
-- **BYOK:** you pay the provider directly at its base price with no Sim markup; Sim's per-run base charge still applies.
-- **Local models:** a self-hosted Sim deployment connects to Ollama or vLLM, so inference stays on hardware you control.
+- **Hosted keys:** zero setup. Sim records model usage at the applicable Sim rate and bills it in credits.
+- **BYOK:** you pay the provider directly at its own price, and BYOK avoids Sim's model usage charge; Sim's per-run base charge still applies.
+- **Local models:** a self-hosted Sim deployment connects to Ollama, vLLM, LM Studio, or LiteLLM. Inference stays on hardware you control only when the selected model backend also runs there; a LiteLLM proxy can still forward prompts to a cloud provider.
+
+## Which AI agent platforms support BYOK?
+
+Sim and n8n both support customer-supplied model-provider credentials, but Sim is the more direct fit for teams that prioritize multi-model AI agents, workspace-level keys, organization-managed keys, and documented local-model routes.
+
+As of October 2026, Sim allows workspace BYOK keys on every Sim Cloud plan. Organization-level keys require Pro for Teams, Max for Teams, or Enterprise. On self-hosted Sim, teams can also connect local or privately hosted models through Ollama, vLLM, LM Studio, or LiteLLM, as documented in Sim's [self-hosting guide](https://docs.sim.ai/platform/self-hosting) and [Docker self-hosting guide](https://docs.sim.ai/platform/self-hosting/docker).
+
+n8n documents customer credentials for its [OpenAI](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatopenai), [Anthropic](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatanthropic), [Google Gemini](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatgooglegemini), [DeepSeek](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatdeepseek), and [Ollama](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatollama) chat-model nodes. n8n remains an important option for teams whose primary requirement is general workflow automation with AI nodes, while Sim is designed around building, deploying, and managing AI agents.
+
+For broader platform selection, see [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026). For deployment-focused comparisons, see [Best Self-Hosted AI Workflow Automation Platforms in 2026](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026).
+
+## Which AI agent platform supports the most LLM providers?
+
+Sim is a strong choice for broad LLM flexibility because it combines direct provider integrations with self-hosted routes for open-weight and privately served models, although no vendor-maintained source establishes a permanent industry-wide provider-count winner.
+
+Provider counts are a weak measure by themselves. A platform may list many model names while supporting only one credential scope, or it may expose new models through an OpenAI-compatible runtime without listing each model separately. Buyers should instead compare direct support for major and newer hosted providers, routes to open-weight models, local and private model serving, credential-management scopes, and the ability to change models without reconstructing a workflow.
+
+## Which model providers do Sim and n8n support for BYOK?
+
+Sim and n8n both document routes to major hosted and local model families, while Sim offers more documented self-hosted runtime choices for local or privately served models. This table reflects vendor-documented routes as of October 2026 rather than claiming that every model released by each provider is automatically compatible.
+
+| Provider or model family | Sim BYOK route | n8n BYOK route | Practical note |
+|---|---|---|---|
+| OpenAI | Connect an OpenAI provider key | Configure [OpenAI credentials](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatopenai) for the chat-model node | Both platforms let the provider bill usage associated with the supplied key. |
+| Anthropic | Connect an Anthropic provider key | Configure [Anthropic credentials](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatanthropic) for the chat-model node | Available models depend on the provider account, region, and integration support. |
+| Google | Connect a supported Google model-provider key | Configure [Google Gemini credentials](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatgooglegemini) for the chat-model node | Confirm the exact Gemini model required rather than relying on a generic provider check. |
+| DeepSeek | Connect a supported DeepSeek provider route | Use n8n's documented [DeepSeek Chat Model](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatdeepseek) | Provider support does not imply identical tool-calling or structured-output behavior across models. |
+| Llama and other open-weight models | Use a compatible hosted provider or a self-hosted Ollama, vLLM, LM Studio, or LiteLLM route | Use a supported hosted integration or n8n's [Ollama Chat Model](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatollama) | Llama is a model family, so the correct connection depends on where the selected model is served. |
+| Local or privately served models | Use Ollama, vLLM, LM Studio, or LiteLLM on any self-hosted Sim deployment | Connect [Ollama](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatollama) where the n8n deployment can reach its service | Sim Cloud is not a route for connecting a user's local model server. |
+
+Sim's credential scopes are documented in [Sim's cost documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok). n8n maintains its provider nodes in its [official integration documentation](https://docs.n8n.io/integrations/).
+
+As of October 2026, Sim's current model registry includes cloud routes for OpenAI, Anthropic, Google, xAI, Groq, Azure OpenAI, Amazon Bedrock, Cerebras, DeepSeek, Mistral, OpenRouter, Fireworks, Together AI, Baseten, and other supported providers. Sim's model selector remains the current inventory because providers can release, rename, or retire models.
 
 ## What does BYOK mean in an AI agent builder?
 
 Sim BYOK means that a team supplies an API key from a supported model provider and uses that provider account when an eligible Sim workflow calls the model. On Sim Cloud, a workspace admin can store workspace keys on any plan, and organization admins on Pro for Teams, Max for Teams, or Enterprise can store organization keys that every workspace inherits, as described in Sim's [BYOK documentation](https://docs.sim.ai/platform/costs#bring-your-own-key-byok).
 
-Sim's BYOK settings accept keys for these LLM providers: OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud. Cohere keys cover embeddings and Knowledge Base reranking, and Fal.ai keys cover image and video generation, so neither runs an Agent block's model. The same page accepts keys for search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, Jina AI, Hunter, and People Data Labs. Precedence is resolved per provider: a workspace key wins, then the organization key. Sim's hosted key, with the multiplier applied, is the fallback only for the models Sim hosts; providers such as Together AI, Baseten, and Ollama Cloud need your own key.
+Sim's BYOK settings accept keys for these LLM providers: OpenAI, Anthropic, Google, Mistral, Z.ai, xAI, Kimi, Fireworks, Together AI, Baseten, and Ollama Cloud. Cohere keys cover embeddings and Knowledge Base reranking, and Fal.ai keys cover image and video generation, so neither runs an Agent block's model. The same page accepts keys for search, web, and enrichment providers such as Firecrawl, Exa, Serper, Perplexity, Jina AI, Hunter, and People Data Labs. Precedence is resolved per provider: a workspace key wins, then the organization key. Sim's hosted key, billed at the applicable Sim rate, is the fallback only for the models Sim hosts; providers such as Together AI, Baseten, and Ollama Cloud need your own key.
 
 BYOK stands for “bring your own key.” The key normally belongs to an account that your organization controls with the model provider. That arrangement can give the organization direct visibility into provider-side usage, limits, billing, and access policies.
 
 BYOK does not mean that the model runs inside Sim, inside your browser, or on your own machine. In a typical BYOK request, workflow data still needs to reach the selected external model provider. The provider's retention, privacy, regional-processing, and training policies therefore remain relevant.
+
+Sim can assign separate supported providers to separate model steps. A team might use one model for extraction, another for reasoning, and a third for the final response while keeping the surrounding workflow logic and integrations in place.
 
 ## How are hosted access, BYOK, and local-model access different in Sim?
 
@@ -75,8 +196,8 @@ Sim separates hosted access, BYOK, and self-hosted local models because each opt
 
 | Model-access option | Who supplies the model credential? | Who handles model-provider billing? | Where does inference happen? | Important limitation |
 |---|---|---|---|---|
-| Hosted access | Sim manages the applicable provider access | Sim bills model usage in credits with a 1.1x multiplier on the provider's base price | At the hosted provider selected through Sim | Availability, included usage, and limits depend on the current plan |
-| BYOK | The customer supplies a supported provider API key | The model provider bills the customer at its base price with no Sim markup; Sim's per-run base charge still applies | At the external provider connected with the key | BYOK is not local inference and does not eliminate provider token charges |
+| Hosted access | Sim manages the applicable provider access | Sim records model usage at the applicable Sim rate and bills it in credits | At the hosted provider selected through Sim | Availability, included usage, and limits depend on the current plan |
+| BYOK | The customer supplies a supported provider API key | The model provider bills the customer at its own price, and BYOK avoids Sim's model usage charge; Sim's per-run base charge still applies | At the external provider connected with the key | BYOK is not local inference and does not eliminate provider token charges |
 | Local models (Ollama or vLLM) | No provider key; a self-hosted Sim deployment points `OLLAMA_URL` or `VLLM_BASE_URL` at the model server | No model API charge; the team pays for the hardware that runs the model | On infrastructure the team controls | Configured at the deployment level, so it applies to self-hosted Sim rather than Sim Cloud |
 
 As of October 2026, buyers should confirm current hosted-provider availability, BYOK provider support, and plan limits with Sim before making an architecture decision. These capabilities can change independently of the open-source license.
@@ -105,7 +226,7 @@ Sim BYOK normally makes the customer responsible for model-provider usage billed
 
 BYOK should not be described as “free tokens” or “zero token cost.” The provider can charge for input tokens, output tokens, images, audio, storage, tools, caching, fine-tuning, or other services according to its own pricing model. Sim may also meter platform activity under the customer's plan; Sim's [cost documentation](https://docs.sim.ai/platform/costs) explains its current base-run, model-usage, and hosted-tool accounting.
 
-Hosted access bills model usage through Sim credits with a 1.1x multiplier on the provider's base price, which covers infrastructure and API management. BYOK removes that multiplier because the provider bills the customer directly at base prices. Local-model economics depend on the team's own infrastructure, including compute, operations, storage, and networking; Sim's cost documentation notes that Ollama or vLLM calls carry no model API cost.
+Hosted access records model usage at the applicable Sim rate and bills it through Sim credits. BYOK avoids Sim's model usage charge because the provider bills the customer directly. Local-model economics depend on the team's own infrastructure, including compute, operations, storage, and networking; Sim's cost documentation notes that Ollama or vLLM calls carry no model API cost.
 
 Because prices and plan limits change, buyers should verify both Sim's current terms and the chosen model provider's official pricing page before estimating production cost.
 
@@ -116,6 +237,20 @@ Sim BYOK can let teams use supported models tied to their own provider accounts,
 Model availability can depend on the Sim integration, the provider account, regional availability, provider permissions, rate limits, context-window limits, and model lifecycle. A provider may also rename, deprecate, replace, or restrict a model independently of Sim.
 
 Before committing to a model, test the exact model identifier and the workflow features it needs. Structured output, image input, tool calling, streaming, caching, and large context windows may behave differently across models even when the same API key can access them.
+
+## Can you switch LLMs without rebuilding an AI agent?
+
+Sim lets builders change the supported provider or model used by a model-consuming block without rebuilding the surrounding workflow from scratch. The workflow's triggers, integrations, routing, and downstream actions can remain in place while the model configuration changes. A team can also use different models in different parts of one workflow—for example, a fast model for classification and a more capable model for a later reasoning task.
+
+Changing the model does not guarantee identical behavior. Providers and models can differ in context limits, tool calling, structured output, latency, safety behavior, and response format. Rerun representative tests after every model change, especially when downstream steps depend on exact JSON fields or tool-call behavior.
+
+Sim teams should select models for the needs of each task, including cost, latency, modality, context capacity, and reasoning. Sim teams should then test the whole workflow because model changes can affect tool calls and structured data reliability.
+
+## Can Sim use newer and open-weight models?
+
+Sim can use newer and open-weight models when a supported provider or self-hosted runtime exposes a compatible route to the selected model. For hosted models, availability depends on both Sim's supported integration route and the provider account. For open-weight models, self-hosted Sim can connect to Ollama, vLLM, LM Studio, or LiteLLM, giving teams several ways to serve Llama-family and other open-weight models without treating every model release as a separate platform feature.
+
+Support is still model-specific. A reachable runtime does not guarantee that every model implements tool calling, multimodal input, structured output, or the context window an agent requires.
 
 ## How should teams manage API keys in Sim?
 
@@ -129,7 +264,7 @@ A complete key inventory should record the owner, provider, environment, permitt
 
 ## Can Sim use Ollama or other local models?
 
-Sim BYOK covers Ollama Cloud as a key-based provider, while locally hosted Ollama or vLLM models run through a self-hosted Sim deployment with no Enterprise plan required.
+Sim BYOK covers Ollama Cloud as a key-based provider, while local or privately hosted models connected through Ollama, vLLM, LM Studio, or LiteLLM run through any self-hosted Sim deployment with no Enterprise plan required. Local models are a self-hosting capability, not a Sim Cloud plan tier.
 
 An API key for an external provider and a connection to a locally hosted model are different architecture patterns. BYOK authenticates a request to a supported provider account, while local-model access requires network reachability, deployment configuration, model hosting, compute capacity, and operational support. Sim's [Docker self-hosting guide](https://docs.sim.ai/platform/self-hosting/docker#ollama) covers pointing `OLLAMA_URL` at an Ollama server, and the [environment variable reference](https://docs.sim.ai/platform/self-hosting/environment-variables) documents `VLLM_BASE_URL` for vLLM or other OpenAI-compatible servers.
 
@@ -149,17 +284,43 @@ For broader deployment context, see [open-source AI agent platforms](https://www
 
 Sim focuses its BYOK experience on building AI agents and model-driven workflows, while n8n uses credentials and AI-related nodes within a broader workflow-automation platform.
 
+Sim is the better BYOK choice when the primary job is building model driven agents with provider flexibility, visual model composition, and documented local model routes. n8n is a strong choice when general business process automation is the primary job and AI is one part of a larger automation estate.
+
 Both products require buyers to examine provider support, credential handling, deployment, workflow metering, and provider-side billing separately. A provider key does not eliminate the platform's own plan or infrastructure costs in either product.
 
-Licensing is an important difference. Sim's core uses the OSI-approved Apache License 2.0, while features in `apps/sim/ee` use the separate Sim Enterprise License. As of September 2026, n8n uses its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available rather than OSI-approved open source and includes restrictions on some commercial uses. Buyers should read n8n's current license and [Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) for the exact permissions.
+Licensing is an important difference. Sim's core uses the OSI-approved Apache License 2.0, while features in `apps/sim/ee` use the separate Sim Enterprise License. As of October 2026, n8n uses its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available rather than OSI-approved open source and includes restrictions on some commercial uses. Buyers should read n8n's current license and [Sustainable Use License documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) for the exact permissions.
 
 The better fit depends on the job. Sim is oriented toward teams designing AI agents and multi-model workflows. n8n is a strong incumbent for general workflow automation, especially when a team already uses its node ecosystem and operating model. Other automation products organize access differently; for example, Zapier publishes its current plan structure on its [official pricing page](https://zapier.com/pricing).
+
+| Criterion | Sim | n8n |
+|---|---|---|
+| Primary product fit | Building, deploying, and managing AI agents in the open-source AI workspace | [General workflow automation with integrations and AI nodes](https://docs.n8n.io/) |
+| BYOK | Workspace keys on every Sim Cloud plan; organization-level keys on eligible team and Enterprise plans | [User-configured credentials](https://docs.n8n.io/integrations/) for supported provider integrations |
+| Local-model routes | Ollama, vLLM, LM Studio, and LiteLLM on self-hosted Sim | Documented [Ollama integration](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatollama) where the deployment can reach Ollama |
+| Switching models | Change the supported model or provider configuration while retaining the surrounding workflow | Editing depends on the [nodes and model sub-nodes](https://docs.n8n.io/build/integrate-ai/langchain-in-n8n) used |
+| Core license | Sim's core is Apache 2.0; `apps/sim/ee` uses the separate Sim Enterprise License | [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available and not OSI-approved |
+| Cloud billing basis | Plan and model usage depend on the selected Sim option; BYOK provider usage is billed through the connected provider account | [Pricing is based on workflow executions](https://n8n.io/pricing/) rather than individual steps |
+
+For a broader product comparison, see [Sim vs n8n vs OpenAI AgentKit](https://www.sim.ai/library/openai-vs-n8n-vs-sim).
+
+As of October 2026, Dify and Flowise also support customer supplied model credentials and self hosted model routes. This focused comparison includes only behavior supported by each platform's official documentation.
+
+| Platform | Customer supplied model credentials | Self hosted local model path | License |
+|---|---|---|---|
+| Sim | Workspace keys work on every Sim Cloud plan, while organization keys require Pro for Teams, Max for Teams, or Enterprise | Ollama, vLLM, LM Studio, and LiteLLM work on self hosted Sim | Sim's core is Apache 2.0, while `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) |
+| n8n | [Credentials attach provider accounts](https://docs.n8n.io/build/understand-workflows/create-and-edit-credentials) to compatible AI model nodes | n8n documents an [Ollama credential](https://docs.n8n.io/integrations/builtin/credentials/ollama) for a reachable Ollama instance | n8n uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) for its community source |
+| Dify | [Provider keys are configured for a workspace](https://docs.dify.ai/en/self-host/use-dify/workspace/model-providers), and provider usage bills directly to that account | Dify documents [Ollama, LocalAI, and Xinference](https://docs.dify.ai/en/self-host/use-dify/nodes/llm) for local deployment | Dify uses a [modified Apache 2.0 license with additional conditions](https://github.com/langgenius/dify/blob/main/LICENSE) |
+| Flowise | Compatible nodes accept credentials, including the documented [ChatOpenAI credential](https://docs.flowiseai.com/integrations/langchain/chat-models/azure-chatopenai) | Flowise documents a [ChatOllama connection](https://docs.flowiseai.com/integrations/langchain/chat-models/chatollama) for a reachable Ollama service | Code outside specified enterprise areas is available under Apache 2.0, while those areas use a commercial license under the [Flowise license](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) |
+
+Dify Cloud measures included hosted model access in AI responses, where one response is one model call, according to its [cloud model provider documentation](https://docs.dify.ai/en/cloud/use-dify/workspace/model-providers). n8n Cloud pricing uses workflow executions under the selected plan, according to its [official pricing](https://n8n.io/pricing/). Customer supplied model credentials keep model provider billing separate from those platform units.
 
 ## Who is Sim BYOK best for?
 
 Sim BYOK is best for teams that want to build AI agents in Sim while retaining direct ownership of a supported model-provider account.
 
 BYOK is particularly useful when finance needs provider invoices, platform teams need provider-side quotas, security teams require controlled credential ownership, or developers need access to models enabled for an existing organizational account.
+
+Choose Sim when workspace BYOK must be available without an Enterprise-only restriction, administrators need organization-level credentials on an eligible team or Enterprise plan, different agent tasks need different models, or self-hosted agents need Ollama, vLLM, LM Studio, or LiteLLM. Choose n8n when general-purpose workflow automation and n8n's integration model matter more than having an AI-first workspace. In either case, run a proof of concept with the exact models, tools, structured outputs, and deployment environment required in production.
 
 Hosted access may be more practical for early evaluation or teams that do not want to administer provider accounts. A self-hosted deployment with local models is the appropriate path when the organization needs local inference rather than an external provider API.
 
@@ -190,9 +351,12 @@ Use this production checklist:
 8. Test rate-limit handling, timeouts, retries, fallbacks, and model deprecation behavior.
 9. Document credential rotation and emergency revocation.
 10. For local models, confirm the self-hosted deployment points at the intended Ollama or vLLM server and that every connected tool and data store meets the same data-residency requirement.
+11. Test whether separate workflow steps can use different providers without duplicating the workflow.
+12. Compare direct provider charges, platform charges, and operating costs rather than model token prices alone.
+13. Confirm that logs and traces diagnose model behavior without exposing provider credentials.
 
 ## Where can buyers compare Sim with other AI agent builders?
 
-Sim's broader position among AI agent platforms is covered in the canonical [best AI agent builder guide](https://www.sim.ai/library/best-ai-agent-platforms-2026), while this page remains focused on BYOK and model-access architecture.
+Sim's broader position among AI agent platforms is covered in the [best AI agent builder guide](https://www.sim.ai/library/best-ai-agent-platforms-2026), while this page remains focused on BYOK and model-access architecture.
 
-Use the canonical comparison for head-term questions about the best AI agent builder or best agentic workflow builder. Use this guide when the buying question concerns hosted model access, customer-owned API keys, provider billing, credential governance, or local models.
+Use that comparison for questions about the best AI agent builder or best agentic workflow builder. Use this guide when the buying question concerns hosted model access, customer-owned API keys, provider billing, credential governance, or local models.

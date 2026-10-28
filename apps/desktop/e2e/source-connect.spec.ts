@@ -336,6 +336,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
     if (path === '/api/knowledge/slack') {
       json({
         sharedAppAvailable: true,
+        memberAppKind: installed ? 'shared' : null,
         bots: [],
         installations: installed
           ? [

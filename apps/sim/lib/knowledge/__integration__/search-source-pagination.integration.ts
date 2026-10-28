@@ -8,6 +8,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -23,7 +24,8 @@ const sourceIds = Array.from({ length: 105 }, () => generateId())
   .sort()
   .reverse()
 const olderSourceId = generateId()
-const input = { workspaceId: ids.workspaceId }
+const cursorRoute = { method: 'GET', path: '/api/knowledge/sim-search/sources' }
+const input = { workspaceId: ids.workspaceId, cursorRoute }
 
 beforeAll(async () => {
   await seedKnowledgeAclFixture(ids)
@@ -61,7 +63,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+  await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
   await db.delete(organization).where(eq(organization.id, ids.organizationId))
   await db.delete(user).where(eq(user.id, ids.aliceId))
   await db.delete(user).where(eq(user.id, ids.bobId))
@@ -157,8 +159,10 @@ describe('bounded live Search source configuration pagination', () => {
       connectorType: 'google_drive',
       approved: false,
     })
-    const owner = { organizationId: ids.organizationId }
-    const summary = await listSearchSources.execute({ principal: alice, input: owner })
+    const summary = await listSearchSources.execute({
+      principal: alice,
+      input: { organizationId: ids.organizationId, cursorRoute },
+    })
     expect(summary.sources[0]).toMatchObject({
       connectorId: approvalSourceId,
       approved: false,

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   type AccountDeletionFacts,
   classifyAccountDeletion,
-  extractProfilePictureKey,
   type WorkspaceCompany,
   type WorkspaceRow,
 } from '@/lib/users/account-deletion'
+import { extractProfilePictureKey } from '@/lib/users/storage-sweep'
 
 function workspace(overrides: Partial<WorkspaceRow> = {}): WorkspaceRow {
   return { id: 'ws-1', name: 'My workspace', organizationId: null, ...overrides }

@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
+import {
+  GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
+  migrateGreenhouseAgentInputs,
+} from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
@@ -112,6 +116,13 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  microsoft_excel: [{ from: 'valueInputOption', to: '_removed_valueInputOption' }],
+  microsoft_excel_v2: [
+    { from: 'valueInputOption', to: '_removed_valueInputOption' },
+    { from: 'sortTableName', to: 'tableName', whenOperation: ['sort_range'] },
+  ],
+  /** Greenhouse normalization selects active values and removes stale aliases before this pass. */
+  greenhouse_v2: GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
   /** MCP normalization selects the active replacement before this rename pass. */
   mcp: [
     { from: 'server', to: 'serverSelector' },
@@ -122,6 +133,10 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
   /** List Channels now returns one page and a cursor; automatic page limits are retired. */
   slack: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
+  /** Google Ads moved API access to the OAuth client's Cloud project and retired developer tokens. */
+  google_ads: [{ from: 'developerToken', to: '_removed_developerToken' }],
+  /** Help Scout triggers now register their own webhook and generate its signing secret. */
+  helpscout: [{ from: 'webhookSecret', to: '_removed_webhookSecret' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],
   knowledge: [{ from: 'knowledgeBaseId', to: 'knowledgeBaseSelector' }],
   /** Connected accounts resolve from the workspace; group selectors have no replacement. */
@@ -316,13 +331,13 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
    * dropped outright.
    */
   sap_concur: [{ from: 'forwardId', to: '_removed_forwardId' }],
-  /**
-   * `uploadMimeType` was an advanced MIME Type input on Upload Document File whose
-   * value the upload path never read: the content type is resolved from storage and
-   * that resolution is never empty, so the field's value lost the `||` chain every
-   * time. Dropped rather than renamed — there is no field for the value to move to.
-   */
-  vanta: [{ from: 'uploadMimeType', to: '_removed_uploadMimeType' }],
+  /** Saved credentials replace inline auth; upload content type is resolved from storage. */
+  vanta: [
+    { from: 'uploadMimeType', to: '_removed_uploadMimeType' },
+    { from: 'clientId', to: '_removed_clientId' },
+    { from: 'clientSecret', to: '_removed_clientSecret' },
+    { from: 'region', to: '_removed_region' },
+  ],
   /** Parallel's V1 Extract always returns excerpts; the opt-out toggle has no replacement. */
   parallel_ai: [{ from: 'excerpts', to: '_removed_excerpts' }],
   /**
@@ -377,6 +392,17 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
       whenOperation: ['quickbooks_download_attachment'],
     },
   ],
+}
+
+/** Identifies retired fields without applying renames or altering archived workflow structure. */
+export function isRemovedSubblockId(blockType: string, id: string): boolean {
+  return (
+    id.startsWith(REMOVED_SUBBLOCK_ID_PREFIX) ||
+    (SUBBLOCK_ID_MIGRATIONS[blockType]?.some(
+      ({ from, to }) => from === id && to.startsWith(REMOVED_SUBBLOCK_ID_PREFIX)
+    ) ??
+      false)
+  )
 }
 
 /** Reads the value out of a stored subblock entry, tolerating a bare value. */
@@ -565,7 +591,7 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       continue
     }
 
-    const normalized = migrateMcpOperationControls(block)
+    const normalized = migrateGreenhouseAgentInputs(migrateMcpOperationControls(block))
     const migrations = SUBBLOCK_ID_MIGRATIONS[block.type]
     const renamed = migrations
       ? migrateBlockSubblockIds(block.type, normalized.subBlocks, migrations)

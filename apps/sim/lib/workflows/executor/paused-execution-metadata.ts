@@ -2,7 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   type AutomaticResumeWaitingMetadata,
   normalizeAutomaticResumeWaitingReason,

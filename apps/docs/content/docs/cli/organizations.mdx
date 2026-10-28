@@ -1,29 +1,23 @@
 ---
 title: Organizations
-description: Manage organizations — every subcommand, argument, and flag
+description: Manage organization membership, invitations, usage, access requests, and SSO.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+Manage organization membership, invitations, usage, access requests, and SSO.
 
-## Cancel organization access request
+These commands accept the [global options](/cli/commands#global-options).
+
+## Organizations and workspaces
+
+### List organizations
+
+OAuth login or personal API key required.
 
 ```bash
-sim organizations access-requests cancel <requestId> [options]
+sim organizations list [options]
 ```
-
-Cancel Organization Access Request (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `requestId` | Yes | Access request identifier. |
-
-</CommandTable>
 
 **Options**
 
@@ -31,368 +25,22 @@ Cancel Organization Access Request (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the organization name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "name". Accepted values: `name`, `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
-## Create organization access request
+API request and response schemas: [listOrganizations](/api-reference/organizations/listOrganizations).
 
-```bash
-sim organizations access-requests create [options]
-```
+### Get organization
 
-Create Organization Access Request (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
-| `--reason <value>` | No | Why the acting user needs this access. |
-
-</CommandTable>
-
-## Discover organization access requests
-
-```bash
-sim organizations access-requests discover [options]
-```
-
-Discover Organization Access Requests (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--search <value>` | No | Case-insensitive substring match against the access item label. |
-| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
-| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `label`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-## Get organization access request settings
-
-```bash
-sim organizations access-requests settings get [options]
-```
-
-Get Organization Access Request Settings (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-
-</CommandTable>
-
-## Update organization access request settings
-
-```bash
-sim organizations access-requests settings update [options]
-```
-
-Update Organization Access Request Settings (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--allow-requests <true\|false>` | Yes | Allow new requests and approvals. Disabling requests preserves history and still allows cancellation and decline. Accepted values: `true`, `false`. |
-
-</CommandTable>
-
-## List my organization access requests
-
-```bash
-sim organizations access-requests mine [options]
-```
-
-List My Organization Access Requests (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-## List organization access requests
-
-```bash
-sim organizations access-requests list [options]
-```
-
-List Organization Access Requests (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--search <value>` | No | Case-insensitive substring match against the target label or requester name or email. |
-
-</CommandTable>
-
-## Preview organization access request
-
-```bash
-sim organizations access-requests preview <requestId> [options]
-```
-
-Preview Organization Access Request (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `requestId` | Yes | Access request identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-
-</CommandTable>
-
-## Resolve organization access request
-
-```bash
-sim organizations access-requests resolve <requestId> [options]
-```
-
-Resolve Organization Access Request (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `requestId` | Yes | Access request identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--action <value>` | Yes | apply: Apply the reviewed change to the governing group or member credit cap. decline: Decline the request without changing permissions or credit limits. Accepted values: `apply`, `decline`. |
-| `--expected-fingerprint <value>` | No | Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict. Available when action is apply. Required when action is apply. |
-| `--new-limit-credits <value>` | No | Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply. |
-| `--reason <value>` | No | Required explanation for declining this request. Available when action is decline. Required when action is decline. |
-
-</CommandTable>
-
-## Create organization invitation
-
-```bash
-sim organizations invitations create [options]
-```
-
-Create Organization Invitation (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--email <value>` | Yes | Email address of the person to invite. |
-| `--role <value>` | No | Organization role to offer. Defaults to member; grants no workspace-specific permissions. Accepted values: `member`, `admin`. |
-
-</CommandTable>
-
-## Get organization invitation
-
-```bash
-sim organizations invitations get <invitationId> [options]
-```
-
-Get Organization Invitation (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `invitationId` | Yes | Invitation identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-
-</CommandTable>
-
-## List organization invitations
-
-```bash
-sim organizations invitations list [options]
-```
-
-List Organization Invitations (OAuth login or personal API key required)
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--search <value>` | No | Case-insensitive substring match against the invitee email. |
-| `--status <value>` | No | Filter by current invitation status. Omit to include all statuses. Accepted values: `pending`, `accepted`, `rejected`, `cancelled`, `expired`. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `email`, `createdAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-## List organization invitation workspaces
-
-```bash
-sim organizations invitations workspaces <invitationId> [options]
-```
-
-List Organization Invitation Workspaces (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `invitationId` | Yes | Invitation identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--search <value>` | No | Case-insensitive substring match against the workspace name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `id`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-## Resend organization invitation
-
-```bash
-sim organizations invitations resend <invitationId> [options]
-```
-
-Resend Organization Invitation (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `invitationId` | Yes | Invitation identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-
-</CommandTable>
-
-## Revoke organization invitation
-
-```bash
-sim organizations invitations revoke <invitationId> [options]
-```
-
-Revoke Organization Invitation (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `invitationId` | Yes | Invitation identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Get organization
+OAuth login or personal API key required.
 
 ```bash
 sim organizations get <organizationId>
 ```
-
-Get Organization (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -404,23 +52,15 @@ Get Organization (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Get organization member credit limit
+API request and response schemas: [getOrganization](/api-reference/organizations/getOrganization).
+
+### List organization workspaces
+
+OAuth login or personal API key required.
 
 ```bash
-sim organizations members usage-limit get <userId> [options]
+sim organizations workspaces [options]
 ```
-
-Get Organization Member Credit Limit (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `userId` | Yes | User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it. |
-
-</CommandTable>
 
 **Options**
 
@@ -429,45 +69,24 @@ Get Organization Member Credit Limit (OAuth login or personal API key required)
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the workspace name. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "name". Accepted values: `name`, `id`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
-## Update organization member credit limit
+API request and response schemas: [listOrganizationWorkspaces](/api-reference/organizations/listOrganizationWorkspaces).
 
-```bash
-sim organizations members usage-limit update <userId> [options]
-```
+## Members and credit limits
 
-Update Organization Member Credit Limit (OAuth login or personal API key required)
+### List organization members
 
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `userId` | Yes | User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--credit-limit <number\|null>` | Yes | Credit cap for this person. Send null to clear the cap or 0 to prevent further credit-consuming usage. Organization limits still apply. |
-
-</CommandTable>
-
-## List organization members
+OAuth login or personal API key required.
 
 ```bash
 sim organizations members list [options]
 ```
-
-List Organization Members (OAuth login or personal API key required)
 
 **Options**
 
@@ -477,19 +96,21 @@ List Organization Members (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
 | `--search <value>` | No | Case-insensitive substring match against member name or email. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `email`, `joinedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "name". Accepted values: `name`, `email`, `joinedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
-## Remove organization member
+API request and response schemas: [listOrganizationMembers](/api-reference/organizations/listOrganizationMembers).
+
+### Get organization member credit limit
+
+OAuth login or personal API key required.
 
 ```bash
-sim organizations members remove <userId> [options]
+sim organizations members usage-limit get <userId> [options]
 ```
-
-Remove Organization Member (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -497,7 +118,7 @@ Remove Organization Member (OAuth login or personal API key required)
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `userId` | Yes | User identifier of the organization member. |
+| `userId` | Yes | User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it. |
 
 </CommandTable>
 
@@ -508,17 +129,18 @@ Remove Organization Member (OAuth login or personal API key required)
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
-| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
-## Update organization member
+API request and response schemas: [getOrganizationMemberUsageLimit](/api-reference/organizations/getOrganizationMemberUsageLimit).
+
+### Update organization member
+
+OAuth login or personal API key required.
 
 ```bash
 sim organizations members update <userId> [options]
 ```
-
-Update Organization Member (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -541,38 +163,26 @@ Update Organization Member (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Get organization usage breakdown
+API request and response schemas: [updateOrganizationMember](/api-reference/organizations/updateOrganizationMember).
+
+### Update organization member credit limit
+
+OAuth login or personal API key required.
 
 ```bash
-sim organizations usage breakdown [options]
+sim organizations members usage-limit update <userId> [options]
 ```
 
-Get Organization Usage Breakdown (OAuth login or personal API key required)
-
-**Options**
+**Arguments**
 
 <CommandTable>
 
-| Option | Required | Description |
+| Argument | Required | Description |
 | --- | --- | --- |
-| `--organization <value>` | Yes | Organization identifier. |
-| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
-| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
-| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
-| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
-| `--dimension <value>` | Yes | Usage grouping dimension. Accepted values: `member`, `workspace`, `workflow`, `model`, `byok`, `source`. |
-| `--limit <value>` | No | Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50. |
+| `userId` | Yes | User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it. |
 
 </CommandTable>
 
-## Get organization usage summary
-
-```bash
-sim organizations usage summary [options]
-```
-
-Get Organization Usage Summary (OAuth login or personal API key required)
-
 **Options**
 
 <CommandTable>
@@ -580,20 +190,31 @@ Get Organization Usage Summary (OAuth login or personal API key required)
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
-| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
-| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
-| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
-| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+| `--credit-limit <number\|null>` | Yes | Credit cap for this person. Send null to clear the cap or 0 to prevent further credit-consuming usage. Organization limits still apply. |
 
 </CommandTable>
 
-## List organization usage events
+API request and response schemas: [updateOrganizationMemberUsageLimit](/api-reference/organizations/updateOrganizationMemberUsageLimit).
+
+### Remove organization member
+
+OAuth login or personal API key required.
+
+This removes the member, revokes their organization workspace access, and ends their sessions.
 
 ```bash
-sim organizations usage events [options]
+sim organizations members remove <userId> [options]
 ```
 
-List Organization Usage Events (OAuth login or personal API key required)
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the organization member. |
+
+</CommandTable>
 
 **Options**
 
@@ -602,25 +223,57 @@ List Organization Usage Events (OAuth login or personal API key required)
 | Option | Required | Description |
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
-| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
-| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
-| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
-| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
-| `--source <value>` | No | Restrict events to one product surface. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`, `api-tool`. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [removeOrganizationMember](/api-reference/organizations/removeOrganizationMember).
+
+## Invitations
+
+### List organization invitations
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations invitations list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the invitee email. |
+| `--status <value>` | No | Filter by current invitation status. Omit to include all statuses. Accepted values: `pending`, `accepted`, `rejected`, `cancelled`, `expired`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `email`, `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 
 </CommandTable>
 
-## List organizations
+API request and response schemas: [listOrganizationInvitations](/api-reference/organizations/listOrganizationInvitations).
+
+### Get organization invitation
+
+OAuth login or personal API key required.
 
 ```bash
-sim organizations list [options]
+sim organizations invitations get <invitationId> [options]
 ```
 
-List Organizations (OAuth login or personal API key required)
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
 
 **Options**
 
@@ -628,20 +281,114 @@ List Organizations (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--search <value>` | No | Case-insensitive substring match against the organization name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+| `--organization <value>` | Yes | Organization identifier. |
 
 </CommandTable>
 
-## List organization workspaces
+API request and response schemas: [getOrganizationInvitation](/api-reference/organizations/getOrganizationInvitation).
+
+### Create organization invitation
+
+OAuth login or personal API key required.
 
 ```bash
-sim organizations workspaces [options]
+sim organizations invitations create [options]
 ```
 
-List Organization Workspaces (OAuth login or personal API key required)
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--email <value>` | Yes | Email address of the person to invite. |
+| `--role <value>` | No | Organization role to offer. Defaults to member; grants no workspace-specific permissions. Accepted values: `member`, `admin`. |
+
+</CommandTable>
+
+API request and response schemas: [createOrganizationInvitation](/api-reference/organizations/createOrganizationInvitation).
+
+### Resend organization invitation
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations invitations resend <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [resendOrganizationInvitation](/api-reference/organizations/resendOrganizationInvitation).
+
+### Revoke organization invitation
+
+OAuth login or personal API key required.
+
+This cancels the invitation and all its workspace grants, preventing acceptance.
+
+```bash
+sim organizations invitations revoke <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [revokeOrganizationInvitation](/api-reference/organizations/revokeOrganizationInvitation).
+
+### List organization invitation workspaces
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations invitations workspaces <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
 
 **Options**
 
@@ -651,8 +398,652 @@ List Organization Workspaces (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--organization <value>` | Yes | Organization identifier. |
 | `--search <value>` | No | Case-insensitive substring match against the workspace name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `id`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "name". Accepted values: `name`, `id`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
+
+API request and response schemas: [listOrganizationInvitationWorkspaces](/api-reference/organizations/listOrganizationInvitationWorkspaces).
+
+## Usage
+
+### Get organization usage summary
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations usage summary [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Defaults to "30d". Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+
+</CommandTable>
+
+API request and response schemas: [getOrganizationUsageSummary](/api-reference/organizations/getOrganizationUsageSummary).
+
+### Get organization usage breakdown
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations usage breakdown [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Defaults to "30d". Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+| `--dimension <value>` | Yes | Usage grouping dimension. Accepted values: `member`, `workspace`, `workflow`, `model`, `byok`, `source`. |
+| `--limit <value>` | No | Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50. |
+
+</CommandTable>
+
+API request and response schemas: [getOrganizationUsageBreakdown](/api-reference/organizations/getOrganizationUsageBreakdown).
+
+### List organization usage events
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations usage events [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Defaults to "30d". Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+| `--source <value>` | No | Restrict events to one product surface. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`, `api-tool`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listOrganizationUsageEvents](/api-reference/organizations/listOrganizationUsageEvents).
+
+## Access requests
+
+### Discover organization access requests
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests discover [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the access item label. |
+| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
+| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "label". Accepted values: `label`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+API request and response schemas: [discoverOrganizationAccessRequests](/api-reference/access-requests/discoverOrganizationAccessRequests).
+
+### Create organization access request
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
+| `--reason <value>` | No | Why the acting user needs this access. Defaults to "". |
+
+</CommandTable>
+
+API request and response schemas: [createOrganizationAccessRequest](/api-reference/access-requests/createOrganizationAccessRequest).
+
+### List my organization access requests
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests mine [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+API request and response schemas: [listMyOrganizationAccessRequests](/api-reference/access-requests/listMyOrganizationAccessRequests).
+
+### Cancel organization access request
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests cancel <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [cancelOrganizationAccessRequest](/api-reference/access-requests/cancelOrganizationAccessRequest).
+
+### List organization access requests
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--search <value>` | No | Case-insensitive substring match against the target label or requester name or email. |
+
+</CommandTable>
+
+API request and response schemas: [listOrganizationAccessRequests](/api-reference/access-requests/listOrganizationAccessRequests).
+
+### Preview organization access request
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests preview <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [previewOrganizationAccessRequest](/api-reference/access-requests/previewOrganizationAccessRequest).
+
+### Resolve organization access request
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests resolve <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--action <value>` | Yes | apply: Apply the reviewed change to the governing group or member credit cap. decline: Decline the request without changing permissions or credit limits. Accepted values: `apply`, `decline`. |
+| `--expected-fingerprint <value>` | Conditional | Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict. Available when action is apply. Required when action is apply. |
+| `--new-limit-credits <value>` | Conditional | Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply. |
+| `--reason <value>` | Conditional | Required explanation for declining this request. Available when action is decline. Required when action is decline. |
+
+</CommandTable>
+
+API request and response schemas: [resolveOrganizationAccessRequest](/api-reference/access-requests/resolveOrganizationAccessRequest).
+
+### Get organization access request settings
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests settings get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getOrganizationAccessRequestSettings](/api-reference/access-requests/getOrganizationAccessRequestSettings).
+
+### Update organization access request settings
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations access-requests settings update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--allow-requests <true\|false>` | Yes | Allow new requests and approvals. Disabling requests preserves history and still allows cancellation and decline. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+API request and response schemas: [updateOrganizationAccessRequestSettings](/api-reference/access-requests/updateOrganizationAccessRequestSettings).
+
+## Verified domains
+
+### List organization domains
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations domains list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "domain". Accepted values: `domain`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listOrganizationDomains](/api-reference/organizations/listOrganizationDomains).
+
+### Add organization domain
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations domains add [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--domain <value>` | Yes | Domain to claim and verify through a DNS TXT record. |
+
+</CommandTable>
+
+API request and response schemas: [addOrganizationDomain](/api-reference/organizations/addOrganizationDomain).
+
+### Verify organization domain
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations domains verify <domainId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `domainId` | Yes | Domain claim owned by this organization. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [verifyOrganizationDomain](/api-reference/organizations/verifyOrganizationDomain).
+
+### Remove organization domain
+
+OAuth login or personal API key required.
+
+This removes the domain claim and revokes verified SSO authority for its providers.
+
+```bash
+sim organizations domains remove <domainId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `domainId` | Yes | Domain claim owned by this organization. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [removeOrganizationDomain](/api-reference/organizations/removeOrganizationDomain).
+
+## SSO providers and policy
+
+### List SSO providers
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations sso providers list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "providerId". Accepted values: `providerId`, `domain`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listSsoProviders](/api-reference/organizations/listSsoProviders).
+
+### Get SSO provider
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations sso providers get <providerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Identity provider identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getSsoProvider](/api-reference/organizations/getSsoProvider).
+
+### Save SSO provider
+
+OAuth login or personal API key required.
+
+Choose `--provider-type oidc` or `saml`. OIDC requires `--client-id` and `--client-secret`; SAML requires `--entry-point` and `--cert`. Both require an organization-verified domain. The option descriptions state which omitted fields are preserved or cleared.
+
+```bash
+sim organizations sso providers save [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--provider-type <value>` | Yes | oidc: Configure an OpenID Connect identity provider. saml: Configure a SAML identity provider. Accepted values: `oidc`, `saml`. |
+| `--provider-id <value>` | Yes | Globally unique provider ID; saving an existing provider replaces its supplied configuration. |
+| `--issuer <value>` | Yes | Identity provider issuer URL. |
+| `--domain <value>` | Yes | Email domain already verified by this organization. |
+| `--jit-provisioning-enabled` | No | Allow SSO sign-in to provision organization membership, subject to eligibility and available seats. Defaults to true. |
+| `--no-jit-provisioning-enabled` | No | Send --jit-provisioning-enabled as false. |
+| `--mapping <json\|@file>` | No | Identity-provider claims mapped to user fields. Defaults to &#123;"id":"sub","email":"email","name":"name","image":"picture"&#125;. (JSON, or @path / @- to read a file or stdin). |
+| `--client-id <value>` | Conditional | Identity provider client identifier. Available when providerType is oidc. Required when providerType is oidc. |
+| `--client-secret <value\|@file>` | Conditional | Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @). |
+| `--scopes <json\|@file>` | No | OIDC scopes; offline_access is omitted. Available when providerType is oidc. Defaults to ["openid","profile","email"]. (JSON, or @path / @- to read a file or stdin). |
+| `--pkce` | No | Use PKCE for the authorization flow. Available when providerType is oidc. Defaults to true. |
+| `--no-pkce` | No | Send --pkce as false. |
+| `--authorization-endpoint <value>` | No | Optional authorization endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc. |
+| `--token-endpoint <value>` | No | Optional token endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc. |
+| `--user-info-endpoint <value>` | No | Optional UserInfo endpoint. Available when providerType is oidc. |
+| `--skip-user-info-endpoint` | No | Read identity claims from the ID token instead of calling UserInfo. Available when providerType is oidc. Defaults to false. |
+| `--no-skip-user-info-endpoint` | No | Send --skip-user-info-endpoint as false. |
+| `--jwks-endpoint <value>` | No | Optional signing-key endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc. |
+| `--entry-point <value>` | Conditional | Identity provider SAML sign-in endpoint. Available when providerType is saml. Required when providerType is saml. |
+| `--cert <value>` | Conditional | Identity provider signing certificate. Available when providerType is saml. Required when providerType is saml. |
+| `--callback-url <value>` | No | SAML callback URL; defaults to this provider’s Sim callback. Available when providerType is saml. |
+| `--audience <value>` | No | SAML audience; omission preserves the saved value. Available when providerType is saml. |
+| `--want-assertions-signed` | No | Require signed assertions; omission preserves the saved value. Available when providerType is saml. |
+| `--no-want-assertions-signed` | No | Send --want-assertions-signed as false. |
+| `--signature-algorithm <value>` | No | Signature algorithm accepted by the SAML configuration validator; omission preserves the saved value. Available when providerType is saml. |
+| `--digest-algorithm <value>` | No | Digest algorithm accepted by the SAML configuration validator; omission preserves the saved value. Available when providerType is saml. |
+| `--identifier-format <value>` | No | SAML NameID format; omission clears the saved value. Available when providerType is saml. |
+| `--idp-metadata <value>` | No | Identity provider metadata XML; omission clears the saved document. Available when providerType is saml. |
+
+</CommandTable>
+
+API request and response schemas: [saveSsoProvider](/api-reference/organizations/saveSsoProvider).
+
+### Set primary SSO provider
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations sso providers primary <providerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Identity provider identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [setPrimarySsoProvider](/api-reference/organizations/setPrimarySsoProvider).
+
+### Delete SSO provider
+
+OAuth login or personal API key required.
+
+This removes the identity provider used for SSO sign-in; linked accounts remain.
+
+```bash
+sim organizations sso providers delete <providerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Identity provider identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [deleteSsoProvider](/api-reference/organizations/deleteSsoProvider).
+
+### Get SSO policy
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations sso policy get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+API request and response schemas: [getSsoPolicy](/api-reference/organizations/getSsoPolicy).
+
+### Update SSO policy
+
+OAuth login or personal API key required.
+
+```bash
+sim organizations sso policy update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--require-sso <true\|false>` | Yes | Require organization SSO on future sign-ins; existing sessions remain active. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+API request and response schemas: [updateSsoPolicy](/api-reference/organizations/updateSsoPolicy).
+
+## Related docs
+
+- [Organizations](/platform/organization)
+- [Permissions](/platform/permissions)

@@ -1,4 +1,17 @@
 #!/usr/bin/env bun
+/**
+ * Fails when the published OpenAPI specs drift from the v2 route contracts.
+ *
+ * Runs two checks in order and stops at the first failure:
+ *
+ * 1. `generate-openapi.ts --check`: every committed spec matches what the generator renders
+ *    from `apps/sim/lib/api/contracts/v2/openapi/`. Fix by running `bun run generate:openapi`
+ *    and committing the result.
+ * 2. `check-openapi-specs.ts`: spec integrity, v2 conventions, and the contract cross-check.
+ *    Its header lists each rule; fix the contract or its OpenAPI definition, then regenerate.
+ *
+ * Run: `bun run check:openapi`
+ */
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 

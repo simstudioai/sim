@@ -5,14 +5,16 @@ import postgres, { type Sql } from 'postgres'
 
 const logger = createLogger('DatabasePush')
 const RECONCILIATION_COMMANDS = [
+  ['bun', '--env-file=.env', 'run', './scripts/reconcile-file-ownership.ts'],
+  ['bun', '--env-file=.env', 'run', './scripts/reconcile-project-membership.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-credential-group-resource-policies.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-oauth-provider.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0016_backfill_search_vectors.ts'],
-  ['bun', '--env-file=.env', 'run', './script-migrations/0019_tin_keyword_projection.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0021_embedding_search_connector.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0024_knowledge_projection_async.ts'],
-  ['bun', '--env-file=.env', 'run', './script-migrations/0025_scope_keyword_projections.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0026_user_table_schema_for_write.ts'],
+  ['bun', '--env-file=.env', 'run', './script-migrations/0030_retire_keyword_writers.ts'],
+  ['bun', '--env-file=.env', 'run', './script-migrations/0031_drop_keyword_tin.ts'],
 ]
 
 /** Keep preparation, Drizzle and reconcilers fenced without a session lock or a retained snapshot. */
@@ -105,8 +107,22 @@ export async function runPush(args: string[]): Promise<number> {
       return code
     }
 
-    if (!help && args.includes('--force')) {
-      const code = await runCommand(['bun', '--env-file=.env', 'run', './scripts/prepare-push.ts'])
+    if (!help) {
+      const projectCode = await runCommand([
+        'bun',
+        '--env-file=.env',
+        'run',
+        './scripts/reconcile-project-membership.ts',
+        '--prepare',
+      ])
+      if (projectCode !== 0) return projectCode
+      const code = await runCommand([
+        'bun',
+        '--env-file=.env',
+        'run',
+        './scripts/prepare-push.ts',
+        ...(args.includes('--force') ? ['--force'] : []),
+      ])
       if (code !== 0) return code
     }
     const pushArgs = args.filter((arg) => arg !== '--interactive-renames')

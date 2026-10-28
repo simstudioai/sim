@@ -42,7 +42,7 @@ export const tinesProfile: CompetitorProfile = {
     {
       title: 'Tines University certification ladder',
       description:
-        'Tines University pairs free foundational courses with instructor-led and self-paced Bootcamps and two certification tiers, Core and Advanced, that builders can share on LinkedIn. Sim Academy is a structured docs section without a formal certification path.',
+        'Tines University pairs free foundational courses with instructor-led and self-paced Bootcamps and two certification tiers, Core and Advanced, that builders can share on LinkedIn. Sim provides product documentation without a formal certification path.',
       shortDescription: 'Core and Advanced certifications builders can share on LinkedIn.',
       source: {
         url: 'https://www.tines.com/get-certified/',

@@ -19,7 +19,7 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
-vi.mock('@/lib/workflows/application/workflow-mutability', () => ({
+vi.mock('@/lib/workflows/application/mutability', () => ({
   requireMutableWorkflow: mocks.requireMutable,
 }))
 

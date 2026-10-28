@@ -81,7 +81,7 @@ export const kalshiGetExchangeAnnouncementsV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_exchange_announcements_v2',
   name: 'Get Exchange Announcements from Kalshi V2',
-  description: 'Retrieve exchange-wide announcements from Kalshi (V2 - exact API response)',
+  description: 'Retrieve exchange-wide announcements from Kalshi',
   version: '2.0.0',
 
   params: {},

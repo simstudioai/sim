@@ -6,6 +6,7 @@ import {
   redisConfigMockFns,
   setEnv,
 } from '@sim/testing'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
@@ -183,6 +184,7 @@ networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: mockSpawn,
@@ -235,6 +237,8 @@ async function loadExecutionModule(options: {
     IVM_MAX_FETCH_URL_LENGTH: '',
     IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
     REDIS_URL: '',
+    IVM_REMOTE_WORKER_URL: '',
+    IVM_REMOTE_WORKER_TOKEN: '',
     ...(options.envOverrides ?? {}),
   })
 
@@ -251,6 +255,65 @@ async function loadExecutionModule(options: {
 
   const mod = await import('@/lib/execution/isolated-vm')
   return { ...mod, spawnMock: mockSpawn, secureFetchMock: mockSecureFetch }
+}
+
+/** A worker host that never accepts the connection, as when it is down or unroutable. */
+class UnreachableWebSocket extends EventTarget {
+  static readonly OPEN = 1
+  readyState = 0
+
+  constructor() {
+    super()
+    setImmediate(() => {
+      this.readyState = 3
+      this.dispatchEvent(new Event('error'))
+      this.dispatchEvent(Object.assign(new Event('close'), { code: 1006, reason: '' }))
+    })
+  }
+
+  send() {}
+  close() {}
+}
+
+/**
+ * A worker host that accepts every connection and answers each execution. A test closes one by
+ * setting `readyState` to CLOSING, the state a connection is in before its close event arrives.
+ */
+class ReachableWebSocket extends EventTarget {
+  static readonly OPEN = 1
+  static readonly instances: ReachableWebSocket[] = []
+  readyState = 0
+  readonly executionIds: number[] = []
+
+  constructor() {
+    super()
+    ReachableWebSocket.instances.push(this)
+    setImmediate(() => {
+      this.readyState = 1
+      this.dispatchEvent(new Event('open'))
+    })
+  }
+
+  send(data: string) {
+    const message = JSON.parse(data) as { type: string; executionId?: number }
+    if (message.type === 'auth') this.reply({ type: 'ready' })
+    if (message.type === 'execute' && message.executionId !== undefined) {
+      this.executionIds.push(message.executionId)
+      this.reply({
+        type: 'result',
+        executionId: message.executionId,
+        result: { result: 'ran remotely', stdout: '' },
+      })
+    }
+  }
+
+  close() {}
+
+  private reply(message: unknown) {
+    setImmediate(() =>
+      this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(message) }))
+    )
+  }
 }
 
 describe('isolated-vm scheduler', () => {
@@ -333,6 +396,128 @@ describe('isolated-vm scheduler', () => {
     } finally {
       vi.unstubAllEnvs()
     }
+  })
+
+  it('never falls back to a local worker while a worker host is configured', async () => {
+    vi.stubGlobal('WebSocket', UnreachableWebSocket)
+    try {
+      const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+        envOverrides: {
+          IVM_REMOTE_WORKER_URL: 'ws://worker-host.internal:3100/v1/worker',
+          IVM_REMOTE_WORKER_TOKEN: 'remote-worker-token-of-at-least-32-chars',
+        },
+        spawns: [() => createReadyProc('ran locally')],
+      })
+
+      const result = await executeInIsolatedVM({
+        code: 'return "ran locally"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 100,
+        requestId: 'req-remote-down',
+      })
+
+      expect(result.result).toBeNull()
+      expect(result.error?.isSystemError).toBe(true)
+      expect(spawnMock).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('runs local workers while the kill switch is on, even with a worker host configured', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+      async (flag) => flag === 'isolated-vm-local-workers'
+    )
+    vi.stubGlobal('WebSocket', UnreachableWebSocket)
+    try {
+      const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+        envOverrides: {
+          IVM_REMOTE_WORKER_URL: 'ws://worker-host.internal:3100/v1/worker',
+          IVM_REMOTE_WORKER_TOKEN: 'remote-worker-token-of-at-least-32-chars',
+        },
+        spawns: [() => createReadyProc('ran locally')],
+      })
+
+      const result = await executeInIsolatedVM({
+        code: 'return "ran locally"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 100,
+        requestId: 'req-kill-switch',
+      })
+
+      expect(result.result).toBe('ran locally')
+      expect(spawnMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+      featureFlagsMockFns.mockIsFeatureEnabled.mockReset().mockResolvedValue(false)
+    }
+  })
+
+  it('returns a cancelled call without waiting on the worker target flag', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(() => new Promise(() => {}))
+    try {
+      const { executeInIsolatedVM } = await loadExecutionModule({
+        envOverrides: {
+          IVM_REMOTE_WORKER_URL: 'ws://worker-host.internal:3100/v1/worker',
+          IVM_REMOTE_WORKER_TOKEN: 'remote-worker-token-of-at-least-32-chars',
+        },
+        spawns: [],
+      })
+      const controller = new AbortController()
+      controller.abort()
+
+      const result = await executeInIsolatedVM(
+        {
+          code: 'return 1',
+          params: {},
+          envVars: {},
+          contextVariables: {},
+          timeoutMs: 100,
+          requestId: 'req-pre-aborted',
+        },
+        { signal: controller.signal }
+      )
+
+      expect(result.termination).toBe('cancelled')
+    } finally {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockReset().mockResolvedValue(false)
+    }
+  })
+
+  it('moves an execution to a new worker when its connection closed before it was sent', async () => {
+    ReachableWebSocket.instances.length = 0
+    vi.stubGlobal('WebSocket', ReachableWebSocket)
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        IVM_REMOTE_WORKER_URL: 'ws://worker-host.internal:3100/v1/worker',
+        IVM_REMOTE_WORKER_TOKEN: 'remote-worker-token-of-at-least-32-chars',
+      },
+      spawns: [],
+    })
+    const request = {
+      code: 'return 1',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+    }
+
+    const warm = await executeInIsolatedVM({ ...request, requestId: 'req-warm' })
+    expect(warm.result).toBe('ran remotely')
+    const [closing] = ReachableWebSocket.instances
+    if (!closing) throw new Error('Expected the first worker connection')
+    closing.readyState = 2
+
+    const result = await executeInIsolatedVM({ ...request, requestId: 'req-after-close' })
+
+    expect(result.error).toBeUndefined()
+    expect(result.result).toBe('ran remotely')
+    expect(closing.executionIds).toHaveLength(1)
+    expect(ReachableWebSocket.instances).toHaveLength(2)
   })
 
   it('rejects new requests when the queue is full', async () => {

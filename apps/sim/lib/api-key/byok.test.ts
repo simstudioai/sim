@@ -1,4 +1,5 @@
 import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
@@ -7,7 +8,8 @@ import {
   providersModelsMockFns,
 } from '@sim/testing/mocks/providers-models.mock'
 import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsOrganizationBYOKEntitled } = vi.hoisted(() => ({
   mockIsOrganizationBYOKEntitled: vi.fn(),
@@ -73,14 +75,6 @@ afterAll(() => {
 })
 
 describe('getBYOKKey', () => {
-  it('refuses corrupt configured keys in enterprise mode instead of falling back to hosted', async () => {
-    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('enterprise-corrupt')])
-    mockDecryptSecret.mockRejectedValueOnce(new Error('cannot decrypt'))
-    await expect(
-      getBYOKKey(uniqueWorkspaceId(), 'anthropic', { failClosed: true })
-    ).rejects.toThrow('Configured BYOK credentials are unavailable')
-  })
-
   beforeEach(() => {
     resetDbChainMock()
     mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
@@ -185,20 +179,21 @@ describe('getBYOKKey', () => {
     expect(mockIsOrganizationBYOKEntitled).not.toHaveBeenCalled()
   })
 
-  it.each([
-    { label: 'is false', entitle: () => mockIsOrganizationBYOKEntitled.mockResolvedValue(false) },
-    {
-      label: 'throws',
-      entitle: () =>
-        mockIsOrganizationBYOKEntitled.mockRejectedValue(new Error('entitlement unavailable')),
-    },
-  ])('fails closed before decrypting when organization entitlement $label', async ({ entitle }) => {
+  it('does not decrypt an organization key when entitlement is denied', async () => {
     dbChainMockFns.orderBy
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([storedOrganizationKey(uniqueOrganizationId(), 'org-key')])
-    entitle()
-
+    mockIsOrganizationBYOKEntitled.mockResolvedValueOnce(false)
     await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toBeNull()
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('propagates an unknown entitlement instead of treating it as denied', async () => {
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(uniqueOrganizationId(), 'org-key')])
+    mockIsOrganizationBYOKEntitled.mockRejectedValueOnce(new Error('entitlement unavailable'))
+    await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).rejects.toThrow()
     expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 
@@ -410,5 +405,81 @@ describe('getApiKeyWithBYOK for Fireworks', () => {
     )
 
     expect(result).toEqual({ apiKey: 'platform-fireworks-key', isBYOK: false })
+  })
+})
+
+describe('getApiKeyWithBYOK for Nebius', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: encrypted.replace('encrypted-', 'decrypted-'),
+    }))
+  })
+
+  it('uses the configured workspace key instead of a caller key', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('nebius-workspace')])
+    await expect(
+      getApiKeyWithBYOK(
+        'nebius',
+        'nebius/Qwen/Qwen3-30B-A3B-Instruct-2507',
+        uniqueWorkspaceId(),
+        'caller-key'
+      )
+    ).resolves.toEqual({
+      apiKey: 'decrypted-nebius-workspace',
+      isBYOK: true,
+      scope: 'workspace',
+    })
+  })
+
+  it('fails closed when a configured Nebius key cannot be decrypted', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([storedKey('nebius-corrupt')])
+    mockDecryptSecret.mockRejectedValueOnce(new Error('cannot decrypt'))
+    await expect(
+      getApiKeyWithBYOK(
+        'nebius',
+        'nebius/Qwen/Qwen3-30B-A3B-Instruct-2507',
+        uniqueWorkspaceId(),
+        'caller-key'
+      )
+    ).rejects.toThrow('Configured BYOK credentials are unavailable')
+  })
+})
+
+describe('BYOK lookup retry lifetime', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    resetDbChainMock()
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('stops retrying when the caller cancels during backoff', async () => {
+    const error = new DrizzleQueryError(
+      'select fixture',
+      [],
+      Object.assign(new Error('reset'), { code: 'ECONNRESET' })
+    )
+    dbChainMockFns.orderBy.mockRejectedValue(error)
+    const controller = new AbortController()
+    const outcome = getBYOKKey(uniqueWorkspaceId(), 'openai', { signal: controller.signal }).catch(
+      (error: unknown) => error
+    )
+    await vi.advanceTimersByTimeAsync(1)
+    controller.abort(new Error('caller cancelled'))
+    await vi.runAllTimersAsync()
+    expect(await outcome).toMatchObject({ message: 'caller cancelled' })
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(1)
+  })
+
+  it('bounds a hung lookup and does not continue after its late result', async () => {
+    const read = createDeferred<never[]>()
+    dbChainMockFns.orderBy.mockReturnValueOnce(read.promise)
+    const pending = getBYOKKey(uniqueWorkspaceId(), 'openai')
+    const assertion = expect(pending).rejects.toThrow('deadline')
+    await vi.advanceTimersByTimeAsync(5_000)
+    await assertion
+    read.resolve([])
+    await vi.runAllTimersAsync()
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   isSubBlockRequired,
-  isToolParamUserRequired,
   isUserSuppliedToolParam,
+  resolveToolParamRequired,
 } from '@/lib/workflows/tool-input/param-visibility'
+import type { ParameterVisibility } from '@/tools/types'
 
 describe('isUserSuppliedToolParam', () => {
   it('is true only for user-only', () => {
@@ -14,29 +15,36 @@ describe('isUserSuppliedToolParam', () => {
   })
 })
 
-describe('isToolParamUserRequired', () => {
+describe('resolveToolParamRequired', () => {
+  const visibleAs = (paramVisibility: ParameterVisibility) => new Map([['param', paramVisibility]])
+
   it('requires both user-only visibility and a satisfied required condition', () => {
-    expect(isToolParamUserRequired({ paramVisibility: 'user-only', required: true }, {})).toBe(true)
-    expect(isToolParamUserRequired({ paramVisibility: 'user-only', required: false }, {})).toBe(
-      false
-    )
+    expect(
+      resolveToolParamRequired({ id: 'param', required: true }, {}, visibleAs('user-only'))
+    ).toBe(true)
+    expect(
+      resolveToolParamRequired({ id: 'param', required: false }, {}, visibleAs('user-only'))
+    ).toBe(false)
   })
 
   it('never requires a param the model can supply, even when required is true', () => {
     // `required: true` still drives the model-facing schema; it just is not the USER's to fill.
-    expect(isToolParamUserRequired({ paramVisibility: 'user-or-llm', required: true }, {})).toBe(
-      false
-    )
-    expect(isToolParamUserRequired({ paramVisibility: 'llm-only', required: true }, {})).toBe(false)
+    expect(
+      resolveToolParamRequired({ id: 'param', required: true }, {}, visibleAs('user-or-llm'))
+    ).toBe(false)
+    expect(
+      resolveToolParamRequired({ id: 'param', required: true }, {}, visibleAs('llm-only'))
+    ).toBe(false)
   })
 
   it('evaluates the condition form against the surrounding values', () => {
-    const config = {
-      paramVisibility: 'user-only' as const,
-      required: { field: 'operation', value: ['write'] },
-    }
-    expect(isToolParamUserRequired(config, { operation: 'write' })).toBe(true)
-    expect(isToolParamUserRequired(config, { operation: 'read' })).toBe(false)
+    const config = { id: 'param', required: { field: 'operation', value: ['write'] } }
+    expect(resolveToolParamRequired(config, { operation: 'write' }, visibleAs('user-only'))).toBe(
+      true
+    )
+    expect(resolveToolParamRequired(config, { operation: 'read' }, visibleAs('user-only'))).toBe(
+      false
+    )
   })
 })
 

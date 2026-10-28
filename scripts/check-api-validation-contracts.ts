@@ -61,6 +61,8 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // there is no input to validate and its only response is the fixed v2 error
   // envelope.
   'apps/sim/app/api/v2/[[...segments]]/route.ts',
+  // The same JSON 404 for unknown paths anywhere else under /api.
+  'apps/sim/app/api/[[...segments]]/route.ts',
   'apps/sim/app/api/demo-requests/route.ts',
   // Input-less session-bound GET: nothing to validate; response is
   // contract-typed via `satisfies InvitationDetails` in the route.
@@ -119,6 +121,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // Returns immediately after Trigger.dev accepts the asynchronous dispatcher task.
   'apps/sim/app/api/cron/workspace-file-search-dispatch/route.ts',
   'apps/sim/app/api/cron/knowledge-projection/route.ts',
+  'apps/sim/app/api/cron/fold-table-row-changes/route.ts',
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
   'apps/sim/app/api/knowledge/connectors/member-sync/route.ts',

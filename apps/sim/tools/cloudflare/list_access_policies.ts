@@ -1,3 +1,4 @@
+import { ACCESS_POLICY_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListAccessPoliciesParams,
   CloudflareListAccessPoliciesResponse,
@@ -6,9 +7,11 @@ import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
-  mapAccessPolicy,
+  mapCloudflareFields,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessPoliciesTool: ToolConfig<
   CloudflareListAccessPoliciesParams,
@@ -56,7 +59,7 @@ export const listAccessPoliciesTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}/policies`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/apps/${safeUrlPathSegment(params.appId, 'appId')}/policies`
       )
       appendParam(url, 'page', params.page)
       appendParam(url, 'per_page', params.per_page)
@@ -67,91 +70,38 @@ export const listAccessPoliciesTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { policies: [], total_count: 0 },
-        error: cloudflareErrorMessage(data, 'Failed to list Access policies'),
-      }
-    }
-
-    const policies = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        policies: policies.map(mapAccessPolicy),
-        total_count: data.result_info?.total_count ?? policies.length,
+        policies: rows.map((row) => mapCloudflareFields(row, ACCESS_POLICY_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to list access policies') }
+        : {}),
     }
   },
-
   outputs: {
     policies: {
       type: 'array',
-      description: 'Access policies attached to the application',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Policy identifier' },
-          name: { type: 'string', description: 'Policy name', optional: true },
-          decision: {
-            type: 'string',
-            description: 'Decision the policy applies: allow, deny, non_identity, or bypass',
-            optional: true,
-          },
-          precedence: {
-            type: 'number',
-            description: 'Evaluation order of the policy within the application',
-            optional: true,
-          },
-          include: {
-            type: 'json',
-            description: 'Rules evaluated with OR logic — matching any one selects the policy',
-            optional: true,
-          },
-          exclude: {
-            type: 'json',
-            description: 'Rules evaluated with NOT logic — matching any one rejects the request',
-            optional: true,
-          },
-          require: {
-            type: 'json',
-            description: 'Rules evaluated with AND logic — all must match',
-            optional: true,
-          },
-          session_duration: {
-            type: 'string',
-            description: 'How long a session granted by this policy stays valid',
-            optional: true,
-          },
-          approval_required: {
-            type: 'boolean',
-            description: 'Whether an approver must grant each access request',
-            optional: true,
-          },
-          isolation_required: {
-            type: 'boolean',
-            description: 'Whether the session must run in a remote browser',
-            optional: true,
-          },
-          purpose_justification_required: {
-            type: 'boolean',
-            description: 'Whether users must state a reason for access',
-            optional: true,
-          },
-          purpose_justification_prompt: {
-            type: 'string',
-            description: 'Prompt shown when a justification is required',
-            optional: true,
-          },
-          created_at: { type: 'string', description: 'Creation timestamp', optional: true },
-          updated_at: { type: 'string', description: 'Last update timestamp', optional: true },
-        },
-      },
+      description: 'Policies',
+      items: { type: 'object', properties: ACCESS_POLICY_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Total number of policies' },
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
   },
 }

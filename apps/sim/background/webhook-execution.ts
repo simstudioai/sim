@@ -21,10 +21,12 @@ import {
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { env, envNumber } from '@/lib/core/config/env'
+import type { ExecutionScope } from '@/lib/core/errors/execution-scope-deleted'
+import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
@@ -73,9 +75,12 @@ import { readSlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-confi
 import {
   executeWorkflowCore,
   type PreloadedExecutionEnvironment,
-  wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import {
+  isRecordedWorkflowFailure,
+  resolveDeletedExecutionScope,
+} from '@/lib/workflows/executor/recorded-failure'
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
@@ -589,7 +594,7 @@ export async function executeWebhookJob(
         )
       }
 
-      const result = await webhookIdempotency.executeWithIdempotency(
+      const execution = await webhookIdempotency.executeOrSkipInProgress(
         authenticatedPayload.provider,
         idempotencyKey,
         runOperation,
@@ -604,7 +609,26 @@ export async function executeWebhookJob(
       if (!operationStarted) {
         await releaseExecutionSlot(executionId)
       }
-      return result
+      if (execution.outcome === 'in-progress') {
+        // Ingress already acknowledged this delivery and nothing reads this job's result,
+        // so waiting on the live holder would only pin the machine and queue slot.
+        logger.info(`[${requestId}] Skipping duplicate webhook delivery already in progress`, {
+          webhookId: authenticatedPayload.webhookId,
+          workflowId: authenticatedPayload.workflowId,
+          provider: authenticatedPayload.provider,
+          executionId,
+        })
+        return {
+          success: true,
+          duplicate: true,
+          workflowId: authenticatedPayload.workflowId,
+          executionId,
+          output: {},
+          executedAt: new Date().toISOString(),
+          provider: authenticatedPayload.provider,
+        }
+      }
+      return execution.result
     })
   } catch (error) {
     await releaseExecutionSlot(executionId)
@@ -703,17 +727,32 @@ export async function resolveWebhookExecutionProviderConfig<
   }
 }
 
-async function resolveCredentialAccountUserId(credentialId: string): Promise<string | undefined> {
+/**
+ * The user who owns the OAuth account behind a credential. `accountless` credentials
+ * (service accounts, managed OAuth such as a custom Slack bot) have no account row by
+ * design; `missing` means the credential or its account no longer exists.
+ */
+async function resolveCredentialAccountUserId(
+  credentialId: string
+): Promise<{ status: 'resolved'; userId: string } | { status: 'accountless' | 'missing' }> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
-    return undefined
+    return { status: 'missing' }
+  }
+  if (
+    resolved.credentialType === 'service_account' ||
+    resolved.credentialType === 'managed_oauth'
+  ) {
+    return { status: 'accountless' }
   }
   const [credentialRecord] = await db
     .select({ userId: account.userId })
     .from(account)
     .where(eq(account.id, resolved.accountId))
     .limit(1)
-  return credentialRecord?.userId
+  return credentialRecord
+    ? { status: 'resolved', userId: credentialRecord.userId }
+    : { status: 'missing' }
 }
 
 /**
@@ -854,15 +893,16 @@ async function executeWebhookJobInternal(
             workspaceId
           )
         : loadDeployedWorkflowState(payload.workflowId, workspaceId)
-      const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
+      const [workflowData, webhookRows, credentialAccount] = await Promise.all([
         workflowStatePromise,
         db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
         payload.credentialId
           ? resolveCredentialAccountUserId(payload.credentialId)
           : Promise.resolve(undefined),
       ])
-      const credentialAccountUserId = resolvedCredentialUserId
-      if (payload.credentialId && !credentialAccountUserId) {
+      const credentialAccountUserId =
+        credentialAccount?.status === 'resolved' ? credentialAccount.userId : undefined
+      if (credentialAccount?.status === 'missing') {
         logger.warn(
           `[${requestId}] Failed to resolve credential account for credential ${payload.credentialId}`
         )
@@ -1232,31 +1272,40 @@ async function executeWebhookJobInternal(
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
     }
 
-    logger.error(
-      `[${requestId}] Webhook execution failed`,
-      loggingSession.projectDiagnosticError(error, {
-        workflowId: payload.workflowId,
-        provider: payload.provider,
-      })
-    )
+    logFailureOnce(logger, `[${requestId}] Webhook execution failed`, error, {
+      metadata: () =>
+        loggingSession.projectDiagnosticError(error, {
+          workflowId: payload.workflowId,
+          provider: payload.provider,
+        }),
+      executionId,
+    })
 
-    // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
-    // signal is reliable and the failure is fully persisted before we decide fault vs error.
-    await loggingSession.waitForPostExecution()
+    const failedRunResult = () => ({
+      success: false,
+      workflowId: payload.workflowId,
+      executionId,
+      output: hasExecutionResult(error) ? error.executionResult.output : {},
+      executedAt: new Date().toISOString(),
+      provider: payload.provider,
+    })
+    const completeWithDeletedScope = (scope: ExecutionScope) => {
+      logger.info(`[${requestId}] Webhook execution ended: its ${scope} was deleted`, {
+        workflowId: payload.workflowId,
+        executionId,
+      })
+      return failedRunResult()
+    }
+
+    const deletedScope = await resolveDeletedExecutionScope(error, loggingSession)
+    if (deletedScope) return completeWithDeletedScope(deletedScope)
 
     // A failure inside workflow execution (block error, provider 4xx, missing required field, etc.)
     // is finalized by core and already recorded in the execution logs. That is a user/workflow error,
     // not a trigger.dev job fault — complete the run normally so we don't fire a false alert. Errors
     // that were not finalized came from the webhook pipeline itself, so we re-throw to fault below.
-    if (wasExecutionFinalizedByCore(error, executionId)) {
-      return {
-        success: false,
-        workflowId: payload.workflowId,
-        executionId,
-        output: hasExecutionResult(error) ? error.executionResult.output : {},
-        executedAt: new Date().toISOString(),
-        provider: payload.provider,
-      }
+    if (await isRecordedWorkflowFailure(error, executionId, loggingSession)) {
+      return failedRunResult()
     }
 
     try {
@@ -1298,6 +1347,9 @@ async function executeWebhookJobInternal(
         loggingSession.projectDiagnosticError(loggingError)
       )
     }
+
+    const scopeDeletedOnCompletion = loggingSession.getDeletedScope()
+    if (scopeDeletedOnCompletion) return completeWithDeletedScope(scopeDeletedOnCompletion)
 
     if (retryableSetupCause) {
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })

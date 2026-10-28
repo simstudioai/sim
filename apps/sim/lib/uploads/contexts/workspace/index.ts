@@ -1,2 +1,2 @@
-export * from './workspace-file-folder-manager'
-export * from './workspace-file-manager'
+export * from './file-folder-manager'
+export * from './file-manager'

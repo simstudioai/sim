@@ -1,25 +1,20 @@
 ---
 title: Flint
 description: Run background agent tasks on your Flint sites
+integration:
+  type: "flint"
+  color: "#F6F54F"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="flint"
-  color="#F6F54F"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Flint](https://www.flint.com/) in Sim to start site changes from a natural-language prompt, generate up to 10 pages from a template, and check task status. Create an API key in your Flint team settings. Leave publishing off when changes need review, then use **Get Task** to collect preview URLs and the list of created, modified, or deleted pages. Poll the task until it finishes and inspect its error if it fails.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Create background agent tasks that modify your Flint sites from natural-language prompts, generate batches of pages from a template, and check task status and results.
-
-
 
 ## Actions
 
@@ -56,7 +51,7 @@ Start a background Flint agent task that generates up to 10 pages from a templat
 | `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 | `siteId` | string | Yes | ID of the Flint site the agent should modify |
 | `templatePageSlug` | string | Yes | Slug of the existing template page to generate from \(e.g., /case-studies/template\) |
-| `items` | json | Yes | JSON array of 1-10 pages to generate. Each item requires targetPageSlug \(slug for the new page\) and context \(content details the agent should use\). |
+| `items` | array | Yes | JSON array of 1-10 pages to generate. Each item requires targetPageSlug \(slug for the new page\) and context \(content details the agent should use\). |
 | `callbackUrl` | string | No | HTTPS webhook URL that Flint will POST to when the task completes or fails |
 | `publish` | boolean | No | Whether to automatically publish the generated pages when the task completes |
 

@@ -15,10 +15,11 @@ import {
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 vi.unmock('@/lib/mothership/request/http')
 vi.mock('@/lib/auth/ban', () => authBanMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
@@ -73,17 +74,44 @@ describe('worker run control boundary', () => {
     expect(mocks.run).not.toHaveBeenCalled()
     expect(mocks.stopped).not.toHaveBeenCalled()
   })
-  it('conceals a chat belonging to another actor', async () => {
-    expect((await POST(request({ 'x-mothership-user-id': 'other-actor' }))).status).toBe(404)
+  it("answers Stop for a chat that is not the actor's, without reading its state", async () => {
+    const response = await POST(request({ 'x-mothership-user-id': 'other-actor' }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ stopped: true })
     expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('answers Stop once the chat is deleted', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.copilotChats, [])
+    const response = await POST(request())
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ stopped: true })
+    expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('answers Stop once the actor lost workspace access', async () => {
+    mocks.authorize.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
+    const response = await POST(request())
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ stopped: true })
+    expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('lets a live run continue', async () => {
+    mocks.stopped.mockResolvedValue(false)
+    const response = await POST(request())
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ stopped: false })
   })
   it.each([
     null,
     { chatId: 'other-chat', workspaceId: 'workspace' },
     { chatId, workspaceId: 'other-workspace' },
-  ])('refuses a missing or mismatched canonical run: %j', async (run) => {
+  ])('answers Stop for a missing or mismatched canonical run: %j', async (run) => {
     mocks.run.mockResolvedValue(run)
-    expect((await POST(request())).status).toBe(404)
+    const response = await POST(request())
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ stopped: true })
     expect(mocks.stopped).not.toHaveBeenCalled()
   })
   it('does not turn a database outage into permission to continue', async () => {

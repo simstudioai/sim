@@ -7,8 +7,7 @@ export const HuggingFaceBlock: BlockConfig = {
   name: 'Hugging Face',
   description: 'Use Hugging Face Inference API',
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.',
+  longDescription: 'Generate completions with the Hugging Face Inference API.',
   docsLink: 'https://docs.sim.ai/integrations/huggingface',
   category: 'tools',
   integrationType: IntegrationType.AI,

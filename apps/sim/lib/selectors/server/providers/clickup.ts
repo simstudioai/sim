@@ -6,7 +6,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
+import { fetchProviderJson } from '@/lib/selectors/server/providers/http'
 import {
   type ExecuteServerSelectorArgs,
   listSelectorResult,

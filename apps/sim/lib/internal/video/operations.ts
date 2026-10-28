@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import {
@@ -13,7 +13,7 @@ import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
@@ -126,7 +126,7 @@ async function storeVideo(
   } catch (error) {
     context.signal?.throwIfAborted()
     throw new VideoOperationError(
-      `Failed to store video: ${getErrorMessage(error, 'Unknown error')}`,
+      `Failed to store video: ${getUserFacingErrorMessage(error, 'Unknown error')}`,
       500
     )
   }

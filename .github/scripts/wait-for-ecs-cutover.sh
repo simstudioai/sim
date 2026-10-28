@@ -92,12 +92,15 @@ while [ -z "$DEPLOYMENT_ID" ] || [ "$DEPLOYMENT_ID" = 'None' ]; do
   DEPLOYMENT_ID=$(printf '%s\n' "$deploy_actions" | DEPLOY_STATE="$deploy_state" EXECUTION_ID="$EXECUTION_ID" python3 -c '
 import json, os, re, sys
 state = json.loads(os.environ["DEPLOY_STATE"])
-actions = json.load(sys.stdin)
+# The Deploy stage can also run sidecar actions (e.g. a CodeBuild image deploy); only the
+# CodeDeploy blue/green action carries the ECS cutover.
+actions = [a for a in json.load(sys.stdin)
+           if a.get("input", {}).get("actionTypeId", {}).get("provider") == "CodeDeployToECS"]
 if not state or state.get("latestExecution", {}).get("pipelineExecutionId") != os.environ["EXECUTION_ID"] or not actions:
     print("")
     sys.exit(0)
 if len({a["actionName"] for a in actions}) != 1:
-    raise SystemExit("ERROR: expected one Deploy action in the app pipeline")
+    raise SystemExit("ERROR: expected one CodeDeploy ECS action in the app pipeline Deploy stage")
 latest = max(actions, key=lambda a: a["startTime"])
 matches = [a["latestExecution"] for a in state.get("actionStates", [])
            if a["actionName"] == latest["actionName"]

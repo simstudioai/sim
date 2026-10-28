@@ -50,6 +50,7 @@ vi.mock('@/lib/workspace-files/application/workspace-operation-context', () => (
 }))
 vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   abortInternalUploadSession,
   completeInternalUploadSession,
@@ -57,6 +58,7 @@ import {
   createWorkspaceFileUploadOperation,
   issueInternalUploadPartUrls,
   readWorkspaceUploadSession,
+  requestOrigin,
 } from '@/lib/uploads/upload-session/application'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
@@ -74,6 +76,30 @@ const mocks = {
 }
 
 const principal = createSessionPrincipal()
+
+describe('requestOrigin', () => {
+  it('answers a network request from its browser Origin, then its proxy host', () => {
+    const viaBrowser = new NextRequest('http://10.0.0.5:3000/api/v2/files/uploads', {
+      headers: { origin: 'https://sim.example', host: '10.0.0.5:3000' },
+    })
+    const viaProxy = new NextRequest('http://10.0.0.5:3000/api/v2/files/uploads', {
+      headers: { 'x-forwarded-host': 'sim.example', 'x-forwarded-proto': 'http', host: '10.0.0.5' },
+    })
+    expect(requestOrigin(viaBrowser)).toBe('https://sim.example')
+    expect(requestOrigin(viaProxy)).toBe('http://sim.example')
+  })
+
+  it('answers an in-process request, which carries no network headers, from the URL it was addressed to', () => {
+    const cli = new NextRequest(
+      new Request('http://sim-internal.test:3400/api/v2/files/uploads', { method: 'POST' })
+    )
+    expect(requestOrigin(cli)).toBe('http://sim-internal.test:3400')
+  })
+
+  it('falls back to the configured app URL for a context with neither', () => {
+    expect(requestOrigin({ headers: new Headers() })).toBe(getBaseUrl())
+  })
+})
 
 describe('upload session application', () => {
   beforeEach(() => {

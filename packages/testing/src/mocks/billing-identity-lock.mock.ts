@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 
 /**
- * Controllable mock functions for `@/lib/billing/organizations/billing-identity-lock`.
+ * Controllable mock functions for `@/lib/billing/organizations/identity-lock`.
  *
  * Default: `mockAcquireUserBillingIdentityLock` resolves `undefined` (an instant no-op lock,
  * matching the real `Promise<void>` signature).
@@ -20,11 +20,11 @@ export const billingIdentityLockMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/billing/organizations/billing-identity-lock`.
+ * Static mock module for `@/lib/billing/organizations/identity-lock`.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+ * vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
  * ```
  */
 export const billingIdentityLockMock = {

@@ -1,41 +1,31 @@
 ---
 title: Splunk
 description: Run SPL searches and manage saved searches and alerts in Splunk
+integration:
+  type: "splunk"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="splunk"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Splunk](https://www.splunk.com/) indexes machine data — logs, metrics, and events — and makes it searchable with SPL, its search processing language. Teams use it for operational monitoring, incident investigation, and security analytics, with saved searches and alerts watching for conditions on a schedule.
+Use [Splunk](https://www.splunk.com/) with a bearer token to search logs, metrics, and events in Splunk Enterprise or Splunk Cloud. **Run Search** returns a synchronous result; for longer searches, create a job, inspect its status, page through its results, and cancel it when needed.
 
-With the Splunk integration in Sim, you can:
-
-- **Run searches**: Execute an SPL search synchronously and get its results in a single call
-- **Run long searches as jobs**: Create a search job, check its status, page through its results, and cancel it
-- **Use saved searches**: List and get saved searches, and dispatch one on demand
-- **Inspect alerts**: List fired alerts and get the fired instances of a specific alert
-- **Explore the instance**: List indexes and installed apps
-
-In Sim, the Splunk integration enables your agents to investigate and act on operational data. An agent can run a search when an incident opens, dispatch a saved search to reproduce a known query, page through a large job's results, and read fired alerts to decide what to escalate. It works against both Splunk Enterprise and Splunk Cloud, authenticating with a bearer token.
+Saved-search actions list, read, and dispatch existing searches. Alert actions inspect fired alerts and their instances. Index and app lookups help identify the data and configuration available to the credential.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.
-
-
+Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.
 
 ## Actions
 
 ### Splunk Run Search
 
 Run an SPL search synchronously and return its results in a single call (oneshot mode). A oneshot search buffers the whole result set in one response with no paging, so use it for short searches; for anything large use Create Search Job with Get Search Results, which defaults to 100 rows and pages with offset.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -66,9 +56,13 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 |   ↳ `type` | string | Message severity |
 |   ↳ `text` | string | Message text |
 
+</ReferenceDetails>
+
 ### Splunk Create Search Job
 
 Start a Splunk search job and return its search ID (sid). The search runs asynchronously — poll its status and fetch results separately.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,9 +93,13 @@ Start a Splunk search job and return its search ID (sid). The search runs asynch
 | --------- | ---- | ----------- |
 | `sid` | string | Search ID of the created job, used to poll status and fetch results |
 
+</ReferenceDetails>
+
 ### Splunk Get Search Job
 
 Get the status and progress of a Splunk search job by search ID, including dispatch state, completion progress, and event/result counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -145,9 +143,13 @@ Get the status and progress of a Splunk search job by search ID, including dispa
 | `searchLatestTime` | number | Latest time as specified in the search command itself, as an epoch timestamp. Unlike latestTime, which the job entry renders as an ISO string, this pair is documented as bare numbers. |
 | `messages` | json | Errors and debug messages recorded for the job |
 
+</ReferenceDetails>
+
 ### Splunk Get Search Results
 
 Fetch the transformed results of a completed Splunk search job by search ID, with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -177,9 +179,13 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 |   ↳ `type` | string | Message severity |
 |   ↳ `text` | string | Message text |
 
+</ReferenceDetails>
+
 ### Splunk Cancel Search Job
 
 Cancel a running Splunk search job and delete its result cache.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -202,9 +208,13 @@ Cancel a running Splunk search job and delete its result cache.
 |   ↳ `type` | string | Message severity \(INFO, WARN, ERROR, DEBUG\) |
 |   ↳ `text` | string | Message text |
 
+</ReferenceDetails>
+
 ### Splunk List Saved Searches
 
 List saved searches and reports configured in Splunk, including their SPL, schedule, and alert configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -243,9 +253,13 @@ List saved searches and reports configured in Splunk, including their SPL, sched
 | `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
 | `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
 
+</ReferenceDetails>
+
 ### Splunk Get Saved Search
 
 Get the configuration of a single Splunk saved search by name, including its SPL, schedule, and alert settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -279,9 +293,13 @@ Get the configuration of a single Splunk saved search by name, including its SPL
 | `dispatchEarliestTime` | string | Earliest time bound used when the search is dispatched |
 | `dispatchLatestTime` | string | Latest time bound used when the search is dispatched |
 
+</ReferenceDetails>
+
 ### Splunk Dispatch Saved Search
 
 Run a Splunk saved search immediately and return the search ID (sid) of the dispatched job.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -308,9 +326,13 @@ Run a Splunk saved search immediately and return the search ID (sid) of the disp
 | --------- | ---- | ----------- |
 | `sid` | string | Search ID of the dispatched job, used to poll status and fetch results |
 
+</ReferenceDetails>
+
 ### Splunk List Fired Alerts
 
 List the saved searches with currently triggered (unexpired) Splunk alerts and how many times each has fired.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -337,9 +359,13 @@ List the saved searches with currently triggered (unexpired) Splunk alerts and h
 | `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
 | `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
 
+</ReferenceDetails>
+
 ### Splunk Get Fired Alerts
 
 List the unexpired triggered instances of a Splunk alert by saved search name, including severity, trigger time, and the search ID of each firing.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -371,9 +397,13 @@ List the unexpired triggered instances of a Splunk alert by saved search name, i
 |   ↳ `triggeredAlerts` | number | Number of alerts included in this triggered instance |
 |   ↳ `actions` | string | Additional alert actions triggered by this alert |
 
+</ReferenceDetails>
+
 ### Splunk List Indexes
 
 List the indexes configured on the Splunk instance with their size, event count, and retention settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -412,9 +442,13 @@ List the indexes configured on the Splunk instance with their size, event count,
 | `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
 | `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
 
+</ReferenceDetails>
+
 ### Splunk List Apps
 
 List the apps installed on the Splunk instance with their label, version, author, and enabled state.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -449,5 +483,7 @@ List the apps installed on the Splunk instance with their label, version, author
 |   ↳ `stateChangeRequiresRestart` | boolean | Whether changing the app state requires a restart |
 | `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
 | `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
+
+</ReferenceDetails>
 
 

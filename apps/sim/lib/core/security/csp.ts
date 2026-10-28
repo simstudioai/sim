@@ -1,3 +1,4 @@
+import { CHANGELOG_MEDIA_ORIGIN } from '../../changelog/media'
 import { CONSENT_BACKEND_URL } from '../../consent/constants'
 import { env, envBoolean, getEnv } from '../config/env'
 import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
@@ -10,6 +11,10 @@ import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
  * Keep URL constants local to this file, or in a leaf module reachable by a
  * relative import that itself pulls in no `@/` paths (../../consent/constants).
  */
+
+/** File responses select CSP at runtime; JSON and error responses retain the main policy. */
+export const FILE_DELIVERY_CSP_PATH_PATTERN =
+  '/(?:api/files/serve/.+|api/files/public/[^/]+/(?:content|inline)|api/projects/[^/]+/files/(?:inline|download|[^/]+/(?:content|artifact|export|versions/[^/]+/content))|api/workspaces/[^/]+/files/(?:inline|download|[^/]+/versions/[^/]+/content)|api/v2/projects/[^/]+/files/(?:bulk-download|[^/]+/(?:content|export|versions/[^/]+/content))|api/v2/files/(?:bulk-download|[^/]+(?:/versions/[^/]+/content)?))'
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
@@ -124,6 +129,7 @@ const STATIC_IMG_SRC = ["'self'", 'data:', 'blob:', 'https:'] as const
 
 const STATIC_CONNECT_SRC = [
   "'self'",
+  CHANGELOG_MEDIA_ORIGIN,
   'https://api.browser-use.com',
   'https://api.elevenlabs.io',
   'wss://api.elevenlabs.io',
@@ -215,7 +221,7 @@ const buildTimeCSPDirectives: CSPDirectives = {
 
   'img-src': [...STATIC_IMG_SRC],
 
-  'media-src': ["'self'", 'blob:'],
+  'media-src': ["'self'", 'blob:', CHANGELOG_MEDIA_ORIGIN],
   'worker-src': ["'self'", 'blob:'],
   'font-src': ["'self'", 'https://fonts.gstatic.com'],
 

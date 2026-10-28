@@ -9,8 +9,6 @@ export * from '@/lib/billing/core/organization'
 export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
-  hasPaidSubscription,
-  hasSSOAccess,
   isEnterpriseOrgAdminOrOwner,
   isEnterprisePlan as hasEnterprisePlan,
   isOrganizationGovernanceActive,
@@ -18,7 +16,6 @@ export {
   isProPlan as hasProPlan,
   isTeamPlan as hasTeamPlan,
   isWorkspaceOnEnterprisePlan,
-  sendPlanWelcomeEmail,
 } from '@/lib/billing/core/subscription'
 export * from '@/lib/billing/core/usage'
 export {
@@ -30,11 +27,7 @@ export {
 export * from '@/lib/billing/core/workspace-access'
 export * from '@/lib/billing/credits/balance'
 export * from '@/lib/billing/credits/purchase'
-export {
-  blockOrgMembers,
-  getOrgMemberIds,
-  unblockOrgMembers,
-} from '@/lib/billing/organizations/membership'
+export { getOrgMemberIds } from '@/lib/billing/organizations/membership'
 export * from '@/lib/billing/subscriptions/utils'
 export { canEditUsageLimit as canEditLimit } from '@/lib/billing/subscriptions/utils'
 export * from '@/lib/billing/types'

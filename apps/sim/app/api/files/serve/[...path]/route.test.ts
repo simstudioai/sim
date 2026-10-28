@@ -13,7 +13,12 @@ import {
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { createRouteContext } from '@sim/testing/helpers/http'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
 import {
   filesAuthorizationMock,
   filesAuthorizationMockFns,
@@ -29,6 +34,7 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
@@ -36,13 +42,15 @@ const {
   mockReadFile,
   mockAuthenticateWorkspaceFile,
   mockReadWorkspaceFileContentByKey,
+  mockReadWorkspaceFileRecordByKey,
+  mockAuthorizeWorkspaceFileRecordByKey,
   mockResolveServableDocBytes,
   mockGetContentType,
   mockFindLocalFile,
   mockReadLocalFileWithinLimit,
   mockCreateFileResponse,
   mockCreateConditionalFileResponse,
-  mockCreateErrorResponse,
+  mockFileErrorResponse,
   FileNotFoundError,
   mockReadOrganizationAssistantImage,
 } = vi.hoisted(() => {
@@ -57,13 +65,15 @@ const {
     mockReadFile: vi.fn(),
     mockAuthenticateWorkspaceFile: vi.fn(),
     mockReadWorkspaceFileContentByKey: vi.fn(),
+    mockReadWorkspaceFileRecordByKey: vi.fn(),
+    mockAuthorizeWorkspaceFileRecordByKey: vi.fn(async () => undefined),
     mockResolveServableDocBytes: vi.fn(),
     mockGetContentType: vi.fn(),
     mockFindLocalFile: vi.fn(),
     mockReadLocalFileWithinLimit: vi.fn(),
     mockCreateFileResponse: vi.fn(),
     mockCreateConditionalFileResponse: vi.fn(),
-    mockCreateErrorResponse: vi.fn(),
+    mockFileErrorResponse: vi.fn(),
     FileNotFoundError: FileNotFoundErrorClass,
   }
 })
@@ -84,7 +94,10 @@ vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
+
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
@@ -98,7 +111,7 @@ vi.mock('@/lib/execution/sandbox/run-task', () => ({
     ),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/api', () => ({
   internalWorkspaceFileServeAuth: { authenticate: mockAuthenticateWorkspaceFile },
@@ -106,9 +119,13 @@ vi.mock('@/lib/workspace-files/api', () => ({
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({
   readWorkspaceFileContentByKey: { execute: mockReadWorkspaceFileContentByKey },
+  readWorkspaceFileRecordByKey: {
+    execute: mockReadWorkspaceFileRecordByKey,
+    authorize: mockAuthorizeWorkspaceFileRecordByKey,
+  },
 }))
 
-vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/uploads/documents/compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
 }))
 
@@ -116,7 +133,7 @@ vi.mock('@/app/api/files/utils', () => ({
   FileNotFoundError,
   createFileResponse: mockCreateFileResponse,
   createConditionalFileResponse: mockCreateConditionalFileResponse,
-  createErrorResponse: mockCreateErrorResponse,
+  createFileErrorResponse: mockFileErrorResponse,
   getContentType: mockGetContentType,
   extractStorageKey: vi.fn().mockImplementation((path: string) => path.split('/').pop()),
   extractFilename: vi.fn().mockImplementation((path: string) => path.split('/').pop()),
@@ -161,6 +178,17 @@ describe('File Serve API Route', () => {
       },
       content: Buffer.from('generated source'),
     })
+    mockReadWorkspaceFileRecordByKey.mockResolvedValue({
+      file: {
+        id: 'file-1',
+        workspaceId: 'test-workspace-id',
+        name: 'report.pdf',
+        key: 'workspace/test-workspace-id/report.pdf',
+        type: 'text/x-pdflibjs',
+        size: 16,
+        contentUpdatedAt: new Date('2026-09-06'),
+      },
+    })
     mockResolveServableDocBytes.mockImplementation(
       async ({ rawBuffer, fileName }: { rawBuffer: Buffer; fileName: string }) => ({
         buffer: rawBuffer,
@@ -173,24 +201,23 @@ describe('File Serve API Route', () => {
       mockReadFile(filePath)
     )
     mockCreateFileResponse.mockImplementation(
-      (file: { buffer: Buffer; contentType: string; filename: string }) => {
+      (file: { buffer: Buffer; contentType: string; filename: string; cacheControl?: string }) => {
         return new Response(file.buffer, {
           status: 200,
           headers: {
             'Content-Type': file.contentType,
+            ...(file.cacheControl ? { 'Cache-Control': file.cacheControl } : {}),
             'Content-Disposition': `inline; filename="${file.filename}"`,
           },
         })
       }
     )
-    // Delegates so the existing assertions on the response payload — including its
-    // Cache-Control — read the same call list whichever helper the route reached for.
     mockCreateConditionalFileResponse.mockImplementation((file: unknown) =>
       mockCreateFileResponse(file)
     )
-    mockCreateErrorResponse.mockImplementation((error: Error) => {
+    mockFileErrorResponse.mockImplementation((error: Error, status = 500) => {
       return new Response(JSON.stringify({ error: error.name, message: error.message }), {
-        status: error.name === 'FileNotFoundError' ? 404 : 500,
+        status: error.name === 'FileNotFoundError' ? 404 : status,
         headers: { 'Content-Type': 'application/json' },
       })
     })
@@ -281,12 +308,12 @@ describe('File Serve API Route', () => {
         observedBytes: MAX_BUFFERED_TRANSFER_BYTES + 1,
       })
     )
-    // The real createErrorResponse owns the status mapping; mirror it here so the
+    // The real createFileErrorResponse owns the status mapping; mirror it here so the
     // route's own error path is what decides, not the mock's default 500.
-    mockCreateErrorResponse.mockImplementation(
-      (error: Error) =>
+    mockFileErrorResponse.mockImplementation(
+      (error: Error, status = 500) =>
         new Response(JSON.stringify({ error: error.name }), {
-          status: error.name === 'PayloadSizeLimitError' ? 413 : 500,
+          status: error.name === 'PayloadSizeLimitError' ? 413 : status,
         })
     )
 
@@ -296,6 +323,24 @@ describe('File Serve API Route', () => {
     )
 
     expect(response.status).toBe(413)
+    expect(serveLogger.error).not.toHaveBeenCalled()
+  })
+
+  it('answers 499 without an error log when the client disconnects mid-read', async () => {
+    const controller = new AbortController()
+    mockReadLocalFileWithinLimit.mockImplementation(async () => {
+      controller.abort()
+      throw new Error('Request aborted')
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/report.md', {
+        signal: controller.signal,
+      }),
+      createRouteContext({ path: ['workspace', 'ws', 'report.md'] })
+    )
+
+    expect(response.status).toBe(499)
     expect(serveLogger.error).not.toHaveBeenCalled()
   })
 
@@ -312,32 +357,79 @@ describe('File Serve API Route', () => {
       },
     })
 
-    async function serveVersionedDoc(dependsOnReferencedFiles: boolean) {
+    async function serveVersionedDoc(
+      dependsOnReferencedFiles: boolean,
+      method: 'GET' | 'HEAD' = 'GET'
+    ) {
       mockResolveStoredFileContext.mockResolvedValue('workspace')
       mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
       mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
-      mockResolveServableDocBytes.mockResolvedValue({
+      fileUtilsServerMockFns.mockDownloadServableFileFromStorage.mockResolvedValue({
         buffer: Buffer.from('compiled'),
         contentType: 'application/pdf',
         ...(dependsOnReferencedFiles ? { dependsOnReferencedFiles: true } : {}),
       })
 
       const req = createMockRequest({
+        method,
         url: 'http://localhost:3000/api/files/serve/workspace/test-workspace-id/report.pdf?v=1756684800000',
       })
-      await GET(req, createRouteContext({ path: ['workspace', 'test-workspace-id', 'report.pdf'] }))
-      return mockCreateFileResponse.mock.calls.at(-1)?.[0]
+      const response = await GET(
+        req,
+        createRouteContext({ path: ['workspace', 'test-workspace-id', 'report.pdf'] })
+      )
+      expect(response.status).toBe(200)
+      return response
     }
 
-    it('caches a versioned document immutably when its bytes derive from the stored source alone', async () => {
-      expect(await serveVersionedDoc(false)).toEqual(
-        expect.objectContaining({ cacheControl: 'private, max-age=31536000, immutable' })
-      )
+    it('authorizes HEAD without compiling a representation or inventing its length', async () => {
+      const response = await serveVersionedDoc(true, 'HEAD')
+      expect(await response.text()).toBe('')
+      expect(response.headers.get('Content-Length')).toBeNull()
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+      expect(mockReadWorkspaceFileRecordByKey).toHaveBeenCalled()
+      expect(fileUtilsServerMockFns.mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     })
 
-    it('attaches a validator to a revalidated response so the next check can be answered 304', async () => {
-      await serveVersionedDoc(true)
-      expect(mockCreateConditionalFileResponse).toHaveBeenCalled()
+    it('caches a versioned document immutably when its bytes derive from the stored source alone', async () => {
+      const response = await serveVersionedDoc(false)
+      expect(response.headers.get('Cache-Control')).toBe('private, max-age=31536000, immutable')
+    })
+
+    it('requires revalidation for a versioned document with referenced inputs', async () => {
+      const response = await serveVersionedDoc(true)
+      expect(response.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
+    })
+
+    it('serves stored bytes under the type their extension names, not the recorded type', async () => {
+      mockResolveStoredFileContext.mockResolvedValue('workspace')
+      mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
+      mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
+      mockReadWorkspaceFileRecordByKey.mockResolvedValue({
+        file: {
+          id: 'file-1',
+          workspaceId: 'test-workspace-id',
+          name: 'export.csv',
+          key: 'workspace/test-workspace-id/export.csv',
+          type: 'application/vnd.ms-excel',
+          size: 3,
+          contentUpdatedAt: new Date('2026-09-06'),
+        },
+      })
+      fileUtilsServerMockFns.mockDownloadServableFileFromStorage.mockResolvedValue({
+        buffer: Buffer.from('a,b'),
+        contentType: 'application/vnd.ms-excel',
+      })
+
+      const response = await GET(
+        createMockRequest({
+          url: 'http://localhost:3000/api/files/serve/workspace/test-workspace-id/export.csv',
+        }),
+        createRouteContext({ path: ['workspace', 'test-workspace-id', 'export.csv'] })
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('text/csv')
     })
   })
 })

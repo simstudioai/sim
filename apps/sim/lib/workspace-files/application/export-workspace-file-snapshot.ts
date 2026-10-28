@@ -1,16 +1,18 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
+import { admitContent } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { createMarkdownExport, MarkdownExportSizeError } from '@/lib/uploads/server/markdown-export'
 import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ExportWorkspaceFileSnapshotInput {
   fileId: string
@@ -21,10 +23,18 @@ export interface ExportWorkspaceFileSnapshotInput {
 /** Exports the visible snapshot without writing or advancing the collaborative document. */
 export const exportWorkspaceFileSnapshot = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.download,
-  resolveContext: ({ input }: { input: ExportWorkspaceFileSnapshotInput }) =>
-    resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ExportWorkspaceFileSnapshotInput
+  }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute({ principal, input, context }) {
-    const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
+    const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
+      throwOnError: true,
+      includeOwnedFiles: true,
+    })
     if (!file) throw new OrchestrationError('not_found', 'File not found')
     if (!isMarkdownFile(file) && file.type !== 'text/x-markdown') {
       throw new OrchestrationError('validation', 'Only Markdown files support snapshot export')
@@ -36,6 +46,8 @@ export const exportWorkspaceFileSnapshot = defineAuthorizedWorkspaceFileUseCase(
       throw new OrchestrationError('validation', 'Markdown snapshot is too large')
     }
 
+    /** The snapshot text is the caller's own; each embedded asset is admitted by its record read. */
+    await admitContent(principal, [])
     const { ids } = extractEmbeddedFileRefs(input.content)
     const targets = await mapWithConcurrency(ids, MATERIALIZE_CONCURRENCY, async (imageId) => {
       try {

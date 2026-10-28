@@ -15,13 +15,18 @@ import {
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { extractChatCompletionText } from '@/providers/openai-compat/content'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -174,6 +179,7 @@ export const mistralProvider: ProviderConfig = {
             createOpenAICompatibleAgentEventStream(streamResponse, {
               providerName: 'Mistral',
               request,
+              extractContent: extractChatCompletionText,
               onComplete: ({ content, usage }) => {
                 output.content = content
                 output.tokens = {
@@ -244,7 +250,7 @@ export const mistralProvider: ProviderConfig = {
       }
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = currentResponse.choices[0]?.message?.content || ''
+      let content = extractChatCompletionText(currentResponse.choices[0]?.message?.content)
       const tokens = {
         input: currentResponse.usage?.prompt_tokens || 0,
         output: currentResponse.usage?.completion_tokens || 0,
@@ -273,10 +279,6 @@ export const mistralProvider: ProviderConfig = {
       checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_TOOL_ITERATIONS) {
-        if (currentResponse.choices[0]?.message?.content) {
-          content = currentResponse.choices[0].message.content
-        }
-
         const toolCallsInResponse =
           currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
@@ -292,7 +294,7 @@ export const mistralProvider: ProviderConfig = {
         }
 
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1})`
         )
 
         const toolsStartTime = Date.now()
@@ -390,7 +392,7 @@ export const mistralProvider: ProviderConfig = {
         const executionResults = await Promise.all(toolExecutionPromises)
         currentMessages.push({
           role: 'assistant',
-          content: null,
+          content: currentResponse.choices[0]?.message?.content ?? null,
           tool_calls: toolCallsInResponse.map((tc) => ({
             id: tc.id,
             type: 'function',
@@ -488,7 +490,8 @@ export const mistralProvider: ProviderConfig = {
             request,
             'chat-completions',
             currentResponse.choices[0]?.message,
-            getChatCompletionConversationUsage(currentResponse.usage)
+            getChatCompletionConversationUsage(currentResponse.usage),
+            { fallbackAssistantContent: content }
           )
         }
 
@@ -507,9 +510,7 @@ export const mistralProvider: ProviderConfig = {
 
         modelTime += thisModelTime
 
-        if (currentResponse.choices[0]?.message?.content) {
-          content = currentResponse.choices[0].message.content
-        }
+        content = extractChatCompletionText(currentResponse.choices[0]?.message?.content) || content
 
         if (currentResponse.usage) {
           tokens.input += currentResponse.usage.prompt_tokens || 0
@@ -547,7 +548,8 @@ export const mistralProvider: ProviderConfig = {
               request,
               'chat-completions',
               synthesisResponse.choices[0]?.message,
-              getChatCompletionConversationUsage(synthesisResponse.usage)
+              getChatCompletionConversationUsage(synthesisResponse.usage),
+              { fallbackAssistantContent: content }
             )
           }
           const synthesisEndTime = Date.now()
@@ -561,7 +563,8 @@ export const mistralProvider: ProviderConfig = {
           })
           modelTime += synthesisEndTime - synthesisStartTime
 
-          content = synthesisResponse.choices[0]?.message?.content || content
+          content =
+            extractChatCompletionText(synthesisResponse.choices[0]?.message?.content) || content
           if (synthesisResponse.usage) {
             tokens.input += synthesisResponse.usage.prompt_tokens || 0
             tokens.output += synthesisResponse.usage.completion_tokens || 0
@@ -648,7 +651,7 @@ export const mistralProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Mistral request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Mistral request:', {
         error,
         duration: totalDuration,
       })

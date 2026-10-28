@@ -1,6 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { hmacSha256Base64 } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -13,51 +11,13 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 import {
   RESEND_ALL_WEBHOOK_EVENT_TYPES,
   RESEND_TRIGGER_TO_EVENT_TYPE,
 } from '@/triggers/resend/utils'
 
 const logger = createLogger('WebhookProvider:Resend')
-
-/**
- * Verify a Resend webhook signature using the Svix signing scheme.
- * Resend uses Svix under the hood: HMAC-SHA256 of `${svix-id}.${svix-timestamp}.${body}`
- * signed with the base64-decoded `whsec_...` secret.
- */
-function verifySvixSignature(
-  secret: string,
-  msgId: string,
-  timestamp: string,
-  signatures: string,
-  rawBody: string
-): boolean {
-  try {
-    const ts = Number.parseInt(timestamp, 10)
-    const now = Math.floor(Date.now() / 1000)
-    if (Number.isNaN(ts) || Math.abs(now - ts) > 5 * 60) {
-      return false
-    }
-
-    const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
-    const toSign = `${msgId}.${timestamp}.${rawBody}`
-    const expectedSignature = hmacSha256Base64(toSign, secretBytes)
-
-    const providedSignatures = signatures.split(' ')
-    for (const versionedSig of providedSignatures) {
-      const parts = versionedSig.split(',')
-      if (parts.length !== 2) continue
-      const sig = parts[1]
-      if (safeCompare(sig, expectedSignature)) {
-        return true
-      }
-    }
-    return false
-  } catch (error) {
-    logger.error('Error verifying Resend Svix signature:', error)
-    return false
-  }
-}
 
 export const resendHandler: WebhookProviderHandler = {
   async verifyAuth({
@@ -72,19 +32,15 @@ export const resendHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Resend signing secret is required', { status: 401 })
     }
 
-    const svixId = request.headers.get('svix-id')
-    const svixTimestamp = request.headers.get('svix-timestamp')
-    const svixSignature = request.headers.get('svix-signature')
-
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      logger.warn(`[${requestId}] Resend webhook missing Svix signature headers`)
-      return new NextResponse('Unauthorized - Missing Resend signature headers', { status: 401 })
-    }
-
-    if (!verifySvixSignature(signingSecret, svixId, svixTimestamp, svixSignature, rawBody)) {
-      logger.warn(`[${requestId}] Resend Svix signature verification failed`)
-      return new NextResponse('Unauthorized - Invalid Resend signature', { status: 401 })
-    }
+    const failure = verifyStandardWebhookRequest({
+      request,
+      rawBody,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'Resend',
+      headerPrefix: 'svix',
+    })
+    if (failure) return failure
 
     return null
   },

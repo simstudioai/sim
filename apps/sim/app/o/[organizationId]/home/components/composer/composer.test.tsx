@@ -15,7 +15,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
   plan: false,
@@ -102,10 +105,8 @@ let queryClient: QueryClient
 
 beforeEach(() => {
   mocks.advanced = false
-  useMothershipEffortStore.setState({
-    effort: 'high',
-    modelSelection: { model: 'gpt-6-astra', fastMode: false },
-  })
+  useMothershipEffortStore.getState().reset()
+  useMothershipPlanEffortStore.getState().reset()
   mocks.plan = false
   vi.clearAllMocks()
   mocks.workspaces = [
@@ -194,7 +195,7 @@ afterEach(async () => {
 async function render(
   isInitialView: boolean,
   initialValue = 'Summarize',
-  requestMode: 'agent' | 'assistant' = 'assistant',
+  requestMode: 'agent' | 'assistant' | 'plan' = 'assistant',
   controls: Pick<
     ComponentProps<typeof Composer>,
     'isSending' | 'showModeSelector' | 'onModeChange' | 'restoredContexts' | 'onSendQueuedHead'
@@ -235,7 +236,8 @@ async function render(
         <FeatureFlagsProvider
           flags={{
             dashboards: false,
-            'table-row-ttl': false,
+            'workflow-tests': false,
+            changelog: false,
             'mothership-model-selector': mocks.advanced,
             'mothership-plan-mode': mocks.plan,
           }}
@@ -313,7 +315,8 @@ it.each([
           <FeatureFlagsProvider
             flags={{
               dashboards: false,
-              'table-row-ttl': false,
+              'workflow-tests': false,
+              changelog: false,
               'mothership-model-selector': false,
               'mothership-plan-mode': planEnabled,
             }}
@@ -372,63 +375,81 @@ async function paste(files: File[]) {
   return event
 }
 
-it('keeps restored queued skills scoped when replacing a draft', async () => {
-  let restore: () => void = () => {}
-  function Harness() {
-    const [value, setValue] = useState('Original draft')
-    const [contexts, setContexts] = useState<ComponentProps<typeof Composer>['restoredContexts']>()
-    restore = () => {
-      setValue('/review fix this')
-      setContexts([
-        { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
-      ])
+it.each([false, true])(
+  'keeps restored queued skills scoped and warns about lost context (%s)',
+  async (invalidContext) => {
+    let restore: () => void = () => {}
+    function Harness() {
+      const [value, setValue] = useState('Original draft')
+      const [contexts, setContexts] =
+        useState<ComponentProps<typeof Composer>['restoredContexts']>()
+      restore = () => {
+        setValue('/review fix this @Browser')
+        setContexts([
+          { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+          ...(invalidContext
+            ? [
+                {
+                  kind: 'browser_tab' as const,
+                  tabId: 'tab-a',
+                  label: 'Browser',
+                  selection: { text: 'Selected passage', title: 'x'.repeat(513) },
+                },
+              ]
+            : []),
+        ])
+      }
+      const files = useFileAttachments({
+        userId: 'user-a',
+        organizationId: 'organization-a',
+        requestMode: 'agent',
+      })
+      return (
+        <Composer
+          requestMode='agent'
+          value={value}
+          onChange={setValue}
+          restoredContexts={contexts}
+          files={files}
+          isInitialView={false}
+          isSending={false}
+          onStop={() => {}}
+          onSubmit={mocks.submit}
+        />
+      )
     }
-    const files = useFileAttachments({
-      userId: 'user-a',
-      organizationId: 'organization-a',
-      requestMode: 'agent',
-    })
-    return (
-      <Composer
-        requestMode='agent'
-        value={value}
-        onChange={setValue}
-        restoredContexts={contexts}
-        files={files}
-        isInitialView={false}
-        isSending={false}
-        onStop={() => {}}
-        onSubmit={mocks.submit}
-      />
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <FeatureFlagsProvider
+            flags={{
+              dashboards: false,
+              'workflow-tests': false,
+              changelog: false,
+              'mothership-model-selector': mocks.advanced,
+              'mothership-plan-mode': mocks.plan,
+            }}
+          >
+            <Harness />
+            <ToastProvider />
+          </FeatureFlagsProvider>
+        </QueryClientProvider>
+      )
     )
+    await act(async () => restore())
+    expect(
+      container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+        .value
+    ).toBe('\u2003review fix this @Browser')
+    if (invalidContext) expect(document.body.textContent).toContain('Reattach it before sending.')
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
+    )
+    expect(mocks.submit).toHaveBeenLastCalledWith('/review fix this @Browser', [
+      { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+    ])
   }
-  await act(async () =>
-    root.render(
-      <QueryClientProvider client={queryClient}>
-        <FeatureFlagsProvider
-          flags={{
-            dashboards: false,
-            'table-row-ttl': false,
-            'mothership-model-selector': mocks.advanced,
-            'mothership-plan-mode': mocks.plan,
-          }}
-        >
-          <Harness />
-        </FeatureFlagsProvider>
-      </QueryClientProvider>
-    )
-  )
-  await act(async () => restore())
-  expect(
-    container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.value
-  ).toBe('\u2003review fix this')
-  await act(async () =>
-    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
-  )
-  expect(mocks.submit).toHaveBeenLastCalledWith('/review fix this', [
-    { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
-  ])
-})
+)
 
 it('shows global built-ins once with no workspace label and submits no invented workspace', async () => {
   mocks.workspaces = []
@@ -476,3 +497,23 @@ it.each([
     expect(input.value).toBe('')
   }
 )
+
+it('preserves mode-specific models and unsent effort across composer remounts', async () => {
+  mocks.plan = true
+  mocks.advanced = true
+  await render(false, '', 'plan')
+  expect(container.textContent).toContain('Opus 5.5')
+  expect(container.textContent).toContain('Medium')
+  await act(async () => {
+    useMothershipPlanEffortStore.getState().setModel('gpt-6-sol')
+    useMothershipEffortStore.getState().setNewChatEffort('xhigh')
+  })
+  expect(container.textContent).toContain('GPT-6.1 Sol')
+  expect(container.textContent).toContain('Extra High')
+  await render(false, '', 'agent')
+  expect(container.textContent).toContain('GPT-6 Astra')
+  expect(container.textContent).toContain('Extra High')
+  await render(false, '', 'plan')
+  expect(container.textContent).toContain('GPT-6.1 Sol')
+  expect(container.textContent).toContain('Extra High')
+})

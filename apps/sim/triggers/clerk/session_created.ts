@@ -1,11 +1,11 @@
 import { ClerkIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildClerkExtraFields,
   buildSessionOutputs,
   clerkSetupInstructions,
   clerkTriggerOptions,
 } from '@/triggers/clerk/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

@@ -1,11 +1,11 @@
 import { EmailBisonIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildEmailBisonEmailAccountAddedOutputs,
   buildEmailBisonExtraFields,
   emailBisonSetupInstructions,
   emailBisonTriggerOptions,
 } from '@/triggers/emailbison/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const emailBisonEmailAccountAddedTrigger: TriggerConfig = {

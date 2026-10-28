@@ -14,16 +14,13 @@ import type { SttOperationInput } from '@/lib/internal/stt/schema'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   extractStorageKey,
   getMimeTypeFromExtension,
   isInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
-import {
-  downloadFileFromStorage,
-  resolveInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file'
+import { downloadFileFromStorage, resolveInternalFileUrl } from '@/lib/uploads/utils/file.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { TranscriptSegment } from '@/tools/stt/types'

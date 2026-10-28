@@ -12,11 +12,11 @@ vi.mock('@/lib/billing/storage', () => billingStorageMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
-import { suffixedName, trackChatUpload } from './workspace-file-manager'
+import { suffixedName, trackChatUpload } from './file-manager'
 
 const mockReplaceWorkspaceFileSecretProvenanceInTx =
   workspaceFileSecretProvenanceMockFns.mockReplaceWorkspaceFileSecretProvenanceInTx

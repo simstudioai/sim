@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeWarehouseParams } from '@/too
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -13,6 +14,7 @@ export const resumeWarehouseTool: ToolConfig<SnowflakeWarehouseParams, Snowflake
   {
     id: 'snowflake_resume_warehouse',
     version: '1.0.0',
+    oauth: SNOWFLAKE_OAUTH,
     name: 'Snowflake Resume Warehouse',
     description: 'Resume a Snowflake virtual warehouse if it is suspended.',
     params: {

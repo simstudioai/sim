@@ -68,7 +68,12 @@ export const outboxServiceMockFns = {
     )
   }),
   mockFindDeadLetteredEvents: vi.fn(),
+  mockResolveDeadLetteredOutboxEvent: vi.fn(),
+  mockListInflightOutboxEvents: vi.fn(),
+  mockReadOutboxEventPayload: vi.fn(),
+  mockPatchRetryableOutboxEvents: vi.fn(),
   mockHasInflightOutboxEvent: vi.fn(),
+  mockHasDueOutboxWork: vi.fn(),
   mockProcessOutboxEvents: vi.fn(),
   mockProcessOutboxEventById: vi.fn(),
 }
@@ -96,7 +101,12 @@ export const outboxServiceMock = {
   outboxEventHasSourceOperationId: outboxServiceMockFns.mockOutboxEventHasSourceOperationId,
   outboxPayloadHasSourceOperationId: outboxServiceMockFns.mockOutboxPayloadHasSourceOperationId,
   findDeadLetteredEvents: outboxServiceMockFns.mockFindDeadLetteredEvents,
+  resolveDeadLetteredOutboxEvent: outboxServiceMockFns.mockResolveDeadLetteredOutboxEvent,
+  listInflightOutboxEvents: outboxServiceMockFns.mockListInflightOutboxEvents,
+  readOutboxEventPayload: outboxServiceMockFns.mockReadOutboxEventPayload,
+  patchRetryableOutboxEvents: outboxServiceMockFns.mockPatchRetryableOutboxEvents,
   hasInflightOutboxEvent: outboxServiceMockFns.mockHasInflightOutboxEvent,
+  hasDueOutboxWork: outboxServiceMockFns.mockHasDueOutboxWork,
   processOutboxEvents: outboxServiceMockFns.mockProcessOutboxEvents,
   processOutboxEventById: outboxServiceMockFns.mockProcessOutboxEventById,
 }

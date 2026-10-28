@@ -1,10 +1,15 @@
 'use client'
 
 import { createLogger } from '@sim/logger'
+import { stopAllDesktopTools } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('Stores')
 
 export const RECENT_IMPERSONATIONS_STORAGE_KEY = 'recent-impersonations'
+
+/** Why desktop tools still running for the previous identity were cancelled. */
+const SIGNED_OUT_ABORT_REASON = 'identity_boundary:clearUserData'
 
 interface ClearUserDataOptions {
   preserveRecentImpersonations?: boolean
@@ -20,6 +25,8 @@ export async function clearUserData(options: ClearUserDataOptions = {}): Promise
 
   let cleanupFailed = false
   let inMemoryResetSucceeded = true
+
+  stopAllDesktopTools(SIGNED_OUT_ABORT_REASON)
 
   try {
     const keysToKeep = [
@@ -52,5 +59,6 @@ export async function clearUserData(options: ClearUserDataOptions = {}): Promise
   }
 
   if (!cleanupFailed) logger.info('User data cleared successfully')
+  useSettingsDirtyStore.getState().reset()
   return inMemoryResetSucceeded
 }

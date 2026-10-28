@@ -24,7 +24,7 @@
  */
 
 import { db } from '@sim/db'
-import { folder as folderTable, workflow } from '@sim/db/schema'
+import { folder as folderTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -45,18 +45,16 @@ import {
   extractWorkflowsFromZip,
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
-import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
+import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
-  badRequestResponse,
-  conflictResponse,
-  internalErrorResponse,
-  notFoundResponse,
+  adminBadRequestResponse,
+  adminConflictResponse,
+  adminInternalErrorResponse,
+  adminNotFoundResponse,
 } from '@/app/api/v1/admin/responses'
 import type {
   ImportResult,
@@ -179,7 +177,7 @@ export const POST = withRouteHandler(
       const workspaceData = await getWorkspaceWithOwner(workspaceId)
 
       if (!workspaceData) {
-        return notFoundResponse('Workspace')
+        return adminNotFoundResponse('Workspace')
       }
 
       const contentType = request.headers.get('content-type') || ''
@@ -192,12 +190,12 @@ export const POST = withRouteHandler(
           // Preserve the 413 for an oversized body; only invalid JSON maps to 400.
           return rawBody.reason === 'too_large'
             ? rawBody.response
-            : badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+            : adminBadRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
         const validation = adminV1WorkspaceImportBodySchema.safeParse(rawBody.data)
         if (!validation.success) {
-          return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+          return adminBadRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
         const body = validation.data as WorkspaceImportRequest
@@ -217,7 +215,7 @@ export const POST = withRouteHandler(
           const file = formData.get('file') as File | null
 
           if (!file) {
-            return badRequestResponse('No file provided in form data. Use field name "file".')
+            return adminBadRequestResponse('No file provided in form data. Use field name "file".')
           }
 
           zipBuffer = await file.arrayBuffer()
@@ -231,13 +229,13 @@ export const POST = withRouteHandler(
         const { workflows } = await extractWorkflowsFromZip(file)
         workflowsToImport = workflows
       } else {
-        return badRequestResponse(
+        return adminBadRequestResponse(
           'Unsupported Content-Type. Use application/json or application/zip.'
         )
       }
 
       if (workflowsToImport.length === 0) {
-        return badRequestResponse('No workflows found to import')
+        return adminBadRequestResponse('No workflows found to import')
       }
 
       let rootFolderId: string | undefined
@@ -288,11 +286,11 @@ export const POST = withRouteHandler(
       const orchestrationError = asOrchestrationError(error)
       if (orchestrationError?.code === 'conflict') {
         logger.warn('Admin API: Import refused by the workspace folder limit', { workspaceId })
-        return conflictResponse(orchestrationError.message)
+        return adminConflictResponse(orchestrationError.message)
       }
 
       logger.error('Admin API: Failed to import into workspace', { error, workspaceId })
-      return internalErrorResponse('Failed to import workflows')
+      return adminInternalErrorResponse('Failed to import workflows')
     }
   })
 )
@@ -348,18 +346,6 @@ async function importSingleWorkflow(
     }
 
     const workflowId = generateId()
-    const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
-
-    await db.insert(workflow).values(
-      await buildNewWorkflowRow(db, {
-        id: workflowId,
-        userId: ownerId,
-        workspaceId,
-        folderId: targetFolderId,
-        name: dedupedName,
-        description: workflowData.metadata?.description || 'Imported via Admin API',
-      })
-    )
 
     /**
      * Same normalization the editor, the v1 import API and the single-workflow
@@ -370,16 +356,19 @@ async function importSingleWorkflow(
      */
     const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(workflowData)
     if (warnings.length > 0) {
-      logger.warn(`Admin API: normalized "${dedupedName}" with warnings`, { warnings })
+      logger.warn(`Admin API: normalized "${workflowName}" with warnings`, { warnings })
     }
 
-    const saveResult = await saveWorkflowToNormalizedTables(
-      workflowId,
-      {
-        ...workflowData,
-        ...preparedState,
-      },
-      {
+    const created = await createWorkflowWithState({
+      id: workflowId,
+      userId: ownerId,
+      workspaceId,
+      folderId: targetFolderId,
+      name: workflowName,
+      description: workflowData.metadata?.description || 'Imported via Admin API',
+      variables: normalizeImportedVariables(workflowData.variables),
+      state: { ...workflowData, ...preparedState },
+      governance: {
         /**
          * Actorless. This is the platform-admin surface: the caller is a Sim
          * operator restoring data, not a member of the target workspace, so no
@@ -388,35 +377,21 @@ async function importSingleWorkflow(
          */
         workspaceId: null,
         subjectUserId: null,
-      }
-    )
+      },
+    })
 
-    if (!saveResult.success) {
-      await db.delete(workflow).where(eq(workflow.id, workflowId))
+    if (!created.success) {
       return {
         workflowId: '',
-        name: dedupedName,
+        name: workflowName,
         success: false,
-        error: `Failed to save state: ${saveResult.error}`,
+        error: `Failed to save state: ${created.error}`,
       }
-    }
-
-    /**
-     * Previously guarded on `Array.isArray`, which silently dropped every
-     * variable in the current record form — the exact shape this workspace's
-     * own export emits — so an export/import round trip lost all of them.
-     */
-    const variablesRecord = normalizeImportedVariables(workflowData.variables)
-    if (Object.keys(variablesRecord).length > 0) {
-      await db
-        .update(workflow)
-        .set({ variables: variablesRecord, updatedAt: new Date() })
-        .where(eq(workflow.id, workflowId))
     }
 
     return {
       workflowId,
-      name: dedupedName,
+      name: created.workflow.name,
       success: true,
     }
   } catch (error) {

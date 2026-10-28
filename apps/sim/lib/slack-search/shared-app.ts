@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 /** Called only inside authorized installation/member operations; never returns secrets to a surface. */
@@ -14,14 +15,18 @@ export async function readSharedSlackSearchApp(organizationId: string) {
 }
 
 /** Existing custom bots remain independent of the shared-app rollout. */
-export async function requireSlackSearchAppAvailable(appId: string, organizationId: string) {
+export async function requireSlackSearchAppAvailable(
+  appId: string,
+  organizationId: string,
+  executor: DbOrTx = db
+) {
   const shared = getSharedSlackSearchAppConfiguration(appId)
   if (shared?.id === appId) {
     if (!(await readSharedSlackSearchApp(organizationId)))
       throw new OrchestrationError('forbidden', 'The shared Slack Search app is unavailable')
     return
   }
-  const [app] = await db
+  const [app] = await executor
     .select({ kind: slackApp.kind })
     .from(slackApp)
     .where(eq(slackApp.id, appId))

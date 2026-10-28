@@ -1,7 +1,7 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { workspaceOperations } from '@/lib/workspaces/application/operations'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import {
   getPublicWorkspaceDetail,
   type PublicWorkspaceDetail,

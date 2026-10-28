@@ -7,6 +7,13 @@ import { vi } from 'vitest'
  */
 const AuditAction = {
   ACCOUNT_DELETED: 'account.deleted',
+  AUTH_LOGIN_SUCCEEDED: 'auth.login_succeeded',
+  AUTH_LOGIN_FAILED: 'auth.login_failed',
+  AUTH_LOGOUT: 'auth.logout',
+  AUTH_IMPERSONATION_STARTED: 'auth.impersonation_started',
+  AUTH_IMPERSONATION_ENDED: 'auth.impersonation_ended',
+  AUTH_SESSIONS_REVOKED: 'auth.sessions_revoked',
+  AUDIT_LOGS_EXPORTED: 'audit_logs.exported',
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
   API_KEY_REVOKED: 'api_key.revoked',
@@ -36,6 +43,7 @@ const AuditAction = {
   INVOICE_PAYMENT_SUCCEEDED: 'invoice.payment_succeeded',
   INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
   OVERAGE_BILLED: 'billing.overage_billed',
+  BILLING_SYNC_RESOLVED: 'billing.sync_resolved',
   CHARGE_DISPUTE_OPENED: 'charge.dispute_opened',
   CHARGE_DISPUTE_CLOSED: 'charge.dispute_closed',
   SUBSCRIPTION_CREATED: 'subscription.created',
@@ -94,6 +102,7 @@ const AuditAction = {
   KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
   KNOWLEDGE_BASE_RESTORED: 'knowledge_base.restored',
   KNOWLEDGE_BASE_EXPORTED: 'knowledge_base.exported',
+  KNOWLEDGE_BASE_IMPORT_STARTED: 'knowledge_base.import_started',
   MCP_SERVER_ADDED: 'mcp_server.added',
   MCP_SERVER_UPDATED: 'mcp_server.updated',
   MCP_SERVER_REMOVED: 'mcp_server.removed',
@@ -119,6 +128,9 @@ const AuditAction = {
   ORGANIZATION_DELETED: 'organization.deleted',
   ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
   ORGANIZATION_SSO_POLICY_UPDATED: 'organization.sso_policy.updated',
+  ORGANIZATION_SSO_PROVIDER_CREATED: 'organization.sso_provider.created',
+  ORGANIZATION_SSO_PROVIDER_UPDATED: 'organization.sso_provider.updated',
+  ORGANIZATION_SSO_PROVIDER_DELETED: 'organization.sso_provider.deleted',
   ORGANIZATION_SESSIONS_REVOKED: 'organization.sessions.revoked',
   ORGANIZATION_DOMAIN_ADDED: 'organization.domain.added',
   ORGANIZATION_DOMAIN_VERIFIED: 'organization.domain.verified',
@@ -149,6 +161,10 @@ const AuditAction = {
   PERMISSION_ACCESS_REQUEST_CANCELLED: 'permission_access_request.cancelled',
   PERMISSION_ACCESS_REQUEST_CLOSED: 'permission_access_request.closed',
   PERMISSION_ACCESS_REQUEST_SETTINGS_CHANGED: 'permission_access_request.settings_changed',
+
+  PROJECT_CREATED: 'project.created',
+  PROJECT_UPDATED: 'project.updated',
+  PROJECT_ARCHIVED: 'project.archived',
   SANDBOX_CREATED: 'sandbox.created',
   SANDBOX_UPDATED: 'sandbox.updated',
   SANDBOX_DELETED: 'sandbox.deleted',
@@ -238,6 +254,7 @@ const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   PERMISSION_ACCESS_REQUEST: 'permission_access_request',
+  PROJECT: 'project',
   SANDBOX: 'sandbox',
   SCHEDULE: 'schedule',
   SCIM_CONNECTION: 'scim_connection',
@@ -256,6 +273,7 @@ const AuditResourceType = {
  * Controllable mock functions for `@sim/audit`.
  *
  * `mockRecordAuditOnce` resolves `undefined` by default, like the real awaited insert.
+ * `mockWithAuditRollupScope` runs the work it is given, like the real scope.
  *
  * @example
  * ```ts
@@ -273,6 +291,8 @@ export const auditMockFns = {
   mockRecordAudit: vi.fn(),
   mockRecordAuditBatch: vi.fn(),
   mockRecordAuditOnce: vi.fn(async (_id: string, _params: unknown): Promise<void> => undefined),
+  mockRecordAuditRollup: vi.fn(),
+  mockWithAuditRollupScope: vi.fn(<T>(work: () => Promise<T>): Promise<T> => work()),
 }
 
 /**
@@ -288,6 +308,8 @@ export const auditMock = {
   recordAudit: auditMockFns.mockRecordAudit,
   recordAuditBatch: auditMockFns.mockRecordAuditBatch,
   recordAuditOnce: auditMockFns.mockRecordAuditOnce,
+  recordAuditRollup: auditMockFns.mockRecordAuditRollup,
+  withAuditRollupScope: auditMockFns.mockWithAuditRollupScope,
   /**
    * Real implementation, not a stub: callers under test derive their audit
    * metadata through it, so stubbing it would erase what the test asserts.

@@ -1,12 +1,12 @@
 import type { V2ConnectorTypeDetail } from '@/lib/api/contracts/v2/catalog'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
-import { loadCatalogWorkspaceContext } from '@/lib/catalog/application/catalog-context'
 import {
   type CatalogPage,
   matchesCatalogSearch,
   normalizeCatalogSearch,
   takeCatalogPage,
 } from '@/lib/catalog/application/catalog-page'
+import { loadCatalogWorkspaceContext } from '@/lib/catalog/application/context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import {
   type CatalogConnectorType,

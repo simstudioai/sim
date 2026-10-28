@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
+import { getErrorMessage } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -13,6 +13,7 @@ import {
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 
 const logger = createLogger('FalMediaClient')
 
@@ -20,6 +21,17 @@ const logger = createLogger('FalMediaClient')
 export const MAX_MEDIA_BYTES = 250 * 1024 * 1024
 const MAX_MEDIA_JSON_BYTES = 4 * 1024 * 1024
 const POLL_INTERVAL_MS = 3000
+/**
+ * Longest a queued generation may take, whatever the caller allows: past it the request is
+ * cancelled and fails. Also sent as fal's start deadline, so a request still queued then never runs.
+ */
+const FAL_QUEUE_MAX_MS = 30 * 60 * 1000
+const FAL_CANCEL_TIMEOUT_MS = 5000
+/**
+ * The submit is never cut short by the caller: an interrupted POST fal may already have accepted
+ * would leave a generation running that nothing can cancel. It has its own bound instead.
+ */
+const FAL_SUBMIT_TIMEOUT_MS = 60_000
 
 /**
  * Resolves a hosted Fal.ai API key from the numbered env pool
@@ -61,7 +73,11 @@ export function getNumberProp(
   return typeof value === 'number' ? value : undefined
 }
 
-function falQueueUrl(endpoint: string, requestId: string, path: 'status' | 'response'): string {
+function falQueueUrl(
+  endpoint: string,
+  requestId: string,
+  path: 'status' | 'response' | 'cancel'
+): string {
   return `https://queue.fal.run/${endpoint}/requests/${requestId}/${path}`
 }
 
@@ -78,17 +94,45 @@ export interface FalQueueResult {
 
 /**
  * Submit input to a Fal.ai queue endpoint, poll to completion, and return the
- * result JSON. Shared by the video and audio generators.
+ * result JSON. Shared by the video and audio generators. Every request and wait ends when
+ * `signal` aborts or {@link FAL_QUEUE_MAX_MS} passes; a submitted request is then cancelled.
  */
 export async function runFalQueue(
   endpoint: string,
   input: Record<string, unknown>,
-  apiKey: string
+  apiKey: string,
+  signal?: AbortSignal
 ): Promise<FalQueueResult> {
+  const ceiling = new AbortController()
+  const ceilingTimer = setTimeout(
+    () => ceiling.abort(new Error('Fal.ai generation timed out')),
+    FAL_QUEUE_MAX_MS
+  )
+  const queueSignal = signal ? AbortSignal.any([signal, ceiling.signal]) : ceiling.signal
+  try {
+    return await submitAndPollFalQueue(endpoint, input, apiKey, queueSignal)
+  } finally {
+    clearTimeout(ceilingTimer)
+  }
+}
+
+async function submitAndPollFalQueue(
+  endpoint: string,
+  input: Record<string, unknown>,
+  apiKey: string,
+  queueSignal: AbortSignal
+): Promise<FalQueueResult> {
+  // Only a submit already under way outlives its caller; a stopped call never starts one.
+  queueSignal.throwIfAborted()
   const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
     method: 'POST',
-    headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+      'X-Fal-Request-Timeout': String(FAL_QUEUE_MAX_MS / 1000),
+    },
     body: JSON.stringify(input),
+    signal: AbortSignal.timeout(FAL_SUBMIT_TIMEOUT_MS),
   })
   if (!createResponse.ok) {
     const err = await readResponseTextWithLimit(createResponse, {
@@ -107,16 +151,36 @@ export async function runFalQueue(
   const requestId = getStringProp(createData, 'request_id')
   if (!requestId) throw new Error('Fal.ai queue response missing request_id')
 
+  const cancelUrl =
+    getStringProp(createData, 'cancel_url') || falQueueUrl(endpoint, requestId, 'cancel')
+  try {
+    return await pollFalQueue(endpoint, requestId, createData, apiKey, queueSignal)
+  } catch (error) {
+    if (queueSignal.aborted) await cancelFalRequest(cancelUrl, apiKey, requestId)
+    throw error
+  }
+}
+
+async function pollFalQueue(
+  endpoint: string,
+  requestId: string,
+  createData: Record<string, unknown>,
+  apiKey: string,
+  signal: AbortSignal
+): Promise<FalQueueResult> {
   const statusUrl =
     getStringProp(createData, 'status_url') || falQueueUrl(endpoint, requestId, 'status')
   const responseUrl =
     getStringProp(createData, 'response_url') || falQueueUrl(endpoint, requestId, 'response')
 
-  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await sleep(POLL_INTERVAL_MS)
+  for (;;) {
+    await interruptibleSleep(POLL_INTERVAL_MS, signal)
+    signal.throwIfAborted()
 
-    const statusResponse = await fetch(statusUrl, { headers: { Authorization: `Key ${apiKey}` } })
+    const statusResponse = await fetch(statusUrl, {
+      headers: { Authorization: `Key ${apiKey}` },
+      signal,
+    })
     if (!statusResponse.ok) {
       const body = await readResponseTextWithLimit(statusResponse, {
         maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -140,6 +204,7 @@ export async function runFalQueue(
       }
       const resultResponse = await fetch(getStringProp(statusData, 'response_url') || responseUrl, {
         headers: { Authorization: `Key ${apiKey}` },
+        signal,
       })
       if (!resultResponse.ok) {
         const body = await readResponseTextWithLimit(resultResponse, {
@@ -162,8 +227,49 @@ export async function runFalQueue(
       throw new Error(`Fal.ai generation failed: ${falErrorMessage(statusData.error)}`)
     }
   }
+}
 
-  throw new Error('Fal.ai generation timed out')
+/**
+ * Asks fal to drop a request nobody will read: a queued request never runs, and a running
+ * one is signalled to stop. Best effort; the generation already failed either way.
+ */
+async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: string) {
+  try {
+    // boundary-raw-fetch: cancels a request on the external Fal.ai queue
+    const response = await fetch(cancelUrl, {
+      method: 'PUT',
+      headers: { Authorization: `Key ${apiKey}` },
+      signal: AbortSignal.timeout(FAL_CANCEL_TIMEOUT_MS),
+    })
+    await response.body?.cancel()
+    // 400 means the request already finished, so there is nothing left to stop.
+    if (!response.ok && response.status !== 400)
+      throw new Error(`Fal.ai cancellation returned ${response.status}`)
+  } catch (error) {
+    logger.warn('Fal.ai request cancellation failed', {
+      requestId,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+/** Records a completed generation's cost; called at most once per generation. */
+export type FalCostRecorder = (cost: FalAICostMetadata) => Promise<void>
+
+/**
+ * Bills a request fal has completed. fal charges for it whatever happens next, so the lookup
+ * ignores the caller's Stop (it has its own bound) and runs before anything that can still fail
+ * the generation on our side: reading the media URL and the download a Stop can end.
+ */
+export async function recordFalCost(
+  apiKey: string,
+  endpointId: string,
+  requestId: string,
+  onCost: FalCostRecorder
+): Promise<FalAICostMetadata> {
+  const cost = await getFalAICostMetadata({ apiKey, endpointId, requestId })
+  await onCost(cost)
+  return cost
 }
 
 /**
@@ -192,8 +298,10 @@ export function extractFalMediaUrl(
 
 /** Securely download a generated media URL (or inline data URI) to a buffer. */
 export async function downloadFalMedia(
-  url: string
+  url: string,
+  signal?: AbortSignal
 ): Promise<{ buffer: Buffer; contentType: string }> {
+  signal?.throwIfAborted()
   if (url.startsWith('data:')) {
     const match = /^data:([^;]+);base64,(.+)$/u.exec(url)
     if (!match) throw new Error('Invalid data URI media response')
@@ -202,7 +310,7 @@ export async function downloadFalMedia(
     return { contentType: match[1], buffer }
   }
 
-  const validation = await validateUrlWithDNS(url, 'mediaUrl', 'contentFetch')
+  const validation = await validateUrlWithDNS(url, 'mediaUrl', 'contentFetch', { signal })
   if (!validation.isValid) {
     throw new Error(validation.error)
   }
@@ -211,6 +319,7 @@ export async function downloadFalMedia(
     profile: 'contentFetch',
     method: 'GET',
     maxResponseBytes: MAX_MEDIA_BYTES,
+    signal,
   })
   if (!response.ok) {
     await readResponseTextWithLimit(response, {

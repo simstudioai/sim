@@ -41,9 +41,8 @@ export const organizationMembershipMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/billing/organizations/membership`, including its constants
- * (`MEMBER_BILLING_RECONCILIATION_EVENT_TYPE` and the re-exported
- * `WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR`) with their real values.
+ * Static mock module for `@/lib/billing/organizations/membership`, including its re-exported
+ * `WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR` constant with its real value.
  *
  * @example
  * ```ts
@@ -51,7 +50,6 @@ export const organizationMembershipMockFns = {
  * ```
  */
 export const organizationMembershipMock = {
-  MEMBER_BILLING_RECONCILIATION_EVENT_TYPE: 'billing.reconcile-member-after-org-leave',
   WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR:
     'Cannot remove the workspace billing account. Please reassign billing first.',
   acquireUserBillingIdentityLock: organizationMembershipMockFns.mockAcquireUserBillingIdentityLock,

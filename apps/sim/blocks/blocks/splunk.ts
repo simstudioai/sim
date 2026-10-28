@@ -45,7 +45,7 @@ export const SplunkBlock: BlockConfig = {
   description: 'Run SPL searches and manage saved searches and alerts in Splunk',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.',
+    'Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.',
   docsLink: 'https://docs.sim.ai/integrations/splunk',
   category: 'tools',
   integrationType: IntegrationType.Observability,

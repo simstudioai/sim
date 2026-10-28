@@ -8,13 +8,11 @@ import {
   billingWorkspaceAccessMockFns,
 } from '@sim/testing/mocks/billing-workspace-access.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   workspaceAvailable: vi.fn(),
 }))
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
@@ -26,7 +24,6 @@ import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scope
 
 const mocks = {
   ...hoisted,
-  feature: featureFlagsMockFns.mockIsFeatureEnabled,
   blocked: billingAccessMockFns.mockIsOrganizationBillingBlocked,
   workspace: billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess,
 }
@@ -38,15 +35,13 @@ afterAll(resetEnvFlagsMock)
 
 describe('owner-scoped connected accounts availability', () => {
   beforeEach(() => {
-    mocks.feature.mockResolvedValue(true)
     mockSubscription.mockResolvedValue({ plan: 'enterprise', status: 'active' })
     mocks.blocked.mockResolvedValue(false)
   })
-  it('uses the exact organization payer and feature context without a workspace', async () => {
+  it('uses the exact organization payer without a workspace', async () => {
     await expect(
       isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId: 'org-1' })
     ).resolves.toBe(true)
-    expect(mocks.feature).toHaveBeenCalledWith('credential-groups', { orgId: 'org-1' })
     expect(mockSubscription).toHaveBeenCalledWith('org-1', { onError: 'throw' })
     expect(mocks.blocked).toHaveBeenCalledWith('org-1')
     expect(mocks.workspace).not.toHaveBeenCalled()

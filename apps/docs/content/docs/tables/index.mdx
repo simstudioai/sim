@@ -1,55 +1,67 @@
 ---
 title: Tables
-description: A grid of typed columns and rows in your workspace, for data your workflows read and write.
+description: Store typed records that your workflows and agents read and write.
 ---
 
 import { Image } from '@/components/ui/image'
-import { Card, Cards } from 'fumadocs-ui/components/card'
-import { FAQ } from '@/components/ui/faq'
 
-A **table** is a grid of typed columns in your workspace, like a spreadsheet with a schema. Use one to hold reference data, collect what your workflows produce, or store the structured records your agents read and write.
+A table stores rows of typed data in your workspace. Use one for reference data, workflow results, or records that an agent processes.
 
-<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
-  <Image src="/static/tables/tables-overview.png" alt="The current table editor showing typed position, driver, nationality, team, wins, and points columns" width={1064} height={850} />
-</div>
+Start in [Chat](/chat/tables): describe the columns you need, or name an existing table and ask Sim to query it. Open the table beside the conversation to inspect the rows and make changes directly.
+
+<Image
+  variant="overview"
+  background="san-francisco"
+  src="/static/docs-captures/tables.webp"
+  alt="Sim summarizing shipped and planned work in Chat beside the release tracker table"
+  width={2400}
+  height={1200}
+/>
+
+## Create and edit a table
+
+1. Open **Tables** in the sidebar and select **New table**.
+2. Use **New column** to define your columns and their types.
+3. Enter values in cells, paste rows from a spreadsheet, or use **Import CSV** to load data.
+4. Use the toolbar to filter and sort the view without changing stored values. See [Keyboard shortcuts](/keyboard-shortcuts) for editing and navigation.
 
 ## Column types
 
-Every column has a type, which decides how its values are stored and validated.
+The type determines how a column stores and displays values.
 
 | Type | Holds | Example |
 | --- | --- | --- |
-| **Text** | A free-form string | `"Acme Corp"` |
+| **Text** | A string | `"Acme Corp"` |
 | **Number** | A numeric value | `42` |
-| **Currency** | An amount in a currency you pick per column | `$1,234.56` |
+| **Currency** | A number displayed in the column's selected currency | `$1,234.56` |
 | **Boolean** | `true` or `false` | `true` |
-| **Date** | A date | `2026-03-16` |
-| **JSON** | An object or array | `{ "tier": "pro" }` |
-| **Select** | One of a fixed set of options, or several | `Pro` |
+| **Date** | A date, or date and time | `2026-03-16` |
+| **Expiration** | A deletion timestamp with `Z` or an explicit UTC offset | `2026-12-01T00:00:00Z` |
+| **JSON** | Any JSON value | `{ "tier": "pro" }` |
+| **Select** | One or several configured options | `Pro` |
 
-Types are enforced as you enter values, so a Number column only takes numbers.
+Safe conversions are accepted, such as a numeric string into a Number column. Unsupported optional values can become empty in the editor or workflow writes; the public v2 API rejects invalid writes. Produce typed values and inspect the saved result.
 
-A Currency column stores a plain number and renders it in the currency you choose for that column, so filters, sorts, and exports all see the amount itself. Changing a column's currency relabels it — it does not convert the amounts.
+Currency stores the number itself, which filters, sorts, and exports use. Changing the selected currency relabels existing amounts; it does not convert them.
 
-## Editing a table
+### Expiration
 
-Open the **Tables** section in the sidebar and click **New table** to create one. Add columns from the column header, type into a cell to edit it, and paste rows from a spreadsheet to bulk-load. Filter and sort from the toolbar without changing the underlying data. The editor has full keyboard support; see [keyboard shortcuts](/keyboard-shortcuts).
+A table can have one Expiration column. Rows with a timestamp at or before the cleanup time are eligible for scheduled deletion; blank values do not expire. Shipped Compose and Helm schedules check every 15 minutes, so deletion is not immediate at the timestamp. Delete locks can prevent cleanup. Set this column only when scheduled removal is intended.
 
-## Tables in workflows
+## Use tables in workflows
 
-A [Table block](/tables/using-in-workflows) reads and writes rows from inside a workflow: query rows for reference data, write results back, or process a batch. A [workflow column](/tables/workflow-columns) goes a step further and runs a workflow against each row on its own. Everything in a table is also available over the [REST API](/api-reference/getting-started).
+A [Table block](/tables/using-in-workflows) reads and writes rows within a workflow. A [workflow column](/tables/workflow-columns) runs per-row work and writes selected outputs beside the source data. Use a Function or Agent block for calculations; tables do not evaluate spreadsheet formulas. Tables are also available through the [API](/api-reference/getting-started).
 
-## Next
+## Limits and behavior
 
-<Cards>
-  <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read, write, and update rows with the Table block." />
-  <Card title="Workflow columns" href="/tables/workflow-columns" description="Run a workflow against each row of a table." />
-  <Card title="Keyboard shortcuts" href="/keyboard-shortcuts" description="Navigate and edit a table from the keyboard." />
-</Cards>
+Row and table counts depend on the plan and deployment configuration. The maximum row-data size defaults to 400 KiB and is configurable per deployment. Tables have a fixed ceiling of 1,000 columns. Query pages have a default 5 MiB row-data budget, which can be configured for bounded pages. A query requesting all matches has a fixed 5 MiB budget. Use pagination for large reads.
 
-<FAQ items={[
-  { question: "Is there a row limit per table?", answer: "Yes. Row and table counts depend on the plan and deployment configuration. By default, a row may contain up to 400 KB of data and a table up to 1,000 columns. Use pagination for large reads; query responses have a 5 MB row-data budget." },
-  { question: "Do tables support formulas?", answer: "No. Tables store raw data. Use workflow logic (a Function or Agent block) to compute values and write them back." },
-  { question: "Can multiple workflows write to the same table?", answer: "Yes. Writes are atomic at the row level, so multiple workflows can write to the same table at once." },
-  { question: "Can I undo changes?", answer: "In the table editor, Cmd/Ctrl+Z undoes recent cell edits, row insertions, and row deletions. Changes made through the API are not part of the editor's undo history." },
-]} />
+Individual row writes are atomic, but a workflow's read → process → write sequence is not one transaction. Concurrent workflows can operate on the same table and affect the same records.
+
+In the editor, `Cmd/Ctrl+Z` undoes recent cell edits, row insertions, and row deletions. That history clears when you leave the editor and does not include changes made through the API.
+
+## Related docs
+
+- [Using tables in workflows](/tables/using-in-workflows) for Table block operations and pagination
+- [Workflow columns](/tables/workflow-columns) for per-row enrichments and workflows
+- [Keyboard shortcuts](/keyboard-shortcuts) for table editing

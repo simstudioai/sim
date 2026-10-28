@@ -1,6 +1,8 @@
+import { workspace } from '@sim/db/schema'
 import {
   dbChainMock,
   dbChainMockFns,
+  queueTableRows,
   resetDbChainMock,
   workflowsPersistenceUtilsMock,
 } from '@sim/testing'
@@ -122,6 +124,7 @@ describe('createDefaultPersonalWorkspaceInTransaction', () => {
    */
   it('creates an ungoverned personal workspace and resolves no regime', async () => {
     mockLockWorkspaceCreationContext.mockResolvedValue({ billedAccountUserId: 'user-1' })
+    queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
     const tx = dbChainMock.db as unknown as DbOrTx
 
     await createDefaultPersonalWorkspaceInTransaction(tx, {

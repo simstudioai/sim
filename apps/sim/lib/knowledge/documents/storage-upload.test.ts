@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({ enqueue: vi.fn() }))
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
   enqueueKnowledgeStorageCleanup: mocks.enqueue,
 }))

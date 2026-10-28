@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { isCanonicalBase64 } from '@/lib/api/contracts/primitives'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isUserFile, type UserFileLike } from '@/lib/core/utils/user-file'
 import {
   createInternalToolFilesResult,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/internal/tool-operations/file-result'
 import { storeInternalToolFileResult } from '@/lib/internal/tool-operations/file-result.server'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { UserFile } from '@/executor/types'
 import type { ToolDefinition } from '@/tools/types'
@@ -122,7 +122,10 @@ export class FileToolProcessor {
       } catch (error) {
         signal?.throwIfAborted()
         logger.error(`Error processing file output '${outputKey}':`, error)
-        throw new Error(`Failed to process file output '${outputKey}': ${toError(error).message}`)
+        throw new Error(
+          `Failed to process file output '${outputKey}': ${getUserFacingErrorMessage(error)}`,
+          { cause: error }
+        )
       }
     }
 

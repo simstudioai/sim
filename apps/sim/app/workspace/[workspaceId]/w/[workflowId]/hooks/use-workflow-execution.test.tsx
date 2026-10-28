@@ -139,12 +139,7 @@ vi.mock('@/lib/mothership/tools/client/run-tool-execution', () => ({
 
 vi.mock('@/lib/api/contracts/workflows', () => ({
   cancelWorkflowExecutionContract: {},
-  workflowLogContract: {},
   workflowStateSchema: { parse: (value: unknown) => value },
-}))
-
-vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
-  buildTraceSpans: () => ({ traceSpans: [], totalDuration: 0 }),
 }))
 
 vi.mock('@/lib/tokenization', () => ({
@@ -160,7 +155,7 @@ vi.mock('@/lib/workflows/input-format', () => ({
   isFileFieldType: () => false,
 }))
 
-vi.mock('@/lib/workflows/triggers/trigger-utils', () => ({
+vi.mock('@/lib/workflows/triggers/utils', () => ({
   extractTriggerMockPayload: () => ({}),
   selectBestTrigger: mockSelectBestTrigger,
   triggerNeedsMockPayload: () => false,
@@ -191,7 +186,7 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow
   }),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution', () => ({
   addHttpErrorConsoleEntry: vi.fn(),
   createBlockEventHandlers: () => ({
     onBlockStarted: vi.fn(),

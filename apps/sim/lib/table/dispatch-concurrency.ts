@@ -60,7 +60,7 @@ export async function resolveTableDispatchConcurrency(input: {
 }): Promise<number> {
   if (!isBillingEnabled) return getTableDispatchConcurrencyLimits().paid
   const { resolveBillingAttribution, resolveSystemBillingAttribution } = await import(
-    '@/lib/billing/core/billing-attribution'
+    '@/lib/billing/core/attribution'
   )
   const attribution = input.actorUserId
     ? await resolveBillingAttribution({

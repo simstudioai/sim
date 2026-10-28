@@ -1,40 +1,31 @@
 ---
 title: Dagster
 description: Orchestrate data pipelines and manage job runs with Dagster
+integration:
+  type: "dagster"
+  color: "#ffffff"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="dagster"
-  color="#ffffff"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Dagster](https://dagster.io/) is an open-source data orchestration platform designed for building, testing, and monitoring data pipelines. It provides a unified model for defining data assets, scheduling jobs, and observing pipeline execution — whether running locally or deployed to Dagster+.
+Use [Dagster](https://dagster.io/) to launch jobs, inspect run status and logs, terminate or delete runs, and reexecute failed runs. List jobs across repositories and start or stop schedules and sensors on the connected instance.
 
-With Dagster, you can:
-
-- **Orchestrate data pipelines**: Define and run jobs composed of ops and assets with full dependency tracking
-- **Monitor executions**: Track run status, inspect logs, and debug failures step by step
-- **Manage schedules and sensors**: Automate pipeline triggers on a cron schedule or in response to external events
-- **Reexecute selectively**: Resume failed pipelines from the point of failure without rerunning successful steps
-
-In Sim, the Dagster integration enables your agents to interact with a Dagster instance programmatically. Agents can launch and monitor job runs, retrieve execution logs, reexecute failed runs, and manage schedules and sensors — all as part of a larger automated workflow. Use Dagster as an orchestration layer your agents can control and observe, enabling data-driven automation that responds dynamically to pipeline outcomes.
+For example, start a job from a workflow, poll its run status, then retrieve logs if it fails. Provide the instance's GraphQL endpoint. [Dagster+ requires an API token](https://docs.dagster.io/api/graphql/graphql-client); authentication for a self-hosted endpoint depends on how you expose it.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.
-
-
 
 ## Actions
 
 ### Dagster Launch Run
 
 Launch a job run on a Dagster instance.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -54,9 +45,13 @@ Launch a job run on a Dagster instance.
 | --------- | ---- | ----------- |
 | `runId` | string | The globally unique ID of the launched run |
 
+</ReferenceDetails>
+
 ### Dagster Get Run
 
 Get the status and details of a Dagster run by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -85,9 +80,13 @@ Get the status and details of a Dagster run by its ID.
 | `runConfigYaml` | string | Run configuration as YAML |
 | `tags` | json | Run tags as array of \{key, value\} objects |
 
+</ReferenceDetails>
+
 ### Dagster Get Run Logs
 
 Fetch execution event logs for a Dagster run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -113,9 +112,13 @@ Fetch execution event logs for a Dagster run.
 | `cursor` | string | Cursor for fetching the next page of log events |
 | `hasMore` | boolean | Whether more log events are available beyond this page |
 
+</ReferenceDetails>
+
 ### Dagster List Runs
 
 List Dagster runs with optional filters by job name, status, and creation-time range, plus cursor pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -144,9 +147,13 @@ List Dagster runs with optional filters by job name, status, and creation-time r
 | `cursor` | string | Run ID of the last returned run — pass as cursor to fetch the next page |
 | `hasMore` | boolean | Whether more runs are likely available beyond this page |
 
+</ReferenceDetails>
+
 ### Dagster List Jobs
 
 List all jobs across repositories in a Dagster instance.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -163,9 +170,13 @@ List all jobs across repositories in a Dagster instance.
 |   ↳ `name` | string | Job name |
 |   ↳ `repositoryName` | string | Repository name |
 
+</ReferenceDetails>
+
 ### Dagster Reexecute Run
 
 Reexecute an existing Dagster run, optionally resuming only from failed steps.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -182,9 +193,13 @@ Reexecute an existing Dagster run, optionally resuming only from failed steps.
 | --------- | ---- | ----------- |
 | `runId` | string | The ID of the newly launched reexecution run |
 
+</ReferenceDetails>
+
 ### Dagster Terminate Run
 
 Terminate an in-progress Dagster run.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -202,9 +217,13 @@ Terminate an in-progress Dagster run.
 | `runId` | string | The ID of the terminated run |
 | `message` | string | Error or status message if termination failed |
 
+</ReferenceDetails>
+
 ### Dagster Delete Run
 
 Permanently delete a Dagster run record.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -220,9 +239,13 @@ Permanently delete a Dagster run record.
 | --------- | ---- | ----------- |
 | `runId` | string | The ID of the deleted run |
 
+</ReferenceDetails>
+
 ### Dagster List Schedules
 
 List all schedules in a Dagster repository, optionally filtered by status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -247,9 +270,13 @@ List all schedules in a Dagster repository, optionally filtered by status.
 |   ↳ `description` | string | Human-readable schedule description |
 |   ↳ `executionTimezone` | string | Timezone for cron evaluation |
 
+</ReferenceDetails>
+
 ### Dagster Start Schedule
 
 Enable (start) a schedule in a Dagster repository.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -268,9 +295,13 @@ Enable (start) a schedule in a Dagster repository.
 | `id` | string | Instigator state ID of the schedule |
 | `status` | string | Updated schedule status \(RUNNING or STOPPED\) |
 
+</ReferenceDetails>
+
 ### Dagster Stop Schedule
 
 Disable (stop) a running schedule in Dagster.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -287,9 +318,13 @@ Disable (stop) a running schedule in Dagster.
 | `id` | string | Instigator state ID of the schedule |
 | `status` | string | Updated schedule status \(RUNNING or STOPPED\) |
 
+</ReferenceDetails>
+
 ### Dagster List Sensors
 
 List all sensors in a Dagster repository, optionally filtered by status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -312,9 +347,13 @@ List all sensors in a Dagster repository, optionally filtered by status.
 |   ↳ `id` | string | Instigator state ID — use this to start or stop the sensor |
 |   ↳ `description` | string | Human-readable sensor description |
 
+</ReferenceDetails>
+
 ### Dagster Start Sensor
 
 Enable (start) a sensor in a Dagster repository.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -333,9 +372,13 @@ Enable (start) a sensor in a Dagster repository.
 | `id` | string | Instigator state ID of the sensor |
 | `status` | string | Updated sensor status \(RUNNING or STOPPED\) |
 
+</ReferenceDetails>
+
 ### Dagster Stop Sensor
 
 Disable (stop) a running sensor in Dagster.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -352,9 +395,13 @@ Disable (stop) a running sensor in Dagster.
 | `id` | string | Instigator state ID of the sensor |
 | `status` | string | Updated sensor status \(RUNNING or STOPPED\) |
 
+</ReferenceDetails>
+
 ### Dagster List Assets
 
 List assets tracked by a Dagster instance, optionally filtered by key prefix.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -376,9 +423,13 @@ List assets tracked by a Dagster instance, optionally filtered by key prefix.
 | `cursor` | string | Cursor to pass on the next call to fetch more assets |
 | `hasMore` | boolean | Whether more assets are likely available beyond this page |
 
+</ReferenceDetails>
+
 ### Dagster Get Asset
 
 Get an asset definition and its latest materialization by asset key.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -405,9 +456,13 @@ Get an asset definition and its latest materialization by asset key.
 |   ↳ `partition` | string | Partition key, if partitioned |
 |   ↳ `stepKey` | string | Step key that emitted it |
 
+</ReferenceDetails>
+
 ### Dagster Materialize Assets
 
 Materialize selected assets by launching their asset job with an asset selection.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -427,9 +482,13 @@ Materialize selected assets by launching their asset job with an asset selection
 | --------- | ---- | ----------- |
 | `runId` | string | The globally unique ID of the launched materialization run |
 
+</ReferenceDetails>
+
 ### Dagster Report Asset Materialization
 
 Report an external (runless) materialization or observation for an asset.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -449,9 +508,13 @@ Report an external (runless) materialization or observation for an asset.
 | `success` | boolean | Whether the event was reported successfully |
 | `assetKey` | string | Slash-joined asset key the event was reported against |
 
+</ReferenceDetails>
+
 ### Dagster Wipe Asset
 
 DESTRUCTIVE: permanently wipes ALL materialization history (every partition) for an asset. This cannot be undone.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -467,5 +530,7 @@ DESTRUCTIVE: permanently wipes ALL materialization history (every partition) for
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the asset was wiped successfully |
 | `assetKey` | string | Slash-joined asset key that was wiped |
+
+</ReferenceDetails>
 
 

@@ -20,6 +20,14 @@ const ACCESS_REQUEST_COLUMNS: ColumnSpec[] = [
   { header: 'created', path: 'createdAt', format: 'timestamp' },
 ]
 
+const FILE_SHARE_FIELDS: ColumnSpec[] = [
+  { header: 'shared', path: 'isActive', format: 'bool' },
+  { header: 'URL', path: 'url' },
+  { header: 'auth', path: 'authType' },
+  { header: 'password set', path: 'hasPassword', format: 'bool' },
+  { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
+]
+
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =
   'Predicate: {"all":[{"field":"status","op":"eq","value":"active"}]}; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull'
@@ -69,7 +77,7 @@ const FOLDER_PATH_FLAG = {
 } as const
 const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
-  recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
+  recursive: { boolean: true, describe: 'Archive the folder and its descendants' },
 } as const
 const KNOWLEDGE_BASE_PATH_ARGUMENT = { knowledgeBaseId: 'knowledgeBaseId' } as const
 /**
@@ -117,6 +125,39 @@ const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
   { header: 'parent', path: 'parentPath', format: 'folder-path' },
   { header: 'updated', path: 'updatedAt', format: 'timestamp' },
 ]
+const FILE_VERSION_COLUMNS: ColumnSpec[] = [
+  { header: 'version' },
+  { header: 'current', path: 'isCurrent', format: 'bool' },
+  { header: 'source' },
+  { header: 'size', format: 'bytes' },
+  { header: 'authors', format: 'people' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+  { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+]
+const FILE_VERSION_FIELDS: ColumnSpec[] = [
+  { header: 'file', path: 'fileId' },
+  { header: 'version' },
+  { header: 'current', path: 'isCurrent', format: 'bool' },
+  { header: 'source' },
+  { header: 'restored from', path: 'restoredFromVersion' },
+  { header: 'size', format: 'bytes' },
+  { header: 'type', path: 'contentType' },
+  { header: 'authors', format: 'people' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+  { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+  { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
+]
+const FILE_REVERT_FIELDS: ColumnSpec[] = [
+  { header: 'reverted', format: 'bool' },
+  { header: 'file', path: 'file.id' },
+  { header: 'name', path: 'file.name' },
+  { header: 'version', path: 'version.version' },
+  { header: 'source', path: 'version.source' },
+  { header: 'restored from', path: 'version.restoredFromVersion' },
+  { header: 'size', path: 'version.size', format: 'bytes' },
+  { header: 'authors', path: 'version.authors', format: 'people' },
+  { header: 'created', path: 'version.createdAt', format: 'timestamp' },
+]
 
 function moveResource(command: string, resource: string): CommandVariantSpec {
   return {
@@ -153,7 +194,7 @@ export const CLI_CONTRACT: CliContract = {
     // fields otherwise render as an unexplained em-dash for exactly the key
     // most people run the CLI with.
     describe:
-      'Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)',
+      'Show billing status, credits spent, and storage used (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -180,7 +221,9 @@ export const CLI_CONTRACT: CliContract = {
     describe:
       "List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)",
     flags: {
-      source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
+      source: {
+        describe: 'Filter by usage source; sim-chat combines Sim agent and workspace Chat usage',
+      },
       period: { describe: 'Billing period' },
       startDate: { describe: 'Custom period start (ISO 8601)' },
       endDate: { describe: 'Custom period end (ISO 8601)' },
@@ -344,6 +387,24 @@ export const CLI_CONTRACT: CliContract = {
   deleteCredential: {
     confirm: 'This disconnects the credential and removes its stored authentication.',
   },
+  listCredentialMembers: {
+    columns: [
+      { header: 'user', path: 'userId' },
+      { header: 'name', path: 'userName' },
+      { header: 'email', path: 'userEmail' },
+      { header: 'role' },
+      { header: 'status' },
+      { header: 'source', path: 'roleSource' },
+    ],
+  },
+  upsertCredentialMember: {
+    command: 'credentials members upsert',
+    flags: { userId: { name: 'user' } },
+  },
+  removeCredentialMember: {
+    command: 'credentials members remove',
+    confirm: 'This revokes the selected user’s explicit credential grant.',
+  },
   deleteSkill: { confirm: 'This deletes the skill.' },
   revokeSkillEditor: {
     confirm: 'This revokes the explicit skill editor grant for the selected email.',
@@ -419,6 +480,16 @@ export const CLI_CONTRACT: CliContract = {
   getLog: {
     describe: 'Show run diagnostics',
     expandedTrace: true,
+    flags: {
+      // The snapshot repeats the block configuration `workflows get` already
+      // serves, and is the bulk of a log after its trace. An agent diagnosing a
+      // run reads the trace, so the agent's invocations leave it out unless asked.
+      includeWorkflowState: {
+        embeddedRequestDefault: 'false',
+        describe:
+          'Include the saved workflow snapshot (default: true; Sim’s in-app agent leaves it out unless this flag is passed). Set false to omit block configuration from a log read. Other run fields are unchanged.',
+      },
+    },
     fields: [
       { header: 'run', path: 'runId' },
       { header: 'workflow', path: 'workflow.name' },
@@ -442,7 +513,7 @@ export const CLI_CONTRACT: CliContract = {
    */
   getMeta: {
     command: 'meta status',
-    describe: 'Show what this API supports and which limits apply',
+    describe: 'Show API availability and the calling credential’s type and expiry',
   },
   getWorkflowChatDeployment: {
     command: 'workflows chat status',
@@ -541,7 +612,8 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
   applyWorkflowVariables: {
-    confirm: 'This replaces the workflow’s variables and cannot be undone.',
+    confirm:
+      'This applies the listed variable changes; variables omitted from the operations remain unchanged.',
     flags: {
       operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
     },
@@ -612,7 +684,8 @@ export const CLI_CONTRACT: CliContract = {
     // collision rename as `files batch-delete` above and takes the same word.
     command: 'tables batch-delete',
     flags: { folderPaths: FOLDER_PATHS_FLAG },
-    confirm: 'This deletes every listed table and all of their rows.',
+    confirm:
+      'This archives the selected tables and folders, including their rows. Restore eligible tables with `tables restore`.',
   },
   searchFileContent: {
     flags: {
@@ -658,7 +731,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   upsertTableRow: {
-    describe: 'Insert a row, or update the one that conflicts on a unique column',
+    describe: 'Insert a row, or replace the one matching a unique column',
     flags: {
       data: { json: true },
       conflictTarget: { name: 'on', describe: 'Unique column to resolve the conflict against' },
@@ -669,6 +742,10 @@ export const CLI_CONTRACT: CliContract = {
     command: 'tables rows query',
     describe: 'Query rows with a filter and sort',
     flags: {
+      includeRunState: {
+        describe:
+          'Include per-workflow-group run outcomes on every row. Off by default. Each request above 2 MiB of run state returns 413; request fewer rows or omit run state. CLI --limit 0 still fetches bounded pages.',
+      },
       predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
@@ -709,7 +786,70 @@ export const CLI_CONTRACT: CliContract = {
       folderPath: FOLDER_PATH_FLAG,
     },
   },
-  createFile: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createFile: {
+    flags: {
+      folderPath: FOLDER_PATH_FLAG,
+      content: {
+        describe:
+          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including encoding and the envelope; the separate decoded-file limit is 50 MiB. For larger payloads, use `sim files upload <path>`',
+      },
+    },
+  },
+  copyFileItems: {
+    command: 'files copy',
+    flags: {
+      source: { json: true, describe: 'Source owner and selected fileIds or folderIds' },
+      destination: { json: true, describe: 'Destination owner and optional folderId' },
+    },
+  },
+  renameProjectFile: { command: 'projects files rename' },
+  listProjectFileFolders: {
+    command: 'projects files folders list',
+    columns: [{ header: 'id' }, { header: 'name' }, { header: 'parent', path: 'parentId' }],
+  },
+  createProjectFileFolder: { command: 'projects files folders create' },
+  updateProjectFileFolder: { command: 'projects files folders update' },
+  restoreProjectFileFolder: { command: 'projects files folders restore' },
+  searchProjectFileContent: {
+    command: 'projects files search',
+    flags: {
+      folderPaths: FOLDER_PATHS_FLAG,
+      includeSubfolders: { boolean: true, negatable: true },
+    },
+    itemsPath: 'results',
+    columns: [
+      { header: 'file', path: 'fileId' },
+      { header: 'line', path: 'lineNumber' },
+      { header: 'text' },
+    ],
+  },
+  moveProjectFileItems: {
+    command: 'projects files move',
+    flags: {
+      fileIds: { list: true },
+      folderIds: { list: true },
+      targetFolderPath: TARGET_FOLDER_PATH_FLAG,
+    },
+  },
+  archiveProjectFileItems: {
+    command: 'projects files archive',
+    confirm: 'This archives the selected Project files and folders, including folder contents.',
+    flags: { fileIds: { list: true }, folderIds: { list: true } },
+  },
+  restoreProjectFile: { command: 'projects files restore' },
+  createProjectFile: {
+    command: 'projects files create',
+    flags: { folderPath: FOLDER_PATH_FLAG },
+  },
+  updateProjectFileContent: {
+    command: 'projects files set-content',
+    describe: 'Replace a shared Project file’s contents',
+    flags: { encoding: { choices: ['utf-8', 'base64'], describe: 'Content encoding' } },
+  },
+  readProjectFileContent: {
+    command: 'projects files source',
+    describe: 'Download the stored source bytes of a Project file',
+  },
   createKnowledgeBase: { flags: { folderPath: FOLDER_PATH_FLAG } },
   updateKnowledgeBase: {
     variants: [moveResource('knowledge mv', 'knowledge base')],
@@ -853,6 +993,26 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
     ],
   },
+  listProjectFiles: {
+    command: 'projects files list',
+    flags: {
+      folderPath: FOLDER_PATH_FLAG,
+      recursive: { boolean: true, negatable: true },
+    },
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      FOLDER_COLUMN,
+      { header: 'size', format: 'bytes' },
+      { header: 'type' },
+      { header: 'creator', path: 'uploadedBy' },
+      { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
+    ],
+  },
+  getProjectFileMetadata: {
+    command: 'projects files describe',
+    describe: 'Show Project file metadata and ownership',
+  },
   listTableRows: { expand: 'data' },
   listKnowledgeBases: {
     flags: { folderPath: FOLDER_PATH_FLAG },
@@ -916,7 +1076,7 @@ export const CLI_CONTRACT: CliContract = {
       fileReferences: {
         name: 'file',
         list: true,
-        describe: 'Workspace file ID or key (repeatable)',
+        describe: 'Workspace file ID or canonical files/<folder>/<name> path (repeatable)',
       },
     },
   },
@@ -1078,6 +1238,66 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  listSsoProviders: {
+    command: 'organizations sso providers list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'provider', path: 'providerId' },
+      { header: 'domain' },
+      { header: 'primary', path: 'isPrimary', format: 'bool' },
+      { header: 'verified', path: 'domainVerified', format: 'bool' },
+    ],
+  },
+  getSsoProvider: {
+    command: 'organizations sso providers get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  saveSsoProvider: {
+    command: 'organizations sso providers save',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: {
+      clientSecret: {
+        textSource: true,
+        describe:
+          'Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc',
+      },
+    },
+  },
+  deleteSsoProvider: {
+    command: 'organizations sso providers delete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the identity provider used for SSO sign-in; linked accounts remain.',
+  },
+  setPrimarySsoProvider: {
+    command: 'organizations sso providers primary',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  getSsoPolicy: {
+    command: 'organizations sso policy get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  updateSsoPolicy: {
+    command: 'organizations sso policy update',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listOrganizationDomains: {
+    command: 'organizations domains list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [{ header: 'id' }, { header: 'domain' }, { header: 'status' }],
+  },
+  addOrganizationDomain: {
+    command: 'organizations domains add',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  verifyOrganizationDomain: {
+    command: 'organizations domains verify',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  removeOrganizationDomain: {
+    command: 'organizations domains remove',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the domain claim and revokes verified SSO authority for its providers.',
+  },
   listOrganizationWorkspaces: {
     command: 'organizations workspaces',
     pathFlags: ORGANIZATION_FLAG,
@@ -1304,7 +1524,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
+          'Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403',
       },
     },
     columns: [
@@ -1323,7 +1543,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
+          'Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403',
       },
     },
   },
@@ -1338,7 +1558,7 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       fileIds: { list: true },
     },
-    confirm: 'This deletes every listed file.',
+    confirm: 'This archives the listed files; restore them with `files restore`.',
   },
   getFile: {
     command: 'files describe',
@@ -1393,32 +1613,12 @@ export const CLI_CONTRACT: CliContract = {
   listFileVersions: {
     command: 'files versions list',
     describe: 'List the recorded versions of a file',
-    columns: [
-      { header: 'version' },
-      { header: 'current', path: 'isCurrent', format: 'bool' },
-      { header: 'source' },
-      { header: 'size', format: 'bytes' },
-      { header: 'authors', format: 'people' },
-      { header: 'created', path: 'createdAt', format: 'timestamp' },
-      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
-    ],
+    columns: FILE_VERSION_COLUMNS,
   },
   getFileVersion: {
     command: 'files versions describe',
     describe: 'Show the metadata of one version of a file',
-    fields: [
-      { header: 'file', path: 'fileId' },
-      { header: 'version' },
-      { header: 'current', path: 'isCurrent', format: 'bool' },
-      { header: 'source' },
-      { header: 'restored from', path: 'restoredFromVersion' },
-      { header: 'size', format: 'bytes' },
-      { header: 'type', path: 'contentType' },
-      { header: 'authors', format: 'people' },
-      { header: 'created', path: 'createdAt', format: 'timestamp' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-      { header: 'superseded', path: 'supersededAt', format: 'timestamp' },
-    ],
+    fields: FILE_VERSION_FIELDS,
   },
   readFileVersionText: {
     command: 'files versions read',
@@ -1429,21 +1629,36 @@ export const CLI_CONTRACT: CliContract = {
   revertFileVersion: {
     command: 'files versions revert',
     describe: 'Make a previous version of a file current again',
-    fields: [
-      { header: 'reverted', format: 'bool' },
-      { header: 'file', path: 'file.id' },
-      { header: 'name', path: 'file.name' },
-      { header: 'version', path: 'version.version' },
-      { header: 'source', path: 'version.source' },
-      { header: 'restored from', path: 'version.restoredFromVersion' },
-      { header: 'size', path: 'version.size', format: 'bytes' },
-      { header: 'authors', path: 'version.authors', format: 'people' },
-      { header: 'created', path: 'version.createdAt', format: 'timestamp' },
-    ],
+    fields: FILE_REVERT_FIELDS,
   },
   deleteFileVersion: {
     command: 'files versions delete',
     describe: 'Permanently delete a previous version of a file',
+    confirm:
+      'This permanently removes the version from history and schedules deletion of its stored content; storage cleanup may retry in the background.',
+  },
+  listProjectFileVersions: {
+    command: 'projects files versions list',
+    describe: 'List the recorded versions of a shared Project file',
+    columns: FILE_VERSION_COLUMNS,
+  },
+  getProjectFileVersion: {
+    command: 'projects files versions describe',
+    describe: 'Show the metadata of one version of a shared Project file',
+    fields: FILE_VERSION_FIELDS,
+  },
+  readProjectFileVersionContent: {
+    command: 'projects files versions source',
+    describe: 'Download the stored source bytes of a Project file version',
+  },
+  revertProjectFileVersion: {
+    command: 'projects files versions revert',
+    describe: 'Make a previous version of a shared Project file current again',
+    fields: FILE_REVERT_FIELDS,
+  },
+  deleteProjectFileVersion: {
+    command: 'projects files versions delete',
+    describe: 'Permanently delete a previous version of a shared Project file',
     confirm: 'This permanently deletes the version and its stored content.',
   },
   // Left to derive, the folder restore lands under `files restore` and turns
@@ -1487,9 +1702,9 @@ export const CLI_CONTRACT: CliContract = {
   },
   replaceWorkflowChatDeployment: {
     command: 'workflows chat publish',
-    describe: 'Publish or replace a workflow’s chat deployment',
+    describe: 'Deploy or replace a workflow chat',
     confirm:
-      'This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.',
+      'This replaces visitor access settings for the chat deployment. Omitted authentication fields reset to defaults, including the password and allowed-email list; avatar and welcome-message behavior follows their option descriptions.',
   },
   deleteWorkflowChatDeployment: {
     command: 'workflows chat unpublish',
@@ -1531,6 +1746,11 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Unzip an archive into a new folder beside it',
     confirm: 'This writes every file in the archive into the workspace.',
   },
+  unzipProjectFile: {
+    command: 'projects files unzip',
+    describe: 'Unzip an archive into a new folder beside it in the Project',
+    confirm: 'This writes every file in the archive into the Project.',
+  },
   /**
    * Configured even though `buildGeneratedCommands` skips it: it only builds
    * operations whose `responseMode` is `json` (runtime/build.ts), so this
@@ -1545,6 +1765,18 @@ export const CLI_CONTRACT: CliContract = {
       fileIds: { list: true },
       folderPaths: FOLDER_PATHS_FLAG,
     },
+  },
+  downloadProjectFileItems: {
+    command: 'projects files bulk-download',
+    describe: 'Download Project files and folders as a zip archive',
+    flags: {
+      fileIds: { list: true },
+      folderIds: { list: true },
+    },
+  },
+  exportProjectFileSnapshot: {
+    command: 'projects files export',
+    describe: 'Export a visible Project Markdown snapshot with its embedded assets',
   },
   editFileContent: {
     command: 'files edit',
@@ -1565,13 +1797,12 @@ export const CLI_CONTRACT: CliContract = {
   getFileShare: {
     command: 'files share get',
     describe: 'Show a file’s share settings',
-    fields: [
-      { header: 'shared', path: 'isActive', format: 'bool' },
-      { header: 'URL', path: 'url' },
-      { header: 'auth', path: 'authType' },
-      { header: 'password set', path: 'hasPassword', format: 'bool' },
-      { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
-    ],
+    fields: FILE_SHARE_FIELDS,
+  },
+  getProjectFileShare: {
+    command: 'projects files share get',
+    describe: 'Show a Project file’s share settings',
+    fields: FILE_SHARE_FIELDS,
   },
   // v2 folds share and unshare into one PATCH; `--is-active false` disables it,
   // so there is no separate unshare operation to expose.
@@ -1581,13 +1812,15 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       allowedEmails: { list: true },
     },
-    fields: [
-      { header: 'shared', path: 'isActive', format: 'bool' },
-      { header: 'URL', path: 'url' },
-      { header: 'auth', path: 'authType' },
-      { header: 'password set', path: 'hasPassword', format: 'bool' },
-      { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
-    ],
+    fields: FILE_SHARE_FIELDS,
+  },
+  updateProjectFileShare: {
+    command: 'projects files share set',
+    describe: 'Enable or disable sharing for a Project file',
+    flags: {
+      allowedEmails: { list: true },
+    },
+    fields: FILE_SHARE_FIELDS,
   },
 
   /**
@@ -1926,6 +2159,12 @@ export const CLI_CONTRACT: CliContract = {
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },
+      // Its embedded default lives with the synchronous request in
+      // `workflow-run-follow.ts`, because an `--async` run rejects the field.
+      includeFileBase64: {
+        describe:
+          'Inline eligible output files as base64 content. Defaults to true for the installed CLI; Chat defaults to file references and admits requested bytes only for synchronous runs. Rejected when async is true.',
+      },
       // Exposed under its domain name: every other flag in the CLI is one, and
       // `--x-run-id` would be the only place the raw HTTP header spelling
       // surfaced. The describe denies idempotency outright because the name
@@ -2042,6 +2281,21 @@ export const CLI_CONTRACT: CliContract = {
   completeKnowledgeDocumentUpload: { hidden: true },
   abortKnowledgeDocumentUpload: { hidden: true },
 
+  // The handshake behind `sim knowledge import`, hidden for the reason the
+  // table import steps are; `get` and `cancel` stay without the upload token,
+  // which only addresses an import the command never leaves mid-transfer.
+  createKnowledgeImport: { hidden: true },
+  createKnowledgeImportPartUrls: { hidden: true },
+  completeKnowledgeImport: { hidden: true },
+  getKnowledgeImport: { flags: TRANSFER_TOKEN_OMITTED },
+  cancelKnowledgeImport: {
+    command: 'knowledge imports cancel',
+    flags: TRANSFER_TOKEN_OMITTED,
+    describe: 'Stop a running import',
+    // Not `confirm`-gated: the documents already imported stay in the new
+    // knowledge base, and nothing that existed before the import is touched.
+  },
+
   // Steps of a transfer, not commands
   // Uploading is a presigned multipart handshake: create the upload, ask for
   // part URLs in batches, PUT each part to storage, then complete with the
@@ -2049,6 +2303,11 @@ export const CLI_CONTRACT: CliContract = {
   // advertise a protocol whose halfway states leak storage, so `sim files
   // upload` drives the whole sequence and these stay out of the surface.
   createFileUpload: { hidden: true },
+  createProjectFileUpload: { hidden: true },
+  getProjectFileUpload: { hidden: true },
+  abortProjectFileUpload: { hidden: true },
+  completeProjectFileUpload: { hidden: true },
+  getProjectFileUploadPartUrls: { hidden: true },
   createFileUploadPartUrls: { hidden: true },
   completeFileUpload: { hidden: true },
   abortFileUpload: { hidden: true },

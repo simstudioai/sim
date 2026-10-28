@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * The leased Chat stream writer and its replay-budget failure path against real
  * Redis and PostgreSQL. A local HTTP server stands in for the worker's abort
@@ -133,7 +134,7 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { db } from '@sim/db'
-import { copilotChats, copilotRuns, permissions, user, workspace } from '@sim/db/schema'
+import { copilotChats, copilotRuns, permissions, user, workflow, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -166,11 +167,11 @@ import { STREAM_STRING_PREVIEW_UNITS } from '@/lib/mothership/request/session/re
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 import type { StreamingContext } from '@/lib/mothership/request/types'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 import {
   type PendingFileIntent,
   storeFileIntent,
-} from '@/lib/mothership/tools/server/files/file-intent-store'
-import { GET as copilotChatGET } from '@/app/api/copilot/chat/queries'
+} from '@/lib/mothership/tools/server/files/intent-store'
 import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
 import { GET as mothershipChatGET } from '@/app/api/mothership/chats/[chatId]/route'
 
@@ -365,7 +366,7 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
         id: call.id,
         name: call.name,
         status: call.status,
-        activity: call.params?.activity,
+        activity: readCallActivity(call),
       })),
       pending: context.pendingToolPromises.size,
     })
@@ -479,7 +480,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Replay budget fixture',
       ownerId: userId,
@@ -502,7 +503,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 
@@ -985,30 +986,51 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       expect(worker.runs.map((run) => run.recoveredEvents)).toEqual([[]])
     })
 
+    const loadChat = () =>
+      mothershipChatGET(new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}`), {
+        params: Promise.resolve({ chatId }),
+      })
+
+    /** Serves the chat as a workflow Copilot panel chat for the length of one read. */
+    async function loadAsWorkflowCopilotChat() {
+      const workflowId = generateId()
+      const now = new Date()
+      await db.insert(workflow).values({
+        id: workflowId,
+        userId,
+        workspaceId,
+        name: 'Copilot panel workflow',
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await db
+        .update(copilotChats)
+        .set({ type: 'copilot', workflowId })
+        .where(eq(copilotChats.id, chatId))
+      try {
+        return await loadChat()
+      } finally {
+        await db
+          .update(copilotChats)
+          .set({ type: 'mothership', workflowId: null })
+          .where(eq(copilotChats.id, chatId))
+        await db.delete(workflow).where(eq(workflow.id, workflowId))
+      }
+    }
+
     it.each([
-      [
-        'mothership chat',
-        () =>
-          mothershipChatGET(
-            new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}`),
-            {
-              params: Promise.resolve({ chatId }),
-            }
-          ),
-      ],
-      [
-        'copilot chat',
-        () =>
-          copilotChatGET(
-            new NextRequest(`http://localhost:3000/api/copilot/chat?chatId=${chatId}`)
-          ),
-      ],
+      ['mothership chat', loadChat],
+      ['workflow copilot chat', loadAsWorkflowCopilotChat],
     ])('leaves the %s snapshot to the resume route', async (_label, load) => {
       const streamId = await trimmedRecoverableStream()
 
-      const body = await (await load()).json()
+      const response = await load()
+      expect(response.status).toBe(200)
+      const body = await response.json()
 
       expect(body.success).toBe(true)
+      expect(body.chat.mode).toBe('agent')
       expect(body.chat.streamSnapshot).toBeUndefined()
       expect(JSON.stringify(body.chat.messages)).not.toContain('part 3')
       expect(await storedMembers(streamId)).toHaveLength(2)

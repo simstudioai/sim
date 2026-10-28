@@ -1,14 +1,13 @@
 ---
 title: Vanta
 description: Query compliance status and manage evidence in Vanta
+integration:
+  type: "vanta"
+  color: "#F8F4F3"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="vanta"
-  color="#F8F4F3"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Vanta](https://www.vanta.com/) is a trust management platform that automates security and compliance for frameworks like SOC 2, ISO 27001, HIPAA, and GDPR. It continuously monitors your infrastructure, people, and vendors through automated tests, and centralizes the evidence auditors need.
@@ -24,15 +23,18 @@ With the Vanta integration in Sim, you can:
 - **Watch device compliance**: List monitored computers with screenlock, disk encryption, password manager, and antivirus check outcomes.
 - **Manage risk scenarios**: Query risk register scenarios with likelihood/impact scores, treatment decisions, and review status.
 
-The integration authenticates with Vanta OAuth client credentials (created under Settings → Developer Console in Vanta) and supports both the commercial (api.vanta.com) and FedRAMP (api.vanta-gov.com) environments. Evidence uploads require credentials granted the `vanta-api.documents:upload` scope.
+Create a **Manage Vanta** application in Vanta's Developer Console, then add a Vanta credential in Sim with its client ID, client secret, and deployment. Select that saved credential in your Vanta blocks. Sim stores the credentials securely and obtains access tokens automatically; there is no browser authorization redirect or shared Sim OAuth application to configure.
+
+Standard Vanta deployments, including US, EU, and AU tenants, use `api.vanta.com`; Vanta Gov uses `api.vanta-gov.com`. Read operations require `vanta-api.all:read`; submitting documents also requires `vanta-api.all:write`; evidence uploads require `vanta-api.documents:upload`. Grant the scopes needed for your workflows when creating the application. See [Vanta's authentication documentation](https://developer.vanta.com/reference/manage-vanta/overview).
+
+The first successful connection sets this application's permissions in Sim. Every connection to that application must always use the same permissions, including after tokens expire or credentials are reconnected. Leave permissions blank on reconnect to retain the current choice. To choose different permissions, create a separate Manage Vanta application and connect it in Sim.
+
+If your workflow entered credentials directly on a Vanta block, create and select a saved Vanta credential before running it again. Use a dedicated Vanta application for Sim: Vanta allows one active access token per application, so another client obtaining a new token can invalidate Sim's token.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.
-
-
+Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.
 
 ## Actions
 
@@ -40,13 +42,12 @@ Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and 
 
 List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
@@ -55,19 +56,34 @@ List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta acc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `frameworks` | array | Frameworks in the Vanta account |
+|   ↳ `id` | string | The framework's unique ID |
+|   ↳ `displayName` | string | The framework's display name |
+|   ↳ `shorthandName` | string | The short version of the framework's name |
+|   ↳ `description` | string | The framework's description |
+|   ↳ `numControlsCompleted` | number | Number of completed controls in the framework |
+|   ↳ `numControlsTotal` | number | Total number of controls in the framework |
+|   ↳ `numDocumentsPassing` | number | Number of passing documents in the framework |
+|   ↳ `numDocumentsTotal` | number | Total number of documents in the framework |
+|   ↳ `numTestsPassing` | number | Number of passing tests in the framework |
+|   ↳ `numTestsTotal` | number | Total number of tests in the framework |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Framework
 
 Get a Vanta compliance framework by ID, including its requirement categories and mapped controls
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkId` | string | Yes | Unique ID of the framework \(e.g., soc2\) |
 
 #### Output
@@ -75,18 +91,43 @@ Get a Vanta compliance framework by ID, including its requirement categories and
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `framework` | json | The requested framework with requirement categories |
+|   ↳ `id` | string | The framework's unique ID |
+|   ↳ `displayName` | string | The framework's display name |
+|   ↳ `shorthandName` | string | The short version of the framework's name |
+|   ↳ `description` | string | The framework's description |
+|   ↳ `numControlsCompleted` | number | Number of completed controls in the framework |
+|   ↳ `numControlsTotal` | number | Total number of controls in the framework |
+|   ↳ `numDocumentsPassing` | number | Number of passing documents in the framework |
+|   ↳ `numDocumentsTotal` | number | Total number of documents in the framework |
+|   ↳ `numTestsPassing` | number | Number of passing tests in the framework |
+|   ↳ `numTestsTotal` | number | Total number of tests in the framework |
+|   ↳ `requirementCategories` | array | The framework's requirement categories, each with requirements and mapped controls |
+|     ↳ `id` | string | Requirement category ID |
+|     ↳ `name` | string | Requirement category name |
+|     ↳ `shorthand` | string | Requirement category short name |
+|     ↳ `requirements` | array | Requirements in this category, each listing its mapped controls |
+|       ↳ `id` | string | Requirement ID |
+|       ↳ `name` | string | Requirement name |
+|       ↳ `shorthand` | string | Requirement shorthand |
+|       ↳ `description` | string | Requirement description |
+|       ↳ `controls` | array | Controls mapped to the requirement |
+|         ↳ `id` | string | Control ID |
+|         ↳ `externalId` | string | External control ID |
+|         ↳ `name` | string | Control name |
+|         ↳ `description` | string | Control description |
+
+</ReferenceDetails>
 
 ### Vanta List Framework Controls
 
 List the controls that belong to a specific Vanta compliance framework
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkId` | string | Yes | Unique ID of the framework \(e.g., soc2\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -96,19 +137,40 @@ List the controls that belong to a specific Vanta compliance framework
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `controls` | array | Controls belonging to the framework |
+|   ↳ `id` | string | The control's unique ID |
+|   ↳ `externalId` | string | The control's external ID |
+|   ↳ `name` | string | The control's name |
+|   ↳ `description` | string | The control's description |
+|   ↳ `source` | string | The control source, either "Vanta" or "Custom" |
+|   ↳ `domains` | array | Security domains the control belongs to |
+|   ↳ `owner` | json | The control's owner |
+|     ↳ `id` | string | Unique ID of the owner |
+|     ↳ `displayName` | string | Display name of the owner |
+|     ↳ `emailAddress` | string | Email address of the owner |
+|   ↳ `role` | string | The control's GDPR role, if applicable |
+|   ↳ `customFields` | array | Custom field values configured in the Vanta instance |
+|     ↳ `label` | string | Custom field label |
+|     ↳ `value` | json | Custom field value \(string or list of strings\) |
+|   ↳ `creationDate` | string | When the control was created \(null for Vanta library controls\) |
+|   ↳ `modificationDate` | string | When the control was last modified \(null for Vanta library controls\) |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta List Controls
 
 List the security controls in a Vanta account, optionally filtered by framework
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkMatchesAny` | string | No | Comma-separated framework IDs to filter controls by \(e.g., soc2,iso27001\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -118,19 +180,40 @@ List the security controls in a Vanta account, optionally filtered by framework
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `controls` | array | Controls matching the filters |
+|   ↳ `id` | string | The control's unique ID |
+|   ↳ `externalId` | string | The control's external ID |
+|   ↳ `name` | string | The control's name |
+|   ↳ `description` | string | The control's description |
+|   ↳ `source` | string | The control source, either "Vanta" or "Custom" |
+|   ↳ `domains` | array | Security domains the control belongs to |
+|   ↳ `owner` | json | The control's owner |
+|     ↳ `id` | string | Unique ID of the owner |
+|     ↳ `displayName` | string | Display name of the owner |
+|     ↳ `emailAddress` | string | Email address of the owner |
+|   ↳ `role` | string | The control's GDPR role, if applicable |
+|   ↳ `customFields` | array | Custom field values configured in the Vanta instance |
+|     ↳ `label` | string | Custom field label |
+|     ↳ `value` | json | Custom field value \(string or list of strings\) |
+|   ↳ `creationDate` | string | When the control was created \(null for Vanta library controls\) |
+|   ↳ `modificationDate` | string | When the control was last modified \(null for Vanta library controls\) |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Control
 
 Get a Vanta security control by ID, including its status and evidence pass/fail counts
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `controlId` | string | Yes | Unique ID of the control |
 
 #### Output
@@ -138,18 +221,41 @@ Get a Vanta security control by ID, including its status and evidence pass/fail 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `control` | json | The requested control with status and evidence counts |
+|   ↳ `id` | string | The control's unique ID |
+|   ↳ `externalId` | string | The control's external ID |
+|   ↳ `name` | string | The control's name |
+|   ↳ `description` | string | The control's description |
+|   ↳ `source` | string | The control source, either "Vanta" or "Custom" |
+|   ↳ `domains` | array | Security domains the control belongs to |
+|   ↳ `owner` | json | The control's owner |
+|     ↳ `id` | string | Unique ID of the owner |
+|     ↳ `displayName` | string | Display name of the owner |
+|     ↳ `emailAddress` | string | Email address of the owner |
+|   ↳ `role` | string | The control's GDPR role, if applicable |
+|   ↳ `customFields` | array | Custom field values configured in the Vanta instance |
+|     ↳ `label` | string | Custom field label |
+|     ↳ `value` | json | Custom field value \(string or list of strings\) |
+|   ↳ `creationDate` | string | When the control was created \(null for Vanta library controls\) |
+|   ↳ `modificationDate` | string | When the control was last modified \(null for Vanta library controls\) |
+|   ↳ `note` | string | A user-created note for the control |
+|   ↳ `status` | string | Control status \(NO_EVIDENCE_MAPPED, NOT_STARTED, IN_PROGRESS, or COMPLETED\) |
+|   ↳ `numDocumentsPassing` | number | Number of passing documents linked to the control |
+|   ↳ `numDocumentsTotal` | number | Total number of documents linked to the control |
+|   ↳ `numTestsPassing` | number | Number of passing tests linked to the control |
+|   ↳ `numTestsTotal` | number | Total number of tests linked to the control |
+
+</ReferenceDetails>
 
 ### Vanta List Control Tests
 
 List the automated tests mapped to a specific Vanta control
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `controlId` | string | Yes | Unique ID of the control |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -159,19 +265,49 @@ List the automated tests mapped to a specific Vanta control
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tests` | array | Tests mapped to the control |
+|   ↳ `id` | string | The test's unique ID |
+|   ↳ `name` | string | The test's name |
+|   ↳ `description` | string | The test's description |
+|   ↳ `failureDescription` | string | The test's failure description |
+|   ↳ `remediationDescription` | string | The test's remediation description |
+|   ↳ `category` | string | The test's category |
+|   ↳ `status` | string | Test run status \(OK, DEACTIVATED, NEEDS_ATTENTION, IN_PROGRESS, INVALID, or NOT_APPLICABLE\) |
+|   ↳ `integrations` | array | The test's third-party integration dependencies |
+|   ↳ `lastTestRunDate` | string | Timestamp of the last test run |
+|   ↳ `latestFlipDate` | string | Most recent date the test flipped status |
+|   ↳ `version` | json | The test's version |
+|     ↳ `major` | number | Major version number |
+|     ↳ `minor` | number | Minor version number |
+|   ↳ `deactivatedStatusInfo` | json | The test's deactivation status |
+|     ↳ `isDeactivated` | boolean | Whether the test is deactivated |
+|     ↳ `deactivatedReason` | string | Reason for deactivation |
+|     ↳ `lastUpdatedDate` | string | Date of the last deactivation status update |
+|   ↳ `remediationStatusInfo` | json | The test's remediation status |
+|     ↳ `status` | string | Remediation status |
+|     ↳ `soonestRemediateByDate` | string | Soonest remediate-by date |
+|     ↳ `itemCount` | number | Number of items needing remediation |
+|   ↳ `owner` | json | The test's owner |
+|     ↳ `id` | string | Unique ID of the owner |
+|     ↳ `displayName` | string | Display name of the owner |
+|     ↳ `emailAddress` | string | Email address of the owner |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta List Control Documents
 
 List the evidence documents mapped to a specific Vanta control
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `controlId` | string | Yes | Unique ID of the control |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -181,19 +317,33 @@ List the evidence documents mapped to a specific Vanta control
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `documents` | array | Documents mapped to the control |
+|   ↳ `id` | string | The document's unique ID |
+|   ↳ `title` | string | The document's title |
+|   ↳ `description` | string | The document's description |
+|   ↳ `category` | string | The document's category |
+|   ↳ `ownerId` | string | User ID of the document's owner |
+|   ↳ `isSensitive` | boolean | Whether the document is sensitive |
+|   ↳ `uploadStatus` | string | Document status \("Needs document", "Needs update", "Not relevant", or "OK"\) |
+|   ↳ `uploadStatusDate` | string | Date the upload status last changed |
+|   ↳ `url` | string | URL to view the document within Vanta |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta List Tests
 
 List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `statusFilter` | string | No | Filter by test status: OK, DEACTIVATED, NEEDS_ATTENTION, IN_PROGRESS, INVALID, or NOT_APPLICABLE |
 | `frameworkFilter` | string | No | Filter by framework ID \(e.g., soc2\) |
 | `integrationFilter` | string | No | Filter by integration ID \(e.g., aws\) |
@@ -209,19 +359,49 @@ List the automated compliance tests in a Vanta account, with filters for status,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tests` | array | Tests matching the filters |
+|   ↳ `id` | string | The test's unique ID |
+|   ↳ `name` | string | The test's name |
+|   ↳ `description` | string | The test's description |
+|   ↳ `failureDescription` | string | The test's failure description |
+|   ↳ `remediationDescription` | string | The test's remediation description |
+|   ↳ `category` | string | The test's category |
+|   ↳ `status` | string | Test run status \(OK, DEACTIVATED, NEEDS_ATTENTION, IN_PROGRESS, INVALID, or NOT_APPLICABLE\) |
+|   ↳ `integrations` | array | The test's third-party integration dependencies |
+|   ↳ `lastTestRunDate` | string | Timestamp of the last test run |
+|   ↳ `latestFlipDate` | string | Most recent date the test flipped status |
+|   ↳ `version` | json | The test's version |
+|     ↳ `major` | number | Major version number |
+|     ↳ `minor` | number | Minor version number |
+|   ↳ `deactivatedStatusInfo` | json | The test's deactivation status |
+|     ↳ `isDeactivated` | boolean | Whether the test is deactivated |
+|     ↳ `deactivatedReason` | string | Reason for deactivation |
+|     ↳ `lastUpdatedDate` | string | Date of the last deactivation status update |
+|   ↳ `remediationStatusInfo` | json | The test's remediation status |
+|     ↳ `status` | string | Remediation status |
+|     ↳ `soonestRemediateByDate` | string | Soonest remediate-by date |
+|     ↳ `itemCount` | number | Number of items needing remediation |
+|   ↳ `owner` | json | The test's owner |
+|     ↳ `id` | string | Unique ID of the owner |
+|     ↳ `displayName` | string | Display name of the owner |
+|     ↳ `emailAddress` | string | Email address of the owner |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Test
 
 Get a Vanta automated compliance test by ID, including its status and remediation info
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `testId` | string | Yes | Unique ID of the test \(e.g., test-aws-cloudtrail-enabled\) |
 
 #### Output
@@ -229,18 +409,44 @@ Get a Vanta automated compliance test by ID, including its status and remediatio
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `test` | json | The requested test |
+|   ↳ `id` | string | The test's unique ID |
+|   ↳ `name` | string | The test's name |
+|   ↳ `description` | string | The test's description |
+|   ↳ `failureDescription` | string | The test's failure description |
+|   ↳ `remediationDescription` | string | The test's remediation description |
+|   ↳ `category` | string | The test's category |
+|   ↳ `status` | string | Test run status \(OK, DEACTIVATED, NEEDS_ATTENTION, IN_PROGRESS, INVALID, or NOT_APPLICABLE\) |
+|   ↳ `integrations` | array | The test's third-party integration dependencies |
+|   ↳ `lastTestRunDate` | string | Timestamp of the last test run |
+|   ↳ `latestFlipDate` | string | Most recent date the test flipped status |
+|   ↳ `version` | json | The test's version |
+|     ↳ `major` | number | Major version number |
+|     ↳ `minor` | number | Minor version number |
+|   ↳ `deactivatedStatusInfo` | json | The test's deactivation status |
+|     ↳ `isDeactivated` | boolean | Whether the test is deactivated |
+|     ↳ `deactivatedReason` | string | Reason for deactivation |
+|     ↳ `lastUpdatedDate` | string | Date of the last deactivation status update |
+|   ↳ `remediationStatusInfo` | json | The test's remediation status |
+|     ↳ `status` | string | Remediation status |
+|     ↳ `soonestRemediateByDate` | string | Soonest remediate-by date |
+|     ↳ `itemCount` | number | Number of items needing remediation |
+|   ↳ `owner` | json | The test's owner |
+|     ↳ `id` | string | Unique ID of the owner |
+|     ↳ `displayName` | string | Display name of the owner |
+|     ↳ `emailAddress` | string | Email address of the owner |
+
+</ReferenceDetails>
 
 ### Vanta List Test Entities
 
 List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `testId` | string | Yes | Unique ID of the test \(e.g., test-aws-cloudtrail-enabled\) |
 | `entityStatus` | string | No | Filter entities by status: FAILING or DEACTIVATED |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
@@ -251,19 +457,31 @@ List the failing or deactivated resource entities for a specific Vanta test, use
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `entities` | array | Resource entities for the test |
+|   ↳ `id` | string | Identifier of the entity |
+|   ↳ `entityStatus` | string | Entity status \(FAILING or DEACTIVATED\) |
+|   ↳ `displayName` | string | Display name of the entity |
+|   ↳ `responseType` | string | Response type of the entity |
+|   ↳ `deactivatedReason` | string | Reason for deactivation |
+|   ↳ `createdDate` | string | Date the entity was first detected |
+|   ↳ `lastUpdatedDate` | string | Date of the last update to the entity |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta List Documents
 
 List the evidence documents in a Vanta account, optionally filtered by framework or document status
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `frameworkMatchesAny` | string | No | Comma-separated framework IDs to filter documents by \(e.g., soc2,iso27001\) |
 | `statusMatchesAny` | string | No | Comma-separated document statuses to filter by: "Needs document", "Needs update", "Not relevant", "OK" |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
@@ -274,19 +492,33 @@ List the evidence documents in a Vanta account, optionally filtered by framework
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `documents` | array | Documents matching the filters |
+|   ↳ `id` | string | The document's unique ID |
+|   ↳ `title` | string | The document's title |
+|   ↳ `description` | string | The document's description |
+|   ↳ `category` | string | The document's category |
+|   ↳ `ownerId` | string | User ID of the document's owner |
+|   ↳ `isSensitive` | boolean | Whether the document is sensitive |
+|   ↳ `uploadStatus` | string | Document status \("Needs document", "Needs update", "Not relevant", or "OK"\) |
+|   ↳ `uploadStatusDate` | string | Date the upload status last changed |
+|   ↳ `url` | string | URL to view the document within Vanta |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Document
 
 Get a Vanta evidence document by ID, including its renewal schedule and deactivation status
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document |
 
 #### Output
@@ -294,18 +526,38 @@ Get a Vanta evidence document by ID, including its renewal schedule and deactiva
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `document` | json | The requested document |
+|   ↳ `id` | string | The document's unique ID |
+|   ↳ `title` | string | The document's title |
+|   ↳ `description` | string | The document's description |
+|   ↳ `category` | string | The document's category |
+|   ↳ `ownerId` | string | User ID of the document's owner |
+|   ↳ `isSensitive` | boolean | Whether the document is sensitive |
+|   ↳ `uploadStatus` | string | Document status \("Needs document", "Needs update", "Not relevant", or "OK"\) |
+|   ↳ `uploadStatusDate` | string | Date the upload status last changed |
+|   ↳ `url` | string | URL to view the document within Vanta |
+|   ↳ `note` | string | A user note for the document |
+|   ↳ `nextRenewalDate` | string | When the document needs to be renewed |
+|   ↳ `renewalCadence` | string | How often the document must be renewed |
+|   ↳ `reminderWindow` | string | Reminder window ahead of the renewal date \(P0D, P1D, P1W, P1M, or P3M\) |
+|   ↳ `subscribers` | array | Emails subscribed to the document |
+|   ↳ `deactivatedStatus` | json | The document's deactivation status |
+|     ↳ `isDeactivated` | boolean | Whether the document is deactivated |
+|     ↳ `reason` | string | Reason the document was deactivated |
+|     ↳ `creationDate` | string | Date the document was deactivated |
+|     ↳ `expiration` | string | Date the deactivation expires |
+
+</ReferenceDetails>
 
 ### Vanta List Document Uploads
 
 List the files uploaded to a specific Vanta evidence document
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -315,19 +567,37 @@ List the files uploaded to a specific Vanta evidence document
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `uploads` | array | Files uploaded to the document |
+|   ↳ `id` | string | Unique ID of the uploaded file |
+|   ↳ `fileName` | string | File name of the upload |
+|   ↳ `title` | string | Title of the upload |
+|   ↳ `description` | string | Description of the upload |
+|   ↳ `mimeType` | string | MIME type of the uploaded file |
+|   ↳ `uploadedBy` | json | Actor who uploaded the file \(a user or an application\) |
+|     ↳ `id` | string | Actor ID |
+|     ↳ `type` | string | Actor type \(USER or APPLICATION\) |
+|   ↳ `creationDate` | string | Date the file was uploaded |
+|   ↳ `updatedDate` | string | Date the file was last updated |
+|   ↳ `deletionDate` | string | Date the file was deleted \(null if not deleted\) |
+|   ↳ `effectiveDate` | string | The file's effective date |
+|   ↳ `url` | string | The file's URL |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Upload Document File
 
 Upload an evidence file to a Vanta document. Requires credentials with the vanta-api.documents:upload scope.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document to attach the file to |
 | `file` | file | No | The evidence file to upload |
 | `fileName` | string | No | Optional file name override |
@@ -340,18 +610,32 @@ Upload an evidence file to a Vanta document. Requires credentials with the vanta
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `upload` | json | Metadata of the uploaded file |
+|   ↳ `id` | string | Unique ID of the uploaded file |
+|   ↳ `fileName` | string | File name of the upload |
+|   ↳ `title` | string | Title of the upload |
+|   ↳ `description` | string | Description of the upload |
+|   ↳ `mimeType` | string | MIME type of the uploaded file |
+|   ↳ `uploadedBy` | json | Actor who uploaded the file \(a user or an application\) |
+|     ↳ `id` | string | Actor ID |
+|     ↳ `type` | string | Actor type \(USER or APPLICATION\) |
+|   ↳ `creationDate` | string | Date the file was uploaded |
+|   ↳ `updatedDate` | string | Date the file was last updated |
+|   ↳ `deletionDate` | string | Date the file was deleted \(null if not deleted\) |
+|   ↳ `effectiveDate` | string | The file's effective date |
+|   ↳ `url` | string | The file's URL |
+
+</ReferenceDetails>
 
 ### Vanta Download Document File
 
 Download a file previously uploaded to a Vanta evidence document and store it in execution files
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document |
 | `uploadedFileId` | string | Yes | Unique ID of the uploaded file \(from List Document Uploads\) |
 
@@ -364,17 +648,18 @@ Download a file previously uploaded to a Vanta evidence document and store it in
 | `mimeType` | string | MIME type of the downloaded file |
 | `size` | number | Size of the downloaded file in bytes |
 
+</ReferenceDetails>
+
 ### Vanta Submit Document
 
 Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document to submit |
 
 #### Output
@@ -384,17 +669,18 @@ Submit a Vanta document collection for review so uploaded evidence becomes visib
 | `documentId` | string | ID of the submitted document |
 | `submitted` | boolean | Whether the document collection was submitted |
 
+</ReferenceDetails>
+
 ### Vanta List People
 
 List the people tracked in a Vanta account with employment status, group membership, and security task completion
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `emailAndNameFilter` | string | No | Filter people by email address or name |
 | `employmentStatus` | string | No | Filter by employment status: UPCOMING, CURRENT, ON_LEAVE, INACTIVE, or FORMER |
 | `groupIdsMatchesAny` | string | No | Comma-separated group IDs to filter people by |
@@ -409,19 +695,45 @@ List the people tracked in a Vanta account with employment status, group members
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `people` | array | People matching the filters |
+|   ↳ `id` | string | The person's unique ID |
+|   ↳ `userId` | string | ID of the associated Vanta user account, if one exists |
+|   ↳ `emailAddress` | string | The person's email address |
+|   ↳ `name` | json | The person's name |
+|     ↳ `first` | string | First \(given\) name |
+|     ↳ `last` | string | Last \(family\) name |
+|     ↳ `display` | string | Display name used in Vanta |
+|   ↳ `employment` | json | The person's employment information |
+|     ↳ `status` | string | Employment status \(UPCOMING, CURRENT, ON_LEAVE, INACTIVE, or FORMER\) |
+|     ↳ `startDate` | string | Employment start date |
+|     ↳ `endDate` | string | Employment end date, if present |
+|     ↳ `jobTitle` | string | Job title |
+|   ↳ `leaveInfo` | json | The person's active or upcoming leave, if any |
+|     ↳ `status` | string | Leave status \(ACTIVE or UPCOMING\) |
+|     ↳ `startDate` | string | Start of the leave |
+|     ↳ `endDate` | string | End of the leave \(null implies indefinite leave\) |
+|   ↳ `groupIds` | array | IDs of the groups the person belongs to |
+|   ↳ `tasksSummary` | json | Aggregated status of the person's tasks |
+|     ↳ `status` | string | Overall task status \(e.g., NONE, DUE_SOON, OVERDUE, COMPLETE, PAUSED, or an OFFBOARDING_* variant\) |
+|     ↳ `dueDate` | string | Due date of the person's earliest-due task |
+|     ↳ `completionDate` | string | Date the person's tasks were completed |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Person
 
 Get a person tracked in Vanta by ID, including employment, leave, and security task status
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `personId` | string | Yes | Unique ID of the person |
 
 #### Output
@@ -429,18 +741,40 @@ Get a person tracked in Vanta by ID, including employment, leave, and security t
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `person` | json | The requested person |
+|   ↳ `id` | string | The person's unique ID |
+|   ↳ `userId` | string | ID of the associated Vanta user account, if one exists |
+|   ↳ `emailAddress` | string | The person's email address |
+|   ↳ `name` | json | The person's name |
+|     ↳ `first` | string | First \(given\) name |
+|     ↳ `last` | string | Last \(family\) name |
+|     ↳ `display` | string | Display name used in Vanta |
+|   ↳ `employment` | json | The person's employment information |
+|     ↳ `status` | string | Employment status \(UPCOMING, CURRENT, ON_LEAVE, INACTIVE, or FORMER\) |
+|     ↳ `startDate` | string | Employment start date |
+|     ↳ `endDate` | string | Employment end date, if present |
+|     ↳ `jobTitle` | string | Job title |
+|   ↳ `leaveInfo` | json | The person's active or upcoming leave, if any |
+|     ↳ `status` | string | Leave status \(ACTIVE or UPCOMING\) |
+|     ↳ `startDate` | string | Start of the leave |
+|     ↳ `endDate` | string | End of the leave \(null implies indefinite leave\) |
+|   ↳ `groupIds` | array | IDs of the groups the person belongs to |
+|   ↳ `tasksSummary` | json | Aggregated status of the person's tasks |
+|     ↳ `status` | string | Overall task status \(e.g., NONE, DUE_SOON, OVERDUE, COMPLETE, PAUSED, or an OFFBOARDING_* variant\) |
+|     ↳ `dueDate` | string | Due date of the person's earliest-due task |
+|     ↳ `completionDate` | string | Date the person's tasks were completed |
+
+</ReferenceDetails>
 
 ### Vanta List Policies
 
 List the security policies in a Vanta account with approval status and version info
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
 
@@ -449,19 +783,36 @@ List the security policies in a Vanta account with approval status and version i
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `policies` | array | Policies in the Vanta account |
+|   ↳ `id` | string | The policy's unique ID |
+|   ↳ `name` | string | The policy's name |
+|   ↳ `description` | string | The policy's description |
+|   ↳ `status` | string | Policy status \(OK or NEEDS_REMEDIATION\) |
+|   ↳ `approvedAtDate` | string | The policy's most recent approval date, if applicable |
+|   ↳ `latestVersionStatus` | string | Status of the policy's latest version \(NOT_STARTED, DRAFT, PENDING_APPROVAL, APPROVED, RENEW_SOON, or EXPIRED\) |
+|   ↳ `latestApprovedVersion` | json | The latest approved version of the policy, if available |
+|     ↳ `versionId` | string | ID of the latest approved version |
+|     ↳ `documents` | array | Available policy document versions, organized by language |
+|       ↳ `language` | string | Document language |
+|       ↳ `slugId` | string | Document slug ID |
+|       ↳ `url` | string | Document URL |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Policy
 
 Get a Vanta security policy by ID, including its approval status and latest approved version documents
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `policyId` | string | Yes | Unique ID of the policy |
 
 #### Output
@@ -469,18 +820,31 @@ Get a Vanta security policy by ID, including its approval status and latest appr
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `policy` | json | The requested policy |
+|   ↳ `id` | string | The policy's unique ID |
+|   ↳ `name` | string | The policy's name |
+|   ↳ `description` | string | The policy's description |
+|   ↳ `status` | string | Policy status \(OK or NEEDS_REMEDIATION\) |
+|   ↳ `approvedAtDate` | string | The policy's most recent approval date, if applicable |
+|   ↳ `latestVersionStatus` | string | Status of the policy's latest version \(NOT_STARTED, DRAFT, PENDING_APPROVAL, APPROVED, RENEW_SOON, or EXPIRED\) |
+|   ↳ `latestApprovedVersion` | json | The latest approved version of the policy, if available |
+|     ↳ `versionId` | string | ID of the latest approved version |
+|     ↳ `documents` | array | Available policy document versions, organized by language |
+|       ↳ `language` | string | Document language |
+|       ↳ `slugId` | string | Document slug ID |
+|       ↳ `url` | string | Document URL |
+
+</ReferenceDetails>
 
 ### Vanta List Vendors
 
 List the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `name` | string | No | Filter vendors by name |
 | `statusMatchesAny` | string | No | Comma-separated vendor statuses to filter by: MANAGED, ARCHIVED, IN_PROCUREMENT |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
@@ -491,19 +855,64 @@ List the vendors tracked in a Vanta account with risk levels, contract dates, an
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `vendors` | array | Vendors matching the filters |
+|   ↳ `id` | string | The vendor's unique ID |
+|   ↳ `name` | string | The vendor's display name |
+|   ↳ `status` | string | Vendor status \(MANAGED, ARCHIVED, or IN_PROCUREMENT\) |
+|   ↳ `websiteUrl` | string | The vendor's website URL |
+|   ↳ `category` | string | Display name of the vendor's category |
+|   ↳ `servicesProvided` | string | Services provided by the vendor |
+|   ↳ `additionalNotes` | string | Additional notes about the vendor |
+|   ↳ `accountManagerName` | string | The vendor's external account manager name |
+|   ↳ `accountManagerEmail` | string | The vendor's external account manager email |
+|   ↳ `securityOwnerUserId` | string | Vanta user ID of the vendor's security owner |
+|   ↳ `businessOwnerUserId` | string | Vanta user ID of the vendor's business owner |
+|   ↳ `inherentRiskLevel` | string | Inherent risk level \(CRITICAL, HIGH, MEDIUM, LOW, or UNSCORED\) |
+|   ↳ `residualRiskLevel` | string | Residual risk level \(CRITICAL, HIGH, MEDIUM, LOW, or UNSCORED\) |
+|   ↳ `isRiskAutoScored` | boolean | Whether the vendor's risk is automatically scored |
+|   ↳ `isVisibleToAuditors` | boolean | Whether auditors can view this vendor |
+|   ↳ `riskAttributeIds` | array | Risk attribute IDs assigned to the vendor |
+|   ↳ `vendorHeadquarters` | string | Country code of the vendor's headquarters |
+|   ↳ `contractStartDate` | string | Date the vendor contract began |
+|   ↳ `contractRenewalDate` | string | Date the vendor contract is up for renewal |
+|   ↳ `contractTerminationDate` | string | Date the vendor contract was terminated |
+|   ↳ `contractAmount` | json | Contract amount for the vendor |
+|     ↳ `amount` | number | Amount of the contract |
+|     ↳ `currency` | string | Currency of the contract |
+|   ↳ `nextSecurityReviewDueDate` | string | Next due date for a security review |
+|   ↳ `lastSecurityReviewCompletionDate` | string | Most recent date a security review was completed |
+|   ↳ `authDetails` | json | The vendor's authentication details |
+|     ↳ `method` | string | Authentication method \(e.g., SSO, OKTA, USERNAME_PASSWORD\) |
+|     ↳ `passwordMFA` | boolean | Whether passwords require multi-factor authentication |
+|     ↳ `passwordMinimumLength` | number | Minimum password length |
+|     ↳ `passwordRequiresNumber` | boolean | Whether passwords require a number |
+|     ↳ `passwordRequiresSymbol` | boolean | Whether passwords require a symbol |
+|   ↳ `customFields` | array | Custom field values configured in the Vanta instance |
+|     ↳ `label` | string | Custom field label |
+|     ↳ `value` | json | Custom field value \(string or list of strings\) |
+|   ↳ `latestDecision` | json | The vendor's latest decision \(null when no decision has been made\) |
+|     ↳ `status` | string | Decision status \(APPROVED, CONDITIONALLY_APPROVED, or NOT_APPROVED\) |
+|     ↳ `lastUpdatedAt` | string | When the decision was last updated |
+|   ↳ `linkedTaskTrackerTaskProcurementRequest` | json | Linked task tracker procurement request, if any |
+|     ↳ `url` | string | URL of the procurement request |
+|     ↳ `service` | string | Task tracker service |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Vendor
 
 Get a Vanta vendor by ID, including risk levels, contract details, and authentication info
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `vendorId` | string | Yes | Unique ID of the vendor |
 
 #### Output
@@ -511,18 +920,59 @@ Get a Vanta vendor by ID, including risk levels, contract details, and authentic
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `vendor` | json | The requested vendor |
+|   ↳ `id` | string | The vendor's unique ID |
+|   ↳ `name` | string | The vendor's display name |
+|   ↳ `status` | string | Vendor status \(MANAGED, ARCHIVED, or IN_PROCUREMENT\) |
+|   ↳ `websiteUrl` | string | The vendor's website URL |
+|   ↳ `category` | string | Display name of the vendor's category |
+|   ↳ `servicesProvided` | string | Services provided by the vendor |
+|   ↳ `additionalNotes` | string | Additional notes about the vendor |
+|   ↳ `accountManagerName` | string | The vendor's external account manager name |
+|   ↳ `accountManagerEmail` | string | The vendor's external account manager email |
+|   ↳ `securityOwnerUserId` | string | Vanta user ID of the vendor's security owner |
+|   ↳ `businessOwnerUserId` | string | Vanta user ID of the vendor's business owner |
+|   ↳ `inherentRiskLevel` | string | Inherent risk level \(CRITICAL, HIGH, MEDIUM, LOW, or UNSCORED\) |
+|   ↳ `residualRiskLevel` | string | Residual risk level \(CRITICAL, HIGH, MEDIUM, LOW, or UNSCORED\) |
+|   ↳ `isRiskAutoScored` | boolean | Whether the vendor's risk is automatically scored |
+|   ↳ `isVisibleToAuditors` | boolean | Whether auditors can view this vendor |
+|   ↳ `riskAttributeIds` | array | Risk attribute IDs assigned to the vendor |
+|   ↳ `vendorHeadquarters` | string | Country code of the vendor's headquarters |
+|   ↳ `contractStartDate` | string | Date the vendor contract began |
+|   ↳ `contractRenewalDate` | string | Date the vendor contract is up for renewal |
+|   ↳ `contractTerminationDate` | string | Date the vendor contract was terminated |
+|   ↳ `contractAmount` | json | Contract amount for the vendor |
+|     ↳ `amount` | number | Amount of the contract |
+|     ↳ `currency` | string | Currency of the contract |
+|   ↳ `nextSecurityReviewDueDate` | string | Next due date for a security review |
+|   ↳ `lastSecurityReviewCompletionDate` | string | Most recent date a security review was completed |
+|   ↳ `authDetails` | json | The vendor's authentication details |
+|     ↳ `method` | string | Authentication method \(e.g., SSO, OKTA, USERNAME_PASSWORD\) |
+|     ↳ `passwordMFA` | boolean | Whether passwords require multi-factor authentication |
+|     ↳ `passwordMinimumLength` | number | Minimum password length |
+|     ↳ `passwordRequiresNumber` | boolean | Whether passwords require a number |
+|     ↳ `passwordRequiresSymbol` | boolean | Whether passwords require a symbol |
+|   ↳ `customFields` | array | Custom field values configured in the Vanta instance |
+|     ↳ `label` | string | Custom field label |
+|     ↳ `value` | json | Custom field value \(string or list of strings\) |
+|   ↳ `latestDecision` | json | The vendor's latest decision \(null when no decision has been made\) |
+|     ↳ `status` | string | Decision status \(APPROVED, CONDITIONALLY_APPROVED, or NOT_APPROVED\) |
+|     ↳ `lastUpdatedAt` | string | When the decision was last updated |
+|   ↳ `linkedTaskTrackerTaskProcurementRequest` | json | Linked task tracker procurement request, if any |
+|     ↳ `url` | string | URL of the procurement request |
+|     ↳ `service` | string | Task tracker service |
+
+</ReferenceDetails>
 
 ### Vanta List Monitored Computers
 
 List the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `complianceStatusFilterMatchesAny` | string | No | Comma-separated compliance issues to filter by: PWM_NOT_INSTALLED, HD_NOT_ENCRYPTED, AV_NOT_INSTALLED, SCREENLOCK_NOT_CONFIGURED, LAST_CHECK_OVER_14_DAYS |
 | `pageSize` | number | No | Maximum number of items per page \(1-100, default 10\) |
 | `pageCursor` | string | No | Pagination cursor: pass the endCursor from the previous response to fetch the next page |
@@ -532,19 +982,40 @@ List the monitored computers in a Vanta account with screenlock, disk encryption
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `computers` | array | Monitored computers matching the filters |
+|   ↳ `id` | string | Unique identifier of the monitored computer |
+|   ↳ `integrationId` | string | Integration that reports this computer |
+|   ↳ `lastCheckDate` | string | Date of the computer's most recent report |
+|   ↳ `screenlock` | string | Screenlock check outcome \(PASS, FAIL, IN_PROGRESS, or NA\) |
+|   ↳ `diskEncryption` | string | Disk encryption check outcome \(PASS, FAIL, IN_PROGRESS, or NA\) |
+|   ↳ `passwordManager` | string | Password manager check outcome \(PASS, FAIL, IN_PROGRESS, or NA\) |
+|   ↳ `antivirusInstallation` | string | Antivirus check outcome \(PASS, FAIL, IN_PROGRESS, or NA\) |
+|   ↳ `operatingSystem` | json | The computer's operating system |
+|     ↳ `type` | string | Operating system type \(macOS, linux, or windows\) |
+|     ↳ `version` | string | Operating system version |
+|   ↳ `owner` | json | The computer's owner |
+|     ↳ `id` | string | Unique ID of the owner |
+|     ↳ `displayName` | string | Display name of the owner |
+|     ↳ `emailAddress` | string | Email address of the owner |
+|   ↳ `serialNumber` | string | Serial number of the computer |
+|   ↳ `udid` | string | Universal device ID of the computer |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta List Vulnerabilities
 
 List the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `q` | string | No | Search query for vulnerabilities |
 | `severity` | string | No | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
 | `isFixAvailable` | boolean | No | Filter by whether a fix is available |
@@ -564,19 +1035,50 @@ List the vulnerabilities detected across a Vanta account with filters for severi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `vulnerabilities` | array | Vulnerabilities matching the filters |
+|   ↳ `id` | string | Unique identifier of the vulnerability |
+|   ↳ `name` | string | Display name of the vulnerability |
+|   ↳ `description` | string | Description of the vulnerability |
+|   ↳ `severity` | string | Severity \(LOW, MEDIUM, HIGH, or CRITICAL\) |
+|   ↳ `vulnerabilityType` | string | Vulnerability type \(CONFIGURATION, COMMON, or GROUPED\) |
+|   ↳ `integrationId` | string | Integration that scans this vulnerability |
+|   ↳ `targetId` | string | ID of the resource the vulnerability was found on |
+|   ↳ `packageIdentifier` | string | Identifier of the affected package \(COMMON and GROUPED vulnerabilities only\) |
+|   ↳ `cvssSeverityScore` | number | CVSS severity score |
+|   ↳ `scannerScore` | number | Scanner score |
+|   ↳ `isFixable` | boolean | Whether the vulnerability is fixable |
+|   ↳ `fixedVersion` | string | Package version that remediates the vulnerability |
+|   ↳ `remediateByDate` | string | SLA date by which the vulnerability should be remediated |
+|   ↳ `firstDetectedDate` | string | Date first detected by Vanta |
+|   ↳ `sourceDetectedDate` | string | Date first detected by the source |
+|   ↳ `lastDetectedDate` | string | Date last detected |
+|   ↳ `scanSource` | string | Scanning tool that detected the vulnerability |
+|   ↳ `externalURL` | string | External URL for the vulnerability |
+|   ↳ `relatedVulns` | array | Related vulnerabilities \(GROUPED vulnerabilities only\) |
+|   ↳ `relatedUrls` | array | Related URLs |
+|   ↳ `deactivateMetadata` | json | Deactivation metadata, if the vulnerability was deactivated |
+|     ↳ `isVulnDeactivatedIndefinitely` | boolean | Whether deactivated indefinitely |
+|     ↳ `deactivatedUntilDate` | string | Date the vulnerability will be reactivated |
+|     ↳ `deactivationReason` | string | Reason for deactivation |
+|     ↳ `deactivatedOnDate` | string | Date the vulnerability was deactivated |
+|     ↳ `deactivatedBy` | string | User who deactivated the vulnerability |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta List Vulnerability Remediations
 
 List remediated vulnerabilities in a Vanta account with detection, SLA deadline, and remediation dates
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `integrationId` | string | No | Filter by the integration that detected the vulnerability |
 | `severity` | string | No | Filter by severity: LOW, MEDIUM, HIGH, or CRITICAL |
 | `isRemediatedOnTime` | boolean | No | Filter by whether the vulnerability was remediated before its SLA deadline |
@@ -590,19 +1092,31 @@ List remediated vulnerabilities in a Vanta account with detection, SLA deadline,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `remediations` | array | Vulnerability remediations matching the filters |
+|   ↳ `id` | string | Unique identifier of the remediation |
+|   ↳ `vulnerabilityId` | string | ID of the remediated vulnerability |
+|   ↳ `vulnerableAssetId` | string | ID of the vulnerable asset |
+|   ↳ `severity` | string | Severity of the vulnerability |
+|   ↳ `detectedDate` | string | Date the vulnerability was first detected |
+|   ↳ `slaDeadlineDate` | string | SLA deadline for remediation |
+|   ↳ `remediationDate` | string | Date the vulnerability was remediated |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta List Vulnerable Assets
 
 List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `q` | string | No | Search query for vulnerable assets |
 | `integrationId` | string | No | Filter by the integration scanning the asset |
 | `assetType` | string | No | Filter by asset type: SERVER, SERVERLESS_FUNCTION, CONTAINER, CONTAINER_REPOSITORY, CONTAINER_REPOSITORY_IMAGE, CODE_REPOSITORY, MANIFEST_FILE, WORKSTATION, or OTHER |
@@ -615,19 +1129,47 @@ List the assets associated with vulnerabilities in a Vanta account (servers, rep
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `assets` | array | Vulnerable assets matching the filters |
+|   ↳ `id` | string | Unique identifier of the vulnerable asset |
+|   ↳ `name` | string | Display name of the vulnerable asset |
+|   ↳ `assetType` | string | Asset type \(e.g., SERVER, SERVERLESS_FUNCTION, CONTAINER_REPOSITORY, CODE_REPOSITORY, WORKSTATION\) |
+|   ↳ `hasBeenScanned` | boolean | Whether the asset has been scanned |
+|   ↳ `imageScanTag` | string | Container image tag that vulnerabilities are retrieved for \(container repositories only\) |
+|   ↳ `scanners` | array | Integrations scanning this asset, with per-scanner asset details \(resource ID, hostnames, IPs, image metadata\) |
+|     ↳ `resourceId` | string | Vanta resource ID |
+|     ↳ `integrationId` | string | Scanning integration ID |
+|     ↳ `targetId` | string | Asset identifier in the scanning source |
+|     ↳ `imageDigest` | string | Container image digest |
+|     ↳ `imagePushedAtDate` | string | Container image push date |
+|     ↳ `parentAccountOrOrganization` | string | Parent account or organization |
+|     ↳ `biosUuid` | string | BIOS UUID |
+|     ↳ `imageTags` | array | Container image tags |
+|     ↳ `ipv4s` | array | IPv4 addresses |
+|     ↳ `ipv6s` | array | IPv6 addresses |
+|     ↳ `macAddresses` | array | MAC addresses |
+|     ↳ `hostnames` | array | Host names |
+|     ↳ `fqdns` | array | Fully qualified domain names |
+|     ↳ `operatingSystems` | array | Operating systems |
+|     ↳ `assetTags` | array | Tags from the scanning source |
+|       ↳ `key` | string | Tag key |
+|       ↳ `value` | string | Tag value |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Vulnerable Asset
 
 Get a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `vulnerableAssetId` | string | Yes | Unique ID of the vulnerable asset |
 
 #### Output
@@ -635,18 +1177,42 @@ Get a vulnerable asset in Vanta by ID, including the scanners reporting it and p
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `asset` | json | The requested vulnerable asset |
+|   ↳ `id` | string | Unique identifier of the vulnerable asset |
+|   ↳ `name` | string | Display name of the vulnerable asset |
+|   ↳ `assetType` | string | Asset type \(e.g., SERVER, SERVERLESS_FUNCTION, CONTAINER_REPOSITORY, CODE_REPOSITORY, WORKSTATION\) |
+|   ↳ `hasBeenScanned` | boolean | Whether the asset has been scanned |
+|   ↳ `imageScanTag` | string | Container image tag that vulnerabilities are retrieved for \(container repositories only\) |
+|   ↳ `scanners` | array | Integrations scanning this asset, with per-scanner asset details \(resource ID, hostnames, IPs, image metadata\) |
+|     ↳ `resourceId` | string | Vanta resource ID |
+|     ↳ `integrationId` | string | Scanning integration ID |
+|     ↳ `targetId` | string | Asset identifier in the scanning source |
+|     ↳ `imageDigest` | string | Container image digest |
+|     ↳ `imagePushedAtDate` | string | Container image push date |
+|     ↳ `parentAccountOrOrganization` | string | Parent account or organization |
+|     ↳ `biosUuid` | string | BIOS UUID |
+|     ↳ `imageTags` | array | Container image tags |
+|     ↳ `ipv4s` | array | IPv4 addresses |
+|     ↳ `ipv6s` | array | IPv6 addresses |
+|     ↳ `macAddresses` | array | MAC addresses |
+|     ↳ `hostnames` | array | Host names |
+|     ↳ `fqdns` | array | Fully qualified domain names |
+|     ↳ `operatingSystems` | array | Operating systems |
+|     ↳ `assetTags` | array | Tags from the scanning source |
+|       ↳ `key` | string | Tag key |
+|       ↳ `value` | string | Tag value |
+
+</ReferenceDetails>
 
 ### Vanta List Risk Scenarios
 
 List the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `searchString` | string | No | Search string to filter risk scenarios |
 | `includeIgnored` | boolean | No | Include ignored risk scenarios |
 | `type` | string | No | Filter by scenario type: "Risk Scenario" or "Enterprise Risk" |
@@ -666,19 +1232,44 @@ List the risk scenarios in a Vanta risk register with likelihood/impact scores, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `riskScenarios` | array | Risk scenarios matching the filters |
+|   ↳ `riskId` | string | Unique user-specified ID of the risk scenario |
+|   ↳ `description` | string | Description of the risk scenario |
+|   ↳ `likelihood` | number | Likelihood score \(defaults to a 1-5 range; null when unscored\) |
+|   ↳ `impact` | number | Impact score \(defaults to a 1-5 range; null when unscored\) |
+|   ↳ `residualLikelihood` | number | Residual likelihood score after treatments |
+|   ↳ `residualImpact` | number | Residual impact score after treatments |
+|   ↳ `categories` | array | Categories this risk scenario belongs to |
+|   ↳ `ciaCategories` | array | CIA categories \(Confidentiality, Integrity, Availability\) |
+|   ↳ `treatment` | string | Risk treatment decision \(Mitigate, Transfer, Avoid, or Accept\) |
+|   ↳ `owner` | string | Email of the person responsible for this risk |
+|   ↳ `note` | string | Additional context about the risk scenario |
+|   ↳ `riskRegister` | string | Name of the associated risk register |
+|   ↳ `customFields` | array | Custom field values configured in the Vanta instance |
+|     ↳ `label` | string | Custom field label |
+|     ↳ `value` | json | Custom field value \(string or list of strings\) |
+|   ↳ `isArchived` | boolean | Whether the scenario is archived |
+|   ↳ `reviewStatus` | string | Review status \(APPROVED, DRAFT, NOT_REVIEWED, AWAITING_SUBMISSION, PENDING_APPROVAL, or REQUESTED_CHANGES\) |
+|   ↳ `requiredApprovers` | array | Required approvers for this risk scenario |
+|   ↳ `type` | string | Scenario type \("Risk Scenario" or "Enterprise Risk"\) |
+|   ↳ `identificationDate` | string | Date this risk was identified |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
+|   ↳ `startCursor` | string | Cursor pointing to the start of the current page |
+|   ↳ `endCursor` | string | Cursor pointing to the end of the current page; pass as pageCursor to fetch the next page |
+|   ↳ `hasNextPage` | boolean | Whether another page exists after this one |
+|   ↳ `hasPreviousPage` | boolean | Whether a page exists before this one |
+
+</ReferenceDetails>
 
 ### Vanta Get Risk Scenario
 
 Get a Vanta risk scenario by ID, including its scores, treatment decision, and review status
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Vanta OAuth application client ID |
-| `clientSecret` | string | Yes | Vanta OAuth application client secret |
-| `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `riskScenarioId` | string | Yes | Unique ID of the risk scenario |
 
 #### Output
@@ -686,5 +1277,27 @@ Get a Vanta risk scenario by ID, including its scores, treatment decision, and r
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `riskScenario` | json | The requested risk scenario |
+|   ↳ `riskId` | string | Unique user-specified ID of the risk scenario |
+|   ↳ `description` | string | Description of the risk scenario |
+|   ↳ `likelihood` | number | Likelihood score \(defaults to a 1-5 range; null when unscored\) |
+|   ↳ `impact` | number | Impact score \(defaults to a 1-5 range; null when unscored\) |
+|   ↳ `residualLikelihood` | number | Residual likelihood score after treatments |
+|   ↳ `residualImpact` | number | Residual impact score after treatments |
+|   ↳ `categories` | array | Categories this risk scenario belongs to |
+|   ↳ `ciaCategories` | array | CIA categories \(Confidentiality, Integrity, Availability\) |
+|   ↳ `treatment` | string | Risk treatment decision \(Mitigate, Transfer, Avoid, or Accept\) |
+|   ↳ `owner` | string | Email of the person responsible for this risk |
+|   ↳ `note` | string | Additional context about the risk scenario |
+|   ↳ `riskRegister` | string | Name of the associated risk register |
+|   ↳ `customFields` | array | Custom field values configured in the Vanta instance |
+|     ↳ `label` | string | Custom field label |
+|     ↳ `value` | json | Custom field value \(string or list of strings\) |
+|   ↳ `isArchived` | boolean | Whether the scenario is archived |
+|   ↳ `reviewStatus` | string | Review status \(APPROVED, DRAFT, NOT_REVIEWED, AWAITING_SUBMISSION, PENDING_APPROVAL, or REQUESTED_CHANGES\) |
+|   ↳ `requiredApprovers` | array | Required approvers for this risk scenario |
+|   ↳ `type` | string | Scenario type \("Risk Scenario" or "Enterprise Risk"\) |
+|   ↳ `identificationDate` | string | Date this risk was identified |
+
+</ReferenceDetails>
 
 

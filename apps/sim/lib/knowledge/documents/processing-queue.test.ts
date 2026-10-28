@@ -16,7 +16,7 @@ import {
 } from '@sim/testing/mocks/async-jobs-region.mock'
 import { tasks } from '@trigger.dev/sdk'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import {
   markInsideTriggerRun,

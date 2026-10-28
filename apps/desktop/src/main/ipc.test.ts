@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs'
+import { EventEmitter } from 'node:events'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -113,7 +116,12 @@ vi.mock('@/main/browser-agent/registry', () => ({
   ),
 }))
 
-import type { DesktopPreferences } from '@sim/desktop-bridge'
+import {
+  type ComputerUseAppPermission,
+  ComputerUseError,
+  type DesktopPreferences,
+} from '@sim/desktop-bridge'
+import type { ComputerUseResult } from '@sim/desktop-bridge/computer-use'
 import type { WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
 import * as browserDriver from '@/main/browser-agent/driver'
@@ -132,8 +140,11 @@ import {
   listChromeImportProfiles,
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
+import { ComputerUseService } from '@/main/computer-use/service'
+import { createConfigStore } from '@/main/config'
 import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
+import { LocalFilePermissions } from '@/main/local-file-permissions'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { isLocalPageUrl } from '@/main/local-pages'
 import { TerminalRegistry } from '@/main/terminal/registry'
@@ -260,6 +271,7 @@ const _activeChooserEvent = {
 
 describe('registerIpcHandlers', () => {
   let deps: IpcDeps
+  const computerRoots: string[] = []
 
   beforeEach(() => {
     // Frozen so the input-recency windows cannot lapse mid-test: the gates read
@@ -287,8 +299,12 @@ describe('registerIpcHandlers', () => {
     mockCoordinator.showChooser.mockClear()
     mockCoordinator.listFillOptions.mockClear()
     mockCoordinator.fillCredential.mockClear()
+    const localFilesystem = new LocalFilesystemService({
+      chooseDirectory: vi.fn(async () => null),
+    })
     deps = {
       appOrigin: () => APP,
+      getExecutorDevice: () => null,
       allowHttpLocalhost: () => false,
       accountDataAvailable: () => true,
       isLocalPageUrl,
@@ -296,9 +312,8 @@ describe('registerIpcHandlers', () => {
       beginOAuthConnect: vi.fn(async () => true),
       prepareSourceConnect: vi.fn(() => 's'.repeat(32)),
       cancelSourceConnect: vi.fn(() => true),
-      localFilesystem: new LocalFilesystemService({
-        chooseDirectory: vi.fn(async () => null),
-      }),
+      localFilesystem,
+      localFilePermissions: new LocalFilePermissions(localFilesystem),
       terminal: new TerminalRegistry(),
       scopeEvents: {
         activateBrowser: vi.fn(),
@@ -310,6 +325,8 @@ describe('registerIpcHandlers', () => {
         getPreferences: vi.fn(() => DEFAULT_DESKTOP_PREFERENCES),
         setPreference: vi.fn(),
         setBrowserSearchSuggestionsEnabled: vi.fn(),
+        setFullFileAccess: vi.fn(),
+        setPreventSleepWhileRunning: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
         setTerminalDefaultZoom: vi.fn(),
@@ -348,6 +365,7 @@ describe('registerIpcHandlers', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    for (const root of computerRoots.splice(0)) rmSync(root, { recursive: true, force: true })
   })
 
   it('opens validated external URLs only after recent user input', async () => {
@@ -460,71 +478,6 @@ describe('registerIpcHandlers', () => {
     })
   })
 
-  it('reads a native file through canonical IPC arguments without folder grants or user activation', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('desktop:local-files')
-    const path = fileURLToPath(import.meta.url)
-    const fetchAuthorization = vi.fn(async () =>
-      Response.json({ chatId: 'chat-1', toolName: 'read_local_file', args: { path, limit: 64 } })
-    )
-    const authorizedEvent = {
-      senderFrame: { url: `${APP}/o/org/home` },
-      sender: { session: { fetch: fetchAuthorization } },
-    }
-    const mounts = vi.spyOn(deps.localFilesystem, 'handle')
-    expect(
-      await handler?.(authorizedEvent, {
-        operation: 'read',
-        toolCallId: 'tool-native',
-        path: '/not/the/canonical/path',
-      })
-    ).toMatchObject({
-      ok: true,
-      data: { kind: 'read', path, text: readFileSync(path, 'utf8').slice(0, 64) },
-    })
-    expect(mounts).not.toHaveBeenCalled()
-    expect(fetchAuthorization).toHaveBeenCalledWith(
-      `${APP}/api/desktop/tool/authorize`,
-      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-native' }) })
-    )
-    expect(
-      await handler?.(evilEvent, { operation: 'read', toolCallId: 'tool-native' })
-    ).toMatchObject({ ok: false })
-  })
-
-  it('claims native imports at IPC before traversal and rejects a replay', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('desktop:local-files')
-    const fetchAuthorization = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          chatId: 'chat-1',
-          toolName: 'import_local_files',
-          args: { path: fileURLToPath(import.meta.url), targetWorkspaceId: 'workspace' },
-        })
-      )
-      .mockResolvedValueOnce(Response.json({ error: 'already started' }, { status: 409 }))
-    const event = {
-      senderFrame: { url: `${APP}/o/org/home` },
-      sender: { session: { fetch: fetchAuthorization } },
-    }
-    const request = { operation: 'manifest', toolCallId: 'tool-import' }
-    expect(await handler?.(event, request)).toMatchObject({
-      ok: true,
-      data: {
-        kind: 'manifest',
-        targetWorkspaceId: 'workspace',
-        entries: [{ relativePath: '', kind: 'file' }],
-      },
-    })
-    expect(fetchAuthorization).toHaveBeenCalledWith(
-      `${APP}/api/desktop/tool/authorize`,
-      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-import', claim: true }) })
-    )
-    expect(await handler?.(event, request)).toMatchObject({ ok: false, code: 'ALREADY_STARTED' })
-  })
-
   it('requires server authorization for every privileged filesystem tool request', async () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('desktop:local-filesystem')
@@ -569,7 +522,7 @@ describe('registerIpcHandlers', () => {
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-        body: JSON.stringify({ toolCallId: 'tool-1' }),
+        body: JSON.stringify({ toolCallId: 'tool-1', claim: true }),
       })
     )
   })
@@ -609,6 +562,225 @@ describe('registerIpcHandlers', () => {
     // comparison rejects even though it is the same origin.
     const explicitPort = { senderFrame: { url: 'https://sim.ai:443/workspace/ws1' } }
     expect(await handler?.(explicitPort)).toMatchObject({ notificationsEnabled: true })
+  })
+
+  function computerFixture() {
+    const root = mkdtempSync(join(tmpdir(), 'computer-ipc-'))
+    computerRoots.push(root)
+    const config = createConfigStore(join(root, 'settings.json'))
+    config.set('computerUseEnabled', true)
+    const status: ComputerUseResult = {
+      kind: 'status',
+      platform: 'darwin',
+      accessibility: true,
+      screenRecording: true,
+    }
+    const native = {
+      request: vi.fn(
+        async (method: string): Promise<ComputerUseResult> =>
+          method === 'list_apps' ? { kind: 'apps', apps: [] } : status
+      ),
+      stop: vi.fn(),
+    }
+    const approveApp = vi.fn(
+      async (_app: ComputerUseAppPermission, _signal: AbortSignal): Promise<'once' | 'deny'> =>
+        'once'
+    )
+    const service = new ComputerUseService({
+      config,
+      native,
+      supported: true,
+      approveApp,
+      onActivity: vi.fn(),
+    })
+    deps.computerUse = service
+    const cancel = vi.spyOn(service, 'cancel')
+    const execute = collectHandlers().invoke.get('computer-use:execute-tool')
+    if (!execute) throw new Error('Computer use handler was not registered')
+    return { native, approveApp, status, cancel, execute }
+  }
+
+  function computerSender(fetch: (url: string, init?: RequestInit) => Promise<Response>) {
+    const sender = Object.assign(new EventEmitter(), {
+      session: { fetch },
+      isDestroyed: () => false,
+    })
+    return { sender, senderFrame: { url: `${APP}/workspace/ws1` } }
+  }
+
+  function computerAuthorization(args: Record<string, unknown> = { action: 'status' }) {
+    return Response.json({ chatId: 'computer-chat', toolName: 'computer', args })
+  }
+
+  function expectComputerListenersRemoved(sender: EventEmitter) {
+    for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation'])
+      expect(sender.listenerCount(event)).toBe(0)
+  }
+
+  it('preserves native pre-dispatch certainty in serializable IPC data', async () => {
+    const { native, execute } = computerFixture()
+    const error = {
+      code: 'activation_required',
+      message: 'Activate and observe the app first.',
+      dispatchState: 'not_started' as const,
+    }
+    native.request.mockRejectedValueOnce(new ComputerUseError(error))
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    const result = await execute(owner, 'sim_tool_safe_failure', { action: 'status' })
+    expect(structuredClone(result)).toEqual({ kind: 'error', error })
+    expectComputerListenersRemoved(owner.sender)
+  })
+
+  it('does not label an unstructured native failure as safely undispatched', async () => {
+    const { native, execute } = computerFixture()
+    native.request.mockRejectedValueOnce(new Error('Helper disconnected after input.'))
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    await expect(execute(owner, 'sim_tool_unknown_failure', { action: 'status' })).rejects.toThrow(
+      'Helper disconnected'
+    )
+    expectComputerListenersRemoved(owner.sender)
+  })
+
+  it.each(['destroyed', 'render-process-gone', 'did-start-navigation'])(
+    'cancels authorization pending on owning renderer %s',
+    async (eventName) => {
+      const { native, cancel, execute } = computerFixture()
+      let finishAuthorization: (response: Response) => void = () => {}
+      const owner = computerSender(
+        vi.fn(
+          () =>
+            new Promise<Response>((resolve) => {
+              finishAuthorization = resolve
+            })
+        )
+      )
+      const pending = execute(owner, 'owner-tool', { action: 'status' })
+      const rejected = expect(pending).rejects.toThrow('stopped')
+      owner.sender.emit(eventName, {}, `${APP}/reload`, false, true)
+      owner.sender.emit('destroyed')
+      expect(cancel).toHaveBeenCalledExactlyOnceWith('owner-tool')
+      finishAuthorization(computerAuthorization())
+      await rejected
+      expect(native.request).not.toHaveBeenCalled()
+      expectComputerListenersRemoved(owner.sender)
+    }
+  )
+
+  it.each(['destroyed', 'render-process-gone', 'did-start-navigation'])(
+    'stops native work on owning renderer %s',
+    async (eventName) => {
+      const { native, cancel, execute } = computerFixture()
+      let rejectNative: (error: Error) => void = () => {}
+      native.request.mockImplementation(
+        () =>
+          new Promise<ComputerUseResult>((_resolve, reject) => {
+            rejectNative = reject
+          })
+      )
+      native.stop.mockImplementation(() => rejectNative(new Error('native stopped')))
+      const owner = computerSender(vi.fn(async () => computerAuthorization()))
+      const pending = execute(owner, 'active-tool', { action: 'status' })
+      const rejected = expect(pending).rejects.toThrow('stopped')
+      await vi.waitFor(() => expect(native.request).toHaveBeenCalledOnce())
+      owner.sender.emit(eventName, {}, `${APP}/reload`, false, true)
+      owner.sender.emit('destroyed')
+      await rejected
+      expect(cancel).toHaveBeenCalledExactlyOnceWith('active-tool')
+      expect(native.stop).toHaveBeenCalledOnce()
+      expectComputerListenersRemoved(owner.sender)
+    }
+  )
+
+  it('aborts the app approval when its renderer crashes', async () => {
+    const { native, approveApp, execute } = computerFixture()
+    approveApp.mockImplementation(
+      (_app, signal) =>
+        new Promise((resolve) => {
+          signal.addEventListener('abort', () => resolve('deny'), { once: true })
+        })
+    )
+    const owner = computerSender(
+      vi.fn(async () =>
+        computerAuthorization({
+          action: 'activate_app',
+          bundleId: 'com.example.Fixture',
+        })
+      )
+    )
+    const pending = execute(owner, 'approval-tool', { action: 'status' })
+    const rejected = expect(pending).rejects.toThrow('stopped')
+    await vi.waitFor(() => expect(approveApp).toHaveBeenCalledOnce())
+    owner.sender.emit('render-process-gone')
+    await rejected
+    expect(native.request.mock.calls.map(([method]) => method)).toEqual(['list_apps'])
+    expectComputerListenersRemoved(owner.sender)
+  })
+
+  it('canceling another renderer admission leaves the active owner running', async () => {
+    const { native, status, cancel, execute } = computerFixture()
+    let finishNative: (result: ComputerUseResult) => void = () => {}
+    native.request.mockImplementation(
+      () =>
+        new Promise<ComputerUseResult>((resolve) => {
+          finishNative = resolve
+        })
+    )
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    const active = execute(owner, 'active-tool', { action: 'status' })
+    await vi.waitFor(() => expect(native.request).toHaveBeenCalledOnce())
+    let finishAuthorization: (response: Response) => void = () => {}
+    const other = computerSender(
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishAuthorization = resolve
+          })
+      )
+    )
+    const pending = execute(other, 'other-tool', { action: 'status' })
+    const rejected = expect(pending).rejects.toThrow('stopped')
+    other.sender.emit('render-process-gone')
+    expect(cancel).toHaveBeenCalledExactlyOnceWith('other-tool')
+    expect(native.stop).not.toHaveBeenCalled()
+    finishAuthorization(computerAuthorization())
+    await rejected
+    finishNative(status)
+    await expect(active).resolves.toEqual(status)
+    expect(native.request).toHaveBeenCalledOnce()
+    expectComputerListenersRemoved(owner.sender)
+    expectComputerListenersRemoved(other.sender)
+  })
+
+  it('keeps native work through SPA/subframe navigation and releases listeners on success', async () => {
+    const { native, status, cancel, execute } = computerFixture()
+    let finishNative: (result: ComputerUseResult) => void = () => {}
+    native.request.mockImplementation(
+      () =>
+        new Promise<ComputerUseResult>((resolve) => {
+          finishNative = resolve
+        })
+    )
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    const pending = execute(owner, 'navigation-tool', { action: 'status' })
+    await vi.waitFor(() => expect(native.request).toHaveBeenCalledOnce())
+    owner.sender.emit('did-start-navigation', {}, `${APP}/another-chat`, true, true)
+    owner.sender.emit('did-start-navigation', {}, 'https://example.com', false, false)
+    expect(cancel).not.toHaveBeenCalled()
+    finishNative(status)
+    await expect(pending).resolves.toEqual(status)
+    expectComputerListenersRemoved(owner.sender)
+    owner.sender.emit('destroyed')
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('releases owner listeners after authorization failure', async () => {
+    const { native, cancel, execute } = computerFixture()
+    const owner = computerSender(vi.fn(async () => new Response(null, { status: 403 })))
+    await expect(execute(owner, 'denied-tool', { action: 'status' })).rejects.toThrow('authorized')
+    expectComputerListenersRemoved(owner.sender)
+    owner.sender.emit('render-process-gone')
+    expect(cancel).not.toHaveBeenCalled()
+    expect(native.request).not.toHaveBeenCalled()
   })
 
   it('restricts browser-agent tool execution to the app origin and known tools', async () => {

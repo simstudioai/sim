@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { TrackingConsentProvider } from '@/lib/consent/tracking-consent'
+import { AttributionCookieGuard } from '@/app/_shell/consent/attribution-cookie-guard'
 import { ConsentBanner } from '@/app/_shell/consent/consent-banner'
 import { ConsentStoreProvider } from '@/app/_shell/consent/consent-store-provider'
 import { FreebuffClickIdGuard } from '@/app/_shell/consent/freebuff-click-id-guard'
@@ -24,6 +25,7 @@ export function ConsentProvider({ children }: ConsentProviderProps) {
         {children}
         <GoogleAnalyticsPageViewTracker />
         <FreebuffClickIdGuard />
+        <AttributionCookieGuard />
         <ConsentBanner />
       </TrackingConsentProvider>
     </ConsentStoreProvider>

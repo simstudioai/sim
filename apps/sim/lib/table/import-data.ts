@@ -12,15 +12,12 @@ import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import type { ImportedRowProvenance } from '@/lib/table/import-provenance'
 import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
 import { lockLiveTableSchema, refitRowToSchema, withLiveSchema } from '@/lib/table/rows/live-schema'
-import {
-  acquireRowOrderLock,
-  guardBatch,
-  type MutationRevalidator,
-} from '@/lib/table/rows/ordering'
+import { guardBatch, type MutationRevalidator } from '@/lib/table/rows/ordering'
 import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
@@ -54,13 +51,17 @@ export interface BulkImportBatch {
   startPosition: number
   /** Previous batch's last `order_key` (the append anchor); null for the first batch / empty table. */
   afterOrderKey?: string | null
+  /** Provenance each row inherits from its source; absent, rows are exact-empty. */
+  rowProvenance?: ImportedRowProvenance
+  /** Each row's cells as the source held them, aligned with `rows`; see `importedRowSources`. */
+  rowSources?: readonly RowData[]
 }
 
 /**
  * Inserts one batch of rows for an async import in a single committed statement.
  *
  * Differs from {@link batchInsertRowsWithTx} for the bulk-load case: caller-supplied
- * contiguous order keys (no `acquireRowOrderLock` scan; the caller threads each batch's
+ * contiguous order keys (no max-key scan; the caller threads each batch's
  * anchor from the previous one), no `RETURNING`, and **no `fireTableTrigger` /
  * `runWorkflowColumn`** (a 1M-row import must not dispatch a workflow run per row).
  * Append and replace imports run this against the live table, so other writers can
@@ -149,9 +150,11 @@ export async function bulkInsertImportBatch(
       }
     }
     return mutateTableRowsWithSecretProvenance(trx, {
-      rows: rowsToInsert.map((row) => ({
+      rows: rowsToInsert.map((row, index) => ({
         rowId: row.id,
-        provenance: createExactEmptyTableRowSecretProvenance(row.data),
+        provenance: data.rowProvenance
+          ? data.rowProvenance(row.data, data.rowSources?.[index])
+          : createExactEmptyTableRowSecretProvenance(row.data),
       })),
       rowState: 'new',
       mode: 'replace',
@@ -251,9 +254,6 @@ export async function setTableSchemaForImport(
  * parsed must be visible to the asserts in `addTableColumnsWithTx` /
  * `batchInsertRowsWithTx` / `replaceTableRowsWithTx`, which all read the
  * definition they are handed.
- *
- * Taken before `acquireRowOrderLock` so the order stays advisory → rows_pos →
- * definitions, matching every other advisory-lock holder.
  */
 async function refreshUnderLock(
   trx: DbTransaction,
@@ -297,16 +297,10 @@ export async function importAppendRows(
   })
   const result = await db.transaction(async (trx) => {
     let working = await refreshUnderLock(trx, table)
-    // Lock the unique columns whole, ahead of the row-order lock: per-value locks for every row of
-    // an import would flood the server's lock table.
+    // Lock the unique columns whole: per-value locks for every row of an import would flood the
+    // server's lock table.
     await lockUniqueColumns(trx, working)
     if (additions.length > 0) {
-      // Take the row-order lock before creating columns so this path uses the
-      // same rows_pos → user_table_definitions order as plain inserts. Creating
-      // columns first would lock the definition row before rows_pos, inverting
-      // the order and deadlocking concurrent inserts on this table. The lock is
-      // re-entrant, so the per-batch acquire below is a no-op.
-      await acquireRowOrderLock(trx, table.id)
       working = await addTableColumnsWithTx(trx, working, additions, ctx.requestId)
     }
     const inserted: TableRow[] = []
@@ -368,7 +362,6 @@ export async function importReplaceRows(
     let working = await refreshUnderLock(trx, table)
     await lockUniqueColumns(trx, working)
     if (additions.length > 0) {
-      await acquireRowOrderLock(trx, table.id)
       working = await addTableColumnsWithTx(trx, working, additions, requestId)
     }
     return replaceTableRowsWithTx(

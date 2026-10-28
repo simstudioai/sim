@@ -84,7 +84,7 @@ export const gmailUnarchiveV2Tool: InternalToolConfig<GmailMarkReadParams, Gmail
   {
     id: 'gmail_unarchive_v2',
     name: 'Gmail Unarchive',
-    description: 'Unarchive a Gmail message (move back to inbox). Returns API-aligned fields only.',
+    description: 'Unarchive a Gmail message (move back to inbox).',
     version: '2.0.0',
     oauth: gmailUnarchiveTool.oauth,
     params: gmailUnarchiveTool.params,

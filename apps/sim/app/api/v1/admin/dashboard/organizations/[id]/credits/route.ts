@@ -6,9 +6,9 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminBadRequestResponse,
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
-  badRequestResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -29,7 +29,7 @@ export const POST = withRouteHandler(
       )
       return singleResponse({ success: true as const, ...result })
     } catch (error) {
-      return badRequestResponse(getErrorMessage(error, 'Failed to grant prepaid balance'))
+      return adminBadRequestResponse(getErrorMessage(error, 'Failed to grant prepaid balance'))
     }
   })
 )

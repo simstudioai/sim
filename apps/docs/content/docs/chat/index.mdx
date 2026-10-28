@@ -1,71 +1,89 @@
 ---
 title: Chat
-description: Your AI command center. Talk to Sim — build and manage everything in natural language.
+description: Build workflows, research sources, and manage workspace resources by talking to Sim.
 ---
 
-import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
 
-<Video src="mothership/create-workflow.mp4" width={700} height={450} />
+Ask Sim to build workflows, research a topic, create files, query tables, or act through connected services. Name the resources and result you want.
 
-Use Chat to build workflows, research a topic, generate files, query tables, schedule jobs, and act through connected integrations. Reference the workspace resources you want Sim to use.
+<Image
+  variant="overview"
+  src="/static/introduction/platform.webp"
+  alt="Sim Chat summarizing the release tracker beside the open table"
+  width={2400}
+  height={1200}
+  background="san-francisco"
+/>
 
-## What You Can Do
+## What you can do
 
-| Area | What Sim can do |
-|------|-----------------------|
-| **[Workflows](/chat/workflows)** | Build, edit, run, debug, deploy, and organize workflows |
-| **[Research](/chat/research)** | Search the web, read pages, crawl sites, produce research reports |
-| **[Files & Documents](/chat/files)** | Upload, create, edit, and generate documents, presentations, and images |
-| **[Tables](/chat/tables)** | Create, query, update, and export workspace tables |
-| **[Automation & Configuration](/chat/tasks)** | Schedule jobs, take immediate actions, connect integrations, manage tools |
-| **[Knowledge Bases](/chat/knowledge)** | Create knowledge bases, add documents, and query content in plain language |
+| Task | Examples |
+| --- | --- |
+| [Workflows](/chat/workflows) | Build, edit, test, debug, deploy, and organize workflows |
+| [Research](/chat/research) | Search web sources, read pages, and save cited reports |
+| [Files and documents](/chat/files) | Process attachments; create or edit documents, presentations, images, and charts |
+| [Tables](/chat/tables) | Create tables, query or update rows, and export data |
+| [Actions and configuration](/chat/tasks) | Call connected services, set up recurring workflows, and manage credentials, secrets, and tools |
+| [Knowledge bases](/chat/knowledge) | Add documents and connectors, search content, and configure workflow retrieval |
+| [Sim Mailer](/chat/mailer) | Submit tasks by email to an enabled workspace inbox |
 
-## How It Works
+## Start a chat [#how-it-works]
 
-Sim can find workspace resources by name and inspect the details it needs. Reference a resource explicitly when you want to direct its attention:
+1. Select **New chat** in the sidebar.
+2. Choose **Build** for the workspace actions described in this section. Where available, **Search** answers questions from connected sources.
+3. Describe the task, its inputs, and the result you want.
 
-- "Run the invoice workflow"
-- "Add a row to the leads table"
-- "Deploy the summarizer as a chat"
+**Plan** helps research needs and develop a solution before implementation. It appears only for eligible platform administrators with **Super admin mode** enabled on a deployment that enables this capability. An organization Admin role alone does not enable it.
 
-No configuration, no context-setting. Just describe what you want:
+For example:
 
-- "Build a lead enrichment workflow that scores inbound signups and writes the results to the leads table"
-- "Research our top 5 competitors and save a battle card for each one"
-- "Schedule a daily job that checks for new high-fit prospects and posts them to #outbound in Slack"
-- "Create a workflow that takes a contract PDF, extracts the key terms, and emails a summary to legal"
+- "Build a lead enrichment workflow that scores inbound signups and writes the results to the leads table."
+- "Research our top five competitors and save a battle card for each one."
+- "Create a workflow that takes a contract PDF, extracts key terms, and emails a summary to legal."
+- "Add a daily schedule to the prospect workflow and deploy it. At 8am America/New_York, find new high-fit prospects and post them to #outbound in Slack."
 
-For complex tasks, Sim delegates to specialized subagents automatically. You'll see them appear as collapsible sections in the chat while they work — building, researching, writing files, executing actions.
+Chat can work across accessible resources. When you open Sim inside a workflow, that conversation is scoped to the workflow. In the organization view, **Build** requires permission to create organization workspaces; each action in an existing workspace still checks its access and enabled capabilities. Available actions depend on your role, connected accounts, workspace settings, and organization policy. Planning a solution does not by itself authorize deploying it or sending messages.
 
-{/* TODO: Screenshot of Chat showing a subagent section expanded mid-task — e.g., the Build or Research subagent actively working, with its collapsible header and steps visible in the thread. */}
+## Add context [#adding-context]
 
-## Adding Context
+Use the **+** menu, type `@` followed by a resource name, or drag an item from the sidebar into the input. You can reference workflows, tables, files, knowledge bases, folders, and earlier chats. Naming a resource in a request also helps Sim find it:
 
-Bring any workspace object into the conversation via the **+** menu, `@`-mentions, or drag-and-drop from the sidebar. Sim also opens resources automatically when it creates or modifies them.
+- "Run the invoice workflow."
+- "Add a row to the leads table."
+- "Deploy the summarizer as a chat."
 
-<Video src="mothership/context-menu.mp4" width={700} height={450} />
+Attach a supported file when Sim needs its contents. Attachments stay with the conversation; ask Sim to save a copy to workspace **Files** when teammates or workflows need it. See [files in Chat](/chat/files).
 
-{/* TODO: Screenshot of the resource panel with multiple tabs open — a workflow tab, a table tab, and a file tab — showing different resource types side by side. */}
+## Inspect progress and resources [#layout]
 
-| What to add | How it appears |
-|-------------|---------------|
-| **Workflow** | Interactive canvas in the resource panel |
-| **Table** | Full table editor in the resource panel |
-| **File** | File viewer with editor, split, and preview modes |
-| **Knowledge Base** | Knowledge base management UI |
-| **Folder** | Folder contents |
-| **Past task** | A previous Chat conversation |
+The chat thread appears beside a resource panel. Workflows open in the workflow builder, tables in the table editor, knowledge bases in their management view, and files in a viewer appropriate to their type. Sim can open resources as it creates or modifies them.
 
-## Layout
+Resize the panel, drag tabs to reorder them, and close tabs you no longer need. For larger requests, Sim may delegate parts of the work to other agents. Expand their activity in the chat to inspect progress.
 
-Chat has two panes. On the left: the chat thread, where your messages and Sim's responses appear. On the right: the resource panel, where workflows, tables, files, and knowledge bases open as tabs. The panel is resizable; tabs are draggable and closeable.
+Messages in the same conversation queue while Sim is working. You can edit or remove a queued message, or use **Send now** to stop the current turn and send that message. Use **Stop generation** to stop the current response.
 
-<Video src="mothership/split-view.mp4" width={700} height={450} />
+### Find text in a conversation
 
-<FAQ items={[
-  { question: "How is Chat different from working inside a single workflow?", answer: "Inside a workflow, Sim is scoped to that workflow — it helps you build and edit that one thing. In Chat, Sim has access to your entire workspace and can build workflows, manage data, run research, schedule jobs, take actions across integrations, and more." },
-  { question: "How do I reference an existing workflow or table?", answer: "Type @ followed by the name in the input, use the + menu, or drag the item from the sidebar into the chat." },
-  { question: "How long can a Chat task run?", answer: "Up to one hour. For tasks that exceed that, set up a scheduled job or break the work into steps." },
-  { question: "Can Sim work on multiple things at once?", answer: "Sim processes one message at a time. You can queue messages — they will be processed in order." },
-]} />
+With the chat pane focused, press **Cmd/Ctrl + F** to open **Find in chat**. Enter text, then use **Enter** or **Shift + Enter** to move between matches. Press **Escape** to close it.
+
+Find searches loaded user and assistant message text, excluding tool/activity cards and hidden reasoning. Older messages load progressively when you reopen a conversation. While that history is loading, or if loading fails, a missing match does not establish that the message is absent. Find keeps up to 500 matches, prioritizing recent messages; a `+` after the count indicates more matches.
+
+When native Mac app control is available in Sim Desktop, Chat also shows the active app/action and a **Stop** control. See [Computer Use](/desktop#native-mac-app-control) for device opt-in, app approvals, and macOS permissions.
+
+## Permissions and limits
+
+Reading a resource does not grant permission to edit or execute it. Workspace writes and runs require the relevant access, and organization policies can restrict individual capabilities.
+
+Chat can mask tracked secret values or withhold stored files, table rows, and knowledge content it cannot safely check before it reaches the model. This check is separate from workspace access and tool approval. A resource can remain available in your workspace even when its content is unavailable to Chat.
+
+When tool permissions require a decision, review the action and choose **Allow** or **Skip**. **Don't ask again** offers **For this chat** and **For every chat**, subject to policy. Approval does not expand your underlying resource access.
+
+Chat runs are subject to the deployment's configured runtime and usage limits. Split long work into steps; use a deployed workflow for recurring execution. Check the result and any remaining setup or failed actions before treating the task as complete.
+
+## Related docs
+
+- [Search](/search)
+- [Permissions](/platform/permissions)
+- [Credentials](/platform/credentials)
+- [Costs](/platform/costs)

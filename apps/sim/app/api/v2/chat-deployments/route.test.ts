@@ -37,7 +37,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/chat-deployments/queries', () => ({
   listWorkspaceChatDeployments: mocks.listDeployments,
@@ -87,7 +87,7 @@ function chatRow(overrides: Record<string, unknown> = {}) {
     allowedEmails: [],
     outputConfigs: [],
     includeThinking: false,
-    includeToolCalls: null,
+    includeToolCalls: false,
     archivedAt: null,
     createdAt: new Date('2026-06-12T10:30:00.000Z'),
     updatedAt: new Date('2026-06-12T10:30:00.000Z'),

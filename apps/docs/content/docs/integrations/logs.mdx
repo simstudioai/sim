@@ -1,25 +1,20 @@
 ---
 title: Logs
 description: Query workflow runs and fetch run details
+integration:
+  type: "logs_v2"
+  color: "#EAB308"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="logs_v2"
-  color="#EAB308"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 The Logs block queries workflow run history in the current workspace. **Query Logs** filters runs and returns matching run IDs; **Get Run Details** retrieves one run’s status, trigger, timing, cost, final output, and trace spans. See [Using Logs in Workflows](/workflows/blocks/logs) for a query-and-inspect example.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Query workflow run logs in the current workspace with the same filters as the Logs page, returning matching run IDs. Fetch full details for a single run, including its trace spans.
-
-
 
 ## Actions
 

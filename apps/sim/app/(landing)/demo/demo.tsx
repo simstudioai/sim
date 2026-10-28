@@ -1,4 +1,4 @@
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 import { DemoBooking } from '@/app/(landing)/demo/components/demo-booking'
 

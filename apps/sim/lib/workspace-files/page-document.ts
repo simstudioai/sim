@@ -14,7 +14,10 @@ import { simPageSourceEmbedBlock } from '@/lib/workspace-files/page-source-embed
  * every surface shows the identical docs-styled page; this bakes them in so
  * the document also stands alone in a plain browser tab.
  */
-export function renderSimPageDocument(source: string, options?: { workspaceId?: string }): string {
+export function renderSimPageDocument(
+  source: string,
+  options?: { workspaceId?: string; projectId?: string }
+): string {
   // Absolute app URLs: the standalone document is also what a user
   // downloads, and a downloaded page's links and images must reach Sim
   // the way an absolute link in a downloaded .md does.

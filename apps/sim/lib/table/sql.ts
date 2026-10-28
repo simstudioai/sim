@@ -19,7 +19,7 @@ import {
   SINGLE_SELECT_OPERATORS,
   SINGLE_SELECT_OPS,
 } from '@/lib/table/column-types'
-import { columnTextForEquality } from '@/lib/table/column-types/comparison-sql'
+import { columnTextForEquality, equalityCast } from '@/lib/table/column-types/comparison-sql'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { TableQueryValidationError } from '@/lib/table/errors'
@@ -35,11 +35,8 @@ import type {
   TablePredicate,
 } from '@/lib/table/types'
 
-/**
- * Re-exported: the `$`-prefixed wire whitelists now live with the `select` type
- * definition, but this module is where callers and tests already look for them.
- */
-export { MULTI_SELECT_OPERATORS, MULTI_SELECT_OPS, SINGLE_SELECT_OPERATORS, SINGLE_SELECT_OPS }
+/** The `$`-prefixed wire whitelists, defined with the `select` column type. */
+export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
 
 type ColumnType = ColumnDefinition['type']
 type ColumnMap = ReadonlyMap<string, ColumnDefinition>
@@ -630,10 +627,10 @@ export function fieldPredicate(
       : value
 
   const equalityClause = (operand: JsonValue): SQL => {
-    const definition = column && columnTypeOf(column)
-    if (column && operand !== null && definition?.valueForEquality && definition.jsonbCast) {
+    const cast = column && equalityCast(column)
+    if (column && operand !== null && cast) {
       const cell = columnTextForEquality(sql.raw(`${tableName}.data->>'${field}'`), column)
-      return sql`COALESCE(${cell} = ${operand}::${sql.raw(definition.jsonbCast)}, false)`
+      return sql`COALESCE(${cell} = ${operand}::${sql.raw(cast)}, false)`
     }
     return buildContainmentClause(tableName, field, operand)
   }

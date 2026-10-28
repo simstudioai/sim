@@ -1,0 +1,23 @@
+query($base: String!, $head: String!) {
+  packages { items { name path } }
+  affectedTasks(base: $base, head: $head, tasks: [
+    "test", "build", "type-check", "ci:integration", "ci:desktop-live",
+    "ci:e2e-scim", "ci:e2e-cli", "ci:e2e-stop-after", "ci:e2e-desktop-inbox",
+    "ci:e2e-project-files", "ci:e2e-mobile", "ci:e2e-seo"
+  ]) {
+    items {
+      name
+      fullName
+      package { name }
+      reason {
+        __typename
+        ... on TaskFileChanged { filePath }
+        ... on TaskGlobalFileChanged { filePath }
+        ... on TaskGlobalDepsChanged { filePath }
+        ... on TaskDependencyTaskChanged { taskName packageName }
+        ... on TaskPackageDependencyChanged { packageName }
+        ... on TaskAllChanged { description }
+      }
+    }
+  }
+}

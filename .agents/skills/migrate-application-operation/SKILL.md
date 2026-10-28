@@ -47,7 +47,7 @@ Read these files completely before editing:
 - `apps/sim/lib/api/server/routes/internal-json-route.ts`
 - `apps/sim/lib/api/server/routes/v2-json-route.ts`
 - `apps/sim/lib/auth/internal-delegation.ts`
-- `apps/sim/lib/mothership/application/application-adapter.ts`
+- `apps/sim/lib/mothership/application/adapter.ts`
 - `apps/sim/lib/mothership/auth/application-delegation.ts`
 
 Use the file domain only as a representative golden slice:
@@ -226,7 +226,7 @@ Do not call shared authorization, principal audit attribution, or `recordAudit` 
 
 Inspect legacy orchestration before reusing it. If it already authorizes, audits, notifies, or captures analytics, call a lower-level primitive or remove duplicate responsibility for migrated callers.
 
-Application code must remain surface-neutral. It must not import `app/api/**`, `next/server`, internal/v1/v2 contracts or presenters, or Copilot tool handlers. Return domain values and let each surface presenter project its own wire result.
+Application code stays surface-neutral (`check:boundaries`): never `next/server` or `app/api/**`, and never a runtime import of a route contract object, presenter, or Copilot handler (contract types, schemas, and constants are fine); a surface fact, such as a cursor's route, comes in as input. Return domain values and let each surface presenter project its own wire result.
 
 ## Adapt internal APIs
 

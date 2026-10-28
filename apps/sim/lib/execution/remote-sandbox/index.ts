@@ -16,13 +16,14 @@ import {
   createSandbox,
   createSelectedSandbox,
 } from '@/lib/execution/remote-sandbox/create'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
+import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
 import {
   prepareSandboxSessionAccess,
   reportUnsettledSandboxProcess,
   retainSandboxExecution,
   sandboxSessionInputProvenance,
-} from '@/lib/execution/remote-sandbox/execution-observer'
-import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
+} from '@/lib/execution/remote-sandbox/observer'
 import {
   attachTrustedSandboxOutputCost,
   isSandboxOutputFileError,
@@ -37,6 +38,10 @@ import {
   SandboxOutputFileCountError,
   SandboxOutputLimitError,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import {
+  SANDBOX_OUTPUT_DIR_MAX_DEPTH,
+  SANDBOX_OUTPUT_DIR_SENTINEL,
+} from '@/lib/execution/remote-sandbox/paths'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import {
@@ -45,11 +50,6 @@ import {
   RUNTIME_INSTALL_TIMEOUT_MS,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
-import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
-import {
-  SANDBOX_OUTPUT_DIR_MAX_DEPTH,
-  SANDBOX_OUTPUT_DIR_SENTINEL,
-} from '@/lib/execution/remote-sandbox/sandbox-paths'
 import {
   ensureSessionSandbox,
   SESSION_SANDBOX_IDLE_MS,
@@ -135,6 +135,8 @@ async function leaseSandbox(
         created,
         session: status,
         release: async () => {
+          // A deadline that already covers the idle window needs no serialized update.
+          if (created.sandbox.outlives?.(SESSION_SANDBOX_IDLE_MS, Date.now())) return
           // Cleanup failure cannot relabel a completed mutation as a failed execution.
           try {
             await withSandboxSessionLock(session.key, AbortSignal.timeout(30_000), async () => {

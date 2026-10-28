@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { requireAdmittedContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
@@ -11,7 +12,7 @@ import {
 } from '@/lib/knowledge/secret-provenance'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 
 export interface ReadOriginalKnowledgeDocumentInput {
   knowledgeBaseId: string
@@ -31,7 +32,7 @@ export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ReadOriginalKnowledgeDocumentInput
   }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ input, context, principal }) {
     const maxBytes = input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_TEXT_EXTRACTION_BYTES)
       throw new OrchestrationError('validation', 'Invalid document read byte limit')
@@ -45,23 +46,31 @@ export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       processingStatus: doc.processingStatus,
       indexReady: doc.enabled && doc.processingStatus === 'completed',
     }
-    const unavailable = { ...metadata, sourceAvailable: false as const, buffer: undefined }
     if (doc.fileSize > maxBytes)
       throw new OrchestrationError(
         'payload_too_large',
         'Document exceeds the source read byte limit'
       )
     const snapshot = await loadKnowledgeDocumentDurableSecretProvenance(doc.id)
-    if (
-      hashDurableSecretProvenanceValue(snapshot.source) !==
-        hashDurableSecretProvenanceValue(createKnowledgeDocumentSourceValue(doc)) ||
-      snapshot.provenance.status !== 'exact' ||
-      snapshot.provenance.entries.length !== 0
-    ) {
-      throw new OrchestrationError(
-        'forbidden',
-        'This document has no verified secret-free original. Read its projected indexed passages instead.'
-      )
+    const provenance =
+      snapshot.storageKey === doc.storageKey &&
+      hashDurableSecretProvenanceValue(snapshot.source) ===
+        hashDurableSecretProvenanceValue(createKnowledgeDocumentSourceValue(doc))
+        ? snapshot.provenance
+        : ({ status: 'unknown' } as const)
+    await requireAdmittedContent(principal, {
+      kind: 'knowledge-document',
+      id: doc.id,
+      provenance,
+      view: 'complete',
+    })
+    /** A visual of these bytes would show what text redaction hides. */
+    const hasRecordedSecrets = provenance.status === 'exact' && provenance.entries.length > 0
+    const unavailable = {
+      ...metadata,
+      sourceAvailable: false as const,
+      buffer: undefined,
+      hasRecordedSecrets,
     }
     if (!doc.storageKey && !doc.fileUrl.startsWith('data:')) return unavailable
     let buffer: Buffer
@@ -84,6 +93,6 @@ export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       throw error
     }
     input.signal?.throwIfAborted()
-    return { ...metadata, sourceAvailable: true as const, buffer }
+    return { ...metadata, sourceAvailable: true as const, buffer, hasRecordedSecrets }
   },
 })

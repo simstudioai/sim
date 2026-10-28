@@ -203,6 +203,61 @@ describe('sim workflows run --follow', () => {
     })
   })
 
+  it('sends --stop-after with a block entry so one block re-runs against the source run', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(
+      WORKFLOW_ID,
+      '--from-block',
+      'agent-1',
+      '--source-run',
+      'run-1',
+      '--stop-after',
+      'agent-1'
+    )
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      run: {
+        source: 'manual',
+        entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
+        stopAfterBlockId: 'agent-1',
+      },
+    })
+  })
+
+  it('lets --stop-after alone imply a manual run through the trigger', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1')
+    await run(WORKFLOW_ID, '--trigger', 'start', '--stop-after', 'agent-1')
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      run: { source: 'manual', stopAfterBlockId: 'agent-1' },
+    })
+    expect(requestRaw.mock.calls[1][1].body).toEqual({
+      run: {
+        source: 'manual',
+        entry: { type: 'trigger', blockId: 'start' },
+        stopAfterBlockId: 'agent-1',
+      },
+    })
+  })
+
+  it('refuses an empty --stop-after rather than running the whole draft', async () => {
+    await expect(run(WORKFLOW_ID, '--stop-after', '')).rejects.toThrow(
+      '--stop-after requires a block ID'
+    )
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('refuses --stop-after with --async before sending anything', async () => {
+    await expect(run(WORKFLOW_ID, '--stop-after', 'agent-1', '--async')).rejects.toThrow(
+      'Manual execution does not support --async'
+    )
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
   it('prints then fails for a failed NDJSON run just like the JSON path', async () => {
     requestRaw.mockResolvedValue(
       ndjsonResponse({

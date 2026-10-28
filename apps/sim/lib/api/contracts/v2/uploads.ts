@@ -11,7 +11,6 @@ export const v2UploadStatusSchema = z.enum([
   'aborted',
   'expired',
 ])
-export type V2UploadStatus = z.output<typeof v2UploadStatusSchema>
 
 export const v2UploadTokenHeadersSchema = z.object({
   'upload-token': z
@@ -19,7 +18,6 @@ export const v2UploadTokenHeadersSchema = z.object({
     .min(1, 'upload-token header is required')
     .describe('Signed upload control token returned when the upload session was created.'),
 })
-export type V2UploadTokenHeaders = z.input<typeof v2UploadTokenHeadersSchema>
 
 export const v2OptionalUploadTokenHeadersSchema = z.object({
   'upload-token': z.string().min(1, 'upload-token header cannot be empty').optional(),
@@ -84,7 +82,6 @@ export const v2UploadTransferSchema = z.discriminatedUnion('method', [
   v2PutUploadTransferSchema,
   v2MultipartUploadTransferSchema,
 ])
-export type V2UploadTransfer = z.output<typeof v2UploadTransferSchema>
 
 export const v2PartUrlsBodySchema = z
   .object({
@@ -95,7 +92,6 @@ export const v2PartUrlsBodySchema = z
       .describe('Multipart part numbers for which signed URLs should be created.'),
   })
   .strict()
-export type V2PartUrlsBody = z.input<typeof v2PartUrlsBodySchema>
 
 export const v2UploadPartUrlSchema = z
   .object({
@@ -127,4 +123,3 @@ export const v2PartUrlsDataSchema = z
     title: 'Upload part URLs',
     description: 'Signed transfer URLs for the requested multipart upload parts.',
   })
-export type V2PartUrlsData = z.output<typeof v2PartUrlsDataSchema>

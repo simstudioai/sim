@@ -4,7 +4,7 @@
  * (`cli_<command path with spaces/dashes as underscores>`).
  *
  * Generated from the sim CLI command inventory; present-participle titles so
- * the standard completed/failed tense projection in `tool-display.ts` applies.
+ * the standard completed/failed tense projection in `tools/display.ts` applies.
  * Regenerate when the CLI command surface changes.
  */
 export const CLI_TOOL_TITLES: Record<string, string> = {
@@ -78,6 +78,9 @@ export const CLI_TOOL_TITLES: Record<string, string> = {
   cli_knowledge_folders_move: 'Moving knowledge folder',
   cli_knowledge_from_workspace_files_create: 'Creating knowledge base',
   cli_knowledge_get: 'Reading knowledge base',
+  cli_knowledge_import: 'Importing knowledge base',
+  cli_knowledge_imports_cancel: 'Cancelling knowledge base import',
+  cli_knowledge_imports_get: 'Reading knowledge base import',
   cli_knowledge_list: 'Listing knowledge bases',
   cli_knowledge_ls: 'Listing knowledge bases',
   cli_knowledge_mkdir: 'Creating knowledge base',

@@ -1,12 +1,38 @@
+import { isRecordLike } from '@sim/utils/object'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import type {
   DatabricksGenieAgentItem,
   DatabricksGenieMessage,
   DatabricksGenieSpace,
+  DatabricksListWarehousesResponse,
   DatabricksStatementResult,
 } from '@/tools/databricks/types'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+
+/** Omits blank optional controls so the provider can apply its defaults. */
+export function optionalDatabricksString(value: string | null | undefined): string | undefined {
+  return value?.trim() || undefined
+}
+
+/** Parses structured API inputs from a code field or a resolved workflow value. */
+export function parseDatabricksJson(
+  value: unknown,
+  field: string,
+  shape: 'array' | 'object'
+): Record<string, unknown> | unknown[] | undefined {
+  if (value == null || value === '') return undefined
+  let parsed: unknown
+  try {
+    parsed = typeof value === 'string' ? JSON.parse(value) : value
+  } catch {
+    throw new Error(`${field} must be a valid JSON ${shape}`)
+  }
+  if (shape === 'array' ? !Array.isArray(parsed) : !isRecordLike(parsed)) {
+    throw new Error(`${field} must be a JSON ${shape}`)
+  }
+  return parsed as Record<string, unknown> | unknown[]
+}
 
 /** Message states after which Genie will not change a chat-mode message further. */
 export const GENIE_TERMINAL_STATUSES = new Set([
@@ -216,9 +242,17 @@ export interface StatementResponsePayload {
   manifest?: {
     schema?: { columns?: Array<{ name?: string; position?: number; type_name?: string }> }
     total_row_count?: number
+    total_chunk_count?: number
     truncated?: boolean
   }
-  result?: { data_array?: Array<Array<string | null>> }
+  result?: {
+    data_array?: Array<Array<string | null>>
+    chunk_index?: number
+    row_offset?: number
+    row_count?: number
+    next_chunk_index?: number
+    next_chunk_internal_link?: string
+  }
 }
 
 /**
@@ -231,7 +265,7 @@ export function mapStatementResult(
   if (statement?.status?.state === 'FAILED') {
     throw new Error(
       statement.status.error?.message ||
-        `Genie query execution failed: ${statement.status.error?.error_code ?? 'UNKNOWN'}`
+        `SQL statement execution failed: ${statement.status.error?.error_code ?? 'UNKNOWN'}`
     )
   }
   return {
@@ -246,6 +280,12 @@ export function mapStatementResult(
     data: statement?.result?.data_array ?? null,
     totalRows: statement?.manifest?.total_row_count ?? null,
     truncated: statement?.manifest?.truncated ?? false,
+    totalChunks: statement?.manifest?.total_chunk_count ?? null,
+    chunkIndex: statement?.result?.chunk_index ?? null,
+    rowOffset: statement?.result?.row_offset ?? null,
+    rowCount: statement?.result?.row_count ?? null,
+    nextChunkIndex: statement?.result?.next_chunk_index ?? null,
+    nextChunkInternalLink: statement?.result?.next_chunk_internal_link ?? null,
   }
 }
 
@@ -257,6 +297,7 @@ interface GenieSpacePayload {
   parent_path?: string
   create_time?: string
   update_time?: string
+  etag?: string
 }
 
 /** Maps a Genie space, leaving out the `serialized_space` export. */
@@ -269,6 +310,7 @@ export function mapGenieSpace(space: GenieSpacePayload): DatabricksGenieSpace {
     parentPath: space.parent_path ?? null,
     createTime: space.create_time ?? null,
     updateTime: space.update_time ?? null,
+    etag: space.etag ?? null,
   }
 }
 
@@ -423,4 +465,51 @@ export function genieAgentErrorMessage(error: unknown): string {
   const message = (error as { message?: unknown } | null)?.message
   if (typeof message === 'string' && message) return message
   return error ? JSON.stringify(error) : 'Genie agent response failed'
+}
+
+/** Maps warehouse settings and health without returning the entire provider response. */
+export function mapWarehouse(warehouse: {
+  jdbc_url?: string
+  odbc_params?: Record<string, unknown>
+  health?: Record<string, unknown>
+  tags?: Record<string, unknown>
+  enable_photon?: boolean
+  spot_instance_policy?: string
+  channel?: Record<string, unknown>
+  statement_timeout?: number
+  id?: string
+  name?: string
+  cluster_size?: string
+  state?: string
+  warehouse_type?: string
+  creator_name?: string
+  auto_stop_mins?: number
+  num_clusters?: number
+  min_num_clusters?: number
+  max_num_clusters?: number
+  num_active_sessions?: number
+  enable_serverless_compute?: boolean
+}): DatabricksListWarehousesResponse['output']['warehouses'][number] {
+  return {
+    jdbcUrl: warehouse.jdbc_url ?? null,
+    odbcParams: warehouse.odbc_params ?? null,
+    health: warehouse.health ?? null,
+    tags: warehouse.tags ?? null,
+    enablePhoton: warehouse.enable_photon ?? null,
+    spotInstancePolicy: warehouse.spot_instance_policy ?? null,
+    channel: warehouse.channel ?? null,
+    statementTimeout: warehouse.statement_timeout ?? null,
+    warehouseId: warehouse.id ?? '',
+    name: warehouse.name ?? '',
+    clusterSize: warehouse.cluster_size ?? '',
+    state: warehouse.state ?? 'UNKNOWN',
+    warehouseType: warehouse.warehouse_type ?? '',
+    creatorName: warehouse.creator_name ?? '',
+    autoStopMinutes: warehouse.auto_stop_mins ?? 0,
+    numClusters: warehouse.num_clusters ?? 0,
+    minNumClusters: warehouse.min_num_clusters ?? 0,
+    maxNumClusters: warehouse.max_num_clusters ?? 0,
+    numActiveSessions: warehouse.num_active_sessions ?? 0,
+    enableServerlessCompute: warehouse.enable_serverless_compute ?? false,
+  }
 }

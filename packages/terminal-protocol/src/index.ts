@@ -86,9 +86,17 @@ export const MAX_CAPTURE_CHARS = 512_000
  * `terminal_read`. Successive reads are also how it tells progress from a
  * stall — output that stops changing is a command waiting on input or wedged.
  */
-export const DEFAULT_RUN_WAIT_MS = 30_000
+const DEFAULT_RUN_WAIT_MS = 30_000
 
-export const MAX_RUN_WAIT_MS = 120_000
+const MAX_RUN_WAIT_MS = 120_000
+
+/** How long one `terminal_run` holds the turn, from the `waitSeconds` the model asked for. */
+export function resolveRunWaitMs(waitSeconds: unknown): number {
+  const requested = Number(waitSeconds)
+  return Number.isFinite(requested) && requested > 0
+    ? Math.min(requested * 1000, MAX_RUN_WAIT_MS)
+    : DEFAULT_RUN_WAIT_MS
+}
 
 /**
  * How long output must be silent, with the cursor left mid-line, before the
@@ -169,8 +177,8 @@ export interface TerminalToolArgs {
    */
   terminalId?: string
   /**
-   * Which tmux pane to act on, as a tmux target (`session:window.pane`), for
-   * a terminal that has tmux attached. Omitting it uses that session's active
+   * Which tmux pane to act on, as a tmux target (`session:window.pane`, or a
+   * run's pane id `%N`), for a terminal that has tmux attached. Omitting it uses that session's active
    * pane. Ignored when the terminal is a plain shell.
    */
   pane?: string
@@ -206,7 +214,10 @@ export interface TerminalRunResult {
   durationMs: number
   cwd: string | null
   terminalId: string
-  /** Set when the command ran in tmux: the target it ran under. */
+  /**
+   * Set when the command ran in tmux: its own pane's id (`%N`), a tmux target that `read`,
+   * `input`, `kill` and `close` accept as `pane`.
+   */
   pane?: string
   /** True when output was elided to fit {@link MAX_TOOL_OUTPUT_CHARS}. */
   truncated: boolean
@@ -446,6 +457,8 @@ export type TerminalErrorCode =
   /** No pane with that target — the targets come from the `panes` operation. */
   | 'NO_SUCH_PANE'
   | 'INVALID_REQUEST'
+  /** The call was stopped before its command started; nothing ran. */
+  | 'CANCELLED'
 
 export interface TerminalStartOptions {
   cols: number

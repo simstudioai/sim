@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Chip, cn, useNativeSurfaceOcclusionReady } from '@sim/emcn'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 
 /**

@@ -1,36 +1,34 @@
 ---
 title: SAP S4HANA
 description: Read and write SAP S4HANA Cloud business data via OData
+integration:
+  type: "sap_s4hana"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sap_s4hana"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [SAP S4HANA](https://www.sap.com/products/erp/s4hana.html) exposes business records through OData services. Use this integration to work with master data, sales and purchasing documents, deliveries, invoices, and stock records. Select the deployment mode and authentication method that match your tenant; the setup details below cover Cloud Public Edition, Cloud Private Edition, and on-premise deployments.
 {/* MANUAL-CONTENT-END */}
 
-
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 {/* MANUAL-CONTENT-START:usage */}
-Connect any SAP S4HANA tenant — **Cloud Public Edition**, **Cloud Private Edition (RISE)**, or **on-premise** — and read or write business data through the official OData v2 services.
+The block uses OData v2 services. Availability depends on your tenant’s enabled services, communication arrangements, authentication, and network access.
 
 ## Deployment modes
 
 Pick the deployment that matches your tenant in the **Deployment** dropdown:
 
-- **S4HANA Cloud Public Edition** — provide your **BTP subaccount subdomain** and **region** (e.g., `eu10`, `us10`). The host is derived automatically as `{subdomain}-api.s4hana.ondemand.com`, and OAuth tokens are fetched from the matching BTP UAA endpoint. Authentication is OAuth 2.0 client credentials configured in a Communication Arrangement.
+- **S4HANA Cloud Public Edition** — provide your **BTP subaccount subdomain** and **region** (e.g., `eu10`, `us10`). Sim derives the API host as `{subdomain}-api.s4hana.ondemand.com` and the BTP UAA token endpoint from those fields. Use this mode only when both derived endpoints match your tenant’s configuration; a BTP subaccount name alone does not prove the S4HANA API hostname. Confirm the API URL in your Communication Arrangement and provision client credentials for the matching token service.
 - **S4HANA Cloud Private Edition (RISE)** — provide your **OData Base URL** (e.g., `https://my-tenant.s4hana.cloud.sap`). Authenticate with **OAuth 2.0 client credentials** (provide the tenant's UAA `tokenUrl`, `clientId`, `clientSecret`) or **HTTP Basic** with a Communication User (`username`, `password`).
 - **On-premise S4HANA** — provide your **OData Base URL** (e.g., `https://sap.internal.company.com:44300`). Authenticate with **OAuth 2.0 client credentials** issued by your on-prem identity provider, or **HTTP Basic** with a service user.
 
 ## What you can do
 
-Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices. Update business partners, customers, suppliers, products, sales orders, purchase orders, and purchase requisitions with PATCH. Run arbitrary OData v2 queries against any whitelisted Communication Scenario or registered service.
+Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices. Update business partners, customers, suppliers, products, sales orders, purchase orders, and purchase requisitions with HTTP `MERGE` (OData v2 partial updates). Run OData v2 queries against services enabled for the connected account. An enabled Communication Scenario does not grant access to unrelated services.
 
 ## Optimistic concurrency
 
@@ -40,13 +38,13 @@ All update tools accept an optional `ifMatch` ETag. When omitted, `If-Match` def
 
 Connect SAP S4HANA Cloud Public Edition, Cloud Private Edition, or an on-premise tenant using the deployment and authentication settings for that tenant. Read and manage business records through the listed OData operations.
 
-
-
 ## Actions
 
 ### SAP S/4HANA List Business Partners
 
 List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -91,9 +89,13 @@ List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessP
 |   ↳ `LastChangeDate` | string | Date of last change \(OData /Date\(...\)/ literal\) |
 |   ↳ `LastChangedByUser` | string | User who last changed the business partner |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Business Partner
 
 Retrieve a single business partner by BusinessPartner key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -137,9 +139,13 @@ Retrieve a single business partner by BusinessPartner key from SAP S/4HANA Cloud
 |   ↳ `LastChangeDate` | string | Date of last change \(OData /Date\(...\)/ literal\) |
 |   ↳ `LastChangedByUser` | string | User who last changed the business partner |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Create Business Partner
 
 Create a business partner in SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner). For Person category 1 provide FirstName and LastName. For Organization category 2 provide OrganizationBPName1.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -181,9 +187,13 @@ Create a business partner in SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Business
 |   ↳ `CreatedByUser` | string | User who created the business partner |
 |   ↳ `LastChangeDate` | string | Date of last change \(OData /Date\(...\)/ literal\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Update Business Partner
 
 Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates. Deep updates on nested associations (e.g. to_BusinessPartnerAddress) are not supported by SAP (KBA 2833338) — use the dedicated child endpoints.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -219,9 +229,13 @@ Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_
 |   ↳ `LastChangeDate` | string | Date of last change \(OData /Date\(...\)/ literal\) |
 |   ↳ `LastChangedByUser` | string | User who last changed the business partner |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Customers
 
 List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -274,9 +288,13 @@ List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with op
 |   ↳ `CreationDate` | string | Creation date \(OData v2 epoch\) |
 |   ↳ `CreatedByUser` | string | User who created the customer |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Customer
 
 Retrieve a single customer by Customer key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -326,9 +344,13 @@ Retrieve a single customer by Customer key from SAP S/4HANA Cloud (API_BUSINESS_
 |   ↳ `CreationDate` | string | Creation date \(OData v2 epoch\) |
 |   ↳ `CreatedByUser` | string | User who created the customer |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Update Customer
 
 Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Customer is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlocked, BillingIsBlockedForCustomer (Edm.String reason codes like "01"), PostingIsBlocked, and DeletionIndicator (Edm.Boolean). If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -363,9 +385,13 @@ Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER
 |   ↳ `DeliveryIsBlocked` | string | Central delivery block reason code |
 |   ↳ `BillingIsBlockedForCustomer` | string | Central billing block reason code |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Suppliers
 
 List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -435,9 +461,13 @@ List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with op
 |       ↳ `VATRegistration` | string | VAT registration number |
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Supplier
 
 Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -502,9 +532,13 @@ Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_
 |     ↳ `TaxNumberType` | string | Tax number type |
 |     ↳ `VATRegistration` | string | VAT registration number |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Update Supplier
 
 Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Supplier is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup; company-code/purchasing-org segments must be updated via the `to_SupplierCompany` / `to_SupplierPurchasingOrg` deep-update endpoints. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -540,9 +574,13 @@ Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER
 |     ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
 |     ↳ `DeletionIndicator` | boolean | Central deletion flag |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Sales Orders
 
 List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -591,9 +629,13 @@ List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) wit
 |       ↳ `OverallSDDocumentRejectionSts` | string | Overall sales document rejection status |
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Sales Order
 
 Retrieve a single sales order by SalesOrder key from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -640,9 +682,13 @@ Retrieve a single sales order by SalesOrder key from SAP S/4HANA Cloud (API_SALE
 |     ↳ `OverallSDDocumentRejectionSts` | string | Overall sales document rejection status |
 |     ↳ `to_Item` | json | Sales order items \(when $expand=to_Item\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Create Sales Order
 
 Create a sales order in SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with deep insert of sales order items via to_Item.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -686,9 +732,13 @@ Create a sales order in SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) wi
 |     ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
 |     ↳ `to_Item` | json | Deep-inserted sales order items as returned by SAP |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Update Sales Order
 
 Update fields on an A_SalesOrder header in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — deep updates to to_Item / to_Partner / to_PricingElement navigations are not supported (see SAP KBA 2833338); use A_SalesOrderItem operations for line-level changes. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -721,9 +771,13 @@ Update fields on an A_SalesOrder header in SAP S/4HANA Cloud (API_SALES_ORDER_SR
 |     ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
 |     ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Delete Sales Order
 
 Delete an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Only orders without subsequent documents (deliveries, invoices) can be deleted; otherwise reject items via update instead.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -749,9 +803,13 @@ Delete an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Only o
 | `status` | number | HTTP status code returned by SAP \(204 on success\) |
 | `data` | json | Null on successful deletion \(SAP returns 204 No Content\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Outbound Deliveries
 
 List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -801,9 +859,13 @@ List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=000
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 |     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Outbound Delivery
 
 Retrieve a single outbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -849,9 +911,13 @@ Retrieve a single outbound delivery by DeliveryDocument key from SAP S/4HANA Clo
 |     ↳ `to_DeliveryDocumentItem` | json | Delivery items \(when $expand=to_DeliveryDocumentItem\) |
 |     ↳ `to_DeliveryDocumentPartner` | json | Delivery partners \(when $expand=to_DeliveryDocumentPartner\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Inbound Deliveries
 
 List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -899,9 +965,13 @@ List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002,
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 |     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Inbound Delivery
 
 Retrieve a single inbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -945,9 +1015,13 @@ Retrieve a single inbound delivery by DeliveryDocument key from SAP S/4HANA Clou
 |     ↳ `to_DeliveryDocumentItem` | json | Delivery items \(when $expand=to_DeliveryDocumentItem\) |
 |     ↳ `to_DeliveryDocumentPartner` | json | Delivery partners \(when $expand=to_DeliveryDocumentPartner\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Billing Documents
 
 List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1010,9 +1084,13 @@ List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_D
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 |     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Billing Document
 
 Retrieve a single billing document (customer invoice) by BillingDocument key from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1072,9 +1150,13 @@ Retrieve a single billing document (customer invoice) by BillingDocument key fro
 |     ↳ `to_Partner` | json | Billing document partners \(when $expand=to_Partner\) |
 |     ↳ `to_PricingElement` | json | Billing document pricing elements \(when $expand=to_PricingElement\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Products
 
 List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1127,9 +1209,13 @@ List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) wi
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 |     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Product
 
 Retrieve a single product (material) by Product key from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1179,9 +1265,13 @@ Retrieve a single product (material) by Product key from SAP S/4HANA Cloud (API_
 |     ↳ `to_Plant` | json | Plant-level data \(when $expand=to_Plant\) |
 |     ↳ `to_ProductSales` | json | Sales data \(when $expand=to_ProductSales\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Update Product
 
 Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Flat scalar header fields only — deep/multi-entity updates across navigation properties are not supported by API_PRODUCT_SRV MERGE/PUT (see SAP KBA 2833338); update child entities (plant, valuation, sales data, etc.) via their own endpoints. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1215,9 +1305,13 @@ Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). Use
 |     ↳ `IsMarkedForDeletion` | boolean | Deletion flag |
 |     ↳ `LastChangeDate` | string | Last change date |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Material Stock
 
 List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A_MatlStkInAcctMod). The entity uses an 11-field composite key (Material, Plant, StorageLocation, Batch, Supplier, Customer, WBSElementInternalID, SDDocument, SDDocumentItem, InventorySpecialStockType, InventoryStockType) — query with $filter on these fields instead of a direct key lookup.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1260,9 +1354,13 @@ List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A
 |   ↳ `MatlWrhsStkQtyInMatlBaseUnit` | string | Material warehouse stock quantity in material base unit \(Edm.Decimal serialized as string\) |
 |   ↳ `MaterialBaseUnit` | string | Material base unit of measure |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Material Documents
 
 List material document headers (goods movements) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1307,9 +1405,13 @@ List material document headers (goods movements) from SAP S/4HANA Cloud (API_MAT
 |   ↳ `CtrlPostgForExtWhseMgmtSyst` | string | Control posting for external warehouse management system |
 |   ↳ `to_MaterialDocumentItem` | json | Material document items \(only present when $expand=to_MaterialDocumentItem is supplied\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Material Document
 
 Retrieve a single material document header by composite key (MaterialDocument + MaterialDocumentYear) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1352,9 +1454,13 @@ Retrieve a single material document header by composite key (MaterialDocument + 
 |   ↳ `CtrlPostgForExtWhseMgmtSyst` | string | Control posting for external warehouse management system |
 |   ↳ `to_MaterialDocumentItem` | json | Material document items \(only present when $expand=to_MaterialDocumentItem is supplied\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Purchase Requisitions
 
 List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1391,9 +1497,13 @@ List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, 
 |       ↳ `SourceDetermination` | string | Source-of-supply determination flag |
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Purchase Requisition
 
 Retrieve a single purchase requisition by PurchaseRequisition key from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1426,9 +1536,13 @@ Retrieve a single purchase requisition by PurchaseRequisition key from SAP S/4HA
 |     ↳ `SourceDetermination` | string | Source-of-supply determination flag |
 |     ↳ `to_PurchaseReqnItem` | json | Expanded PR items \(when $expand=to_PurchaseReqnItem\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Create Purchase Requisition
 
 Create a purchase requisition in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). PurchaseRequisition is auto-assigned by SAP from the document number range; provide line items via the to_PurchaseReqnItem deep-insert array. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1461,9 +1575,13 @@ Create a purchase requisition in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV,
 |     ↳ `SourceDetermination` | string | Source-of-supply determination flag |
 |     ↳ `to_PurchaseReqnItem` | json | Created PR items returned in deep insert |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Update Purchase Requisition
 
 Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — deep updates across navigations are not supported (SAP KBA 2833338); use the A_PurchaseReqnItem entity directly to modify items. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1495,9 +1613,13 @@ Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API
 |     ↳ `PurReqnDescription` | string | Purchase requisition description |
 |     ↳ `SourceDetermination` | string | Source-of-supply determination flag |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Purchase Orders
 
 List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1542,9 +1664,13 @@ List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_Pu
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 |     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Purchase Order
 
 Retrieve a single purchase order by PurchaseOrder key from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1589,9 +1715,13 @@ Retrieve a single purchase order by PurchaseOrder key from SAP S/4HANA Cloud (AP
 |     ↳ `LastChangeDateTime` | string | Last change timestamp \(OData /Date\(ms\)/\) |
 |     ↳ `to_PurchaseOrderItem` | json | Expanded PO items \(when $expand=to_PurchaseOrderItem\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Create Purchase Order
 
 Create a purchase order in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder). PurchaseOrder is auto-assigned by SAP from the document number range; provide line items via the body parameter.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1632,9 +1762,13 @@ Create a purchase order in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_P
 |     ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
 |     ↳ `to_PurchaseOrderItem` | json | Created PO items returned in deep insert |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Update Purchase Order
 
 Update fields on an A_PurchaseOrder header in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — line-item changes are not supported via deep update on the header (SAP KBA 2833338); use the A_PurchaseOrderItem entity directly to modify items. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1670,9 +1804,13 @@ Update fields on an A_PurchaseOrder header in SAP S/4HANA Cloud (API_PURCHASEORD
 |     ↳ `DocumentCurrency` | string | Document currency |
 |     ↳ `LastChangeDateTime` | string | Last change timestamp |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA List Supplier Invoices
 
 List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice) with optional OData $filter, $top, $skip, $orderby, $select, $expand.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1721,9 +1859,13 @@ List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, 
 |       ↳ `BusinessPlace` | string | Business place \(jurisdiction code\) |
 |     ↳ `__next` | string | OData skiptoken URL for next page |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA Get Supplier Invoice
 
 Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYear) from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1768,9 +1910,13 @@ Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYea
 |     ↳ `ManualCashDiscount` | string | Manually entered cash discount amount |
 |     ↳ `BusinessPlace` | string | Business place \(jurisdiction code\) |
 
+</ReferenceDetails>
+
 ### SAP S/4HANA OData Query
 
 Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The integration handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1799,5 +1945,7 @@ Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Commun
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
 | `data` | json | Parsed OData payload \(entity, collection, or null on 204\) |
+
+</ReferenceDetails>
 
 

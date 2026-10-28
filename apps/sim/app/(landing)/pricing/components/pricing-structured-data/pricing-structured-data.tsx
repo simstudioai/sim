@@ -1,6 +1,6 @@
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { COMPARISON_SECTIONS } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 
@@ -22,7 +22,7 @@ const PRICING_JSON_LD = {
       description:
         'Pricing for Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Compare the Free, Pro, Max, and Enterprise plans.',
       isPartOf: { '@id': `${SITE_URL}#website` },
-      about: { '@id': `${PAGE_URL}#application` },
+      about: { '@id': `${SITE_URL}#software` },
       breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` },
       inLanguage: 'en-US',
     },
@@ -36,12 +36,13 @@ const PRICING_JSON_LD = {
     },
     {
       '@type': 'WebApplication',
-      '@id': `${PAGE_URL}#application`,
+      '@id': `${SITE_URL}#software`,
       name: 'Sim',
       description: `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, connecting ${INTEGRATION_COUNT_LABEL} integrations and every major LLM.`,
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       url: SITE_URL,
+      publisher: { '@id': `${SITE_URL}#organization` },
       featureList: FEATURE_LIST,
       offers: [
         {

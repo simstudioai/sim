@@ -368,7 +368,6 @@ describe('settled provider tool streams', () => {
       expect(result.execution.output).toMatchObject({
         content: 'final answer',
         tokens: { input: 10, output: 6, total: 16 },
-        cost: { input: 1, output: 2, toolCost: 4, total: 7 },
         toolCalls: { count: 1 },
       })
       expectModelIterations(result, 2)

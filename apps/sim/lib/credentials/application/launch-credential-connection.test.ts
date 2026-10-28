@@ -15,7 +15,7 @@ vi.mock('@/lib/credentials/connect-draft', () => ({
   getActiveConnectDraft: hoisted.getActiveDraft,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

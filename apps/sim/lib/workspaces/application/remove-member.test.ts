@@ -32,7 +32,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/access/workspace-access', () => ({
   revokeWorkspaceAccessTx: hoisted.revoke,
@@ -101,7 +101,7 @@ describe('workspace member removal', () => {
     })
     mocks.role.mockResolvedValue('admin')
     mocks.orgAdmin.mockResolvedValue(false)
-    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: false, stoppedRuns: [] })
     mocks.removeOrg.mockResolvedValue({ success: true, removed: true })
     mocks.seats.mockResolvedValue({ changed: true })
     authMockFns.mockGetSession.mockResolvedValue({
@@ -131,7 +131,7 @@ describe('workspace member removal', () => {
 
   it('allows owner-only membership to transfer to the billing account', async () => {
     queueWorkspace({ ownerId: 'target', missingTarget: true })
-    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: true })
+    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: true, stoppedRuns: [] })
     expect(await remove()).toMatchObject({ ownershipTransferred: true, removedUserRole: 'owner' })
   })
 
@@ -158,7 +158,7 @@ describe('workspace member removal', () => {
     mocks.revoke.mockResolvedValue({
       revoked: false,
       reason: 'unresolved-workflows',
-      unresolvedWorkflows: ['workflow'],
+      unresolvedWorkspaceIds: ['workflow'],
     })
     let committed = false
     dbChainMockFns.transaction.mockImplementationOnce(async (callback) => {

@@ -86,15 +86,15 @@ export function ResourceActionBar({
   return (
     <div
       className={cn(
-        '-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)]',
+        '-translate-x-1/2 fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-[var(--z-dropdown)] max-w-[calc(100%_-_2rem)] md:max-w-none',
         'fade-in-0 slide-in-from-bottom-2 animate-in duration-200 ease-out motion-reduce:animate-none',
         className
       )}
     >
-      <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
+      <div className='flex items-center justify-between gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
         <span
           className={cn(
-            'px-1 text-small',
+            'min-w-0 px-1 text-small',
             exceedsLimit ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
           )}
         >

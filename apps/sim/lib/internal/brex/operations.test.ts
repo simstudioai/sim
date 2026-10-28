@@ -35,9 +35,9 @@ vi.mock('@/lib/internal/brex/client', () => {
   return { BrexReceiptClient, BrexReceiptError }
 })
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 

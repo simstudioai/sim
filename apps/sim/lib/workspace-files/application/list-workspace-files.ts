@@ -3,9 +3,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
-import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
+import { resolveFolderScope } from '@/lib/folders/subtree'
+import { getWorkspaceShares } from '@/lib/public-shares/manager'
 import {
+  findListedWorkspaceFiles,
   listWorkspaceFiles,
   loadActiveWorkspaceContext,
   queryWorkspaceFiles,
@@ -30,6 +31,10 @@ export interface QueryWorkspaceFilePageInput {
    * default — see the v2 route, where a `search` implies a recursive look.
    */
   recursive?: boolean
+  /** Exact file id. */
+  fileId?: string
+  /** Exact file name. */
+  name?: string
   search?: string
   sortBy: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
   sortOrder: 'asc' | 'desc'
@@ -44,30 +49,6 @@ export interface ListWorkspaceFilesInFolderScopeInput {
   folderPaths: readonly string[]
   includeSubfolders?: boolean
   limit: number
-}
-
-/**
- * Which folders a page covers, in the shape {@link queryWorkspaceFiles} takes: one id, `null`
- * for the workspace root, several ids for a subtree, or `undefined` for the whole workspace.
- *
- * `unfiltered` (no `folderPath`) and a recursive filter on the root both mean the whole
- * workspace, so both drop the folder predicate. A recursive filter on a real folder names
- * every folder in its subtree, which the query takes as one `IN (...)` over the index already
- * loaded for the path lookup — no second read, and no recursive CTE.
- */
-function resolveFolderScope(
-  folderIndex: Awaited<ReturnType<typeof loadActiveFolderPathIndex>>,
-  folderFilter: ReturnType<typeof resolveFolderPathFilter>,
-  recursive: boolean | undefined
-): string | null | string[] | undefined {
-  if (folderFilter.kind !== 'folder') return undefined
-  if (!recursive) return folderFilter.folderId
-  if (folderFilter.folderId === null) return undefined
-  const childrenByParent = indexFolderChildren(folderIndex.rowById.values())
-  return [
-    folderFilter.folderId,
-    ...collectDescendantFolderIdsFrom(childrenByParent, folderFilter.folderId),
-  ]
 }
 
 async function resolveListWorkspaceFileContext(workspaceId: string) {
@@ -86,6 +67,25 @@ export const listAllWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
     return {
       files: files.map((file) => ({ ...file, share: shares.get(file.id) ?? null })),
     }
+  },
+})
+
+interface FindActiveWorkspaceFilesByReferenceInput {
+  workspaceId: string
+  references: readonly string[]
+}
+
+/**
+ * The active workspace file a listing-based lookup would pick for each reference (an id, a
+ * VFS path, or a bare name), under the same list authorization, without reading the listing.
+ * Workspace files only: chat uploads and owned files are never matched.
+ */
+export const findActiveWorkspaceFilesByReference = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.list,
+  resolveContext: ({ input }: { input: FindActiveWorkspaceFilesByReferenceInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ input, context }) {
+    return { files: await findListedWorkspaceFiles(context.workspaceId, input.references) }
   },
 })
 
@@ -122,6 +122,8 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
       scope: input.scope,
       folderId,
       folderScope: input.folderScope,
+      fileIds: input.fileId === undefined ? undefined : [input.fileId],
+      name: input.name,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,

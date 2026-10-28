@@ -6,14 +6,13 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
+import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   forkSyncDirectionParam,
   forkSyncDirectionUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import {
   ARCHIVED_PREVIEW_LIMIT,
@@ -67,16 +66,18 @@ export function ForkSyncDetailView({
     enabled: true,
   })
 
-  // Guard leaving the detail view (Back) while the mapping has unsaved edits, and feed
-  // the shared settings dirty store so a sidebar section switch confirms too.
-  const guard = useSettingsUnsavedGuard({ isDirty: controller.dirty })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: controller.hasSessionChoices,
+    navigationBlocked: controller.saving || controller.submitting,
+    onDiscard: controller.discard,
+  })
 
   const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
-  // A direction switch drops every in-session choice (see `useForkSync`), so any confirms first.
-  const [pendingDirection, setPendingDirection] = useState<ForkDirection | null>(null)
   const changeDirection = (next: ForkDirection) => {
-    if (controller.hasSessionChoices) setPendingDirection(next)
-    else void setDirection(next)
+    if (next === controller.direction) return
+    guard.guardBack(() => {
+      void setDirection(next)
+    })
   }
 
   // Sync is the edge's primary action, so it's the rightmost/black chip; the caller's
@@ -85,7 +86,7 @@ export function ForkSyncDetailView({
   const panelActions: SettingsAction[] = controller.dirty
     ? saveDiscardActions({
         dirty: controller.dirty,
-        saving: controller.saving,
+        saving: controller.saving || controller.submitting,
         onSave: controller.save,
         onDiscard: controller.discard,
       })
@@ -121,23 +122,6 @@ export function ForkSyncDetailView({
       >
         <ForkSyncView controller={controller} onDirectionChange={changeDirection} />
       </SettingsPanel>
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
-
-      <UnsavedChangesModal
-        open={pendingDirection !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDirection(null)
-        }}
-        onDiscard={() => {
-          if (pendingDirection) void setDirection(pendingDirection)
-          setPendingDirection(null)
-        }}
-      />
 
       <ChipConfirmModal
         open={confirmSyncOpen}

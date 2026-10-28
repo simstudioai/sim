@@ -45,16 +45,16 @@ import {
   writeCredentialsProfile,
 } from '../config/index'
 import { ProfileOverrideError, redact } from '../config/profile'
-import { clientFrom, globalsOf, profileFrom } from '../context'
+import { globalsOf, profileFrom } from '../context'
 import { setSoftExitCode } from '../embed-context'
-import {
-  type GetMetaResponse,
-  type GetWorkspaceResponse,
-  type ListWorkspacesResponse,
-  V2_OPERATIONS,
+import type {
+  GetMetaResponse,
+  GetWorkspaceResponse,
+  ListWorkspacesResponse,
 } from '../generated/v2-api'
-import { requestAllPages, resolvePath, SimApiError, type SimClient } from '../http/client'
+import { SimApiError } from '../http/client'
 import { type Column, printList, printRecord, safeOneLine, text } from '../output/render'
+import { callsOperations, type OperationClient } from '../runtime/called-operations'
 
 type SelectableWorkspace = ListWorkspacesResponse['data'][number]
 
@@ -264,18 +264,18 @@ function requireStoredAuthentication(profile: ResolvedProfile): string {
 }
 
 async function getWorkspaceById(
-  client: Pick<SimClient, 'request'>,
+  client: OperationClient<'getWorkspace'>,
   workspaceId: string
 ): Promise<SelectableWorkspace> {
-  const operation = V2_OPERATIONS.getWorkspace
-  const response = await client.request<GetWorkspaceResponse>(
-    resolvePath(operation.path, { workspaceId }),
-    { method: operation.method }
-  )
+  const response = await client.request<GetWorkspaceResponse>('getWorkspace', {
+    params: { workspaceId },
+  })
   return response.data
 }
 
-async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<SelectableWorkspace> {
+async function chooseWorkspace(
+  client: OperationClient<'listWorkspaces'>
+): Promise<SelectableWorkspace> {
   if (!process.stdin.isTTY) {
     throw new SimApiError(
       'No workspace provided. Pass --workspace <id> when creating a profile non-interactively.',
@@ -283,9 +283,7 @@ async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<Sele
     )
   }
 
-  const operation = V2_OPERATIONS.listWorkspaces
-  const workspaces = await requestAllPages<SelectableWorkspace>(client, operation.path, {
-    method: operation.method,
+  const workspaces = await client.requestAllPages<SelectableWorkspace>('listWorkspaces', {
     query: { sortBy: 'name', sortOrder: 'asc' },
     pageSize: 100,
     limit: MAX_INTERACTIVE_WORKSPACES + 1,
@@ -322,14 +320,16 @@ async function chooseWorkspace(client: Pick<SimClient, 'request'>): Promise<Sele
 }
 
 function addProfileCommand(): Command {
-  return new Command('add')
+  const add = new Command('add')
+  const connectAdd = callsOperations(add, ['getWorkspace', 'listWorkspaces'])
+  return add
     .description('Add a workspace profile that shares the active stored login')
     .argument('<name>', 'Name for the new profile')
     .option('-w, --workspace <id>', 'Existing workspace to use; omit for an interactive picker')
     .action(async (profileName: string, _options: unknown, command: Command) => {
       validateNewProfileName(profileName)
 
-      const { client, profile } = clientFrom(command)
+      const { client, profile } = connectAdd()
       const authProfile = requireStoredAuthentication(profile)
       const credential = readStoredCredential(authProfile)
       const workspaceId = globalsOf(command).workspace
@@ -865,7 +865,7 @@ const WHOAMI_EXIT_CODES = {
  * whose metadata endpoint is unavailable.
  */
 async function verifyProfile(
-  client: Pick<SimClient, 'request'>,
+  client: OperationClient<'getMeta' | 'getWorkspace'>,
   profile: ResolvedProfile
 ): Promise<Verification> {
   if (!profile.apiKey && !profile.oauth) {
@@ -880,11 +880,8 @@ async function verifyProfile(
 
   let keyType: KeyType | null = null
   let authenticated: boolean | null = null
-  const metaOperation = V2_OPERATIONS.getMeta
   try {
-    const response = await client.request<unknown>(metaOperation.path, {
-      method: metaOperation.method,
-    })
+    const response = await client.request<unknown>('getMeta')
     const reportedKeyType = toRecord(toRecord(response).data).keyType
     if (
       reportedKeyType === 'personal' ||
@@ -917,12 +914,10 @@ async function verifyProfile(
     }
   }
 
-  const operation = V2_OPERATIONS.getWorkspace
   try {
-    const response = await client.request<GetWorkspaceResponse>(
-      resolvePath(operation.path, { workspaceId: profile.workspaceId }),
-      { method: operation.method }
-    )
+    const response = await client.request<GetWorkspaceResponse>('getWorkspace', {
+      params: { workspaceId: profile.workspaceId },
+    })
     const { id, name, memberCount } = response.data
     // Projected field by field: the record carries display fields the machine
     // output has no business inventing a contract for.
@@ -967,11 +962,13 @@ function presentVerification(verification: Verification): string {
 }
 
 export function whoamiCommand(): Command {
-  return new Command('whoami')
+  const whoami = new Command('whoami')
+  const connectWhoami = callsOperations(whoami, ['getMeta', 'getWorkspace'])
+  return whoami
     .description('Show the resolved profile, where each setting came from, and whether it works')
     .option('--no-verify', 'Skip the API check and only print the resolved settings')
-    .action(async (options: { verify: boolean }, command: Command) => {
-      const { client, profile } = clientFrom(command)
+    .action(async (options: { verify: boolean }) => {
+      const { client, profile } = connectWhoami()
       const { sources } = profile
       const authentication = presentAuthentication(sources.credential)
 

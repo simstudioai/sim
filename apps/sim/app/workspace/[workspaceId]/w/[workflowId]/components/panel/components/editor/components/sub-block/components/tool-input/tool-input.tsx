@@ -16,7 +16,6 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
@@ -50,6 +49,7 @@ import {
   getAgentToolUsageControlMode,
   resolveAgentToolUsageControl,
 } from '@/lib/workflows/tool-input/usage-control'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -59,10 +59,14 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/sub-block-renderer'
 import { ToolUsageControl } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/usage-control'
-import { clearDependentToolParams } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
+import {
+  clearDependentToolParams,
+  getParamsForToolOperation,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import {
   isAgentToolBlock,
+  isCoreAgentToolBlock,
   isCustomToolAlreadySelected,
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
@@ -78,7 +82,6 @@ import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig, SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
-import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
@@ -111,7 +114,6 @@ import {
   formatParameterLabel,
   getSubBlocksForToolInput,
   getToolIdForOperation,
-  isUserFacingToolParam,
   type SubBlocksForToolInput,
 } from '@/tools/params'
 
@@ -380,9 +382,7 @@ export const ToolInput = memo(function ToolInput({
   disabled = false,
   allowExpandInPreview,
 }: ToolInputProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  const workflowId = params.workflowId as string
+  const { workspaceId, workflowId } = useWorkflowScope()
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -981,18 +981,7 @@ export const ToolInput = memo(function ToolInput({
         return
       }
 
-      const newParamIds = new Set(
-        Object.entries(newToolConfig.params ?? {})
-          .filter(([, param]) => isUserFacingToolParam(param))
-          .map(([paramId]) => paramId)
-      )
-
-      const preservedParams: Record<string, string> = {}
-      Object.entries(tool.params || {}).forEach(([paramId, value]) => {
-        if (newParamIds.has(paramId) && value) {
-          preservedParams[paramId] = value
-        }
-      })
+      const preservedParams = getParamsForToolOperation(tool, newToolConfig)
 
       if (tool.type === 'jira') {
         const subBlockStore = useSubBlockStore.getState()
@@ -1372,8 +1361,8 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
-    const builtInTools = toolBlocks.filter((block) => BUILT_IN_TOOL_TYPES.has(block.type))
-    const integrations = toolBlocks.filter((block) => !BUILT_IN_TOOL_TYPES.has(block.type))
+    const builtInTools = toolBlocks.filter(isCoreAgentToolBlock)
+    const integrations = toolBlocks.filter((block) => !isCoreAgentToolBlock(block))
 
     if (builtInTools.length > 0) {
       groups.push({
@@ -1531,9 +1520,18 @@ export const ToolInput = memo(function ToolInput({
               ? (toolBlocks.find((block) => block.type === tool.type) ?? getBlock(tool.type))
               : null
 
+          const hasOperations =
+            !isCustomTool && !isMcpFamily && hasMultipleOperations(toolBlock ?? undefined)
+          const operationChoices = hasOperations
+            ? getOperationChoices(toolBlock ?? undefined)
+            : null
+          const selectedOperation =
+            tool.operation ||
+            operationChoices?.options.find((option) => !operationChoices.denied.has(option.id))?.id
+
           const currentToolId =
             !isCustomTool && !isMcpFamily
-              ? getToolIdForOperation(tool.type, tool.operation, toolBlock ?? undefined) ||
+              ? getToolIdForOperation(tool.type, selectedOperation, toolBlock ?? undefined) ||
                 tool.toolId ||
                 ''
               : tool.toolId || ''
@@ -1557,8 +1555,8 @@ export const ToolInput = memo(function ToolInput({
                   currentToolId,
                   tool.type,
                   {
-                    operation: tool.operation,
                     ...tool.params,
+                    operation: selectedOperation,
                   },
                   toolScopedOverrides,
                   toolBlock ?? undefined
@@ -1611,8 +1609,6 @@ export const ToolInput = memo(function ToolInput({
                   toolCredential?.type === sb.reactiveCondition.requiredType
               )
 
-          const hasOperations =
-            !isCustomTool && !isMcpFamily && hasMultipleOperations(toolBlock ?? undefined)
           const showToolControl = supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool))
           const hasToolBody = showToolControl || hasOperations || displaySubBlocks.length > 0
 
@@ -1871,10 +1867,8 @@ export const ToolInput = memo(function ToolInput({
                   )}
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
-                    if (!hasOperations) return null
-                    const { options: operationOptions, denied } = getOperationChoices(
-                      toolBlock ?? undefined
-                    )
+                    if (!operationChoices) return null
+                    const { options: operationOptions, denied } = operationChoices
                     if (operationOptions.length === 0) return null
 
                     return (
@@ -1886,10 +1880,7 @@ export const ToolInput = memo(function ToolInput({
                             value: option.id,
                             hidden: denied.has(option.id),
                           }))}
-                          value={
-                            tool.operation ||
-                            operationOptions.find((option) => !denied.has(option.id))?.id
-                          }
+                          value={selectedOperation}
                           onChange={(value) => handleOperationChange(toolIndex, value)}
                           placeholder='Select operation'
                           /* Denied operations only drop out once the config
@@ -1914,7 +1905,7 @@ export const ToolInput = memo(function ToolInput({
                         canonicalGroup && hasCanonicalPair
                           ? resolveCanonicalMode(
                               canonicalGroup,
-                              { operation: tool.operation, ...tool.params },
+                              { ...tool.params, operation: selectedOperation },
                               toolScopedOverrides
                             )
                           : undefined
@@ -1951,6 +1942,7 @@ export const ToolInput = memo(function ToolInput({
                             effectiveParamId={effectiveParamId}
                             toolType={tool.type}
                             toolParams={tool.params}
+                            operation={selectedOperation}
                             onParamChange={handleParamChange}
                             disabled={disabled}
                             canonicalToggle={canonicalToggleProp}

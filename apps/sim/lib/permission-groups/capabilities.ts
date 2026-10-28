@@ -58,6 +58,7 @@ export const CAPABILITY_IDS = [
   'copilot.tool_auto_approval',
   'sandboxes.use',
   'knowledge.export',
+  'project_issues.use',
 ] as const
 
 export type PermissionGroupCapability = (typeof CAPABILITY_IDS)[number]
@@ -430,6 +431,14 @@ export const CAPABILITY_RULES = {
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Exporting a knowledge base',
     deniedBy: (config) => config.disableKnowledgeBaseExport || config.hideKnowledgeBaseTab,
+  },
+  'project_issues.use': {
+    kind: 'parameterized',
+    configKeys: ['deniedPartialAccessProjectIssues'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Project Issues access',
+    deniedBy: (config: PermissionGroupConfig, projectId: string) =>
+      config.deniedPartialAccessProjectIssues.includes(projectId),
   },
 } satisfies { readonly [K in PermissionGroupCapability]: CapabilityRule }
 

@@ -22,7 +22,9 @@ import {
 } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
+import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
@@ -132,9 +134,9 @@ const OVERSCAN = 6
 
 /**
  * How close to the bottom (px) the transcript must be to count as pinned for
- * re-pinning across container resizes. Covers the fractional sub-pixel gap a
- * DPR-scaled `scrollTop` can leave, without capturing a user who deliberately
- * scrolled up.
+ * re-pinning across container resizes and older messages loading in above.
+ * Covers the fractional sub-pixel gap a DPR-scaled `scrollTop` can leave,
+ * without capturing a user who deliberately scrolled up.
  */
 const PIN_THRESHOLD = 2
 /**
@@ -148,14 +150,15 @@ const UNSCROLLED = Symbol('unscrolled')
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
-      'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-2 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
+      'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-4 pb-2 md:px-6 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
     sizer: 'relative mx-auto w-full max-w-chat',
     rowGap: 'pb-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
-    attachmentWidth: 'max-w-[70%]',
-    userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
+    attachmentWidth: 'max-w-[85%] md:max-w-[70%]',
+    userBubble:
+      'max-w-[85%] md:max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
-    footer: 'shrink-0 px-[24px] pb-[16px]',
+    footer: 'shrink-0 px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-[24px] md:pb-[16px]',
     footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
@@ -185,24 +188,36 @@ interface UserMessageRowProps {
 }
 
 /**
- * A background-task notification that opened a turn (mothership 21-background-tasks.md
- * §6.4): a muted system chip, never a user bubble — the user did not type it. Shows the
- * outcome line; the provenance header and the agent's own note stay out of the way.
+ * A turn automation opened, never a user bubble — the user did not type it: a muted system chip
+ * with one line. A background-task notification (mothership 21-background-tasks.md §6.4) shows
+ * its outcome line; a scheduled job's run shows the brief's first line (the job and its run).
  */
-const TaskNotificationRow = memo(function TaskNotificationRow({
-  content,
-  rowClassName,
-}: {
+interface AutomatedTurnRowProps {
+  origin: TurnOrigin
   content: string
   rowClassName: string
-}) {
+}
+
+const AutomatedTurnRow = memo(function AutomatedTurnRow({
+  origin,
+  content,
+  rowClassName,
+}: AutomatedTurnRowProps) {
   const lines = content.split('\n').filter((line) => line.length > 0)
-  const outcome = lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? ''
+  const summary =
+    origin === 'task'
+      ? (lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? '').replace(
+          /^Task [0-9a-f-]+ /,
+          ''
+        )
+      : (lines[0] ?? '').replace(/^Job: /, '')
   return (
     <div className={cn('flex w-full justify-center', rowClassName)}>
       <div className='max-w-[85%] rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[12px] text-[var(--text-secondary)]'>
-        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>Background task</span>
-        {outcome.replace(/^Task [0-9a-f-]+ /, '')}
+        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>
+          {origin === 'task' ? 'Background task' : 'Scheduled job'}
+        </span>
+        {summary}
       </div>
     </div>
   )
@@ -394,6 +409,9 @@ export function MothershipChat({
    * starving the main thread on every streaming token.
    */
   const messages = useDeferredValue(messagesProp)
+  const historyMessagesRef = useRef(messagesProp)
+  historyMessagesRef.current = messagesProp
+  const getHistoryMessages = useCallback(() => historyMessagesRef.current, [])
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
@@ -728,6 +746,32 @@ export function MothershipChat({
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
     item.index !== lastIndex && item.start < (instance.scrollElement?.scrollTop ?? 0)
 
+  /**
+   * Older messages load in above the newest window while the chat is open, pushing every row
+   * below them down. A viewport at the bottom is re-pinned to the last row, which also keeps a
+   * landing scroll aimed at it rather than at the index it had before the insert; any other
+   * viewport moves down by the inserted height and keeps showing what the user was reading.
+   */
+  const firstRowKeyRef = useRef<string | undefined>(undefined)
+  const firstRowKey = rowKeyByIndex[0]
+  useLayoutEffect(() => {
+    const previousFirstRowKey = firstRowKeyRef.current
+    firstRowKeyRef.current = firstRowKey
+    if (!previousFirstRowKey || previousFirstRowKey === firstRowKey) return
+    const shiftedIndex = rowKeyByIndex.indexOf(previousFirstRowKey)
+    const shifted = shiftedIndex > 0 ? virtualizer.measurementsCache[shiftedIndex] : undefined
+    const first = virtualizer.measurementsCache[0]
+    const scrollElement = scrollElementRef.current
+    if (!shifted || !first || !scrollElement) return
+    const inserted = shifted.start - first.start
+    const { scrollTop, scrollHeight, clientHeight } = scrollElement
+    if (scrollHeight - inserted - scrollTop - clientHeight <= PIN_THRESHOLD) {
+      virtualizer.scrollToIndex(lastIndex, { align: 'end' })
+    } else {
+      virtualizer.scrollToOffset(scrollTop + inserted)
+    }
+  }, [firstRowKey, lastIndex, rowKeyByIndex, virtualizer])
+
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
   const messageQueueRef = useRef(messageQueue)
@@ -751,16 +795,17 @@ export function MothershipChat({
   const handleEditQueued = useCallback(
     (id: string) => {
       const msg = onEditQueuedMessage(id)
-      if (!msg) return
-      userInputRef.current?.loadQueuedMessage(msg)
+      if (!msg || !userInputRef.current) return false
+      userInputRef.current.loadQueuedMessage(msg)
+      return true
     },
     [onEditQueuedMessage, userInputRef]
   )
 
   const handleEditQueuedTail = useCallback(() => {
     const tail = messageQueueRef.current[messageQueueRef.current.length - 1]
-    if (!tail) return
-    handleEditQueued(tail.id)
+    if (!tail) return false
+    return handleEditQueued(tail.id)
   }, [handleEditQueued])
 
   /**
@@ -841,7 +886,9 @@ export function MothershipChat({
         onKeyDown={find.onKeyDown}
         tabIndex={-1}
         className={cn(
-          'relative flex h-full min-h-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
+          'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
+          layout === 'mothership-view' &&
+            'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
           inter.className,
           className
         )}
@@ -896,8 +943,12 @@ export function MothershipChat({
                     style={{ top: virtualItem.start }}
                   >
                     {msg.role === 'user' ? (
-                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin === 'task' ? (
-                        <TaskNotificationRow content={msg.content} rowClassName={styles.rowGap} />
+                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
+                        <AutomatedTurnRow
+                          origin={msg.origin}
+                          content={msg.content}
+                          rowClassName={styles.rowGap}
+                        />
                       ) : (
                         <UserMessageRow
                           content={msg.content}
@@ -936,6 +987,7 @@ export function MothershipChat({
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
+            <ComputerUseActivity />
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}
@@ -957,6 +1009,7 @@ export function MothershipChat({
                   onSendQueuedHead={handleSendQueuedHead}
                   onEditQueuedTail={handleEditQueuedTail}
                   draftScopeKey={draftScopeKey}
+                  getMessages={getHistoryMessages}
                 />
               ))}
           </div>

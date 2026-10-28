@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -124,7 +124,7 @@ export async function checkUsageStatus(
         : await getHighestPrioritySubscription(userId)
 
     const limit = await getUserUsageLimit(userId, sub)
-    logger.info('Using stored usage limit', { userId, limit })
+    logger.debug('Using stored usage limit', { userId, limit })
 
     const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
     const scope: 'user' | 'organization' = subIsOrgScoped ? 'organization' : 'user'
@@ -171,14 +171,10 @@ export async function checkUsageStatus(
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
-    logger.error('Error checking usage status', {
-      error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
-      userId,
-    })
-
     logger.error('Cannot determine usage status - blocking execution', {
       userId,
-      error: toError(error).message,
+      error,
+      cause: describeError(error),
     })
 
     return {
@@ -205,7 +201,7 @@ function buildUsageData(params: {
   const isExceeded = currentUsage >= limit
   const isWarning = !isExceeded && percentUsed >= WARNING_THRESHOLD
 
-  logger.info('Final usage statistics', {
+  logger.debug('Final usage statistics', {
     currentUsage,
     limit,
     percentUsed,

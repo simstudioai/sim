@@ -8,6 +8,7 @@ export interface ToolCatalogEntry {
   description?:
     | 'Create a workspace in the conversation’s organization under the current user’s workspace-creation policy. Returns its ID for subsequent explicitly workspace-scoped commands. Includes a starter workflow unless skipDefaultWorkflow is true.'
     | 'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.'
+    | 'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.'
     | 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
     | 'Read and manage account, organization, and workspace settings. list finds sections; get returns current values, updateSchema and operation names; describe returns one operation’s exact input schema; update changes narrow preferences; execute performs a listed operation; open returns the existing user setup flow. When user setup is needed, put the returned setupUrl in a clickable Markdown link at the end of the reply. Workspace resources retain their CLI commands. Account is the acting user; organization is the conversation’s organization. Every operation checks current permissions and entitlements.'
     | 'Read and save the selected workspace’s single dashboard, validated YAML over live tables. Load the create-dashboard skill for the schema. get returns content and revision, or nulls when the workspace has no dashboard yet; set with no revision creates it. Replacing an existing dashboard requires expectedRevision from get, so a concurrent edit is never overwritten. Use open_resource with type dashboard to show the result.'
@@ -84,6 +85,7 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'list_deployment_versions'
     | 'list_integration_tools'
+    | 'list_user_projects'
     | 'list_workspace_mcp_servers'
     | 'list_workspaces'
     | 'load_deployment'
@@ -7922,6 +7924,21 @@ export const SearchSources: ToolCatalogEntry = {
   },
 }
 
+export const ListUserProjects: ToolCatalogEntry = {
+  id: 'list_user_projects',
+  description:
+    'List accessible Projects within this conversation, with visible environments and current capabilities. Follow nextCursor for more results; discovery does not grant file write access.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      cursor: { type: 'string', minLength: 1 },
+      limit: { default: 50, type: 'integer', minimum: 1, maximum: 100 },
+    },
+  },
+}
+
 export const FfmpegOperation = {
   overlayAudio: 'overlay_audio',
   mixAudio: 'mix_audio',
@@ -8495,4 +8512,5 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Workspaces.id]: Workspaces,
   [Settings.id]: Settings,
   [SearchSources.id]: SearchSources,
+  [ListUserProjects.id]: ListUserProjects,
 }

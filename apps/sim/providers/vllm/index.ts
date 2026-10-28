@@ -27,7 +27,11 @@ import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -378,7 +382,7 @@ export const vllmProvider: ProviderConfig = {
         }
 
         logger.info(
-          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_TOOL_ITERATIONS})`
+          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1})`
         )
 
         const toolsStartTime = Date.now()
@@ -768,7 +772,7 @@ export const vllmProvider: ProviderConfig = {
         }
       }
 
-      logger.error('Error in vLLM request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in vLLM request:', {
         error: errorMessage,
         errorType,
         errorCode,

@@ -21,6 +21,8 @@ interface LandingMetadataInput {
   imageAlt?: string
   /** Twitter card image alt text. Defaults to {@link imageAlt}. */
   twitterImageAlt?: string
+  /** RSS feed path advertised through `<link rel="alternate">`, e.g. "/changelog.xml". */
+  feedPath?: string
 }
 
 /**
@@ -40,6 +42,7 @@ export function buildLandingMetadata({
   keywords,
   imageAlt,
   twitterImageAlt,
+  feedPath,
 }: LandingMetadataInput): Metadata {
   const url = `${SITE_URL}${path}`
   const ogAlt = imageAlt ?? title
@@ -78,6 +81,7 @@ export function buildLandingMetadata({
     alternates: {
       canonical: url,
       languages: { 'en-US': url, 'x-default': url },
+      ...(feedPath ? { types: { 'application/rss+xml': `${SITE_URL}${feedPath}` } } : {}),
     },
     robots: {
       index: true,
@@ -89,13 +93,8 @@ export function buildLandingMetadata({
 }
 
 /**
- * Google's documented pattern for faceted/filtered navigation: keep the single
- * unfiltered listing indexable and `noindex` (but still `follow`) any
- * filtered or paginated variant, so link equity flows through without asking
- * Google to index every query-param permutation. Used by every catalog page
- * that serves distinct content per query param (integrations, models, blog,
- * careers, pricing) — `metadata.alternates.canonical` on all of them still
- * points at the bare URL regardless of `isFiltered`.
+ * Noindexes alternate filtered views while keeping their links crawlable.
+ * Callers decide which variants are filters; content pagination is indexable.
  */
 export function withFilteredNoindex(metadata: Metadata, isFiltered: boolean): Metadata {
   return { ...metadata, ...(isFiltered && { robots: { index: false, follow: true } }) }

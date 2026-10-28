@@ -14,7 +14,6 @@ import type { ResourceScope } from '@/lib/core/resource-scope'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail/components/unsaved-changes-modal'
 import { ConnectorActionFeedback } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions'
 import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
 import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
@@ -341,7 +340,11 @@ function SourceSettingsForm({
     isSearchIndex: true,
     onSaved,
   })
-  const guard = useSettingsUnsavedGuard({ isDirty: form.dirty, navigationBlocked: form.saving })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: form.dirty,
+    navigationBlocked: form.saving,
+    onDiscard,
+  })
   return (
     <SourcePanel
       connector={connector}
@@ -370,11 +373,6 @@ function SourceSettingsForm({
       <div className='-mx-2 flex flex-col gap-4'>
         <ConnectorSettingsFields {...form.fieldsProps} />
       </div>
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
     </SourcePanel>
   )
 }

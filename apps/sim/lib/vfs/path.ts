@@ -1,10 +1,7 @@
-import { escapeRegExp } from '@sim/utils/string'
+import { escapeRegExp, WHITESPACE_CHARACTER_CLASS } from '@sim/utils/string'
 
 const CONTROL_CHARS = /[\x00-\x1f\x7f]/g
-/** The characters `\s` matches, spelled out so a PostgreSQL pattern can share the class. */
-const WHITESPACE_CLASS =
-  '[ \\t\\n\\v\\f\\r\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]'
-const WHITESPACE = new RegExp(`${WHITESPACE_CLASS}+`, 'g')
+const WHITESPACE = new RegExp(`${WHITESPACE_CHARACTER_CLASS}+`, 'g')
 
 export class VfsPathError extends Error {
   constructor(message: string) {
@@ -13,7 +10,12 @@ export class VfsPathError extends Error {
   }
 }
 
-function normalizeDisplaySegment(segment: string): string {
+/**
+ * The name a VFS path segment displays: NFC-composed, trimmed, control characters removed,
+ * whitespace runs collapsed. Its SQL twin is `displaySegmentKey` in `@sim/db/schema`, which an
+ * index serves; the two must apply the same steps in the same order.
+ */
+export function normalizeDisplaySegment(segment: string): string {
   return segment.normalize('NFC').trim().replace(CONTROL_CHARS, '').replace(WHITESPACE, ' ')
 }
 
@@ -24,7 +26,7 @@ function normalizeDisplaySegment(segment: string): string {
  */
 export function displaySegmentPattern(name: string): string {
   const words = name.split(' ').map(escapeRegExp)
-  return `^${WHITESPACE_CLASS}*${words.join(`${WHITESPACE_CLASS}+`)}${WHITESPACE_CLASS}*$`
+  return `^${WHITESPACE_CHARACTER_CLASS}*${words.join(`${WHITESPACE_CHARACTER_CLASS}+`)}${WHITESPACE_CHARACTER_CLASS}*$`
 }
 
 export function encodeVfsSegment(segment: string): string {
@@ -35,7 +37,7 @@ export function encodeVfsSegment(segment: string): string {
   return encodeURIComponent(normalized)
 }
 
-export function decodeVfsSegment(segment: string): string {
+function decodeVfsSegment(segment: string): string {
   try {
     const decoded = decodeURIComponent(segment)
     const normalized = normalizeDisplaySegment(decoded)
@@ -49,6 +51,10 @@ export function decodeVfsSegment(segment: string): string {
   }
 }
 
+/**
+ * Decodes a VFS path segment for display, falling back to the raw segment when
+ * it is not valid encoding (e.g. a literal "%" that was never encoded).
+ */
 export function decodeVfsSegmentSafe(segment: string): string {
   try {
     return decodeVfsSegment(segment)
@@ -65,8 +71,4 @@ export function decodeVfsPathSegments(path: string): string[] {
   const trimmed = path.trim().replace(/^\/+|\/+$/g, '')
   if (!trimmed) return []
   return trimmed.split('/').map(decodeVfsSegment)
-}
-
-export function canonicalizeVfsPath(path: string): string {
-  return encodeVfsPathSegments(decodeVfsPathSegments(path))
 }

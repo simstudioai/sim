@@ -2,7 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/env-flags'
@@ -163,6 +163,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   fireworks: buildProviderMetadata('fireworks'),
   together: buildProviderMetadata('together'),
   baseten: buildProviderMetadata('baseten'),
+  nebius: buildProviderMetadata('nebius'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -1490,15 +1491,23 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
-export function isGemini3Model(model: string): boolean {
-  const normalized = model
+/**
+ * Reduces a Gemini model reference to its bare lowercase ID (`gemini-3.8-flash`). Accepts bare
+ * Gemini IDs, google/ or vertex/ prefixes, and Google publisher resource names.
+ */
+export function toBareGeminiModelId(model: string): string {
+  return model
     .toLowerCase()
     .replace(/^vertex\//, '')
     .replace(
       /^(?:google\/|(?:projects\/[^/]+\/locations\/[^/]+\/)?publishers\/google\/models\/)/,
       ''
     )
-  return normalized.startsWith('gemini-3')
+}
+
+/** Accepts bare Gemini IDs, google/ or vertex/ prefixes, and Google publisher resource names. */
+export function isGemini3OrLaterModel(model: string): boolean {
+  return Number(toBareGeminiModelId(model).match(/^gemini-(\d+)(?:[.-]|$)/)?.[1]) >= 3
 }
 
 /**

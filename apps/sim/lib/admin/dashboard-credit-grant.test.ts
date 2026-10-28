@@ -21,6 +21,7 @@ const hoistedMocks = vi.hoisted(() => ({
   billingSubscriptions: [] as unknown[],
   idempotencyCalls: [] as { namespace: string; requestFingerprint: string }[],
   moveWorkspace: vi.fn(),
+  userHasDeletedAccountIdentity: vi.fn(async () => false),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -36,7 +37,7 @@ vi.mock('@/lib/core/idempotency/transaction', () => ({
 vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
 vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
 vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
@@ -50,10 +51,12 @@ vi.mock('@/lib/billing/enterprise-provisioning', () => ({
   getLatestEnterpriseProvisionings: vi.fn(async () => new Map()),
 }))
 vi.mock('@/lib/billing/enterprise-outbox', () => ({
-  ENTERPRISE_METADATA_SYNC_EVENT_TYPE: 'stripe.sync-enterprise-metadata',
   resolveEnterpriseMetadataIntent: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/users/deleted-identity', () => ({
+  userHasDeletedAccountIdentity: hoistedMocks.userHasDeletedAccountIdentity,
+}))
 
 import { grantDashboardOrganizationBalance, grantDashboardUserBalance } from '@/lib/admin/dashboard'
 
@@ -148,6 +151,30 @@ describe('grantDashboardUserBalance', () => {
         resourceId: 'user-1',
         metadata: expect.objectContaining({ amountDollars: 0.005, reason: 'goodwill' }),
       })
+    )
+  })
+
+  it('creates a missing stats row without the free allowance for a returning deleted identity', async () => {
+    mocks.userHasDeletedAccountIdentity.mockResolvedValueOnce(true)
+    queueTableRows(user, [{ id: 'user-1' }])
+    queueTableRows(userStats, [
+      { creditBalance: '0', currentUsageLimit: '0', freeTierEligible: false },
+    ])
+    mocks.billingSubscriptions = [null, null]
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { creditBalance: '0.005', currentUsageLimit: '0.005' },
+    ])
+
+    await grantDashboardUserBalance(
+      'user-1',
+      0.005,
+      undefined,
+      '4f0f5c4e-3a43-4f39-9d55-6b1b2f6f2a10',
+      { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', freeTierEligible: false, currentUsageLimit: '0' })
     )
   })
 

@@ -95,7 +95,6 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup()
-  vi.unstubAllGlobals()
   Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect')
 })
 
@@ -111,6 +110,18 @@ describe('useChatFind', () => {
 
     find.rerender({ chatId: 'chat-2', messages })
     expect(find.current).toMatchObject({ isOpen: false, query: '', count: 0 })
+  })
+
+  it('leaves turns automation opened out of the search, whatever opened them', () => {
+    const find = renderFind({
+      messages: [
+        { id: 't', role: 'user', origin: 'task', content: 'Task abc finished: triage done.' },
+        { id: 'j', role: 'user', origin: 'job', content: 'Job: Nightly triage (Run 1)' },
+        assistant('a', 'The triage is done.'),
+      ],
+    })
+    find.search('triage')
+    expect(find.current.count).toBe(1)
   })
 
   it('counts the same footnoted matches in the index as it highlights in the rendered message', async () => {

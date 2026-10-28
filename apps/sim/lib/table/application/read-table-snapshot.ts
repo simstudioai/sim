@@ -1,4 +1,6 @@
+import { requireAdmittedContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { EXACT_EMPTY_DURABLE_SECRET_PROVENANCE } from '@/lib/execution/durable-secret-provenance'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import {
   MAX_INLINE_MOUNT_FILE_BYTES,
@@ -13,7 +15,7 @@ import {
   resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
-import { resolveTableByVfsName } from '@/lib/table/application/table-vfs'
+import { resolveTableByVfsName } from '@/lib/table/application/vfs'
 import { getTableSnapshotModelMountSafety } from '@/lib/table/rows/secret-provenance'
 import {
   getOrCreateTableSnapshot,
@@ -38,7 +40,6 @@ export interface ReadTableSnapshotInput {
 export interface ReadTableSnapshotResult {
   mount: SandboxFile
   budget: SandboxMountBudget
-  unsafeProvenance: boolean
 }
 
 /** Resolves and reads one CSV snapshot under the caller's current workspace authority. */
@@ -48,7 +49,7 @@ export const readTableSnapshot = defineAuthorizedTableUseCase({
     input.signal?.throwIfAborted()
     return resolveTableWorkspaceContext(input.workspaceId)
   },
-  async execute({ input, context }): Promise<ReadTableSnapshotResult> {
+  async execute({ input, context, principal }): Promise<ReadTableSnapshotResult> {
     input.signal?.throwIfAborted()
     const reference = input.reference.replace(/^\/+/, '')
     const segments = reference.startsWith('tables/')
@@ -77,6 +78,16 @@ export const readTableSnapshot = defineAuthorizedTableUseCase({
         `Input table "${input.reference}" changed while preparing its snapshot. Retry.`
       )
     }
+    /**
+     * The snapshot is one cached CSV of every row, so the table enters the workbench whole or not
+     * at all: a row holding a recorded secret, or one without vouched provenance, keeps it out.
+     */
+    await requireAdmittedContent(principal, {
+      kind: 'table-row',
+      id: table.id,
+      provenance: safety === 'safe' ? EXACT_EMPTY_DURABLE_SECRET_PROVENANCE : { status: 'unknown' },
+      view: 'complete',
+    })
     const budget = { ...input.budget }
     const path = input.sandboxPath ?? `/home/user/tables/${table.id}.csv`
     let mount: SandboxFile
@@ -110,6 +121,6 @@ export const readTableSnapshot = defineAuthorizedTableUseCase({
       budget.buffered += buffer.length
     }
     input.signal?.throwIfAborted()
-    return { mount, budget, unsafeProvenance: safety === 'unsafe-provenance' }
+    return { mount, budget }
   },
 })

@@ -9,18 +9,14 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
-import {
-  mothershipResourceSchema,
-  mothershipTableViewContextSchema,
-  mothershipResourceAttachmentSchema as ResourceAttachmentSchema,
-} from '@/lib/api/contracts/mothership-resources'
+import { chatContextSchema } from '@/lib/api/contracts/mothership-chat-context'
+import { mothershipResourceAttachmentSchema as ResourceAttachmentSchema } from '@/lib/api/contracts/mothership-resources'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
-import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+} from '@/lib/billing/core/attribution'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
@@ -30,18 +26,18 @@ import {
 } from '@/lib/knowledge/access/availability'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { chatOperations } from '@/lib/mothership/application/operations'
-import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
+import {
+  authoringInvocation,
+  createCopilotResourceAdmission,
+} from '@/lib/mothership/auth/application-delegation'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
+import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import {
   type AssistantImageContent,
   prepareOrganizationChatAttachments,
 } from '@/lib/mothership/chat/assistant-images'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
-import {
-  MAX_CHAT_CONTEXT_LABEL_LENGTH,
-  MAX_CHAT_CONTEXTS,
-  MAX_CHAT_MESSAGE_LENGTH,
-} from '@/lib/mothership/chat/context-limits'
+import { MAX_CHAT_CONTEXTS, MAX_CHAT_MESSAGE_LENGTH } from '@/lib/mothership/chat/context-limits'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -53,21 +49,18 @@ import {
 } from '@/lib/mothership/chat/lifecycle'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
+import { processContextsServer } from '@/lib/mothership/chat/process-contents'
+import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
 import {
-  processContextsServer,
-  resolveActiveResourceContext,
-} from '@/lib/mothership/chat/process-contents'
-import {
-  MAX_FILE_SELECTION_TEXT_LENGTH,
-  MAX_TABLE_SELECTION_COLUMNS,
-  MAX_TABLE_SELECTION_ROWS,
-  safeBrowserSelectionUrl,
-} from '@/lib/mothership/chat/selection-context'
-import { COPILOT_REQUEST_MODES, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+  COPILOT_REQUEST_MODES,
+  MOTHERSHIP_CHAT_ID_HEADER,
+  MOTHERSHIP_DESKTOP_EXECUTOR_HEADER,
+} from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import {
+  type ChatContextItem,
   type ChatRequest,
   type ModelSelection,
   ModelSelectionSchema,
@@ -78,6 +71,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
+import { durableResourceAuthoringVersion } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/mothership/request/otel'
 import {
@@ -87,13 +81,7 @@ import {
 } from '@/lib/mothership/request/session'
 import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
-import { persistChatResources } from '@/lib/mothership/resources/persistence'
-import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
-import {
-  hasAddressableId,
-  isEphemeralResource,
-  sanitizeChatResources,
-} from '@/lib/mothership/resources/types'
+import { hasAddressableId } from '@/lib/mothership/resources/types'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
@@ -108,10 +96,6 @@ import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('UnifiedChatAPI')
 const DEFAULT_MODEL = 'claude-opus-4-8'
-const CHAT_SELECTION_TEXT_MAX_LENGTH = 100_000
-const CHAT_SELECTION_SOURCE_URL_MAX_LENGTH = 8_192
-const CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH = 512
-const TERMINAL_SELECTION_LINE_MAX = 10_000_000
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
@@ -121,37 +105,6 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
   path: z.string().optional(),
 })
-
-const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
-  search: 'Search results',
-  sources: 'Sources',
-  workflow: 'Workflow',
-  table: 'Table',
-  integration: 'Integration',
-  file: 'File',
-  dashboard: 'Dashboard',
-  knowledgebase: 'Knowledge Base',
-  folder: 'Folder',
-  filefolder: 'File Folder',
-  task: 'Task',
-  log: 'Log',
-  generic: 'Resource',
-  browser: 'Browser',
-  terminal: 'Terminal',
-}
-
-/**
- * Synthetic client-side panels are context-only: never persisted to the chat.
- * Browser tabs are among them — the desktop app restores its own pages — so
- * their page title and URL remain request context only.
- */
-function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
-  return !isEphemeralResource({
-    type: resource.type,
-    id: resource.id,
-    title: resource.title ?? '',
-  })
-}
 
 /**
  * Drops open tabs the client cannot address, so one unusable tab does not fail
@@ -166,116 +119,6 @@ function dropUnaddressableAttachments(value: unknown): unknown {
     return typeof id !== 'string' || hasAddressableId(id)
   })
 }
-
-/** Non-strings pass through for the schema to reject; strings are sanitized. */
-function sanitizeBrowserSelectionUrl(value: unknown): unknown {
-  return typeof value === 'string' ? safeBrowserSelectionUrl(value) : value
-}
-
-const BrowserTextSelectionSchema = z
-  .object({
-    text: z.string().min(1).max(CHAT_SELECTION_TEXT_MAX_LENGTH),
-    url: z.preprocess(
-      sanitizeBrowserSelectionUrl,
-      z.string().max(CHAT_SELECTION_SOURCE_URL_MAX_LENGTH).optional()
-    ),
-    title: z.string().max(CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH).optional(),
-  })
-  .strict()
-  .transform(({ text, title, url }) => ({
-    text,
-    ...(url ? { url } : {}),
-    ...(title ? { title } : {}),
-  }))
-
-const TerminalTextSelectionSchema = z
-  .object({
-    text: z.string().min(1).max(CHAT_SELECTION_TEXT_MAX_LENGTH),
-    startLine: z.number().int().positive().max(TERMINAL_SELECTION_LINE_MAX),
-    endLine: z.number().int().positive().max(TERMINAL_SELECTION_LINE_MAX),
-  })
-  .strict()
-  .refine(({ startLine, endLine }) => endLine >= startLine, {
-    message: 'endLine must be greater than or equal to startLine',
-    path: ['endLine'],
-  })
-
-const ChatContextSchema = z
-  .object({
-    kind: z.enum([
-      'past_chat',
-      'workflow',
-      'current_workflow',
-      'blocks',
-      'logs',
-      'workflow_block',
-      'knowledge',
-      'docs',
-      'table',
-      'table_selection',
-      'file',
-      'file_selection',
-      'dashboard',
-      'folder',
-      'filefolder',
-      'integration',
-      'skill',
-      'mcp',
-      'browser_tab',
-      'terminal_tab',
-      'workspace',
-    ]),
-    label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
-    chatId: z.string().optional(),
-    workflowId: z.string().optional(),
-    knowledgeId: z.string().optional(),
-    blockId: z.string().optional(),
-    blockIds: z.array(z.string()).optional(),
-    blockType: z.string().min(1).max(200).optional(),
-    executionId: z.string().optional(),
-    tableId: z.string().optional(),
-    viewId: mothershipResourceSchema.shape.viewId,
-    currentView: mothershipTableViewContextSchema.optional(),
-    fileId: z.string().optional(),
-    dashboardId: z.string().optional(),
-    folderId: z.string().optional(),
-    fileFolderId: z.string().optional(),
-    skillId: z.string().optional(),
-    workspaceId: z.string().min(1).max(200).optional(),
-    serverId: z.string().optional(),
-    scheduleId: z.string().optional(),
-    tabId: z.string().optional(),
-    terminalId: z.string().optional(),
-    text: z.string().max(MAX_FILE_SELECTION_TEXT_LENGTH).optional(),
-    fileName: z.string().optional(),
-    startLine: z.number().int().positive().optional(),
-    endLine: z.number().int().positive().optional(),
-    tableName: z.string().optional(),
-    rowIds: z.array(z.string()).max(MAX_TABLE_SELECTION_ROWS).optional(),
-    columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
-    selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
-  })
-  .superRefine(({ kind, selection, workspaceId }, refinementContext) => {
-    if (kind === 'workspace' && !workspaceId) {
-      refinementContext.addIssue({
-        code: 'custom',
-        message: 'workspaceId is required for a workspace context',
-        path: ['workspaceId'],
-      })
-    }
-    if (!selection) return
-    const isTerminalSelection = 'startLine' in selection
-    const selectionMatchesKind =
-      (kind === 'browser_tab' && !isTerminalSelection) ||
-      (kind === 'terminal_tab' && isTerminalSelection)
-    if (!selectionMatchesKind) {
-      refinementContext.addIssue({
-        code: 'custom',
-        message: 'selection must match its browser_tab or terminal_tab context kind',
-        path: ['selection'],
-      })
-    }
-  })
 
 const ChatMessageSchema = z
   .object({
@@ -302,7 +145,7 @@ const ChatMessageSchema = z
       .preprocess(dropUnaddressableAttachments, z.array(ResourceAttachmentSchema))
       .optional(),
     provider: z.string().optional(),
-    contexts: z.array(ChatContextSchema).max(MAX_CHAT_CONTEXTS).optional(),
+    contexts: z.array(chatContextSchema).max(MAX_CHAT_CONTEXTS).optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
     effort: z.enum(['none', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
@@ -312,8 +155,14 @@ const ChatMessageSchema = z
       .object({
         localFilesystem: z.boolean().optional(),
         localFiles: z.boolean().optional(),
+        localReadClaims: z.boolean().optional(),
+        /** The composer's desktop install, offered for its background executor. */
+        deviceId: z.string().uuid().optional(),
+        /** The background executor protocol version the desktop speaks. */
+        executor: z.number().int().min(1).max(1000).optional(),
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
+        computerUse: z.boolean().optional(),
         terminals: z
           .array(
             z.object({
@@ -373,6 +222,24 @@ const ChatMessageSchema = z
   )
 
 type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
+
+/**
+ * The desktop a turn asks its background executor to run on. Only a desktop composer that speaks
+ * the executor protocol and switched on at least one desktop surface asks; Assistant turns have
+ * no desktop tools.
+ */
+function backgroundExecutorDeviceId(body: UnifiedChatRequest): string | undefined {
+  const desktop = body.desktopCapabilities
+  if (body.mode === 'assistant' || !desktop?.deviceId || !desktop.executor) return undefined
+  return desktop.browser ||
+    desktop.terminal ||
+    desktop.localFiles ||
+    desktop.localFilesystem ||
+    desktop.computerUse
+    ? desktop.deviceId
+    : undefined
+}
+
 type BrowserSessions = NonNullable<UnifiedChatRequest['desktopCapabilities']>['browserSessions']
 type Terminals = NonNullable<UnifiedChatRequest['desktopCapabilities']>['terminals']
 type UnifiedChatBranch =
@@ -419,6 +286,7 @@ type UnifiedChatBranch =
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
+        computerUse?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -460,6 +328,7 @@ type UnifiedChatBranch =
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
+        computerUse?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -487,17 +356,19 @@ function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
 }
 
 /**
- * An MCP server tagged with `/name` stays enabled for the rest of the chat, not
- * just the turn it was tagged on. Persisted user messages already carry their
- * `mcp` contexts, so the transcript is the source of truth — enablement survives
- * reloads and reopened chats with no extra state to keep in sync. There is
- * deliberately no off switch: history is append-only.
+ * An MCP server tagged with `/name` stays tagged for the rest of the chat, not
+ * just the turn it was tagged on. Every usable workspace server is discoverable
+ * without a tag; a tag marks the servers the user means, whose operations the
+ * integration catalog ranks first and lists completely. Persisted user messages
+ * already carry their `mcp` contexts, so the transcript is the source of truth —
+ * tags survive reloads and reopened chats with no extra state to keep in sync.
+ * There is deliberately no off switch: history is append-only.
  *
- * Only the ids travel forward, not the contexts themselves. The tools ride the
- * tool array on every turn, so the model always sees their names and schemas;
- * re-expanding the prompt listing each turn would just duplicate that. Keeping
- * inherited servers out of the persisted contexts also keeps the `/name` chips
- * on a sent message showing only what the user actually typed that turn.
+ * Only the ids travel forward, not the contexts themselves. The agent discovers
+ * operations on demand, so re-expanding the prompt listing each turn adds
+ * nothing. Keeping inherited servers out of the persisted contexts also keeps
+ * the `/name` chips on a sent message showing only what the user actually typed
+ * that turn.
  */
 function collectChatMcpServerIds(
   chatMcpServerIds: string[],
@@ -511,6 +382,7 @@ function collectChatMcpServerIds(
 }
 
 async function resolveAgentContexts(params: {
+  requestMode: UnifiedChatRequest['mode']
   contexts?: UnifiedChatRequest['contexts']
   resourceAttachments?: UnifiedChatRequest['resourceAttachments']
   organizationId?: string
@@ -522,8 +394,9 @@ async function resolveAgentContexts(params: {
   chatId?: string
   resolvedSecretTraceRegistry?: ExecutionContext['resolvedSecretTraceRegistry']
   requestId: string
-}): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
+}): Promise<ChatContextItem[]> {
   const {
+    requestMode,
     contexts,
     resourceAttachments,
     organizationId,
@@ -537,7 +410,7 @@ async function resolveAgentContexts(params: {
     requestId,
   } = params
 
-  let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
+  let agentContexts: ChatContextItem[] = []
 
   if (Array.isArray(contexts) && contexts.length > 0) {
     try {
@@ -548,106 +421,27 @@ async function resolveAgentContexts(params: {
         workspaceId,
         chatId,
         resolvedSecretTraceRegistry,
-        organizationId
+        organizationId,
+        requestMode
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to process contexts`, error)
     }
   }
 
-  const authorizedResources: z.infer<typeof mothershipResourceSchema>[] = []
-  if (
-    Array.isArray(resourceAttachments) &&
-    resourceAttachments.length > 0 &&
-    (workspaceId || organizationId)
-  ) {
-    const results = await Promise.allSettled(
-      resourceAttachments.map(async (resource) => {
-        if (resource.type === 'sources') return null
-        // The live browser panel resolves from the attachment itself: its
-        // page state is client-held (the desktop app's embedded browser),
-        // not a workspace entity the server could look up.
-        if (resource.type === 'browser') {
-          if (!resource.url) return null
-          const title = resource.title?.trim()
-          return {
-            type: 'active_resource',
-            tag: resource.active ? '@active_tab' : '@open_tab',
-            content: `The user's ${
-              resource.active ? 'currently visible browser tab' : 'other open browser tab'
-            } is open on: ${
-              title ? `"${title}" — ` : ''
-            }${resource.url}. ${browserAvailable ? 'Browser tools are available for inspecting and interacting with this tab.' : 'This attachment supplies only the title and URL; browser tools are unavailable.'}`,
-          }
-        }
-        if (resource.type === 'search') {
-          if (
-            !resource.search ||
-            !searchResourceMatchesOwner(resource.search, { organizationId, workspaceId })
-          )
-            return null
-          if (persistResources)
-            authorizedResources.push(
-              mothershipResourceSchema.parse({ ...resource, title: 'Search results' })
-            )
-          return {
-            type: 'active_resource',
-            tag: resource.active ? '@active_tab' : '@open_tab',
-            content: `The user's Search results tab has this retrieval address: ${JSON.stringify(resource.search)}. This is query context, not retrieved evidence; use the search tools for current authorized results.`,
-          }
-        }
-        const target =
-          organizationId || resource.workspaceId
-            ? await resolveInvocationWorkspace(
-                { userId, workspaceId, organizationId, chatId },
-                resource.workspaceId
-              )
-            : { workspaceId: workspaceId! }
-        const ctx = await withWorkspaceInvocationScope(
-          { workspaceId: target.workspaceId, organizationId },
-          () =>
-            resolveActiveResourceContext(
-              resource.type,
-              resource.id,
-              target.workspaceId,
-              userId,
-              chatId,
-              resource.viewId,
-              resource.currentView
-            )
-        )
-        if (!ctx) return null
-        if (persistResources && isPersistableAttachment(resource))
-          authorizedResources.push(
-            mothershipResourceSchema.parse({
-              ...resource,
-              title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
-              ...(organizationId
-                ? { workspaceId: target.workspaceId }
-                : { workspaceId: undefined, workspaceName: undefined }),
-            })
-          )
-        return {
-          ...ctx,
-          ...(organizationId
-            ? { content: `Workspace ${target.workspaceId}:\n${ctx.content}` }
-            : {}),
-          tag: resource.active ? '@active_tab' : '@open_tab',
-        }
-      })
-    )
-
-    for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        agentContexts.push(result.value)
-      } else if (result.status === 'rejected') {
-        logger.error(`[${requestId}] Failed to resolve resource attachment`, result.reason)
-      }
-    }
-  }
-
-  if (chatId && authorizedResources.length)
-    await persistChatResources(chatId, sanitizeChatResources(authorizedResources))
+  agentContexts.push(
+    ...(await resolveResourceAttachmentContexts({
+      resourceAttachments,
+      userId,
+      workspaceId,
+      organizationId,
+      chatId,
+      requestMode,
+      persistResources,
+      browserAvailable,
+      requestId,
+    }))
+  )
   return agentContexts
 }
 
@@ -832,6 +626,7 @@ async function resolveBranch(params: {
           desktopLocalFiles: payloadParams.desktopLocalFiles,
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
+          computerUse: payloadParams.computerUse,
           terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
         }),
@@ -895,6 +690,7 @@ async function resolveBranch(params: {
         desktopLocalFiles: payloadParams.desktopLocalFiles,
         browser: payloadParams.browser,
         terminalCapable: payloadParams.terminalCapable,
+        computerUse: payloadParams.computerUse,
         terminals: payloadParams.terminals,
         browserSessions: payloadParams.browserSessions,
       }),
@@ -916,9 +712,9 @@ const CHAT_SEND_IDEMPOTENCY_PROVIDER = 'user-message'
 /**
  * Claims this send so a retry of it can be recognised.
  *
- * Fails open: a missed deduplication costs a duplicate chat and turn, but
- * refusing the send loses the user's message. Returns `undefined` when the
- * store is unreachable, which sends normally with no claim to finalize.
+ * Fails closed: the claim is stored in Postgres (`chatSendIdempotency` forces
+ * database storage), so a store failure throws and the send is answered with a
+ * 500 rather than run without deduplication.
  *
  * The key is scoped to the caller — `userMessageId` is client-supplied, so an
  * unscoped one would let a user probe another's sends for their chat id.
@@ -983,12 +779,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
+    // Admission records a send's own effort as the chat's explicit choice.
+    const effortChoice = body.mode === 'assistant' ? undefined : body.effort
+    let modelSelectorEnabled = false
     if (body.mode !== 'assistant') {
-      const [modelSelectorEnabled, planEnabled] = await Promise.all([
+      const [selectorEnabled, planEnabled] = await Promise.all([
         isMothershipModelSelectorEnabled(),
-        body.mode === 'plan' ? isPlanModeEnabled() : false,
+        body.mode === 'plan' ? isPlanModeEnabled(authenticatedUserId) : false,
       ])
-      Object.assign(body, resolveMothershipModelSettings(body, modelSelectorEnabled))
+      modelSelectorEnabled = selectorEnabled
       if (body.mode === 'plan' && !planEnabled)
         return createBadRequestResponse('Plan mode is disabled')
     }
@@ -1178,6 +977,18 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
       }
+      if (body.mode !== 'assistant')
+        Object.assign(
+          body,
+          resolveMothershipModelSettings(
+            {
+              effort: effortChoice ?? currentChat?.effort ?? undefined,
+              modelSelection: body.modelSelection,
+            },
+            modelSelectorEnabled,
+            body.mode === 'plan'
+          )
+        )
 
       let pendingStreamWaitMs = 0
       if (actualChatId) {
@@ -1279,6 +1090,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           },
           () =>
             resolveAgentContexts({
+              requestMode: body.mode,
               contexts: normalizedContexts,
               resourceAttachments: body.resourceAttachments,
               organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
@@ -1342,6 +1154,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         executionContext.assistantSearch = body.assistantSearch
 
       executionContext.userPermission = userPermission ?? undefined
+      const invocation = authoringInvocation({ chatId: actualChatId, workspaceId })
+      if (invocation)
+        executionContext.copilotResourceAdmission = createCopilotResourceAdmission({
+          userId: authenticatedUserId,
+          invocation,
+        })
 
       /** Trace catalog preparation and attachment tracking before durable admission. */
       const preparedPayload = await withCopilotSpan(
@@ -1381,6 +1199,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFiles: body.desktopCapabilities?.localFiles === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
+                computerUse: body.desktopCapabilities?.computerUse === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
@@ -1408,6 +1227,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFiles: body.desktopCapabilities?.localFiles === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
+                computerUse: body.desktopCapabilities?.computerUse === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
@@ -1436,6 +1256,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         if (!lease || !sendClaim?.claimToken || sendClaim.storageMethod !== 'database') {
           throw new Error('Chat admission requires its controller and durable send claim')
         }
+        const resourceAuthoringVersion = durableResourceAuthoringVersion(
+          executionContext.copilotResourceAdmission !== undefined
+        )
         admittedRun = await admitChatTurn.execute({
           principal: {
             kind: 'session',
@@ -1459,6 +1282,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             },
             recovery: {
               kind: 'interactive_stream',
+              resourceAuthoringVersion,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
               goRoute: branch.goRoute,
               clientToolPickupExpected,
@@ -1466,6 +1290,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               requestMode: body.mode,
             },
             notifyWorkspaceStatus: branch.notifyChatStatus,
+            // The effort this turn actually runs at, so the stored pick is always one it can use.
+            effortChoice: effortChoice && body.effort,
+            desktopDeviceId: backgroundExecutorDeviceId(body),
           },
         })
         // Admission committed. A failure to attach this HTTP sink must leave the turn recoverable.
@@ -1501,6 +1328,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           // Executor routing is decided HERE, once per turn, from the caller's declared
           // capabilities — dispatch never discovers client absence by burning a grace timer.
           clientToolPickupExpected,
+          desktopClaimsLocalReads: body.desktopCapabilities?.localReadClaims === true,
           executionContext,
           billingAttribution: executionContext.billingAttribution,
           onComplete: buildOnComplete({
@@ -1561,6 +1389,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           ...SSE_RESPONSE_HEADERS,
           traceparent: rootTraceparent,
           ...(actualChatId ? { [MOTHERSHIP_CHAT_ID_HEADER]: actualChatId } : {}),
+          ...(admittedRun?.desktopDeviceId
+            ? { [MOTHERSHIP_DESKTOP_EXECUTOR_HEADER]: 'device' }
+            : {}),
         },
       })
     }) // end otelContextApi.with
@@ -1583,6 +1414,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
 
     const applicationError = asOrchestrationError(error)
+    /* Another attempt with this id holds its claim and may admit the turn. Answer
+       as a duplicate (naming this id), so the client keeps the message under it
+       rather than reading a refusal it could edit into a second turn. */
+    if (applicationError instanceof ChatSendSupersededError) {
+      return NextResponse.json(
+        { error: 'This message was already sent.', activeStreamId: userMessageId },
+        { status: 409 }
+      )
+    }
     if (applicationError?.code === 'forbidden' || applicationError?.code === 'not_found') {
       return NextResponse.json({ error: 'Conversation access denied' }, { status: 403 })
     }

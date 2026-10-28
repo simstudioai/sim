@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -62,6 +63,12 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import * as inProcessTransport from '@/lib/api/server/routes/in-process-transport'
+import {
+  admitContent,
+  admitWrittenContent,
+  type ContentProvenance,
+  runDeclaredContentOperation,
+} from '@/lib/core/application'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
@@ -90,8 +97,7 @@ import {
 } from '@/lib/mothership/tools/sandbox-resources'
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { reportTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
-import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
+import { tableOperations } from '@/lib/table/application/operations'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
@@ -358,6 +364,37 @@ async function sandboxApi(path: string, handler: () => Promise<Response>, method
   })
 }
 
+/** What a sourced route does with an item it returns: admit it through the caller's gate. */
+async function deliver(
+  source: 'file' | 'table',
+  provenance: ContentProvenance,
+  value: unknown
+): Promise<boolean> {
+  const item = {
+    kind: source === 'file' ? ('workspace-file' as const) : ('table-row' as const),
+    id: 'fixture',
+    provenance,
+    view: source === 'file' ? ('complete' as const) : { derived: value },
+  }
+  const principal = createDelegatedPrincipal({
+    subjectUserId: scope.userId,
+    workspaceId: scope.workspaceId,
+  })
+  return (await admitContent(principal, [item])).admits(item)
+}
+
+const TOKEN_PROVENANCE = (): ContentProvenance => ({
+  status: 'exact',
+  entries: [
+    {
+      name: 'TOKEN',
+      encryptedValue: catalog[0].encryptedValue,
+      sourceUserId: scope.userId,
+      sourceWorkspaceId: scope.workspaceId,
+    },
+  ],
+})
+
 describe('generated workbench file provenance', () => {
   const identity = () => ({ providerId: 'e2b' as const, sandboxId: machine.sandboxId })
   const observer = () =>
@@ -553,34 +590,12 @@ describe('sandbox API provenance admission', () => {
   })
 
   it.each(['file', 'table'] as const)(
-    'imports explicit %s delivery evidence before later output',
+    'imports admitted %s delivery evidence before later output',
     async (source) => {
       const response = await sandboxApi(
         `/api/v2/${source === 'file' ? 'files/fixture' : 'tables/fixture/rows'}`,
         async () => {
-          if (source === 'file') {
-            await reportWorkspaceFileDelivery({
-              status: 'exact',
-              entries: [
-                {
-                  name: 'TOKEN',
-                  encryptedValue: catalog[0].encryptedValue,
-                  sourceUserId: scope.userId,
-                  sourceWorkspaceId: scope.workspaceId,
-                },
-              ],
-            })
-          } else {
-            await reportTableRowDelivery(
-              {
-                version: 1,
-                complete: true,
-                scope,
-                entries: [{ name: 'TOKEN', encryptedValue: catalog[0].encryptedValue }],
-              },
-              [{ value: canary }]
-            )
-          }
+          expect(await deliver(source, TOKEN_PROVENANCE(), canary)).toBe(true)
           return new Response(canary)
         }
       )
@@ -597,7 +612,7 @@ describe('sandbox API provenance admission', () => {
   it('accepts explicitly unrecorded file delivery and retains earlier secret history', async () => {
     await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])
     const response = await sandboxApi('/api/v2/files/fixture/download', async () => {
-      await reportWorkspaceFileDelivery({ status: 'unrecorded' })
+      expect(await deliver('file', { status: 'unrecorded' }, 'ordinary user input')).toBe(true)
       return new Response('ordinary user input')
     })
     await machine.writeFile('/home/user/input.txt', await response.text())
@@ -611,10 +626,13 @@ describe('sandbox API provenance admission', () => {
 
   it('preserves mutation completion and withholds its body when provenance storage fails', async () => {
     const mutationPath = join(root, 'mutation.json')
+    const principal = createDelegatedPrincipal({
+      subjectUserId: scope.userId,
+      workspaceId: scope.workspaceId,
+    })
     const response = await sandboxApi(
       '/api/v2/tables/fixture/rows',
       async () => {
-        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: false }))
         const evalCommand = redis.eval.bind(redis)
         vi.spyOn(redis, 'eval').mockImplementation((...args) => {
           if (String(args[2]).startsWith('mothership:workbench-provenance:v2:')) {
@@ -622,16 +640,24 @@ describe('sandbox API provenance admission', () => {
           }
           return evalCommand(...args)
         })
-        await reportTableRowDelivery(
-          {
-            version: 1,
-            complete: true,
-            scope,
-            entries: [{ name: 'TOKEN', encryptedValue: catalog[0].encryptedValue }],
+        await runDeclaredContentOperation(
+          tableOperations.createRows,
+          principal,
+          async () => {
+            await writeFile(mutationPath, JSON.stringify({ committed: true, completed: false }))
+            await admitWrittenContent(principal, [
+              {
+                kind: 'table-row',
+                id: 'fixture',
+                provenance: TOKEN_PROVENANCE(),
+                view: { derived: canary },
+              },
+            ])
           },
-          [{ value: canary }]
+          async () => {
+            await writeFile(mutationPath, JSON.stringify({ committed: true, completed: true }))
+          }
         )
-        await writeFile(mutationPath, JSON.stringify({ committed: true, completed: true }))
         return Response.json({ data: { value: canary } }, { status: 201 })
       },
       'POST'
@@ -643,27 +669,24 @@ describe('sandbox API provenance admission', () => {
     expect(response.status).toBe(502)
     const body = await response.text()
     expect(body).not.toContain(canary)
-    expect(body).toContain('completed with HTTP 201')
-    expect(body).toContain('Do not retry a mutation automatically')
+    expect(body).toContain('The change was saved')
+    expect(body).toContain('Do not retry the change')
   })
 
   it.each(['file', 'table'] as const)(
-    'preserves an explicit unknown %s delivery as unknown',
+    'refuses an unknown %s delivery and keeps the workbench usable',
     async (source) => {
-      await sandboxApi(
+      const response = await sandboxApi(
         `/api/v2/${source === 'file' ? 'files/fixture' : 'tables/fixture/rows'}`,
         async () => {
-          if (source === 'file') await reportWorkspaceFileDelivery({ status: 'unknown' })
-          else
-            await reportTableRowDelivery({ version: 1, complete: false, entries: [] }, [
-              { value: 'unknown' },
-            ])
-          return new Response('unknown')
+          expect(await deliver(source, { status: 'unknown' }, 'unknown')).toBe(false)
+          return Response.json({ error: 'refused' }, { status: 403 })
         }
       )
+      expect(response.status).toBe(403)
       const result = await run('printf "ready"')
-      expect(result.projected.safe).toBe(false)
-      expect(JSON.stringify(result.projected.result)).not.toContain('ready')
+      expect(result.projected.safe).toBe(true)
+      expect(JSON.stringify(result.projected.result)).toContain('ready')
     }
   )
 })
@@ -942,6 +965,84 @@ describe('persistent workbench output confidentiality', () => {
     const saved = io.write.mock.calls.at(-1)![0]
     expect(saved.buffer).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1]))
     expect(saved.secretProvenance).toEqual({ status: 'exact', entries: [] })
+  })
+  it('retains export lineage for archive inspection and redaction in a fresh workbench', async () => {
+    const initial = await run('printf "%s" "$TOKEN" > payload.txt', ['TOKEN'])
+    expect(initial.projected.safe).toBe(true)
+    const result = await inResourceScope(() =>
+      executeFunctionExecute(
+        {
+          code: `python3 - <<'PYTHON'
+import zipfile
+with zipfile.ZipFile('bundle.zip', 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.write('payload.txt')
+    archive.writestr('operations.json', '[]')
+PYTHON`,
+          language: 'shell',
+          outputs: { files: [{ path: 'files/bundle.zip', sandboxPath: 'bundle.zip' }] },
+        },
+        context()
+      )
+    )
+    expect(result.success).toBe(true)
+    const saved = io.write.mock.calls.at(-1)?.[0]
+    if (!saved) throw new Error('Archive export did not persist a file')
+    expect(saved.buffer.includes(Buffer.from(canary))).toBe(false)
+    expect(saved.secretProvenance).toMatchObject({
+      status: 'exact',
+      entries: [expect.objectContaining({ name: 'TOKEN', sourceUserId: scope.userId })],
+    })
+    expect(JSON.stringify(saved.secretProvenance)).not.toContain(canary)
+
+    root = await mkdtemp('/private/tmp/sim-workbench-test-')
+    roots.push(root)
+    await mkdir(workerPath('/home/user'), { recursive: true })
+    chatId = `review-${generateShortId(12)}`
+    machine = localWorker()
+    io.find.mockResolvedValue(machine)
+    parent = new ResolvedSecretTraceRegistry([], scope)
+    const identity = { providerId: 'e2b' as const, sandboxId: machine.sandboxId }
+    await initializeSessionFileProvenance(chatSandboxSessionKey(chatId), identity)
+    const file = createWorkbenchFileProvenance({
+      ...scope,
+      sessionKey: chatSandboxSessionKey(chatId),
+    })
+    const stream = new Blob([saved.buffer]).stream()
+    file.trackDownload(stream, saved.secretProvenance)
+    await machine.writeFile(
+      '/home/user/bundle.zip',
+      Buffer.from(await new Response(file.observeDownload(identity, stream)).arrayBuffer())
+    )
+    const listing = await run(`python3 - <<'PYTHON'
+import hashlib, zipfile
+with open('bundle.zip', 'rb') as source:
+    print(hashlib.sha256(source.read()).hexdigest())
+with zipfile.ZipFile('bundle.zip') as archive:
+    print(','.join(archive.namelist()))
+    archive.extractall()
+PYTHON`)
+    expect(listing.projected.safe).toBe(true)
+    expect(listing.projected.result).toMatchObject({
+      success: true,
+      output: {
+        stdout: `${createHash('sha256').update(saved.buffer).digest('hex')}\npayload.txt,operations.json`,
+      },
+    })
+    const readback = await run('cat payload.txt')
+    expect(readback.projected.safe).toBe(true)
+    expect(readback.projected.result).toMatchObject({
+      success: true,
+      output: { stdout: '{{TOKEN}}' },
+    })
+    expect(JSON.stringify(readback.projected.result)).not.toContain(canary)
+    const ordinary = await run('printf ready')
+    expect(ordinary.projected.result).toMatchObject({
+      success: true,
+      output: { stdout: 'ready' },
+    })
+    expect(
+      (await readCliInputFile(chatSandboxSessionKey(chatId), 'operations.json')).toString()
+    ).toBe('[]')
   })
   it('retains historical secret provenance on a text export', async () => {
     await run('printf "%s" "$TOKEN" > saved.txt', ['TOKEN'])

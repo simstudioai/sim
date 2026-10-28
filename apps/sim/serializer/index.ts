@@ -7,6 +7,7 @@ import {
 } from '@sim/workflow-persistence/subflow-helpers'
 import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
+import { migrateGreenhouseAgentInputs } from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
@@ -23,6 +24,7 @@ import {
 import { getBlock } from '@/blocks'
 import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
+import { MissingRequiredFieldsError } from '@/serializer/errors'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { getToolParams } from '@/tools/metadata'
@@ -237,7 +239,7 @@ export class Serializer {
       }
     }
 
-    block = migrateMcpOperationControls(block)
+    block = migrateGreenhouseAgentInputs(migrateMcpOperationControls(block))
     const blockConfig = getBlock(block.type)
     if (!blockConfig) {
       throw new Error(`Invalid block type: ${block.type}`)
@@ -259,9 +261,7 @@ export class Serializer {
       const { missingRequiredFields } = collectBlockFieldIssues(block, blockConfig, params)
       if (missingRequiredFields.length > 0) {
         const blockName = block.name || blockConfig.name || 'Block'
-        throw new Error(
-          `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`
-        )
+        throw new MissingRequiredFieldsError(blockName, missingRequiredFields)
       }
     }
 
@@ -285,8 +285,10 @@ export class Serializer {
         // Default to the first tool if we can't process tools
         toolId = blockConfig.tools.access[0]
       }
-    } else {
-      // For non-agent blocks, get tool ID from block config as usual
+    } else if (params.triggerMode !== true) {
+      // A trigger-mode block runs through TriggerBlockHandler, which never reads a tool id,
+      // and its tool-mode sub-blocks (e.g. `operation`) are not serialized, so selecting
+      // one would throw and fall back to an arbitrary tool.
       toolId = selectToolId(blockConfig, params)
     }
 
@@ -519,7 +521,7 @@ export function selectToolId(blockConfig: any, params: Record<string, any>): str
  * params exactly the way execution (serializeBlock) does.
  */
 export function extractBlockParams(block: BlockState): Record<string, any> {
-  block = migrateMcpOperationControls(block)
+  block = migrateGreenhouseAgentInputs(migrateMcpOperationControls(block))
   if (block.type === 'loop' || block.type === 'parallel') {
     return {}
   }

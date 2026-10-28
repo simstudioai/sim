@@ -9,6 +9,7 @@ Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds
 - Styling and emcn chrome, UI copy, settings pages: `sim-styling.md`, `sim-ui-copy.md`, `sim-settings-pages.md`
 - URL state, list and menu order, caching: `sim-url-state.md`, `sim-list-ordering.md`, `sim-caching.md`
 - Tools, blocks, triggers: `sim-integrations.md`; isolated-vm sandbox worker: `sim-sandbox.md`
+- Anything that returns stored file, run-file, knowledge or table content to Chat: `sim-content-delivery.md`
 - Tests: `sim-testing.md` and the `test-audit` skill
 - Landing pages: `app/(landing)/CLAUDE.md`, `landing-seo-geo.md`, `constitution.md` (product language)
 
@@ -21,7 +22,7 @@ For a common task, start from its skill (`.agents/skills/<name>/SKILL.md`):
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

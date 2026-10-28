@@ -1,6 +1,6 @@
 import type { WorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
 import { normalizeDurableSecretProvenanceEntries } from '@/lib/execution/durable-secret-provenance'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 
 export const WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY = 'workspaceFileSecretProvenance'
 

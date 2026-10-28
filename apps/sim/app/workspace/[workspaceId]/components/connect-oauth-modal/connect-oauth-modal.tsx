@@ -15,7 +15,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -37,11 +37,11 @@ import {
 } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/microsoft-dataverse-environment'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { useCreateCredentialDraft } from '@/hooks/queries/credentials'
+import { useConnectOAuthService } from '@/hooks/queries/oauth/connections'
 import {
   assertMicrosoftDataverseWebOAuthAvailable,
   useConnectMicrosoftDataverseOAuthService,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
-import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 import { useScopedCredentials } from '@/hooks/queries/scoped-credentials'
 
 const logger = createLogger('ConnectOAuthModal')

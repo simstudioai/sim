@@ -828,7 +828,7 @@ export const SportmonksBlock: BlockConfig = {
   name: 'Sportmonks',
   description: 'Access Sportmonks football, motorsport, odds, and reference data',
   longDescription:
-    'Integrate the Sportmonks sports data APIs into the workflow from a single block. Football: fixtures, livescores, leagues, seasons, stages, rounds, teams, squads, players, coaches, referees, venues, standings, topscorers, transfers, schedules, commentaries, TV stations, rivals, expected goals (xG), and predictions. Motorsport: sessions, drivers, teams, championship standings, laps, and pitstops. Odds: pre-match and in-play odds, bookmakers, and markets. Core: continents, countries, regions, cities, types, and time zones.',
+    'Query data across the Sportmonks APIs. Football: fixtures, livescores, leagues, seasons, stages, rounds, teams, squads, players, coaches, referees, venues, standings, topscorers, transfers, schedules, commentaries, TV stations, rivals, expected goals (xG), and predictions. Motorsport: sessions, drivers, teams, championship standings, laps, and pitstops. Odds: pre-match and in-play odds, bookmakers, and markets. Core: continents, countries, regions, cities, types, and time zones.',
   docsLink: 'https://docs.sim.ai/integrations/sportmonks',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

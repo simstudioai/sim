@@ -22,6 +22,7 @@ vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
 import { copilotAsyncToolCalls, copilotChats, copilotRuns, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -30,6 +31,7 @@ import { closeRedisConnection } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
+import { sealClientToolContext } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
@@ -37,6 +39,7 @@ import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
 import { dispatchStreamEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event'
 import { createStreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { makeStreamLoopDeps } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const APP_ORIGIN = 'http://localhost:3000'
 const ROUTES: Record<string, (request: NextRequest) => Promise<Response>> = {
@@ -142,7 +145,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call watched by a web tab', ()
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop executor fixture',
       ownerId: userId,
@@ -177,7 +180,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call watched by a web tab', ()
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 
@@ -188,14 +191,23 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call watched by a web tab', ()
     'delivers the desktop result of %s when the web tab receives the call first',
     async (toolName, args) => {
       const toolCallId = generateId()
+      const registry = new ResolvedSecretTraceRegistry([], { userId, workspaceId })
+      const result = await sealClientToolContext({
+        toolCallId,
+        runId,
+        userId,
+        registry,
+        toolInput: args,
+      })
       await db
         .insert(copilotAsyncToolCalls)
-        .values({ runId, toolCallId, toolName, args, status: 'pending' })
+        .values({ runId, toolCallId, toolName, args, status: 'pending', result })
       const agentAnswer = waitForClientToolCompletion({
         toolCallId,
         runId,
         userId,
         timeoutMs: 10_000,
+        registry,
       })
 
       await webTabReceives(chatId, toolCallId, toolName, args)

@@ -13,7 +13,10 @@ import {
 } from '@/lib/api/server/routes'
 import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
+import {
+  MOTHERSHIP_DESKTOP_EXECUTOR_HEADER,
+  MOTHERSHIP_STREAM_REPLAY_HEADER,
+} from '@/lib/mothership/constants'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -285,6 +288,7 @@ async function handleResumeRequestBody({
       previewSessions,
       status: run.status,
       ...(run.chatId ? { chatId: run.chatId } : {}),
+      ...(run.desktopDeviceId ? { desktopToolsOnDevice: true } : {}),
     })
   }
 
@@ -606,8 +610,10 @@ async function handleResumeRequestBody({
   }
 
   return new Response(stream, {
-    headers: replayBody
-      ? { ...SSE_RESPONSE_HEADERS, [MOTHERSHIP_STREAM_REPLAY_HEADER]: 'log' }
-      : SSE_RESPONSE_HEADERS,
+    headers: {
+      ...SSE_RESPONSE_HEADERS,
+      ...(replayBody ? { [MOTHERSHIP_STREAM_REPLAY_HEADER]: 'log' } : {}),
+      ...(run.desktopDeviceId ? { [MOTHERSHIP_DESKTOP_EXECUTOR_HEADER]: 'device' } : {}),
+    },
   })
 }

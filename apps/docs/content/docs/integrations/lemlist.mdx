@@ -1,38 +1,24 @@
 ---
 title: Lemlist
 description: Manage outreach activities, leads, and send emails via Lemlist
+integration:
+  type: "lemlist"
+  color: "#316BFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="lemlist"
-  color="#316BFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-Supercharge your sales outreach and engagement with [Lemlist](https://lemlist.com) – the personalized outreach automation platform trusted by thousands of sales teams. With Lemlist, you can automate multi-channel campaigns, nurture leads, and boost reply rates, all while keeping your communication highly personalized and authentic.
+Use [Lemlist](https://lemlist.com) to retrieve campaign activities and replies, look up a lead by email or ID, and send an email through the Lemlist inbox. Filter activity by type, campaign, or lead and page with the provided limit and offset.
 
-With the Lemlist integration, you can:
-
-- **Automate outreach sequences:** Launch personalized email, LinkedIn, and calling campaigns at scale, tailored to each recipient.
-- **Track campaign activity:** Instantly monitor opens, clicks, replies, bounces, and every lead interaction for granular campaign insights.
-- **Centralize engagement data:** Fetch real-time activity and replies for each campaign or lead, and sync it directly into your workflow automation.
-- **Get lead details automatically:** Retrieve enriched lead information by email or ID to keep your CRM and processes up to date without manual data entry.
-- **Send targeted emails from your inbox:** Trigger bespoke emails to leads directly from the workflow, using up-to-date templates and data.
-- **Boost team collaboration and follow-up:** Assign leads, track outcomes, and ensure no prospect is lost thanks to Lemlist’s built-in tools—all accessible via automation.
-
-Lemlist empowers sales, marketing, and outbound teams to save time, personalize at scale, and convert more prospects. Automate and optimize your campaigns, integrate with your stack, and never miss a valuable opportunity.
-
-Drive more replies, book more meetings, and grow your pipeline by connecting Lemlist to your automated workflows today!
+Triggers can start workflows from Lemlist activity events. Use activity data to summarize campaign performance, sync replies to a CRM, or decide which leads need follow-up. The block does not expose campaign creation or multi-channel sequence management.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.
-
-
+Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.
 
 ## Actions
 
@@ -121,11 +107,13 @@ Sends an email to a contact through the Lemlist inbox.
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Lemlist Email Bounced
 
 Trigger workflow when an email bounces
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -160,12 +148,13 @@ Trigger workflow when an email bounces
 | `messageId` | string | Email message ID that bounced |
 | `errorMessage` | string | Bounce error message |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist Email Clicked
 
 Trigger workflow when a lead clicks a link in an email
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -200,12 +189,13 @@ Trigger workflow when a lead clicks a link in an email
 | `messageId` | string | Email message ID containing the clicked link |
 | `clickedUrl` | string | URL that was clicked |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist Email Opened
 
 Trigger workflow when a lead opens an email
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -239,13 +229,14 @@ Trigger workflow when a lead opens an email
 | `sendUserName` | string | Sender display name |
 | `messageId` | string | Email message ID that was opened |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist Email Replied
 
 Trigger workflow when a lead replies to an email
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -281,13 +272,14 @@ Trigger workflow when a lead replies to an email
 | `messageId` | string | Email message ID \(RFC 2822 format\) |
 | `emailId` | string | Lemlist email identifier |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist Email Sent
 
 Trigger workflow when an email is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -323,13 +315,14 @@ Trigger workflow when an email is sent
 | `messageId` | string | Email message ID \(RFC 2822 format\) |
 | `emailId` | string | Lemlist email identifier |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist Lead Interested
 
 Trigger workflow when a lead is marked as interested
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -358,13 +351,14 @@ Trigger workflow when a lead is marked as interested
 | `totalSequenceStep` | number | Total number of steps in the sequence |
 | `isFirst` | boolean | Whether this is the first activity of this type for this step |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist Lead Not Interested
 
 Trigger workflow when a lead is marked as not interested
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -393,12 +387,13 @@ Trigger workflow when a lead is marked as not interested
 | `totalSequenceStep` | number | Total number of steps in the sequence |
 | `isFirst` | boolean | Whether this is the first activity of this type for this step |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist LinkedIn Replied
 
 Trigger workflow when a lead replies to a LinkedIn message
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -429,12 +424,13 @@ Trigger workflow when a lead replies to a LinkedIn message
 | `isFirst` | boolean | Whether this is the first activity of this type for this step |
 | `text` | string | LinkedIn message content |
 
-
----
+</ReferenceDetails>
 
 ### Lemlist Webhook (All Events)
 
 Trigger workflow on any Lemlist webhook event
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -472,4 +468,6 @@ Trigger workflow on any Lemlist webhook event
 | `emailId` | string | Lemlist email identifier |
 | `clickedUrl` | string | URL that was clicked \(for emailsClicked events\) |
 | `errorMessage` | string | Error message \(for bounce/failed events\) |
+
+</ReferenceDetails>
 

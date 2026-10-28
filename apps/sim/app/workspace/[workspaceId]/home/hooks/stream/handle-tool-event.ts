@@ -1,5 +1,6 @@
 import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
+import { toRecordOrNull } from '@sim/utils/object'
 import { isDesktopApp } from '@/lib/desktop'
 import {
   MothershipStreamV1ToolPhase,
@@ -17,9 +18,12 @@ import {
 } from '@/lib/mothership/resources/extraction'
 import {
   isClientExecutedToolCall,
-  isDesktopExecutedToolCall,
   isWorkflowToolName,
 } from '@/lib/mothership/tools/client-executed-tools'
+import {
+  isBackgroundDesktopToolCall,
+  isDesktopToolCall,
+} from '@/lib/mothership/tools/desktop-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
@@ -35,7 +39,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { deploymentKeys } from '@/hooks/queries/deployments'
-import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -97,12 +101,12 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
     invalidateResourceQueries(deps.queryClient, deps.workspaceId, resource.type, resource.id)
   }
 
-  if (!replay && (name === ApplyFileEdit.id || name === PrepareFileEdit.id) && isSuccess) {
-    const out = output as Record<string, unknown> | undefined
-    const editData =
-      out && typeof out.data === 'object' && out.data !== null
-        ? (out.data as Record<string, unknown>)
-        : undefined
+  const isFileEdit = name === ApplyFileEdit.id || name === PrepareFileEdit.id
+  const editData = isFileEdit ? toRecordOrNull(toRecordOrNull(output)?.data) : null
+  /** A file another resource owns (a test's source) never opens as a file tab. */
+  const editedFileIsTab = editData?.fileTab !== false
+
+  if (!replay && isFileEdit && isSuccess && editedFileIsTab) {
     const editedFileId =
       (typeof editData?.id === 'string' ? editData.id : undefined) ??
       deps.previewSessionRef.current?.fileId
@@ -139,7 +143,9 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
     if (name === PrepareFileEdit.id) {
       deps.removePreviewSessionImmediate(node.id)
     }
-    const fileResource = extractedResources.find((r) => r.type === 'file')
+    const fileResource = editedFileIsTab
+      ? extractedResources.find((r) => r.type === 'file')
+      : undefined
     if (fileResource) {
       deps.promoteFileResource(fileResource.id, fileResource.title)
       deps.onResourceEventRef.current?.(
@@ -195,9 +201,12 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   const args = payload.arguments as Record<string, unknown> | undefined
   // Every client tailing the chat sees the call. A client without the desktop app leaves desktop
   // tools to it: its answer could only be an error, and that error would beat the real result.
+  // A turn a desktop's background executor runs belongs to that desktop: this view only shows it.
+  const isDesktopCall = isDesktopToolCall(name, args)
   const shouldStartClientTool =
     isClientExecutedToolCall(name, args) &&
-    (isDesktopApp() || !isDesktopExecutedToolCall(name, args)) &&
+    (isDesktopApp() || !isDesktopCall) &&
+    !(isBackgroundDesktopToolCall(name, args) && deps.options.desktopToolsOnDevice) &&
     !isPartial &&
     !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
     node?.kind === 'tool' &&
@@ -210,6 +219,8 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
       deps.startClientBrowserTool(rawId, name, args ?? {}, parsed.ts)
     } else if (isTerminalToolName(name)) {
       deps.startClientTerminalTool(rawId, name, args ?? {}, parsed.ts)
+    } else if (name === 'computer') {
+      deps.startClientComputerTool(rawId, payload.arguments ?? {}, parsed.ts)
     } else {
       deps.startClientLocalFilesystemTool(rawId, name, args ?? {})
     }

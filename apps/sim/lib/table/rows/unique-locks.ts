@@ -9,7 +9,7 @@
  *
  * Lock order, everywhere: the table's schema lock (shared by row writes, exclusive by schema
  * changes; see `live-schema.ts`), then the table's unique lock and its value locks in sorted order,
- * in one statement, then the table's row-order lock, then the definition row.
+ * in one statement, then the definition row.
  */
 
 import { compareStrings } from '@sim/utils/string'
@@ -83,7 +83,8 @@ export async function lockUniqueValues(
  * Locks every unique value of `table` exclusively, for writers that replace the table's rows
  * wholesale and so conflict with any concurrent write of a unique value. It locks even a table with
  * no unique columns yet: a writer holding an older schema may still hold the lock shared, and a
- * whole-table writer that adds a unique column must already hold it before the row-order lock.
+ * whole-table writer that adds a unique column must already hold it before it writes rows. Taking
+ * it exclusively also serializes two replaces of the same table.
  */
 export async function lockUniqueColumns(trx: DbTransaction, table: TableDefinition): Promise<void> {
   await acquireAdvisoryXactLocks(trx, UNIQUE_LOCK_TAG, [

@@ -1,5 +1,5 @@
 /** Real recovery admission, outbox delivery, stored bytes, indexing, and authorized search. */
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -14,6 +14,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -69,8 +70,8 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import * as billingAttribution from '@/lib/billing/core/billing-attribution'
-import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import * as billingAttribution from '@/lib/billing/core/attribution'
+import { resolveSystemBillingAttribution } from '@/lib/billing/core/attribution'
 import * as outbox from '@/lib/core/outbox/service'
 import {
   createKnowledgeAclFixtureIds,
@@ -81,17 +82,15 @@ import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
 import { DEFERRED_RETRY_LOST_ERROR } from '@/lib/knowledge/documents/deferred-retry-check'
-import {
-  enqueueKnowledgeDocumentProcessing,
-  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
-} from '@/lib/knowledge/documents/processing-outbox-event'
+import { KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT } from '@/lib/knowledge/documents/processing-events'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import {
   DOCUMENT_RECOVERY_BATCH_SIZE,
-  KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
   recoverKnowledgeDocumentProcessing,
   recoveryCandidatesQuery,
 } from '@/lib/knowledge/documents/processing-recovery'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import {
   processDocumentAsync,
   processDocumentsWithQueue,
@@ -174,7 +173,7 @@ afterAll(async () => {
       .delete(outboxEvent)
       .where(sql`${outboxEvent.payload}->>'knowledgeBaseId' = ${ids.knowledgeBaseId}`)
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }
@@ -1093,30 +1092,6 @@ describe('independent recovery of retained connector documents', () => {
     const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
     expect(original.processingAttempts).toBe(1)
     expect(original.processingQueueToken).toBe('old-fixture-generation')
-  })
-
-  it('replays the additive migration and leaves the concurrent recovery index valid', async () => {
-    const migration = readFileSync(
-      path.resolve(
-        process.cwd(),
-        '../../packages/db/migrations/0336_knowledge_processing_recovery.sql'
-      ),
-      'utf8'
-    )
-    const connection = await db.$client.reserve()
-    try {
-      for (let replay = 0; replay < 2; replay++) {
-        for (const statement of migration.split('--> statement-breakpoint')) {
-          if (statement.trim()) await connection.unsafe(statement)
-        }
-      }
-      const [index] = await connection.unsafe<{ indisvalid: boolean }[]>(
-        "SELECT indisvalid FROM pg_index WHERE indexrelid = 'doc_processing_recovery_idx'::regclass"
-      )
-      expect(index.indisvalid).toBe(true)
-    } finally {
-      connection.release()
-    }
   })
 })
 

@@ -16,7 +16,8 @@ globs: ["apps/sim/**/*.tsx","apps/sim/**/*.css"]
 3. **Exact values over approximations** - `h-[26px]`, not `h-6`. But **type size is
    always a named token** (`text-sm`, `text-caption`) — never `text-[14px]`, which
    sets font-size only and inherits a different line-height. The scale is under
-   "Text Scale" below.
+   "Text Scale" below. `check:source-conventions` ratchets literal sizes the scale
+   names, and style objects whose every value is static.
 4. **Transitions** - `transition-colors` for interactive states
 
 ## Conditional Classes
@@ -88,7 +89,7 @@ Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inse
 
 ## Chip Components (consumer usage)
 
-`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn/src/components/chip/chip-chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
+`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn/src/components/chip/chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
 
 ### Props over className
 

@@ -13,7 +13,7 @@ import {
   type PersonalTokenCredential,
 } from '@/lib/credentials/personal-tokens'
 import { providerIdsForService } from '@/lib/oauth/utils'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 async function resolveContext({ input }: { input: { workspaceId: string } }) {
   const context = await loadActiveWorkspaceApplicationContext(input.workspaceId)

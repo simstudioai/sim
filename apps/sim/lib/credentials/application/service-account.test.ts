@@ -26,7 +26,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/credentials/orchestration', () => ({
   createServiceAccountCredential: hoisted.create,

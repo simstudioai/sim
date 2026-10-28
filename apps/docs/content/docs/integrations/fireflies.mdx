@@ -1,43 +1,31 @@
 ---
 title: Fireflies
 description: Interact with Fireflies.ai meeting transcripts and recordings
+integration:
+  type: "fireflies_v2"
+  color: "#100730"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="fireflies_v2"
-  color="#100730"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-[Fireflies.ai](https://fireflies.ai/) is a meeting transcription and intelligence platform that integrates with Sim, allowing your agents to work directly with meeting recordings, transcripts, and insights through no-code automations.
+Use [Fireflies.ai](https://fireflies.ai/) to list, search, retrieve, or delete meeting transcripts with an API key. Filter by keyword, host, participants, or time range; detailed reads include summaries, action items, topics, and participant analytics when available.
 
-The Fireflies integration in Sim provides tools to:
-
-- **List meeting transcripts:** Fetch multiple meetings and their summary information for your team or account.
-- **Retrieve full transcript details:** Access detailed transcripts, including summaries, action items, topics, and participant analytics for any meeting.
-- **Upload audio or video:** Upload audio/video files or provide URLs for transcription—optionally set language, title, attendees, and receive automated meeting notes.
-- **Search transcripts:** Find meetings by keyword, participant, host, or timeframe to quickly locate relevant discussions.
-- **Delete transcripts:** Remove specific meeting transcripts from your Fireflies workspace.
-- **Create soundbites (Bites):** Extract and highlight key moments from transcripts as audio or video clips.
-- **Trigger workflows on transcription completion:** Activate Sim workflows automatically when a Fireflies meeting transcription finishes using the provided webhook trigger—enabling real-time automations and notifications based on new meeting data.
-
-By combining these capabilities, you can streamline post-meeting actions, extract structured insights, automate notifications, manage recordings, and orchestrate custom workflows around your organization’s calls—all securely using your API key and Fireflies credentials.
+Upload audio or video files, or provide a media URL, for transcription with optional language, title, and attendee details. You can also add a bot to a live meeting and create soundbites from a transcript. The transcription-completed webhook starts a workflow when a new transcript is ready.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to live meetings, create soundbites, and more. Can also trigger workflows when transcriptions complete.
-
-
+List, search, retrieve, or delete meeting transcripts, submit media for transcription, add a bot to a live meeting, and create soundbites. Transcription-completed webhooks can start workflows.
 
 ## Actions
 
 ### Fireflies List Transcripts
 
 List meeting transcripts from Fireflies.ai with optional filtering
+
+<ReferenceDetails>
 
 #### Input
 
@@ -59,9 +47,13 @@ List meeting transcripts from Fireflies.ai with optional filtering
 | `transcripts` | array | List of transcripts |
 | `count` | number | Number of transcripts returned |
 
+</ReferenceDetails>
+
 ### Fireflies Get Transcript
 
 Get a single transcript with full details including summary, action items, and analytics
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +80,13 @@ Get a single transcript with full details including summary, action items, and a
 |   ↳ `summary` | object | Meeting summary and action items |
 |   ↳ `analytics` | object | Meeting analytics and sentiment |
 
+</ReferenceDetails>
+
 ### Fireflies Get User
 
 Get user information from Fireflies.ai. Returns current user if no ID specified.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -114,9 +110,13 @@ Get user information from Fireflies.ai. Returns current user if no ID specified.
 |   ↳ `recent_transcript` | string | Most recent transcript ID |
 |   ↳ `recent_meeting` | string | Most recent meeting date |
 
+</ReferenceDetails>
+
 ### Fireflies List Users
 
 List all users within your Fireflies.ai team
+
+<ReferenceDetails>
 
 #### Input
 
@@ -130,9 +130,13 @@ List all users within your Fireflies.ai team
 | --------- | ---- | ----------- |
 | `users` | array | List of team users |
 
+</ReferenceDetails>
+
 ### Fireflies Upload Audio
 
 Upload an audio file URL to Fireflies.ai for transcription
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,9 +159,13 @@ Upload an audio file URL to Fireflies.ai for transcription
 | `title` | string | Title of the uploaded meeting |
 | `message` | string | Status message from Fireflies |
 
+</ReferenceDetails>
+
 ### Fireflies Delete Transcript
 
 Delete a transcript from Fireflies.ai
+
+<ReferenceDetails>
 
 #### Input
 
@@ -179,9 +187,13 @@ Delete a transcript from Fireflies.ai
 |   ↳ `host_email` | string | Host email address |
 |   ↳ `organizer_email` | string | Organizer email address |
 
+</ReferenceDetails>
+
 ### Fireflies Add to Live Meeting
 
 Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
+
+<ReferenceDetails>
 
 #### Input
 
@@ -200,9 +212,13 @@ Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the bot was successfully added to the meeting |
 
+</ReferenceDetails>
+
 ### Fireflies Create Bite
 
 Create a soundbite/highlight from a specific time range in a transcript
+
+<ReferenceDetails>
 
 #### Input
 
@@ -225,9 +241,13 @@ Create a soundbite/highlight from a specific time range in a transcript
 |   ↳ `name` | string | Bite name |
 |   ↳ `status` | string | Processing status |
 
+</ReferenceDetails>
+
 ### Fireflies List Bites
 
 List soundbites/highlights from Fireflies.ai
+
+<ReferenceDetails>
 
 #### Input
 
@@ -245,9 +265,13 @@ List soundbites/highlights from Fireflies.ai
 | --------- | ---- | ----------- |
 | `bites` | array | List of bites/soundbites |
 
+</ReferenceDetails>
+
 ### Fireflies List Contacts
 
 List all contacts from your Fireflies.ai meetings
+
+<ReferenceDetails>
 
 #### Input
 
@@ -261,11 +285,13 @@ List all contacts from your Fireflies.ai meetings
 | --------- | ---- | ----------- |
 | `contacts` | array | List of contacts from meetings |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Fireflies Transcription Complete
 

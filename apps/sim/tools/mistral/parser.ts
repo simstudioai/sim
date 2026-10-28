@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateRandomString } from '@sim/utils/random'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file'
 import {
   selectModelBoundFileInputPaths,
   selectPreferredModelBoundFileInputPaths,
@@ -87,7 +87,8 @@ export const mistralParserTool: InternalToolConfig<MistralParserInput, MistralPa
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Type of parsed result (markdown, text, or json). Defaults to markdown.',
+      description:
+        'Legacy parser output format (markdown, text, or json; default markdown). Versions 2 and 3 return structured OCR pages regardless of this value.',
     },
     includeImageBase64: {
       type: 'boolean',

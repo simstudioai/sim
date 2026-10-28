@@ -1,4 +1,5 @@
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
@@ -71,6 +72,7 @@ const {
     INTERNAL_API_SECRET: 'transport-test-secret-000000000000000000',
     COPILOT_API_KEY: undefined as string | undefined,
     MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
+    MOTHERSHIP_BENCHMARK_URL: 'https://benchmark.test',
   },
 }))
 
@@ -81,7 +83,7 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
 vi.mock('@/lib/mothership/request/context/restore', () => ({ restoreStreamingContext: vi.fn() }))
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -173,8 +175,8 @@ vi.mock('@/lib/mothership/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', async (original) => ({
-  ...(await original<typeof import('@/lib/billing/core/billing-attribution')>()),
+vi.mock('@/lib/billing/core/attribution', async (original) => ({
+  ...(await original<typeof import('@/lib/billing/core/attribution')>()),
   /**
    * Faithful envelope replica: real protocol constant, real UUID request id, real
    * URI-encoded serialization — the hosted-header tests below assert all three.
@@ -221,6 +223,7 @@ vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
 
 import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
+import { CLIENT_TOOL_RESULT_TIMEOUT_MS } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
@@ -278,6 +281,7 @@ describe('runCopilotLifecycle', () => {
     setEnvFlags({
       isHosted: false,
       isCopilotToolPermissionsEnabled: false,
+      isMothershipBenchmarkEnabled: false,
     })
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetUserPermissionConfig.mockResolvedValue(null)
@@ -911,24 +915,30 @@ describe('runCopilotLifecycle', () => {
     })
   })
 
-  it('stamps server-owned transport over caller claims without exposing the instance secret', async () => {
-    let captured = ''
-    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
-      captured = String(request.body)
-    })
-    await runCopilotLifecycle(
-      { message: 'hello', simConnection: { mode: 'direct' } },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-      }
-    )
-    expect(JSON.parse(captured).simConnection).toEqual({
-      mode: 'checkpoint',
-      channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
-    })
-    expect(captured).not.toContain(mockEnv.INTERNAL_API_SECRET)
-  })
+  it.each(['/api/mothership', '/api/copilot', '/api/mothership/execute'])(
+    'forces benchmark checkpoint transport over caller claims on %s',
+    async (goRoute) => {
+      setEnvFlags({ isMothershipBenchmarkEnabled: true })
+      let captured = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        captured = String(request.body)
+      })
+      await runCopilotLifecycle(
+        { message: 'hello', simConnection: { mode: 'direct' } },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          benchmark: 'distill',
+          goRoute,
+        }
+      )
+      expect(JSON.parse(captured).simConnection).toEqual({
+        mode: 'checkpoint',
+        channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+      })
+      expect(captured).not.toContain(mockEnv.INTERNAL_API_SECRET)
+    }
+  )
 
   it.each([false, true])(
     'attaches BYOK without letting a hidden hosted default override it (advanced=%s)',
@@ -3541,6 +3551,294 @@ describe('runCopilotLifecycle', () => {
       expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
       expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  /**
+   * Runs a turn whose import never settles, recording each leg's request body. `deadlineAt` is
+   * the deadline the worker named for the import, if any.
+   */
+  function runImportTurn(deadlineAt?: number) {
+    const bodies: Record<string, unknown>[] = []
+    let streamContext: StreamingContext | undefined
+    mockForceFailHungToolCall.mockImplementation(
+      async (toolCallId: string, context: StreamingContext) => {
+        const tool = context.toolCalls.get(toolCallId)
+        if (!tool) return
+        tool.status = MothershipStreamV1ToolOutcome.error
+        tool.endTime = Date.now()
+        tool.result = { success: false }
+        tool.error = 'Tool execution hung'
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        streamContext = context
+        context.toolCalls.set('tool-import', {
+          id: 'tool-import',
+          name: 'import_local_files',
+          status: 'executing',
+          ...(deadlineAt === undefined ? {} : { deadlineAt }),
+        })
+        context.pendingToolPromises.set('tool-import', new Promise(() => {}))
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-import'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, fetchOptions: RequestInit, context: StreamingContext) => {
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        context.accumulatedContent = 'Done.'
+      }
+    )
+    const lifecycle = runCopilotLifecycle(
+      { message: 'import', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+      }
+    )
+    /** The agent was resumed with the import given up as lost. */
+    const resumedWithLostImport = () =>
+      bodies.length === 2 &&
+      JSON.stringify(bodies[1].results).includes('"callId":"tool-import"') &&
+      JSON.stringify(bodies[1].results).includes('"success":false')
+    const context = () => {
+      if (!streamContext) throw new Error('The turn did not start its stream')
+      return streamContext
+    }
+    /** The reasons the turn logged for force-failing its calls. */
+    const forceFailures = () =>
+      getMockLogger('CopilotLifecycle')
+        .error.mock.calls.map(([message]) => String(message))
+        .filter((message) => message.endsWith('force-failing'))
+    return { bodies, lifecycle, resumedWithLostImport, context, forceFailures }
+  }
+
+  it('waits on a chat-view import while its lease is renewed, and fails it once the lease lapses', async () => {
+    vi.useFakeTimers()
+    try {
+      // Renewed once past the default budget, then the renewals stop and the lease lapses.
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs
+        .mockResolvedValueOnce(50_000)
+        .mockResolvedValue(null)
+      const turn = runImportTurn()
+      // Past the default budget (60 s + 30 s grace) the lease is still live: the agent waits.
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(turn.bodies).toHaveLength(1)
+      // Once that lease runs out, the agent is resumed with the import given up as lost.
+      await vi.advanceTimersByTimeAsync(52_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution has no live lease past its budget; force-failing',
+      ])
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('fails a renewed import at the deadline the worker named for it', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(50_000)
+      const turn = runImportTurn(Date.now() + 200_000)
+      // Its lease is renewed throughout, so only the deadline ends the wait.
+      await vi.advanceTimersByTimeAsync(229_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution reached the client tool result cap; force-failing',
+      ])
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('fails a call whose deadline already passed at that deadline plus grace, not a grace from now', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(50_000)
+      const turn = runImportTurn(Date.now() - 10_000)
+      await vi.advanceTimersByTimeAsync(19_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(
+        mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs
+      ).not.toHaveBeenCalled()
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('a call without a deadline keeps its full budget and grace', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(null)
+      const turn = runImportTurn()
+      await vi.advanceTimersByTimeAsync(89_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('a lease lookup that fails is checked again instead of failing a renewed import', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs
+        .mockRejectedValueOnce(new Error('database unavailable'))
+        .mockResolvedValueOnce(30_000)
+        .mockResolvedValue(null)
+      const turn = runImportTurn()
+      // The failed lookup at the default budget, and its retry 5 s later, leave the import running.
+      await vi.advanceTimersByTimeAsync(97_000)
+      expect(turn.bodies).toHaveLength(1)
+      // It is given up only once the lease the retry found has lapsed.
+      await vi.advanceTimersByTimeAsync(32_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution has no live lease past its budget; force-failing',
+      ])
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up a renewed import at the client result cap, however long the renewals go on', async () => {
+    vi.useFakeTimers()
+    try {
+      // The page stays alive and renews, but the import itself never finishes.
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(50_000)
+      const turn = runImportTurn()
+      await vi.advanceTimersByTimeAsync(CLIENT_TOOL_RESULT_TIMEOUT_MS - 1_000)
+      expect(turn.bodies).toHaveLength(1)
+      const leaseReads =
+        mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mock.calls.length
+      await vi.advanceTimersByTimeAsync(2_000)
+      // At the cap the call is given up without reading its lease.
+      expect(
+        mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mock.calls.length
+      ).toBe(leaseReads)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution reached the client tool result cap; force-failing',
+      ])
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up an import whose lease cannot be read for a whole lease', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockRejectedValue(
+        new Error('database unavailable')
+      )
+      const turn = runImportTurn()
+      // The first failed lookup comes at the default budget (90 s); retries go on for one lease.
+      await vi.advanceTimersByTimeAsync(145_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution lease could not be read for a whole lease; force-failing',
+      ])
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('a lease lookup that stalls counts as failed, and gives the import up after one lease', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockImplementation(
+        () => new Promise<number | null>(() => {})
+      )
+      const turn = runImportTurn()
+      // The lookup at the default budget (90 s) stalls; each attempt is cut off after 5 s and
+      // tried again, for one lease.
+      await vi.advanceTimersByTimeAsync(150_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution lease could not be read for a whole lease; force-failing',
+      ])
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not fail a call replaced while its lease was being read', async () => {
+    vi.useFakeTimers()
+    try {
+      let finishReplacement = () => {}
+      const turn = runImportTurn()
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockImplementationOnce(
+        async () => {
+          const context = turn.context()
+          context.pendingToolPromises.set(
+            'tool-import',
+            new Promise<{ status: 'success' }>((resolve) => {
+              finishReplacement = () => {
+                const tool = context.toolCalls.get('tool-import')
+                if (tool) {
+                  tool.status = MothershipStreamV1ToolOutcome.success
+                  tool.endTime = Date.now()
+                  tool.result = { success: true, output: { imported: true } }
+                }
+                context.pendingToolPromises.delete('tool-import')
+                resolve({ status: 'success' })
+              }
+            })
+          )
+          // The old promise's lease has lapsed, but the call now belongs to the replacement.
+          return null
+        }
+      )
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(turn.bodies).toHaveLength(1)
+      // The replacement is still running: nothing has settled the call as failed.
+      expect(turn.context().toolCalls.get('tool-import')?.status).toBe('executing')
+      finishReplacement()
+      await vi.advanceTimersByTimeAsync(0)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(JSON.stringify(turn.bodies[1].results)).toContain('"success":true')
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
       vi.useRealTimers()
     }
   })

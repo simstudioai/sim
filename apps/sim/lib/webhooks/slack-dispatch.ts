@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { isDroppedDispatch } from '@/lib/webhooks/dispatch-result'
 import {
   dispatchResolvedWebhookTarget,
   type findWebhooksByRoutingKey,
@@ -75,7 +76,7 @@ export function getSlackDispatchFailureResponse(result: WebhookDispatchResult): 
 /** Reduces a Slack fan-out to one provider acknowledgment or retry response. */
 export function getSlackDispatchResponse(results: WebhookDispatchResult[]): NextResponse {
   const acknowledged = results.some(
-    (result) => result.outcome !== 'failed' && result.reason !== 'block-missing'
+    (result) => result.outcome !== 'failed' && !isDroppedDispatch(result)
   )
   if (acknowledged) {
     return new NextResponse(null, { status: 200 })

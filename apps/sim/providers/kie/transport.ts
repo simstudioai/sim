@@ -17,6 +17,30 @@ function toHttpStatus(code: number): number {
   return code >= 400 && code <= 599 ? code : 502
 }
 
+/** Maps Sonnet's thinking controls to Kie's documented boolean request flag. */
+function withKieThinkingFlag(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): RequestInit | undefined {
+  const url = input instanceof Request ? input.url : String(input)
+  if (!url.endsWith('/claude/v1/messages') || typeof init?.body !== 'string') return init
+  const body: unknown = JSON.parse(init.body)
+  if (!isRecordLike(body) || body.model !== 'claude-sonnet-5-5' || !isRecordLike(body.thinking)) {
+    return init
+  }
+  const { thinking, ...rest } = body
+  const headers = new Headers(init.headers)
+  headers.delete('content-length')
+  return {
+    ...init,
+    headers,
+    body: JSON.stringify({
+      ...rest,
+      thinkingFlag: thinking.type !== 'disabled' && thinking.type !== 'between_tools',
+    }),
+  }
+}
+
 /**
  * Wraps `fetch` so Kie responses read like the APIs they proxy.
  *
@@ -30,7 +54,7 @@ function toHttpStatus(code: number): number {
  */
 export function createKieFetch(baseFetch?: typeof fetch): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const response = await (baseFetch ?? fetch)(input, init)
+    const response = await (baseFetch ?? fetch)(input, withKieThinkingFlag(input, init))
     const contentType = response.headers.get('content-type')?.toLowerCase()
     if (response.status !== 200 || (contentType && !contentType.includes('application/json'))) {
       return response

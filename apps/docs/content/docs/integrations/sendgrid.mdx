@@ -1,31 +1,29 @@
 ---
 title: SendGrid
 description: Send emails and manage contacts, lists, and templates with SendGrid
+integration:
+  type: "sendgrid"
+  color: "#1A82E2"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sendgrid"
-  color="#1A82E2"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [SendGrid](https://sendgrid.com) in Sim to send transactional emails, work with dynamic templates and attachments, and manage marketing contacts and lists. The action reference also covers template and suppression-group operations.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate SendGrid into your workflow. Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.
-
-
+Send transactional emails with dynamic templates and attachments. Manage marketing contacts, lists, and email templates.
 
 ## Actions
 
 ### SendGrid Send Mail
 
 Send an email using SendGrid API
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,9 +54,13 @@ Send an email using SendGrid API
 | `to` | string | Recipient email address |
 | `subject` | string | Email subject |
 
+</ReferenceDetails>
+
 ### SendGrid Add Contact
 
 Add a new contact to SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +83,13 @@ Add a new contact to SendGrid
 | `lastName` | string | Contact last name |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### SendGrid Get Contact
 
 Get a specific contact by ID from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -105,9 +111,13 @@ Get a specific contact by ID from SendGrid
 | `listIds` | json | Array of list IDs the contact belongs to |
 | `customFields` | json | Custom field values |
 
+</ReferenceDetails>
+
 ### SendGrid Search Contacts
 
 Search for contacts in SendGrid using a query
+
+<ReferenceDetails>
 
 #### Input
 
@@ -123,9 +133,13 @@ Search for contacts in SendGrid using a query
 | `contacts` | json | Array of matching contacts |
 | `contactCount` | number | Total number of contacts found |
 
+</ReferenceDetails>
+
 ### SendGrid Delete Contacts
 
 Delete one or more contacts from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -140,9 +154,13 @@ Delete one or more contacts from SendGrid
 | --------- | ---- | ----------- |
 | `jobId` | string | Job ID for the deletion request |
 
+</ReferenceDetails>
+
 ### SendGrid Create List
 
 Create a new contact list in SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -159,9 +177,13 @@ Create a new contact list in SendGrid
 | `name` | string | List name |
 | `contactCount` | number | Number of contacts in the list |
 
+</ReferenceDetails>
+
 ### SendGrid Get List
 
 Get a specific list by ID from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -178,9 +200,13 @@ Get a specific list by ID from SendGrid
 | `name` | string | List name |
 | `contactCount` | number | Number of contacts in the list |
 
+</ReferenceDetails>
+
 ### SendGrid List All Lists
 
 Get all contact lists from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -197,9 +223,13 @@ Get all contact lists from SendGrid
 | `lists` | json | Array of lists |
 | `nextPageToken` | string | Token to pass as pageToken to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### SendGrid Delete List
 
 Delete a contact list from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -214,9 +244,13 @@ Delete a contact list from SendGrid
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
+</ReferenceDetails>
+
 ### SendGrid Add Contacts to List
 
 Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marketing/contacts)
+
+<ReferenceDetails>
 
 #### Input
 
@@ -233,9 +267,13 @@ Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marke
 | `jobId` | string | Job ID for tracking the async operation |
 | `message` | string | Status message |
 
+</ReferenceDetails>
+
 ### SendGrid Remove Contacts from List
 
 Remove contacts from a specific list in SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -251,9 +289,13 @@ Remove contacts from a specific list in SendGrid
 | --------- | ---- | ----------- |
 | `jobId` | string | Job ID for the request |
 
+</ReferenceDetails>
+
 ### SendGrid Create Template
 
 Create a new email template in SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -273,9 +315,13 @@ Create a new email template in SendGrid
 | `updatedAt` | string | Last update timestamp |
 | `versions` | json | Array of template versions |
 
+</ReferenceDetails>
+
 ### SendGrid Get Template
 
 Get a specific template by ID from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -294,9 +340,13 @@ Get a specific template by ID from SendGrid
 | `updatedAt` | string | Last update timestamp |
 | `versions` | json | Array of template versions |
 
+</ReferenceDetails>
+
 ### SendGrid List Templates
 
 Get all email templates from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -314,9 +364,13 @@ Get all email templates from SendGrid
 | `templates` | json | Array of templates |
 | `nextPageToken` | string | Token to pass as pageToken to fetch the next page, if more results exist |
 
+</ReferenceDetails>
+
 ### SendGrid Delete Template
 
 Delete an email template from SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -327,38 +381,15 @@ Delete an email template from SendGrid
 
 #### Output
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `message` | string | Status or success message |
-| `messageId` | string | Email message ID \(send_mail\) |
-| `to` | string | Recipient email address \(send_mail\) |
-| `subject` | string | Email subject \(send_mail, create_template_version\) |
-| `id` | string | Resource ID |
-| `jobId` | string | Job ID for async operations |
-| `email` | string | Contact email address |
-| `firstName` | string | Contact first name |
-| `lastName` | string | Contact last name |
-| `createdAt` | string | Creation timestamp |
-| `updatedAt` | string | Last update timestamp |
-| `listIds` | json | Array of list IDs the contact belongs to |
-| `customFields` | json | Custom field values |
-| `contacts` | json | Array of contacts |
-| `contactCount` | number | Number of contacts |
-| `lists` | json | Array of lists |
-| `name` | string | Resource name |
-| `templates` | json | Array of templates |
-| `generation` | string | Template generation |
-| `versions` | json | Array of template versions |
-| `nextPageToken` | string | Token for the next page of results \(list_all_lists, list_templates\) |
-| `templateId` | string | Template ID |
-| `active` | boolean | Whether template version is active |
-| `htmlContent` | string | HTML content |
-| `plainContent` | string | Plain text content |
+No output fields.
+
+</ReferenceDetails>
 
 ### SendGrid Create Template Version
 
 Create a new version of an email template in SendGrid
+
+<ReferenceDetails>
 
 #### Input
 
@@ -384,5 +415,7 @@ Create a new version of an email template in SendGrid
 | `htmlContent` | string | HTML content |
 | `plainContent` | string | Plain text content |
 | `updatedAt` | string | Last update timestamp |
+
+</ReferenceDetails>
 
 

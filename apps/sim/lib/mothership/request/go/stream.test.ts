@@ -44,7 +44,7 @@ vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: changeStoredChatResourcesMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
@@ -65,10 +65,10 @@ vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
     }),
 }))
 
-vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
+vi.mock('@/lib/mothership/tools/server/files/preview', async () => {
   const actual = await vi.importActual<
-    typeof import('@/lib/mothership/tools/server/files/file-preview')
-  >('@/lib/mothership/tools/server/files/file-preview')
+    typeof import('@/lib/mothership/tools/server/files/preview')
+  >('@/lib/mothership/tools/server/files/preview')
   return {
     ...actual,
     // Returns the file's preview base as a `WorkspaceFilePreviewBase` ({ text }), NOT a bare string —
@@ -98,18 +98,10 @@ import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
 
-const mockListAllWorkspaceFiles = workspaceFilesListMockFns.mockListAllWorkspaceFiles
+const mockFindFilesByReference = workspaceFilesListMockFns.mockFindActiveWorkspaceFilesByReference
 
 const resolveWorkspaceFileReferenceMock =
   workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
-workspaceFileManagerMockFns.mockFindWorkspaceFileRecord.mockImplementation(
-  (files: Array<{ name: string; folderPath?: string | null }>, path: string) =>
-    files.find((file) => {
-      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
-      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
-      return filePath === normalized
-    }) ?? null
-)
 
 function createSseResponse(events: unknown[]): Response {
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
@@ -181,8 +173,8 @@ describe('copilot go stream helpers', () => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
-    mockListAllWorkspaceFiles.mockReset()
-    mockListAllWorkspaceFiles.mockResolvedValue({ files: [] })
+    mockFindFilesByReference.mockReset()
+    mockFindFilesByReference.mockResolvedValue({ files: new Map() })
     changeStoredChatResourcesMock.mockReset()
     changeStoredChatResourcesMock.mockResolvedValue([])
     materializeStreamImageMock.mockReset().mockResolvedValue({ url: '/private-image' })
@@ -577,14 +569,13 @@ describe('copilot go stream helpers', () => {
   })
 
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    mockListAllWorkspaceFiles.mockResolvedValue({
-      files: [
-        {
-          id: 'changelog-file-1',
-          name: 'changelog.md',
-          folderPath: 'workflows/My Workflow',
-        },
-      ],
+    mockFindFilesByReference.mockResolvedValue({
+      files: new Map([
+        [
+          'workflows/My%20Workflow/changelog.md',
+          { id: 'changelog-file-1', name: 'changelog.md', folderPath: 'workflows/My Workflow' },
+        ],
+      ]),
     })
 
     const workspaceFileCall = createEvent({
@@ -691,12 +682,15 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(mockListAllWorkspaceFiles).toHaveBeenCalledWith({
+    expect(mockFindFilesByReference).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
         workspaceId: 'workspace-1',
       }),
-      input: { workspaceId: 'workspace-1', scope: 'active' },
+      input: {
+        workspaceId: 'workspace-1',
+        references: ['workflows/My%20Workflow/changelog.md'],
+      },
     })
   })
 

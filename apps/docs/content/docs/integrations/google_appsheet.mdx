@@ -1,37 +1,32 @@
 ---
 title: Google AppSheet
 description: Read, add, edit, and delete rows in a Google AppSheet table
+integration:
+  type: "google_appsheet"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="google_appsheet"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google AppSheet](https://about.appsheet.com/) to find, add, edit, and delete table rows. Use Selector expressions to filter results, and identify existing rows by their key column.
 
-## Getting Your Application Access Key
+## Get your Application Access Key [#getting-your-application-access-key]
 
 Google AppSheet authenticates with a static Application Access Key rather than OAuth:
 
 1. Open your app in the [AppSheet editor](https://www.appsheet.com/)
 2. Go to **Settings > Integrations**
 3. Enable **IN: from cloud services to your app**
-4. Under **Application Access Keys**, create a key (or use an existing one) and copy it
+4. Under **Application Access Keys**, create an unexpired key (or use an existing one), copy it, and save the app
 5. Use the Application Access Key, along with your App ID and table name, in the Sim block configuration
 
-The AppSheet API requires an Enterprise plan.
+The [AppSheet API requires an Enterprise plan](https://support.google.com/appsheet/answer/10105769?hl=en). An organization policy can prevent app creators from enabling external API access.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Google AppSheet into your workflow. Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.
-
-
+Find, add, edit, and delete rows in an AppSheet table using the AppSheet API. Requires an AppSheet Enterprise plan with the API enabled and an Application Access Key.
 
 ## Actions
 

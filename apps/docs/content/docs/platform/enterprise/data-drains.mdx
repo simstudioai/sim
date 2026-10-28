@@ -1,267 +1,278 @@
 ---
-title: Data Drains
-description: Continuously export workflow logs, audit logs, and Chat data to your own object store, data warehouse, observability platform, or HTTPS endpoint on a schedule
+title: Data drains
+description: Export retained logs and Chat data to storage, a warehouse, Microsoft Sentinel, Datadog, or a webhook endpoint.
 ---
 
-import { FAQ } from '@/components/ui/faq'
-import { Image } from '@/components/ui/image'
+import { Callout } from 'fumadocs-ui/components/callout'
 
-Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket, Google Cloud Storage bucket, Azure Blob container, BigQuery table, Snowflake table, Datadog logs intake, or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names, table identifiers, and webhook URLs.
+Data drains periodically export one source of retained Sim data to a destination you control. Organization owners and admins manage configuration and run history because those records expose destination identifiers and URLs. Billing-enabled deployments require Enterprise; billing-disabled deployments use the feature and scheduler configuration under [Self-hosted setup](#self-hosted-setup).
 
-Drains are independent of [Data Retention](/platform/enterprise/data-retention) but designed to compose with it — see [Pairing with Data Retention](#pairing-with-data-retention) below.
+A new drain starts with all retained history. Delivery is at least once: retries, partial acceptance, or a crash after delivery can duplicate rows. Deduplicate downstream by each source row's `id`.
 
----
+## Create and verify a drain
 
-## Setup
+1. Prepare the destination and credentials. Sim does not create buckets, containers, datasets, or tables.
+2. Open **Settings → Organization → Data drains** and click **Create drain**.
+3. On **New drain**, enter a name unique within the organization, choose one source, a destination, and **Every hour** or **Every day**.
+4. Fill the destination fields below and click **Create**.
+5. Open the drain's detail page. Use **Test connection**, then **Run now** and check **Recent runs** and the destination's received rows.
 
-Go to **Settings → Organization → Data drains** in your workspace, then click **New drain**.
+The detail page shows the last ten runs with status, trigger, time, row count, bytes, and failure details. Destination locators are also available through API run reads. **Run now** requires an enabled drain; an overlapping run can be refused. The **Enabled** switch pauses future runs without deleting configuration or the cursor.
 
-<Image src="/static/enterprise/data-drains-list.png" alt="Data Drains settings page showing two configured drains — one exporting workflow logs to Amazon S3 daily, another exporting Chat conversations to an HTTPS webhook hourly" width={900} height={885} className="mx-auto h-auto w-full max-w-md" />
+## Sources and row format
 
-<Image src="/static/enterprise/data-drains-new.png" alt="New data drain dialog with fields for name, source, cadence, destination, and S3 credentials" width={900} height={491} className="mx-auto h-auto w-full max-w-xl" />
+Create separate drains for different sources. Source rows are JSON-safe NDJSON: one JSON object per line, with an `id` for deduplication. Destinations such as Sentinel convert these rows to their required ingestion format.
 
-Each drain has four pieces:
+| UI source | Wire value | Records |
+| --- | --- | --- |
+| Workflow logs | `workflow_logs` | Terminal workflow executions. |
+| Job logs | `job_logs` | Terminal background jobs for deployed APIs, schedules, and webhooks. |
+| Audit logs | `audit_logs` | Organization and workspace audit events, including departed actors. |
+| Chats | `copilot_chats` | Chat snapshots, including organization-owned chats outside a workspace. |
+| Chat runs | `copilot_runs` | Terminal Chat runs with correlation context; controller tokens and billing recovery receipts are excluded. |
 
-1. A **source** — the category of data to export
-2. A **destination** — where the data goes
-3. A **schedule** — how often it runs
-4. A **name** — unique within your organization
+Workflow, job, and Chat-run cursors use terminal timestamps; audit and Chat cursors use creation time. Reads use the primary database and leave a five-minute stability window. This reduces late-commit gaps but does not guarantee change-data capture.
 
----
+Chats are point-in-time snapshots. Later changes to messages, title, or `lastSeenAt` are not emitted again. An append-only archive therefore does not track every subsequent change to a conversation.
 
-## Sources
+The export uses each source's row schema. Inspect representative rows before defining warehouse columns; BigQuery receives top-level fields directly. Drains do not apply a new blanket PII scrub. Workflow log masking depends on the stored [data-retention redaction policy](/platform/enterprise/data-retention) used when the data was persisted; configuring `PII_URL` alone does not sanitize exported history.
 
-A drain exports exactly one source. To export multiple sources, create multiple drains.
+## Destination reference
 
-| Source | Description |
-|---|---|
-| **Workflow logs** | Workflow execution records (one row per execution, only after the run reaches a terminal state). |
-| **Job logs** | Background job records (deployed APIs, schedules, webhooks). Only terminal-state rows are exported. |
-| **Audit logs** | Organization- and workspace-scoped audit events — logins, permission changes, resource creation/deletion, drain configuration changes. |
-| **Chats** | Chat history. |
-| **Chat runs** | Chat run records (terminal state only). |
+### Amazon S3 and compatible stores
 
-Each row is delivered as a single line of NDJSON. The shape of each row is part of the public schema and stable across versions; every row carries an `id` field that downstream consumers can use to dedupe.
+Writes one NDJSON object per chunk.
 
-Drains select new rows by their creation cursor and deliver them at least once. A failed run can deliver a row again, so consumers should deduplicate by its `id`. Mutable fields on **Chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
+| Field | Requirement |
+| --- | --- |
+| **Bucket** | Existing bucket. |
+| **Region** | AWS region, such as `us-east-1`. |
+| **Prefix** | Optional object prefix; trailing slash is optional. |
+| **Access key ID / Secret access key** | Credentials with `s3:PutObject`. `s3:DeleteObject` allows cleanup of the zero-byte connection-test probe; without it, the probe can remain. |
+| **Endpoint** | Optional HTTPS endpoint for a compatible store; leave blank for AWS. Sim Cloud requires public addresses. Self-hosted Sim can use private MinIO/Ceph or loopback endpoints permitted by its [outbound-network policy](/platform/self-hosting/security#the-ssrf-boundary). |
+| **Force path-style** | Enable if the provider requires it. Leave off for standard AWS virtual-hosted addressing. |
 
----
+Objects use `AES256` server-side encryption and this layout:
 
-## Destinations
-
-### Amazon S3 (or any S3-compatible store)
-
-Writes one NDJSON object per delivered chunk to your bucket.
-
-- **Bucket** — the bucket name. Must already exist; Sim does not create buckets.
-- **Region** — AWS region (e.g. `us-east-1`).
-- **Prefix** *(optional)* — folder path inside the bucket. Trailing slash optional.
-- **Access key ID / Secret access key** — IAM credentials with `s3:PutObject` on the bucket. The "Test connection" button performs a real write probe to verify, then deletes it.
-- **Endpoint** *(optional)* — for non-AWS stores like MinIO, Cloudflare R2, or GCS S3-interop. Leave blank for AWS S3.
-- **Force path-style** *(optional)* — required for MinIO/Ceph, must be off for AWS S3 and R2.
-
-Object keys are deterministic:
-
-```
+```text
 {prefix}/{source}/{drainId}/{yyyy}/{mm}/{dd}/{runId}-{seq}.ndjson
 ```
 
-Objects are written with `AES256` server-side encryption.
+The final SDK hostname is validated and its resolved address pinned. Signed request paths are preserved without redirects. An outbound gateway that cannot preserve signed targets fails closed.
 
 ### Google Cloud Storage
 
-Writes one NDJSON object per delivered chunk to your GCS bucket.
+Supply an existing **Bucket**, optional **Prefix**, and the full **Service account JSON key**. The service account needs `storage.objects.create`; `storage.objects.delete` lets the connection test remove its probe. Sim uses OAuth2 service-account JWT authentication and the GCS JSON API.
 
-- **Bucket** — the bucket name. Must already exist; Sim does not create buckets.
-- **Prefix** *(optional)* — folder path inside the bucket. Trailing slash optional.
-- **Service account JSON key** — paste the full JSON key for a service account with `storage.objects.create` (and `storage.objects.delete` if you want "Test connection" to clean up its probe). Sim authenticates via OAuth2 service-account JWT and uploads through the GCS JSON API.
-
-Object names follow the same `{prefix}/{source}/{drainId}/{yyyy}/{mm}/{dd}/{runId}-{seq}.ndjson` layout as S3. Object metadata mirrors the S3 destination's `sim-*` keys via `x-goog-meta-*` headers.
+Object names use the S3 layout above. `sim-*` object metadata uses `x-goog-meta-*` headers.
 
 ### Azure Blob Storage
 
-Writes one NDJSON block blob per delivered chunk to your container.
+Supply **Account name** (3–24 lowercase characters), an existing **Container**, optional **Prefix**, and an **Account key** with write access. Each chunk becomes an NDJSON block blob using the same object layout. Metadata keys are lowercased for Azure.
 
-- **Account name** — your storage account (3–24 lowercase chars).
-- **Container** — must already exist; Sim does not create containers.
-- **Prefix** *(optional)* — folder path inside the container.
-- **Account key** — a storage account access key with write access to the container.
+**Endpoint suffix** supports `blob.core.usgovcloudapi.net` for US Gov and `blob.core.chinacloudapi.cn` for China. Sim also accepts the legacy Germany suffix `blob.core.cloudapi.de`; verify that the particular account still uses that endpoint before selecting it.
 
-Blob names follow the same `{prefix}/{source}/{drainId}/{yyyy}/{mm}/{dd}/{runId}-{seq}.ndjson` layout. The `sim-*` metadata is exposed as Azure blob metadata (collapsed to lowercase per Azure's identifier rules).
+### Microsoft Sentinel
 
-For sovereign clouds, set **Endpoint suffix** to `blob.core.usgovcloudapi.net` (US Gov), `blob.core.chinacloudapi.cn` (China), or `blob.core.cloudapi.de` (Germany).
+Sends JSON arrays through the Azure Monitor Logs Ingestion API into a custom Log Analytics table in your Sentinel workspace. All five drain sources use the same envelope. This destination supports **Azure public cloud with Microsoft Entra client-secret authentication**; it does not use the legacy workspace shared-key Data Collector API.
+
+#### Prepare Azure
+
+1. Create a custom table, for example `SimLogs_CL`, in the Log Analytics workspace used by Microsoft Sentinel. Use the **Analytics** table plan for Sentinel analytics rules.
+2. Create a data collection rule (DCR) with an input stream such as `Custom-SimLogs`. Declare the columns below in both the input stream and the destination table. Route the stream to that workspace/table, with `transformKql: "source"` and `outputStream: "Custom-SimLogs_CL"`.
+3. Copy the DCR's **immutable ID** (`dcr-…`) and **logs ingestion endpoint**. A DCR with direct ingestion can provide its own endpoint. For Azure Private Link, use the linked data collection endpoint (DCE); self-hosted Sim must have network access and an outbound policy permitting the resolved private address.
+4. Register a Microsoft Entra application, create a client secret, and assign its service principal **Monitoring Metrics Publisher** on the DCR. Copy the tenant ID, application client ID, and secret **value**. Role assignment propagation can take up to 30 minutes.
+
+See Microsoft's [Logs Ingestion API setup](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/tutorial-logs-ingestion-portal) and [DCR routing requirements](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/logs-ingestion-api-overview). Sim does not provision these Azure resources.
+
+Use this input stream declaration:
+
+```json
+{
+  "Custom-SimLogs": {
+    "columns": [
+      { "name": "TimeGenerated", "type": "datetime" },
+      { "name": "Source", "type": "string" },
+      { "name": "RecordId", "type": "string" },
+      { "name": "DrainId", "type": "string" },
+      { "name": "RunId", "type": "string" },
+      { "name": "Data", "type": "dynamic" }
+    ]
+  }
+}
+```
+
+#### Configure and verify the drain
+
+Choose **Microsoft Sentinel**, then supply **Logs ingestion endpoint**, **DCR immutable ID**, **Stream name**, **Tenant ID**, **Client ID**, and **Client secret**. Enter only the endpoint origin, such as `https://my-dcr.eastus-1.ingest.monitor.azure.com`; Sim appends the DCR path and API version. Endpoints must use HTTPS on the Azure public-cloud ingestion domain. Sim validates DNS, pins the resolved address and refuses redirects.
+
+Sim obtains an access token from the tenant's `/oauth2/v2.0/token` endpoint using `client_credentials` and scope `https://monitor.azure.com//.default`. The client secret uses the existing encrypted drain-credential storage; access tokens stay in memory for the run and are refreshed before expiry.
+
+**Test connection writes one probe event** with `Source: "connection_test"` and `Data: {"sim":"connection-test"}`. Successful testing confirms Azure accepted the request, not that a row is already queryable or a Sentinel rule fired. Run the drain and verify receipt in Log Analytics; initial ingestion can take several minutes.
+
+An audit event is delivered as:
+
+```json
+[
+  {
+    "TimeGenerated": "2026-10-16T12:00:00.000Z",
+    "Source": "audit_logs",
+    "RecordId": "audit-event-123",
+    "DrainId": "drain-123",
+    "RunId": "run-123",
+    "Data": {
+      "id": "audit-event-123",
+      "createdAt": "2026-10-15T09:00:00.000Z",
+      "action": "workflow.updated",
+      "actorId": "user-123"
+    }
+  }
+]
+```
+
+`TimeGenerated` is the **drain run start**, allowing retained-history backfills to be ingested without changing the original event. Source timestamps remain in `Data.createdAt`, `Data.startedAt`, `Data.endedAt`, or `Data.completedAt`. Use the appropriate original timestamp for security correlation; ingestion time alone does not establish when an action happened. The destination preserves the full original row under `Data` and does not automatically create Sentinel analytics rules or map entities to ASIM schemas.
+
+For audit events, query and deduplicate by source and record ID:
+
+```kusto
+SimLogs_CL
+| where Source == "audit_logs"
+| summarize arg_max(TimeGenerated, *) by Source, RecordId
+| extend EventTime = todatetime(Data.createdAt),
+         ActorId = tostring(Data.actorId),
+         Action = tostring(Data.action)
+| order by EventTime desc
+```
+
+#### Limits and failures
+
+Sim splits JSON arrays at **1,000,000 UTF-8 bytes** and checkpoints each accepted batch before sending the next. Azure can truncate field values above 64 KB, so Sim conservatively rejects a source row whose serialized `Data` exceeds **64,000 UTF-8 bytes**, before sending that chunk. It never truncates the row to fit. Large Chat transcripts and workflow outputs may need an object-storage drain instead. See [Azure ingestion limits](https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/service-limits#logs-ingestion-api).
+
+Network failures, `408`, `429`, and `5xx` receive up to three retries after the initial attempt. Sim respects `Retry-After` up to 60 seconds; a longer delay fails the run for later retry rather than sending early. Invalid schema/stream (`400`) and missing DCR permissions (`403`) fail immediately. An ingestion `401` refreshes authentication once. Errors omit provider response bodies and token values.
+
+Delivery remains **at least once**. Azure acceptance followed by a lost response or failed checkpoint can replay rows; successful earlier batches remain checkpointed when a later batch fails. Deduplicate using `Source` and `RecordId`, including across recreated drains. The standard hourly/daily cadence and five-minute source stability window still apply; this is not real-time streaming.
 
 ### Google BigQuery
 
-Streams each row into a target table via the `tabledata.insertAll` API, with per-row insertId dedup.
+Supply **Project ID**, **Dataset ID**, **Table ID**, and a **Service account JSON key**. Domain-scoped project IDs such as `example.com:my-project` are accepted. The table must already exist with compatible columns for the source's top-level fields; rows are not wrapped in one JSON or STRING column. Sim sets `ignoreUnknownValues: false`.
 
-- **Project ID** — your GCP project (supports domain-scoped IDs like `example.com:my-project`).
-- **Dataset ID / Table ID** — must already exist; Sim does not create tables. The table schema must match the source row shape, with a compatible column for each top-level field. Sim sends those fields directly and sets `ignoreUnknownValues` to `false`; it does not wrap the row in a single JSON or STRING column.
-- **Service account JSON key** — needs `roles/bigquery.dataEditor` (insert) and `roles/bigquery.metadataViewer` (for the `tables.get` probe used by "Test connection"). Sim authenticates via OAuth2 service-account JWT.
+The account needs `roles/bigquery.dataEditor` for inserts and `roles/bigquery.metadataViewer` for the `tables.get` connection probe. Sim uses OAuth2 service-account JWT authentication and `tabledata.insertAll`.
 
-Each row is sent with an `insertId` of `{drainId}-{runId}-{sequence}-{index}`. BigQuery dedupes inserts with the same `insertId` for ~60 seconds, so retries inside that window won't duplicate. If a chunk reports partial failure (`insertErrors`), the run fails with the offending row indices and an outer-driver retry may duplicate rows that already succeeded — the dispatcher's bounded retry minimizes this risk. Enforced per-request limits: 10 MB body, 50,000 rows.
+Each row's `insertId` uses `{drainId}-{runId}-{sequence}-{index}`; IDs exceeding 128 characters are hashed. BigQuery offers best-effort deduplication for repeated IDs for up to one minute, so duplicates remain possible during any retry. Partial `insertErrors` fail the chunk and report row indices; rows already accepted can be repeated. Deduplicate source IDs downstream. See [BigQuery streaming behavior](https://docs.cloud.google.com/bigquery/docs/write-api-rest).
+
+Sim's request guards are **10 MiB and 50,000 rows**. The tighter source-record and chunk limits below normally apply first.
 
 ### Snowflake
 
-Inserts each row into a target VARIANT column via the Snowflake SQL API v2 with key-pair JWT auth.
+Supply **Account**, **User**, **Warehouse**, **Database**, **Schema**, **Table**, and an unencrypted PKCS8 RSA **Private key (PEM)**. Prefer `<orgname>-<acctname>`; legacy `<locator>.<region>.<cloud>` identifiers are also accepted. Register the matching public key on the user with `ALTER USER ... SET RSA_PUBLIC_KEY = '...'`.
 
-- **Account** — the Snowflake account identifier. Preferred form is `<orgname>-<acctname>` (no dots). Legacy `<locator>.<region>.<cloud>` is also accepted.
-- **User / Warehouse / Database / Schema / Table** — must already exist. The user needs `INSERT` privilege on the table and `USAGE` on the warehouse, database, and schema.
-- **Column** *(optional)* — target VARIANT column name. Defaults to `DATA` (matches Snowflake's unquoted identifier folding).
-- **Role** *(optional)* — Snowflake role to assume.
-- **Private key (PEM)** — PKCS8-encoded RSA private key. Register the matching public key on the Snowflake user via `ALTER USER ... SET RSA_PUBLIC_KEY = '...'`.
+The user needs `INSERT` on the existing table and `USAGE` on its warehouse, database, and schema. **Role** is optional. **Column** is an existing VARIANT column, defaulting to `DATA`.
 
-Each chunk becomes a single `INSERT INTO "DB"."SCHEMA"."TABLE" ("col") VALUES (PARSE_JSON(?)), ...` with one TEXT binding per row. Identifiers are quoted to preserve case. The destination handles Snowflake's async 202-then-poll pattern transparently. Per-row JSON payloads are capped at 16 MB to match Snowflake's VARIANT limit.
+Sim uses key-pair JWT authentication and SQL API v2. Each chunk uses `INSERT INTO "DB"."SCHEMA"."TABLE" ("col") SELECT PARSE_JSON(column1) FROM VALUES (?), ...`, with one TEXT binding per row. Identifiers are quoted to preserve case. The runner polls asynchronous `202` responses. Sim guards destination JSON at 16 MiB per row; the source-record limit is the tighter 1 MiB. This is a Sim limit rather than a statement of Snowflake's current maximum.
 
 ### Datadog Logs
 
-POSTs each row as a log entry to Datadog's v2 logs intake.
+Choose **Site** from `us1`, `us3`, `us5`, `eu1`, `ap1`, `ap2`, or `gov`. Supply a logs-write **API key**, not an Application key. **Service** defaults to `sim`; optional **Tags** are comma-separated.
 
-- **Site** — your Datadog site: `us1`, `us3`, `us5`, `eu1`, `ap1`, `ap2`, or `gov`.
-- **Service** *(optional)* — value for the reserved `service` field. Defaults to `sim`.
-- **Tags** *(optional)* — comma-separated `ddtags` appended to every entry alongside auto-injected `sim_drain_id:`, `sim_run_id:`, and `sim_source:` tags.
-- **API key** — a Datadog API key (not an Application key) with logs-write permission.
+Sim posts to v2 logs intake, exposes top-level row fields as log attributes, and adds `sim_drain_id:`, `sim_run_id:`, and `sim_source:` tags. It sets the reserved `ddsource`, `service`, `ddtags`, and `message` fields, overriding source fields with those names.
 
-Top-level row fields are auto-indexed as Datadog log attributes. The reserved fields `ddsource`, `service`, `ddtags`, and `message` are always set by Sim and override anything in the row. Payloads above 1 KB are gzip-compressed. Enforced limits match Datadog's intake: 5 MB per request (post-compression), 1000 entries per request, 1 MB per entry.
+Expanded entries are split before compression. Requests are limited to **5,000,000 uncompressed bytes**, **1,000 entries**, and **1,000,000 bytes per entry**, with a defensive 6 MiB wire-size cap. Payloads larger than 1,024 bytes use gzip.
 
-### HTTPS Webhook
+### HTTPS webhook
 
-POSTs each chunk as NDJSON to your endpoint.
+Supply **URL**, **Signing secret**, optional **Bearer token**, and optional **Signature header name** (default `X-Sim-Signature`). On Sim Cloud, the URL must use HTTPS and resolve to public addresses. Self-hosted deployments apply their [outbound-network policy](/platform/self-hosting/security#the-ssrf-boundary): approved private endpoints and loopback are available, with HTTP only where that policy permits it. Sim blocks cloud-metadata addresses and pins the resolved address for the run to prevent DNS rebinding.
 
-- **URL** — must be HTTPS. Sim resolves the hostname and refuses to deliver to private, loopback, or cloud-metadata IPs. The resolved IP is pinned for the duration of a run to prevent DNS rebinding.
-- **Signing secret** — shared secret used for HMAC-SHA256 signing.
-- **Bearer token** *(optional)* — sent as `Authorization: Bearer <token>`.
-- **Signature header name** *(optional)* — defaults to `X-Sim-Signature`.
+Each chunk includes:
 
-Each request includes:
-
-```
+```http
 Content-Type: application/x-ndjson
 User-Agent: Sim-DataDrain/1.0
 X-Sim-Timestamp: <unix-seconds>
 X-Sim-Signature-Version: v1
-X-Sim-Signature: t=<unix-seconds>,v1=<hex(hmac-sha256)>
-X-Sim-Drain-Id: <drain id>
-X-Sim-Run-Id: <run id>
-X-Sim-Source: <source name>
-X-Sim-Sequence: <chunk index>
-X-Sim-Row-Count: <rows in this chunk>
+X-Sim-Signature: t=<unix-seconds>,v1=<hex-hmac-sha256>
+X-Sim-Drain-Id: <drain-id>
+X-Sim-Run-Id: <run-id>
+X-Sim-Source: <source-wire-value>
+X-Sim-Sequence: <zero-based-chunk-index>
+X-Sim-Row-Count: <row-count>
 Idempotency-Key: <runId>-<sequence>
 ```
 
-The signature is computed as `HMAC-SHA256(secret, "${timestamp}.${body}")` and serialized as `t=<timestamp>,v1=<hex>`. Verify by recomputing over the same string and rejecting timestamps older than ~5 minutes — this defends against captured-request replay attacks.
+Sim signs the exact string `${timestamp}.${body}` with HMAC-SHA256 and the signing secret. Recompute using the original request body and reject old timestamps—for example, those older than five minutes—to limit replay. A bearer token, when configured, is sent as `Authorization: Bearer <token>`.
 
-Failed deliveries retry up to 3 times with exponential backoff (500ms, 1s, 2s with ±20% jitter), respecting `Retry-After` on 429/503. Non-retryable 4xx responses fail the run immediately.
+Delivery retries up to three times after the initial attempt: 500 ms, 1 s, and 2 s with ±20% jitter. `Retry-After` is respected on `429` and `503`; non-retryable `4xx` responses fail immediately.
 
----
+## Checkpoints, bounds, and failures
 
-## Schedule
+An opaque cursor advances only after acknowledged delivery. Later failures resume after the last acknowledged chunk, but a crash between remote acceptance and checkpointing can replay data. A database claim prevents overlapping runs for one drain and fences stale workers.
 
-| Cadence | Drain runs |
-|---|---|
-| **Hourly** | Once per hour. |
-| **Daily** | Once per day. |
+| Bound | Limit |
+| --- | --- |
+| Database page | 100 rows |
+| Source record, transcript, or execution archive before materialization | 1 MiB |
+| NDJSON chunk | 4 MiB |
+| One run | 100 chunks, 10,000 rows, or 100 MiB |
+| Work window / hard deadline | 20 minutes / 25 minutes |
 
-You can also disable a drain with the **Enabled** toggle (it stops running but is preserved), or trigger an out-of-schedule run with **Run now** on any drain row.
+A queued run that reaches its work window schedules continuation. Oversized records and missing execution archives fail visibly without advancing past the incomplete record.
 
----
+The webhook idempotency key covers retries of one chunk within one run. A later replay has a new run ID; partially accepted destination requests can also repeat rows. Keep source-ID deduplication even when the destination offers its own deduplication.
 
-## Delivery semantics
+## Pair with data retention
 
-Drains use an **opaque cursor** that advances only on full success. If a delivery fails partway through a run, the cursor is unchanged and the next run replays from the last successful position.
+<Callout type="warn">
+Retention does not wait for a drain. Failed delivery or backlog can let cleanup delete records before export. Set a cadence shorter than the retention window and monitor recent runs, progress, and destination receipt.
+</Callout>
 
-This is **at-least-once delivery**. Combined with the `id` field on every row and the `Idempotency-Key` header on every webhook chunk, downstream systems can dedupe deterministically.
+| Source | Retention category |
+| --- | --- |
+| Workflow logs and Job logs | Log retention |
+| Chats and Chat runs | Task cleanup |
+| Audit logs | No age-based audit-retention setting currently |
 
-The **last 10 runs** for each drain are visible by expanding its row in the settings page, with status, row count, bytes written, destination locator (`s3://...` or webhook URL), and the error message if it failed.
+For a 30-day log window, **Every hour** or **Every day** provides opportunities to export before expiry; cadence alone does not guarantee every row arrives. Source deletion, workspace scope changes, late commits, and persistent failures can still leave gaps.
 
----
+Your destination owns exported data lifecycle and erasure after delivery. Sim does not remove external objects when source data or a drain is deleted.
 
-## Security
+## Rotate credentials or delete a drain
 
-- Destination credentials are encrypted at rest using the same key-rotation–aware encryption that protects OAuth tokens.
-- Credentials are **never** returned by the Sim API after creation. Updates accept new credentials; omitting them leaves the existing encrypted blob in place.
-- Webhook URLs are SSRF-validated: HTTPS-only, no private/loopback/metadata IPs, with the resolved IP pinned to defeat DNS rebinding.
-- Every create, update, delete, manual run, and test-connection call is recorded in the [Audit Log](/platform/enterprise/audit-logs).
+Destination credentials are encrypted at rest using key-rotation-aware encryption and are not returned by API reads. An API update can supply a complete replacement credential payload; omitting credentials preserves the stored secret. Source and destination type cannot be changed on an existing drain.
 
----
+The current settings detail page edits **Enabled** only. Changing credentials there requires recreating the drain, which starts retained-history backfill again and can duplicate archived data. Use a supported API credential replacement when cursor continuity matters; do not delete the existing drain merely to rotate a key.
 
-## Pairing with Data Retention
-
-Drains and [Data Retention](/platform/enterprise/data-retention) are independent modules. Sim does **not** gate retention on drain progress — if a drain is failing, retention will still purge data on its own schedule. Keep the two configurations independent and pair them deliberately.
-
-To safely use both together, set the drain cadence shorter than the retention period for the same data category:
-
-| Drain source | Pairs with retention setting |
-|---|---|
-| Workflow logs, Job logs | **Log retention** |
-| Chats, Chat runs | **Task cleanup** |
-| Audit logs | *(no retention setting today — audit logs are kept indefinitely)* |
-
-For example, with **Log retention** set to 30 days, set the workflow-logs drain to **Hourly** or **Daily** so every row is exported well before retention purges it from Sim. Monitor recent drain runs in the settings page; if a drain has been failing for longer than your retention window, you may lose rows that retention purges before they are exported.
-
-After data lands in your bucket or webhook system, archive lifecycle (transitions to Glacier, expiration, GDPR right-to-erasure propagation) is governed by your own infrastructure — Sim has no further visibility into that data once delivery succeeds.
-
----
-
-<FAQ items={[
-  {
-    question: "Who can configure data drains?",
-    answer: "Only organization owners and admins can view, create, edit, run, or delete drains. On Sim Cloud, the organization must be on an Enterprise plan."
-  },
-  {
-    question: "Can I export multiple sources to the same destination?",
-    answer: "Yes — create one drain per source, all pointing at the same bucket or endpoint. S3 destinations namespace by source automatically; webhook receivers can branch on the `X-Sim-Source` header."
-  },
-  {
-    question: "Does deleting a drain delete the data already exported?",
-    answer: "No. Deletion only removes the drain's configuration and its run history from Sim. Data already written to your bucket or sent to your webhook is yours and is unaffected."
-  },
-  {
-    question: "What happens if my credentials stop working mid-run?",
-    answer: "The run fails, the drain cursor does not advance, and the failed run is recorded with the error. Once you fix the credentials with an Update or by re-creating the drain, the next run replays from where the last successful run left off."
-  },
-  {
-    question: "What format is the data in?",
-    answer: "Object-storage and webhook destinations receive NDJSON, one row per line. BigQuery, Snowflake, and Datadog use the destination-specific payloads described above."
-  }
-]} />
-
----
+**Delete** removes configuration and run history, without deleting exported bytes. Create, update, delete, manual-run, and connection-test actions emit best-effort [audit events](/platform/enterprise/audit-logs).
 
 ## Self-hosted setup
 
-### Environment variables
+Enable the feature through enterprise configuration or explicitly set:
 
 ```bash
 DATA_DRAINS_ENABLED=true
 NEXT_PUBLIC_DATA_DRAINS_ENABLED=true
 ```
 
-On a self-hosted deployment the feature resolves on when `DATA_DRAINS_ENABLED` is `true`, or when it is unset and `ENTERPRISE_ENABLED` is `true`. An explicit `DATA_DRAINS_ENABLED=false` wins over the master switch. That resolved value — not the bare variable — gates the **Settings → Organization → Data drains** page, the server-side mutating endpoints, and the cron dispatcher. When it resolves off the page is hidden, drain create/update/delete/run requests return `404`, and the dispatcher is a no-op.
+An explicit feature value takes precedence over `ENTERPRISE_ENABLED`. When disabled, the page is hidden, mutating drain requests return `404`, and the dispatcher does no work. Billing-enabled deployments retain the Enterprise gate. Keep server and public feature configuration aligned; `bunx sim-setup doctor` checks the pair. See [self-hosted enterprise setup](/platform/enterprise/self-hosted).
 
-Inside a workspace the browser reads that resolved value from the server, so the page follows the server whether or not `NEXT_PUBLIC_DATA_DRAINS_ENABLED` is set. Set it to the same value anyway: it backs the client fallback on surfaces rendered outside a workspace, and on a Compose install or source checkout `npx sim-setup doctor` reports the pair disagreeing.
-
-### Scheduling the dispatcher
-
-The dispatcher is an HTTP endpoint, not a self-scheduling job — something has to call it:
-
-```
-GET /api/cron/run-data-drains
-```
-
-It authenticates with a bearer token equal to `CRON_SECRET` and returns `401` when that variable is unset, so a self-hosted deployment must set it:
+The dispatcher requires scheduled calls to `GET /api/cron/run-data-drains`. Set the same `CRON_SECRET` on the app and its caller; the endpoint returns `401` when it is unset. Generate a secret if needed, then install it in both configurations:
 
 ```bash
 openssl rand -hex 32
 ```
 
-Set the same value as `CRON_SECRET` on both the app and whatever invokes the endpoint. Generating it in your shell does not configure either one.
-
-Both shipped deployments schedule this endpoint hourly for you — Helm through `cronjobs.jobs.runDataDrains`, Docker Compose through its `cron` service. A deployment that runs neither schedules it itself:
+Helm's `cronjobs.jobs.runDataDrains` and Docker Compose's `cron` service call it hourly when their schedulers are enabled. If neither runs, configure an external scheduler:
 
 ```bash
-curl -H "Authorization: Bearer $CRON_SECRET" \
+curl --fail-with-body \
+  -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/cron/run-data-drains
 ```
 
-Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).
+Trigger.dev is optional. The database backend executes the registered runner with at most two active drain jobs per app process; Trigger.dev uses serialized per-drain jobs. Database claims apply in both modes. Verify scheduler calls and actual destination receipt after enabling the feature.
+
+When upgrading to add the Sentinel destination, apply the additive database migration and deploy the updated app **and all drain workers** before creating Sentinel drains. Older versions do not recognize the new destination type, so creating them during a mixed-version rollout is unsupported.
+
+## Related docs
+
+- [Data retention](/platform/enterprise/data-retention)
+- [Audit logs](/platform/enterprise/audit-logs)
+- [Background jobs](/platform/self-hosting/background-jobs)

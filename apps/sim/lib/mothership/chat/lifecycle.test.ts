@@ -28,7 +28,6 @@ vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganization
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
-  getAccessibleCopilotChat,
   getAccessibleCopilotChatAuth,
   getAccessibleCopilotChatForCancellation,
   getAccessibleCopilotChatWithMessages,
@@ -130,15 +129,6 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
 
     expect(result).toBeNull()
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-  })
-
-  it('legacy getAccessibleCopilotChat also assembles messages from copilot_messages', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, model: 'm', config: null }])
-    dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: userMsg }])
-
-    const result = await getAccessibleCopilotChat(CHAT_ID, USER_ID)
-
-    expect(result?.messages).toEqual([userMsg])
   })
 
   it('scopes the chat lookup to the requesting user, not the chat id alone', async () => {

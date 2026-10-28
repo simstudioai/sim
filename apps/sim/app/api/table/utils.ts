@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { orchestrationFailureResponse } from '@/lib/api/server/orchestration-response'
 import {
-  asOrchestrationError,
   messageForOrchestrationError,
   type OrchestrationErrorCode,
   statusForOrchestrationError,
@@ -19,39 +19,10 @@ import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
-import {
-  getTableQueryAvailability,
-  TABLE_QUERY_UNAVAILABLE_REASON,
-} from '@/lib/table/query-availability'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
 import type { TableLockKind } from '@/lib/table/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
-
-/**
- * Gate for the internal predicate-grammar table query route (`tables-v2-api`
- * flag). Runs AFTER authorization, so the caller has already proven read
- * access to the table — hiding the gate behind a bare 404 at that point
- * serves nobody and reads as data loss (live incident: the table_v2 block
- * hard-"Not found"-ing on every query while the copilot gateway, which
- * bypasses HTTP, found the rows). Authorized callers get an honest 403
- * naming the gate instead.
- */
-export async function tablesV2GateError(
-  userId: string,
-  workspaceId: string
-): Promise<NextResponse | null> {
-  const orgId = await getWorkspaceOrganizationId(workspaceId)
-  if ((await getTableQueryAvailability({ userId, orgId })).enabled) return null
-  return NextResponse.json(
-    {
-      error: TABLE_QUERY_UNAVAILABLE_REASON,
-      code: 'tables_v2_disabled',
-    },
-    { status: 403 }
-  )
-}
 
 /**
  * Maps a {@link TableLockedError} thrown by the service layer to a 423 response
@@ -137,13 +108,7 @@ export function orchestrationErrorResponse(error: unknown): NextResponse | null 
   const lockResponse = tableLockErrorResponse(error)
   if (lockResponse) return lockResponse
 
-  const classified = asOrchestrationError(error)
-  if (!classified) return null
-
-  return NextResponse.json(
-    { error: classified.message },
-    { status: statusForOrchestrationError(classified.code) }
-  )
+  return orchestrationFailureResponse(error)
 }
 
 /**

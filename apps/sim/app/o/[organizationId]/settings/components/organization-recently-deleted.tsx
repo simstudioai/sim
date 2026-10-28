@@ -67,7 +67,7 @@ export function OrganizationRecentlyDeleted({ organizationId }: OrganizationRece
       search={{ value: search, onChange: setSearch, placeholder: 'Search deleted chats' }}
     >
       {error ? (
-        <SettingsEmptyState tone='error'>{error.message}</SettingsEmptyState>
+        <SettingsEmptyState>{error.message}</SettingsEmptyState>
       ) : isLoading ? null : filtered.length === 0 ? (
         <SettingsEmptyState>
           {searchTerm && chats.length > 0 ? 'No chats match your search' : 'No deleted chats'}

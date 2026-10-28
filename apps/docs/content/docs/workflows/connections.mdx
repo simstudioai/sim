@@ -1,110 +1,105 @@
 ---
 title: Connections
-description: The syntax for referencing an earlier block's output and the shape of common block outputs.
+description: Reference block outputs with normalized names, nested fields, and array indices.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Video } from '@/components/ui/video'
+import { Tab, Tabs } from '@/components/ui/tabs'
+import { Image } from '@/components/ui/image'
 
-A **connection** wires one block to the next and sets the order they run in. [How blocks pass data](/workflows/data-flow) covers the concept: once a block runs, its output is remembered under the block's name, and any later block reads it by reference. This page is the reference for the **connection tag** syntax and the output shapes you'll reach into.
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="connections.mp4" />
-</div>
+Connections determine when blocks run. **Connection tags** read values from blocks that have already run. This page covers tag syntax and common output shapes; [data flow](/workflows/data-flow) explains how those values become available.
 
 ## Tag syntax
 
-A connection tag references a value from an earlier block's output:
-
-```
+```text
 <blockName.path.to.data>
 ```
 
-- `blockName` is the name of the source block. Block names are normalized before matching, so they're lowercased and spaces are removed. `<My Agent.content>` and `<myagent.content>` resolve to the same block.
-- `path.to.data` is the path to the value inside that block's output. The field path is case-sensitive.
+- `blockName` is the source block's name. Matching ignores case, whitespace, and periods: a block named My Agent resolves through `<myagent.content>`.
+- The field path is case-sensitive.
+- `variable`, `loop`, and `parallel` are reserved prefixes for [workflow variables](/workflows/variables) and container context.
 
-The same angle-bracket syntax also reads [workflow variables](/workflows/variables) (`<variable.name>`) and loop or parallel context (`<loop.index>`); a connection tag is specifically the block-output case.
+Type `<` in a supported field to open the reference picker, or drag an available output into the field:
 
-You rarely type a tag by hand. In any input field, type `<` to open a dropdown of the values available from earlier blocks and pick one, or drag a value from a connected block straight into the field.
+<Image
+  variant="detail"
+  background="ridges"
+  src="/static/docs-captures/connections-picker.webp"
+  alt="Typing a less-than sign in an Agent message opens the reference picker with the connected Start block"
+  width={636}
+  height={550}
+  className="mx-auto w-full max-w-xl"
+/>
 
 ## Nested and array fields
 
-Chain dot notation to reach into objects, and use bracket indices for arrays. Both combine in a single path:
+Use dots for object fields and brackets for array indices:
 
-```
-<agent1.tokens.total>
-<api1.data.results[0].id>
-<api2.data.users[0].name>
+```text
+<agent.tokens.total>
+<api.data.results[0].id>
+<api.data.users[0].name>
 ```
 
-The resolver walks the path at runtime and substitutes the value. Multiple levels of indexing like `items[0][1]` work too.
+Multiple array indices, such as `items[0][1]`, are supported. Check the output panel for the actual structure; a path depends on what the source block produced.
 
 ## Using tags in text and code
 
-Tags resolve at runtime and can sit anywhere in a field, mixed with static text:
+Text fields can combine a reference with static text:
 
-```javascript
-// In text
-"The user's name is <userBlock.name>"
-
-// In JSON
-{
-  "userName": "<userBlock.name>",
-  "orderTotal": <apiBlock.data.total>
-}
-
-// In a Function block
-const greeting = `Hello, ${"<userBlock.name>"}!`
-const total = <apiBlock.data.total> * 1.1
+```text
+Customer <start.customerId> requested: <start.message>
 ```
 
-Values are formatted to fit their context. In a [Function](/workflows/blocks/function) block, a resolved value becomes a code literal, so strings are quoted, objects are JSON, and `null` stays `null`, ready to drop into JavaScript or Python. In other blocks, objects are JSON-stringified and primitives become plain strings.
+In a Function block, use referenced values in code:
 
-<Callout type="warning">
-In a numeric context, confirm the referenced value is actually a number. A tag that resolves to text will not behave as a number.
-</Callout>
+```javascript
+const name = <start.name>
+const total = <api.data.total>
+return { greeting: `Hello, ${name}!`, totalWithTax: total * 1.1 }
+```
 
-When a referenced block didn't run on the current path, for example a block on an unselected branch, its tag resolves to an empty value. In most blocks that's an empty string; in Function blocks it's `null`.
+Function references preserve value types for JavaScript or Python: strings remain strings, objects remain objects, and `null` remains null. In ordinary text fields, objects are JSON-stringified and primitives become text. Confirm a value is numeric before calculating with it; convert numeric text explicitly when needed.
+
+When a known source block did not run on the selected path, its reference resolves empty: usually `""`, or `null` in Function code. An unknown block name can remain unsubstituted, while an invalid field can fail resolution. These are different problems; inspect the source output and the run's active path.
 
 ## Common block outputs
 
-A tag's path depends on what the source block produced. These are the standard shapes for the blocks you'll reference most. The output panel shows the live structure for any block.
+These abbreviated examples use blocks named Agent, API, Function, Condition, Router, and Evaluator. Replace that name with your source block's normalized name. Additional and optional fields depend on the block and runtime.
 
 <Tabs items={['Agent', 'API', 'Function', 'Condition', 'Router', 'Evaluator']}>
   <Tab>
     ```json
     {
-      "content": "The generated text response",
-      "model": "claude-sonnet-4-6",
+      "content": "The generated response",
+      "model": "claude-sonnet-5-5",
       "tokens": { "input": 120, "output": 85, "total": 205 },
-      "toolCalls": []
+      "toolCalls": { "list": [], "count": 0 }
     }
     ```
 
-    `content` is the main response. `tokens` is an object of usage counts. `toolCalls` lists the tools the agent called, with their inputs and results. With a response format configured, your schema's fields appear as their own outputs instead.
+    Read text with `<agent.content>` and tool activity with `<agent.toolCalls.list>` or `<agent.toolCalls.count>`. A successful structured response exposes its fields at the top level, except names overwritten by standard metadata. See [Agent response format](/workflows/blocks/agent#response-format) for naming guidance, provider support, and malformed-output behavior.
   </Tab>
   <Tab>
     ```json
     {
-      "data": "Response body",
+      "data": { "message": "Response body" },
       "status": 200,
       "headers": { "content-type": "application/json" }
     }
     ```
 
-    `data` is the response body and can be any type. `status` is the HTTP status code. `headers` holds the response headers.
+    `data` can be any response-body type. These normal outputs describe a successful request. Non-2xx responses, network failures, and timeouts use the [API block's error path](/workflows/blocks/api).
   </Tab>
   <Tab>
     ```json
     {
       "result": "Function return value",
-      "stdout": "Console output",
+      "stdout": "Code output",
       "files": []
     }
     ```
 
-    `result` is whatever your function returned and can be any type. `stdout` captures anything the code logged.
+    `result` can be any return-value type. `stdout` contains bounded diagnostic output; see [Function output limits](/workflows/blocks/function#outputs). Remote execution includes `files` metadata; local JavaScript can omit that field.
   </Tab>
   <Tab>
     ```json
@@ -119,14 +114,16 @@ A tag's path depends on what the source block produced. These are the standard s
     }
     ```
 
-    `conditionResult` is the boolean result. `selectedPath` describes the next block. `selectedOption` is the ID of the matched condition.
+    `conditionResult` reports the rule result. `selectedOption` identifies the selected branch; `selectedPath` describes its next block and can be null when no destination is connected.
   </Tab>
   <Tab>
     ```json
     {
-      "content": "Routing decision",
-      "model": "claude-sonnet-4-6",
+      "context": "I need help resetting my password",
+      "model": "claude-sonnet-5-5",
       "tokens": { "input": 120, "output": 85, "total": 205 },
+      "selectedRoute": "customer-service",
+      "reasoning": "The request needs account support",
       "selectedPath": {
         "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
         "blockType": "agent",
@@ -135,21 +132,25 @@ A tag's path depends on what the source block produced. These are the standard s
     }
     ```
 
-    `content` is the routing decision text. `selectedPath` describes the chosen destination block.
+    `context` is the analyzed input, `selectedRoute` identifies the chosen route, and `reasoning` explains the decision. `selectedPath` describes the destination. A no-match routing error uses Router's error behavior.
   </Tab>
   <Tab>
     ```json
     {
       "content": "The original content being evaluated",
-      "model": "claude-sonnet-4-6",
+      "model": "claude-sonnet-5-5",
       "tokens": { "input": 120, "output": 85, "total": 205 },
       "metric1": 8.5,
       "metric2": 7.2
     }
     ```
 
-    `content` contains the original input that was evaluated. Each metric you defined appears as its own field with a numeric score.
+    `content` is the evaluated input. Metric names are lowercased. Missing scores or an unparseable response can produce `0`; see [Evaluator outputs](/workflows/blocks/evaluator#outputs) for numeric coercion and validation guidance.
   </Tab>
 </Tabs>
 
-A Function's `result`, an API's `data`, and an Agent with a response format all return whatever your code, the remote service, or your schema produced, so check the output panel during development to confirm the path you're referencing.
+## Related docs
+
+- [How blocks pass data](/workflows/data-flow)
+- [Variables](/workflows/variables)
+- [Function](/workflows/blocks/function)

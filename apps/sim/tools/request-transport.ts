@@ -155,6 +155,18 @@ function collectProvenanceSensitiveHeaders(
   return [...sensitiveHeaders]
 }
 
+/**
+ * Reads the caller's millisecond deadline from `params.timeout`, unless the tool declares a
+ * `timeout` param of its own without {@link ToolConfig.timeoutParamIsDeadline}.
+ */
+export function readRequestedDeadline(
+  tool: ExecutableToolConfig,
+  params: Record<string, unknown>
+): unknown {
+  if (tool.params?.timeout && !tool.timeoutParamIsDeadline) return undefined
+  return params.timeout
+}
+
 function formatToolRequest(
   tool: ToolConfig,
   params: Record<string, any>,
@@ -189,7 +201,7 @@ function formatToolRequest(
     }
   }
 
-  const rawTimeout = params.timeout
+  const rawTimeout = readRequestedDeadline(tool, params)
   const timeout = rawTimeout != null ? Number(rawTimeout) : undefined
   const validTimeout =
     timeout != null && Number.isFinite(timeout) && timeout > 0

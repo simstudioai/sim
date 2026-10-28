@@ -24,12 +24,12 @@ const ATTACHMENT_FILE_FIELD = ['attachmentFileUpload', 'attachmentFileReference'
 export const ConfluenceBlock: BlockConfig = {
   type: 'confluence',
   name: 'Confluence (Legacy)',
-  description: 'Interact with Confluence',
+  description: 'Manage Confluence pages, comments, and attachments',
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'confluence_v2' },
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.',
+    'Read, create, update, delete pages, manage comments, attachments, labels, and search content.',
   docsLink: 'https://docs.sim.ai/integrations/confluence',
   category: 'tools',
   integrationType: IntegrationType.Documents,

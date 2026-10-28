@@ -8,15 +8,15 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { workflowOperations } from '@/lib/workflows/application/operations'
-import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import {
   resolveWorkflowFolderPath,
   workflowFolderPathForId,
-} from '@/lib/workflows/application/workflow-folders'
+} from '@/lib/workflows/application/folders'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('CreateWorkflow')
 

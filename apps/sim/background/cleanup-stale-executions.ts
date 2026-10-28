@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import {
   asyncJobs,
+  document,
+  knowledgeBaseImport,
   knowledgeConnectorSyncLog,
   tableJobs,
   workflowDeploymentOperation,
@@ -25,12 +27,14 @@ import {
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
 import type { DbTransaction } from '@/lib/db/types'
+import { KNOWLEDGE_IMPORT_STORAGE_CONTEXT } from '@/lib/knowledge/transfer/import-jobs'
 import { elapsedDurationMsSql } from '@/lib/logs/execution/duration'
 import {
   STALE_SWEEPABLE_EXECUTION_STATUSES,
   type StaleSweepableExecutionStatus,
 } from '@/lib/logs/types'
 import { sweepOrphanedRuns } from '@/lib/mothership/async-runs/orphaned-runs'
+import { settleAbandonedDesktopToolCalls } from '@/lib/mothership/request/tools/desktop-wait'
 import { cancelStaleDispatches } from '@/lib/table/dispatcher'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
@@ -48,17 +52,26 @@ const GENERIC_STALE_PROCESSING_ERROR = `Job terminated: stuck in processing for 
 const EXECUTION_DEADLINE_ERROR = getTimeoutErrorMessage()
 /**
  * Table jobs run as detached workers with progress heartbeats, independently of workflow timeout
- * policy. Preserve their historical 90-minute task window plus five-minute cleanup grace.
+ * policy. A running job is treated as dead once its last progress write (`updatedAt`) is older
+ * than this, so it must exceed the longest gap between a live worker's heartbeats.
  */
 const TABLE_JOB_STALE_THRESHOLD_MINUTES = 95
 /** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
 const TABLE_JOB_RETENTION_HOURS = 24
 /**
+ * A knowledge import heartbeats after every document, and its task runs at most
+ * 90 minutes, so a `running` import silent for longer than this lost its worker.
+ */
+const KNOWLEDGE_IMPORT_STALE_THRESHOLD_MINUTES = 95
+/** Settled knowledge imports stay readable this long, so a caller can still fetch the outcome. */
+const KNOWLEDGE_IMPORT_RETENTION_DAYS = 7
+/** Each stale import deletes its uploaded bundle, so these pages stay small. */
+const KNOWLEDGE_IMPORT_BATCH_SIZE = 100
+const KNOWLEDGE_IMPORT_MAX_ROWS_PER_RUN = 1000
+/**
  * A table run dispatch whose holder has not made progress for this long is
- * treated as dead. Same shape and window as the table-job threshold above: the
- * 90-minute Trigger.dev task ceiling (`maxDuration` in `trigger.config.ts`) plus
- * five minutes of cleanup grace, measured from the dispatcher's own per-window
- * heartbeat rather than from when the run was requested.
+ * treated as dead. Same rule as the table-job threshold above, measured from the
+ * dispatcher's own per-window heartbeat rather than from when the run was requested.
  */
 const TABLE_DISPATCH_STALE_THRESHOLD_MINUTES = 95
 /** Per-run ceiling on reaped dispatches, so one tick cannot fan out unbounded SSE. */
@@ -146,6 +159,18 @@ async function runBatchedMutation<TCandidate extends { id: string }, TRow>({
   }
 
   return { affected, reachedLimit: affected >= maxRowsPerRun }
+}
+
+/** Deletes import bundles one at a time; a bundle already gone is not an error. */
+async function deleteKnowledgeImportBundles(imports: { sourceKey: string }[]): Promise<void> {
+  for (const { sourceKey } of imports) {
+    await deleteFile({ key: sourceKey, context: KNOWLEDGE_IMPORT_STORAGE_CONTEXT }).catch((err) => {
+      logger.warn('Failed to delete a knowledge import bundle', {
+        sourceKey,
+        error: toError(err).message,
+      })
+    })
+  }
 }
 
 /** Settles everything a dead worker left unfinished and prunes expired bookkeeping rows. */
@@ -451,6 +476,107 @@ export async function runCleanupStaleExecutions() {
     })
   }
 
+  /**
+   * Fail knowledge imports whose worker died, and delete the bundle that worker
+   * would have deleted in its `finally`. Documents it already imported stay in
+   * the base, as they would after a cancel; one it was indexing in-process has
+   * no queue behind it, so it is failed for the user to retry. Settled imports
+   * are pruned later, deleting any bundle a canceled or crashed worker left.
+   */
+  let staleKnowledgeImportsMarkedFailed = 0
+  try {
+    const staleKnowledgeImportThreshold = new Date(
+      now.getTime() - KNOWLEDGE_IMPORT_STALE_THRESHOLD_MINUTES * 60 * 1000
+    )
+    const staleKnowledgeImportPredicate = and(
+      eq(knowledgeBaseImport.status, 'running'),
+      lt(knowledgeBaseImport.updatedAt, staleKnowledgeImportThreshold)
+    )
+    const staleKnowledgeImportResult = await runBatchedMutation({
+      batchSize: KNOWLEDGE_IMPORT_BATCH_SIZE,
+      maxRowsPerRun: KNOWLEDGE_IMPORT_MAX_ROWS_PER_RUN,
+      claim: (tx, limit) =>
+        tx
+          .select({ id: knowledgeBaseImport.id })
+          .from(knowledgeBaseImport)
+          .where(staleKnowledgeImportPredicate)
+          .limit(limit)
+          .for('update', { skipLocked: true }),
+      mutation: (tx, candidateIds) =>
+        tx
+          .update(knowledgeBaseImport)
+          .set({
+            status: 'failed',
+            error: `Import stopped: no progress for more than ${KNOWLEDGE_IMPORT_STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
+            completedAt: now,
+            updatedAt: now,
+          })
+          .where(and(staleKnowledgeImportPredicate, inArray(knowledgeBaseImport.id, candidateIds)))
+          .returning({
+            sourceKey: knowledgeBaseImport.sourceKey,
+            knowledgeBaseId: knowledgeBaseImport.knowledgeBaseId,
+          }),
+      onBatch: async (imports) => {
+        const knowledgeBaseIds = imports.flatMap(({ knowledgeBaseId }) =>
+          knowledgeBaseId ? [knowledgeBaseId] : []
+        )
+        if (knowledgeBaseIds.length > 0) {
+          await db
+            .update(document)
+            .set({
+              processingStatus: 'failed',
+              processingError: 'The import stopped before this document finished indexing',
+              processingCompletedAt: now,
+            })
+            .where(
+              and(
+                inArray(document.knowledgeBaseId, knowledgeBaseIds),
+                eq(document.processingStatus, 'processing'),
+                isNull(document.processingQueueToken),
+                lt(document.processingStartedAt, staleKnowledgeImportThreshold)
+              )
+            )
+        }
+        await deleteKnowledgeImportBundles(imports)
+      },
+    })
+    staleKnowledgeImportsMarkedFailed = staleKnowledgeImportResult.affected
+    if (staleKnowledgeImportsMarkedFailed > 0) {
+      logger.info(`Marked ${staleKnowledgeImportsMarkedFailed} stale knowledge imports as failed`)
+    }
+
+    const knowledgeImportRetention = new Date(
+      now.getTime() - KNOWLEDGE_IMPORT_RETENTION_DAYS * 24 * 60 * 60 * 1000
+    )
+    const settledKnowledgeImportPredicate = and(
+      inArray(knowledgeBaseImport.status, ['completed', 'failed', 'canceled']),
+      lt(knowledgeBaseImport.updatedAt, knowledgeImportRetention)
+    )
+    await runBatchedMutation({
+      batchSize: KNOWLEDGE_IMPORT_BATCH_SIZE,
+      maxRowsPerRun: KNOWLEDGE_IMPORT_MAX_ROWS_PER_RUN,
+      claim: (tx, limit) =>
+        tx
+          .select({ id: knowledgeBaseImport.id })
+          .from(knowledgeBaseImport)
+          .where(settledKnowledgeImportPredicate)
+          .limit(limit)
+          .for('update', { skipLocked: true }),
+      mutation: (tx, candidateIds) =>
+        tx
+          .delete(knowledgeBaseImport)
+          .where(
+            and(settledKnowledgeImportPredicate, inArray(knowledgeBaseImport.id, candidateIds))
+          )
+          .returning({ sourceKey: knowledgeBaseImport.sourceKey }),
+      onBatch: deleteKnowledgeImportBundles,
+    })
+  } catch (error) {
+    logger.error('Failed to clean up stale knowledge imports:', {
+      error: toError(error).message,
+    })
+  }
+
   // Clean up stale pending jobs (never started, e.g., due to server crash before startJob())
   let stalePendingJobsMarkedFailed = 0
 
@@ -743,6 +869,19 @@ export async function runCleanupStaleExecutions() {
     })
   }
 
+  /**
+   * Settle desktop calls on device-bound runs whose waiter died with its process: an offered call
+   * nobody claimed, or a claimed one whose device stopped renewing its lease.
+   */
+  let abandonedDesktopCallsSettled = 0
+  try {
+    abandonedDesktopCallsSettled = await settleAbandonedDesktopToolCalls()
+  } catch (error) {
+    logger.error('Failed to settle abandoned desktop tool calls:', {
+      error: toError(error).message,
+    })
+  }
+
   return {
     executions: {
       found: staleExecutionsFound,
@@ -760,6 +899,10 @@ export async function runCleanupStaleExecutions() {
     tableJobs: {
       staleMarkedFailed: staleTableJobsMarkedFailed,
     },
+    knowledgeImports: {
+      staleMarkedFailed: staleKnowledgeImportsMarkedFailed,
+      thresholdMinutes: KNOWLEDGE_IMPORT_STALE_THRESHOLD_MINUTES,
+    },
     connectorSyncLogs: {
       pruned: connectorSyncLogsPruned,
       retentionDays: CONNECTOR_SYNC_LOG_RETENTION_DAYS,
@@ -774,6 +917,7 @@ export async function runCleanupStaleExecutions() {
     },
     chatRuns: {
       orphanedSettled: orphanedRunsSettled,
+      abandonedDesktopCallsSettled,
     },
   }
 }

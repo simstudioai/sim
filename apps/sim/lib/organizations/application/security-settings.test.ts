@@ -13,6 +13,7 @@ import {
   billingSubscriptionMock,
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,8 +45,8 @@ import {
   removeOrganizationDomain,
   verifyOrganizationDomain,
 } from '@/lib/organizations/application/domain-settings'
+import { organizationSecurityOperations } from '@/lib/organizations/application/operations'
 import { revokeOrganizationSessions } from '@/lib/organizations/application/revoke-sessions'
-import { organizationSecurityOperations } from '@/lib/organizations/application/security-operations'
 
 const mocks = {
   ...hoisted,
@@ -55,6 +56,7 @@ const mocks = {
 
 setEnvFlags({ isBillingEnabled: true })
 afterAll(resetEnvFlagsMock)
+afterAll(resetEnvMock)
 
 const delegated: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
@@ -81,6 +83,8 @@ const row = {
 }
 beforeEach(() => {
   resetDbChainMock()
+  setEnvFlags({ isHosted: false, isBillingEnabled: true })
+  setEnv({ SSO_SKIP_DOMAIN_VERIFICATION: undefined })
   mocks.enterprise.mockResolvedValue(true)
   mocks.dns.mockResolvedValue('present')
 })
@@ -123,41 +127,51 @@ describe('organization domain Settings operations', () => {
     ).rejects.toThrow()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
-  it('keeps all mutations administrator-only', async () => {
-    queueTableRows(member, [{ role: 'member' }])
-    queueTableRows(member, [{ role: 'member' }])
-    queueTableRows(member, [{ role: 'member' }])
-    await expect(
-      addOrganizationDomain.execute({
-        principal: delegated,
-        input: { organizationId: 'org', domain: 'example.com' },
-      })
-    ).rejects.toThrow('administrator')
-    await expect(
-      verifyOrganizationDomain.execute({
-        principal: delegated,
-        input: { organizationId: 'org', domainId: 'domain' },
-      })
-    ).rejects.toThrow('administrator')
-    await expect(
-      removeOrganizationDomain.execute({
-        principal: delegated,
-        input: { organizationId: 'org', domainId: 'domain' },
-      })
-    ).rejects.toThrow('administrator')
-    expect(mocks.dns).not.toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
+  it.each([undefined, 'true'])(
+    'keeps all mutations administrator-only with DNS bypass %s',
+    async (skip) => {
+      setEnv({ SSO_SKIP_DOMAIN_VERIFICATION: skip })
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(member, [{ role: 'member' }])
+      queueTableRows(member, [{ role: 'member' }])
+      await expect(
+        addOrganizationDomain.execute({
+          principal: delegated,
+          input: { organizationId: 'org', domain: 'example.com' },
+        })
+      ).rejects.toThrow('administrator')
+      await expect(
+        verifyOrganizationDomain.execute({
+          principal: delegated,
+          input: { organizationId: 'org', domainId: 'domain' },
+        })
+      ).rejects.toThrow('administrator')
+      await expect(
+        removeOrganizationDomain.execute({
+          principal: delegated,
+          input: { organizationId: 'org', domainId: 'domain' },
+        })
+      ).rejects.toThrow('administrator')
+      expect(mocks.dns).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
   it('does not give non-enterprise members any domains or proof', async () => {
     queueTableRows(member, [{ role: 'member' }])
     mocks.enterprise.mockResolvedValue(false)
     await expect(
       listOrganizationDomains.execute({ principal: delegated, input: { organizationId: 'org' } })
-    ).resolves.toEqual({ isEnterprise: false, domains: [], truncated: false })
+    ).resolves.toEqual({
+      isEnterprise: false,
+      domains: [],
+      truncated: false,
+      nextCursorKeys: null,
+    })
   })
   it.each(['remove', 'verify'] as const)(
     'invalidates the SSO requirement after a committed domain %s',
     async (action) => {
+      queueTableRows(member, [{ role: 'admin' }])
       queueTableRows(member, [{ role: 'admin' }])
       if (action === 'verify') {
         queueTableRows(ssoDomain, [row])
@@ -193,6 +207,67 @@ describe('organization domain Settings operations', () => {
         input: { organizationId: 'org', domainId: 'domain' },
       })
     ).rejects.toMatchObject({ status: 503 })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+  it.each(['absent', 'unavailable'])(
+    'accepts a self-hosted administrator claim without %s DNS',
+    async (lookup) => {
+      setEnv({ SSO_SKIP_DOMAIN_VERIFICATION: 'true' })
+      queueTableRows(member, [{ role: 'admin' }])
+      queueTableRows(member, [{ role: 'admin' }])
+      queueTableRows(ssoDomain, [row])
+      queueTableRows(ssoDomain, [])
+      mocks.dns.mockResolvedValue(lookup)
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...row, status: 'verified' }])
+
+      const result = await verifyOrganizationDomain.execute({
+        principal,
+        input: { organizationId: 'org', domainId: 'domain' },
+      })
+
+      expect(result.verified).toBe(true)
+      expect(mocks.dns).not.toHaveBeenCalled()
+    }
+  )
+  it.each([
+    { hosted: true, skip: 'true', lookup: 'absent', status: 422 },
+    { hosted: true, skip: 'true', lookup: 'unavailable', status: 503 },
+    { hosted: false, skip: undefined, lookup: 'absent', status: 422 },
+    { hosted: false, skip: 'false', lookup: 'unavailable', status: 503 },
+  ])(
+    'requires DNS proof with hosted=$hosted and skip=$skip',
+    async ({ hosted, skip, lookup, status }) => {
+      setEnvFlags({ isHosted: hosted })
+      setEnv({ SSO_SKIP_DOMAIN_VERIFICATION: skip })
+      queueTableRows(member, [{ role: 'admin' }])
+      queueTableRows(ssoDomain, [row])
+      queueTableRows(ssoDomain, [])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...row, status: 'verified' }])
+      mocks.dns.mockResolvedValue(lookup)
+
+      await expect(
+        verifyOrganizationDomain.execute({
+          principal,
+          input: { organizationId: 'org', domainId: 'domain' },
+        })
+      ).rejects.toMatchObject({ status })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
+    }
+  )
+  it('refuses a domain owned by another organization even with DNS bypass', async () => {
+    setEnv({ SSO_SKIP_DOMAIN_VERIFICATION: 'true' })
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(ssoDomain, [row])
+    queueTableRows(ssoDomain, [{ organizationId: 'other' }])
+
+    await expect(
+      verifyOrganizationDomain.execute({
+        principal,
+        input: { organizationId: 'org', domainId: 'domain' },
+      })
+    ).rejects.toThrow('already verified by another organization')
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
   })

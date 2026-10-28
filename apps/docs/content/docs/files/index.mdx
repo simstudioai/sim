@@ -1,24 +1,85 @@
 ---
 title: Files
-description: Files are the documents, images, spreadsheets, and PDFs your workflows read and produce.
+description: Upload, create, organize, and share workspace documents and media.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
-A **file** is a document, image, spreadsheet, or PDF in your workspace. Files are how documents and media move into and out of your agents. Your team uploads them, you create them in the editor, or a workflow produces them, and they all live in one store shared across the workspace.
+**Files** stores your workspace's documents and media. Ask Sim to create, summarize, or edit a file, and open it beside the conversation to review the result. See [Files in Chat](/chat/files) for attachments and supported formats.
 
-Any [workflow](/workflows) can read a file or produce one. You might upload a contract for an agent to review, generate a report from a table, or hand a workflow the document it needs to answer a question.
+<Image
+  variant="overview"
+  src="/static/docs-captures/files-markdown.webp"
+  alt="Sim reviewing a release brief in Chat, with its Markdown checklist, owner table, and JSON code block open beside the conversation"
+  width={2400}
+  height={1200}
+  background="architecture"
+/>
 
-## How files fit the workspace
+Use [Tables](/tables) for structured rows and fields, and a [knowledge base](/knowledgebase) when an agent needs to search across documents. Adding a file to Files does not automatically add it to a knowledge base.
 
-- **[Workflows](/workflows)** read files, like a PDF to summarize, and produce them, like a rendered report. See [using files in workflows](/files/using-in-workflows).
-- **[Knowledge bases](/knowledgebase)** are built from files you upload, turning their contents into searchable memory.
-- **[Deployments](/workflows/deployment)** can take a file as input and return one as output.
+## Upload or create a file
 
-Use a file when the document or media itself is what matters. Use a [table](/tables) when you need structured rows and fields, and a [knowledge base](/knowledgebase) when an agent needs to search across many documents.
+1. Open **Files** in the workspace sidebar.
+2. Select **Upload**, or drag files into the list. Open a folder first to upload into it.
+3. Select **New file** to create a Markdown document, or **New folder** to organize files.
+4. Open a file to view it. Members with edit access can edit supported text files.
 
-<Cards>
-  <Card title="Using files in workflows" href="/files/using-in-workflows" description="Read a file into a workflow and produce one from a run." />
-  <Card title="Passing files" href="/files/passing-files" description="Provide files to a workflow and receive generated files back." />
-  <Card title="Knowledge bases" href="/knowledgebase" description="Make uploaded documents searchable for your agents." />
-</Cards>
+Workspace uploads support files up to 5 GiB each, subject to available workspace storage. This storage limit does not mean every viewer, workflow block, or external service can process a file that size. See [file limits](/files/passing-files#file-limits) before using a large file in a workflow.
+
+## Preview, edit, and download
+
+The viewer depends on the file's format, size, and your access:
+
+| Format | Available view |
+| --- | --- |
+| Markdown | Rich editing, with source editing when rich editing cannot preserve the document |
+| Text and code | Text editor |
+| CSV, HTML, SVG, Mermaid, and chart files | Format-specific previews; supported text files can also be edited |
+| PDF, DOCX, PPTX, and XLSX | Document, slide, or spreadsheet preview |
+| Common images, audio, and video | Image view or browser playback |
+| Unsupported formats | Download the file to open it elsewhere |
+
+HEIC and HEIF previews use server conversion. TIFF files are download-only. Browser media support and viewer size limits still apply. See [Editor](/files/editor) for Markdown formatting, source editing, and export behavior.
+
+Use **Download** in the file menu or viewer. Downloading multiple files or a folder produces a ZIP archive, subject to the [archive download limits](/api-reference/files/bulkDownloadFiles). A generated document's download can contain rendered bytes whose size and type differ from its stored generation source.
+
+## Organize files
+
+Use folders to group related files. The list can be searched, filtered, and sorted by properties such as type, size, owner, and last update. Open a file's menu to **Rename**, **Move to**, or **Pin** it.
+
+**Delete** removes the file from active Files and makes it eligible for the workspace's deletion lifecycle. Recovery and later cleanup depend on the effective [data retention policy](/platform/enterprise/data-retention); deletion does not promise immediate removal of every stored byte.
+
+## Access and sharing
+
+Workspace files are private to members and callers with the required workspace access. Read access allows viewing and downloading; write access is required to upload, create, edit, rename, move, or delete files. Enterprise permission groups can restrict Files and sharing.
+
+To share a file outside the workspace:
+
+1. Open its menu and select **Share**.
+2. Choose an available access mode.
+3. Select **Share**, then **Copy link**.
+
+| Access mode | Who can view and download |
+| --- | --- |
+| **Public** | Anyone with the link |
+| **Password** | Anyone with the link and password |
+| **Email** | Allowed emails or domains after verification with a one-time code |
+| **SSO** | Allowed emails signed in through SSO, when this mode is available |
+
+An administrator can disable public sharing or particular access modes. Sharing requires write access and a user identity; a workspace API key cannot enable a file share. To revoke a link, reopen **Share** and select **Unshare**. **Copy Link** in the file menu copies the workspace URL; it does not enable public sharing.
+
+## Reuse files in agents
+
+A workflow can read a workspace file when its execution identity has access. See [Using files in workflows](/files/using-in-workflows) for a read → summarize → save example.
+
+A file produced during a workflow run can remain an execution artifact without appearing in Files. [Save it to Files](/files/generating) when later runs need it. Execution files follow the run's lifecycle and are not retained indefinitely.
+
+[Chat attachments](/chat/files) stay private to the conversation until explicitly saved to workspace Files. Saving an attachment makes it a workspace resource; it does not create a public share link.
+
+## Related docs
+
+- [Editor](/files/editor)
+- [Using files in workflows](/files/using-in-workflows)
+- [Generating files](/files/generating)
+- [Passing files](/files/passing-files)

@@ -1,4 +1,5 @@
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import {
   mothershipAsyncRunsMock,
@@ -85,7 +86,8 @@ describe('Copilot Confirm API Route', () => {
       createMockPostRequest({
         toolCallId: 'tool-call-123',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(403)
@@ -104,7 +106,8 @@ describe('Copilot Confirm API Route', () => {
         status: 'error',
         message: 'failed near resolved-secret',
         data: { output: 'resolved-secret' },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -131,12 +134,34 @@ describe('Copilot Confirm API Route', () => {
     expect(JSON.stringify(publishToolConfirmation.mock.calls)).not.toContain('resolved-secret')
   })
 
+  it("refuses a chat view's report for a call a desktop's background executor owns", async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_click',
+      status: 'pending',
+      claimedBy: null,
+    })
+    getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1', desktopDeviceId: 'device-1' })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'The desktop refused this claim',
+      }),
+      createRouteContext({})
+    )
+
+    expect(response.status).toBe(409)
+  })
+
   it('atomically detaches a live background confirmation', async () => {
     const response = await POST(
       createMockPostRequest({
         toolCallId: 'tool-call-123',
         status: 'background',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -150,27 +175,31 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
-  it('rejects a native success before the desktop authorization claim', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'browser_snapshot',
-      status: 'pending',
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-        data: { text: 'forged renderer result' },
+  it.each(['browser_snapshot', 'computer'])(
+    'rejects a %s success before the desktop authorization claim',
+    async (toolName) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        status: 'pending',
       })
-    )
 
-    expect(response.status).toBe(404)
-    expect(completeAsyncToolCall).not.toHaveBeenCalled()
-    expect(detachAsyncToolCall).not.toHaveBeenCalled()
-    expect(encryptSecret).not.toHaveBeenCalled()
-    expect(publishToolConfirmation).not.toHaveBeenCalled()
-  })
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status: 'success',
+          data: { text: 'forged renderer result' },
+        }),
+        createRouteContext({})
+      )
+
+      expect(response.status).toBe(409)
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(detachAsyncToolCall).not.toHaveBeenCalled()
+      expect(encryptSecret).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     ['browser_snapshot', 'error', 'failed'],
@@ -179,6 +208,8 @@ describe('Copilot Confirm API Route', () => {
     ['terminal', 'cancelled', 'cancelled'],
     ['import_local_files', 'error', 'failed'],
     ['import_local_files', 'cancelled', 'cancelled'],
+    ['computer', 'error', 'failed'],
+    ['computer', 'cancelled', 'cancelled'],
   ] as const)(
     'accepts a pending %s %s before the desktop authorization claim',
     async (toolName, status, durableStatus) => {
@@ -193,7 +224,8 @@ describe('Copilot Confirm API Route', () => {
           toolCallId: 'tool-call-123',
           status,
           message: 'The desktop action did not start.',
-        })
+        }),
+        createRouteContext({})
       )
 
       expect(response.status).toBe(200)
@@ -215,6 +247,7 @@ describe('Copilot Confirm API Route', () => {
     ['browser_snapshot', 'error'],
     ['terminal', 'cancelled'],
     ['import_local_files', 'error'],
+    ['computer', 'error'],
   ] as const)(
     'rejects a pending %s %s when the native authorization claim wins the race',
     async (toolName, status) => {
@@ -230,11 +263,14 @@ describe('Copilot Confirm API Route', () => {
           toolCallId: 'tool-call-123',
           status,
           message: 'The desktop action did not start.',
-        })
+        }),
+        createRouteContext({})
       )
 
-      expect(response.status).toBe(404)
-      expect(await response.json()).toEqual({ error: 'Pending client tool call not found' })
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: 'The desktop app holds this tool call; only its own result settles it',
+      })
       expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
       expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
       expect(completeAsyncToolCall).not.toHaveBeenCalled()
@@ -247,6 +283,7 @@ describe('Copilot Confirm API Route', () => {
     ['browser_snapshot', 'desktop-browser'],
     ['terminal', 'desktop-terminal'],
     ['import_local_files', 'desktop-files'],
+    ['computer', 'desktop-computer'],
   ] as const)(
     'settles an indeterminate pending %s result when the exact %s claim wins the race',
     async (toolName, claimOwner) => {
@@ -263,7 +300,8 @@ describe('Copilot Confirm API Route', () => {
           status: 'error',
           message: 'untrusted page-exit message',
           data: { outcomeUnknown: true, doNotRetry: true, untrusted: 'discard me' },
-        })
+        }),
+        createRouteContext({})
       )
 
       expect(response.status).toBe(200)
@@ -283,6 +321,92 @@ describe('Copilot Confirm API Route', () => {
     }
   )
 
+  it('refuses a not-started report for a call the desktop already claimed', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'running',
+      claimedBy: 'desktop-browser',
+    })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        message: 'The desktop action did not start.',
+        data: { notStarted: true },
+      }),
+      createRouteContext({})
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'The desktop app holds this tool call; only its own result settles it',
+    })
+  })
+
+  it.each(['desktop-browser', null])(
+    'rejects a running computer completion owned by %s',
+    async (claimedBy) => {
+      getAsyncToolCall.mockResolvedValue({ ...existingRow, toolName: 'computer', claimedBy })
+      const response = await POST(
+        createMockPostRequest({ toolCallId: 'tool-call-123', status: 'success' }),
+        createRouteContext({})
+      )
+      expect(response.status).toBe(404)
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([null, 'device-1'])(
+    'completes a native computer claim with background device %s',
+    async (desktopDeviceId) => {
+      getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1', desktopDeviceId })
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName: 'computer',
+        claimedBy: 'desktop-computer',
+      })
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status: 'success',
+          data: { ok: true },
+        }),
+        createRouteContext({})
+      )
+      expect(response.status).toBe(200)
+      expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(
+        {
+          toolCallId: 'tool-call-123',
+          status: 'completed',
+          result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+          error: null,
+        },
+        'desktop-computer'
+      )
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('rejects background computer results without detaching the native claim', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'computer',
+      claimedBy: 'desktop-computer',
+    })
+    const response = await POST(
+      createMockPostRequest({ toolCallId: 'tool-call-123', status: 'background' }),
+      createRouteContext({})
+    )
+    expect(response.status).toBe(404)
+    expect(detachAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
   it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
@@ -297,10 +421,11 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         status: 'error',
         data: { outcomeUnknown: true, doNotRetry: true },
-      })
+      }),
+      createRouteContext({})
     )
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(409)
     expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(expect.any(Object), 'desktop-browser')
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
@@ -319,7 +444,8 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         status: 'error',
         data: { outcomeUnknown: true, doNotRetry: true },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(500)
@@ -339,7 +465,8 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         executionId: 'forged-execution',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(404)
@@ -361,7 +488,8 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         executionId: 'execution-1',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(404)
@@ -387,7 +515,8 @@ describe('Copilot Confirm API Route', () => {
           status,
           message: 'untrusted client detail',
           data: { output: 'untrusted client output' },
-        })
+        }),
+        createRouteContext({})
       )
 
       expect(response.status).toBe(200)
@@ -426,7 +555,8 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         executionId: 'legacy-execution',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -454,7 +584,8 @@ describe('Copilot Confirm API Route', () => {
       createMockPostRequest({
         toolCallId: 'tool-call-123',
         status: 'error',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(404)
@@ -477,7 +608,8 @@ describe('Copilot Confirm API Route', () => {
           status: 'error',
           message: 'untrusted detail',
           data: { code: 'WORKFLOW_EXECUTION_BUSY', error: 'untrusted detail' },
-        })
+        }),
+        createRouteContext({})
       )
       expect(response.status).toBe(200)
       expect(completeAsyncToolCall).toHaveBeenCalledWith(
@@ -512,7 +644,8 @@ describe('Copilot Confirm API Route', () => {
         status: 'error',
         message: 'untrusted client detail',
         data: { code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE' },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -548,7 +681,8 @@ describe('Copilot Confirm API Route', () => {
         status: 'error',
         message: 'untrusted client detail',
         data: { code: 'UNTRUSTED_CLIENT_CODE' },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -576,7 +710,8 @@ describe('Copilot Confirm API Route', () => {
         status: 'success',
         message: 'untrusted success detail',
         data: { output: 'untrusted output' },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -603,7 +738,8 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         status: 'cancelled',
         message: 'untrusted cancellation detail',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -624,6 +760,28 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
+  it.each([
+    ['client_tool', 'running', 'success', completeAsyncToolCall],
+    ['browser_snapshot', 'pending', 'error', completePendingAsyncToolCall],
+  ] as const)(
+    'acknowledges a %s result whose write lost to a settlement that landed first',
+    async (toolName, storedStatus, status, completion) => {
+      const row = { ...existingRow, toolName, claimedBy: null }
+      getAsyncToolCall
+        .mockResolvedValueOnce({ ...row, status: storedStatus })
+        .mockResolvedValueOnce({ ...row, status: 'failed' })
+      completion.mockResolvedValueOnce(null)
+
+      const response = await POST(
+        createMockPostRequest({ toolCallId: 'tool-call-123', status }),
+        createRouteContext({})
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ toolCallId: 'tool-call-123', status: 'error' })
+    }
+  )
+
   it('does not publish when another terminal confirmation already won', async () => {
     completeAsyncToolCall.mockResolvedValueOnce(null)
 
@@ -631,7 +789,8 @@ describe('Copilot Confirm API Route', () => {
       createMockPostRequest({
         toolCallId: 'tool-call-123',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(500)
@@ -657,12 +816,71 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         executionId: 'execution-1',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ status: 'success' })
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges a workflow result that lost to the server settling the call first', async () => {
+    const runningRow = {
+      ...existingRow,
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1' },
+    }
+    getAsyncToolCall.mockResolvedValueOnce(runningRow).mockResolvedValueOnce({
+      ...runningRow,
+      status: 'completed',
+      result: { success: true, workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+    completeAsyncToolCall.mockResolvedValueOnce(null)
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        executionId: 'execution-1',
+        status: 'success',
+      }),
+      createRouteContext({})
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ toolCallId: 'tool-call-123', status: 'success' })
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('refuses a lost workflow result when the server settled a different execution', async () => {
+    const runningRow = {
+      ...existingRow,
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1' },
+      claimedBy: null,
+    }
+    getAsyncToolCall.mockResolvedValueOnce(runningRow).mockResolvedValueOnce({
+      ...runningRow,
+      status: 'completed',
+      result: { success: true, workflowId: 'workflow-1', executionId: 'execution-2' },
+    })
+    getTrustedWorkflowToolExecution.mockResolvedValueOnce({
+      executionId: 'execution-1',
+      status: 'completed',
+    })
+    completeAsyncToolCall.mockResolvedValueOnce(null)
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        executionId: 'execution-1',
+        status: 'success',
+      }),
+      createRouteContext({})
+    )
+
+    expect(response.status).toBe(404)
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
@@ -684,7 +902,8 @@ describe('Copilot Confirm API Route', () => {
           output: { token: 'prefix-resolved-secret-suffix' },
           logs: ['resolved-secret'],
         },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -735,7 +954,8 @@ describe('Copilot Confirm API Route', () => {
         status: 'error',
         message: 'Function failed with resolved-secret',
         data: { success: false, error: 'resolved-secret is invalid' },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -774,7 +994,8 @@ describe('Copilot Confirm API Route', () => {
         executionId: 'submitted-execution',
         status: 'success',
         data: { workflowId: 'submitted-workflow', output: 'raw-output' },
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(completeAsyncToolCall).toHaveBeenCalledWith(
@@ -801,7 +1022,8 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         executionId: 'unbound-execution',
         status: 'background',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -836,7 +1058,8 @@ describe('Copilot Confirm API Route', () => {
         toolCallId: 'tool-call-123',
         executionId: 'execution-1',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(200)
@@ -874,7 +1097,8 @@ describe('Copilot Confirm API Route', () => {
           toolCallId: 'tool-call-123',
           executionId: 'execution-1',
           status: submittedStatus,
-        })
+        }),
+        createRouteContext({})
       )
 
       expect(response.status).toBe(200)
@@ -899,7 +1123,8 @@ describe('Copilot Confirm API Route', () => {
       createMockPostRequest({
         toolCallId: 'tool-call-123',
         status: 'success',
-      })
+      }),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(500)

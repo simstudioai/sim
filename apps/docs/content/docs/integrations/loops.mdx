@@ -1,31 +1,29 @@
 ---
 title: Loops
 description: Manage contacts and send emails with Loops
+integration:
+  type: "loops"
+  color: "#FAFAF9"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="loops"
-  color="#FAFAF9"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Loops](https://loops.so/) to manage contacts, send transactional emails, and trigger email sequences with events. Update Contact creates a contact when no match exists. Configure an API key from Loops **Settings > API** before selecting an operation.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Loops into the workflow. Create and manage contacts, send transactional emails, and trigger event-based automations.
-
-
+Create and manage contacts, send transactional emails, and trigger event-based automations.
 
 ## Actions
 
 ### Loops Create Contact
 
 Create a new contact in your Loops audience with an email address and optional properties like name, user group, and mailing list subscriptions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +47,13 @@ Create a new contact in your Loops audience with an email address and optional p
 | `success` | boolean | Whether the contact was created successfully |
 | `id` | string | The Loops-assigned ID of the created contact |
 
+</ReferenceDetails>
+
 ### Loops Update Contact
 
 Update an existing contact in Loops by email or userId. Creates a new contact if no match is found (upsert). Can update name, subscription status, user group, mailing lists, and custom properties.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +77,13 @@ Update an existing contact in Loops by email or userId. Creates a new contact if
 | `success` | boolean | Whether the contact was updated successfully |
 | `id` | string | The Loops-assigned ID of the updated or created contact |
 
+</ReferenceDetails>
+
 ### Loops Find Contact
 
 Find a contact in Loops by email address or userId. Returns an array of matching contacts with all their properties including name, subscription status, user group, and mailing lists.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -103,9 +109,13 @@ Find a contact in Loops by email address or userId. Returns an array of matching
 |   ↳ `mailingLists` | object | Mailing list IDs mapped to subscription status |
 |   ↳ `optInStatus` | string | Double opt-in status: pending, accepted, rejected, or null |
 
+</ReferenceDetails>
+
 ### Loops Delete Contact
 
 Delete a contact from Loops by email address or userId. At least one identifier must be provided.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -122,9 +132,13 @@ Delete a contact from Loops by email address or userId. At least one identifier 
 | `success` | boolean | Whether the contact was deleted successfully |
 | `message` | string | Status message from the API |
 
+</ReferenceDetails>
+
 ### Loops Send Transactional Email
 
 Send a transactional email to a recipient using a Loops template. Supports dynamic data variables for personalization and optionally adds the recipient to your audience.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +157,13 @@ Send a transactional email to a recipient using a Loops template. Supports dynam
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the transactional email was sent successfully |
 
+</ReferenceDetails>
+
 ### Loops Send Event
 
 Send an event to Loops to trigger automated email sequences for a contact. Identify the contact by email or userId and include optional event properties and mailing list changes.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -164,9 +182,13 @@ Send an event to Loops to trigger automated email sequences for a contact. Ident
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the event was sent successfully |
 
+</ReferenceDetails>
+
 ### Loops List Mailing Lists
 
 Retrieve all mailing lists from your Loops account. Returns each list with its ID, name, description, and public/private status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -184,9 +206,13 @@ Retrieve all mailing lists from your Loops account. Returns each list with its I
 |   ↳ `description` | string | The mailing list description \(null if not set\) |
 |   ↳ `isPublic` | boolean | Whether the list is public or private |
 
+</ReferenceDetails>
+
 ### Loops List Transactional Emails
 
 Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -215,9 +241,13 @@ Retrieve a list of published transactional email templates from your Loops accou
 |   ↳ `nextCursor` | string | Cursor for next page \(null if no more pages\) |
 |   ↳ `nextPage` | string | URL for next page \(null if no more pages\) |
 
+</ReferenceDetails>
+
 ### Loops Create Contact Property
 
 Create a new custom contact property in your Loops account. The property name must be in camelCase format.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -233,9 +263,13 @@ Create a new custom contact property in your Loops account. The property name mu
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the contact property was created successfully |
 
+</ReferenceDetails>
+
 ### Loops List Contact Properties
 
 Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -253,9 +287,13 @@ Retrieve a list of contact properties from your Loops account. Returns each prop
 |   ↳ `label` | string | The property display label |
 |   ↳ `type` | string | The property data type \(string, number, boolean, date\) |
 
+</ReferenceDetails>
+
 ### Loops Check Contact Suppression
 
 Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -276,9 +314,13 @@ Check whether a Loops contact is on the suppression list (bounced, complained, o
 | `removalQuotaLimit` | number | Total suppression-removal quota for the team |
 | `removalQuotaRemaining` | number | Remaining suppression-removal quota for the team |
 
+</ReferenceDetails>
+
 ### Loops Remove Contact Suppression
 
 Remove a Loops contact from the suppression list by email address or userId, allowing them to receive emails again. Subject to a team removal quota.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -297,9 +339,13 @@ Remove a Loops contact from the suppression list by email address or userId, all
 | `removalQuotaLimit` | number | Total suppression-removal quota for the team |
 | `removalQuotaRemaining` | number | Remaining suppression-removal quota for the team |
 
+</ReferenceDetails>
+
 ### Loops Get Transactional Email
 
 Retrieve a single transactional email template from your Loops account by its ID, including its data variables and draft/published message IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -321,16 +367,20 @@ Retrieve a single transactional email template from your Loops account by its ID
 | `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 | `dataVariables` | array | Template data variable names |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Loops Campaign Email Sent
 
 Trigger workflow when a Loops campaign email is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -359,13 +409,14 @@ Trigger workflow when a Loops campaign email is sent
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 | `mailingLists` | json | Mailing lists the send targeted \(id, name, description, isPublic\); present on campaign and loop sends |
 
-
----
+</ReferenceDetails>
 
 ### Loops Email Clicked
 
 Trigger workflow when a link in a Loops email is clicked
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -392,13 +443,14 @@ Trigger workflow when a link in a Loops email is clicked
 | `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 
-
----
+</ReferenceDetails>
 
 ### Loops Email Delivered
 
 Trigger workflow when a Loops email is delivered
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -425,13 +477,14 @@ Trigger workflow when a Loops email is delivered
 | `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 
-
----
+</ReferenceDetails>
 
 ### Loops Email Hard Bounced
 
 Trigger workflow when a Loops email hard bounces
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -458,13 +511,14 @@ Trigger workflow when a Loops email hard bounces
 | `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 
-
----
+</ReferenceDetails>
 
 ### Loops Email Opened
 
 Trigger workflow when a Loops email is opened
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -491,13 +545,14 @@ Trigger workflow when a Loops email is opened
 | `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 
-
----
+</ReferenceDetails>
 
 ### Loops Email Soft Bounced
 
 Trigger workflow when a Loops email soft bounces
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -524,13 +579,14 @@ Trigger workflow when a Loops email soft bounces
 | `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 
-
----
+</ReferenceDetails>
 
 ### Loops Loop Email Sent
 
 Trigger workflow when a Loops loop email is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -559,13 +615,14 @@ Trigger workflow when a Loops loop email is sent
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 | `mailingLists` | json | Mailing lists the send targeted \(id, name, description, isPublic\); present on campaign and loop sends |
 
-
----
+</ReferenceDetails>
 
 ### Loops Transactional Email Sent
 
 Trigger workflow when a Loops transactional email is sent
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -593,4 +650,6 @@ Trigger workflow when a Loops transactional email is sent
 | `contactEmail` | string | Contact email address \(payload `contactIdentity.email`\) |
 | `userId` | string | Contact user ID, when set \(payload `contactIdentity.userId`\) |
 | `mailingLists` | json | Mailing lists the send targeted \(id, name, description, isPublic\); present on campaign and loop sends |
+
+</ReferenceDetails>
 

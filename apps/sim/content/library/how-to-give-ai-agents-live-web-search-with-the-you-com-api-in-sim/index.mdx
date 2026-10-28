@@ -1,0 +1,102 @@
+---
+slug: how-to-give-ai-agents-live-web-search-with-the-you-com-api-in-sim
+title: 'How to Give AI Agents Live Web Search with the You.com API in Sim'
+description: 'Give AI agents live web search in Sim with the You.com API, including cited answers, research effort tiers, structured output, and example workflows.'
+seoTitle: 'Live Web Search for AI Agents With the You.com API'
+date: 2026-10-14
+updated: 2026-10-14
+authors:
+  - andrew
+readingTime: 9
+tags: [AI Agents, Web Search, You.com, Sim]
+ogImage: /library/how-to-give-ai-agents-live-web-search-with-the-you-com-api-in-sim/cover.jpg
+draft: false
+faq:
+  - q: "What is the You.com API?"
+    a: "The You.com API gives agents access to web search, page contents, cited answers, and multi-step research. Its outputs can include source links and text suited to an AI workflow."
+  - q: "How does Sim use the You.com API?"
+    a: "Sim is the open-source AI workspace for building and deploying agents. Its visual workflow builder includes a native You.com block that connects with one API key and offers eight tools."
+  - q: "What is the difference between Search, Answer, and Research?"
+    a: "Search returns web and news results with snippets or relevant passages. Answer synthesizes a response with numbered citations and verbatim excerpts, while Research investigates a question in multiple steps and returns a cited report or structured data."
+  - q: "How long does You.com Research take?"
+    a: "Lite runs in under 10 seconds, standard usually takes 10 to 30 seconds, deep runs in under 120 seconds, and exhaustive runs in under 300 seconds. Frontier runs as a background task that you poll for a result."
+  - q: "Can I try the integration for free?"
+    a: "You can get a free You.com API key and add it to a You.com block in a Sim workspace. Check the API account’s available credits before running research workflows."
+---
+
+## TL;DR
+
+- Weak web search can leave an agent with stale information, hard-to-read pages, or claims it cannot cite.
+- [Sim](https://www.sim.ai) is the open-source AI workspace for building and deploying agents. [You.com](https://you.com/docs/quickstart) provides web search and research through an API that returns text agents can use, including cited answers.
+- Sim’s native You.com block offers eight tools for search, page retrieval, answers, research, finance research, image search, background-task polling, and checking API credits.
+- To start, create a You.com API key, add the block to a Sim workflow, select a tool, connect its inputs, and run it.
+
+## Why web search is the weakest step in most agent workflows
+
+An agent can produce a fluent answer from poor search input. A basic page fetch may return raw HTML filled with navigation links, cookie notices, and repeated text. When the agent searches that material for an answer, it may miss the relevant passage or treat unrelated page content as evidence.
+
+An agent also needs to show where a claim came from. If it reports a company’s latest funding round without a source or supporting passage, you cannot easily check whether it found an announcement, an old directory entry, or another company’s profile. A plausible answer does not give you a way to verify it.
+
+Current-information tasks need control over what search retrieves. A news digest needs recent coverage, while an answer about a company policy may need to rely on official pages. Without freshness or domain controls, the agent can mix old and new information or use a third-party summary when the primary source is available. Multi-step research adds another difficulty. An earnings question may require a filing and later coverage, which a single search may not gather or reconcile.
+
+In a [Sim workflow](https://docs.sim.ai/introduction), an agent can pass search findings into later steps. If you expect that agent to cite claims or act on current information, it needs readable source material, verifiable citations, and control over the pages it uses. For a broader comparison of approaches, see [AI agents for web scraping and market research](https://www.sim.ai/library/best-ai-agents-web-scraping-market-research).
+
+## Why Sim chose You.com as its search layer
+
+Sim’s native You.com block lets you add live web search to an agent workflow with one You.com API key. Sim is the open-source AI workspace for building and deploying AI agents. [You.com’s API quickstart](https://you.com/docs/quickstart) documents the search and research services those agents can use when a task depends on current information.
+
+The [You.com Web Search API](https://you.com/docs/guides/search) gives agents material they can use more directly than raw web pages. Search can return query-relevant passages or full-page Markdown, while [Answer](https://you.com/docs/guides/answer) provides a synthesized response with numbered citations and verbatim excerpts. You can check an answer against its sources before passing it to another step in a workflow. For questions that require several searches, [Research](https://you.com/docs/guides/research) produces a cited report rather than leaving the agent to assemble one from separate results.
+
+## The eight You.com tools in the Sim block
+
+The Sim [workflow builder](https://docs.sim.ai/introduction) gives you four You.com tools for finding sources and turning them into answers. [Search](https://you.com/docs/api-reference/search/v1-search) returns web and news results with snippets, query-relevant highlights, or full-page Markdown, so you can choose how much text your agent receives. Its count setting applies separately to web and news. A count of 10 can return up to 10 results in each section, and a freshness setting of `day` can narrow a daily news search.
+
+[Get Contents](https://you.com/docs/api-reference/contents) retrieves known URLs as Markdown, HTML, or metadata. You can pass multiple URLs as a comma-separated string and set `maxAge` in seconds to limit the age of cached content. The default places no limit on age. `crawlTimeout` defaults to 10 seconds and can be raised to 60 when a page takes longer to load.
+
+[Answer](https://you.com/docs/api-reference/answer/v1-answer) fits questions that need a synthesis rather than a result list. It returns numbered citations with verbatim excerpts, so you can check the source passage behind a claim. [Search Images](https://you.com/docs/api-reference/images/images) finds visual sources, but it remains in beta and requires an early-access API key.
+
+The other four tools support longer investigations and account checks. [Research](https://you.com/docs/api-reference/research/v1-research) conducts multi-step research and returns either a cited Markdown report or structured JSON. [Get Research Task](https://you.com/docs/api-reference/research/v1-research-task) checks a background job by task ID, allowing a later workflow run to collect its result. [Finance Research](https://you.com/docs/guides/finance-research) searches a finance-optimized index that includes filings and financial news when you need financial context. [Get Account Balance](https://you.com/docs/api-reference/billing/get-account-balance) returns remaining API credits in cents, so you can check the balance before scheduling a large research run.
+
+## Research effort tiers and the background task pattern
+
+[You.com Research](https://you.com/docs/guides/research) offers five effort tiers, so you can choose how much time a question warrants. Lite aims to finish in under 10 seconds. Standard, the default, takes 10 to 30 seconds, while deep runs in under 120 seconds. Exhaustive runs in under 300 seconds. A quick source check may need lite or standard, while a question that requires more investigation may warrant deep or exhaustive.
+
+[Frontier uses a background task](https://you.com/docs/guides/research/background-requests) because its work extends beyond a single workflow run. In one Sim workflow, call Research with frontier effort and `background` set to `true`, then store the returned `taskId`. A second, scheduled workflow reads that ID and calls Get Research Task. If the task remains in progress, the next scheduled run checks again. When the status reaches `completed`, the workflow can use the report. A `failed` or `cancelled` status should follow an error path.
+
+[Research](https://you.com/docs/api-reference/research/v1-research) also returns a `warnings` array for source access problems or partial results. Route that array through a Sim Condition block before sending the report downstream. When warnings appear, you can send the report for review rather than treating it as complete. This kind of routing is one reason [workflow builders for multi-step tasks](https://www.sim.ai/library/best-ai-workflow-builders) matter when research has several possible outcomes.
+
+## Structured output for downstream workflows
+
+Pass a JSON Schema in `outputSchema` when your workflow needs data it can use directly. For example, a lead research workflow can ask Research for headquarters and headcount as fields rather than extract them from a cited Markdown report. Research returns an object with `contentType` set to `object`, so you can map those fields into a Sim Table or check a value with a Condition block.
+
+According to You.com’s [structured output documentation](https://you.com/docs/guides/research/structured-output), every object in the schema must set `additionalProperties` to `false`, and every property must appear in `required`. Structured output does not work at lite effort, so choose standard or a higher tier when the workflow depends on those fields. Requiring a field sets the shape of the response. It does not guarantee that a source provides the answer.
+
+## Example workflows built with the You.com block
+
+A [Sim workflow](https://docs.sim.ai/introduction) can run You.com tools on a schedule or when new data arrives, then send the results to an agent, a table, or another destination. These examples pair each search task with a place to use its output.
+
+- **Daily competitor news digest.** Schedule Search each morning with news results and `freshness` set to `day`. Have an agent summarize the relevant snippets, include the source links, and send the digest to Slack.
+- **Documentation knowledge loader.** When your source URL list changes, use Get Contents to fetch those pages as Markdown. Send the returned text to a Sim knowledge base so an agent can answer questions using the updated documentation.
+- **Earnings analyst.** Schedule Finance Research across a ticker watchlist, then use Research at deep effort to produce findings for a Sim Table. At the documented maximum of 120 seconds per deep request, a sequential list of 20 tickers can take up to 40 minutes, so schedule the run outside the hours you need the results or use a Parallel block to process tickers concurrently.
+- **Lead research.** When a new company enters a Sim Table, use Research with a structured output schema to find its headquarters, headcount, and recent funding. Write the returned fields into that company’s row, and review warnings before treating missing fields as confirmed gaps. The same pattern can extend the workflows in this guide to the [best AI agents for lead enrichment](https://www.sim.ai/library/best-ai-agents-for-lead-enrichment-2026).
+- **Morning credit alert.** Schedule Get Account Balance before your other You.com workflows run. A Condition block can compare the remaining balance, returned in cents, with your chosen threshold and send a Slack alert when credits run low.
+
+## Controlling sources and spend
+
+[Source controls](https://you.com/docs/guides/answer/search-controls) let you decide which sites Search, Answer, and Research can use. Set `includeDomains` when an agent should search only approved sites, such as your documentation domain. For a broader search, `excludeDomains` removes sites you do not trust, while `boostDomains` ranks preferred sites higher without filtering out others. Each setting accepts up to 500 domains. You cannot combine `includeDomains` with either of the other settings, so choose between a strict allowlist and a broader search with exclusions or boosts. Domain controls narrow the sources an agent sees, but you should still check citations before relying on a claim.
+
+Research effort tiers and Get Account Balance help you manage spend. Choose an effort tier that fits the question rather than running every request at the deepest level. Before a scheduled research workflow runs, [Get Account Balance](https://you.com/docs/api-reference/billing/get-account-balance) can check remaining You.com API credits, returned in cents. The balance tells you what remains, not what the next request will cost. Together, source controls and credit checks make web search less unpredictable when an agent runs without someone watching each result.
+
+## Setting up the You.com block in Sim
+
+1. Create a You.com API key on the [You.com platform](https://you.com/platform).
+2. Open a [Sim workspace](https://www.sim.ai) and drag a You.com block into the visual workflow builder.
+3. Paste your API key into the block and select a tool. Choose Search if you want to test a web query first.
+4. Connect a trigger to the block, pass in your query, and connect the results to the next step in your workflow.
+5. Run the workflow and inspect the block’s output before using it in an agent response or another action.
+
+If this is your first agent, [How to Create an AI Agent](https://www.sim.ai/library/how-to-create-an-ai-agent) covers the wider build-and-deploy process.
+
+## Try it in Sim
+
+Get a free [You.com API key](https://you.com/platform) and add the You.com block to your [Sim workspace](https://www.sim.ai). Start with the daily news digest or the documentation loader, since both run in seconds, then move to background research once you've seen how the warnings array behaves on your own queries.

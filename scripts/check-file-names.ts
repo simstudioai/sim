@@ -51,7 +51,7 @@ const NEXT_INTERCEPT = /^(?:\(\.{1,3}\)|(?:\(\.\.\))+)[a-z0-9]+(?:-[a-z0-9]+)*$/
 const NEXT_SLOT = /^@[a-z0-9]+(?:-[a-z0-9]+)*$/
 const NEXT_PRIVATE = /^_[a-z0-9]+(?:-[a-z0-9]+)*$/
 const DUNDER = /^__[a-z0-9]+(?:-[a-z0-9]+)*__$/
-const METADATA_ROUTE = /^[a-z0-9]+(?:-[a-z0-9]+)*\.(?:txt|xml|json|mdx|yml)$/
+const METADATA_ROUTE = /^[a-z0-9]+(?:-[a-z0-9]+)*\.(?:txt|xml|json|md|mdx|yml)$/
 const SCRIPT_MIGRATION = /^packages\/db\/script-migrations\/\d{4}_[a-z0-9_]+(?:\.[a-z]+)*\.ts$/
 const SCIM_PREFIX = 'apps/sim/app/api/scim/v2/'
 const SCIM_RESOURCES = new Set([
@@ -203,8 +203,7 @@ const HOW_TO_FIX: Record<Rule, string> = {
   'redundant-suffix':
     'The utils/ or helpers/ folder already names the role; drop the suffix from the file name.',
   stutter:
-    'The parent folder already names the domain; drop the repeated prefix (lib/logs/log-views.ts → lib/logs/views.ts). If the short name collides, pick a more specific one. ' +
-    'Existing `handlers/<x>/<x>-handler.ts` files are baselined debt, not a convention to copy.',
+    'The parent folder already names the domain; drop the repeated prefix (lib/logs/log-views.ts → lib/logs/views.ts). If the short name collides, pick a more specific one.',
 }
 
 function key(violation: Violation): string {

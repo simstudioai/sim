@@ -73,6 +73,7 @@ describe('audio FFmpeg execution', () => {
   it('keeps MIME-derived input filenames inside the temporary directory', async () => {
     await getAudioMetadata(Buffer.from('audio'), 'audio/../../../../escaped')
 
+    expect(calls[0].args.slice(0, 2)).toEqual(['-protocol_whitelist', 'file,pipe'])
     const inputFile = calls[0].args.at(-1)
     expect(inputFile).toBeDefined()
     expect(path.basename(inputFile as string)).toBe('input.dat')
@@ -97,6 +98,8 @@ describe('audio FFmpeg execution', () => {
     expect(conversion?.args).toEqual([
       '-y',
       '-nostdin',
+      '-protocol_whitelist',
+      'file,pipe',
       '-i',
       expect.stringMatching(/input\.mp4$/),
       '-f',

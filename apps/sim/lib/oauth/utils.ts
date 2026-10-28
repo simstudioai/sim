@@ -12,6 +12,62 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'harvest:application_stages:list': 'View Greenhouse application stages',
+  'harvest:applications:convert_to_candidate':
+    'Convert prospects to candidates for Greenhouse applications',
+  'harvest:applications:create': 'Create Greenhouse applications',
+  'harvest:applications:destroy': 'Delete Greenhouse applications',
+  'harvest:applications:hire': 'Mark Greenhouse applications as hired',
+  'harvest:applications:list': 'View Greenhouse applications',
+  'harvest:applications:move': 'Move Greenhouse applications between stages or jobs',
+  'harvest:applications:reject': 'Reject Greenhouse applications',
+  'harvest:applications:unreject': 'Reverse Greenhouse application rejections',
+  'harvest:applications:update': 'Update Greenhouse applications',
+  'harvest:applied_candidate_tags:create': 'Apply Greenhouse tags to candidates',
+  'harvest:applied_candidate_tags:destroy': 'Remove Greenhouse tags from candidates',
+  'harvest:applied_candidate_tags:list': 'View Greenhouse applied candidate tags',
+  'harvest:attachments:create': 'Create Greenhouse attachments',
+  'harvest:attachments:destroy': 'Delete Greenhouse attachments',
+  'harvest:attachments:list': 'View Greenhouse attachments',
+  'harvest:candidate_educations:list': 'View Greenhouse candidate education histories',
+  'harvest:candidate_employments:list': 'View Greenhouse candidate employment histories',
+  'harvest:candidate_tags:create': 'Create Greenhouse candidate tags',
+  'harvest:candidate_tags:list': 'View Greenhouse candidate tags',
+  'harvest:candidates:create': 'Create Greenhouse candidates',
+  'harvest:candidates:destroy': 'Delete Greenhouse candidates',
+  'harvest:candidates:list': 'View Greenhouse candidates',
+  'harvest:candidates:update': 'Update Greenhouse candidates',
+  'harvest:close_reasons:list': 'View Greenhouse close reasons',
+  'harvest:custom_field_options:list': 'View Greenhouse custom field options',
+  'harvest:custom_fields:list': 'View Greenhouse custom fields',
+  'harvest:departments:list': 'View Greenhouse departments',
+  'harvest:email_templates:list': 'View Greenhouse email templates',
+  'harvest:interviews:list': 'View Greenhouse interviews',
+  'harvest:job_hiring_managers:list': 'View Greenhouse job hiring managers',
+  'harvest:job_interview_stages:list': 'View Greenhouse job interview stages',
+  'harvest:job_owners:list': 'View Greenhouse job owners',
+  'harvest:jobs:list': 'View Greenhouse jobs',
+  'harvest:notes:create': 'Create Greenhouse notes',
+  'harvest:notes:list': 'View Greenhouse notes',
+  'harvest:offers:list': 'View Greenhouse offers',
+  'harvest:offices:list': 'View Greenhouse offices',
+  'harvest:openings:list': 'View Greenhouse openings',
+  'harvest:prospect_pool_stages:list': 'View Greenhouse prospect pool stages',
+  'harvest:prospect_pools:list': 'View Greenhouse prospect pools',
+  'harvest:referrers:list': 'View Greenhouse referrers',
+  'harvest:rejection_reasons:list': 'View Greenhouse rejection reasons',
+  'harvest:scorecards:list': 'View Greenhouse scorecards',
+  'harvest:sources:list': 'View Greenhouse sources',
+  'harvest:users:list': 'View Greenhouse users',
+
+  'business:read': 'View Ramp business details and balances',
+  'transactions:read': 'View Ramp transactions',
+  'cards:read': 'View Ramp physical and virtual card details',
+  'vendors:read': 'View Ramp vendors',
+  'bills:read': 'View Ramp bills',
+  'reimbursements:read': 'View Ramp reimbursements',
+  'memos:read': 'View Ramp transaction memos',
+  'memos:write': 'Create and update Ramp transaction memos',
   'https://analysis.windows.net/powerbi/api/Workspace.Read.All': 'View Power BI workspaces',
   'https://analysis.windows.net/powerbi/api/Report.Read.All': 'View Power BI reports',
   'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All':
@@ -31,8 +87,16 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'bookmarks:write': 'Add, edit, and remove Slack channel bookmarks',
   'bookmarks:read': 'View Slack channel bookmarks',
   // Zoho Desk scopes
+  'Desk.tickets.CREATE': 'Create support tickets',
+  'Desk.contacts.CREATE': 'Create contacts',
+  'Desk.contacts.UPDATE': 'Update contacts',
+  'Desk.accounts.READ': 'View customer accounts',
+  'Desk.accounts.CREATE': 'Create customer accounts',
+  'Desk.accounts.UPDATE': 'Update customer accounts',
+  'Desk.search.READ': 'Search tickets, contacts, and accounts',
+  'Desk.departments.READ': 'View departments',
   'Desk.tickets.READ': 'View tickets, threads, comments, and attachments',
-  'Desk.tickets.UPDATE': 'Update tickets and add comments',
+  'Desk.tickets.UPDATE': 'Update tickets, send replies, and manage comments',
   'Desk.contacts.READ': 'View contacts',
   'Desk.articles.READ': 'View knowledge base articles',
   'Desk.organization.READ': 'View organization details',
@@ -323,6 +387,11 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Manage app role assignments and permission grants for any app',
   'RoleManagement.ReadWrite.Directory': 'Read and manage directory role assignments',
   'Device.Read.All': 'Read all devices',
+  'DeviceManagementManagedDevices.Read.All': 'View Intune managed devices and detected apps',
+  'DeviceManagementConfiguration.Read.All':
+    'View Intune compliance policies, device configurations, and their device statuses',
+  'DeviceManagementManagedDevices.PrivilegedOperations.All':
+    'Perform remote Intune device actions, including syncing, rebooting, locking, and retiring devices',
   'Policy.Read.All': 'Read conditional access and other policies',
 
   // Reddit scopes
@@ -530,6 +599,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
 /** Scope labels that cannot be keyed by scope alone because providers reuse names. */
 const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  ramp: {
+    'users:read': 'View Ramp users and roles',
+  },
   /**
    * Word documents are ordinary drive items, so the integration asks for the
    * generic Files permissions. The shared labels name OneDrive specifically,

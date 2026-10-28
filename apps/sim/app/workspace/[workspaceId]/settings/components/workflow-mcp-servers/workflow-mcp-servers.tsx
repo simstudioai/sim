@@ -387,7 +387,7 @@ function ServerDetailView({
   if (error || !data) {
     return (
       <SettingsPanel back={{ text: 'MCP servers', icon: ArrowLeft, onSelect: onBack }}>
-        <SettingsEmptyState tone='error'>Failed to load server details</SettingsEmptyState>
+        <SettingsEmptyState>Failed to load server details</SettingsEmptyState>
       </SettingsPanel>
     )
   }
@@ -1040,7 +1040,7 @@ export function WorkflowMcpServers() {
       >
         <div className='min-h-0 flex-1'>
           {error ? (
-            <SettingsEmptyState tone='error'>
+            <SettingsEmptyState>
               {getErrorMessage(error, 'Failed to load MCP servers')}
             </SettingsEmptyState>
           ) : isLoading ? null : !hasServers ? (

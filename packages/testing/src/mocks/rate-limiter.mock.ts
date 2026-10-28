@@ -237,7 +237,7 @@ function getHostedKeyRateLimiter(): HostedKeyRateLimiter {
  * Static mock module for `@/lib/core/rate-limiter` (the barrel). Covers every runtime
  * export; see {@link rateLimiterMockFns} for defaults.
  *
- * The narrower `v1RateLimiterModuleMock` / `v2RateLimiterModuleMock` remain for route suites
+ * The narrower `v2RateLimiterModuleMock` remains for route suites
  * that only need admission to pass.
  *
  * @example

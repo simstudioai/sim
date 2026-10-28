@@ -18,7 +18,7 @@ import {
 import { listPersonalApiKeys } from '@/lib/api-key/application/personal-api-keys'
 import { listWorkspaceApiKeys } from '@/lib/api-key/application/workspace-api-keys'
 import { listWorkspaceByokKeys } from '@/lib/api-key/application/workspace-byok-keys'
-import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing-summary/get-organization-billing-summary'
+import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
 import { getOrganizationUsageSummary } from '@/lib/billing/application/organization-usage/get-organization-usage-summary'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
@@ -356,6 +356,10 @@ function settingsRefresh(context: SettingsContext, section: string): ResourceCha
 export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
   name: 'settings',
   inputSchema: mothershipSettingsInputSchema,
+  writes: (input) =>
+    input.action === 'update' ||
+    (input.action === 'execute' &&
+      settingsOperations[`${input.scope}/${input.section}`]?.[input.operation]?.effect === 'write'),
   async execute(raw, context) {
     const input = mothershipSettingsInputSchema.parse(raw)
     const target = await resolveSettingsContext(input.scope, context, input.workspaceId)

@@ -1,0 +1,1251 @@
+---
+title: Amazon EC2
+description: Manage EC2 instances, Elastic IPs, VPC networking, and EBS
+integration:
+  type: "ec2"
+  color: "linear-gradient(45deg, #C8511B 0%, #FF9900 100%)"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon EC2](https://aws.amazon.com/ec2/) provides resizable virtual servers in AWS. The EC2 API also covers the VPC networking around them (subnets, route tables, NAT and internet gateways, security groups, network interfaces, and Elastic IP addresses) and the EBS volumes and snapshots that back them.
+
+With the Amazon EC2 block, you can:
+
+- **Inventory and control instances**: List instances with their state, type, IPs, and tags, read status checks and scheduled maintenance events, and start, stop, reboot, or terminate instances
+- **Manage Elastic IPs**: List Elastic IP addresses and what they are attached to, allocate new addresses, associate them with an instance or network interface, disassociate them, and release them
+- **Inspect VPC networking**: Read VPCs, subnets, route tables with their routes and associations, NAT gateways with their public IPs, internet gateways, network ACLs, VPC endpoints, VPC peering connections, security groups with their inbound and outbound rules, and network interfaces
+- **Control security group ingress**: Add an inbound rule, or revoke rules by rule ID or by protocol, ports, and source
+- **Work with EBS**: List volumes and snapshots, create a snapshot of a volume, and delete volumes and snapshots
+- **Tag resources**: Add, overwrite, or remove tags on any EC2 resource ID
+- **Explore the account**: List AMIs, key pairs, Regions, and Availability Zones
+
+## Credentials and permissions
+
+The block authenticates with an AWS access key ID and secret access key and runs in the region you set. Grant the IAM principal only the EC2 actions the operations you use require. Each operation maps to the IAM action of the same name, for example `ec2:DescribeAddresses`, `ec2:DescribeNatGateways`, and `ec2:DescribeRouteTables` for a read-only egress audit, or `ec2:StopInstances` and `ec2:StartInstances` for scheduling.
+
+List operations accept EC2 filters such as `[{"Name": "vpc-id", "Values": ["vpc-0abc123"]}]`. Without IDs they return up to 100 results per page, with a `nextToken` for the next page.
+
+In Sim, the Amazon EC2 block lets your agents map which public IPs your subnets egress through, find idle Elastic IPs and unattached volumes, audit and close open security group rules, back up volumes and prune old snapshots on a schedule, and stop non-production instances outside working hours.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Integrate Amazon EC2 into workflows. Describe and control instances, manage Elastic IP addresses, inspect VPCs, subnets, route tables, NAT and internet gateways, security groups, and network interfaces, add and revoke security group ingress rules, inspect network ACLs, VPC endpoints, and peering connections, work with EBS volumes and snapshots, list AMIs and key pairs, and tag resources. Requires an AWS access key with the matching ec2:* IAM permissions.
+
+## Actions
+
+### EC2 Describe Instances
+
+List EC2 instances with their state, type, networking, and tags
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `instanceIds` | string | No | Comma-separated instance IDs \(e.g., i-0abc123,i-0def456\). Leave empty to list all |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"instance-state-name","Values":\["running"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `instances` | array | EC2 instances |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `instanceId` | string | Instance ID |
+|   ↳ `instanceType` | string | Instance type \(e.g., t3.micro\) |
+|   ↳ `state` | string | Instance state \(pending, running, stopping, stopped, shutting-down, terminated\) |
+|   ↳ `stateReason` | string | Reason for the most recent state transition |
+|   ↳ `launchTime` | string | Launch time \(ISO 8601\) |
+|   ↳ `availabilityZone` | string | Availability Zone |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `subnetId` | string | Subnet ID |
+|   ↳ `privateIpAddress` | string | Primary private IPv4 address |
+|   ↳ `publicIpAddress` | string | Public IPv4 address |
+|   ↳ `privateDnsName` | string | Private DNS name |
+|   ↳ `publicDnsName` | string | Public DNS name |
+|   ↳ `imageId` | string | AMI ID used to launch the instance |
+|   ↳ `keyName` | string | Key pair name |
+|   ↳ `platformDetails` | string | Platform details \(e.g., Linux/UNIX, Windows\) |
+|   ↳ `architecture` | string | CPU architecture |
+|   ↳ `iamInstanceProfileArn` | string | ARN of the attached IAM instance profile |
+|   ↳ `securityGroups` | array | Attached security groups |
+|     ↳ `groupId` | string | Security group ID |
+|     ↳ `groupName` | string | Security group name |
+
+</ReferenceDetails>
+
+### EC2 Describe Instance Status
+
+Get status checks and scheduled events for EC2 instances
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `instanceIds` | string | No | Comma-separated instance IDs \(max 100\). Leave empty to describe all |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"instance-status.status","Values":\["impaired"\]\}\] |
+| `includeAllInstances` | boolean | No | Include instances that are not running \(by default only running instances are returned\) |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `instanceStatuses` | array | Status of each instance |
+|   ↳ `instanceId` | string | Instance ID |
+|   ↳ `availabilityZone` | string | Availability Zone |
+|   ↳ `instanceState` | string | Instance state \(e.g., running, stopped\) |
+|   ↳ `instanceStatus` | string | Instance status check \(ok, impaired, initializing, insufficient-data, not-applicable\) |
+|   ↳ `systemStatus` | string | System status check \(ok, impaired, initializing, insufficient-data, not-applicable\) |
+|   ↳ `attachedEbsStatus` | string | Attached EBS status check |
+|   ↳ `events` | array | Scheduled events |
+|     ↳ `code` | string | Event code \(e.g., system-reboot, instance-retirement\) |
+|     ↳ `description` | string | Event description |
+|     ↳ `notBefore` | string | Earliest start time \(ISO 8601\) |
+|     ↳ `notAfter` | string | Latest end time \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### EC2 Start Instances
+
+Start one or more stopped EC2 instances
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `instanceIds` | string | Yes | Comma-separated instance IDs to start |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `instances` | array | State transition for each instance |
+|   ↳ `instanceId` | string | Instance ID |
+|   ↳ `currentState` | string | State after the request \(e.g., pending, running\) |
+|   ↳ `previousState` | string | State before the request |
+
+</ReferenceDetails>
+
+### EC2 Stop Instances
+
+Stop one or more running EC2 instances
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `instanceIds` | string | Yes | Comma-separated instance IDs to stop |
+| `hibernate` | boolean | No | Hibernate the instances instead of stopping them \(hibernation must be enabled on the instance\) |
+| `force` | boolean | No | Force the instances to stop without flushing file system caches |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `instances` | array | State transition for each instance |
+|   ↳ `instanceId` | string | Instance ID |
+|   ↳ `currentState` | string | State after the request \(e.g., stopping, stopped\) |
+|   ↳ `previousState` | string | State before the request |
+
+</ReferenceDetails>
+
+### EC2 Reboot Instances
+
+Request a reboot of one or more EC2 instances
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `instanceIds` | string | Yes | Comma-separated instance IDs to reboot |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rebooted` | boolean | Whether the reboot request was accepted |
+| `instanceIds` | array | Instance IDs that were sent the reboot request |
+
+</ReferenceDetails>
+
+### EC2 Terminate Instances
+
+Permanently terminate one or more EC2 instances
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `instanceIds` | string | Yes | Comma-separated instance IDs to terminate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `instances` | array | State transition for each instance |
+|   ↳ `instanceId` | string | Instance ID |
+|   ↳ `currentState` | string | State after the request \(e.g., shutting-down, terminated\) |
+|   ↳ `previousState` | string | State before the request |
+
+</ReferenceDetails>
+
+### EC2 Describe Addresses
+
+List Elastic IP addresses and what they are associated with
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `publicIps` | string | No | Comma-separated Elastic IP addresses to describe |
+| `allocationIds` | string | No | Comma-separated allocation IDs \(e.g., eipalloc-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"domain","Values":\["vpc"\]\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `addresses` | array | Elastic IP addresses |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `publicIp` | string | Elastic IP address |
+|   ↳ `allocationId` | string | Allocation ID |
+|   ↳ `associationId` | string | Association ID when associated |
+|   ↳ `domain` | string | Address scope \(vpc or standard\) |
+|   ↳ `instanceId` | string | Associated instance ID |
+|   ↳ `networkInterfaceId` | string | Associated network interface ID |
+|   ↳ `networkInterfaceOwnerId` | string | AWS account ID that owns the network interface |
+|   ↳ `privateIpAddress` | string | Associated private IP address |
+|   ↳ `publicIpv4Pool` | string | Public IPv4 pool the address came from |
+|   ↳ `networkBorderGroup` | string | Network border group the address is advertised from |
+|   ↳ `serviceManaged` | string | AWS service managing the address, if any \(e.g., alb, nlb\) |
+
+</ReferenceDetails>
+
+### EC2 Allocate Address
+
+Allocate a new Elastic IP address for use in a VPC
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `networkBorderGroup` | string | No | Network border group to allocate from \(defaults to the region\) |
+| `publicIpv4Pool` | string | No | BYOIP address pool to allocate from \(defaults to the Amazon pool\) |
+| `tags` | json | No | Tags to apply as a JSON object, e.g. \{"Name":"web-eip"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `allocationId` | string | Allocation ID of the new Elastic IP |
+| `publicIp` | string | Allocated Elastic IP address |
+| `domain` | string | Address scope \(vpc\) |
+| `networkBorderGroup` | string | Network border group |
+| `publicIpv4Pool` | string | Public IPv4 pool |
+
+</ReferenceDetails>
+
+### EC2 Associate Address
+
+Associate an Elastic IP address with an instance or network interface
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `allocationId` | string | Yes | Allocation ID of the Elastic IP \(e.g., eipalloc-0abc123\) |
+| `instanceId` | string | No | Instance ID to associate with \(provide this or networkInterfaceId\) |
+| `networkInterfaceId` | string | No | Network interface ID to associate with \(provide this or instanceId\) |
+| `privateIpAddress` | string | No | Private IP address on the target to associate with |
+| `allowReassociation` | boolean | No | Allow moving an Elastic IP that is already associated |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `associationId` | string | ID of the new association |
+
+</ReferenceDetails>
+
+### EC2 Disassociate Address
+
+Disassociate an Elastic IP address from its instance or network interface
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `associationId` | string | Yes | Association ID of the Elastic IP \(e.g., eipassoc-0abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `disassociated` | boolean | Whether the address was disassociated |
+| `associationId` | string | Association ID that was removed |
+
+</ReferenceDetails>
+
+### EC2 Release Address
+
+Release an Elastic IP address back to AWS
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `allocationId` | string | Yes | Allocation ID of the Elastic IP to release |
+| `networkBorderGroup` | string | No | Network border group the address was allocated from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `released` | boolean | Whether the address was released |
+| `allocationId` | string | Allocation ID that was released |
+
+</ReferenceDetails>
+
+### EC2 Describe NAT Gateways
+
+List NAT gateways with their state, subnet, and IP addresses
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `natGatewayIds` | string | No | Comma-separated NAT gateway IDs \(e.g., nat-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `natGateways` | array | NAT gateways |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `natGatewayId` | string | NAT gateway ID |
+|   ↳ `state` | string | State \(pending, failed, available, deleting, deleted\) |
+|   ↳ `connectivityType` | string | Connectivity type \(public or private\) |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `subnetId` | string | Subnet ID |
+|   ↳ `createTime` | string | Creation time \(ISO 8601\) |
+|   ↳ `deleteTime` | string | Deletion time \(ISO 8601\) |
+|   ↳ `failureCode` | string | Failure code when state is failed |
+|   ↳ `failureMessage` | string | Failure message when state is failed |
+|   ↳ `addresses` | array | IP addresses of the NAT gateway |
+|     ↳ `allocationId` | string | Elastic IP allocation ID |
+|     ↳ `networkInterfaceId` | string | Network interface ID |
+|     ↳ `privateIp` | string | Private IP address |
+|     ↳ `publicIp` | string | Elastic IP address |
+|     ↳ `associationId` | string | Association ID |
+|     ↳ `isPrimary` | boolean | Whether this is the primary address |
+|     ↳ `status` | string | Address status |
+
+</ReferenceDetails>
+
+### EC2 Describe Route Tables
+
+List VPC route tables with their routes and subnet associations
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `routeTableIds` | string | No | Comma-separated route table IDs \(e.g., rtb-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-100, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `routeTables` | array | Route tables |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `routeTableId` | string | Route table ID |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+|   ↳ `routes` | array | Routes in the table |
+|     ↳ `destinationCidrBlock` | string | IPv4 destination CIDR |
+|     ↳ `destinationIpv6CidrBlock` | string | IPv6 destination CIDR |
+|     ↳ `destinationPrefixListId` | string | Destination prefix list ID |
+|     ↳ `gatewayId` | string | Internet or virtual private gateway ID \(local for VPC-local routes\) |
+|     ↳ `natGatewayId` | string | NAT gateway ID |
+|     ↳ `transitGatewayId` | string | Transit gateway ID |
+|     ↳ `vpcPeeringConnectionId` | string | VPC peering connection ID |
+|     ↳ `networkInterfaceId` | string | Network interface ID |
+|     ↳ `instanceId` | string | NAT instance ID |
+|     ↳ `egressOnlyInternetGatewayId` | string | Egress-only internet gateway ID |
+|     ↳ `state` | string | Route state \(active or blackhole\) |
+|     ↳ `origin` | string | How the route was created |
+|   ↳ `associations` | array | Subnet and gateway associations |
+|     ↳ `associationId` | string | Association ID |
+|     ↳ `main` | boolean | Whether this is the main route table for the VPC |
+|     ↳ `subnetId` | string | Associated subnet ID |
+|     ↳ `gatewayId` | string | Associated gateway ID |
+|     ↳ `state` | string | Association state |
+
+</ReferenceDetails>
+
+### EC2 Describe VPCs
+
+List VPCs with their CIDR blocks and state
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `vpcIds` | string | No | Comma-separated VPC IDs \(e.g., vpc-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"is-default","Values":\["false"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `vpcs` | array | VPCs |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `cidrBlock` | string | Primary IPv4 CIDR block |
+|   ↳ `cidrBlocks` | array | All associated IPv4 CIDR blocks |
+|   ↳ `ipv6CidrBlocks` | array | Associated IPv6 CIDR blocks |
+|   ↳ `state` | string | State \(pending or available\) |
+|   ↳ `isDefault` | boolean | Whether this is the default VPC |
+|   ↳ `instanceTenancy` | string | Instance tenancy |
+|   ↳ `dhcpOptionsId` | string | DHCP options set ID |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+
+</ReferenceDetails>
+
+### EC2 Describe Subnets
+
+List subnets with their CIDR, Availability Zone, and free IP count
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `subnetIds` | string | No | Comma-separated subnet IDs \(e.g., subnet-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `subnets` | array | Subnets |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `subnetId` | string | Subnet ID |
+|   ↳ `subnetArn` | string | Subnet ARN |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `cidrBlock` | string | IPv4 CIDR block |
+|   ↳ `ipv6CidrBlocks` | array | Associated IPv6 CIDR blocks |
+|   ↳ `availabilityZone` | string | Availability Zone |
+|   ↳ `availabilityZoneId` | string | Availability Zone ID |
+|   ↳ `availableIpAddressCount` | number | Number of unused private IPv4 addresses |
+|   ↳ `state` | string | State \(pending, available, unavailable\) |
+|   ↳ `defaultForAz` | boolean | Whether this is the default subnet for its Availability Zone |
+|   ↳ `mapPublicIpOnLaunch` | boolean | Whether instances get a public IPv4 address on launch |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+
+</ReferenceDetails>
+
+### EC2 Describe Security Groups
+
+List security groups with their inbound and outbound rules
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `groupIds` | string | No | Comma-separated security group IDs \(e.g., sg-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `securityGroups` | array | Security groups |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `groupId` | string | Security group ID |
+|   ↳ `groupName` | string | Security group name |
+|   ↳ `description` | string | Description |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+|   ↳ `ingressRules` | array | Inbound rules |
+|     ↳ `ipProtocol` | string | IP protocol \(tcp, udp, icmp, or -1 for all\) |
+|     ↳ `fromPort` | number | Start of the port range |
+|     ↳ `toPort` | number | End of the port range |
+|     ↳ `ipv4Ranges` | array | IPv4 CIDR ranges |
+|       ↳ `cidr` | string | IPv4 CIDR |
+|       ↳ `description` | string | Rule description |
+|     ↳ `ipv6Ranges` | array | IPv6 CIDR ranges |
+|       ↳ `cidr` | string | IPv6 CIDR |
+|       ↳ `description` | string | Rule description |
+|     ↳ `referencedGroups` | array | Referenced security groups |
+|       ↳ `groupId` | string | Security group ID |
+|       ↳ `userId` | string | Owning AWS account ID |
+|       ↳ `description` | string | Rule description |
+|     ↳ `prefixListIds` | array | Referenced prefix list IDs |
+|   ↳ `egressRules` | array | Outbound rules |
+|     ↳ `ipProtocol` | string | IP protocol \(tcp, udp, icmp, or -1 for all\) |
+|     ↳ `fromPort` | number | Start of the port range |
+|     ↳ `toPort` | number | End of the port range |
+|     ↳ `ipv4Ranges` | array | IPv4 CIDR ranges |
+|       ↳ `cidr` | string | IPv4 CIDR |
+|       ↳ `description` | string | Rule description |
+|     ↳ `ipv6Ranges` | array | IPv6 CIDR ranges |
+|       ↳ `cidr` | string | IPv6 CIDR |
+|       ↳ `description` | string | Rule description |
+|     ↳ `referencedGroups` | array | Referenced security groups |
+|       ↳ `groupId` | string | Security group ID |
+|       ↳ `userId` | string | Owning AWS account ID |
+|       ↳ `description` | string | Rule description |
+|     ↳ `prefixListIds` | array | Referenced prefix list IDs |
+
+</ReferenceDetails>
+
+### EC2 Describe Internet Gateways
+
+List internet gateways and the VPCs they are attached to
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `internetGatewayIds` | string | No | Comma-separated internet gateway IDs \(e.g., igw-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"attachment.vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `internetGateways` | array | Internet gateways |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `internetGatewayId` | string | Internet gateway ID |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+|   ↳ `attachments` | array | VPC attachments |
+|     ↳ `vpcId` | string | Attached VPC ID |
+|     ↳ `state` | string | Attachment state |
+
+</ReferenceDetails>
+
+### EC2 Describe Network Interfaces
+
+List elastic network interfaces with their IPs, attachment, and security groups
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `networkInterfaceIds` | string | No | Comma-separated network interface IDs \(e.g., eni-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `networkInterfaces` | array | Network interfaces |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `networkInterfaceId` | string | Network interface ID |
+|   ↳ `interfaceType` | string | Interface type \(e.g., interface, nat_gateway, lambda\) |
+|   ↳ `status` | string | Status \(available, in-use, attaching, detaching\) |
+|   ↳ `description` | string | Description |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `subnetId` | string | Subnet ID |
+|   ↳ `availabilityZone` | string | Availability Zone |
+|   ↳ `privateIpAddress` | string | Primary private IPv4 address |
+|   ↳ `privateIpAddresses` | array | All private IPv4 addresses |
+|   ↳ `publicIp` | string | Associated public IPv4 address |
+|   ↳ `macAddress` | string | MAC address |
+|   ↳ `requesterManaged` | boolean | Whether an AWS service manages the interface |
+|   ↳ `attachment` | object | Instance attachment, if attached |
+|     ↳ `attachmentId` | string | Attachment ID |
+|     ↳ `instanceId` | string | Attached instance ID |
+|     ↳ `deviceIndex` | number | Device index on the instance |
+|     ↳ `status` | string | Attachment status |
+|     ↳ `deleteOnTermination` | boolean | Whether the interface is deleted when the instance terminates |
+|   ↳ `securityGroups` | array | Attached security groups |
+|     ↳ `groupId` | string | Security group ID |
+|     ↳ `groupName` | string | Security group name |
+
+</ReferenceDetails>
+
+### EC2 Describe Volumes
+
+List EBS volumes with their size, type, state, and attachments
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `volumeIds` | string | No | Comma-separated volume IDs \(e.g., vol-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"status","Values":\["available"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `volumes` | array | EBS volumes |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `volumeId` | string | Volume ID |
+|   ↳ `volumeType` | string | Volume type \(gp2, gp3, io1, io2, st1, sc1, standard\) |
+|   ↳ `size` | number | Size in GiB |
+|   ↳ `state` | string | State \(creating, available, in-use, deleting, deleted, error\) |
+|   ↳ `availabilityZone` | string | Availability Zone |
+|   ↳ `iops` | number | Provisioned IOPS |
+|   ↳ `throughput` | number | Throughput in MiB/s \(gp3\) |
+|   ↳ `encrypted` | boolean | Whether the volume is encrypted |
+|   ↳ `kmsKeyId` | string | KMS key ARN used for encryption |
+|   ↳ `snapshotId` | string | Snapshot the volume was created from |
+|   ↳ `createTime` | string | Creation time \(ISO 8601\) |
+|   ↳ `multiAttachEnabled` | boolean | Whether Multi-Attach is enabled |
+|   ↳ `attachments` | array | Instance attachments |
+|     ↳ `instanceId` | string | Attached instance ID |
+|     ↳ `device` | string | Device name \(e.g., /dev/xvda\) |
+|     ↳ `state` | string | Attachment state |
+|     ↳ `attachTime` | string | Attach time \(ISO 8601\) |
+|     ↳ `deleteOnTermination` | boolean | Whether the volume is deleted when the instance terminates |
+
+</ReferenceDetails>
+
+### EC2 Describe Snapshots
+
+List EBS snapshots owned by the account (or by the owners you specify)
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `snapshotIds` | string | No | Comma-separated snapshot IDs \(e.g., snap-0abc123\) |
+| `ownerIds` | string | No | Comma-separated owners: AWS account IDs, self, or amazon \(defaults to self\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"volume-id","Values":\["vol-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `snapshots` | array | EBS snapshots |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `snapshotId` | string | Snapshot ID |
+|   ↳ `volumeId` | string | Source volume ID |
+|   ↳ `volumeSize` | number | Source volume size in GiB |
+|   ↳ `state` | string | State \(pending, completed, error, recoverable, recovering\) |
+|   ↳ `progress` | string | Completion progress \(e.g., 100%\) |
+|   ↳ `startTime` | string | Start time \(ISO 8601\) |
+|   ↳ `description` | string | Description |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+|   ↳ `encrypted` | boolean | Whether the snapshot is encrypted |
+|   ↳ `kmsKeyId` | string | KMS key ARN used for encryption |
+|   ↳ `storageTier` | string | Storage tier \(standard or archive\) |
+
+</ReferenceDetails>
+
+### EC2 Create Snapshot
+
+Create a point-in-time snapshot of an EBS volume
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `volumeId` | string | Yes | ID of the EBS volume to snapshot \(e.g., vol-0abc123\) |
+| `description` | string | No | Description for the snapshot |
+| `tags` | json | No | Tags to apply as a JSON object, e.g. \{"Name":"nightly-backup"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | json | Resource tags as key/value pairs |
+| `snapshotId` | string | ID of the new snapshot |
+| `volumeId` | string | Source volume ID |
+| `volumeSize` | number | Source volume size in GiB |
+| `state` | string | Snapshot state \(pending until complete\) |
+| `startTime` | string | Start time \(ISO 8601\) |
+| `description` | string | Description |
+| `encrypted` | boolean | Whether the snapshot is encrypted |
+| `ownerId` | string | Owning AWS account ID |
+
+</ReferenceDetails>
+
+### EC2 Create Tags
+
+Add or overwrite tags on one or more EC2 resources
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `resourceIds` | string | Yes | Comma-separated resource IDs to tag \(e.g., i-0abc123,vol-0def456\) |
+| `tags` | json | Yes | Tags as a JSON object, e.g. \{"Environment":"prod","Owner":"platform"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | json | Resource tags as key/value pairs |
+| `resourceIds` | array | Resource IDs that were tagged |
+
+</ReferenceDetails>
+
+### EC2 Delete Tags
+
+Remove tags from one or more EC2 resources
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `resourceIds` | string | Yes | Comma-separated resource IDs to untag |
+| `tagKeys` | string | Yes | Comma-separated tag keys to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resourceIds` | array | Resource IDs that were untagged |
+| `tagKeys` | array | Tag keys that were removed |
+
+</ReferenceDetails>
+
+### EC2 Describe Regions
+
+List AWS Regions available to the account
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `regionNames` | string | No | Comma-separated region names to describe |
+| `allRegions` | boolean | No | Include Regions that are not enabled for the account |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"opt-in-status","Values":\["opted-in"\]\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `regions` | array | AWS Regions |
+|   ↳ `regionName` | string | Region name \(e.g., us-east-1\) |
+|   ↳ `endpoint` | string | EC2 endpoint for the Region |
+|   ↳ `optInStatus` | string | Opt-in status \(opt-in-not-required, opted-in, not-opted-in\) |
+
+</ReferenceDetails>
+
+### EC2 Describe Availability Zones
+
+List Availability Zones, Local Zones, and Wavelength Zones in the region
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `zoneNames` | string | No | Comma-separated zone names \(e.g., us-east-1a\) |
+| `allAvailabilityZones` | boolean | No | Include zones that are not opted in |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"state","Values":\["available"\]\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `availabilityZones` | array | Zones |
+|   ↳ `zoneName` | string | Zone name \(e.g., us-east-1a\) |
+|   ↳ `zoneId` | string | Zone ID \(e.g., use1-az1\) |
+|   ↳ `zoneType` | string | Zone type \(availability-zone, local-zone, wavelength-zone\) |
+|   ↳ `state` | string | Zone state |
+|   ↳ `regionName` | string | Region name |
+|   ↳ `groupName` | string | Zone group name |
+|   ↳ `networkBorderGroup` | string | Network border group |
+|   ↳ `optInStatus` | string | Opt-in status |
+
+</ReferenceDetails>
+
+### EC2 Authorize Security Group Ingress
+
+Add an inbound rule to a security group
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `groupId` | string | Yes | Security group ID \(e.g., sg-0abc123\) |
+| `ipProtocol` | string | Yes | IP protocol: tcp, udp, icmp, icmpv6, or -1 for all traffic |
+| `fromPort` | number | No | Start of the port range \(ICMP type for icmp; omit for -1\) |
+| `toPort` | number | No | End of the port range \(ICMP code for icmp; omit for -1\) |
+| `cidrIp` | string | No | IPv4 CIDR source \(e.g., 203.0.113.0/24\). Provide exactly one source |
+| `cidrIpv6` | string | No | IPv6 CIDR source \(e.g., 2001:db8::/32\). Provide exactly one source |
+| `sourceGroupId` | string | No | Source security group ID. Provide exactly one source |
+| `description` | string | No | Description for the rule |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `authorized` | boolean | Whether the rule was added |
+| `securityGroupRules` | array | Rules that were added |
+|   ↳ `securityGroupRuleId` | string | Security group rule ID |
+|   ↳ `groupId` | string | Security group ID |
+|   ↳ `ipProtocol` | string | IP protocol |
+|   ↳ `fromPort` | number | Start of the port range |
+|   ↳ `toPort` | number | End of the port range |
+|   ↳ `cidrIpv4` | string | IPv4 CIDR source |
+|   ↳ `cidrIpv6` | string | IPv6 CIDR source |
+|   ↳ `referencedGroupId` | string | Source security group ID |
+|   ↳ `description` | string | Rule description |
+
+</ReferenceDetails>
+
+### EC2 Revoke Security Group Ingress
+
+Remove inbound rules from a security group by rule ID or by matching protocol, ports, and source
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `groupId` | string | Yes | Security group ID \(e.g., sg-0abc123\) |
+| `ipProtocol` | string | No | IP protocol: tcp, udp, icmp, icmpv6, or -1 for all traffic |
+| `fromPort` | number | No | Start of the port range \(ICMP type for icmp; omit for -1\) |
+| `toPort` | number | No | End of the port range \(ICMP code for icmp; omit for -1\) |
+| `cidrIp` | string | No | IPv4 CIDR source \(e.g., 203.0.113.0/24\). Provide exactly one source |
+| `cidrIpv6` | string | No | IPv6 CIDR source \(e.g., 2001:db8::/32\). Provide exactly one source |
+| `sourceGroupId` | string | No | Source security group ID. Provide exactly one source |
+| `securityGroupRuleIds` | string | No | Comma-separated security group rule IDs \(e.g., sgr-0abc123\). Use instead of protocol, ports, and source |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `revoked` | boolean | Whether the request succeeded |
+| `revokedRules` | array | Rules that were removed |
+|   ↳ `securityGroupRuleId` | string | Security group rule ID |
+|   ↳ `ipProtocol` | string | IP protocol |
+|   ↳ `fromPort` | number | Start of the port range |
+|   ↳ `toPort` | number | End of the port range |
+|   ↳ `cidrIpv4` | string | IPv4 CIDR source |
+|   ↳ `cidrIpv6` | string | IPv6 CIDR source |
+|   ↳ `referencedGroupId` | string | Source security group ID |
+|   ↳ `description` | string | Rule description |
+| `unmatchedRuleCount` | number | Number of requested rules that did not match an existing rule |
+
+</ReferenceDetails>
+
+### EC2 Describe Network ACLs
+
+List network ACLs with their inbound and outbound rules and subnet associations
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `networkAclIds` | string | No | Comma-separated network ACL IDs \(e.g., acl-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `networkAcls` | array | Network ACLs |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `networkAclId` | string | Network ACL ID |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `isDefault` | boolean | Whether this is the default ACL for the VPC |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+|   ↳ `entries` | array | Rules, evaluated in ascending rule number |
+|     ↳ `ruleNumber` | number | Rule number |
+|     ↳ `egress` | boolean | Whether the rule applies to outbound traffic |
+|     ↳ `ruleAction` | string | allow or deny |
+|     ↳ `protocol` | string | Protocol number \(-1 for all, 6 for TCP, 17 for UDP\) |
+|     ↳ `cidrBlock` | string | IPv4 CIDR |
+|     ↳ `ipv6CidrBlock` | string | IPv6 CIDR |
+|     ↳ `fromPort` | number | Start of the port range |
+|     ↳ `toPort` | number | End of the port range |
+|     ↳ `icmpType` | number | ICMP type |
+|     ↳ `icmpCode` | number | ICMP code |
+|   ↳ `associations` | array | Subnet associations |
+|     ↳ `associationId` | string | Association ID |
+|     ↳ `subnetId` | string | Subnet ID |
+
+</ReferenceDetails>
+
+### EC2 Describe VPC Endpoints
+
+List VPC endpoints with their service, type, state, and network placement
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `vpcEndpointIds` | string | No | Comma-separated VPC endpoint IDs \(e.g., vpce-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"vpc-id","Values":\["vpc-0abc123"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `vpcEndpoints` | array | VPC endpoints |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `vpcEndpointId` | string | VPC endpoint ID |
+|   ↳ `vpcEndpointType` | string | Endpoint type \(Interface, Gateway, GatewayLoadBalancer, Resource, ServiceNetwork\) |
+|   ↳ `vpcId` | string | VPC ID |
+|   ↳ `serviceName` | string | Service name \(e.g., com.amazonaws.us-east-1.s3\) |
+|   ↳ `state` | string | Endpoint state |
+|   ↳ `privateDnsEnabled` | boolean | Whether private DNS is enabled |
+|   ↳ `routeTableIds` | array | Associated route table IDs \(gateway endpoints\) |
+|   ↳ `subnetIds` | array | Subnet IDs \(interface endpoints\) |
+|   ↳ `networkInterfaceIds` | array | Endpoint network interface IDs |
+|   ↳ `securityGroupIds` | array | Attached security group IDs |
+|   ↳ `dnsNames` | array | DNS names for the endpoint |
+|   ↳ `creationTimestamp` | string | Creation time \(ISO 8601\) |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+
+</ReferenceDetails>
+
+### EC2 Describe VPC Peering Connections
+
+List VPC peering connections with their status and both VPCs
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `vpcPeeringConnectionIds` | string | No | Comma-separated VPC peering connection IDs \(e.g., pcx-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"status-code","Values":\["active"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `vpcPeeringConnections` | array | VPC peering connections |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `vpcPeeringConnectionId` | string | VPC peering connection ID |
+|   ↳ `status` | string | Status code \(e.g., pending-acceptance, active, rejected, deleted\) |
+|   ↳ `statusMessage` | string | Status message |
+|   ↳ `requesterVpc` | object | Requester VPC |
+|     ↳ `vpcId` | string | VPC ID |
+|     ↳ `ownerId` | string | Owning AWS account ID |
+|     ↳ `region` | string | Region |
+|     ↳ `cidrBlock` | string | IPv4 CIDR block |
+|   ↳ `accepterVpc` | object | Accepter VPC |
+|     ↳ `vpcId` | string | VPC ID |
+|     ↳ `ownerId` | string | Owning AWS account ID |
+|     ↳ `region` | string | Region |
+|     ↳ `cidrBlock` | string | IPv4 CIDR block |
+|   ↳ `expirationTime` | string | Time an unaccepted request expires \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### EC2 Delete Volume
+
+Permanently delete an EBS volume that is not attached to an instance
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `volumeId` | string | Yes | ID of the EBS volume to delete \(e.g., vol-0abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the volume deletion was accepted |
+| `volumeId` | string | Volume ID that was deleted |
+
+</ReferenceDetails>
+
+### EC2 Delete Snapshot
+
+Permanently delete an EBS snapshot
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `snapshotId` | string | Yes | ID of the EBS snapshot to delete \(e.g., snap-0abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the snapshot was deleted |
+| `snapshotId` | string | Snapshot ID that was deleted |
+
+</ReferenceDetails>
+
+### EC2 Describe Images
+
+List AMIs owned by the account (or by the owners you specify)
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `imageIds` | string | No | Comma-separated AMI IDs \(e.g., ami-0abc123\) |
+| `owners` | string | No | Comma-separated owners: AWS account IDs, self, amazon, or aws-marketplace \(defaults to self\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"name","Values":\["my-app-*"\]\}\] |
+| `maxResults` | number | No | Maximum results per page when no IDs are given \(5-1000, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nextToken` | string | Pagination token for the next page, or null when there are no more results |
+| `images` | array | AMIs |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `imageId` | string | AMI ID |
+|   ↳ `name` | string | AMI name |
+|   ↳ `description` | string | Description |
+|   ↳ `state` | string | State \(pending, available, invalid, deregistered, transient, failed, error, disabled\) |
+|   ↳ `ownerId` | string | Owning AWS account ID |
+|   ↳ `ownerAlias` | string | Owner alias \(e.g., amazon\) |
+|   ↳ `public` | boolean | Whether the AMI is public |
+|   ↳ `architecture` | string | CPU architecture |
+|   ↳ `platformDetails` | string | Platform details \(e.g., Linux/UNIX\) |
+|   ↳ `rootDeviceType` | string | Root device type \(ebs or instance-store\) |
+|   ↳ `virtualizationType` | string | Virtualization type \(hvm or paravirtual\) |
+|   ↳ `creationDate` | string | Creation date \(ISO 8601\) |
+|   ↳ `deprecationTime` | string | Deprecation time \(ISO 8601\) |
+|   ↳ `lastLaunchedTime` | string | Last time an instance was launched from the AMI \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### EC2 Describe Key Pairs
+
+List EC2 key pairs with their type, fingerprint, and creation time
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `keyNames` | string | No | Comma-separated key pair names |
+| `keyPairIds` | string | No | Comma-separated key pair IDs \(e.g., key-0abc123\) |
+| `filters` | json | No | EC2 filters as a JSON array, e.g. \[\{"Name":"key-name","Values":\["deploy-*"\]\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `keyPairs` | array | Key pairs |
+|   ↳ `tags` | json | Resource tags as key/value pairs |
+|   ↳ `keyPairId` | string | Key pair ID |
+|   ↳ `keyName` | string | Key pair name |
+|   ↳ `keyType` | string | Key type \(rsa or ed25519\) |
+|   ↳ `keyFingerprint` | string | Key fingerprint |
+|   ↳ `createTime` | string | Creation time \(ISO 8601\) |
+
+</ReferenceDetails>
+
+

@@ -10,7 +10,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('WorkspaceByokKeys')

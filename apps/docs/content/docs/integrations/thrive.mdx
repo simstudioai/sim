@@ -1,31 +1,29 @@
 ---
 title: Thrive
 description: Manage users, audiences, learning and CPD on Thrive
+integration:
+  type: "thrive"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="thrive"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Thrive Learning](https://thrivelearning.com/) in Sim to manage learners, audiences, assignments, enrolments, and completion records. Workflows can look up users by ID or ref, manage audience members and managers, and retrieve content and activity data.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.
-
-
+Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.
 
 ## Actions
 
 ### Thrive Create User
 
 Create a new user in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -75,9 +73,13 @@ Create a new user in Thrive.
 |   ↳ `domain` | string | Domain this individual is associated with |
 |   ↳ `additionalFields` | json | Custom field values for this user |
 
+</ReferenceDetails>
+
 ### Thrive Update User
 
 Update an existing user in Thrive by ref. Only the fields provided are changed.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +129,13 @@ Update an existing user in Thrive by ref. Only the fields provided are changed.
 |   ↳ `domain` | string | Domain this individual is associated with |
 |   ↳ `additionalFields` | json | Custom field values for this user |
 
+</ReferenceDetails>
+
 ### Thrive Delete User
 
 Permanently delete (obfuscate) a user in Thrive by ref while retaining training history.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -146,9 +152,13 @@ Permanently delete (obfuscate) a user in Thrive by ref while retaining training 
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the user was deleted |
 
+</ReferenceDetails>
+
 ### Thrive Suspend User
 
 Suspend a user in Thrive by ref, marking the account inactive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -185,9 +195,13 @@ Suspend a user in Thrive by ref, marking the account inactive.
 |   ↳ `domain` | string | Domain this individual is associated with |
 |   ↳ `additionalFields` | json | Custom field values for this user |
 
+</ReferenceDetails>
+
 ### Thrive Search Users
 
 Search users in Thrive and return basic user information with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -216,6 +230,17 @@ Search users in Thrive and return basic user information with pagination.
 |   ↳ `role` | string | The user's role |
 |   ↳ `status` | string | The user's status |
 |   ↳ `positions` | array | The user's positions |
+|     ↳ `id` | string | The user ID |
+|     ↳ `manager` | object | Line manager details |
+|       ↳ `id` | string | The manager's user ID |
+|       ↳ `name` | string | The manager's full name |
+|       ↳ `ref` | string | The manager's unique reference |
+|     ↳ `ouId` | string | The organisational unit ID |
+|     ↳ `isActive` | boolean | Whether the position is active |
+|     ↳ `startDate` | string | Start date \(ISO 8601\) |
+|     ↳ `endDate` | string | End date \(ISO 8601\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 |   ↳ `additionalFields` | json | Custom field values |
 |   ↳ `languageCode` | string | The user's language code |
 |   ↳ `deleted` | boolean | Whether the user has been deleted |
@@ -243,9 +268,13 @@ Search users in Thrive and return basic user information with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Get User by ID
 
 Get a single user in Thrive by their ID and return basic user information.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -269,6 +298,17 @@ Get a single user in Thrive by their ID and return basic user information.
 |   ↳ `role` | string | The user's role |
 |   ↳ `status` | string | The user's status |
 |   ↳ `positions` | array | The user's positions |
+|     ↳ `id` | string | The user ID |
+|     ↳ `manager` | object | Line manager details |
+|       ↳ `id` | string | The manager's user ID |
+|       ↳ `name` | string | The manager's full name |
+|       ↳ `ref` | string | The manager's unique reference |
+|     ↳ `ouId` | string | The organisational unit ID |
+|     ↳ `isActive` | boolean | Whether the position is active |
+|     ↳ `startDate` | string | Start date \(ISO 8601\) |
+|     ↳ `endDate` | string | End date \(ISO 8601\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 |   ↳ `additionalFields` | json | Custom field values |
 |   ↳ `languageCode` | string | The user's language code |
 |   ↳ `deleted` | boolean | Whether the user has been deleted |
@@ -291,9 +331,13 @@ Get a single user in Thrive by their ID and return basic user information.
 |   ↳ `audiences` | array | Audience IDs the user belongs to |
 |   ↳ `singleSignOn` | boolean | Whether the user uses single sign-on |
 
+</ReferenceDetails>
+
 ### Thrive Get User by Ref
 
 Get a single user in Thrive by their ref and return basic user information.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -317,12 +361,27 @@ Get a single user in Thrive by their ref and return basic user information.
 |   ↳ `role` | string | The user's role |
 |   ↳ `status` | string | The user's status |
 |   ↳ `positions` | array | The user's positions |
+|     ↳ `id` | string | The user ID |
+|     ↳ `manager` | object | Line manager details |
+|       ↳ `id` | string | The manager's user ID |
+|       ↳ `name` | string | The manager's full name |
+|       ↳ `ref` | string | The manager's unique reference |
+|     ↳ `ouId` | string | The organisational unit ID |
+|     ↳ `isActive` | boolean | Whether the position is active |
+|     ↳ `startDate` | string | Start date \(ISO 8601\) |
+|     ↳ `endDate` | string | End date \(ISO 8601\) |
+|     ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|     ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 |   ↳ `additionalFields` | json | Custom field values |
 |   ↳ `languageCode` | string | The user's language code |
+
+</ReferenceDetails>
 
 ### Thrive List Audiences
 
 List audiences and structures in Thrive with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -359,9 +418,13 @@ List audiences and structures in Thrive with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Create Audience
 
 Create a new audience or structure in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -393,9 +456,13 @@ Create a new audience or structure in Thrive.
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Get Audience
 
 Get a single audience or structure in Thrive by id or reference.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -424,9 +491,13 @@ Get a single audience or structure in Thrive by id or reference.
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Update Audience
 
 Update an audience in Thrive, optionally moving it to a new parent.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -458,9 +529,13 @@ Update an audience in Thrive, optionally moving it to a new parent.
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Delete Audience
 
 Delete an audience in Thrive (only if it has no child audiences).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -477,9 +552,13 @@ Delete an audience in Thrive (only if it has no child audiences).
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the audience was deleted |
 
+</ReferenceDetails>
+
 ### Thrive List Audience Members
 
 List the members of a Thrive audience with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -506,9 +585,13 @@ List the members of a Thrive audience with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Add Audience Members
 
 Add members to a Thrive audience by email, ref, or id.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -535,9 +618,13 @@ Add members to a Thrive audience by email, ref, or id.
 |       ↳ `reason` | string | The reason for the failure |
 |       ↳ `reference` | string | The entity reference |
 
+</ReferenceDetails>
+
 ### Thrive Replace Audience Members
 
 Replace a Thrive audience's entire members list with the given users (does not support an empty array).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -564,9 +651,13 @@ Replace a Thrive audience's entire members list with the given users (does not s
 |       ↳ `reason` | string | The reason for the failure |
 |       ↳ `reference` | string | The entity reference |
 
+</ReferenceDetails>
+
 ### Thrive Remove Audience Member
 
 Remove a single member from a Thrive audience.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -584,9 +675,13 @@ Remove a single member from a Thrive audience.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the audience member was removed |
 
+</ReferenceDetails>
+
 ### Thrive List Audience Managers
 
 List the managers of a Thrive audience.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -610,9 +705,13 @@ List the managers of a Thrive audience.
 |     ↳ `peopleManager` | json | People manager permissions |
 |     ↳ `administrator` | json | Administrator permissions \(structures only\) |
 
+</ReferenceDetails>
+
 ### Thrive Add Audience Managers
 
 Add managers to a Thrive audience with their permissions.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -639,9 +738,13 @@ Add managers to a Thrive audience with their permissions.
 |       ↳ `reason` | string | The reason for the failure |
 |       ↳ `reference` | string | The entity reference |
 
+</ReferenceDetails>
+
 ### Thrive Replace Audience Managers
 
 Replace a Thrive audience's entire manager list with the given managers (does not support an empty array).
+
+<ReferenceDetails>
 
 #### Input
 
@@ -668,9 +771,13 @@ Replace a Thrive audience's entire manager list with the given managers (does no
 |       ↳ `reason` | string | The reason for the failure |
 |       ↳ `reference` | string | The entity reference |
 
+</ReferenceDetails>
+
 ### Thrive Remove Audience Manager
 
 Remove a single manager from a Thrive audience.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -688,9 +795,13 @@ Remove a single manager from a Thrive audience.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the audience manager was removed |
 
+</ReferenceDetails>
+
 ### Thrive List Assignments
 
 List compliance assignments in Thrive, optionally filtered by audience.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -722,9 +833,13 @@ List compliance assignments in Thrive, optionally filtered by audience.
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Create Assignment
 
 Create a compliance assignment in Thrive for an audience and content item.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -758,9 +873,13 @@ Create a compliance assignment in Thrive for an audience and content item.
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Get Assignment
 
 Get a single compliance assignment in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -789,9 +908,13 @@ Get a single compliance assignment in Thrive by its ID.
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Update Assignment
 
 Update a compliance assignment in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -825,9 +948,13 @@ Update a compliance assignment in Thrive.
 |   ↳ `deletedAt` | string | Deletion timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Delete Assignment
 
 Delete a compliance assignment in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -845,9 +972,13 @@ Delete a compliance assignment in Thrive.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the assignment was deleted |
 
+</ReferenceDetails>
+
 ### Thrive List Enrolments
 
 List enrolments for a compliance assignment in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -886,9 +1017,13 @@ List enrolments for a compliance assignment in Thrive.
 |     ↳ `updatedAt` | string | Date the event was last modified |
 |   ↳ `updatedAt` | string | Date the enrolment was last updated |
 
+</ReferenceDetails>
+
 ### Thrive Get Enrolment
 
 Get a single enrolment for a compliance assignment in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -923,9 +1058,13 @@ Get a single enrolment for a compliance assignment in Thrive.
 |     ↳ `updatedAt` | string | Date the event was last modified |
 |   ↳ `updatedAt` | string | Date the enrolment was last updated |
 
+</ReferenceDetails>
+
 ### Thrive List Completions
 
 List learning completion records in Thrive, optionally filtered by user or content.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -958,9 +1097,13 @@ List learning completion records in Thrive, optionally filtered by user or conte
 |   ↳ `completedAt` | string | Timestamp when the completion occurred \(ISO 8601\) |
 |   ↳ `activeUntil` | string | Timestamp the completion is valid until \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Get Completion
 
 Get a single learning completion record in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -987,9 +1130,13 @@ Get a single learning completion record in Thrive by its ID.
 |   ↳ `completedAt` | string | Timestamp when the completion occurred \(ISO 8601\) |
 |   ↳ `activeUntil` | string | Timestamp the completion is valid until \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Create Completion
 
 Record a learning completion in Thrive for a user and content item.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1008,9 +1155,13 @@ Record a learning completion in Thrive for a user and content item.
 | --------- | ---- | ----------- |
 | `statementId` | string | The completion statement ID |
 
+</ReferenceDetails>
+
 ### Thrive Get Content
 
 Get a single content record in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1039,10 +1190,19 @@ Get a single content record in Thrive by its ID.
 |     ↳ `value` | number | Duration value |
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
+|     ↳ `action` | string | Type of change or event recorded |
+|     ↳ `timestamp` | string | When the action occurred \(ISO 8601\) |
+|     ↳ `performedBy` | object | The actor that performed the action |
+|       ↳ `type` | string | Kind of actor \(e.g. user or system\) |
+|       ↳ `value` | string | Identifier or value of the actor |
+
+</ReferenceDetails>
 
 ### Thrive Query Content
 
 Query content records in Thrive with pagination and filtering options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1075,15 +1235,24 @@ Query content records in Thrive with pagination and filtering options.
 |     ↳ `value` | number | Duration value |
 |     ↳ `unit` | string | The unit of the duration \(always 'minutes'\) |
 |   ↳ `contentHistory` | array | Chronological history of actions on this content |
+|     ↳ `action` | string | Type of change or event recorded |
+|     ↳ `timestamp` | string | When the action occurred \(ISO 8601\) |
+|     ↳ `performedBy` | object | The actor that performed the action |
+|       ↳ `type` | string | Kind of actor \(e.g. user or system\) |
+|       ↳ `value` | string | Identifier or value of the actor |
 | `pagination` | object | Pagination details |
 |   ↳ `totalResults` | number | Total number of results matching the query |
 |   ↳ `totalPages` | number | Total number of pages available |
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Get Activity
 
 Get a single activity record in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1109,9 +1278,13 @@ Get a single activity record in Thrive by its ID.
 |   ↳ `data` | json | Unstructured activity data; shape varies by type |
 |   ↳ `with` | json | Additional context information |
 
+</ReferenceDetails>
+
 ### Thrive Query Activities
 
 Query activity records in Thrive with pagination and filtering options.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1149,9 +1322,13 @@ Query activity records in Thrive with pagination and filtering options.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Get CPD Category
 
 Get a single CPD category in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1170,9 +1347,13 @@ Get a single CPD category in Thrive by its ID.
 |   ↳ `categoryId` | string | Unique ID for this category record |
 |   ↳ `name` | string | Name of the category of CPD activity |
 
+</ReferenceDetails>
+
 ### Thrive Query CPD Categories
 
 Query CPD categories in Thrive and return results with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1198,9 +1379,13 @@ Query CPD categories in Thrive and return results with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Get CPD Entry
 
 Get a single CPD log entry in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1229,9 +1414,13 @@ Get a single CPD log entry in Thrive by its ID.
 |   ↳ `description` | string | Summary or reflective statement |
 |   ↳ `isVerified` | boolean | Whether the activity was generated from verified system activity |
 
+</ReferenceDetails>
+
 ### Thrive Query CPD Entries
 
 Query CPD log entries in Thrive and return results with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1268,9 +1457,13 @@ Query CPD log entries in Thrive and return results with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Get CPD Requirement
 
 Get a single CPD requirement summary in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1292,9 +1485,13 @@ Get a single CPD requirement summary in Thrive by its ID.
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last-update timestamp \(ISO 8601\) |
 
+</ReferenceDetails>
+
 ### Thrive Query CPD Requirements
 
 Query CPD requirement summaries in Thrive and return results with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1323,9 +1520,13 @@ Query CPD requirement summaries in Thrive and return results with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Query CPD User Summaries
 
 Query CPD user log summaries in Thrive and return results with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1353,9 +1554,13 @@ Query CPD user log summaries in Thrive and return results with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive List Tags
 
 List tags in Thrive and return tag information with pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1385,9 +1590,13 @@ List tags in Thrive and return tag information with pagination.
 |   ↳ `page` | number | Current page number |
 |   ↳ `perPage` | number | Number of results per page |
 
+</ReferenceDetails>
+
 ### Thrive Get Tag
 
 Get a single tag in Thrive by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1410,9 +1619,13 @@ Get a single tag in Thrive by its ID.
 |   ↳ `interests` | array | IDs of users interested in this tag |
 |   ↳ `skills` | array | IDs of users skilled in this tag |
 
+</ReferenceDetails>
+
 ### Thrive Add User Tags
 
 Add one or more tags to a learner in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1431,9 +1644,13 @@ Add one or more tags to a learner in Thrive.
 | `status` | number | The HTTP status code of the operation |
 | `message` | string | A human-readable result message |
 
+</ReferenceDetails>
+
 ### Thrive Remove User Tags
 
 Remove one or more tags from a learner in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1452,9 +1669,13 @@ Remove one or more tags from a learner in Thrive.
 | `status` | number | The HTTP status code of the operation |
 | `message` | string | A human-readable result message |
 
+</ReferenceDetails>
+
 ### Thrive Update User Skills
 
 Update skills and levels for a learner in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1473,9 +1694,13 @@ Update skills and levels for a learner in Thrive.
 | `status` | number | The HTTP status code of the operation |
 | `message` | string | A human-readable result message |
 
+</ReferenceDetails>
+
 ### Thrive Get Skill Levels
 
 Get the available skill levels configured in Thrive.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1493,5 +1718,7 @@ Get the available skill levels configured in Thrive.
 |   ↳ `name` | string | The name of the skill level |
 |   ↳ `isEnabled` | boolean | Whether the skill level is enabled |
 |   ↳ `value` | number | The numeric value of the skill level |
+
+</ReferenceDetails>
 
 

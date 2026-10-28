@@ -1,5 +1,6 @@
 import type { GreenhouseGetUserParams, GreenhouseGetUserResponse } from '@/tools/greenhouse/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const greenhouseGetUserTool: ToolConfig<GreenhouseGetUserParams, GreenhouseGetUserResponse> =
   {
@@ -25,7 +26,7 @@ export const greenhouseGetUserTool: ToolConfig<GreenhouseGetUserParams, Greenhou
 
     request: {
       url: (params: GreenhouseGetUserParams) =>
-        `https://harvest.greenhouse.io/v1/users/${params.userId.trim()}`,
+        `https://harvest.greenhouse.io/v1/users/${safeUrlPathSegment(params.userId, 'userId')}`,
       method: 'GET',
       headers: (params: GreenhouseGetUserParams) => ({
         Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,

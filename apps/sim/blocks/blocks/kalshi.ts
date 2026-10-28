@@ -16,7 +16,7 @@ export const KalshiBlock: BlockConfig = {
   name: 'Kalshi (Legacy)',
   description: 'Access prediction markets and trade on Kalshi',
   longDescription:
-    'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
+    'Retrieve markets, events, orderbooks, trades, candlesticks, fills, series, exchange status, balances, and positions. Read, place, cancel, or amend orders.',
   docsLink: 'https://docs.sim.ai/integrations/kalshi',
   authMode: AuthMode.ApiKey,
   category: 'tools',

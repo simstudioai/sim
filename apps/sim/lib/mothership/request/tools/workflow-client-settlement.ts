@@ -1,5 +1,6 @@
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
+  getTerminalConfirmationStatus,
   isTerminalAsyncStatus,
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
@@ -10,7 +11,6 @@ import { publishToolConfirmation } from '@/lib/mothership/persistence/tool-confi
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionMessage,
-  getWorkflowToolConfirmationStatus,
 } from '@/lib/mothership/tools/workflow-tools'
 import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 
@@ -41,7 +41,7 @@ export async function reportSettledClientWorkflowTool({
   if (logStatus !== undefined && !isTerminalAsyncStatus(logStatus)) return
 
   const executionStatus = logStatus ?? 'failed'
-  const status = getWorkflowToolConfirmationStatus(executionStatus)
+  const status = getTerminalConfirmationStatus(executionStatus)
   const message = getWorkflowToolCompletionMessage(status)
   const data = createStructuralWorkflowToolCompletionData(status, workflowId, executionId)
   const completed = await completeClientWorkflowToolCall(

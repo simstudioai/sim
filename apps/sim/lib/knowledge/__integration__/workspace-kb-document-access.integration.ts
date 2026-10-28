@@ -17,7 +17,6 @@ import {
   credentialGroupEnrollment,
   document,
   embedding,
-  embeddingKeywordSearch,
   embeddingSearch,
   knowledgeBase,
   knowledgeConnector,
@@ -27,6 +26,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -135,13 +135,10 @@ describe.each([
       .update(embeddingSearch)
       .set({ acl: ['s:nobody:-:stale'], connectorId: null })
       .where(eq(embeddingSearch.knowledgeBaseId, baseId))
-    await db
-      .delete(embeddingKeywordSearch)
-      .where(eq(embeddingKeywordSearch.knowledgeBaseId, baseId))
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   })
@@ -356,7 +353,7 @@ describe('a workspace source whose reader must be proven live', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(credentialGroup).where(eq(credentialGroup.id, groupId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))

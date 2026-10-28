@@ -46,6 +46,7 @@ export const organizationOperations = {
    */
   updateMember: defineOrganizationOperation({
     id: 'organizations.members.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
@@ -58,6 +59,7 @@ export const organizationOperations = {
    */
   removeMember: defineOrganizationOperation({
     id: 'organizations.members.remove',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
@@ -97,6 +99,7 @@ export const organizationOperations = {
   }),
   createInvitation: defineOrganizationOperation({
     id: 'organizations.invitations.create',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'invitations.send',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
@@ -110,6 +113,7 @@ export const organizationSettingsOperations = {
   /** permission-group-exempt: organization members may read their organization's identity. */
   read: defineOrganizationOperation({
     id: 'organization.settings.read',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -119,10 +123,65 @@ export const organizationSettingsOperations = {
   /** permission-group-exempt: organization administrators manage its identity. */
   update: defineOrganizationOperation({
     id: 'organization.settings.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
     delegatedServices: ['copilot'],
+    capability: 'none',
+  }),
+} as const
+
+const securityPolicy = {
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
+  delegationAudience: 'sim:settings',
+  delegatedServices: ['copilot'],
+  /** permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement. */
+  capability: 'none',
+} as const
+export const organizationSecurityOperations = {
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  listDomains: defineOrganizationOperation({
+    oauthScope: 'api:read',
+    id: 'organizations.domains.list',
+    contentDelivery: 'none',
+    minimumRole: 'member',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  addDomain: defineOrganizationOperation({
+    oauthScope: 'api:write',
+    id: 'organizations.domains.add',
+    contentDelivery: 'none',
+    minimumRole: 'admin',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  verifyDomain: defineOrganizationOperation({
+    oauthScope: 'api:write',
+    id: 'organizations.domains.verify',
+    contentDelivery: 'none',
+    minimumRole: 'admin',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  removeDomain: defineOrganizationOperation({
+    oauthScope: 'api:write',
+    id: 'organizations.domains.remove',
+    contentDelivery: 'none',
+    minimumRole: 'admin',
+    ...securityPolicy,
+    capability: 'none',
+  }),
+  // permission-group-exempt: organization domain security is governed by membership, admin role and Enterprise entitlement.
+  revokeSessions: defineOrganizationOperation({
+    id: 'organizations.sessions.revoke',
+    minimumRole: 'admin',
+    principalKinds: ['session'],
+    /** permission-group-exempt: session revocation requires current administrator session and Enterprise entitlement. */
     capability: 'none',
   }),
 } as const

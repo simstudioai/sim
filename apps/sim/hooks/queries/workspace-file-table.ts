@@ -11,7 +11,7 @@ import {
  */
 export const WORKSPACE_CSV_PREVIEW_STALE_TIME = 30 * 1000
 
-export const workspaceFileTableKeys = {
+const workspaceFileTableKeys = {
   all: ['workspaceFileTable'] as const,
   previews: () => [...workspaceFileTableKeys.all, 'preview'] as const,
   preview: (workspaceId: string, fileId: string, key: string, version?: number) =>

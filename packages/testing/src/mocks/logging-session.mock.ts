@@ -7,12 +7,13 @@ import { vi } from 'vitest'
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
  * boolean result. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
  * their input, diagnostic projection fails closed to structural metadata, `hasCompleted` is
- * `false`, `getPersistedCompletionStatus` is `null`, and other methods resolve to `undefined`.
+ * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, and other methods
+ * resolve to `undefined`.
  * Defaults are `vi.fn(impl)`, so `mockReset()` restores them.
  *
  * @example
  * ```ts
- * import { loggingSessionMockFns } from '@sim/testing'
+ * import { loggingSessionMockFns } from '@sim/testing/mocks/logging-session.mock'
  *
  * loggingSessionMockFns.mockSafeStart.mockResolvedValueOnce(false)
  * expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
@@ -41,6 +42,7 @@ export const loggingSessionMockFns = {
   mockOnBlockComplete: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockHasCompleted: vi.fn((): boolean => false),
   mockGetPersistedCompletionStatus: vi.fn((): string | null => null),
+  mockGetDeletedScope: vi.fn((): 'workspace' | 'workflow' | null => null),
   mockProjectTraceSpansForLiveDisplay: vi.fn(async (traceSpans: unknown) => traceSpans),
   mockMarkExecutionAsFailed: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockProjectBlockLogsForDisplay: vi.fn(async (logs: unknown) => logs),
@@ -82,6 +84,7 @@ function buildLoggingSessionInstance() {
     onBlockComplete: loggingSessionMockFns.mockOnBlockComplete,
     hasCompleted: loggingSessionMockFns.mockHasCompleted,
     getPersistedCompletionStatus: loggingSessionMockFns.mockGetPersistedCompletionStatus,
+    getDeletedScope: loggingSessionMockFns.mockGetDeletedScope,
     projectTraceSpansForLiveDisplay: loggingSessionMockFns.mockProjectTraceSpansForLiveDisplay,
     exportResolvedSecretTraceProvenanceForValue:
       loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue,

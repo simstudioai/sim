@@ -81,7 +81,7 @@ export function linqSetupInstructions(eventType: string): string {
 /**
  * Builds Linq-specific extra fields for the trigger UI.
  * Includes the required API key and an optional phone-number filter.
- * Use with the generic `buildTriggerSubBlocks` from `@/triggers`.
+ * Use with the generic `buildTriggerSubBlocks` from `@/triggers/subblocks`.
  */
 export function buildLinqExtraFields(triggerId: string): SubBlockConfig[] {
   return [

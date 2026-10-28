@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditRollup } from '@sim/audit'
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -13,6 +13,7 @@ import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/applicatio
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { CredentialRevokedError, OAUTH_CREDENTIAL_REVOKED } from '@/lib/oauth/credential-revoked'
 import {
   getCredential,
   type ResolvedCredential,
@@ -26,9 +27,15 @@ import {
 } from '@/lib/oauth/microsoft-dataverse'
 import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import {
+  credentialProviderMatchesService,
+  getCanonicalScopesForProvider,
+  getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
+} from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
+import type { OAuthConfig } from '@/tools/types'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('OAuthTokenResolution')
@@ -45,10 +52,14 @@ export interface CredentialAuditRequest {
 export type CredentialTokenPayload = OAuthTokenResponse
 
 export interface ResolveCredentialTokenInput {
+  /** Tool whose canonical provider and credential-kind policy applies before token minting. */
+  toolId?: string
   /** Correlation id used by the credential service's own logging. */
   requestId: string
   credentialId?: string
   workflowId?: string
+  /** Workflow run the token is for; recorded on the credential-access audit entry. */
+  executionId?: string
   /** Canonical provider scopes, used only by service-account token minting. */
   scopes?: string[]
   /** Google domain-wide-delegation subject for service-account credentials. */
@@ -93,7 +104,9 @@ export function validateOAuthCredentialContext(
 
 /**
  * Emits the semantic "credential used" trail for one resolved credential.
- * Both the audit row and the analytics event are fire-and-forget.
+ * Both the audit row and the analytics event are fire-and-forget. A server-side
+ * access with no client request, such as a workflow run refreshing the token
+ * for every tool call, merges with its repeats into one row that counts them.
  */
 export function recordCredentialAccess(params: {
   actorId: string
@@ -101,22 +114,39 @@ export function recordCredentialAccess(params: {
   resourceId: string
   providerId: string | null | undefined
   credentialType: 'oauth' | 'service_account'
+  workflowId?: string
+  executionId?: string
   auditRequest?: CredentialAuditRequest
 }): void {
-  const { actorId, workspaceId, resourceId, providerId, credentialType } = params
-  recordAudit({
+  const { actorId, workspaceId, resourceId, providerId, credentialType, workflowId, executionId } =
+    params
+  const credentialLabel = `${credentialType === 'oauth' ? 'OAuth' : 'service account'} credential for provider ${providerId ?? 'unknown'}`
+  const audit = {
     workspaceId,
     actorId,
     action: AuditAction.CREDENTIAL_ACCESSED,
     resourceType: AuditResourceType.CREDENTIAL,
     resourceId,
-    description: `Accessed ${credentialType === 'oauth' ? 'OAuth' : 'service account'} credential for provider ${providerId ?? 'unknown'}`,
+    description: `Accessed ${credentialLabel}`,
     metadata: {
       provider: providerId,
       credentialType,
+      ...(workflowId ? { workflowId } : {}),
+      ...(executionId ? { executionId } : {}),
     },
-    request: params.auditRequest,
-  })
+  }
+  if (params.auditRequest) {
+    recordAudit({ ...audit, request: params.auditRequest })
+  } else {
+    recordAuditRollup({
+      key: JSON.stringify(audit.metadata),
+      params: audit,
+      rollupMetadata: audit.metadata,
+      counters: {},
+      identifiers: {},
+      describe: ({ entries }) => `Accessed ${credentialLabel} ${entries} times`,
+    })
+  }
   captureServerEvent(
     actorId,
     'credential_used',
@@ -188,9 +218,20 @@ export async function completeOAuthCredentialToken(params: {
   resolvedCredentialId: string
   actorId?: string
   workspaceId: string | null
+  workflowId?: string
+  executionId?: string
   auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
-  const { requestId, credential, resolvedCredentialId, actorId, workspaceId, auditRequest } = params
+  const {
+    requestId,
+    credential,
+    resolvedCredentialId,
+    actorId,
+    workspaceId,
+    workflowId,
+    executionId,
+    auditRequest,
+  } = params
   const contextValidation = validateOAuthCredentialContext(credential)
   if (!contextValidation.ok) {
     return { ok: false, status: 401, error: contextValidation.error }
@@ -206,14 +247,61 @@ export async function completeOAuthCredentialToken(params: {
         resourceId: resolvedCredentialId,
         providerId: credential.providerId,
         credentialType: 'oauth',
+        workflowId,
+        executionId,
         auditRequest,
       })
     }
 
     return { ok: true, token: buildOAuthTokenPayload(credential, accessToken) }
   } catch (error) {
+    if (error instanceof CredentialRevokedError) {
+      logger.warn(`[${requestId}] OAuth credential revoked by provider; reconnect required`, {
+        credentialId: resolvedCredentialId,
+        providerId: error.provider?.providerId,
+        errorCode: error.provider?.errorCode,
+      })
+      return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
+    }
     logger.error(`[${requestId}] Failed to refresh access token:`, error)
     return { ok: false, status: 401, error: 'Failed to refresh access token' }
+  }
+}
+
+function validateToolCredentialKind(
+  requiredKind: OAuthConfig['credentialKind'],
+  actualKind: NonNullable<OAuthConfig['credentialKind']>
+): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
+  if (requiredKind && requiredKind !== actualKind) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_TYPE_MISMATCH',
+      error: 'The selected credential type is not supported by this tool',
+    }
+  }
+}
+
+function validateToolCredentialBinding(
+  toolId: string | undefined,
+  providerId: string | null | undefined,
+  credentialKind: NonNullable<OAuthConfig['credentialKind']>
+): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
+  if (!toolId) return
+  const policy = getToolMetadata(toolId)?.oauth
+  const kindError = validateToolCredentialKind(policy?.credentialKind, credentialKind)
+  if (kindError) return kindError
+  const service = policy?.required
+    ? (getServiceConfigByServiceId(policy.provider) ??
+      getServiceConfigByProviderId(policy.provider))
+    : undefined
+  if (!providerId || !service || !credentialProviderMatchesService(providerId, service)) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'The selected credential does not belong to this tool provider',
+    }
   }
 }
 
@@ -233,6 +321,7 @@ export async function resolveCredentialToken(
     requestId,
     credentialId,
     workflowId,
+    executionId,
     scopes,
     impersonateEmail,
     callerUserId,
@@ -262,6 +351,13 @@ export async function resolveCredentialToken(
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
 
+      const bindingError = validateToolCredentialBinding(
+        input.toolId,
+        resolved.providerId,
+        'service-account'
+      )
+      if (bindingError) return bindingError
+
       const saActorId = authz.requesterUserId
       const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
 
@@ -280,6 +376,8 @@ export async function resolveCredentialToken(
             resourceId: resolved.credentialId,
             providerId: resolved.providerId,
             credentialType: 'service_account',
+            workflowId,
+            executionId,
             auditRequest,
           })
         }
@@ -349,12 +447,17 @@ export async function resolveCredentialToken(
       return { ok: false, status: 404, error: 'Credential not found' }
     }
 
+    const bindingError = validateToolCredentialBinding(input.toolId, credential.providerId, 'oauth')
+    if (bindingError) return bindingError
+
     return completeOAuthCredentialToken({
       requestId,
       credential,
       resolvedCredentialId,
       actorId: authz.requesterUserId,
       workspaceId: authz.workspaceId ?? null,
+      workflowId,
+      executionId,
       auditRequest,
     })
   } catch (error) {
@@ -365,8 +468,6 @@ export async function resolveCredentialToken(
 
 export interface ResolveCredentialAccessTokenInput
   extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
-  /** Tool consuming the token; required by the managed-OAuth scope policy. */
-  toolId?: string
   /**
    * Authenticates the caller for non-managed credentials. Invoked only when the
    * credential is not managed OAuth, which authenticates through delegation instead.
@@ -401,6 +502,7 @@ export async function resolveCredentialAccessToken(
       requestId,
       credentialId,
       workflowId: input.workflowId,
+      executionId: input.executionId,
       scopes: input.scopes,
       /**
        * In-process callers forward raw subblock state, where an untouched
@@ -411,6 +513,7 @@ export async function resolveCredentialAccessToken(
       callerUserId: input.callerUserId,
       auditRequest,
       resolvedCredential: resolved,
+      toolId,
     })
   }
 
@@ -455,6 +558,9 @@ export async function resolveCredentialAccessToken(
       error: 'This tool is not configured to use managed credentials',
     }
   }
+  const kindError = validateToolCredentialKind(toolMetadata.oauth.credentialKind, 'oauth')
+  if (kindError) return kindError
+
   const requiredScopes =
     toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
   if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {

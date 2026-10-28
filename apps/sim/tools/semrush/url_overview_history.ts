@@ -19,7 +19,7 @@ export const semrushUrlOverviewHistoryTool: ToolConfig<
 > = {
   id: 'semrush_url_overview_history',
   name: 'Semrush URL Overview History',
-  description: 'Get the historical trend of a URL organic and paid search totals.',
+  description: 'Get the historical trend of a URL’s organic and paid search totals.',
   version: '1.0.0',
 
   params: {

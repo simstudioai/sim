@@ -2,6 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { FILE_DOC_LIMITS } from '@sim/realtime-protocol/file-doc'
+import type { FileDocOwner } from '@sim/realtime-protocol/file-doc-target'
 import { get, update as updateValue } from 'idb-keyval'
 import * as Y from 'yjs'
 
@@ -28,9 +29,9 @@ interface JournalDocument extends PendingDocumentRecovery {
 }
 
 interface PendingUpdateJournalScope {
-  workspaceId: string
   fileId: string
   userId: string
+  owner: FileDocOwner
 }
 
 interface JournalSaveResult {
@@ -105,7 +106,7 @@ export class PendingFileDocUpdateJournal {
   private readonly key: string
   private mutationQueue = Promise.resolve()
 
-  constructor({ workspaceId, fileId, userId }: PendingUpdateJournalScope) {
+  constructor({ owner, fileId, userId }: PendingUpdateJournalScope) {
     const origin = typeof location === 'undefined' ? 'server' : location.origin
     this.key = [
       'sim',
@@ -113,7 +114,7 @@ export class PendingFileDocUpdateJournal {
       JOURNAL_VERSION,
       origin,
       userId,
-      workspaceId,
+      ...(owner.entityType === 'workspace' ? [owner.entityId] : [owner.entityType, owner.entityId]),
       fileId,
     ].join(':')
   }
@@ -212,6 +213,17 @@ export class PendingFileDocUpdateJournal {
         return result
       },
       { pendingUpdate, status: 'unavailable' }
+    )
+  }
+
+  /** Drop only this document's unaccepted recovery after confirmed loss of write access. */
+  discard(docId: string): Promise<void> {
+    return this.enqueue(
+      () =>
+        updateValue<unknown>(this.key, (value) =>
+          record(liveDocuments(value, Date.now()).filter((document) => document.docId !== docId))
+        ),
+      undefined
     )
   }
 

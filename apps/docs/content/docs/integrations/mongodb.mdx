@@ -1,35 +1,22 @@
 ---
 title: MongoDB
 description: Connect to MongoDB database
+integration:
+  type: "mongodb"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="mongodb"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-The [MongoDB](https://www.mongodb.com/) tool enables you to connect to a MongoDB database and perform a wide range of document-oriented operations directly within your agentic workflows. With flexible configuration and secure connection management, you can easily interact with and manipulate your data.
+Use [MongoDB](https://www.mongodb.com/) to query collections, insert one or more documents, update or delete documents selected by a filter, and run aggregation pipelines. Configure the database connection and collection for the selected operation.
 
-With the MongoDB tool, you can:
-
-- **Find documents**: Query collections and retrieve documents with the `mongodb_query` operation using rich query filters.
-- **Insert documents**: Add one or multiple documents to a collection using the `mongodb_insert` operation.
-- **Update documents**: Modify existing documents with the `mongodb_update` operation by specifying filter criteria and the update actions.
-- **Delete documents**: Remove documents from a collection using the `mongodb_delete` operation, specifying filters and deletion options.
-- **Aggregate data**: Run complex aggregation pipelines with the `mongodb_execute` operation to transform and analyze your data.
-
-The MongoDB tool is ideal for workflows where your agents need to manage or analyze structured, document-based data. Whether it's processing user-generated content, managing app data, or powering analytics, the MongoDB tool streamlines your data access and manipulation in a secure, programmatic way.
+The `mongodb_query`, `mongodb_insert`, `mongodb_update`, `mongodb_delete`, and `mongodb_execute` operations return data for later workflow steps. Check the write filter and single/multiple-document option before updating or deleting records.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.
-
-
+Find, insert, update, delete, and aggregate data.
 
 ## Actions
 

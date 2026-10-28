@@ -5,7 +5,8 @@ import type { InternalToolConfig } from '@/tools/types'
 export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResponse> = {
   id: 'lambda_invoke',
   name: 'Lambda Invoke Function',
-  description: 'Invoke a Lambda function synchronously or asynchronously and return its response',
+  description:
+    'Invoke a Lambda function synchronously for its response payload, asynchronously to queue execution, or as a dry run to check permissions.',
   version: '1.0.0',
 
   params: {

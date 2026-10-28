@@ -2,13 +2,13 @@ import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
- * `@/lib/auth/auth-client` builds a Better Auth client at module scope, which
+ * `@/lib/auth/client` builds a Better Auth client at module scope, which
  * throws when NEXT_PUBLIC_APP_URL is absent from the environment (and under
  * `isolate: false` an earlier file may have imported the graph in a polluted
  * env). These tests only exercise pure parsing/model helpers, so stub the
  * client module out entirely.
  */
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 import { formatUsageUpgradeTag } from '@/lib/billing/usage-upgrade'
 import type {

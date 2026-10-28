@@ -1,3 +1,6 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
+import { toRecord } from '@sim/utils/object'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSend } = vi.hoisted(() => ({
@@ -19,6 +22,10 @@ vi.mock('@aws-sdk/client-appconfigdata', () => ({
 }))
 
 import { fetchAppConfigProfile, fetchAppConfigSnapshot } from '@/lib/core/config/appconfig'
+import {
+  markInsideTriggerRun,
+  resetInsideTriggerRunForTests,
+} from '@/lib/core/config/trigger-runtime'
 
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 
@@ -239,5 +246,116 @@ describe('fetchAppConfigSnapshot freshness', () => {
     expect(results[0].validatedAt).toBe(130_001)
     expect(results[1]).toEqual(results[0])
     expect(mockSend.mock.calls).toHaveLength(3)
+  })
+})
+
+describe('shared snapshot in Trigger.dev runs', () => {
+  const shared = { shareWithTriggerRuns: true }
+  const sessionResponses = (command: { __type: string }) =>
+    Promise.resolve(
+      command.__type === 'start'
+        ? { InitialConfigurationToken: 'token' }
+        : { Configuration: encode({ revision: 'appconfig' }), NextPollConfigurationToken: 'next' }
+    )
+  const snapshotAt = (validatedAt: number) =>
+    JSON.stringify({ raw: JSON.stringify({ revision: 'shared' }), validatedAt })
+  const redisReturning = (stored: string | null) => {
+    const redis = { get: vi.fn().mockResolvedValue(stored), eval: vi.fn().mockResolvedValue(1) }
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+    return redis
+  }
+
+  beforeEach(() => {
+    mockSend.mockImplementation(sessionResponses)
+    markInsideTriggerRun()
+  })
+  afterEach(() => resetInsideTriggerRunForTests())
+
+  it('adopts a fresh snapshot without opening an AppConfig session', async () => {
+    redisReturning(snapshotAt(Date.now()))
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
+      revision: 'shared',
+    })
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('tolerates a publisher clock a few seconds ahead, but not more', async () => {
+    redisReturning(snapshotAt(Date.now() + 4_000))
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
+      revision: 'shared',
+    })
+    redisReturning(snapshotAt(Date.now() + 60_000))
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
+      revision: 'appconfig',
+    })
+  })
+
+  it('never reads the snapshot outside a Trigger.dev run', async () => {
+    resetInsideTriggerRunForTests()
+    redisReturning(snapshotAt(Date.now()))
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
+      revision: 'appconfig',
+    })
+  })
+
+  it('never reads or publishes a profile that did not opt in', async () => {
+    const redis = redisReturning(snapshotAt(Date.now()))
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json)).toEqual({
+      revision: 'appconfig',
+    })
+    resetInsideTriggerRunForTests()
+    await fetchAppConfigProfile(uniqueIds(), (json) => json)
+    await flushMacrotask()
+    expect(redis.eval).not.toHaveBeenCalled()
+  })
+
+  it('polls AppConfig when the snapshot is older than the adoption window', async () => {
+    redisReturning(snapshotAt(Date.now() - 120_000))
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
+      revision: 'appconfig',
+    })
+  })
+
+  it('polls AppConfig when Redis fails or the snapshot does not parse', async () => {
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({
+      get: vi.fn().mockRejectedValue(new Error('redis down')),
+      eval: vi.fn().mockRejectedValue(new Error('redis down')),
+    })
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
+      revision: 'appconfig',
+    })
+
+    redisReturning(snapshotAt(Date.now()))
+    const rejectShared = (json: unknown) => {
+      if (toRecord(json).revision === 'shared') throw new Error('invalid')
+      return json
+    }
+    expect(await fetchAppConfigProfile(uniqueIds(), rejectShared, shared)).toEqual({
+      revision: 'appconfig',
+    })
+  })
+
+  it('publishes only from app processes', async () => {
+    const redis = redisReturning(null)
+    expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
+      revision: 'appconfig',
+    })
+    await flushMacrotask()
+    expect(redis.eval).not.toHaveBeenCalled()
+
+    resetInsideTriggerRunForTests()
+    await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)
+    await vi.waitFor(() => expect(redis.eval).toHaveBeenCalledTimes(1))
+  })
+
+  it('never serves or publishes a strict snapshot through the shared copy', async () => {
+    const redis = redisReturning(snapshotAt(Date.now()))
+    expect((await fetchAppConfigSnapshot(uniqueIds(), (json) => json)).value).toEqual({
+      revision: 'appconfig',
+    })
+    resetInsideTriggerRunForTests()
+    await fetchAppConfigSnapshot(uniqueIds(), (json) => json)
+    await flushMacrotask()
+    expect(redis.eval).not.toHaveBeenCalled()
   })
 })

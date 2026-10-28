@@ -7,6 +7,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -36,6 +37,7 @@ function isAsync(value: unknown): boolean {
 export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStatementResponse> = {
   id: 'snowflake_execute_sql',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Execute SQL',
   description: 'Execute one parameterized SQL statement through the Snowflake SQL API.',
   params: {

@@ -10,6 +10,10 @@ import {
   mothershipChatPayloadMockFns,
 } from '@sim/testing/mocks/mothership-chat-payload.mock'
 import { mothershipEnvironmentContextMock } from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
 import { organizationAuthorizationMock } from '@sim/testing/mocks/organization-authorization.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +22,6 @@ const hoisted = vi.hoisted(() => ({
   turnId: '',
   userId: '',
   organizationId: '',
-  lifecycle: vi.fn(),
   /** The turn's own controller, which a Stop aborts through its registered stream. */
   controller: new AbortController(),
   stopped: vi.fn(async () => false),
@@ -60,7 +63,7 @@ vi.mock('@/lib/knowledge/application/slack-search/onboarding', () => ({
 vi.mock('@/lib/knowledge/application/slack-search/title', () => ({
   generateSlackSearchChatTitle: async () => undefined,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
   loadCopilotSearchIntegrations: async () => '{"connections":[],"available":[]}',
 }))
@@ -69,9 +72,7 @@ vi.mock('@/lib/mothership/chat/terminal-state', () => ({
   finalizeAssistantTurn: hoisted.finalize,
 }))
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: hoisted.lifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 vi.mock('@/lib/mothership/request/session/abort', () => ({
   acquirePendingChatStream: async () => true,
   cleanupAbortMarker: async () => undefined,
@@ -106,6 +107,8 @@ import { eq } from 'drizzle-orm'
 import { runSlackSearchAssistant } from '@/lib/knowledge/application/slack-search/assistant'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
 
+const { mockRunHeadlessCopilotLifecycle } = mothershipHeadlessLifecycleMockFns
+
 const principal = {
   kind: 'slack_installation',
   credentialId: 'c1',
@@ -136,8 +139,11 @@ function job() {
   }
 }
 
-/** Runs one Slack turn in a fresh private chat and returns the run it recorded. */
-async function slackTurn() {
+/**
+ * Runs one Slack turn in a fresh private chat and returns the run it recorded. `deletedAt`
+ * stands for a delete committed after the turn resolved its chat.
+ */
+async function slackTurn(deletedAt?: Date) {
   const chatId = generateId()
   const turnId = generateId()
   hoisted.chat = { id: chatId, model: 'default' }
@@ -147,6 +153,7 @@ async function slackTurn() {
     userId: hoisted.userId,
     organizationId: hoisted.organizationId,
     type: 'mothership',
+    deletedAt,
   })
   const controller = new AbortController()
   hoisted.controller = controller
@@ -206,7 +213,7 @@ describe('Slack Assistant run record', () => {
   }
 
   it('records a completed turn as complete', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce({
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
       success: true,
       content: 'Answer',
       contentBlocks: [],
@@ -221,7 +228,7 @@ describe('Slack Assistant run record', () => {
   })
 
   it('records a turn its user stopped as cancelled', async () => {
-    hoisted.lifecycle.mockImplementationOnce(async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementationOnce(async () => {
       /** A Slack Stop marks the turn stopped, then aborts its registered stream. */
       hoisted.stopped.mockResolvedValue(true)
       hoisted.controller.abort(AbortReason.UserStop)
@@ -234,8 +241,19 @@ describe('Slack Assistant run record', () => {
     expect(run.completedAt).not.toBeNull()
   })
 
+  it('never starts the worker for a turn whose chat was deleted before its run', async () => {
+    mockRunHeadlessCopilotLifecycle.mockClear()
+
+    const { run, outcome } = await slackTurn(new Date())
+
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+    expect(outcome).toBeInstanceOf(Error)
+    expect(run.status).toBe('cancelled')
+    expect(run.toolAdmissionClosedAt).not.toBeNull()
+  })
+
   it('records a failed turn as an error', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce({
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
       success: false,
       error: 'worker failed',
       content: '',
@@ -251,7 +269,7 @@ describe('Slack Assistant run record', () => {
 
   it('records a failed turn as an error even when its Stop cannot be looked up', async () => {
     hoisted.stopped.mockRejectedValue(new Error('database unavailable'))
-    hoisted.lifecycle.mockResolvedValueOnce({
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
       success: false,
       error: 'worker failed',
       content: '',
@@ -266,7 +284,7 @@ describe('Slack Assistant run record', () => {
   })
 
   it('records an answered turn as an error when its response is not saved', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce(answered)
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce(answered)
     hoisted.finalize.mockResolvedValue({ appendedAssistant: false })
 
     const { run, outcome } = await slackTurn()
@@ -276,7 +294,7 @@ describe('Slack Assistant run record', () => {
   })
 
   it('records an answered turn as an error when its outcome is not saved', async () => {
-    hoisted.lifecycle.mockResolvedValueOnce(answered)
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce(answered)
     hoisted.outcome.mockRejectedValueOnce(new Error('outcome write failed'))
 
     const { run, outcome } = await slackTurn()

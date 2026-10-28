@@ -2,23 +2,21 @@ import { db } from '@sim/db'
 import { dataDrainRuns, dataDrains } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, isNull, lt, or } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { getJobQueue } from '@/lib/core/async-jobs'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { enqueueDrain } from '@/lib/data-drains/enqueue'
 
 const logger = createLogger('DataDrainsDispatcher')
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
+const DISPATCH_PAGE_SIZE = 200
 
 /**
- * Cron fires hourly. Without a buffer, a drain that finishes a few minutes
- * after the tick (lastRunAt = 10:05) won't satisfy `lastRunAt < now - cadence`
- * at the next tick (10:05 < 10:00 is false), so an "hourly" drain effectively
- * runs every two hours. Subtracting a small buffer from the cadence absorbs
- * normal run duration plus cron jitter without allowing back-to-back runs
- * within the same tick.
+ * Cron start times drift. A small buffer lets the next hourly tick claim a
+ * drain whose preceding tick started late. Cadence is measured from the
+ * worker's claim timestamp, independently of delivery duration.
  */
 const CADENCE_BUFFER_MS = 5 * 60 * 1000
 
@@ -34,23 +32,27 @@ const ORPHAN_THRESHOLD_MS = 60 * 60 * 1000
  * Marks `running` rows older than the orphan threshold as `failed`. Without
  * this, a worker crash leaves run history permanently misleading and (worse)
  * the drain row's `lastRunAt` reflects a successful claim that never finished
- * — but the drain `cursor` never advanced, so re-running is safe.
+ * — the next run resumes after the last acknowledged checkpoint.
  */
 export async function reapOrphanedRuns(now: Date = new Date()): Promise<{ reaped: number }> {
   const cutoff = new Date(now.getTime() - ORPHAN_THRESHOLD_MS)
-  const reaped = await db
-    .update(dataDrainRuns)
-    .set({
-      status: 'failed',
-      finishedAt: now,
-      error: `Orphaned run reaped after exceeding ${ORPHAN_THRESHOLD_MS / 60_000}m without completion`,
-    })
-    .where(and(eq(dataDrainRuns.status, 'running'), lt(dataDrainRuns.startedAt, cutoff)))
-    .returning({ id: dataDrainRuns.id })
-  if (reaped.length > 0) {
-    logger.warn('Reaped orphaned data drain runs', { count: reaped.length })
+  const result = await db.execute<{ count: number }>(sql`
+    WITH reaped AS (
+      UPDATE ${dataDrainRuns}
+      SET status = 'failed',
+          finished_at = ${sql.param(now, dataDrainRuns.finishedAt)},
+          error = ${`Orphaned run reaped after exceeding ${ORPHAN_THRESHOLD_MS / 60_000}m without completion`}
+      WHERE ${dataDrainRuns.status} = 'running'
+        AND ${dataDrainRuns.startedAt} < ${sql.param(cutoff, dataDrainRuns.startedAt)}
+      RETURNING 1
+    )
+    SELECT count(*)::integer AS count FROM reaped
+  `)
+  const reaped = result[0]?.count ?? 0
+  if (reaped > 0) {
+    logger.warn('Reaped orphaned data drain runs', { count: reaped })
   }
-  return { reaped: reaped.length }
+  return { reaped }
 }
 
 /**
@@ -81,19 +83,6 @@ export async function dispatchDueDrains(now: Date = new Date()): Promise<{
     )
   )
 
-  const candidates = await db
-    .select({
-      id: dataDrains.id,
-      organizationId: dataDrains.organizationId,
-      lastRunAt: dataDrains.lastRunAt,
-    })
-    .from(dataDrains)
-    .where(duePredicate)
-
-  if (candidates.length === 0) {
-    return { candidates: 0, dispatched: 0, skipped: 0, reaped }
-  }
-
   // Self-hosted deployments have no subscription infra; `DATA_DRAINS_ENABLED`
   // is the global on/off there. Cache per-org so a multi-drain org pays one
   // billing lookup.
@@ -107,80 +96,95 @@ export async function dispatchDueDrains(now: Date = new Date()): Promise<{
     return result
   }
 
-  const queue = await getJobQueue()
   let dispatched = 0
   let skipped = 0
+  let candidates = 0
+  let afterId: string | undefined
 
-  for (const candidate of candidates) {
-    let enterprise: boolean
-    try {
-      enterprise = await isEnterprise(candidate.organizationId)
-    } catch (error) {
-      // A billing-API failure for one org must not abort the whole batch —
-      // skip this drain and let the next cron tick retry it.
-      logger.warn('Enterprise check failed; skipping drain', {
-        drainId: candidate.id,
-        organizationId: candidate.organizationId,
-        error,
+  while (true) {
+    const page = await db
+      .select({
+        id: dataDrains.id,
+        organizationId: dataDrains.organizationId,
+        lastRunAt: dataDrains.lastRunAt,
       })
-      skipped++
-      continue
-    }
-    if (!enterprise) {
-      skipped++
-      continue
-    }
+      .from(dataDrains)
+      .where(and(duePredicate, afterId ? gt(dataDrains.id, afterId) : undefined))
+      .orderBy(asc(dataDrains.id))
+      .limit(DISPATCH_PAGE_SIZE)
+    if (page.length === 0) break
+    candidates += page.length
+    enterpriseCache.clear()
 
-    // Conditional claim — re-asserts the due predicate to lose to any other
-    // dispatcher or manual-run path that's already moved this drain forward.
-    const claimed = await db
-      .update(dataDrains)
-      .set({ lastRunAt: now, updatedAt: now })
-      .where(and(eq(dataDrains.id, candidate.id), duePredicate))
-      .returning({ id: dataDrains.id })
-
-    if (claimed.length === 0) continue
-
-    try {
-      // concurrencyKey serializes runs of the same drain on the job queue, so
-      // a manual run-now racing a cron claim can never execute in parallel.
-      await queue.enqueue(
-        'run-data-drain',
-        { drainId: candidate.id, trigger: 'cron' },
-        { concurrencyKey: `data-drain:${candidate.id}` }
-      )
-      dispatched++
-    } catch (error) {
-      // Roll back the claim so a transient queue outage doesn't delay this
-      // drain by a full cadence. Scoped to our own claim timestamp so it
-      // can't trample a concurrent advance. The rollback itself is guarded
-      // so a DB error here doesn't abort the rest of the batch.
+    for (const candidate of page) {
+      let enterprise: boolean
       try {
-        await db
-          .update(dataDrains)
-          .set({ lastRunAt: candidate.lastRunAt, updatedAt: now })
-          .where(and(eq(dataDrains.id, candidate.id), eq(dataDrains.lastRunAt, now)))
-      } catch (rollbackError) {
-        logger.error('Failed to roll back data-drain claim after enqueue failure', {
+        enterprise = await isEnterprise(candidate.organizationId)
+      } catch (error) {
+        // A billing-API failure for one org must not abort the whole batch —
+        // skip this drain and let the next cron tick retry it.
+        logger.warn('Enterprise check failed; skipping drain', {
           drainId: candidate.id,
-          enqueueError: toError(error).message,
-          rollbackError: toError(rollbackError).message,
+          organizationId: candidate.organizationId,
+          error,
         })
+        skipped++
         continue
       }
-      logger.error('Failed to enqueue data-drain job; rolled back claim', {
-        drainId: candidate.id,
-        error,
-      })
+      if (!enterprise) {
+        skipped++
+        continue
+      }
+
+      // Conditional claim — re-asserts the due predicate to lose to any other
+      // dispatcher or manual-run path that's already moved this drain forward.
+      const claimed = await db
+        .update(dataDrains)
+        .set({ lastRunAt: now, updatedAt: now })
+        .where(and(eq(dataDrains.id, candidate.id), duePredicate))
+        .returning({ id: dataDrains.id })
+
+      if (claimed.length === 0) continue
+
+      try {
+        // Queue limits bound execution; the database claim also fences workers
+        // across app processes and concurrent manual requests.
+        await enqueueDrain(candidate.id, 'cron')
+        dispatched++
+      } catch (error) {
+        // Roll back the claim so a transient queue outage doesn't delay this
+        // drain by a full cadence. Scoped to our own claim timestamp so it
+        // can't trample a concurrent advance. The rollback itself is guarded
+        // so a DB error here doesn't abort the rest of the batch.
+        try {
+          await db
+            .update(dataDrains)
+            .set({ lastRunAt: candidate.lastRunAt, updatedAt: now })
+            .where(and(eq(dataDrains.id, candidate.id), eq(dataDrains.lastRunAt, now)))
+        } catch (rollbackError) {
+          logger.error('Failed to roll back data-drain claim after enqueue failure', {
+            drainId: candidate.id,
+            enqueueError: toError(error).message,
+            rollbackError: toError(rollbackError).message,
+          })
+          continue
+        }
+        logger.error('Failed to enqueue data-drain job; rolled back claim', {
+          drainId: candidate.id,
+          error,
+        })
+      }
     }
+    afterId = page[page.length - 1].id
+    if (page.length < DISPATCH_PAGE_SIZE) break
   }
 
   logger.info('Data drain dispatch complete', {
-    candidates: candidates.length,
+    candidates,
     dispatched,
     skipped,
     reaped,
   })
 
-  return { candidates: candidates.length, dispatched, skipped, reaped }
+  return { candidates, dispatched, skipped, reaped }
 }

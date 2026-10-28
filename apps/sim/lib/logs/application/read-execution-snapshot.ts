@@ -16,14 +16,14 @@ import {
   logProjectionSubjectUserId,
   projectCostTotal,
   resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
+} from '@/lib/logs/projection'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
-const CHILD_SNAPSHOT_QUERY_CHUNK_SIZE = 1_000
+const SNAPSHOT_QUERY_CHUNK_SIZE = 1_000
 
 interface WorkflowExecutionRecord {
   kind: 'workflow'
@@ -37,7 +37,6 @@ interface WorkflowExecutionRecord {
   endedAt: Date | null
   totalDurationMs: number | null
   costTotal: string | null
-  executionData: unknown
 }
 
 interface JobExecutionRecord {
@@ -79,7 +78,6 @@ async function resolveExecutionSnapshotContext(
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
-      executionData: workflowExecutionLogs.executionData,
     })
     .from(workflowExecutionLogs)
     .where(eq(workflowExecutionLogs.executionId, executionId))
@@ -116,6 +114,47 @@ async function resolveExecutionSnapshotContext(
   const workspace = await resolveActiveWorkspaceApplicationContext(jobRecord.workspaceId)
   input.signal?.throwIfAborted()
   return { ...workspace, executionId, record: { kind: 'job', ...jobRecord } }
+}
+
+async function readSnapshotStates(
+  ids: string[],
+  signal: AbortSignal | undefined
+): Promise<Map<string, unknown>> {
+  const states = new Map<string, unknown>()
+  for (let index = 0; index < ids.length; index += SNAPSHOT_QUERY_CHUNK_SIZE) {
+    signal?.throwIfAborted()
+    const rows = await db
+      .select({
+        id: workflowExecutionSnapshots.id,
+        stateData: workflowExecutionSnapshots.stateData,
+      })
+      .from(workflowExecutionSnapshots)
+      .where(
+        inArray(workflowExecutionSnapshots.id, ids.slice(index, index + SNAPSHOT_QUERY_CHUNK_SIZE))
+      )
+    for (const row of rows) states.set(row.id, row.stateData)
+  }
+  return states
+}
+
+/**
+ * The run's execution data with the fields a completion write changes alongside it,
+ * read in one statement after authorization: a caller the use case refuses never
+ * fetches the payload, and a run finishing mid-request cannot pair new data with
+ * stale timing or cost.
+ */
+async function readRunCompletion(executionId: string) {
+  const [row] = await db
+    .select({
+      executionData: workflowExecutionLogs.executionData,
+      endedAt: workflowExecutionLogs.endedAt,
+      totalDurationMs: workflowExecutionLogs.totalDurationMs,
+      costTotal: workflowExecutionLogs.costTotal,
+    })
+    .from(workflowExecutionLogs)
+    .where(eq(workflowExecutionLogs.executionId, executionId))
+    .limit(1)
+  return row
 }
 
 function collectChildSnapshotIds(traceSpans: TraceSpan[]): string[] {
@@ -175,17 +214,18 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
       }
     }
 
-    const [snapshot] = await db
-      .select()
-      .from(workflowExecutionSnapshots)
-      .where(eq(workflowExecutionSnapshots.id, record.stateSnapshotId))
-      .limit(1)
-    if (!snapshot) {
+    const workflowState = (await readSnapshotStates([record.stateSnapshotId], input.signal)).get(
+      record.stateSnapshotId
+    )
+    if (workflowState === undefined) {
       throw new OrchestrationError('not_found', 'Workflow state snapshot not found')
     }
 
+    input.signal?.throwIfAborted()
+    const completion = await readRunCompletion(record.executionId)
+    if (!completion) throw new OrchestrationError('not_found', 'Workflow execution not found')
     const executionData = (await materializeExecutionData(
-      record.executionData as Record<string, unknown> | null,
+      completion.executionData as Record<string, unknown> | null,
       {
         workspaceId: context.workspaceId,
         workflowId: record.workflowId,
@@ -201,40 +241,23 @@ const authorizedReadExecutionSnapshotUseCase = defineAuthorizedWorkspaceUseCase(
       })
     }
 
-    const childSnapshotIds = collectChildSnapshotIds(traceSpans)
-    const childWorkflowSnapshots: Array<{ id: string; stateData: unknown }> = []
-    for (let index = 0; index < childSnapshotIds.length; index += CHILD_SNAPSHOT_QUERY_CHUNK_SIZE) {
-      input.signal?.throwIfAborted()
-      childWorkflowSnapshots.push(
-        ...(await db
-          .select({
-            id: workflowExecutionSnapshots.id,
-            stateData: workflowExecutionSnapshots.stateData,
-          })
-          .from(workflowExecutionSnapshots)
-          .where(
-            inArray(
-              workflowExecutionSnapshots.id,
-              childSnapshotIds.slice(index, index + CHILD_SNAPSHOT_QUERY_CHUNK_SIZE)
-            )
-          ))
-      )
-    }
+    const childWorkflowSnapshots = await readSnapshotStates(
+      collectChildSnapshotIds(traceSpans),
+      input.signal
+    )
 
     input.signal?.throwIfAborted()
     return {
       executionId: record.executionId,
       workflowId: record.workflowId,
-      workflowState: snapshot.stateData as Record<string, unknown>,
-      childWorkflowSnapshots: Object.fromEntries(
-        childWorkflowSnapshots.map((child) => [child.id, child.stateData])
-      ),
+      workflowState: workflowState as Record<string, unknown>,
+      childWorkflowSnapshots: Object.fromEntries(childWorkflowSnapshots),
       executionMetadata: {
         trigger: record.trigger,
         startedAt: record.startedAt.toISOString(),
-        endedAt: record.endedAt?.toISOString(),
-        totalDurationMs: record.totalDurationMs,
-        cost: projectCostTotal(record.costTotal, projection),
+        endedAt: completion.endedAt?.toISOString(),
+        totalDurationMs: completion.totalDurationMs,
+        cost: projectCostTotal(completion.costTotal, projection),
       },
     }
   },

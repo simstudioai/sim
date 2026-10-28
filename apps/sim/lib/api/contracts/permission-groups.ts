@@ -98,7 +98,7 @@ export const userPermissionConfigSchema = z.object({
   config: permissionGroupFullConfigSchema
     .nullable()
     .describe(
-      'Effective group restrictions. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies.'
+      'Effective group settings. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies.'
     ),
   entitled: z.boolean().describe('Whether organization permission governance is active.'),
   organizationId: z

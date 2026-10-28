@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { JWT } from 'google-auth-library'
@@ -124,7 +123,6 @@ async function postInsertAll(
   } catch (error) {
     logger.warn('BigQuery request failed', {
       table: `${input.config.projectId}.${input.config.datasetId}.${input.config.tableId}`,
-      error: toError(error).message,
     })
     throw error
   }
@@ -236,7 +234,6 @@ async function insertAll(input: InsertAllInput): Promise<void> {
       logger.warn('BigQuery insertAll network error; retrying', {
         attempt,
         retryAfterMs,
-        error: toError(error).message,
       })
       await interruptibleSleep(retryAfterMs, input.signal)
       if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
@@ -260,7 +257,7 @@ async function insertAll(input: InsertAllInput): Promise<void> {
       table: `${input.config.projectId}.${input.config.datasetId}.${input.config.tableId}`,
       succeededRows: succeeded,
       failedRows: failed,
-      failedIndices: failedIndices.slice(0, 20),
+      failedIndices: failedIndices.filter((index) => typeof index === 'number').slice(0, 20),
     })
     const summary = result.insertErrors
       .slice(0, 3)

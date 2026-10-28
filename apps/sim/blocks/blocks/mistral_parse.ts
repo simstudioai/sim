@@ -16,7 +16,7 @@ export const MistralParseBlock: BlockConfig = {
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'mistral_parse_v3' },
   authMode: AuthMode.ApiKey,
-  longDescription: `Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
+  longDescription: `Extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/integrations/mistral_parse',
   category: 'tools',
   integrationType: IntegrationType.AI,

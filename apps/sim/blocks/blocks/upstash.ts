@@ -255,21 +255,6 @@ export const UpstashBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => {
-        if (params.ex) {
-          params.ex = Number(params.ex)
-        }
-        if (params.seconds !== undefined) {
-          params.seconds = Number(params.seconds)
-        }
-        if (params.start !== undefined) {
-          params.start = Number(params.start)
-        }
-        if (params.stop !== undefined) {
-          params.stop = Number(params.stop)
-        }
-        if (params.increment !== undefined) {
-          params.increment = Number(params.increment)
-        }
         switch (params.operation) {
           case 'get':
             return 'upstash_redis_get'
@@ -306,6 +291,25 @@ export const UpstashBlock: BlockConfig = {
           default:
             throw new Error(`Unknown operation: ${params.operation}`)
         }
+      },
+      params: (params) => {
+        const coerced: Record<string, number> = {}
+        if (params.ex) {
+          coerced.ex = Number(params.ex)
+        }
+        if (params.seconds !== undefined) {
+          coerced.seconds = Number(params.seconds)
+        }
+        if (params.start !== undefined) {
+          coerced.start = Number(params.start)
+        }
+        if (params.stop !== undefined) {
+          coerced.stop = Number(params.stop)
+        }
+        if (params.increment !== undefined) {
+          coerced.increment = Number(params.increment)
+        }
+        return coerced
       },
     },
   },

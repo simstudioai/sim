@@ -51,7 +51,6 @@ const {
   storageConfig,
   mockGetBlobContainerClient,
 } = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const actualPath = require('path') as typeof import('path')
   return {
     mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
@@ -88,7 +87,7 @@ vi.mock('@/lib/execution/payloads/file-secret-provenance', () => ({
 }))
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -154,7 +153,7 @@ vi.mock('@/lib/core/utils/logging', () => ({
 
 vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 

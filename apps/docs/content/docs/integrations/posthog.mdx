@@ -1,47 +1,35 @@
 ---
 title: PostHog
 description: Product analytics and feature management
+integration:
+  type: "posthog"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="posthog"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
-The [PostHog](https://posthog.com/) tool integrates powerful product analytics, feature flag management, experimentation, and user behavior insights directly into your agentic workflows. Designed for modern teams, it enables you to capture, analyze, and act on user data in real time — helping you build better products, understand engagement, and boost conversions.
+Use [PostHog](https://posthog.com/) to capture events, query analytics, and manage people, insights, feature flags, experiments, cohorts, and surveys. Read session recordings, organize dashboards, and add annotations using the operations below.
 
-With the PostHog tool, you can:
+Choose event capture or batch capture to record activity. For reporting, retrieve events, people, insights, or recordings. Mutations can change feature rollout and delete people, so configure the target project and identifiers before running them.
 
-- **Track and analyze events**: Use the `posthog_capture_event` and `posthog_batch_events` operations to record individual or multiple user actions, page views, or custom events for deep analytics.
-- **Explore event data**: Retrieve and list historical or real-time events using the `posthog_list_events` operation for advanced event analysis.
-- **Understand users**: Leverage the `posthog_list_persons`, `posthog_get_person`, and `posthog_delete_person` operations to manage user profiles, get detailed user insights, or remove them as needed.
-- **Gain actionable product insights**: Visualize user journeys, feature usage, and engagement via `posthog_list_insights`, `posthog_get_insight`, and `posthog_create_insight` operations.
-- **Manage and roll out features safely**: Toggle features and run A/B or multivariate tests at scale using operations like `posthog_list_feature_flags`, `posthog_get_feature_flag`, `posthog_create_feature_flag`, `posthog_update_feature_flag`, and `posthog_delete_feature_flag`.
-- **Segment and target audiences**: Build, list, or manage cohorts with `posthog_list_cohorts`, `posthog_get_cohort`, and `posthog_create_cohort`.
-- **Gather direct feedback**: Design, deploy, and analyze surveys through `posthog_list_surveys`, `posthog_get_survey`, `posthog_create_survey`, and `posthog_update_survey`.
-- **Monitor user experience**: Access and analyze session recordings via the `posthog_list_session_recordings` and `posthog_get_session_recording` operations.
-- **Collaborate with your team**: Organize dashboards (`posthog_list_dashboards`, `posthog_get_dashboard`), create and annotate insights and events, and manage projects and organizations within PostHog.
+## Person deletion
 
-Whether you want to implement full-scale product analytics, enhance user onboarding, refine your product roadmap, or automate decisions based on real usage data, the PostHog tool empowers your agents and workflows with advanced analytics and in-product experimentation — all in one unified platform.
-
-Looking for true product analytics with privacy, scalability, and an open-source option? PostHog is trusted by fast-moving teams and enterprises worldwide.
+**Delete Person** submits a person ID to PostHog's bulk-deletion endpoint without requesting event or recording deletion. [PostHog can accept the request and queue it for background deletion](https://posthog.com/docs/privacy/data-storage). Sim currently checks `persons_deleted`, so a queued deletion can appear as a failed block. Verify the person in PostHog before treating that result as unchanged data or retrying.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate PostHog into your workflow. Track events, manage feature flags, analyze user behavior, run experiments, create surveys, and access session recordings.
-
-
+Capture events, query analytics, and manage people, insights, feature flags, experiments, cohorts, surveys, and dashboards. List or retrieve recordings, projects, and organizations.
 
 ## Actions
 
 ### PostHog Capture Event
 
 Capture a single event in PostHog. Use this to track user actions, page views, or custom events.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -61,9 +49,13 @@ Capture a single event in PostHog. Use this to track user actions, page views, o
 | --------- | ---- | ----------- |
 | `status` | string | Status message indicating whether the event was captured successfully |
 
+</ReferenceDetails>
+
 ### PostHog Batch Events
 
 Capture multiple events at once in PostHog. Use this for bulk event ingestion to improve performance.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -81,9 +73,13 @@ Capture multiple events at once in PostHog. Use this for bulk event ingestion to
 | `status` | string | Status message indicating whether the batch was captured successfully |
 | `events_processed` | number | Number of events processed in the batch |
 
+</ReferenceDetails>
+
 ### PostHog List Persons
 
 List persons (users) in PostHog. Returns user profiles with their properties and distinct IDs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,9 +106,13 @@ List persons (users) in PostHog. Returns user profiles with their properties and
 |   ↳ `uuid` | string | Person UUID |
 | `next` | string | URL for the next page of results \(if available\) |
 
+</ReferenceDetails>
+
 ### PostHog Get Person
 
 Get detailed information about a specific person in PostHog by their ID or UUID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -135,9 +135,13 @@ Get detailed information about a specific person in PostHog by their ID or UUID.
 |   ↳ `created_at` | string | When the person was first seen |
 |   ↳ `uuid` | string | Person UUID |
 
+</ReferenceDetails>
+
 ### PostHog Delete Person
 
-Delete a person from PostHog. This will remove all associated events and data. Use with caution.
+Request deletion of one PostHog person. Associated event and recording deletion is not requested. Deletion can be queued asynchronously even when the current result reports no person deleted.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,9 +159,13 @@ Delete a person from PostHog. This will remove all associated events and data. U
 | --------- | ---- | ----------- |
 | `status` | string | Status message indicating whether the person was deleted successfully |
 
+</ReferenceDetails>
+
 ### PostHog Query
 
 Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for analytics. Use this for advanced data retrieval and analysis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -180,9 +188,13 @@ Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for
 | `hogql` | string | The actual HogQL query that was executed |
 | `has_more` | boolean | Whether there are more results available |
 
+</ReferenceDetails>
+
 ### PostHog List Insights
 
 List all insights in a PostHog project. Returns insight configurations and metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -213,9 +225,13 @@ List all insights in a PostHog project. Returns insight configurations and metad
 |   ↳ `last_modified_by` | object | User who last modified the insight |
 |   ↳ `dashboards` | array | IDs of dashboards this insight appears on |
 
+</ReferenceDetails>
+
 ### PostHog Get Insight
 
 Get a specific insight by ID from PostHog. Returns detailed insight configuration and metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -243,9 +259,13 @@ Get a specific insight by ID from PostHog. Returns detailed insight configuratio
 | `tags` | array | Tags associated with the insight |
 | `favorited` | boolean | Whether the insight is favorited |
 
+</ReferenceDetails>
+
 ### PostHog Create Insight
 
 Create a new insight in PostHog. Requires insight name and a query configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -275,9 +295,13 @@ Create a new insight in PostHog. Requires insight name and a query configuration
 | `dashboards` | array | IDs of dashboards this insight appears on |
 | `tags` | array | Tags associated with the insight |
 
+</ReferenceDetails>
+
 ### PostHog Update Insight
 
 Update an existing insight in PostHog. Can modify name, description, query, dashboards, tags, and favorited status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -309,9 +333,13 @@ Update an existing insight in PostHog. Can modify name, description, query, dash
 | `tags` | array | Tags associated with the insight |
 | `favorited` | boolean | Whether the insight is favorited |
 
+</ReferenceDetails>
+
 ### PostHog List Dashboards
 
 List all dashboards in a PostHog project. Returns dashboard configurations, tiles, and metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -344,9 +372,13 @@ List all dashboards in a PostHog project. Returns dashboard configurations, tile
 |   ↳ `filters` | object | Global filters for the dashboard |
 |   ↳ `tags` | array | Tags associated with the dashboard |
 
+</ReferenceDetails>
+
 ### PostHog Get Dashboard
 
 Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -375,9 +407,13 @@ Get a specific dashboard by ID from PostHog. Returns detailed dashboard configur
 | `tags` | array | Tags associated with the dashboard |
 | `restriction_level` | number | Access restriction level for the dashboard |
 
+</ReferenceDetails>
+
 ### PostHog Create Dashboard
 
 Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -406,9 +442,13 @@ Create a new dashboard in PostHog. Optionally seed it from a built-in template, 
 | `filters` | object | Global filters applied to the dashboard |
 | `tags` | array | Tags associated with the dashboard |
 
+</ReferenceDetails>
+
 ### PostHog List Actions
 
 List all actions in a PostHog project. Returns action definitions, steps, and metadata.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -443,9 +483,13 @@ List all actions in a PostHog project. Returns action definitions, steps, and me
 |   ↳ `is_calculating` | boolean | Whether the action is being calculated |
 |   ↳ `last_calculated_at` | string | ISO timestamp of last calculation |
 
+</ReferenceDetails>
+
 ### PostHog List Cohorts
 
 List all cohorts in a PostHog project. Returns cohort definitions, filters, and user counts.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -481,9 +525,13 @@ List all cohorts in a PostHog project. Returns cohort definitions, filters, and 
 |   ↳ `count` | number | Number of users in the cohort |
 |   ↳ `is_static` | boolean | Whether the cohort is static |
 
+</ReferenceDetails>
+
 ### PostHog Get Cohort
 
 Get a specific cohort by ID from PostHog. Returns detailed cohort definition, filters, and user count.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -515,9 +563,13 @@ Get a specific cohort by ID from PostHog. Returns detailed cohort definition, fi
 | `is_static` | boolean | Whether the cohort is static |
 | `version` | number | Version number of the cohort |
 
+</ReferenceDetails>
+
 ### PostHog Create Cohort
 
 Create a new cohort in PostHog. Requires cohort name and filter or query configuration.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -552,9 +604,13 @@ Create a new cohort in PostHog. Requires cohort name and filter or query configu
 | `is_static` | boolean | Whether the cohort is static |
 | `version` | number | Version number of the cohort |
 
+</ReferenceDetails>
+
 ### PostHog Update Cohort
 
 Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -590,9 +646,13 @@ Update an existing cohort in PostHog. Can modify name, description, filters, que
 | `is_static` | boolean | Whether the cohort is static |
 | `version` | number | Version number of the cohort |
 
+</ReferenceDetails>
+
 ### PostHog List Annotations
 
 List all annotations in a PostHog project. Returns annotation content, timestamps, and associated insights.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -626,9 +686,13 @@ List all annotations in a PostHog project. Returns annotation content, timestamp
 |   ↳ `scope` | string | Scope of the annotation \(project or dashboard\) |
 |   ↳ `deleted` | boolean | Whether the annotation is deleted |
 
+</ReferenceDetails>
+
 ### PostHog Create Annotation
 
 Create a new annotation in PostHog. Mark important events on your graphs with date and description.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -661,9 +725,13 @@ Create a new annotation in PostHog. Mark important events on your graphs with da
 | `scope` | string | Scope of the annotation \(project, organization, dashboard, or dashboard_item\) |
 | `deleted` | boolean | Whether the annotation is deleted |
 
+</ReferenceDetails>
+
 ### PostHog List Feature Flags
 
 List all feature flags in a PostHog project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -696,9 +764,13 @@ List all feature flags in a PostHog project
 | `next` | string | URL to next page of results |
 | `previous` | string | URL to previous page of results |
 
+</ReferenceDetails>
+
 ### PostHog Get Feature Flag
 
 Get details of a specific feature flag
+
+<ReferenceDetails>
 
 #### Input
 
@@ -729,9 +801,13 @@ Get details of a specific feature flag
 |   ↳ `usage_dashboard` | number | Usage dashboard ID |
 |   ↳ `has_enriched_analytics` | boolean | Whether enriched analytics are enabled |
 
+</ReferenceDetails>
+
 ### PostHog Create Feature Flag
 
 Create a new feature flag in PostHog
+
+<ReferenceDetails>
 
 #### Input
 
@@ -765,9 +841,13 @@ Create a new feature flag in PostHog
 |   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
 |   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
 
+</ReferenceDetails>
+
 ### PostHog Update Feature Flag
 
 Update an existing feature flag in PostHog
+
+<ReferenceDetails>
 
 #### Input
 
@@ -802,9 +882,13 @@ Update an existing feature flag in PostHog
 |   ↳ `rollout_percentage` | number | Rollout percentage \(if applicable\) |
 |   ↳ `ensure_experience_continuity` | boolean | Whether to ensure experience continuity |
 
+</ReferenceDetails>
+
 ### PostHog Delete Feature Flag
 
 Delete a feature flag from PostHog
+
+<ReferenceDetails>
 
 #### Input
 
@@ -823,9 +907,13 @@ Delete a feature flag from PostHog
 | `success` | boolean | Whether the deletion was successful |
 | `message` | string | Confirmation message |
 
+</ReferenceDetails>
+
 ### PostHog Evaluate Feature Flags
 
 Evaluate feature flags for a specific user or group. This is a public endpoint that uses the project API key.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -847,9 +935,13 @@ Evaluate feature flags for a specific user or group. This is a public endpoint t
 | `feature_flag_payloads` | object | Additional payloads attached to feature flags |
 | `errors_while_computing_flags` | boolean | Whether there were errors while computing flags |
 
+</ReferenceDetails>
+
 ### PostHog List Experiments
 
 List all experiments in a PostHog project
+
+<ReferenceDetails>
 
 #### Input
 
@@ -883,9 +975,13 @@ List all experiments in a PostHog project
 | `next` | string | URL to next page of results |
 | `previous` | string | URL to previous page of results |
 
+</ReferenceDetails>
+
 ### PostHog Get Experiment
 
 Get details of a specific experiment
+
+<ReferenceDetails>
 
 #### Input
 
@@ -917,9 +1013,13 @@ Get details of a specific experiment
 |   ↳ `metrics` | array | Primary metrics |
 |   ↳ `metrics_secondary` | array | Secondary metrics |
 
+</ReferenceDetails>
+
 ### PostHog Create Experiment
 
 Create a new experiment in PostHog
+
+<ReferenceDetails>
 
 #### Input
 
@@ -955,9 +1055,13 @@ Create a new experiment in PostHog
 |   ↳ `created_by` | object | Creator information |
 |   ↳ `archived` | boolean | Whether the experiment is archived |
 
+</ReferenceDetails>
+
 ### PostHog Update Experiment
 
 Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -993,9 +1097,13 @@ Update an existing experiment in PostHog. Use this to change dates, archive an e
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `archived` | boolean | Whether the experiment is archived |
 
+</ReferenceDetails>
+
 ### PostHog List Surveys
 
 List all surveys in a PostHog project. Surveys allow you to collect feedback from users.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1026,9 +1134,13 @@ List all surveys in a PostHog project. Surveys allow you to collect feedback fro
 | `next` | string | URL for next page of results |
 | `previous` | string | URL for previous page of results |
 
+</ReferenceDetails>
+
 ### PostHog Get Survey
 
 Get details of a specific survey in PostHog by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1059,9 +1171,13 @@ Get details of a specific survey in PostHog by ID.
 |   ↳ `archived` | boolean | Whether survey is archived |
 |   ↳ `responses_limit` | number | Maximum number of responses |
 
+</ReferenceDetails>
+
 ### PostHog Create Survey
 
 Create a new survey in PostHog. Supports question types: Basic (open), Link, Rating, and Multiple Choice.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1097,9 +1213,13 @@ Create a new survey in PostHog. Supports question types: Basic (open), Link, Rat
 |   ↳ `start_date` | string | Survey start date |
 |   ↳ `end_date` | string | Survey end date |
 
+</ReferenceDetails>
+
 ### PostHog Update Survey
 
 Update an existing survey in PostHog. Can modify questions, appearance, conditions, and other settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1138,9 +1258,13 @@ Update an existing survey in PostHog. Can modify questions, appearance, conditio
 |   ↳ `end_date` | string | Survey end date |
 |   ↳ `archived` | boolean | Whether survey is archived |
 
+</ReferenceDetails>
+
 ### PostHog Delete Survey
 
 Delete a survey from PostHog. Use this to remove expired or unused surveys.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1158,9 +1282,13 @@ Delete a survey from PostHog. Use this to remove expired or unused surveys.
 | --------- | ---- | ----------- |
 | `status` | string | Status message indicating whether the survey was deleted successfully |
 
+</ReferenceDetails>
+
 ### PostHog List Session Recordings
 
 List session recordings in a PostHog project. Session recordings capture user interactions with your application.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1196,9 +1324,13 @@ List session recordings in a PostHog project. Session recordings capture user in
 | `next` | string | URL for next page of results |
 | `previous` | string | URL for previous page of results |
 
+</ReferenceDetails>
+
 ### PostHog Get Session Recording
 
 Get details of a specific session recording in PostHog by ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1231,9 +1363,13 @@ Get details of a specific session recording in PostHog by ID.
 |   ↳ `start_url` | string | Starting URL of the recording |
 |   ↳ `person` | object | Person information |
 
+</ReferenceDetails>
+
 ### PostHog List Recording Playlists
 
 List session recording playlists in a PostHog project. Playlists allow you to organize and curate session recordings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1266,9 +1402,13 @@ List session recording playlists in a PostHog project. Playlists allow you to or
 | `next` | string | URL for next page of results |
 | `previous` | string | URL for previous page of results |
 
+</ReferenceDetails>
+
 ### PostHog List Event Definitions
 
 List all event definitions in a PostHog project. Event definitions represent tracked events with metadata like descriptions, tags, and usage statistics.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1299,9 +1439,13 @@ List all event definitions in a PostHog project. Event definitions represent tra
 |   ↳ `updated_at` | string | ISO timestamp when the event was updated |
 |   ↳ `updated_by` | object | User who last updated the event |
 
+</ReferenceDetails>
+
 ### PostHog Get Event Definition
 
-Get details of a specific event definition in PostHog. Returns comprehensive information about the event including metadata, usage statistics, and verification status.
+Get a PostHog event definition, including its metadata, last-seen timestamp, and verification status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1329,9 +1473,13 @@ Get details of a specific event definition in PostHog. Returns comprehensive inf
 | `verified_at` | string | ISO timestamp when the event was verified |
 | `verified_by` | string | User who verified the event |
 
+</ReferenceDetails>
+
 ### PostHog Update Event Definition
 
 Update an event definition in PostHog. Can modify description, tags, and verification status to maintain clean event schemas.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1362,9 +1510,13 @@ Update an event definition in PostHog. Can modify description, tags, and verific
 | `verified_at` | string | ISO timestamp when the event was verified |
 | `verified_by` | string | User who verified the event |
 
+</ReferenceDetails>
+
 ### PostHog List Property Definitions
 
 List all property definitions in a PostHog project. Property definitions represent tracked properties with metadata like descriptions, tags, types, and usage statistics.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1399,9 +1551,13 @@ List all property definitions in a PostHog project. Property definitions represe
 |   ↳ `updated_at` | string | ISO timestamp when the property was updated |
 |   ↳ `updated_by` | object | User who last updated the property |
 
+</ReferenceDetails>
+
 ### PostHog Get Property Definition
 
-Get details of a specific property definition in PostHog. Returns comprehensive information about the property including metadata, type, usage statistics, and verification status.
+Get a PostHog property definition, including its metadata, type, and verification status.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1432,9 +1588,13 @@ Get details of a specific property definition in PostHog. Returns comprehensive 
 | `verified_at` | string | ISO timestamp when the property was verified |
 | `verified_by` | string | User who verified the property |
 
+</ReferenceDetails>
+
 ### PostHog Update Property Definition
 
 Update a property definition in PostHog. Can modify description, tags, property type, and verification status to maintain clean property schemas.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1469,9 +1629,13 @@ Update a property definition in PostHog. Can modify description, tags, property 
 | `verified_at` | string | ISO timestamp when the property was verified |
 | `verified_by` | string | User who verified the property |
 
+</ReferenceDetails>
+
 ### PostHog List Projects
 
 List all projects in the organization. Returns project details including IDs, names, API tokens, and settings. Useful for getting project IDs needed by other endpoints.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1503,9 +1667,13 @@ List all projects in the organization. Returns project details including IDs, na
 |   ↳ `timezone` | string | Project timezone |
 |   ↳ `data_attributes` | array | Custom data attributes |
 
+</ReferenceDetails>
+
 ### PostHog Get Project
 
-Get detailed information about a specific project by ID. Returns comprehensive project configuration, settings, and feature flags.
+Get a PostHog project by ID, including its configuration and capture settings.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1545,9 +1713,13 @@ Get detailed information about a specific project by ID. Returns comprehensive p
 |   ↳ `capture_console_log_opt_in` | boolean | Whether console log capture is enabled |
 |   ↳ `capture_performance_opt_in` | boolean | Whether performance capture is enabled |
 
+</ReferenceDetails>
+
 ### PostHog List Organizations
 
 List all organizations the user has access to. Returns organization details including name, slug, membership level, and available product features.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1572,9 +1744,13 @@ List all organizations the user has access to. Returns organization details incl
 |   ↳ `teams` | array | List of team IDs in this organization |
 |   ↳ `available_product_features` | array | Available product features and their limits |
 
+</ReferenceDetails>
+
 ### PostHog Get Organization
 
-Get detailed information about a specific organization by ID. Returns comprehensive organization settings, features, usage, and team information.
+Get a PostHog organization by ID, including its settings, features, usage, and teams.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -1605,5 +1781,7 @@ Get detailed information about a specific organization by ID. Returns comprehens
 |   ↳ `customer_id` | string | Customer ID for billing |
 |   ↳ `available_features` | array | List of available feature flags for organization |
 |   ↳ `usage` | object | Organization usage statistics |
+
+</ReferenceDetails>
 
 

@@ -55,14 +55,6 @@ vi.mock('@/lib/core/utils/urls', () => urlsMock)
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('@/lib/environment/utils', () => environmentUtilsMock)
 
-vi.mock('@/stores/console/store', () => ({
-  useConsoleStore: {
-    getState: vi.fn().mockReturnValue({
-      addConsole: vi.fn(),
-    }),
-  },
-}))
-
 vi.mock('@/stores/terminal', () => terminalConsoleMock)
 vi.mock('@/stores/terminal/console/store', () => terminalConsoleMock)
 

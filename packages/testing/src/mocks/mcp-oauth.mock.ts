@@ -5,7 +5,7 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { mcpOauthMockFns } from '@sim/testing'
+ * import { mcpOauthMockFns } from '@sim/testing/mocks/mcp-oauth.mock'
  *
  * mcpOauthMockFns.mockGetOrCreateOauthRow.mockResolvedValue({ id: 'oauth-row-1', ... })
  * ```
@@ -17,6 +17,7 @@ export const mcpOauthMockFns = {
   mockMcpAuthGuarded: vi.fn(),
   mockGetOrCreateOauthRow: vi.fn(),
   mockLoadOauthRow: vi.fn(),
+  mockHasDecryptableOauthTokens: vi.fn(),
   mockLoadOauthRowByState: vi.fn(),
   mockLoadPreregisteredClient: vi.fn(),
   mockSetOauthRowUser: vi.fn(),
@@ -78,6 +79,7 @@ export const mcpOauthMock = {
   mcpAuthGuarded: mcpOauthMockFns.mockMcpAuthGuarded,
   getOrCreateOauthRow: mcpOauthMockFns.mockGetOrCreateOauthRow,
   loadOauthRow: mcpOauthMockFns.mockLoadOauthRow,
+  hasDecryptableOauthTokens: mcpOauthMockFns.mockHasDecryptableOauthTokens,
   loadOauthRowByState: mcpOauthMockFns.mockLoadOauthRowByState,
   loadPreregisteredClient: mcpOauthMockFns.mockLoadPreregisteredClient,
   setOauthRowUser: mcpOauthMockFns.mockSetOauthRowUser,

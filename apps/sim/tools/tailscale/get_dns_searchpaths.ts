@@ -1,11 +1,10 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { TailscaleBaseParams } from './types'
-
-interface TailscaleGetDnsSearchpathsResponse extends ToolResponse {
-  output: {
-    searchPaths: string[]
-  }
-}
+import type {
+  TailscaleBaseParams,
+  TailscaleGetDnsSearchpathsResponse,
+} from '@/tools/tailscale/types'
+import { assertTailscaleResponse } from '@/tools/tailscale/utils'
+import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const tailscaleGetDnsSearchpathsTool: ToolConfig<
   TailscaleBaseParams,
@@ -13,53 +12,41 @@ export const tailscaleGetDnsSearchpathsTool: ToolConfig<
 > = {
   id: 'tailscale_get_dns_searchpaths',
   name: 'Tailscale Get DNS Search Paths',
-  description: 'Get the DNS search paths configured for the tailnet',
+  description: 'Get the DNS search domains configured for the tailnet',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tailscale API key',
+      description:
+        'Tailscale API access token or OAuth access token (not an auth key or OAuth client secret)',
     },
     tailnet: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Tailnet name (e.g., example.com) or "-" for default',
+      description: 'Tailnet ID, legacy name, or "-" for the token’s default tailnet',
     },
   },
-
   request: {
     url: (params) =>
-      `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/searchpaths`,
+      `https://api.tailscale.com/api/v2/tailnet/${safeUrlPathSegment(params.tailnet, 'tailnet')}/dns/searchpaths`,
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey.trim()}`,
-    }),
+    headers: (params) => ({ Authorization: `Bearer ${params.apiKey.trim()}` }),
   },
-
   transformResponse: async (response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      return {
-        success: false,
-        output: { searchPaths: [] },
-        error: (data as Record<string, string>).message ?? 'Failed to get DNS search paths',
-      }
-    }
-
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        searchPaths: data.searchPaths ?? [],
-      },
-    }
+    await assertTailscaleResponse(response)
+    const data: { searchPaths: string[] } = await response.json()
+    return { success: true, output: { searchPaths: data.searchPaths ?? [] } }
   },
-
   outputs: {
-    searchPaths: { type: 'array', description: 'List of DNS search path domains' },
+    searchPaths: {
+      type: 'array',
+      description: 'DNS search domain names',
+      items: {
+        type: 'string',
+      },
+    },
   },
 }

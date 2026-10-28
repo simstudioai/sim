@@ -4,6 +4,7 @@ import type { ScimUserAttributes } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
 import { auth } from '@/lib/auth'
+import { revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
@@ -184,8 +185,9 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
             email,
             name: accountName(attributes),
           })
-          if (emailChanged && attributes.active) {
+          if (emailChanged) {
             await revokeUserSessionsTx(tx, { userId, organizationId: context.organizationId })
+            await revokeUserOAuthGrants(userId, tx)
           }
           /** A relinked account may still carry the suspension a lost deprovisioning left behind. */
           if (attributes.active) await unsuspendMemberTx(tx, { userId, source: 'scim' })
@@ -215,6 +217,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           connectionId: context.connection.id,
           externalId: attributes.externalId,
         })
+        /** The new directory record has no provenance to withdraw, so this stops no runs. */
         await reconcileUserProjection(tx, {
           connectionId: context.connection.id,
           organizationId: context.organizationId,
@@ -241,7 +244,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
        * directory's retry starts from a clean slate instead of a half-state.
        */
       if (createdAccount) {
-        await deleteUserAccount(userId).catch((cleanupError) =>
+        await deleteUserAccount(userId, { recordIdentity: false }).catch((cleanupError) =>
           logger.error('Failed to remove an account after provisioning was refused', {
             userId,
             cleanupError,

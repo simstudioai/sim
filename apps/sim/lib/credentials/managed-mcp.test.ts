@@ -13,7 +13,7 @@ vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollments
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 vi.mock('@/lib/credential-groups/availability', () => ({ isCredentialGroupsAvailable: vi.fn() }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import {
   persistManagedMcpCredential,

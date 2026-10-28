@@ -1,5 +1,11 @@
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { findProviderFromModel } from '@/providers/models'
+import {
+  findProviderFromModel,
+  getModelSunsetStatus,
+  isAutoModel,
+  isCustomModelId,
+  isKnownModelId,
+} from '@/providers/models'
 
 /** Decides whether the caller's permission group allows a concrete model id. */
 export type IsModelUsable = (model: string) => boolean
@@ -26,10 +32,33 @@ export function createModelAccessGate(config: ModelGateConfig | null | undefined
 
   const denied = new Set(deniedModels?.map((model) => model.toLowerCase()))
   return (model: string) => {
-    if (denied.has(model.toLowerCase())) return false
+    const normalizedModel = model.toLowerCase()
+    if (denied.has(normalizedModel) || denied.has(normalizedModel.replace(/^ollama\//, ''))) {
+      return false
+    }
     if (allowedProviders === null) return true
     const providerId = findProviderFromModel(model)
     if (!providerId) return true
     return allowedProviders.includes(providerId)
   }
+}
+
+/** Resolves a supported, available Agent default permitted by the group's model policy. */
+export function resolveAgentDefaultModel(
+  config: (ModelGateConfig & Pick<PermissionGroupConfig, 'defaultAgentModel'>) | null | undefined,
+  options?: { allowAuto?: boolean; availableProviderIds?: readonly string[] }
+): string | null {
+  const model = config?.defaultAgentModel
+  const provider = model ? findProviderFromModel(model) : null
+  return model &&
+    (isKnownModelId(model) ||
+      isCustomModelId(model) ||
+      (options?.allowAuto && isAutoModel(model))) &&
+    getModelSunsetStatus(model) !== 'deprecated' &&
+    (!provider ||
+      !options?.availableProviderIds ||
+      options.availableProviderIds.includes(provider)) &&
+    createModelAccessGate(config)(model)
+    ? model
+    : null
 }

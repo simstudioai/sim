@@ -18,7 +18,7 @@ import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
@@ -36,7 +36,7 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import {
   type DirectoryRefreshResult,
   directorySyncNotice,
@@ -89,6 +89,8 @@ import {
   ConnectorDeletedException,
   ConnectorSyncCapacityError,
   checkSyncTargetPresence,
+  countLiveConnectorDocuments,
+  keepsRecordedDocCount,
   RETRY_WINDOW_DAYS,
   shouldRunIncrementalSync,
   sweepStuckDocuments,
@@ -96,7 +98,7 @@ import {
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { getCredentialTerminalRefreshError } from '@/lib/oauth/credential-service'
-import { isCredentialRevocationError } from '@/lib/oauth/terminal-errors'
+import { isCredentialRevocationError } from '@/lib/oauth/refresh-error-codes'
 import { connectorHasAuthSource } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
@@ -342,6 +344,7 @@ export interface ContentPassOutcome {
     unsafe: boolean
     contentFailures?: boolean
     permissionFailures?: boolean
+    imagesDeferred?: boolean
     listingFailures?: ExternalListingFailures | null
     startedAt: string
     listedCount: number
@@ -362,24 +365,9 @@ export function isContentPassIncomplete(
     !contentPass.complete ||
     contentPass.checkpoint.contentFailures === true ||
     contentPass.checkpoint.permissionFailures === true ||
+    contentPass.checkpoint.imagesDeferred === true ||
     (contentPass.checkpoint.listingFailures?.count ?? 0) > 0
   )
-}
-
-/** Live documents the connector owns: what the connector list shows as its document count. */
-async function countLiveConnectorDocuments(connectorId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-  return row?.count ?? 0
 }
 
 /**
@@ -399,7 +387,9 @@ export async function completeSuccessfulSync(
   contentPass?: ContentPassOutcome,
   directoryNotice: string | null = null,
   /** A pending ACL rewrite this run began but did not finish: the flag stays and the next run resumes it. */
-  accessRewriteUnfinished = false
+  accessRewriteUnfinished = false,
+  /** The connector as this run locked it: whether a pass has finished, and the count it holds. */
+  lockedConnector: { lastSyncAt: Date | null; lastSyncDocCount: number | null } | null = null
 ): Promise<boolean> {
   const processingDispatchFailed = result.processingDispatch.failed > 0
   const contentNotice =
@@ -432,15 +422,18 @@ export async function completeSuccessfulSync(
    * adds and deletes would drift; when it cannot be read the previous count stands, which the
    * guard already treats as a floor.
    */
-  const actualDocCount = await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
-    const diagnostic = getConnectorFailureDiagnostic(error)
-    if (diagnostic?.category !== 'database') throw error
-    logger.warn('Could not count connector documents; keeping the previous count', {
-      connectorId,
-      diagnostic,
-    })
-    return null
-  })
+  const actualDocCount =
+    contentPass !== undefined && keepsRecordedDocCount(contentPass.complete, lockedConnector)
+      ? null
+      : await countLiveConnectorDocuments(connectorId).catch((error: unknown) => {
+          const diagnostic = getConnectorFailureDiagnostic(error)
+          if (diagnostic?.category !== 'database') throw error
+          logger.warn('Could not count connector documents; keeping the previous count', {
+            connectorId,
+            diagnostic,
+          })
+          return null
+        })
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
@@ -819,18 +812,19 @@ async function resolveAccessToken(
   })
 
   if (!resolved) {
+    const revocationError =
+      connectorConfig.auth.mode === 'oauth' && connector.credentialId
+        ? await getCredentialRevocationError(connector.credentialId)
+        : null
+    // executeSync logs the revocation once when it unschedules the connector.
+    if (revocationError && connector.credentialId) {
+      throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
+    }
     logger.error(`[${requestId}] Connector credential resolved no access token`, {
       credentialId: connector.credentialId,
       userId,
       authMode: connectorConfig.auth.mode,
     })
-    const revocationError =
-      connectorConfig.auth.mode === 'oauth' && connector.credentialId
-        ? await getCredentialRevocationError(connector.credentialId)
-        : null
-    if (revocationError && connector.credentialId) {
-      throw new ConnectorCredentialRevokedError(connector.credentialId, revocationError)
-    }
     throw new Error(`Failed to obtain access token for credential ${connector.credentialId}`)
   }
 
@@ -1416,7 +1410,8 @@ export async function executeSync(
         reconciliationHoldNotice,
         contentPass,
         directoryNotice,
-        accessRewriteUnfinished
+        accessRewriteUnfinished,
+        connector
       )
 
       if (!completionLanded) {

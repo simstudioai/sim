@@ -3,6 +3,11 @@ import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-p
 import type { AgentCliFlags, AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 import { readChatSandboxFile } from '@/lib/mothership/chat/application/read-sandbox-file'
 
+/** Absolute sandbox paths name the chat's scratch filesystem, never a workspace file. */
+export function isScratchReference(reference: string): boolean {
+  return reference.startsWith('/tmp/') || reference.startsWith('/home/user/')
+}
+
 /** The authorized scratch snapshot never becomes a workspace file or resource-panel entry. */
 export async function readScratchFile(
   reference: string,

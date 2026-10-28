@@ -25,13 +25,12 @@ import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organizat
 const CHART_HEIGHT = 180
 
 /**
- * Outcome layers, bottom-up. Failed is the status red and sits on the stack where a
- * spike reads at a glance; Other (cancelled, paused, unfinished) stays neutral, in a
- * gray whose lightness keeps it apart from the red for color-vision deficiency.
+ * Outcome layers, bottom-up. Failed stays red; cancelled, paused and unfinished
+ * runs share the neutral remainder.
  */
 const OUTCOMES = [
-  { id: 'completed', label: 'Completed', color: 'var(--brand-blue)' },
-  { id: 'failed', label: 'Failed', color: 'var(--text-error)' },
+  { id: 'completed', label: 'Completed', color: 'var(--usage-workflow)' },
+  { id: 'failed', label: 'Failed', color: 'var(--usage-failed)' },
   { id: 'other', label: 'Other', color: USAGE_OTHER_COLOR },
 ] as const
 

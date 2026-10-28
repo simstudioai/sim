@@ -3,6 +3,13 @@
  */
 export const AuditAction = {
   ACCOUNT_DELETED: 'account.deleted',
+  AUTH_LOGIN_SUCCEEDED: 'auth.login_succeeded',
+  AUTH_LOGIN_FAILED: 'auth.login_failed',
+  AUTH_LOGOUT: 'auth.logout',
+  AUTH_IMPERSONATION_STARTED: 'auth.impersonation_started',
+  AUTH_IMPERSONATION_ENDED: 'auth.impersonation_ended',
+  AUTH_SESSIONS_REVOKED: 'auth.sessions_revoked',
+  AUDIT_LOGS_EXPORTED: 'audit_logs.exported',
 
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
@@ -21,6 +28,9 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
   CHAT_PASSWORD_VIEWED: 'chat.password_viewed',
+
+  CHANGELOG_RELEASE_PUBLISHED: 'changelog_release.published',
+  CHANGELOG_RELEASE_UPDATED: 'changelog_release.updated',
 
   // Custom Blocks (deploy-as-block)
   CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
@@ -45,6 +55,7 @@ export const AuditAction = {
   INVOICE_PAYMENT_SUCCEEDED: 'invoice.payment_succeeded',
   INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
   OVERAGE_BILLED: 'billing.overage_billed',
+  BILLING_SYNC_RESOLVED: 'billing.sync_resolved',
   CHARGE_DISPUTE_OPENED: 'charge.dispute_opened',
   CHARGE_DISPUTE_CLOSED: 'charge.dispute_closed',
 
@@ -56,6 +67,10 @@ export const AuditAction = {
 
   CONNECTOR_DOCUMENT_RESTORED: 'connector_document.restored',
   CONNECTOR_DOCUMENT_EXCLUDED: 'connector_document.excluded',
+
+  /** A desktop's background executor taking, then reporting on, a chat's action on the machine. */
+  DESKTOP_TOOL_CALL_CLAIMED: 'desktop_tool_call.claimed',
+  DESKTOP_TOOL_CALL_COMPLETED: 'desktop_tool_call.completed',
 
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_UPDATED: 'document.updated',
@@ -115,6 +130,7 @@ export const AuditAction = {
   KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
   KNOWLEDGE_BASE_RESTORED: 'knowledge_base.restored',
   KNOWLEDGE_BASE_EXPORTED: 'knowledge_base.exported',
+  KNOWLEDGE_BASE_IMPORT_STARTED: 'knowledge_base.import_started',
 
   MCP_SERVER_ADDED: 'mcp_server.added',
   MCP_SERVER_UPDATED: 'mcp_server.updated',
@@ -145,6 +161,9 @@ export const AuditAction = {
   ORGANIZATION_DELETED: 'organization.deleted',
   ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
   ORGANIZATION_SSO_POLICY_UPDATED: 'organization.sso_policy.updated',
+  ORGANIZATION_SSO_PROVIDER_CREATED: 'organization.sso_provider.created',
+  ORGANIZATION_SSO_PROVIDER_UPDATED: 'organization.sso_provider.updated',
+  ORGANIZATION_SSO_PROVIDER_DELETED: 'organization.sso_provider.deleted',
   ORGANIZATION_SESSIONS_REVOKED: 'organization.sessions.revoked',
   ORGANIZATION_DOMAIN_ADDED: 'organization.domain.added',
   ORGANIZATION_DOMAIN_VERIFIED: 'organization.domain.verified',
@@ -176,6 +195,10 @@ export const AuditAction = {
   PERMISSION_ACCESS_REQUEST_CANCELLED: 'permission_access_request.cancelled',
   PERMISSION_ACCESS_REQUEST_CLOSED: 'permission_access_request.closed',
   PERMISSION_ACCESS_REQUEST_SETTINGS_CHANGED: 'permission_access_request.settings_changed',
+
+  PROJECT_CREATED: 'project.created',
+  PROJECT_UPDATED: 'project.updated',
+  PROJECT_ARCHIVED: 'project.archived',
 
   SANDBOX_CREATED: 'sandbox.created',
   SANDBOX_UPDATED: 'sandbox.updated',
@@ -255,6 +278,7 @@ export const AuditResourceType = {
   API_KEY: 'api_key',
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
+  CHANGELOG_RELEASE: 'changelog_release',
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
@@ -263,6 +287,7 @@ export const AuditResourceType = {
   CUSTOM_TOOL: 'custom_tool',
   DASHBOARD: 'dashboard',
   DATA_DRAIN: 'data_drain',
+  DESKTOP_DEVICE: 'desktop_device',
   DOCUMENT: 'document',
   ENVIRONMENT: 'environment',
   FILE: 'file',
@@ -275,6 +300,7 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   PERMISSION_ACCESS_REQUEST: 'permission_access_request',
+  PROJECT: 'project',
   SANDBOX: 'sandbox',
   SCHEDULE: 'schedule',
   SCIM_CONNECTION: 'scim_connection',

@@ -1,4 +1,4 @@
-import { type ChildProcess, execSync } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,8 +6,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { captureOutboundScope } from '@/lib/core/network/context.server'
 import {
@@ -17,6 +18,11 @@ import {
 import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS } from '@/lib/execution/isolated-vm-limits'
+import {
+  connectRemoteWorker,
+  type IsolatedVMWorkerProcess,
+  WorkerConnectionClosedError,
+} from '@/lib/execution/isolated-vm-remote'
 
 const logger = createLogger('IsolatedVMExecution')
 
@@ -58,13 +64,15 @@ interface IsolatedVMTaskRequest {
   bootstrap: string
   brokers: string[]
   finalize: string
+  /** Evaluate `code` as an ES module named `filename` that may import only `modules`. */
+  userModule?: { filename: string; modules: Record<string, string> }
 }
 
 /**
  * Host-side broker handler invoked when isolate code calls a broker.
  * Registered per-request via `executeInIsolatedVM(..., { brokers })`.
  */
-export type IsolatedVMBrokerHandler = (args: unknown) => Promise<unknown>
+export type IsolatedVMBrokerHandler = (args: unknown, brokerId: number) => Promise<unknown>
 
 export interface IsolatedVMExecutionOptions {
   /** Broker name → handler. Must cover every broker listed in `request.task.brokers`. */
@@ -102,6 +110,8 @@ interface IsolatedVMTaskTimings {
 }
 
 interface IsolatedVMError {
+  /** Existing broker call ID, set only when a task propagates that broker's error object. */
+  brokerErrorId?: number
   message: string
   name: string
   stack?: string
@@ -138,6 +148,20 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
   MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
 const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 200
+/**
+ * How long a remote worker connection takes new executions before it retires, finishing what it
+ * runs. A load balancer keeps a deregistered host's open connections only for its deregistration
+ * delay and never tells the host, so this bound is what drains a host deploy or scale-in: infra
+ * sets that delay to at least this age plus the longest execution a release keeps alive.
+ */
+const REMOTE_WORKER_MAX_AGE_MS = envNumber(env.IVM_REMOTE_WORKER_MAX_AGE_MS, 120_000, {
+  min: 1000,
+  integer: true,
+})
+/** Spreads retirements so a pool's connections don't all reopen at once; only ever shortens the age. */
+const REMOTE_WORKER_MAX_AGE_JITTER = 0.2
+/** Times one execution moves to another worker because its connection closed before it was sent. */
+const MAX_UNSENT_REDISPATCHES = 3
 const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
 const MAX_BROKERS_PER_EXECUTION = Number.parseInt(env.IVM_MAX_BROKERS_PER_EXECUTION) || 1000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
@@ -173,12 +197,16 @@ interface PendingExecution {
 }
 
 interface WorkerInfo {
-  process: ChildProcess
+  process: IsolatedVMWorkerProcess
+  /** {@link workerTargetKey} of the target this worker was opened on. */
+  targetKey: string
   ready: boolean
   readyPromise: Promise<void> | null
   activeExecutions: number
   pendingExecutions: Map<number, PendingExecution>
   idleTimeout: ReturnType<typeof setTimeout> | null
+  /** Retires a remote worker at {@link REMOTE_WORKER_MAX_AGE_MS}. */
+  maxAgeTimeout: ReturnType<typeof setTimeout> | null
   id: number
   lifetimeExecutions: number
   retiring: boolean
@@ -206,6 +234,8 @@ interface ExecutionState {
   queueId?: number
   workerId?: number
   execId?: number
+  /** Dispatches that found the worker connection already closed, so nothing ran. */
+  unsentRedispatches: number
 }
 
 interface QueueNode {
@@ -237,6 +267,44 @@ let queueIdCounter = 0
 let nextWorkerId = 0
 let spawnInProgress = 0
 let queueDrainRetryTimeout: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * Where workers run: connections to the dedicated worker host
+ * (`isolated-vm-host.cjs`) when `IVM_REMOTE_WORKER_URL` is set, otherwise
+ * local child processes. The `isolated-vm-local-workers` kill switch forces
+ * local workers during rollout.
+ */
+type WorkerTarget = { kind: 'local' } | { kind: 'remote'; url: string; token: string }
+
+const LOCAL_WORKER_TARGET: WorkerTarget = { kind: 'local' }
+let workerTarget: WorkerTarget = LOCAL_WORKER_TARGET
+
+function workerTargetKey(target: WorkerTarget): string {
+  return target.kind === 'remote' ? `remote:${target.url}` : 'local'
+}
+
+async function resolveWorkerTarget(): Promise<WorkerTarget> {
+  const url = env.IVM_REMOTE_WORKER_URL?.trim()
+  if (!url || (await isFeatureEnabled('isolated-vm-local-workers'))) return LOCAL_WORKER_TARGET
+  return { kind: 'remote', url, token: env.IVM_REMOTE_WORKER_TOKEN ?? '' }
+}
+
+/**
+ * Switches where new workers open. Workers on the previous target retire: they
+ * finish what they are running and take no new work, so a flag change moves
+ * every subsequent execution without interrupting one in flight.
+ */
+function activateWorkerTarget(target: WorkerTarget) {
+  const key = workerTargetKey(target)
+  if (key === workerTargetKey(workerTarget)) return
+  logger.info('Isolated-vm worker target changed', { from: workerTarget.kind, to: target.kind })
+  workerTarget = target
+  for (const [workerId, workerInfo] of workers) {
+    if (workerInfo.targetKey === key || workerInfo.retiring) continue
+    workerInfo.retiring = true
+    if (workerInfo.activeExecutions === 0) cleanupWorker(workerId)
+  }
+}
 
 type IsolatedFetchOptions = RequestInit & {
   timeout?: number
@@ -733,7 +801,7 @@ function handleBrokerMessage(
   }
 
   Promise.resolve()
-    .then(() => pending.runInOutboundScope(() => handler(args)))
+    .then(() => pending.runInOutboundScope(() => handler(args, brokerId)))
     .then((resultValue) => {
       if (pending.cancelled) {
         sendResponse({ error: 'Execution cancelled' })
@@ -811,41 +879,43 @@ function handleWorkerMessage(workerId: number, message: unknown) {
     return
   }
 
+  if (msg.type === 'host:draining') {
+    retireWorker(workerId, 'host_draining')
+    return
+  }
+
   if (msg.type === 'fetch') {
+    const fetchId = msg.fetchId
+    const sendFetchResponse = (response: string) => {
+      try {
+        workerInfo?.process.send({ type: 'fetchResponse', fetchId, response })
+      } catch (err) {
+        logger.error('Failed to send fetch response to worker', { err, fetchId, workerId })
+      }
+    }
     const pending =
       typeof msg.executionId === 'number'
         ? workerInfo?.pendingExecutions.get(msg.executionId)
         : undefined
     if (!pending || pending.cancelled) {
-      workerInfo?.process.send({
-        type: 'fetchResponse',
-        fetchId: msg.fetchId,
-        response: JSON.stringify({ error: 'Execution no longer active' }),
-      })
+      sendFetchResponse(JSON.stringify({ error: 'Execution no longer active' }))
       return
     }
-    const { fetchId, requestId, url, optionsJson } = msg as {
-      fetchId: number
+    const { requestId, url, optionsJson } = msg as {
       requestId: string
       url: string
       optionsJson?: string
     }
     if (typeof url !== 'string' || url.length === 0) {
-      workerInfo?.process.send({
-        type: 'fetchResponse',
-        fetchId,
-        response: JSON.stringify({ error: 'Invalid fetch URL' }),
-      })
+      sendFetchResponse(JSON.stringify({ error: 'Invalid fetch URL' }))
       return
     }
     if (optionsJson && optionsJson.length > MAX_FETCH_OPTIONS_JSON_CHARS) {
-      workerInfo?.process.send({
-        type: 'fetchResponse',
-        fetchId,
-        response: JSON.stringify({
+      sendFetchResponse(
+        JSON.stringify({
           error: `Fetch options exceed maximum payload size (${MAX_FETCH_OPTIONS_JSON_CHARS} chars)`,
-        }),
-      })
+        })
+      )
       return
     }
 
@@ -854,45 +924,49 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       try {
         options = JSON.parse(optionsJson)
       } catch {
-        workerInfo?.process.send({
-          type: 'fetchResponse',
-          fetchId,
-          response: JSON.stringify({ error: 'Invalid fetch options JSON' }),
-        })
+        sendFetchResponse(JSON.stringify({ error: 'Invalid fetch options JSON' }))
         return
       }
     }
     pending
       .runInOutboundScope(() => secureFetch(requestId, url, options))
-      .then((response) => {
-        try {
-          workerInfo?.process.send({ type: 'fetchResponse', fetchId, response })
-        } catch (err) {
-          logger.error('Failed to send fetch response to worker', { err, fetchId, workerId })
-        }
-      })
+      .then(sendFetchResponse)
       .catch((err) => {
-        try {
-          workerInfo?.process.send({
-            type: 'fetchResponse',
-            fetchId,
-            response: JSON.stringify({
-              error: getErrorMessage(err, 'Fetch failed'),
-            }),
-          })
-        } catch (sendErr) {
-          logger.error('Failed to send fetch error to worker', { sendErr, fetchId, workerId })
-        }
+        sendFetchResponse(JSON.stringify({ error: getErrorMessage(err, 'Fetch failed') }))
       })
   }
 }
 
-function cleanupWorker(workerId: number) {
+/**
+ * Stops a worker taking new executions; it closes once those it is running finish, and queued
+ * work moves to a fresh worker.
+ */
+function retireWorker(workerId: number, reason: 'host_draining' | 'max_age') {
+  const workerInfo = workers.get(workerId)
+  if (!workerInfo || workerInfo.retiring) return
+  workerInfo.retiring = true
+  logger.info('Retiring isolated-vm worker', {
+    workerId,
+    reason,
+    activeExecutions: workerInfo.activeExecutions,
+  })
+  if (workerInfo.activeExecutions === 0) cleanupWorker(workerId)
+  drainQueue()
+}
+
+/**
+ * Closes a worker and fails what it was still running. `interruptedMessage` replaces the generic
+ * failure when the cause is known.
+ */
+function cleanupWorker(workerId: number, interruptedMessage?: string) {
   const workerInfo = workers.get(workerId)
   if (!workerInfo) return
 
   if (workerInfo.idleTimeout) {
     clearTimeout(workerInfo.idleTimeout)
+  }
+  if (workerInfo.maxAgeTimeout) {
+    clearTimeout(workerInfo.maxAgeTimeout)
   }
 
   workerInfo.process.kill()
@@ -909,7 +983,7 @@ function cleanupWorker(workerId: number) {
       result: null,
       stdout: '',
       error: {
-        message: 'Code execution failed unexpectedly. Please try again.',
+        message: interruptedMessage ?? 'Code execution failed unexpectedly. Please try again.',
         name: 'Error',
         isSystemError: true,
       },
@@ -956,11 +1030,7 @@ function resetWorkerIdleTimeout(workerId: number) {
 function buildWorkerEnv(): NodeJS.ProcessEnv {
   const allowed: Record<string, string | undefined> = {
     PATH: process.env.PATH,
-    IVM_MAX_STDOUT_CHARS: env.IVM_MAX_STDOUT_CHARS,
-    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS,
-    TZ: process.env.TZ,
-    LANG: process.env.LANG,
-    LC_ALL: process.env.LC_ALL,
+    ...appWorkerEnv(),
     SYSTEMROOT: process.env.SYSTEMROOT,
     WINDIR: process.env.WINDIR,
     COMSPEC: process.env.COMSPEC,
@@ -971,11 +1041,72 @@ function buildWorkerEnv(): NodeJS.ProcessEnv {
   return { ...filterUndefined(allowed), NODE_ENV: process.env.NODE_ENV }
 }
 
+/**
+ * Worker settings whose value the app owns: its limits, and the timezone and locale that shape
+ * `Date` and `Intl` inside isolates. A remote worker receives them on connect, so moving workers
+ * to the host changes no results.
+ */
+function appWorkerEnv(): Record<string, string | undefined> {
+  return {
+    IVM_MAX_STDOUT_CHARS: env.IVM_MAX_STDOUT_CHARS,
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: env.IVM_MAX_FETCH_OPTIONS_JSON_CHARS,
+    TZ: process.env.TZ,
+    LANG: process.env.LANG,
+    LC_ALL: process.env.LC_ALL,
+  }
+}
+
+/**
+ * Starts the process a worker runs in for `target`.
+ *
+ * A remote target never falls back to a local child: when the host is
+ * unreachable or misconfigured the spawn fails and executions report a system
+ * error, exactly as a local worker that cannot start.
+ */
+async function openWorkerProcess(target: WorkerTarget): Promise<IsolatedVMWorkerProcess> {
+  if (target.kind === 'remote') {
+    return connectRemoteWorker({
+      url: target.url,
+      token: target.token,
+      workerEnv: appWorkerEnv(),
+    })
+  }
+
+  if (!checkNodeAvailable()) {
+    throw new Error(
+      'Node.js is required for code execution but was not found. ' +
+        'Please install Node.js (v20+) from https://nodejs.org'
+    )
+  }
+
+  const currentDir = path.dirname(fileURLToPath(import.meta.url))
+  const candidatePaths = [
+    path.join(currentDir, 'isolated-vm-worker.cjs'),
+    path.join(currentDir, '..', '..', 'lib', 'execution', 'isolated-vm-worker.cjs'),
+    path.join(process.cwd(), 'apps', 'sim', 'lib', 'execution', 'isolated-vm-worker.cjs'),
+    path.join(process.cwd(), 'lib', 'execution', 'isolated-vm-worker.cjs'),
+  ]
+  const workerPath = candidatePaths.find((p) => fs.existsSync(p))
+  if (!workerPath) {
+    throw new Error(`Worker file not found at any of: ${candidatePaths.join(', ')}`)
+  }
+
+  return import('node:child_process').then(({ spawn }) =>
+    // Required for isolated-vm on Node.js 20+ (issue #377)
+    spawn('node', ['--no-node-snapshot', workerPath], {
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      serialization: 'json',
+      env: buildWorkerEnv(),
+    })
+  )
+}
+
 function spawnWorker(): Promise<WorkerInfo> {
   const workerId = nextWorkerId++
   spawnInProgress++
   let spawnSettled = false
-  let childProcess: ChildProcess | null = null
+  let childProcess: IsolatedVMWorkerProcess | null = null
+  const target = workerTarget
 
   const settleSpawnInProgress = () => {
     if (spawnSettled) {
@@ -998,46 +1129,16 @@ function spawnWorker(): Promise<WorkerInfo> {
     activeExecutions: 0,
     pendingExecutions: new Map(),
     idleTimeout: null,
+    maxAgeTimeout: null,
     id: workerId,
+    targetKey: workerTargetKey(target),
     lifetimeExecutions: 0,
     retiring: false,
   }
 
   workerInfo.readyPromise = new Promise<void>((resolve, reject) => {
-    if (!checkNodeAvailable()) {
-      settleSpawnInProgress()
-      reject(
-        new Error(
-          'Node.js is required for code execution but was not found. ' +
-            'Please install Node.js (v20+) from https://nodejs.org'
-        )
-      )
-      return
-    }
-
-    const currentDir = path.dirname(fileURLToPath(import.meta.url))
-    const candidatePaths = [
-      path.join(currentDir, 'isolated-vm-worker.cjs'),
-      path.join(currentDir, '..', '..', 'lib', 'execution', 'isolated-vm-worker.cjs'),
-      path.join(process.cwd(), 'apps', 'sim', 'lib', 'execution', 'isolated-vm-worker.cjs'),
-      path.join(process.cwd(), 'lib', 'execution', 'isolated-vm-worker.cjs'),
-    ]
-    const workerPath = candidatePaths.find((p) => fs.existsSync(p))
-
-    if (!workerPath) {
-      settleSpawnInProgress()
-      reject(new Error(`Worker file not found at any of: ${candidatePaths.join(', ')}`))
-      return
-    }
-
-    import('node:child_process')
-      .then(({ spawn }) => {
-        // Required for isolated-vm on Node.js 20+ (issue #377)
-        const proc = spawn('node', ['--no-node-snapshot', workerPath], {
-          stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-          serialization: 'json',
-          env: buildWorkerEnv(),
-        })
+    openWorkerProcess(target)
+      .then((proc) => {
         childProcess = proc
 
         proc.on('message', (message: unknown) => handleWorkerMessage(workerId, message))
@@ -1071,10 +1172,18 @@ function spawnWorker(): Promise<WorkerInfo> {
               return
             }
             workerInfo.ready = true
+            // The target changed while this worker was starting, so it takes no work.
+            workerInfo.retiring = workerInfo.targetKey !== workerTargetKey(workerTarget)
             clearTimeout(startTimeout)
             proc.off('message', readyHandler)
             workers.set(workerId, workerInfo)
             resetWorkerIdleTimeout(workerId)
+            if (target.kind === 'remote' && !workerInfo.retiring) {
+              workerInfo.maxAgeTimeout = setTimeout(
+                () => retireWorker(workerId, 'max_age'),
+                REMOTE_WORKER_MAX_AGE_MS * (1 - randomFloat() * REMOTE_WORKER_MAX_AGE_JITTER)
+              )
+            }
             logger.info('Worker spawned and ready', { workerId, poolSize: workers.size })
             resolve()
           }
@@ -1088,7 +1197,7 @@ function spawnWorker(): Promise<WorkerInfo> {
             clearTimeout(startTimeout)
             if (!settleSpawnInProgress()) return
 
-            let errorMessage = 'Worker process exited unexpectedly'
+            let errorMessage = proc.exitReason ?? 'Worker process exited unexpectedly'
             if (stderrData.includes('isolated_vm') || stderrData.includes('MODULE_NOT_FOUND')) {
               errorMessage =
                 'Code execution requires the isolated-vm native module which failed to load. ' +
@@ -1104,13 +1213,18 @@ function spawnWorker(): Promise<WorkerInfo> {
             return
           }
 
-          cleanupWorker(workerId)
+          cleanupWorker(
+            workerId,
+            target.kind === 'remote'
+              ? 'Code execution was interrupted because the connection to its sandbox host closed. Please try again.'
+              : undefined
+          )
           drainQueue()
         })
       })
       .catch((error) => {
         if (!settleSpawnInProgress()) return
-        reject(error instanceof Error ? error : new Error('Failed to load child_process module'))
+        reject(error instanceof Error ? error : new Error('Failed to start worker process'))
       })
   })
 
@@ -1178,6 +1292,14 @@ function dispatchToWorker(
     return
   }
 
+  // A target change can retire (or retire and remove) the worker between its selection and this
+  // dispatch; the execution then waits for a worker on the current target.
+  if (workers.get(workerInfo.id) !== workerInfo || workerInfo.retiring) {
+    if (workerInfo.retiring && workerInfo.activeExecutions === 0) cleanupWorker(workerInfo.id)
+    enqueueExecution(ownerState, req, resolve, state, brokers)
+    return
+  }
+
   const execId = ++executionIdCounter
   state.workerId = workerInfo.id
   state.execId = execId
@@ -1238,13 +1360,42 @@ function dispatchToWorker(
         runtimeBindingSource: buildJavaScriptRuntimeBindingsSource(runtimeBindings ?? []),
       },
     })
-  } catch {
+  } catch (error) {
     clearTimeout(timeout)
     workerInfo.pendingExecutions.delete(execId)
     workerInfo.activeExecutions--
     totalActiveExecutions--
     ownerState.activeExecutions = Math.max(0, ownerState.activeExecutions - 1)
     maybeCleanupOwner(ownerState.ownerKey)
+    // The connection closed before the request left this process, so nothing ran: the execution
+    // can safely move to another worker. One that may have reached the host is never re-run.
+    if (
+      error instanceof WorkerConnectionClosedError &&
+      state.unsentRedispatches < MAX_UNSENT_REDISPATCHES
+    ) {
+      state.unsentRedispatches++
+      state.workerId = undefined
+      state.execId = undefined
+      logger.warn('Worker connection closed before an execution was sent; dispatching it again', {
+        workerId: workerInfo.id,
+        attempt: state.unsentRedispatches,
+      })
+      workerInfo.retiring = true
+      if (workerInfo.activeExecutions === 0) cleanupWorker(workerInfo.id)
+      // The owner's state may have been released above; look it up again rather than queue on it.
+      queueMicrotask(() => {
+        // An abort in between already settled the caller and has no queue entry to remove.
+        if (state.cancelled) return
+        enqueueExecution(
+          getOrCreateOwnerState(ownerState.ownerKey, ownerState.weight),
+          req,
+          resolve,
+          state,
+          brokers
+        )
+      })
+      return
+    }
     resolve({
       result: null,
       stdout: '',
@@ -1363,7 +1514,10 @@ function drainQueue() {
       const currentPoolSize = activeWorkerCount + spawnInProgress
       if (currentPoolSize < POOL_SIZE) {
         spawnWorker()
-          .then(() => drainQueue())
+          .then((spawned) => {
+            if (spawned.retiring && spawned.activeExecutions === 0) cleanupWorker(spawned.id)
+            drainQueue()
+          })
           .catch((err) => {
             logger.error('Failed to spawn worker during drain', { err })
             scheduleDrainRetry()
@@ -1400,7 +1554,6 @@ export async function executeInIsolatedVM(
 ): Promise<IsolatedVMExecutionResult> {
   const ownerKey = normalizeOwnerKey(req.ownerKey)
   const ownerWeight = normalizeOwnerWeight(req.ownerWeight)
-  const ownerState = getOrCreateOwnerState(ownerKey, ownerWeight)
   const brokers = options?.brokers
   const signal = options?.signal
 
@@ -1430,6 +1583,10 @@ export async function executeInIsolatedVM(
       }
     }
   }
+
+  // After the checks above, so a cancelled or misconfigured call returns without waiting on the
+  // flag read behind the target.
+  activateWorkerTarget(await resolveWorkerTarget())
 
   const distributedLeaseId = `${req.requestId}:${Date.now()}:${randomFloat().toString(36).slice(2, 10)}`
   const leaseAcquireResult = await tryAcquireDistributedLease(
@@ -1489,7 +1646,14 @@ export async function executeInIsolatedVM(
   // An undetermined lease cannot reject the execution: the per-process pool and
   // the per-owner active/queued limits above still bound this work.
 
-  const state: ExecutionState = { cancelled: false, runInOutboundScope: captureOutboundScope() }
+  // Looked up only after the waits above: another execution finishing meanwhile can release
+  // this owner's state, and work queued on a released state is never dispatched.
+  const ownerState = getOrCreateOwnerState(ownerKey, ownerWeight)
+  const state: ExecutionState = {
+    cancelled: false,
+    runInOutboundScope: captureOutboundScope(),
+    unsentRedispatches: 0,
+  }
 
   return new Promise<IsolatedVMExecutionResult>((resolve) => {
     let abortListener: (() => void) | null = null

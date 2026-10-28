@@ -6,7 +6,6 @@ import { AgentPhoneBlock, AgentPhoneBlockMeta } from '@/blocks/blocks/agentphone
 import { AgiloftBlock, AgiloftBlockMeta } from '@/blocks/blocks/agiloft'
 import { AhrefsBlock, AhrefsBlockMeta } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock, AirtableBlockMeta } from '@/blocks/blocks/airtable'
-import { AirweaveBlock, AirweaveBlockMeta } from '@/blocks/blocks/airweave'
 import { AlgoliaBlock, AlgoliaBlockMeta } from '@/blocks/blocks/algolia'
 import { AmplitudeBlock, AmplitudeBlockMeta } from '@/blocks/blocks/amplitude'
 import { ApiBlock } from '@/blocks/blocks/api'
@@ -35,6 +34,7 @@ import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
 import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
+import { CheckrBlock, CheckrBlockMeta } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
 import { ClerkBlock, ClerkBlockMeta } from '@/blocks/blocks/clerk'
@@ -72,6 +72,7 @@ import { DubBlock, DubBlockMeta, DubV2Block } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock, DuckDuckGoBlockMeta } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock, DynamoDBBlockMeta } from '@/blocks/blocks/dynamodb'
 import { DynatraceBlock, DynatraceBlockMeta } from '@/blocks/blocks/dynatrace'
+import { EC2Block, EC2BlockMeta } from '@/blocks/blocks/ec2'
 import { ElasticsearchBlock, ElasticsearchBlockMeta } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock, ElevenLabsBlockMeta } from '@/blocks/blocks/elevenlabs'
 import { EmailBisonBlock, EmailBisonBlockMeta } from '@/blocks/blocks/emailbison'
@@ -92,6 +93,7 @@ import {
   FirefliesV2Block,
   FirefliesV2BlockMeta,
 } from '@/blocks/blocks/fireflies'
+import { FivetranBlock, FivetranBlockMeta } from '@/blocks/blocks/fivetran'
 import { FlintBlock, FlintBlockMeta } from '@/blocks/blocks/flint'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GammaBlock, GammaBlockMeta } from '@/blocks/blocks/gamma'
@@ -142,10 +144,16 @@ import { GoogleVaultBlock, GoogleVaultBlockMeta } from '@/blocks/blocks/google_v
 import { GrafanaBlock, GrafanaBlockMeta } from '@/blocks/blocks/grafana'
 import { GrainBlock, GrainBlockMeta, GrainV2Block, GrainV2BlockMeta } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
-import { GreenhouseBlock, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse'
+import {
+  GreenhouseBlock,
+  GreenhouseBlockMeta,
+  GreenhouseV2Block,
+  GreenhouseV2BlockMeta,
+} from '@/blocks/blocks/greenhouse'
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
+import { HelpScoutBlock, HelpScoutBlockMeta } from '@/blocks/blocks/helpscout'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
@@ -167,6 +175,7 @@ import {
   IntercomV2Block,
   IntercomV2BlockMeta,
 } from '@/blocks/blocks/intercom'
+import { IntuneBlock, IntuneBlockMeta } from '@/blocks/blocks/intune'
 import { JinaBlock, JinaBlockMeta } from '@/blocks/blocks/jina'
 import { JiraBlock, JiraBlockMeta } from '@/blocks/blocks/jira'
 import {
@@ -255,6 +264,11 @@ import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock, OpenAIBlockMeta } from '@/blocks/blocks/openai'
+import {
+  OracleFusionFinancialsBlock,
+  OracleFusionFinancialsBlockMeta,
+} from '@/blocks/blocks/oracle_fusion_financials'
+import { OracleDatabaseBlock, OracleDatabaseBlockMeta } from '@/blocks/blocks/oracledb'
 import { OtterBlock, OtterBlockMeta } from '@/blocks/blocks/otter'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
 import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
@@ -266,6 +280,7 @@ import { PiBlock } from '@/blocks/blocks/pi'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
+import { PlaneBlock, PlaneBlockMeta } from '@/blocks/blocks/plane'
 import { PlanetScaleBlock, PlanetScaleBlockMeta } from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
@@ -280,6 +295,7 @@ import { QuickBooksBlock, QuickBooksBlockMeta } from '@/blocks/blocks/quickbooks
 import { QuiverBlock, QuiverBlockMeta, QuiverV2Block } from '@/blocks/blocks/quiver'
 import { RabbitmqBlock, RabbitmqBlockMeta } from '@/blocks/blocks/rabbitmq'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
+import { RampBlock, RampBlockMeta } from '@/blocks/blocks/ramp'
 import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta } from '@/blocks/blocks/rds'
 import { RedditBlock, RedditBlockMeta } from '@/blocks/blocks/reddit'
@@ -395,7 +411,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   agiloft: AgiloftBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
-  airweave: AirweaveBlock,
   algolia: AlgoliaBlock,
   amplitude: AmplitudeBlock,
   api: ApiBlock,
@@ -422,6 +437,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   calendly: CalendlyBlock,
   cbinsights: CbInsightsBlock,
   chat_trigger: ChatTriggerBlock,
+  checkr: CheckrBlock,
   circleback: CirclebackBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
@@ -463,6 +479,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
   dynatrace: DynatraceBlock,
+  ec2: EC2Block,
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   emailbison: EmailBisonBlock,
@@ -487,6 +504,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
+  fivetran: FivetranBlock,
   flint: FlintBlock,
   function: FunctionBlock,
   gamma: GammaBlock,
@@ -524,9 +542,11 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   grain_v2: GrainV2Block,
   granola: GranolaBlock,
   greenhouse: GreenhouseBlock,
+  greenhouse_v2: GreenhouseV2Block,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
   harmonic: HarmonicBlock,
+  helpscout: HelpScoutBlock,
   hex: HexBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
@@ -546,6 +566,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   instantly: InstantlyBlock,
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
+  intune: IntuneBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
@@ -611,6 +632,8 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   onepassword: OnePasswordBlock,
   openai: OpenAIBlock,
+  oracle_fusion_financials: OracleFusionFinancialsBlock,
+  oracledb: OracleDatabaseBlock,
   otter: OtterBlock,
   outlook: OutlookBlock,
   pagerduty: PagerDutyBlock,
@@ -622,6 +645,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   pitchbook: PitchBookBlock,
+  plane: PlaneBlock,
   planetscale: PlanetScaleBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
@@ -638,6 +662,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   quiver_v2: QuiverV2Block,
   rabbitmq: RabbitmqBlock,
   railway: RailwayBlock,
+  ramp: RampBlock,
   rb2b: RB2BBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
@@ -770,7 +795,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   agiloft: AgiloftBlockMeta,
   ahrefs: AhrefsBlockMeta,
   airtable: AirtableBlockMeta,
-  airweave: AirweaveBlockMeta,
   algolia: AlgoliaBlockMeta,
   amplitude: AmplitudeBlockMeta,
   apify: ApifyBlockMeta,
@@ -793,6 +817,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
   cbinsights: CbInsightsBlockMeta,
+  checkr: CheckrBlockMeta,
   circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,
@@ -826,6 +851,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   duckduckgo: DuckDuckGoBlockMeta,
   dynamodb: DynamoDBBlockMeta,
   dynatrace: DynatraceBlockMeta,
+  ec2: EC2BlockMeta,
   elasticsearch: ElasticsearchBlockMeta,
   elevenlabs: ElevenLabsBlockMeta,
   emailbison: EmailBisonBlockMeta,
@@ -840,6 +866,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   firecrawl: FirecrawlBlockMeta,
   fireflies: FirefliesBlockMeta,
   fireflies_v2: FirefliesV2BlockMeta,
+  fivetran: FivetranBlockMeta,
   flint: FlintBlockMeta,
   gamma: GammaBlockMeta,
   github: GitHubBlockMeta,
@@ -875,8 +902,10 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   grain_v2: GrainV2BlockMeta,
   granola: GranolaBlockMeta,
   greenhouse: GreenhouseBlockMeta,
+  greenhouse_v2: GreenhouseV2BlockMeta,
   greptile: GreptileBlockMeta,
   harmonic: HarmonicBlockMeta,
+  helpscout: HelpScoutBlockMeta,
   hex: HexBlockMeta,
   hubspot: HubSpotBlockMeta,
   huggingface: HuggingFaceBlockMeta,
@@ -891,6 +920,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   instantly: InstantlyBlockMeta,
   intercom: IntercomBlockMeta,
   intercom_v2: IntercomV2BlockMeta,
+  intune: IntuneBlockMeta,
   jina: JinaBlockMeta,
   jira: JiraBlockMeta,
   jira_service_management: JiraServiceManagementBlockMeta,
@@ -946,6 +976,8 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   onedrive: OneDriveBlockMeta,
   onepassword: OnePasswordBlockMeta,
   openai: OpenAIBlockMeta,
+  oracle_fusion_financials: OracleFusionFinancialsBlockMeta,
+  oracledb: OracleDatabaseBlockMeta,
   otter: OtterBlockMeta,
   outlook: OutlookBlockMeta,
   pagerduty: PagerDutyBlockMeta,
@@ -956,6 +988,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   pitchbook: PitchBookBlockMeta,
+  plane: PlaneBlockMeta,
   planetscale: PlanetScaleBlockMeta,
   polymarket: PolymarketBlockMeta,
   postgresql: PostgreSQLBlockMeta,
@@ -970,6 +1003,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   quiver: QuiverBlockMeta,
   rabbitmq: RabbitmqBlockMeta,
   railway: RailwayBlockMeta,
+  ramp: RampBlockMeta,
   rb2b: RB2BBlockMeta,
   rds: RDSBlockMeta,
   reddit: RedditBlockMeta,

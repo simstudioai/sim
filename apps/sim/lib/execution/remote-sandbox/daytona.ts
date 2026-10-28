@@ -28,7 +28,7 @@ import {
   SandboxProcessOutputBudget,
   tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
-import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/paths'
 import type {
   CreateSandboxOptions,
   RunCommandOptions,

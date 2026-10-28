@@ -1,20 +1,18 @@
 ---
-title: Reference Architectures
+title: Reference architectures
 description: What you provision and what the chart provisions, per cloud, before you run helm install
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Sim ships a Helm chart, not infrastructure-as-code. You bring a Kubernetes cluster and, in production, managed Postgres and object storage; the chart installs Sim on top. This page draws that line precisely so you can map it onto whatever Terraform, Bicep, or CloudFormation you already run, and decide what to provision before you reach [Kubernetes](/platform/self-hosting/kubernetes).
+Provision a Kubernetes cluster, durable database storage, object storage, networking, and secrets before installing Sim. The Helm chart installs application workloads on that infrastructure; it does not provision cloud resources.
 
-<Callout type="info">
-  There is no official Terraform module or CloudFormation template. The chart is the deployment interface, and it is what your own IaC should call — `helm_release` in Terraform, or a Helm task in your pipeline. Everything below describes the inputs that chart expects.
-</Callout>
+There is no official Terraform module or CloudFormation template. Call the chart from your infrastructure as code (IaC), for example with Terraform's `helm_release` or a Helm pipeline task.
 
 ## The boundary
 
-Everything the chart can run itself, it runs by default. That is convenient for evaluation and wrong for production, because two of those defaults keep state.
+The chart bundles PostgreSQL and Redis for evaluation. For production, decide how each stateful dependency is backed up, restored, and made available.
 
 | Component | Chart default | Production |
 |---|---|---|
@@ -25,7 +23,7 @@ Everything the chart can run itself, it runs by default. That is convenient for 
 | Object storage | None — local disk | **Required.** S3, Azure Blob, or GCS. Local disk is lost when a container is recreated and is not shared across replicas |
 | Ingress | Off | You install the controller; the chart renders the Ingress |
 | TLS certificates | Off | You provision them |
-| Remote sandbox | Off | Required for Python, Shell, and imported JavaScript — a provider **and** an immutable Function image. See [Security](/platform/self-hosting/security) |
+| Remote sandbox | Off | Required for Python, Shell, and imported JavaScript — a provider **and** an immutable Function image. See [Sandboxes](/platform/self-hosting/sandboxes) |
 | Pi execution | Off | A separate image from the Function one, set with `E2B_PI_TEMPLATE_ID` (a template name, an alias, or an immutable `<template>:<build-id>` ref) or `DAYTONA_PI_SNAPSHOT_ID`. Unlike the Function base these are not format-validated, but execution still fails closed when unset |
 | PII redaction, Ollama, telemetry collector | Off | Optional, off unless you enable them |
 
@@ -34,16 +32,6 @@ The bundled Postgres uses a 10 Gi `ReadWriteOnce` volume and is intended for eva
 <Callout type="warn">
   The AWS and GCP example values set `networkPolicy.enabled: true`, and the chart's default egress allows the bundled pods, DNS, and TCP 443 (minus the cloud metadata CIDRs). Moving Postgres or Redis outside the cluster without opening a path leaves them unreachable — add the rules to `networkPolicy.egress`, or set `networkPolicy.allowExternalEgress: true`, in the same change that points the app at the managed instance.
 </Callout>
-
-## Sizing
-
-| Component | Requests | Limits |
-|---|---|---|
-| app | 4 Gi / 1000m | 8 Gi / 2000m |
-| realtime | 512 Mi / 250m | 1 Gi / 500m |
-| PostgreSQL (bundled) | 1 Gi / 500m | 2 Gi (no CPU limit) |
-
-These are the chart defaults. Memory is the constraint rather than CPU, and the app's real ceiling depends on your execution load — see [Scaling](/platform/self-hosting/scaling) for the observed steady and peak figures, when to raise `app.resources.limits.memory`, and how to size replicas and connection pooling. Size nodes so a single app pod fits with headroom rather than packing them.
 
 ## Per-cloud requirements
 
@@ -56,9 +44,9 @@ Use `helm/sim/examples/values-aws.yaml` as a starting point. It configures EBS G
 
 | Resource | Notes |
 |---|---|
-| EKS cluster | Kubernetes 1.25 or newer |
-| EBS CSI driver add-on | `aws eks create-addon --addon-name aws-ebs-csi-driver`. Without it, PersistentVolumeClaims never bind |
-| gp3 StorageClass | EKS ships only `gp2`. The example values set `storageClass: gp3`, so create it — or change the value — before installing |
+| EKS cluster | A supported cloud-provider Kubernetes release compatible with the chart's `>=1.25` minimum |
+| EBS CSI driver add-on | For a standard EKS cluster using the EBS CSI provisioner, install `aws-ebs-csi-driver` with the cluster name and region. Match the StorageClass provisioner to the cluster's storage mode |
+| gp3 StorageClass | The example selects `gp3`. Confirm that StorageClass exists and uses the provisioner installed in your cluster; create it or select an existing class before installing |
 | AWS Load Balancer Controller | Required for ALB ingress |
 | ACM certificate | ALB discovers it from the ingress hosts, or pin it with `alb.ingress.kubernetes.io/certificate-arn` |
 | RDS PostgreSQL | With the `vector` extension available. Reachable from the cluster subnets |
@@ -66,7 +54,7 @@ Use `helm/sim/examples/values-aws.yaml` as a starting point. It configures EBS G
 | ElastiCache | Optional; the bundled Redis is a supported alternative |
 
 <Callout type="warn">
-  cert-manager does not work with ALB. ALB cannot serve a Kubernetes TLS Secret, so certificates must come from ACM. This is the most common first-deploy failure on EKS.
+  ALB does not consume a Kubernetes TLS Secret directly. Supply an ACM certificate or a supported certificate-discovery configuration. A cert-manager-created Secret alone is not sufficient.
 </Callout>
 
 **Identity.** Bind an IAM role to the ServiceAccount with IRSA rather than issuing static keys. The role needs S3 access to the buckets you configured; grant nothing else unless you have enabled a feature that needs it.
@@ -76,18 +64,18 @@ Use `helm/sim/examples/values-aws.yaml` as a starting point. It configures EBS G
   </Tab>
   <Tab value="Azure (AKS)">
 
-Use `helm/sim/examples/values-azure.yaml` as a starting point. It configures `managed-csi` / `managed-csi-premium` storage, NGINX ingress, role-based node targeting, and NVIDIA GPU node pool tolerations for Ollama.
+The Azure example provides `managed-csi` / `managed-csi-premium` storage, node targeting, and GPU tolerations. Its ingress-nginx configuration is legacy: that community controller [retired in March 2026](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/). For a new deployment, configure a maintained ingress controller supported by your AKS environment; [Networking](/platform/self-hosting/networking) describes the required behavior.
 
 **You provision**
 
 | Resource | Notes |
 |---|---|
-| AKS cluster | Kubernetes 1.25 or newer |
-| NGINX ingress controller | The example values assume it |
-| cert-manager with a ClusterIssuer | Issues the ingress TLS secret |
+| AKS cluster | A supported cloud-provider Kubernetes release compatible with the chart's `>=1.25` minimum |
+| Ingress controller | A maintained controller supported by your cluster; adapt the legacy example's annotations |
+| TLS certificate mechanism | Match your selected ingress controller. For one that consumes TLS Secrets, cert-manager with a ClusterIssuer can issue the Secret |
 | Azure Database for PostgreSQL | With `pgvector` enabled |
 | Azure Blob Storage containers | One per file purpose |
-| Azure Cache for Redis | Optional |
+| Managed Redis | Optional; select a configuration compatible with Sim's single-endpoint clients. Existing Azure Cache for Redis deployments need [retirement/migration planning](https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/retirement-faq) |
 | GPU node pool | Only for Ollama. Taint it `sku=gpu:NoSchedule` to match the example tolerations |
 
 **Identity.** Azure Blob authenticates with a storage account key or connection string — Sim has no Azure workload-identity path for Blob. Keep the key out of `app.env` by supplying `AZURE_ACCOUNT_KEY` or `AZURE_CONNECTION_STRING` through `app.secrets.existingSecret` or External Secrets.
@@ -101,7 +89,7 @@ Use `helm/sim/examples/values-gcp.yaml` as a starting point. It configures Persi
 
 | Resource | Notes |
 |---|---|
-| GKE cluster | Kubernetes 1.25 or newer |
+| GKE cluster | A supported cloud-provider Kubernetes release compatible with the chart's `>=1.25` minimum |
 | Workload Identity | Must be enabled for the IAM-bound ServiceAccount |
 | Global static IP | Reserved before install. The example annotates `kubernetes.io/ingress.global-static-ip-name: simstudio-ip`; nothing in the chart creates it |
 | ManagedCertificate | Created before the first deploy — nothing in the chart creates it. The example values reference `simstudio-ssl-cert`; match whatever name your ingress annotation uses |
@@ -110,7 +98,7 @@ Use `helm/sim/examples/values-gcp.yaml` as a starting point. It configures Persi
 | Memorystore | Optional |
 
 <Callout type="warn">
-  With a ManagedCertificate, keep `ingress.tls.enabled: false`. Leaving chart TLS on points the ingress at a Secret nothing creates, and the GKE controller reports sync errors for it. GCE Ingress *can* terminate TLS from a Secret you provision — including one cert-manager issues — so that is a supported alternative to a ManagedCertificate; what does not work is enabling both.
+  When using only a ManagedCertificate, keep `ingress.tls.enabled: false` so the chart does not reference a missing Secret. GCE Ingress also supports provisioned TLS Secrets and can retain self-managed certificates while a managed certificate becomes active. If you enable chart TLS, create the referenced Secret. See [Google's certificate setup and migration guide](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/secure-traffic-management).
 </Callout>
 
 **Identity.** Workload Identity binds the ServiceAccount to a Google service account. Grant it object access to your buckets — and, because there is no private key in that mode, `roles/iam.serviceAccountTokenCreator` **on itself**, or signed upload and download URLs cannot be generated. Setting `GCS_CREDENTIALS_JSON` instead signs locally and needs no extra role. See [Object storage](/platform/self-hosting/object-storage).
@@ -130,12 +118,22 @@ The chart offers three strategies. Pick one before you write any IaC, because it
 | `app.secrets.existingSecret.enabled` + `.name` | A Kubernetes Secret carrying **every** key the app needs, under the standard key names — it is consumed wholesale via `envFrom`, so key remapping is not supported | You already manage secrets out of band |
 | External Secrets Operator | The operator itself, a `ClusterSecretStore` or `SecretStore` named in `externalSecrets.secretStoreRef.name`, entries in your cloud's secret manager, and `externalSecrets.remoteRefs.app.<KEY>` mappings | Most production deployments |
 
-The two non-inline modes fail in opposite directions, which is worth knowing before you pick one:
+Non-inline modes handle missing keys differently:
 
 - **`existingSecret` fails quietly.** The chart renders no Secret of its own, so a key absent from yours and from `app.env` is simply empty at runtime. A key you also set in `app.env` is inlined onto the pod spec, where it shadows the Secret — so the Secret is not always the source of truth.
 - **External Secrets fails loudly.** The chart refuses to render when a key is set in `app.env` but not mapped, on the grounds that a silently empty secret is worse than a failed install.
 
 See [Security](/platform/self-hosting/security) for the full secret inventory, which keys are unrecoverable if lost, and what to back up.
+
+## Sizing
+
+| Component | Requests | Limits |
+|---|---|---|
+| app | 4 Gi / 1000m | 8 Gi / 2000m |
+| realtime | 512 Mi / 250m | 1 Gi / 500m |
+| PostgreSQL (bundled) | 1 Gi / 500m | 2 Gi (no CPU limit) |
+
+These are chart defaults, not capacity benchmarks. Measure memory, CPU, execution concurrency, and database connections with representative workloads. See [Scaling](/platform/self-hosting/scaling) for pool budgets and sizing estimates. A node must fit an app pod plus system overhead.
 
 ## Calling the chart from Terraform
 
@@ -152,7 +150,7 @@ resource "helm_release" "sim" {
   # release with new migrations.
   repository = "oci://ghcr.io/simstudioai/charts"
   chart      = "sim"
-  version    = "1.9.5"
+  version    = "1.11.8"
 
   # Or the classic repository, if your tooling does not speak OCI:
   #   repository = "https://charts.sim.ai"
@@ -179,6 +177,10 @@ resource "helm_release" "sim" {
   The example values files ship literal placeholders such as `your-secure-production-auth-secret-here`. That includes `postgresql.auth.password`. The chart only rejects empty values and its own `CHANGE-ME` strings, so a deployment that inherits those placeholders installs cleanly with a publicly known session-signing secret and database password. Override every secret, or use External Secrets and set none of them inline.
 </Callout>
 
-Pin `version` above, and pin the image tags separately — the chart version and the application version move independently, so pinning one does not pin the other. See [Upgrades](/platform/self-hosting/upgrades).
+Pin `version` above. Empty image tags use the selected chart's `appVersion`, so a pinned chart also selects that default app version. Explicit image tags or digests override it; pin them separately when you need that control, and keep app, realtime, and migrations aligned. Chart `1.11.8` was published with app version `v0.9.17`; local checkout metadata can differ. See [Upgrades](/platform/self-hosting/upgrades).
 
-Once the infrastructure exists, follow [Kubernetes](/platform/self-hosting/kubernetes) for the install itself, then the [pre-launch checklist](/platform/self-hosting/security) and the [verification checklist](/platform/self-hosting/verify).
+## Related docs
+
+- [Install with Kubernetes](/platform/self-hosting/kubernetes)
+- [Pre-launch checklist](/platform/self-hosting/security#pre-launch-checklist)
+- [Verify your install](/platform/self-hosting/verify)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -8,7 +8,7 @@ import { useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
@@ -35,6 +35,7 @@ import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
 import type {
@@ -47,6 +48,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
@@ -57,18 +59,15 @@ interface OrganizationHomeProps {
   requestMode?: ChatRequestMode
 }
 
-const subscribeToClient = () => () => {}
-const clientSnapshot = () => true
-const serverSnapshot = () => false
-
 /** Home chooses the conversation mode before its first message. */
 export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
-  const isClient = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot)
+  const isClient = useHydrated()
+  const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
   if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
   /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
-  if (!isClient || !session?.user?.id) return <HomeFallback />
+  if (isRestoredChatEntry || !isClient || !session?.user?.id) return <HomeFallback />
   return (
     <OrganizationHomeContent
       key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}`}
@@ -300,6 +299,32 @@ function OrganizationHomeContent({
     files.clearAttachedFiles()
   }
 
+  const editQueuedMessage = (id: string) => {
+    const queued = chat.editQueuedMessage(id)
+    if (queued) {
+      const queuedMode = queued.requestMode ?? requestMode
+      setSelectedMode(queuedMode)
+      setDraft(queued.content, queued.contexts)
+      setRestoredContexts(queued.contexts ?? [])
+      files.restoreAttachedFiles(
+        (queued.fileAttachments ?? []).map((file) => ({
+          id: file.id,
+          key: file.key,
+          name: file.filename,
+          type: file.media_type,
+          size: file.size,
+          path:
+            file.path ||
+            getMothershipAttachmentPreviewUrl(file) ||
+            getMothershipAttachmentUrl(file),
+          previewUrl: getMothershipAttachmentPreviewUrl(file),
+          uploading: false,
+        }))
+      )
+    }
+    return queued
+  }
+
   const composer =
     requestMode !== 'assistant' && !canBuild ? (
       <div className='px-4 py-3 text-[var(--text-muted)] text-sm'>
@@ -318,6 +343,11 @@ function OrganizationHomeContent({
         onModeChange={canSelectMode ? changeMode : undefined}
         value={draft}
         restoredContexts={restoredContexts}
+        messages={chat.messages}
+        onEditQueuedTail={() => {
+          const tail = chat.messageQueue.at(-1)
+          return tail ? Boolean(editQueuedMessage(tail.id)) : false
+        }}
         files={files}
         isInitialView={!hasChat}
         isSending={chat.isSending || chat.isReconnecting}
@@ -333,7 +363,7 @@ function OrganizationHomeContent({
     )
 
   const content = (
-    <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
+    <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,50%)]'>
       {hasChat ? (
         <MothershipChat
           onViewSources={(messageId, requestId) =>
@@ -358,37 +388,13 @@ function OrganizationHomeContent({
           dispatchingHeadId={chat.dispatchingHeadId}
           onRemoveQueuedMessage={chat.removeFromQueue}
           onSendQueuedMessage={chat.sendNow}
-          onEditQueuedMessage={(id) => {
-            const queued = chat.editQueuedMessage(id)
-            if (queued) {
-              const queuedMode = queued.requestMode ?? requestMode
-              setSelectedMode(queuedMode)
-              setDraft(queued.content, queued.contexts)
-              setRestoredContexts(queued.contexts ?? [])
-              files.restoreAttachedFiles(
-                (queued.fileAttachments ?? []).map((file) => ({
-                  id: file.id,
-                  key: file.key,
-                  name: file.filename,
-                  type: file.media_type,
-                  size: file.size,
-                  path:
-                    file.path ||
-                    getMothershipAttachmentPreviewUrl(file) ||
-                    getMothershipAttachmentUrl(file),
-                  previewUrl: getMothershipAttachmentPreviewUrl(file),
-                  uploading: false,
-                }))
-              )
-            }
-            return queued
-          }}
+          onEditQueuedMessage={editQueuedMessage}
           onCancelQueueEdit={chat.cancelQueueEdit}
           userId={session?.user?.id}
           chatId={chat.resolvedChatId}
           composer={composer}
           onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={chat.resources.length > 0 && panel.isResourceCollapsed}
+          initialScrollBlocked={panel.initialScrollBlocked}
         />
       ) : (
         <OrganizationLanding
@@ -401,7 +407,7 @@ function OrganizationHomeContent({
           }
         >
           {composer}
-          <div className='absolute inset-x-0 top-full'>
+          <div className='relative md:absolute md:inset-x-0 md:top-full'>
             {requestMode === 'agent' ? (
               <SuggestedActions
                 organizationId={organization.id}

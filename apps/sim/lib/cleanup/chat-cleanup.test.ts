@@ -32,7 +32,7 @@ async function purge(
   queueTableRows(copilotChats, [])
   queueTableRows(
     copilotMessages,
-    remaining.map((content) => ({ content }))
+    remaining.map((content) => ({ fileAttachments: content.fileAttachments ?? null }))
   )
   await cleanup.execute()
   return Object.fromEntries(

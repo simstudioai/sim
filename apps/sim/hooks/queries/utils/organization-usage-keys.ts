@@ -32,6 +32,10 @@ export const organizationUsageKeys = {
    */
   overview: (organizationId: string, window: OrganizationUsageWindowKey, workspaceId?: string) =>
     [...organizationUsageKeys.overviews(organizationId), workspaceId ?? '', window] as const,
+  calendars: (organizationId: string) =>
+    [...organizationUsageKeys.all(organizationId), 'calendar'] as const,
+  calendar: (organizationId: string, timezone: string, workspaceId?: string) =>
+    [...organizationUsageKeys.calendars(organizationId), workspaceId ?? '', timezone] as const,
   breakdowns: (organizationId: string, window: OrganizationUsageWindowKey) =>
     [...organizationUsageKeys.all(organizationId), 'breakdown', window] as const,
   breakdown: (

@@ -14,24 +14,22 @@ import {
   mothershipChatPayloadMock,
   mothershipChatPayloadMockFns,
 } from '@sim/testing/mocks/mothership-chat-payload.mock'
+import {
+  mothershipHeadlessLifecycleMock,
+  mothershipHeadlessLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-headless-lifecycle.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockBuildSelectedMcpToolSchemas,
-  mockBuildTaggedMcpToolSchemas,
   mockComputeWorkspaceEntitlements,
   mockProcessContextsServer,
   mockRequestExplicitStreamAbort,
-  mockRunHeadlessCopilotLifecycle,
 } = vi.hoisted(() => ({
-  mockBuildSelectedMcpToolSchemas: vi.fn(),
-  mockBuildTaggedMcpToolSchemas: vi.fn(),
   mockComputeWorkspaceEntitlements: vi.fn(),
   mockProcessContextsServer: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn(),
-  mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
@@ -39,7 +37,7 @@ vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
@@ -51,14 +49,7 @@ vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: mockComputeWorkspaceEntitlements,
 }))
 
-vi.mock('@/lib/mothership/mcp-tools', () => ({
-  buildSelectedMcpToolSchemas: mockBuildSelectedMcpToolSchemas,
-  buildTaggedMcpToolSchemas: mockBuildTaggedMcpToolSchemas,
-}))
-
-vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
-  runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
-}))
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 
 vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
@@ -85,6 +76,8 @@ authInternalMockFns.mockVerifyInternalDelegationToken.mockResolvedValue({
 })
 
 const mockBuildIntegrationToolSchemas = mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas
+const mockRunHeadlessCopilotLifecycle =
+  mothershipHeadlessLifecycleMockFns.mockRunHeadlessCopilotLifecycle
 
 const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
 const mockCheckInternalAuth = hybridAuthMockFns.mockCheckInternalAuth
@@ -142,8 +135,6 @@ describe('mothership private trace provenance transport', () => {
       decryptionFailures: [],
     })
     mockBuildIntegrationToolSchemas.mockResolvedValue([])
-    mockBuildSelectedMcpToolSchemas.mockResolvedValue([])
-    mockBuildTaggedMcpToolSchemas.mockResolvedValue([])
     mockComputeWorkspaceEntitlements.mockResolvedValue([])
     mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
     mockProcessContextsServer.mockResolvedValue([])
@@ -482,9 +473,6 @@ describe('mothership private trace provenance transport', () => {
   })
 
   it('sends enabled MCP IDs without schemas or activating matching configured secrets', async () => {
-    mockBuildTaggedMcpToolSchemas.mockResolvedValueOnce([
-      { name: 'mcp-docs', description: 'Uses secret-value' },
-    ])
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         const registry =

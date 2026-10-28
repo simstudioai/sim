@@ -14,7 +14,7 @@ import {
 } from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)

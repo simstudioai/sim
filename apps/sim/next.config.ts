@@ -4,12 +4,26 @@ import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
 import {
+  FILE_DELIVERY_CSP_PATH_PATTERN,
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
 import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
+
+/**
+ * `Accept` header patterns for Markdown negotiation. `text/markdown` must be one of the listed
+ * media ranges, and `q=0` (RFC 9110 §12.4.2: not acceptable) keeps the HTML page. Next anchors
+ * both patterns to the whole header.
+ */
+const ACCEPTS_MARKDOWN = '(.*,)?\\s*text/markdown\\s*([;,].*)?'
+const REFUSES_MARKDOWN =
+  '(.*,)?\\s*text/markdown(\\s*;[^,]*?)?\\s*;\\s*q\\s*=\\s*0(\\.0{0,3})?\\s*(,.*)?'
+const MARKDOWN_REQUEST = {
+  has: [{ type: 'header' as const, key: 'accept', value: ACCEPTS_MARKDOWN }],
+  missing: [{ type: 'header' as const, key: 'accept', value: REFUSES_MARKDOWN }],
+}
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -89,7 +103,7 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
+    ignoreBuildErrors: isTruthy(env.DOCKER_BUILD) || isTruthy(env.NEXT_BUILD_SKIP_TYPE_CHECK),
   },
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   serverExternalPackages: [
@@ -149,6 +163,7 @@ const nextConfig: NextConfig = {
      */
     '/*': [
       './lib/execution/sandbox/bundles/*.cjs',
+      './dist/xlsx-worker.mjs',
       './node_modules/ws/**/*',
       '../../packages/sim-cli/dist/runtime.js',
     ],
@@ -215,7 +230,9 @@ const nextConfig: NextConfig = {
      * which also removes each entry from the server externals set. Entries here
      * must be real barrel packages that are actually imported - a stale entry
      * costs transform work and overrides that package's own `sideEffects`
-     * declaration.
+     * declaration. Never list a package whose entry module does setup: zod's
+     * entry installs its English error messages, and listing it left every
+     * default message in a production build as "Invalid input".
      */
     optimizePackageImports: [
       'framer-motion',
@@ -229,7 +246,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-switch',
       '@radix-ui/react-slider',
       'streamdown',
-      'zod',
     ],
   },
   ...(isDev && {
@@ -262,6 +278,16 @@ const nextConfig: NextConfig = {
   ],
   async headers() {
     return [
+      {
+        /** `/` answers in HTML or Markdown by `Accept` (see the `beforeFiles` rewrite). */
+        source: '/',
+        headers: [{ key: 'Vary', value: 'Accept' }],
+      },
+      {
+        /** A library article answers in HTML or Markdown by `Accept` (see the `afterFiles` rewrites). */
+        source: '/library/:slug',
+        headers: [{ key: 'Vary', value: 'Accept' }],
+      },
       {
         // `/public`-served assets keep their path across deploys (no content
         // hash), so a shorter TTL + revalidation window bounds how long a
@@ -422,11 +448,12 @@ const nextConfig: NextConfig = {
             key: 'X-Frame-Options',
             value: 'SAMEORIGIN',
           },
-          {
-            key: 'Content-Security-Policy',
-            value: getMainCSPPolicy(),
-          },
         ],
+      },
+      {
+        // File routes preserve their representation CSP in withRouteHandler.
+        source: `/((?!workspace|chat|login|signup|${FILE_DELIVERY_CSP_PATH_PATTERN.slice(1)}$|$).*)`,
+        headers: [{ key: 'Content-Security-Policy', value: getMainCSPPolicy() }],
       },
     ]
   },
@@ -497,15 +524,9 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
-    /**
-     * The marketing Academy course/lesson pages were removed; content is
-     * consolidated into the docs site instead. Old course/lesson slugs have
-     * no equivalent path there, so every sub-path collapses to the new
-     * landing page rather than forwarding to a path that may not exist.
-     */
     redirects.push({
       source: '/academy/:path*',
-      destination: 'https://docs.sim.ai/academy',
+      destination: 'https://docs.sim.ai/introduction',
       permanent: true,
     })
 
@@ -671,16 +692,37 @@ const nextConfig: NextConfig = {
     return redirects
   },
   async rewrites() {
-    return [
-      {
-        source: '/favicon.ico',
-        destination: '/icon.svg',
-      },
-      {
-        source: '/r/:shortCode',
-        destination: 'https://go.trybeluga.ai/:shortCode',
-      },
-    ]
+    return {
+      /** `beforeFiles` so a Markdown client's `/` reaches `/index.md` ahead of the HTML page. */
+      beforeFiles: [{ source: '/', ...MARKDOWN_REQUEST, destination: '/index.md' }],
+      /**
+       * `afterFiles` so `/library/tags`, the feeds, and every other static library route keep
+       * their own responses; only the dynamic article route is shadowed.
+       */
+      afterFiles: [
+        { source: '/library/:slug.md', destination: '/library.md/:slug' },
+        { source: '/library/:slug', ...MARKDOWN_REQUEST, destination: '/library.md/:slug' },
+        {
+          source: '/favicon.ico',
+          destination: '/icon.svg',
+        },
+        {
+          source: '/r/:shortCode',
+          destination: 'https://go.trybeluga.ai/:shortCode',
+        },
+      ],
+      /**
+       * Fallback rewrites run only after every page and dynamic route has failed to match, so
+       * this answers a Markdown client's 404 in Markdown without shadowing any real route.
+       */
+      fallback: [
+        {
+          source: '/:path*',
+          ...MARKDOWN_REQUEST,
+          destination: '/markdown-not-found',
+        },
+      ],
+    }
   },
 }
 

@@ -3,6 +3,9 @@ Brief description of what this PR does and why.
 
 Fixes #(issue)
 
+## Product update (if relevant)
+Who benefits, and what can they do now? Note rollout or plan restrictions, link the relevant Sim integration or docs guide, and include a real product demo or changelog production brief when available.
+
 ## Type of Change
 - [ ] Bug fix
 - [ ] New feature  

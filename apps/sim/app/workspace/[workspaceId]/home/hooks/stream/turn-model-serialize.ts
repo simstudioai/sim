@@ -1,10 +1,10 @@
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { readCallActivity } from '@/lib/mothership/tools/activity'
 import {
   resolveNamedCliToolDisplayTitle,
   type ToolResourceContext,
 } from '@/lib/mothership/tools/client/resource-display'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   resolveIntegrationToolDisplayTitle,
   resolveStreamingToolDisplayTitle,
@@ -141,7 +141,8 @@ export function modelToContentBlocks(
 
     if (node.kind === 'tool') {
       /** Hidden discovery may introduce an activity; carry its labels onto visible calls and replay. */
-      const supplied = node.activity ?? readToolActivity(node.args, node.streamingArgs)
+      // Not `node.args`: the reducer already moved a frame's grouping onto `node.activity`.
+      const supplied = readCallActivity(node)
       if (supplied?.completedTitle) {
         const lane = activities.get(node.spanId) ?? new Map<string, ToolActivity>()
         if (!lane.has(supplied.id)) lane.set(supplied.id, supplied)
@@ -166,9 +167,8 @@ export function modelToContentBlocks(
             ...(node.integrationDescription
               ? { integrationDescription: node.integrationDescription }
               : {}),
-            ...(node.args || activity
-              ? { params: { ...node.args, ...(activity ? { activity } : {}) } }
-              : {}),
+            ...(node.args ? { params: node.args } : {}),
+            ...(activity ? { activity } : {}),
             ...(node.streamingArgs ? { streamingArgs: node.streamingArgs } : {}),
             ...(node.result
               ? {
@@ -403,6 +403,7 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             toolCallId: tc.id,
             toolName: tc.name,
             arguments: tc.params,
+            ...(tc.activity ? { activity: tc.activity } : {}),
             ...(tc.activityDescription ? { activityDescription: tc.activityDescription } : {}),
             // Carries an unanswered permission prompt across a snapshot rebuild
             // so the reloaded row is still actionable rather than a spinner.

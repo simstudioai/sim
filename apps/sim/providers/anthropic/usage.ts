@@ -1,5 +1,6 @@
 import type { BlockTokens } from '@/executor/types'
-import { LIST_PRICE_POLICY, type ModelUsage, priceModelUsage } from '@/providers/cost-policy'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
+import type { ModelUsage } from '@/providers/pricing'
 import type { ModelPricing } from '@/providers/types'
 
 export interface AnthropicUsageLike {
@@ -19,6 +20,8 @@ export interface AnthropicUsageAccumulator {
   cacheRead: number
   cacheWriteFiveMinute: number
   cacheWriteOneHour: number
+  /** Complete response usage, retained so pricing tiers apply to individual prompts. */
+  turns: ModelUsage[]
 }
 
 interface AnthropicUsageCost {
@@ -47,6 +50,7 @@ export function createAnthropicUsageAccumulator(): AnthropicUsageAccumulator {
     cacheRead: 0,
     cacheWriteFiveMinute: 0,
     cacheWriteOneHour: 0,
+    turns: [],
   }
 }
 
@@ -59,22 +63,29 @@ export function addAnthropicUsage(
 ): void {
   if (!usage) return
 
-  accumulator.input += tokenCount(usage.input_tokens)
-  accumulator.output += tokenCount(usage.output_tokens)
-  accumulator.cacheRead += tokenCount(usage.cache_read_input_tokens)
-
   const cacheWriteTotal = tokenCount(usage.cache_creation_input_tokens)
-  if (!usage.cache_creation) {
-    accumulator.cacheWriteFiveMinute += cacheWriteTotal
-    return
+  const turnUsage = {
+    input: tokenCount(usage.input_tokens),
+    output: tokenCount(usage.output_tokens),
+    cacheRead: tokenCount(usage.cache_read_input_tokens),
+    cacheWriteFiveMinute: cacheWriteTotal,
+    cacheWriteOneHour: 0,
   }
 
-  const fiveMinute = tokenCount(usage.cache_creation.ephemeral_5m_input_tokens)
-  const oneHour = tokenCount(usage.cache_creation.ephemeral_1h_input_tokens)
-  const detailedTotal = fiveMinute + oneHour
+  if (usage.cache_creation) {
+    const fiveMinute = tokenCount(usage.cache_creation.ephemeral_5m_input_tokens)
+    const oneHour = tokenCount(usage.cache_creation.ephemeral_1h_input_tokens)
+    const detailedTotal = fiveMinute + oneHour
+    turnUsage.cacheWriteFiveMinute = fiveMinute + Math.max(0, cacheWriteTotal - detailedTotal)
+    turnUsage.cacheWriteOneHour = oneHour
+  }
 
-  accumulator.cacheWriteFiveMinute += fiveMinute + Math.max(0, cacheWriteTotal - detailedTotal)
-  accumulator.cacheWriteOneHour += oneHour
+  accumulator.input += turnUsage.input
+  accumulator.output += turnUsage.output
+  accumulator.cacheRead += turnUsage.cacheRead
+  accumulator.cacheWriteFiveMinute += turnUsage.cacheWriteFiveMinute
+  accumulator.cacheWriteOneHour += turnUsage.cacheWriteOneHour
+  accumulator.turns.push(buildAnthropicModelUsage(turnUsage))
 }
 
 /**
@@ -98,14 +109,16 @@ const FIVE_MINUTE_WRITE_MULTIPLIER = 1.25
 const ONE_HOUR_WRITE_MULTIPLIER = 2
 
 /**
- * Builds the normalized usage for one Anthropic request.
+ * Builds normalized usage from Anthropic token counters.
  *
  * Anthropic reports `input_tokens` already excluding cache reads and writes
  * (`total_input = cache_read + cache_creation + input_tokens`), so `input` maps
  * across directly — unlike OpenAI and Gemini, whose cached counts are subsets
  * of their prompt totals and must be subtracted.
  */
-export function buildAnthropicModelUsage(accumulator: AnthropicUsageAccumulator): ModelUsage {
+export function buildAnthropicModelUsage(
+  accumulator: Omit<AnthropicUsageAccumulator, 'turns'>
+): ModelUsage {
   return {
     input: accumulator.input,
     output: accumulator.output,
@@ -128,8 +141,8 @@ export function toAnthropicModelUsage(usage: AnthropicUsageLike | null | undefin
 }
 
 /**
- * Prices one Anthropic request, cache tiers included, through the shared
- * pricing function.
+ * Prices each model response before summing the request, so long-context
+ * rates depend on each prompt rather than accumulated tool-loop tokens.
  *
  * Always at list price. Billability and the margin are applied once, centrally,
  * by `executeProviderRequest` — a provider applying them here would double-count
@@ -140,13 +153,23 @@ export function buildAnthropicUsageCost(
   accumulator: AnthropicUsageAccumulator,
   toolCost = 0
 ): AnthropicUsageCost {
-  const cost = priceModelUsage(model, buildAnthropicModelUsage(accumulator), LIST_PRICE_POLICY)
+  const emptyCost = priceModelUsage(model, { input: 0, output: 0 }, LIST_PRICE_POLICY)
+  let input = 0
+  let output = 0
+  for (const usage of accumulator.turns) {
+    const turnCost = priceModelUsage(model, usage, LIST_PRICE_POLICY)
+    input += turnCost.input
+    output += turnCost.output
+  }
+
+  input = roundedCost(input)
+  output = roundedCost(output)
 
   return {
-    input: cost.input,
-    output: cost.output,
-    total: roundedCost(cost.total + toolCost),
+    input,
+    output,
+    total: roundedCost(input + output + toolCost),
     ...(toolCost > 0 ? { toolCost } : {}),
-    pricing: cost.pricing,
+    pricing: emptyCost.pricing,
   }
 }

@@ -24,12 +24,13 @@ const providerRow = {
   domainVerified: true,
   domainKey: 'acme.com',
   isNamedPrimary: false,
+  isPrimary: true,
 }
 
 describe('GET /api/auth/sso/providers', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
   })
 
   it('lists only the providers the caller registered when no organization is named', async () => {

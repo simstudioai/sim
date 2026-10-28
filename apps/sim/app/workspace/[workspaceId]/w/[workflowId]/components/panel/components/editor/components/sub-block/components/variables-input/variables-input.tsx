@@ -13,7 +13,7 @@ import {
 } from '@sim/emcn'
 import { ArrowLeftRight, FileText, Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { useParams } from 'next/navigation'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -97,8 +97,7 @@ export function VariablesInput({
   disabled = false,
 }: VariablesInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const params = useParams()
-  const workflowId = params.workflowId as string
+  const { workflowId } = useWorkflowScope()
   const [storeValue, setStoreValue] = useSubBlockValue<VariableAssignment[]>(blockId, subBlockId)
   const workflowVariables = useVariablesStore((s) => s.variables)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)

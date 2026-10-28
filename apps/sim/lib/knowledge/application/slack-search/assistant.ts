@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/attribution'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -49,7 +49,7 @@ import {
   startAbortPoller,
   unregisterActiveStream,
 } from '@/lib/mothership/request/session/abort'
-import { isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
+import { AbortReason, isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
@@ -206,6 +206,11 @@ export async function runSlackSearchAssistant(
     })
     if (!run) throw new Error('Could not persist Assistant execution')
     runId = run.id
+    /** Admission found the turn stopped or its chat deleted: it ends as that Stop would. */
+    if (run.status === 'cancelled') {
+      controller.abort(AbortReason.UserStop)
+      controller.signal.throwIfAborted()
+    }
     const responseStream = new SlackSearchAssistantStream({
       token: secret.botToken,
       channel: job.message.channelId,

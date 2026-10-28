@@ -18,7 +18,7 @@ import {
   updateOrganizationCredentialContract,
 } from '@/lib/api/contracts/organization-credentials'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { oauthCredentialKeys } from '@/hooks/queries/oauth/oauth-credentials'
+import { oauthCredentialKeys } from '@/hooks/queries/oauth/credentials'
 import {
   organizationCredentialKeys,
   workspaceCredentialKeys,

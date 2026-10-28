@@ -185,7 +185,7 @@ export interface KalshiGetFillsV2Response {
 export const kalshiGetFillsV2Tool: ToolConfig<KalshiGetFillsV2Params, KalshiGetFillsV2Response> = {
   id: 'kalshi_get_fills_v2',
   name: 'Get Fills from Kalshi V2',
-  description: "Retrieve your portfolio's fills/trades from Kalshi (V2 - exact API response)",
+  description: "Retrieve your portfolio's fills/trades from Kalshi",
   version: '2.0.0',
 
   params: {

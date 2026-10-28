@@ -31,6 +31,10 @@ function isEnterprise(plan: Plan): boolean {
   return plan === 'enterprise'
 }
 
+function isLegacyPlan(plan: Plan): boolean {
+  return plan === 'pro' || plan === 'team'
+}
+
 function isPaid(plan: Plan): boolean {
   return isPro(plan) || isTeam(plan) || isEnterprise(plan)
 }
@@ -102,7 +106,8 @@ function getDisplayPlanName(plan: Plan): string {
 /**
  * Controllable mock functions for `@/lib/billing/plan-helpers`.
  *
- * Every plan predicate and tier helper (`isPro`, `isTeam`, `isFree`, `isEnterprise`, `isPaid`,
+ * Every plan predicate and tier helper (`isPro`, `isTeam`, `isFree`, `isEnterprise`,
+ * `isLegacyPlan`, `isPaid`,
  * `isOrgPlan`, `isMaxTier`, `getPlanTierCredits`, `getPlanTierDollars`,
  * `getPlanWeeklyRefreshDollars`, `getPlanType`, `getPlanTypeForLimits`, `buildPlanName`,
  * `getDisplayPlanName`) defaults to a faithful port of the real pure logic, including the
@@ -122,6 +127,7 @@ export const billingPlanHelpersMockFns = {
   mockIsTeam: vi.fn(isTeam),
   mockIsFree: vi.fn(isFree),
   mockIsEnterprise: vi.fn(isEnterprise),
+  mockIsLegacyPlan: vi.fn(isLegacyPlan),
   mockIsPaid: vi.fn(isPaid),
   mockIsOrgPlan: vi.fn(isOrgPlan),
   mockGetPlanTierCredits: vi.fn(getPlanTierCredits),
@@ -150,6 +156,7 @@ export const billingPlanHelpersMock = {
   isTeam: billingPlanHelpersMockFns.mockIsTeam,
   isFree: billingPlanHelpersMockFns.mockIsFree,
   isEnterprise: billingPlanHelpersMockFns.mockIsEnterprise,
+  isLegacyPlan: billingPlanHelpersMockFns.mockIsLegacyPlan,
   isPaid: billingPlanHelpersMockFns.mockIsPaid,
   isOrgPlan: billingPlanHelpersMockFns.mockIsOrgPlan,
   getPlanTierCredits: billingPlanHelpersMockFns.mockGetPlanTierCredits,

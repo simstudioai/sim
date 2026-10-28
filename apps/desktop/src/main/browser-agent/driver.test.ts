@@ -79,6 +79,102 @@ describe('executeTool', () => {
     driver = freshDriver()
   })
 
+  /** The user presses a key in the page the agent drives, as the browser reports it. */
+  function typeInAgentPage(contents: WebContents) {
+    const calls: ReadonlyArray<readonly unknown[]> = vi.mocked(contents.on).mock.calls
+    const listener = calls.find(([event]) => event === 'before-input-event')?.[1]
+    if (typeof listener !== 'function') throw new Error('No input listener on the agent page')
+    listener({}, { type: 'keyDown', isAutoRepeat: false })
+  }
+
+  it('lets a call from the chat view act at once while the user works in the page', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    typeInAgentPage(session.requireTab().view.webContents)
+    expect(session.msSinceUserIntervention()).not.toBeNull()
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      const opening = driver.executeTool('chat-test', 'browser_open_tab', {}).then((result) => {
+        settled = true
+        return result
+      })
+      await vi.advanceTimersByTimeAsync(100)
+
+      expect(settled).toBe(true)
+      expect((await opening).ok).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('makes a background call wait until the user leaves the page alone', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    typeInAgentPage(session.requireTab().view.webContents)
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      const opening = driver
+        .executeTool('chat-test', 'browser_open_tab', {}, 'background-1', undefined, {
+          background: true,
+        })
+        .then((result) => {
+          settled = true
+          return result
+        })
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(settled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(4_000)
+      expect((await opening).ok).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops a background action before its next input once the user starts working mid-action', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    // The user presses a key while the action reads the page before acting on it.
+    const probe = vi.mocked(contents.executeJavaScript).getMockImplementation()
+    vi.mocked(contents.executeJavaScript).mockImplementation(async (...args) => {
+      typeInAgentPage(contents)
+      return probe ? probe(...args) : undefined
+    })
+
+    const result = await driver.executeTool(
+      'chat-test',
+      'browser_press_key',
+      { key: 'Enter' },
+      'background-key',
+      undefined,
+      { background: true }
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('the user started working in this page')
+  })
+
+  it('never makes a background read wait for the user', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    typeInAgentPage(session.requireTab().view.webContents)
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      void driver
+        .executeTool('chat-test', 'browser_list_tabs', {}, 'background-read', undefined, {
+          background: true,
+        })
+        .then(() => {
+          settled = true
+        })
+      await vi.advanceTimersByTimeAsync(100)
+
+      expect(settled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('returns ok:false instead of throwing for tool-level failures', async () => {
     // No session exists, so any page-dependent tool fails with guidance.
     const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 1 })
@@ -2246,6 +2342,50 @@ describe('credential protection', () => {
         effectObserved: true,
       },
     })
+  })
+
+  it('reports a click whose tab closed during its release as unconfirmed, not failed', async () => {
+    const contents = await openPage()
+    let destroyed = false
+    vi.mocked(contents.isDestroyed).mockImplementation(() => destroyed)
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'describePointTarget')) {
+        return Promise.resolve({ found: true, element: 'Close', cursor: 'pointer' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        return Promise.resolve({
+          url: 'https://example.com/popup',
+          title: 'Popup',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        destroyed = true
+        throw new Error('Target closed')
+      }
+      return {}
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 100, y: 200 })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        dispatched: true,
+        closedDuringDispatch: true,
+        doNotRetry: true,
+        possibleEffectObserved: true,
+      },
+    })
+    expect(toRecord(result.result)).not.toHaveProperty('effectObserved')
   })
 
   it('reports navigation obstructed by a dialog that opened with it', async () => {

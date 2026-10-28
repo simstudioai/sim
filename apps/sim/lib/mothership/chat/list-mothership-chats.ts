@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
@@ -42,6 +42,7 @@ export async function listMothershipChats(
           ? eq(copilotChats.workspaceId, owner)
           : eq(copilotChats.organizationId, owner.organizationId),
         eq(copilotChats.type, 'mothership'),
+        sql`${copilotChats.config}->'benchmark' IS NULL`,
         scope === 'archived' ? isNotNull(copilotChats.deletedAt) : isNull(copilotChats.deletedAt)
       )
     )

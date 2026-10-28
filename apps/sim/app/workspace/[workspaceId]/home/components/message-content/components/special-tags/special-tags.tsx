@@ -31,7 +31,7 @@ import {
 import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { getOrganizationSettingsHref } from '@/components/settings/navigation'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
@@ -1890,7 +1890,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           />
         </button>
       ) : (
-        <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+        <span className='block text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
       )}
       <Expandable expanded={expanded}>
         <ExpandableContent className='mt-1.5'>
@@ -3327,7 +3327,8 @@ export function CredentialDisplay(props: Parameters<typeof CredentialDisplayCont
     (item) =>
       item.type === 'link' ||
       item.type === 'service_account' ||
-      item.type === 'sim_key' ||
+      // A masked key has nothing to copy, so only a revealed one needs its workspace.
+      (item.type === 'sim_key' && item.value !== undefined) ||
       (item.type === 'secret_input' && (!item.scope || item.scope === 'workspace'))
   )
   const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))
@@ -3442,6 +3443,47 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
+  return data.reason === 'job_run_budget' ? (
+    <JobRunBudgetDisplay message={data.message} />
+  ) : (
+    <PlanUsageLimitDisplay data={data} />
+  )
+}
+
+/**
+ * A scheduled job's run reached its own spend cap. The cap belongs to the job, not to the
+ * account, so the card offers no billing action: the next run starts with a fresh cap.
+ */
+interface JobRunBudgetDisplayProps {
+  message: string
+}
+
+function JobRunBudgetDisplay({ message }: JobRunBudgetDisplayProps) {
+  return (
+    <InteractionCard
+      title={
+        <span className='inline-flex items-center gap-2'>
+          <TriangleAlert
+            aria-hidden
+            className='size-[14px] shrink-0 text-[var(--badge-amber-text)]'
+          />
+          Run Spend Limit Reached
+        </span>
+      }
+    >
+      <div className='px-2 pb-2'>
+        <p className='text-[var(--text-body)] text-small leading-5'>{message}</p>
+      </div>
+    </InteractionCard>
+  )
+}
+
+interface PlanUsageLimitDisplayProps {
+  data: UsageUpgradeTagData
+}
+
+/** The payer's plan limit: the card links to where the plan or the limit can change. */
+function PlanUsageLimitDisplay({ data }: PlanUsageLimitDisplayProps) {
   const { data: session } = useSession()
   const hostContext = useOptionalWorkspaceHostContext()
   const organizationContext = useOptionalOrganizationContext()

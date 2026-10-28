@@ -13,7 +13,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
-import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/paths'
 import type {
   SandboxCodeResult,
   SandboxCommandResult,
@@ -49,7 +49,7 @@ import {
 import {
   observeSandboxExecution,
   observeSandboxSessionInputs,
-} from '@/lib/execution/remote-sandbox/execution-observer'
+} from '@/lib/execution/remote-sandbox/observer'
 import {
   initializeSessionFileProvenance,
   recordSessionFileInput,
@@ -769,6 +769,39 @@ describe('session sandbox lease', () => {
     expect(calls.runCommand.some((c) => c.envs?.SIM_CLI_PATH === CLI.path)).toBe(true)
     expect(calls.killed).toBe(false)
     expect(calls.extendLifetime.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('trusts a lease granted by a slow reconnect for the whole call, then refreshes nothing', async () => {
+    // The provider grants the lease in the same millisecond the call asked for it, then the
+    // clock advances on every read: coverage judged from two separate readings falls short.
+    let nowMs = Date.now()
+    let advancing = false
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => (advancing ? ++nowMs : nowMs))
+    const { handle, calls } = fakeSandbox('sb-covered')
+    let grantedUntilMs = 0
+    handle.outlives = (lifetimeMs, fromMs) => grantedUntilMs >= fromMs + lifetimeMs
+    mockFindSessionSandbox.mockImplementation(
+      async (_key: string, options: { lifetimeMs?: number }) => {
+        grantedUntilMs = Date.now() + (options.lifetimeMs ?? 0)
+        nowMs += 20
+        advancing = true
+        return handle
+      }
+    )
+
+    try {
+      const result = await executeInSandbox({
+        ...CODE_REQUEST,
+        sandboxKind: 'mothership',
+        session: { key: 'mothership-chat:c3' },
+      })
+
+      expect(result.sandboxSession).toBe('reused')
+      expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + 20 * 60_000)
+      expect(calls.extendLifetime).toHaveLength(0)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('does not rewrite an unchanged executable while earlier code can still use it', async () => {

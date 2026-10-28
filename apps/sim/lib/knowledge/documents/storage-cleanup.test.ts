@@ -5,6 +5,7 @@ import {
   uploadsMetadataMock,
   uploadsMetadataMockFns,
 } from '@sim/testing/mocks/uploads-metadata.mock'
+import { toArray } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 
@@ -14,8 +15,8 @@ vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 import {
   cleanupKnowledgeStorage,
   enqueueKnowledgeStorageCleanup,
-  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
+import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 
 const mockDeleteFile = storageServiceMockFns.mockDeleteFile
 const mockDeleteMetadata = uploadsMetadataMockFns.mockDeleteFileMetadataByIdentity
@@ -94,7 +95,9 @@ describe('durable knowledge storage cleanup', () => {
       'request-1'
     )
     expect(mockGetBindings.mock.calls.map(([keys]) => keys.length)).toEqual([100, 100, 51])
-    expect(dbChainMockFns.values.mock.calls.map(([rows]) => rows.length)).toEqual([100, 100, 51])
+    expect(dbChainMockFns.values.mock.calls.map(([rows]) => toArray(rows).length)).toEqual([
+      100, 100, 51,
+    ])
   })
 
   it('propagates persistence failures before the parent transaction can commit', async () => {

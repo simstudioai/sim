@@ -77,7 +77,7 @@ export const SmartleadBlock: BlockConfig = {
   name: 'Smartlead',
   description: 'Manage Smartlead cold email campaigns, sequences, and leads',
   longDescription:
-    'Integrate Smartlead into workflows. Create campaigns, write multi-step email sequences, import and categorize leads, pull campaign analytics, and register webhooks for engagement events.',
+    'Create campaigns, write multi-step email sequences, import and categorize leads, pull campaign analytics, and register webhooks for engagement events.',
   docsLink: 'https://docs.sim.ai/integrations/smartlead',
   category: 'tools',
   integrationType: IntegrationType.Email,

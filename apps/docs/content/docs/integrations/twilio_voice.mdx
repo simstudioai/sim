@@ -1,31 +1,29 @@
 ---
 title: Twilio Voice
 description: Make and manage phone calls
+integration:
+  type: "twilio_voice"
+  color: "#F22F46"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="twilio_voice"
-  color="#F22F46"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Twilio Voice](https://www.twilio.com/en-us/voice) connects phone calls to workflows. Use this integration to place outbound calls, list calls, retrieve recordings, and receive call events through a webhook. Supply the call instructions and phone numbers required by the selected operation.
 {/* MANUAL-CONTENT-END */}
 
+## Use the block [#usage-instructions]
 
-## Usage Instructions
-
-Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.
-
-
+Make outbound calls, list calls, retrieve recordings, and receive call events through webhooks.
 
 ## Actions
 
 ### Twilio Voice Make Call
 
 Make an outbound phone call using Twilio Voice API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -58,6 +56,8 @@ Make an outbound phone call using Twilio Voice API.
 | `price` | string | Cost of the call |
 | `priceUnit` | string | Currency of the price |
 | `error` | string | Error message if call failed |
+
+</ReferenceDetails>
 
 ### Twilio Voice List Calls
 
@@ -125,11 +125,13 @@ Retrieve call recording information and transcription (if enabled via TwiML).
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Twilio Voice Webhook
 
 Trigger workflow when phone calls are received via Twilio Voice
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -176,4 +178,6 @@ Trigger workflow when phone calls are received via Twilio Voice
 | `callerCountry` | string | Country of the caller \(same as fromCountry\) |
 | `callToken` | string | Twilio call token for authentication |
 | `raw` | string | Complete raw webhook payload from Twilio as JSON string |
+
+</ReferenceDetails>
 

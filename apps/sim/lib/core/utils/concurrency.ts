@@ -14,7 +14,7 @@
  * a usable answer) may let the mapper throw and rely on the batch failing.
  *
  * Neither mode keeps the successes alongside a failure; a caller needing that
- * should add an allSettled-style variant rather than bending this one.
+ * uses {@link mapSettledWithConcurrency}.
  */
 export async function mapWithConcurrency<T, R>(
   items: readonly T[],
@@ -37,5 +37,48 @@ export async function mapWithConcurrency<T, R>(
   return results
 }
 
+/**
+ * {@link mapWithConcurrency} with `Promise.allSettled` semantics: every item is attempted, and each
+ * result reports its own fulfillment or rejection in input order, so one failure never discards the
+ * other items' results.
+ */
+export function mapSettledWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  return mapWithConcurrency(items, limit, async (item, index) => {
+    try {
+      return { status: 'fulfilled', value: await fn(item, index) }
+    } catch (reason) {
+      return { status: 'rejected', reason }
+    }
+  })
+}
+
 /** Default bound for per-row object-storage materialization fan-out. */
 export const MATERIALIZE_CONCURRENCY = 20
+
+/** Cancels only this caller's wait, leaving the shared operation available to other callers. */
+export function waitWithAbort<T>(resolution: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return resolution
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    resolution.then(
+      (result) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(result)
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      }
+    )
+    if (signal.aborted) onAbort()
+  })
+}

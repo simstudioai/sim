@@ -96,7 +96,7 @@ vi.mock('@/ee/workspace-forking/lib/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
   createForkBlockTypeTransform: vi.fn(() => (blockType: string) => blockType),
 }))
-vi.mock('@/lib/workflows/references/reference-scan', () => ({
+vi.mock('@/lib/workflows/references/scan', () => ({
   collectReferencedDocumentIds: vi.fn(() => new Set<string>()),
   collectReferencedFileFolderPaths: mockCollectReferencedFileFolderPaths,
 }))
@@ -140,12 +140,17 @@ function forkParams(selection?: {
 describe('createFork storage headroom gate', () => {
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
+      { project: { id: 'project-source', organizationId: null, archivedAt: null } },
+    ])
     /**
      * The fork transaction re-reads the parent's organization under the lock to
      * confirm it has not moved since `assertCanFork` captured the policy.
      * Matches POLICY.organizationId, so the fork proceeds.
      */
     queueTableRows(workspace, [{ organizationId: null }])
+    queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: false }])
     mockSumForkCopyBytes.mockResolvedValue(0)
     mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
     mockLoadSourceDeployedStates.mockResolvedValue({
@@ -210,6 +215,10 @@ describe('createFork storage headroom gate', () => {
 
   it('refuses when the parent changed organizations after the policy was captured', async () => {
     resetDbChainMock()
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
+      { project: { id: 'project-source', organizationId: null, archivedAt: null } },
+    ])
     /**
      * `assertCanFork` captures `policy.organizationId` before this transaction,
      * so an admin workspace move committing in between would otherwise leave
@@ -234,7 +243,12 @@ describe('createFork storage headroom gate', () => {
    */
   it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
     resetDbChainMock()
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
+      { project: { id: 'project-source', organizationId: null, archivedAt: null } },
+    ])
     queueTableRows(workspace, [{ organizationId: null, forkSyncNewWorkflowsExcluded: true }])
+    queueTableRows(workspace, [{ archivedAt: null, forkSyncNewWorkflowsExcluded: true }])
 
     const result = await createFork(forkParams())
 
