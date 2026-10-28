@@ -142,6 +142,39 @@ sim tables rows query --help
 
 The [command overview](/cli/commands) lists global options and root commands. The [complete reference](/cli/reference) contains every subcommand, argument, and option on one page. Both are generated from the CLI.
 
+## Agent skills
+
+The [Sim skills](https://github.com/simstudioai/skills) teach coding agents such as Claude Code and Codex to build and operate Sim through the CLI. Install them with the standard Agent Skills installer:
+
+```bash
+bunx skills add simstudioai/skills --global
+```
+
+To install one skill for one agent without prompting:
+
+```bash
+bunx skills add simstudioai/skills \
+  --skill build-workflow \
+  --agent codex \
+  --global \
+  --yes
+```
+
+| Skill | What it covers |
+| --- | --- |
+| `build-workflow` | Discover blocks and author a draft graph with atomic workflow operations |
+| `run-workflow` | Test saved state, exercise triggers, resume from a block, and diagnose runs |
+| `deploy-workflow` | Publish and manage workflows as APIs, chats, or MCP tools |
+| `files` | Organize workspace files and folders, read and search text, and apply targeted edits |
+| `sync-workspaces` | Import portable workflows with bindings, fork workspaces, and preview, apply, and reconcile push/pull sync |
+| `table` | Design typed tables, load and query rows, import data, and run workflow groups |
+| `knowledge-base` | Ingest and index documents, configure connectors and tags, and verify retrieval |
+| `run-tool` | Call one integration tool directly with Sim-managed credentials |
+
+The repository is also a native Claude Code and Codex plugin, which exposes the same skills under the `sim` namespace (`sim:build-workflow`, `sim:run-workflow`, and so on).
+
+The skills assume `sim` is installed and signed in, so complete [Your first command](#your-first-command) first. They never store or print API keys. These agent skills are separate from the workspace skills you manage with [`sim skills`](/cli/skills).
+
 ## Related docs
 
 - [Authentication](/cli/authentication)
