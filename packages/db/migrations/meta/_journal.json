@@ -3074,6 +3074,13 @@
       "when": 1793215243284,
       "tag": "0439_gmail_mailbox_index",
       "breakpoints": true
+    },
+    {
+      "idx": 440,
+      "version": "7",
+      "when": 1793220094350,
+      "tag": "0440_drop_redundant_indexes_vacuum_tuning",
+      "breakpoints": true
     }
   ]
 }
