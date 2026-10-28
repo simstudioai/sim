@@ -13,7 +13,10 @@ const ROLLUP_MAX_ENTRIES = 100
 /** Pending rollups held by the process; reaching it writes every one of them. */
 const ROLLUP_MAX_PENDING = 1_000
 
-/** Rows inserted at once by one write, so a large flush never floods the pool. */
+/**
+ * Rollup rows the process inserts at once, across every window timer, size
+ * flush, and scope end, so a burst of distinct rollups never floods the pool.
+ */
 const ROLLUP_WRITE_CONCURRENCY = 10
 
 export interface AuditRollupSummary {
@@ -67,6 +70,8 @@ interface PendingRollup {
 }
 
 const pending = new Map<string, PendingRollup>()
+const queuedWrites: Array<{ rollup: PendingRollup; written: () => void }> = []
+let activeWrites = 0
 const scopeStorage = new AsyncLocalStorage<RollupScope>()
 let nextScopeId = 0
 
@@ -196,11 +201,31 @@ function toAuditParams(rollup: PendingRollup): AuditLogParams {
 
 /**
  * One insert per row, so a row that cannot be written never takes others with
- * it, at most {@link ROLLUP_WRITE_CONCURRENCY} at a time.
+ * it. Rows wait in one process-wide queue, at most
+ * {@link ROLLUP_WRITE_CONCURRENCY} in flight.
  */
-async function writePending(rollups: PendingRollup[]): Promise<void> {
-  for (let index = 0; index < rollups.length; index += ROLLUP_WRITE_CONCURRENCY) {
-    await Promise.all(rollups.slice(index, index + ROLLUP_WRITE_CONCURRENCY).map(writeRollup))
+function writePending(rollups: PendingRollup[]): Promise<void> {
+  return Promise.all(
+    rollups.map(
+      (rollup) =>
+        new Promise<void>((written) => {
+          queuedWrites.push({ rollup, written })
+          drainWrites()
+        })
+    )
+  ).then(() => undefined)
+}
+
+function drainWrites(): void {
+  while (activeWrites < ROLLUP_WRITE_CONCURRENCY) {
+    const next = queuedWrites.shift()
+    if (!next) return
+    activeWrites += 1
+    void writeRollup(next.rollup).finally(() => {
+      activeWrites -= 1
+      next.written()
+      drainWrites()
+    })
   }
 }
 
