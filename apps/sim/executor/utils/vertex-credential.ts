@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { getServiceAccountToken } from '@/lib/oauth/credential-service'
+import { recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { resolveExecutorCredentialToken } from '@/executor/utils/credential-token'
 
 const logger = createLogger('VertexCredential')
@@ -12,6 +13,7 @@ export interface ResolveVertexCredentialParams {
   workspaceId: string | null | undefined
   /** Pins the token request to this workflow's workspace. */
   workflowId?: string
+  executionId?: string
   callerLabel?: string
 }
 
@@ -27,6 +29,7 @@ export async function resolveVertexCredential({
   actingUserId,
   workspaceId,
   workflowId,
+  executionId,
   callerLabel = 'vertex',
 }: ResolveVertexCredentialParams): Promise<string> {
   const requestId = `${callerLabel}-${Date.now()}`
@@ -57,6 +60,15 @@ export async function resolveVertexCredential({
     const accessToken = await getServiceAccountToken(cred.id, [
       'https://www.googleapis.com/auth/cloud-platform',
     ])
+    recordCredentialAccess({
+      actorId: actingUserId,
+      workspaceId: cred.workspaceId,
+      resourceId: cred.id,
+      providerId: cred.providerId,
+      credentialType: 'service_account',
+      workflowId,
+      executionId,
+    })
     logger.info(`[${requestId}] Successfully resolved Vertex AI service account credential`)
     return accessToken
   }
@@ -70,6 +82,7 @@ export async function resolveVertexCredential({
     credentialId,
     userId: actingUserId,
     workflowId,
+    executionId,
     toolLabel: 'Vertex AI',
   })
 

@@ -277,7 +277,7 @@ jobs:
       # oras also reads ~/.docker/config.json, so this one login covers both the
       # chart push and the Artifact Hub metadata push below.
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}

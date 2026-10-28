@@ -406,25 +406,7 @@ export interface TailscaleGetTailnetSettingsResponse extends ToolResponse {
 export interface TailscaleUpdateTailnetSettingsParams extends TailscaleBaseParams {
   settings: string
 }
-export interface TailscaleUpdateTailnetSettingsResponse extends ToolResponse {
-  output: {
-    settings: {
-      aclsExternallyManagedOn: boolean | null
-      aclsExternalLink: string | null
-      adminConsoleSessionTimeoutMinutes: number | null
-      devicesApprovalOn: boolean | null
-      devicesAutoUpdatesOn: boolean | null
-      devicesKeyDurationDays: number | null
-      usersApprovalOn: boolean | null
-      usersRoleAllowedToJoinExternalTailnets: string | null
-      networkFlowLoggingOn: boolean | null
-      regionalRoutingOn: boolean | null
-      routeSelection: string | null
-      postureIdentityCollectionOn: boolean | null
-      httpsEnabled: boolean | null
-    }
-  }
-}
+export type TailscaleUpdateTailnetSettingsResponse = TailscaleGetTailnetSettingsResponse
 export interface TailscaleDnsConfiguration {
   nameservers?: { address?: string; useWithExitNode?: boolean }[]
   splitDNS?: Record<string, { address?: string; useWithExitNode?: boolean }[] | null>
@@ -444,13 +426,4 @@ export interface TailscaleGetDnsConfigurationResponse extends ToolResponse {
 export interface TailscaleSetDnsConfigurationParams extends TailscaleBaseParams {
   dnsConfiguration: string
 }
-export interface TailscaleSetDnsConfigurationResponse extends ToolResponse {
-  output: {
-    dnsConfiguration: {
-      nameservers: { address?: string; useWithExitNode?: boolean }[]
-      splitDNS: Record<string, { address?: string; useWithExitNode?: boolean }[] | null> | null
-      searchPaths: string[]
-      preferences: { overrideLocalDNS?: boolean; magicDNS?: boolean } | null
-    }
-  }
-}
+export type TailscaleSetDnsConfigurationResponse = TailscaleGetDnsConfigurationResponse

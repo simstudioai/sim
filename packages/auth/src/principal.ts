@@ -671,6 +671,9 @@ export type PrincipalActor =
       serviceId: DelegatedPrincipal['serviceId']
       subjectUserId?: string
       delegationId: string
+      /** The workflow, and the run of it, an executor delegation acted for. */
+      workflowId?: string
+      executionId?: string
     }
   | {
       kind: 'credential_group_enrollment'
@@ -791,13 +794,17 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
             ? { subject: principal.subject }
             : {}),
       }
-    case 'delegated':
+    case 'delegated': {
+      const execution = principal.serviceId === 'executor' ? principal.delegationContext : undefined
       return {
         kind: principal.kind,
         serviceId: principal.serviceId,
         ...(principal.subjectUserId ? { subjectUserId: principal.subjectUserId } : {}),
         delegationId: principal.delegationId,
+        ...(execution ? { workflowId: execution.workflowId } : {}),
+        ...(execution?.executionId ? { executionId: execution.executionId } : {}),
       }
+    }
     case 'resource_delegated':
       return {
         kind: principal.kind,

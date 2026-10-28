@@ -1,9 +1,10 @@
+import { DNS_CONFIGURATION_OUTPUT } from '@/tools/tailscale/outputs'
 import type {
   TailscaleBaseParams,
   TailscaleDnsConfiguration,
   TailscaleGetDnsConfigurationResponse,
 } from '@/tools/tailscale/types'
-import { assertTailscaleResponse } from '@/tools/tailscale/utils'
+import { assertTailscaleResponse, mapTailscaleDnsConfiguration } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -42,72 +43,9 @@ export const tailscaleGetDnsConfigurationTool: ToolConfig<
     return {
       success: true,
       output: {
-        dnsConfiguration: {
-          nameservers: data.nameservers ?? [],
-          splitDNS: data.splitDNS ?? null,
-          searchPaths: data.searchPaths ?? [],
-          preferences: data.preferences ?? null,
-        },
+        dnsConfiguration: mapTailscaleDnsConfiguration(data),
       },
     }
   },
-  outputs: {
-    dnsConfiguration: {
-      type: 'json',
-      description: 'Dns configuration',
-      properties: {
-        nameservers: {
-          type: 'array',
-          description: 'Global DNS resolvers to use',
-          items: {
-            type: 'json',
-            properties: {
-              address: {
-                type: 'string',
-                description: 'IPv4 or IPv6 address of the DNS resolver',
-                optional: true,
-              },
-              useWithExitNode: {
-                type: 'boolean',
-                description:
-                  'If true, this resolver should still be used when a device is configured to use a Tailscale exit node',
-                optional: true,
-              },
-            },
-          },
-        },
-        splitDNS: {
-          type: 'json',
-          description:
-            'Map of DNS name suffixes (domains) to lists of resolvers for Split DNS and advanced routing overlays',
-          nullable: true,
-        },
-        searchPaths: {
-          type: 'array',
-          description: 'Search domain paths to apply',
-          items: {
-            type: 'string',
-          },
-        },
-        preferences: {
-          type: 'json',
-          description: 'Preferences',
-          properties: {
-            overrideLocalDNS: {
-              type: 'boolean',
-              description:
-                'If true, resolvers in `nameservers` override the local OS DNS configuration; if false, local resolvers are used',
-              optional: true,
-            },
-            magicDNS: {
-              type: 'boolean',
-              description: 'Whether MagicDNS is enabled for this tailnet',
-              optional: true,
-            },
-          },
-          nullable: true,
-        },
-      },
-    },
-  },
+  outputs: DNS_CONFIGURATION_OUTPUT,
 }
