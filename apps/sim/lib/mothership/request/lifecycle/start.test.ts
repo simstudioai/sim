@@ -20,7 +20,6 @@ import {
   mothershipGoFetchMockFns,
 } from '@sim/testing/mocks/mothership-go-fetch.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   MothershipStreamV1CompletionStatus,
@@ -686,7 +685,6 @@ describe('requestChatTitle billing protocol', () => {
   beforeEach(() => {
     mockDisconnected = false
     resetDbChainMock()
-    resetUsageGateCache()
     setEnvFlags({ isHosted: true })
     fetchGo.mockImplementation(async (_url, request) => {
       const parsed = TitleRequest.safeParse(JSON.parse(request.body))

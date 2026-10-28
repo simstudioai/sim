@@ -8,11 +8,11 @@ import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/attribution'
-import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { createRunSegment, recordRunBillingAdmission } from '@/lib/mothership/async-runs/repository'
 import { buildChatTitleContext } from '@/lib/mothership/chat/title-context'
@@ -771,7 +771,7 @@ export async function requestChatTitle(params: {
         throw new Error('Title billing attribution does not match its actor and workspace')
       }
 
-      const admission = await checkExecutionUsageLimits(attribution)
+      const admission = await checkAttributedUsageLimits(attribution)
       if (admission.isExceeded) return null
 
       const billingRequest = createAttributedBillingRequestEnvelope(attribution)
