@@ -54,26 +54,25 @@ const WINDOW_COLUMNS = sql.raw(
 )
 
 /**
- * Reads the next window after `afterId` and the ids in it matching `condition`, in one statement.
- * The matches come back as JSON, which the driver decodes without the array type lookup.
+ * The next {@link RECONCILIATION_WINDOW_SIZE} owned documents after `afterId` in id order, as a
+ * materialized CTE that shadows `document`, so a condition over it, whatever partial index it
+ * implies, is only ever evaluated over the window.
  *
- * The window is the next {@link RECONCILIATION_WINDOW_SIZE} owned documents in id order, found by
- * a recursive keyset walk that asks for one row at a time (`id > previous ORDER BY id LIMIT 1`),
- * so every step is an ordered index probe that stops at its first row: through the v2 index, or
- * the primary key when the connector is nearly the whole table, but never more than a window. A
- * single `ORDER BY id LIMIT` over the connector leaves the planner free to read every document
- * of the connector through another connector index and sort them, which it prefers whenever the
- * connector is small next to the random reads of an ordered walk; one row per step never is.
- * The window is a materialized CTE that shadows `document`, so the walk condition, whatever
- * partial index it implies, is only ever evaluated over the window.
+ * The window is found by a recursive keyset walk that asks for one row at a time
+ * (`id > previous ORDER BY id LIMIT 1`), so every step is an ordered index probe that stops at its
+ * first row: through the v2 index, or the primary key when the connector is nearly the whole
+ * table, but never more than a window. A single `ORDER BY id LIMIT` over the connector leaves the
+ * planner free to read every document of the connector through another connector index and sort
+ * them, which it prefers whenever the connector is small next to the random reads of an ordered
+ * walk; one row per step never is.
  */
-async function scanWindow(walk: ReconciliationWalk, afterId: string | undefined) {
+function ownedWindow(connectorId: string, afterId: string | undefined): SQL {
   const owned = and(
-    eq(document.connectorId, walk.connectorId),
+    eq(document.connectorId, connectorId),
     eq(document.userExcluded, false),
     isNull(document.archivedAt)
   )
-  const [scan] = await db.execute<WindowScan>(sql`
+  return sql`
     WITH ${document} AS MATERIALIZED (
       WITH RECURSIVE walk AS (
         (
@@ -90,7 +89,16 @@ async function scanWindow(walk: ReconciliationWalk, afterId: string | undefined)
         WHERE walk.step < ${RECONCILIATION_WINDOW_SIZE}
       )
       SELECT ${WINDOW_COLUMNS} FROM walk
-    ),
+    )`
+}
+
+/**
+ * Reads the next window after `afterId` and the ids in it matching `condition`, in one statement.
+ * The matches come back as JSON, which the driver decodes without the array type lookup.
+ */
+async function scanWindow(walk: ReconciliationWalk, afterId: string | undefined) {
+  const [scan] = await db.execute<WindowScan>(sql`
+    ${ownedWindow(walk.connectorId, afterId)},
     matched AS (
       SELECT ${document.id} AS id, ${document.deletedAt} IS NOT NULL AS tombstoned
       FROM ${document}
@@ -103,6 +111,68 @@ async function scanWindow(walk: ReconciliationWalk, afterId: string | undefined)
       coalesce(json_agg(tombstoned ORDER BY id), '[]') AS "tombstoned"
     FROM matched`)
   return scan
+}
+
+export interface ReconciliationCount {
+  connectorId: string
+  /** Each condition reads the window's columns, as {@link ReconciliationWalk.condition} does. */
+  conditions: readonly SQL[]
+  deadlineAt: number
+  beforePage: () => Promise<void>
+}
+
+export type ReconciliationCountResult =
+  | { finished: false }
+  | {
+      finished: true
+      /** Every owned document of the connector. */
+      owned: number
+      /** The owned documents matching each condition, in the conditions' order. */
+      matching: number[]
+    }
+
+/** A type alias, not an interface, so it satisfies `db.execute`'s row-record constraint. */
+type WindowCount = {
+  size: number
+  last: string | null
+  matching: number[]
+}
+
+/**
+ * Counts a connector's owned documents, and those matching each condition, one window per
+ * statement. A connector's documents can number far past what one statement reads inside its
+ * timeout, so the counts are summed over the same windows a walk scans, each bounded by
+ * {@link RECONCILIATION_WINDOW_SIZE}. Ids never change, so each document is counted in exactly
+ * one window. Unfinished when the deadline arrives first.
+ */
+export async function countReconciliationWindows(
+  count: ReconciliationCount
+): Promise<ReconciliationCountResult> {
+  const filters = sql.join(
+    count.conditions.map((condition) => sql`count(*) FILTER (WHERE ${condition})::int`),
+    sql`, `
+  )
+  const matching = count.conditions.map(() => 0)
+  let owned = 0
+  let covered: string | undefined
+  for (;;) {
+    if (Date.now() >= count.deadlineAt) return { finished: false }
+    await count.beforePage()
+    if (Date.now() >= count.deadlineAt) return { finished: false }
+    const [window] = await db.execute<WindowCount>(sql`
+      ${ownedWindow(count.connectorId, covered)}
+      SELECT count(*)::int AS "size", max(${document.id}) AS "last",
+        json_build_array(${filters}) AS "matching"
+      FROM ${document}`)
+    owned += window.size
+    window.matching.forEach((value, index) => {
+      matching[index] += value
+    })
+    if (window.size < RECONCILIATION_WINDOW_SIZE || !window.last) {
+      return { finished: true, owned, matching }
+    }
+    covered = window.last
+  }
 }
 
 /**

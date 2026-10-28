@@ -131,6 +131,11 @@ import {
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
+  routeWindowScans,
+  windowCount,
+  windowCounts,
+} from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
+import {
   MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
   SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
@@ -273,15 +278,9 @@ function arrange(
         : []
     )
     if (!options.contentIncomplete) {
-      queueTableRows(schemaMock.document, [
-        {
-          ownedCount: options.existingDocument ? 2 : 1,
-          listedCount: 1,
-          aclCount: 0,
-          softCount: 0,
-          hardCount: 0,
-        },
-      ])
+      windowCounts.push(
+        windowCount({ owned: options.existingDocument ? 2 : 1, listed: 1, soft: 0, hard: 0 })
+      )
     }
     if (!options.finishedPass || !options.contentIncomplete)
       queueTableRows(schemaMock.document, [{ count: 1 }])
@@ -368,7 +367,7 @@ describe('member engine with a dedicated content credential', () => {
   beforeEach(() => {
     resetEnvFlagsMock()
     resetDbChainMock()
-    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+    routeWindowScans()
   })
 
   it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
@@ -856,7 +855,7 @@ describe('member engine with a dedicated content credential', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+    routeWindowScans()
     const retry = arrange({
       members: true,
       memberContent: true,
