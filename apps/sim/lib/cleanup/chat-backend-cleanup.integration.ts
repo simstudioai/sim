@@ -227,6 +227,14 @@ async function deliverCleanups() {
   return { outcomes: outcomes.sort(), purged: new Set(backend.purged.flat()) }
 }
 
+/** Whether the fixture trigger's exception is the failure, however the driver or Better Auth wraps it. */
+function refusedByFixture(error: unknown): boolean {
+  for (let cause = error; cause instanceof Error; cause = cause.cause) {
+    if (cause.message.includes('refused by fixture')) return true
+  }
+  return false
+}
+
 async function refuseWith(table: string, when: string, run: () => Promise<unknown>) {
   const name = sql.identifier(`chat_cleanup_refuse_${generateId().replaceAll('-', '')}`)
   const operation = table === 'outbox_event' ? sql`INSERT` : sql`DELETE`
@@ -237,7 +245,11 @@ async function refuseWith(table: string, when: string, run: () => Promise<unknow
     CREATE TRIGGER ${name} BEFORE ${operation} ON ${sql.identifier(table)}
     FOR EACH ROW WHEN (${sql.raw(when)}) EXECUTE FUNCTION ${name}()`)
   try {
-    await expect(run()).rejects.toThrow()
+    const error = await run().then(
+      () => undefined,
+      (reason: unknown) => reason
+    )
+    expect(refusedByFixture(error)).toBe(true)
   } finally {
     await db.execute(sql`DROP TRIGGER ${name} ON ${sql.identifier(table)}`)
     await db.execute(sql`DROP FUNCTION ${name}()`)
