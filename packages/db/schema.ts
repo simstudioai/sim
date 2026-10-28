@@ -1245,7 +1245,6 @@ export const jobExecutionLogs = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    scheduleIdIdx: index('job_execution_logs_schedule_id_idx').on(table.scheduleId),
     scheduleOccurrenceUnique: uniqueIndex('job_execution_logs_schedule_occurrence_unique').on(
       table.scheduleId,
       table.occurrenceAt
