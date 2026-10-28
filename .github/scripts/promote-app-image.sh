@@ -17,10 +17,10 @@ MANIFEST=$(docker buildx imagetools create --dry-run -t "$REGISTRY/$REPOSITORY:$
 DIGEST="sha256:$(printf '%s' "$MANIFEST" | sha256sum | cut -d' ' -f1)"
 EPOCH=$(date +%s)
 bash "$SCRIPT_DIR/promote-image.sh" "$REGISTRY" "$REPOSITORY" "$SOURCE_TAG" "$DEPLOY_TAG" "$RELEASE_TAG"
-for attempt in $(seq 1 20); do
-  [ "$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG" --allow-missing)" = "$DIGEST" ] && break
-  if [ "$attempt" -eq 20 ]; then
-    echo "ERROR: $DEPLOY_TAG never resolved to the pushed $DIGEST; cutover cannot be correlated" >&2
+deadline=$(( $(date +%s) + 60 ))
+until [ "$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG" --allow-missing)" = "$DIGEST" ]; do
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "ERROR: $DEPLOY_TAG did not resolve to the pushed $DIGEST within 60s; cutover cannot be correlated" >&2
     exit 1
   fi
   sleep 3
