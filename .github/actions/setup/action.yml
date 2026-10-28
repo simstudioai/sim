@@ -66,6 +66,19 @@ runs:
         key: ${{ github.repository }}-${{ inputs.turbo-cache-key }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
         path: ./.turbo
 
+    # Bun retries a failed request itself, but a registry connection that stalls
+    # without failing leaves `bun install` waiting until the job's own timeout
+    # cancels it, the whole budget spent on one hung step. Healthy installs finish
+    # in under three minutes cold, so an attempt past five is stalled: kill it and
+    # retry. Any other failure is real and fails at once.
     - name: Install dependencies
       shell: bash
-      run: bun install --frozen-lockfile --ignore-scripts
+      run: |
+        for attempt in 1 2 3; do
+          timeout --kill-after=30s 5m bun install --frozen-lockfile --ignore-scripts && exit 0
+          status=$?
+          if [ "$status" -ne 124 ] && [ "$status" -ne 137 ]; then exit "$status"; fi
+          echo "::warning title=bun install stalled::attempt ${attempt} of 3 ran past 5 minutes"
+        done
+        echo "::error title=bun install stalled::all 3 attempts ran past 5 minutes"
+        exit 1
