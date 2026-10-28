@@ -1,9 +1,5 @@
 import { trace } from '@opentelemetry/api'
-import {
-  BasicTracerProvider,
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base'
+import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -209,7 +205,7 @@ describe('copilot chat stream replay route', () => {
   it('ends a still-running replay at its cap without a terminal so the client re-attaches', async () => {
     const exporter = new InMemorySpanExporter()
     trace.setGlobalTracerProvider(
-      new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+      new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({ exporter })] })
     )
     vi.useFakeTimers()
     getLatestRunForStream.mockResolvedValue({

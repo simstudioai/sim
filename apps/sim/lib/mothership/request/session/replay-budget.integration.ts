@@ -132,7 +132,7 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
 }))
 
 import { trace } from '@opentelemetry/api'
-import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+import { TracerProvider } from '@opentelemetry/sdk-trace'
 import { db } from '@sim/db'
 import { copilotChats, copilotRuns, permissions, user, workflow, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -513,7 +513,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   beforeAll(() => {
     trace.disable()
     trace.setGlobalTracerProvider(
-      new BasicTracerProvider({
+      new TracerProvider({
         spanProcessors: [
           {
             onStart: () => {},
