@@ -37,6 +37,10 @@ import {
   listSharedResourceOrganizationIdsForUser,
   reassignOrganizationSharedResourcesTx,
 } from '@/lib/billing/organizations/resource-handoff'
+import {
+  collectAccountRemovalChatIds,
+  enqueueChatBackendCleanup,
+} from '@/lib/cleanup/chat-backend-cleanup'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -871,6 +875,14 @@ export async function deleteUserAccount(
      * workspace and user deletes cascade their rows away; delivered after commit.
      */
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
+    /**
+     * The copilot backend keeps its own copy of every chat the workspace and user deletes cascade
+     * away; their ids are gone once those deletes run, so the cleanup is queued now.
+     */
+    await enqueueChatBackendCleanup(
+      tx,
+      await collectAccountRemovalChatIds(tx, { userId, workspaceIds: doomedWorkspaceIds })
+    )
     /** Queues the pre-read keys plus a delta of the account's rows written since, read under the account lock. */
     await enqueueAccountStorageCleanupInTx(tx, {
       userId,
