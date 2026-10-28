@@ -143,7 +143,11 @@ type WindowCount = {
  * statement. A connector's documents can number far past what one statement reads inside its
  * timeout, so the counts are summed over the same windows a walk scans, each bounded by
  * {@link RECONCILIATION_WINDOW_SIZE}. Ids never change, so each document is counted in exactly
- * one window. Unfinished when the deadline arrives first.
+ * one window, in the state it had when that window's statement ran: the sums are not one
+ * snapshot, and differ from one only by the rows writers outside the sync lease changed during
+ * the count. They only decide whether a walk runs; each delete re-checks absence in its own
+ * statement, as it had to after the single count statement this replaced. Unfinished when the
+ * deadline arrives first.
  */
 export async function countReconciliationWindows(
   count: ReconciliationCount
