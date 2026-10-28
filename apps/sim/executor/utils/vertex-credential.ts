@@ -12,6 +12,7 @@ export interface ResolveVertexCredentialParams {
   workspaceId: string | null | undefined
   /** Pins the token request to this workflow's workspace. */
   workflowId?: string
+  executionId?: string
   callerLabel?: string
 }
 
@@ -27,6 +28,7 @@ export async function resolveVertexCredential({
   actingUserId,
   workspaceId,
   workflowId,
+  executionId,
   callerLabel = 'vertex',
 }: ResolveVertexCredentialParams): Promise<string> {
   const requestId = `${callerLabel}-${Date.now()}`
@@ -70,6 +72,7 @@ export async function resolveVertexCredential({
     credentialId,
     userId: actingUserId,
     workflowId,
+    executionId,
     toolLabel: 'Vertex AI',
   })
 

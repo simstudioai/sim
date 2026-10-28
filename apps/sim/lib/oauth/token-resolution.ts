@@ -58,6 +58,8 @@ export interface ResolveCredentialTokenInput {
   requestId: string
   credentialId?: string
   workflowId?: string
+  /** Workflow run the token is for; recorded on the credential-access audit entry. */
+  executionId?: string
   /** Canonical provider scopes, used only by service-account token minting. */
   scopes?: string[]
   /** Google domain-wide-delegation subject for service-account credentials. */
@@ -112,9 +114,12 @@ export function recordCredentialAccess(params: {
   resourceId: string
   providerId: string | null | undefined
   credentialType: 'oauth' | 'service_account'
+  workflowId?: string
+  executionId?: string
   auditRequest?: CredentialAuditRequest
 }): void {
-  const { actorId, workspaceId, resourceId, providerId, credentialType } = params
+  const { actorId, workspaceId, resourceId, providerId, credentialType, workflowId, executionId } =
+    params
   const credentialLabel = `${credentialType === 'oauth' ? 'OAuth' : 'service account'} credential for provider ${providerId ?? 'unknown'}`
   const audit = {
     workspaceId,
@@ -126,6 +131,8 @@ export function recordCredentialAccess(params: {
     metadata: {
       provider: providerId,
       credentialType,
+      ...(workflowId ? { workflowId } : {}),
+      ...(executionId ? { executionId } : {}),
     },
   }
   if (params.auditRequest) {
@@ -211,9 +218,20 @@ export async function completeOAuthCredentialToken(params: {
   resolvedCredentialId: string
   actorId?: string
   workspaceId: string | null
+  workflowId?: string
+  executionId?: string
   auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
-  const { requestId, credential, resolvedCredentialId, actorId, workspaceId, auditRequest } = params
+  const {
+    requestId,
+    credential,
+    resolvedCredentialId,
+    actorId,
+    workspaceId,
+    workflowId,
+    executionId,
+    auditRequest,
+  } = params
   const contextValidation = validateOAuthCredentialContext(credential)
   if (!contextValidation.ok) {
     return { ok: false, status: 401, error: contextValidation.error }
@@ -229,6 +247,8 @@ export async function completeOAuthCredentialToken(params: {
         resourceId: resolvedCredentialId,
         providerId: credential.providerId,
         credentialType: 'oauth',
+        workflowId,
+        executionId,
         auditRequest,
       })
     }
@@ -301,6 +321,7 @@ export async function resolveCredentialToken(
     requestId,
     credentialId,
     workflowId,
+    executionId,
     scopes,
     impersonateEmail,
     callerUserId,
@@ -355,6 +376,8 @@ export async function resolveCredentialToken(
             resourceId: resolved.credentialId,
             providerId: resolved.providerId,
             credentialType: 'service_account',
+            workflowId,
+            executionId,
             auditRequest,
           })
         }
@@ -433,6 +456,8 @@ export async function resolveCredentialToken(
       resolvedCredentialId,
       actorId: authz.requesterUserId,
       workspaceId: authz.workspaceId ?? null,
+      workflowId,
+      executionId,
       auditRequest,
     })
   } catch (error) {
@@ -477,6 +502,7 @@ export async function resolveCredentialAccessToken(
       requestId,
       credentialId,
       workflowId: input.workflowId,
+      executionId: input.executionId,
       scopes: input.scopes,
       /**
        * In-process callers forward raw subblock state, where an untouched
