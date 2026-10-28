@@ -17,7 +17,7 @@ import { tryInferContextFromKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('ChatCleanup')
 
-/** Chat cleanup only ever runs from cleanup jobs, so its reads use the cleanup pool. */
+/** Chat cleanup's reads use the cleanup pool so a purge never waits on the request pool. */
 const cleanupDb = dbFor('cleanup')
 
 const COPILOT_CLEANUP_BATCH_SIZE = 1000

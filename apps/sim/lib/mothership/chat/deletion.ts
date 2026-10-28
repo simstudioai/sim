@@ -1,8 +1,13 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
+import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import { stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+
+const logger = createLogger('CopilotChatDeletion')
 
 interface DeletedChatOwner {
   workspaceId: string | null
@@ -43,14 +48,17 @@ export async function softDeleteMothershipChat(params: {
 }
 
 /**
- * Permanently deletes a copilot chat and stops its live runs in the same transaction. Null
- * when the chat was not the user's.
+ * Permanently deletes a copilot chat and stops its live runs in the same transaction, then
+ * purges what lives outside Sim's rows: the copilot backend's chat data and the chat's stored
+ * files, whose keys are read before the delete cascades the message rows away. Null when the
+ * chat was not the user's.
  */
 export async function deleteCopilotChat(params: {
   chatId: string
   userId: string
 }): Promise<DeletedChatOwner | null> {
   const owned = and(eq(copilotChats.id, params.chatId), eq(copilotChats.userId, params.userId))
+  const externalCleanup = await prepareChatCleanup([params.chatId], 'CopilotChatDelete')
   const deleted = await db.transaction(async (tx) => {
     const [chat] = await tx
       .select({
@@ -68,5 +76,14 @@ export async function deleteCopilotChat(params: {
   })
   if (!deleted) return null
   deliverRunStops(deleted.stoppedRuns)
+  /** The row is gone either way; a failed purge must not turn the committed delete into an error. */
+  try {
+    await externalCleanup.execute()
+  } catch (error) {
+    logger.error('Failed to purge a deleted chat outside the database', {
+      chatId: params.chatId,
+      error: getErrorMessage(error),
+    })
+  }
   return deleted.chat
 }
