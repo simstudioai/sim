@@ -4266,6 +4266,7 @@ import {
   posthogUpdatePropertyDefinitionTool,
   posthogUpdateSurveyTool,
 } from '@/tools/posthog'
+import { presendEmailVerifyTool } from '@/tools/presend'
 import {
   powerbiExecuteQueryTool,
   powerbiGetDatasetTool,
@@ -11909,6 +11910,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   hunter_email_verifier: hunterEmailVerifierTool,
   hunter_companies_find: hunterCompaniesFindTool,
   hunter_email_count: hunterEmailCountTool,
+  presend_email_verify: presendEmailVerifyTool,
   prospeo_account_information: prospeoAccountInformationTool,
   prospeo_enrich_person: prospeoEnrichPersonTool,
   prospeo_enrich_company: prospeoEnrichCompanyTool,
