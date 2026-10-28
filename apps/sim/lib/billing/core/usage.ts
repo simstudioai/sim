@@ -50,6 +50,7 @@ import {
   isDeletedAccountIdentity,
   userHasDeletedAccountIdentity,
 } from '@/lib/users/deleted-identity'
+import { userHasGmailAliasAccount } from '@/lib/users/gmail-alias'
 
 const logger = createLogger('UsageManagement')
 
@@ -191,6 +192,22 @@ function calculateOrgUsageLimit(
  */
 const usersCreatedInAuthRequest = new WeakMap<object, string>()
 
+/**
+ * Whether a new user's identity already had the free allowance: its email or a
+ * linked sign-in (with `includeSignIns`) belonged to a recently deleted account,
+ * or another account already holds its Gmail inbox.
+ */
+async function identityHadFreeAllowance(
+  userId: string,
+  { includeSignIns }: { includeSignIns: boolean },
+  executor: DbOrTx = db
+): Promise<boolean> {
+  return (
+    (await userHasDeletedAccountIdentity(userId, { includeSignIns }, executor)) ||
+    (await userHasGmailAliasAccount(userId, executor))
+  )
+}
+
 function isUserCreatedInAuthRequest(
   userId: string,
   authRequest: object | null | undefined
@@ -202,20 +219,18 @@ function isUserCreatedInAuthRequest(
  * Handle new user setup when they join the platform.
  * Creates the userStats record with the free allowance, which is zero when the
  * user's email or an already-linked social sign-in belongs to an account
- * deleted within the retention window. Every user Better Auth creates comes
- * through here, including SCIM- and SSO-provisioned users, so their email is
- * always checked at creation.
+ * deleted within the retention window, or when another account holds its Gmail
+ * inbox. Every user Better Auth creates comes through here, including SCIM- and
+ * SSO-provisioned users, so their email is always checked at creation.
  *
  * @param authRequest Better Auth's endpoint context for the signup request, when there is one
  */
 export async function handleNewUser(userId: string, authRequest?: object | null): Promise<void> {
   if (authRequest) usersCreatedInAuthRequest.set(authRequest, userId)
   try {
-    const freeTierEligible = !(await userHasDeletedAccountIdentity(userId, {
-      includeSignIns: true,
-    }))
+    const freeTierEligible = !(await identityHadFreeAllowance(userId, { includeSignIns: true }))
     if (!freeTierEligible) {
-      logger.info('Withholding the free allowance from a returning deleted-account identity', {
+      logger.info('Withholding the free allowance from an identity that already had it', {
         userId,
       })
     }
@@ -315,7 +330,7 @@ export async function createUserStatsIfMissing(
   if (created.length === 0) return false
 
   try {
-    if (await userHasDeletedAccountIdentity(userId, { includeSignIns }, executor)) {
+    if (await identityHadFreeAllowance(userId, { includeSignIns }, executor)) {
       await forfeitFreeTierAllowance(executor, userId)
     }
   } catch (error) {
@@ -704,18 +719,18 @@ export async function checkUsageStatus(userId: string): Promise<{
 }
 
 /**
- * Withholds the free allowance from a new account found to reuse the sign-in
- * identity of a recently deleted one after its stats row was created. The flag
- * and the limit it implies commit together (a transaction on `db`, a savepoint
- * inside a caller's transaction), so a failed re-derivation can never leave the
- * account flagged but still holding the free limit; repeating the call is harmless.
+ * Withholds the free allowance from a new account found, after its stats row was
+ * created, to reuse an identity that already had it. The flag and the limit it
+ * implies commit together (a transaction on `db`, a savepoint inside a caller's
+ * transaction), so a failed re-derivation can never leave the account flagged
+ * but still holding the free limit; repeating the call is harmless.
  */
 async function forfeitFreeTierAllowance(executor: DbOrTx, userId: string): Promise<void> {
   await executor.transaction(async (tx) => {
     await tx.update(userStats).set({ freeTierEligible: false }).where(eq(userStats.userId, userId))
     await syncUsageLimitsFromSubscription(userId, tx)
   })
-  logger.info('Withheld the free allowance from a returning deleted-account identity', { userId })
+  logger.info('Withheld the free allowance from an identity that already had it', { userId })
 }
 
 /**
