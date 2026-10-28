@@ -38,8 +38,8 @@ import {
   reassignOrganizationSharedResourcesTx,
 } from '@/lib/billing/organizations/resource-handoff'
 import {
-  collectAccountRemovalChatIds,
-  enqueueChatBackendCleanup,
+  enqueueAccountRemovalChatCleanupInTx,
+  readAccountRemovalChats,
 } from '@/lib/cleanup/chat-backend-cleanup'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
@@ -791,6 +791,7 @@ export async function deleteUserAccount(
     userId,
     workspaceIds: doomedWorkspaceIds,
   })
+  const removedChats = await readAccountRemovalChats({ userId, workspaceIds: doomedWorkspaceIds })
 
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
@@ -877,11 +878,13 @@ export async function deleteUserAccount(
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
     /**
      * The copilot backend keeps its own copy of every chat the workspace and user deletes cascade
-     * away; their ids are gone once those deletes run, so the cleanup is queued now.
+     * away, and the chats' stored files are named only by rows those deletes erase, so their
+     * cleanup is queued now, with the deletion.
      */
-    await enqueueChatBackendCleanup(
+    await enqueueAccountRemovalChatCleanupInTx(
       tx,
-      await collectAccountRemovalChatIds(tx, { userId, workspaceIds: doomedWorkspaceIds })
+      { userId, workspaceIds: doomedWorkspaceIds },
+      removedChats
     )
     /** Queues the pre-read keys plus a delta of the account's rows written since, read under the account lock. */
     await enqueueAccountStorageCleanupInTx(tx, {

@@ -5,7 +5,7 @@ import { vi } from 'vitest'
  *
  * `prepareChatCleanup` resolves a handle whose `execute` is `mockExecuteChatCleanup`, so a test
  * can assert both that the cleanup was prepared for the right chats and that it ran. The backend
- * and storage calls resolve to zero counts; the file collector resolves to no files.
+ * and storage calls resolve to zero counts, and no organization attachment is still referenced.
  *
  * @example
  * ```ts
@@ -24,17 +24,18 @@ export const chatCleanupMockFns = {
     deleted: 0,
     failed: 0,
   })),
-  mockCollectChatFiles: vi.fn(async (_chatIds: string[]) => []),
   mockDeleteStorageFiles: vi.fn(async (_files: unknown[], _label: string) => ({
     filesDeleted: 0,
     filesFailed: 0,
   })),
+  mockOrganizationAttachmentsStillReferenced: vi.fn(async (_files: unknown[]) => new Set<string>()),
 }
 
 /** Stand-in for `@/lib/cleanup/chat-cleanup`; every runtime export of the real module. */
 export const chatCleanupMock = {
   prepareChatCleanup: chatCleanupMockFns.mockPrepareChatCleanup,
   cleanupCopilotBackend: chatCleanupMockFns.mockCleanupCopilotBackend,
-  collectChatFiles: chatCleanupMockFns.mockCollectChatFiles,
   deleteStorageFiles: chatCleanupMockFns.mockDeleteStorageFiles,
+  organizationAttachmentsStillReferenced:
+    chatCleanupMockFns.mockOrganizationAttachmentsStillReferenced,
 }

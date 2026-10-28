@@ -5,7 +5,7 @@ import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { collectChatFiles } from '@/lib/cleanup/chat-cleanup'
+import { collectChatFiles } from '@/lib/cleanup/chat-files'
 import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 
 function attachment(key: string) {

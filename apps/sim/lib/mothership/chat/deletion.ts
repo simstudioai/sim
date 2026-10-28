@@ -1,13 +1,10 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
-import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
+import { enqueueChatBackendCleanup } from '@/lib/cleanup/chat-backend-cleanup'
+import { collectChatFiles } from '@/lib/cleanup/chat-files'
 import { stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
-
-const logger = createLogger('CopilotChatDeletion')
 
 interface DeletedChatOwner {
   workspaceId: string | null
@@ -48,17 +45,17 @@ export async function softDeleteMothershipChat(params: {
 }
 
 /**
- * Permanently deletes a copilot chat and stops its live runs in the same transaction, then
- * purges what lives outside Sim's rows: the copilot backend's chat data and the chat's stored
- * files, whose keys are read before the delete cascades the message rows away. Null when the
- * chat was not the user's.
+ * Permanently deletes a copilot chat and stops its live runs in the same transaction, which also
+ * queues the purge of what lives outside Sim's rows: the copilot backend's chat data and the
+ * chat's stored files. Their keys are read under the chat row's lock, so no message or file
+ * naming the chat can commit between that read and the delete that cascades them away, and the
+ * purge is recorded exactly when the delete commits. Null when the chat was not the user's.
  */
 export async function deleteCopilotChat(params: {
   chatId: string
   userId: string
 }): Promise<DeletedChatOwner | null> {
   const owned = and(eq(copilotChats.id, params.chatId), eq(copilotChats.userId, params.userId))
-  const externalCleanup = await prepareChatCleanup([params.chatId], 'CopilotChatDelete')
   const deleted = await db.transaction(async (tx) => {
     const [chat] = await tx
       .select({
@@ -69,21 +66,16 @@ export async function deleteCopilotChat(params: {
       .where(owned)
       .for('update')
     if (!chat) return null
-    /** Collected before the delete cascades the run rows away. */
+    /** Collected before the delete cascades the run, message and file rows away. */
     const stoppedRuns = await stopLiveRunsTx(tx, { chatIds: [params.chatId] })
+    await enqueueChatBackendCleanup(tx, {
+      chatIds: [params.chatId],
+      files: await collectChatFiles([params.chatId], tx),
+    })
     await tx.delete(copilotChats).where(owned)
     return { chat, stoppedRuns }
   })
   if (!deleted) return null
   deliverRunStops(deleted.stoppedRuns)
-  /** The row is gone either way; a failed purge must not turn the committed delete into an error. */
-  try {
-    await externalCleanup.execute()
-  } catch (error) {
-    logger.error('Failed to purge a deleted chat outside the database', {
-      chatId: params.chatId,
-      error: getErrorMessage(error),
-    })
-  }
   return deleted.chat
 }

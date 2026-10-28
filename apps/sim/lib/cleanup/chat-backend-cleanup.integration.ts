@@ -1,45 +1,95 @@
 /**
- * Deleting an account, or its user row directly through `/admin/remove-user`, cascades
- * `copilot_chats` rows away; the copilot backend keeps its own copy of each chat, so every chat the
- * cascade erases must reach `POST /api/tasks/cleanup`, and no surviving chat may. Runs the
- * production removal paths against real PostgreSQL and a local copilot backend fixture.
+ * Deleting a chat, an account, or a user row directly through `/admin/remove-user` cascades
+ * `copilot_chats` rows away, and with them the only rows naming the chats' stored files. The
+ * copilot backend keeps its own copy of each chat, so every chat a delete erases must reach
+ * `POST /api/tasks/cleanup` and lose its stored files, durably and only once the delete has
+ * happened, and no surviving chat may. Runs the production deletion paths and the outbox handler
+ * against real PostgreSQL, local file storage, and a local copilot backend stand-in that accepts
+ * only the cleanup call the handler is meant to make.
  */
-import { createServer } from 'node:http'
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
 import {
   copilotChats,
+  copilotMessages,
   outboxEvent,
   permissions,
   project,
   user,
   workflow,
   workspace,
+  workspaceFiles,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { generateId } from '@sim/utils/id'
-import { toRecord } from '@sim/utils/object'
-import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+const { backend, storageRoot } = await vi.hoisted(async () => {
+  const { createServer } = await import('node:http')
+  const { mkdtempSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const apiKey = 'chat-cleanup-fixture-key'
+  const backend = {
+    apiKey,
+    /** The chat ids of every accepted cleanup call, in order. */
+    purged: [] as string[][],
+    /** Requests refused for the wrong method, path, or key. */
+    rejected: 0,
+    /** Set to answer accepted calls with a 503, as during an outage. */
+    unavailable: false,
+    server: createServer(async (request, response) => {
+      let body = ''
+      for await (const chunk of request) body += chunk
+      if (
+        request.method !== 'POST' ||
+        request.url !== '/api/tasks/cleanup' ||
+        request.headers['x-api-key'] !== apiKey
+      ) {
+        backend.rejected++
+        response.writeHead(401, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: 'Unauthorized' }))
+        return
+      }
+      if (backend.unavailable) {
+        response.writeHead(503, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: 'Unavailable' }))
+        return
+      }
+      const chatIds: unknown = JSON.parse(body).chatIds
+      const ids = Array.isArray(chatIds) ? chatIds.map(String) : []
+      backend.purged.push(ids)
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ deleted: ids.length }))
+    }),
+  }
+  await new Promise<void>((resolve) => backend.server.listen(0, '127.0.0.1', resolve))
+  const { port } = backend.server.address() as { port: number }
+  process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
+  process.env.COPILOT_API_KEY = apiKey
+  return { backend, storageRoot: mkdtempSync(join(tmpdir(), 'sim-chat-cleanup-')) }
+})
+
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+
+import { enqueueAdminRemovedChatCleanup } from '@/lib/auth/admin-removal-chat-cleanup'
+import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import { chatBackendCleanupOutboxHandlers } from '@/lib/cleanup/chat-backend-cleanup-outbox'
+import { env } from '@/lib/core/config/env'
+import { processOutboxEventById } from '@/lib/core/outbox/service'
+import { deleteCopilotChat } from '@/lib/mothership/chat/deletion'
+import { deleteUserAccount } from '@/lib/users/account-deletion'
+
+setUploadDirServer(storageRoot)
+
+/** Events queued before this suite started belong to earlier suites sharing the database. */
+let suiteStartedAt: string
 const userIds: string[] = []
 const workspaceIds: string[] = []
 const projectIds: string[] = []
-const purged: string[][] = []
-const server = createServer(async (req, res) => {
-  let body = ''
-  for await (const chunk of req) body += chunk
-  const chatIds = toRecord(JSON.parse(body)).chatIds
-  if (Array.isArray(chatIds)) purged.push(chatIds.map(String))
-  res.writeHead(200, { 'content-type': 'application/json' })
-  res.end(JSON.stringify({ deleted: Array.isArray(chatIds) ? chatIds.length : 0 }))
-})
-let runtime: {
-  deletion: typeof import('@/lib/users/account-deletion')
-  adminRemoval: typeof import('@/lib/auth/admin-removal-chat-cleanup')
-  handlers: typeof import('@/lib/cleanup/chat-backend-cleanup-outbox')
-  outbox: typeof import('@/lib/core/outbox/service')
-  event: typeof import('@/lib/cleanup/chat-backend-cleanup-event')
-}
 
 async function seedUser() {
   const id = generateId()
@@ -102,28 +152,96 @@ async function seedChat(userId: string, workspaceId: string, workflowId?: string
   return chat.id
 }
 
-/** Delivers every queued chat cleanup the way the outbox worker does; returns the chat ids purged. */
-async function runOutboxWorker() {
-  const events = await db
-    .select({ id: outboxEvent.id })
-    .from(outboxEvent)
-    .where(eq(outboxEvent.eventType, runtime.event.CHAT_BACKEND_CLEANUP_EVENT))
-  purged.length = 0
-  for (const { id } of events) {
-    expect(
-      await runtime.outbox.processOutboxEventById(
-        id,
-        runtime.handlers.chatBackendCleanupOutboxHandlers
-      )
-    ).toBe('completed')
-  }
-  await db.delete(outboxEvent).where(
-    inArray(
-      outboxEvent.id,
-      events.map(({ id }) => id)
-    )
+async function putObject(key: string) {
+  await mkdir(dirname(join(storageRoot, key)), { recursive: true })
+  await writeFile(join(storageRoot, key), 'x')
+}
+
+async function objectExists(key: string) {
+  return stat(join(storageRoot, key)).then(
+    () => true,
+    () => false
   )
-  return new Set(purged.flat())
+}
+
+/**
+ * A chat holding two stored objects whose naming rows its delete cascades away: an upload linked
+ * by its `workspace_files` row, and an attachment named only inside a message.
+ */
+async function seedChatWithFiles(userId: string, workspaceId: string) {
+  const chatId = await seedChat(userId, workspaceId)
+  const keys = {
+    upload: `copilot/${generateId()}/upload.txt`,
+    attachment: `copilot/${generateId()}/attachment.txt`,
+  }
+  await db.insert(workspaceFiles).values({
+    id: generateId(),
+    key: keys.upload,
+    userId,
+    workspaceId,
+    context: 'copilot',
+    chatId,
+    originalName: 'upload.txt',
+    contentType: 'text/plain',
+    sizeBytes: 1,
+  })
+  await db.insert(copilotMessages).values({
+    chatId,
+    messageId: generateId(),
+    role: 'user',
+    content: {
+      role: 'user',
+      content: 'see attached',
+      fileAttachments: [{ key: keys.attachment, filename: 'attachment.txt' }],
+    },
+  })
+  await putObject(keys.upload)
+  await putObject(keys.attachment)
+  return { chatId, keys }
+}
+
+const queuedBySuite = () =>
+  and(
+    eq(outboxEvent.eventType, CHAT_BACKEND_CLEANUP_EVENT),
+    sql`${outboxEvent.createdAt} >= ${suiteStartedAt}::timestamp`
+  )
+
+async function queuedCleanups() {
+  return db
+    .select({ id: outboxEvent.id, availableAt: outboxEvent.availableAt })
+    .from(outboxEvent)
+    .where(queuedBySuite())
+}
+
+/**
+ * Delivers every queued chat cleanup the way the outbox worker does once each is due, and returns
+ * each event's outcome and the chat ids the backend purged.
+ */
+async function deliverCleanups() {
+  await db.update(outboxEvent).set({ availableAt: new Date() }).where(queuedBySuite())
+  backend.purged.length = 0
+  const outcomes: string[] = []
+  for (const { id } of await queuedCleanups()) {
+    outcomes.push(await processOutboxEventById(id, chatBackendCleanupOutboxHandlers))
+  }
+  return { outcomes: outcomes.sort(), purged: new Set(backend.purged.flat()) }
+}
+
+async function refuseWith(table: string, when: string, run: () => Promise<unknown>) {
+  const name = sql.identifier(`chat_cleanup_refuse_${generateId().replaceAll('-', '')}`)
+  const operation = table === 'outbox_event' ? sql`INSERT` : sql`DELETE`
+  await db.execute(sql`
+    CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'refused by fixture'; END $$`)
+  await db.execute(sql`
+    CREATE TRIGGER ${name} BEFORE ${operation} ON ${sql.identifier(table)}
+    FOR EACH ROW WHEN (${sql.raw(when)}) EXECUTE FUNCTION ${name}()`)
+  try {
+    await expect(run()).rejects.toThrow()
+  } finally {
+    await db.execute(sql`DROP TRIGGER ${name} ON ${sql.identifier(table)}`)
+    await db.execute(sql`DROP FUNCTION ${name}()`)
+  }
 }
 
 async function existingChats(chatIds: string[]) {
@@ -135,59 +253,144 @@ async function existingChats(chatIds: string[]) {
 }
 
 beforeAll(async () => {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-  process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${address.port}`
-  process.env.COPILOT_API_KEY = 'chat-cleanup-fixture-key'
-  const [deletion, adminRemoval, handlers, outbox, event] = await Promise.all([
-    import('@/lib/users/account-deletion'),
-    import('@/lib/auth/admin-removal-chat-cleanup'),
-    import('@/lib/cleanup/chat-backend-cleanup-outbox'),
-    import('@/lib/core/outbox/service'),
-    import('@/lib/cleanup/chat-backend-cleanup-event'),
-  ])
-  runtime = { deletion, adminRemoval, handlers, outbox, event }
-}, 60_000)
+  const [{ now }] = await db.execute<{ now: string }>(
+    sql`SELECT clock_timestamp()::timestamp::text AS now`
+  )
+  suiteStartedAt = now
+})
+
+afterEach(async () => {
+  await db.delete(outboxEvent).where(queuedBySuite())
+  backend.unavailable = false
+  backend.rejected = 0
+  Object.assign(env, { COPILOT_API_KEY: backend.apiKey })
+})
 
 afterAll(async () => {
-  await db
-    .delete(outboxEvent)
-    .where(eq(outboxEvent.eventType, runtime.event.CHAT_BACKEND_CLEANUP_EVENT))
   await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
   await db.delete(project).where(inArray(project.id, projectIds))
   await db.delete(permissions).where(inArray(permissions.userId, userIds))
   await db.delete(user).where(inArray(user.id, userIds))
+  await rm(storageRoot, { recursive: true, force: true })
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    backend.server.close((error) => (error ? reject(error) : resolve()))
   )
 })
 
-describe('copilot backend cleanup of chats a removal cascades away', () => {
-  it('purges the chats an account deletion erases, and only those', async () => {
+describe('cleanup of a permanently deleted chat', () => {
+  it('purges the backend data and stored files of the chat it deletes', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
+    const bystander = await seedChatWithFiles(ownerId, workspaceId)
+
+    expect(await deleteCopilotChat({ chatId, userId: ownerId })).toEqual({
+      workspaceId,
+      organizationId: null,
+    })
+
+    expect(await existingChats([chatId])).toEqual(new Set())
+    const delivered = await deliverCleanups()
+    expect(delivered.outcomes).toEqual(['completed', 'completed'])
+    expect(delivered.purged).toEqual(new Set([chatId]))
+    expect(await objectExists(keys.upload)).toBe(false)
+    expect(await objectExists(keys.attachment)).toBe(false)
+    expect(await objectExists(bystander.keys.upload)).toBe(true)
+    expect(await objectExists(bystander.keys.attachment)).toBe(true)
+    expect(backend.rejected).toBe(0)
+  })
+
+  it('records no cleanup when the delete rolls back', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
+
+    await refuseWith('copilot_chats', `OLD.id = '${chatId}'::uuid`, () =>
+      deleteCopilotChat({ chatId, userId: ownerId })
+    )
+
+    expect(await existingChats([chatId])).toEqual(new Set([chatId]))
+    expect(await queuedCleanups()).toEqual([])
+    expect(await objectExists(keys.upload)).toBe(true)
+    expect(await objectExists(keys.attachment)).toBe(true)
+  })
+
+  it('retries a cleanup whose backend call or object delete failed until both succeed', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
+    await deleteCopilotChat({ chatId, userId: ownerId })
+    backend.unavailable = true
+    /** A directory where the object is: its delete fails with something other than ENOENT. */
+    await rm(join(storageRoot, keys.upload))
+    await mkdir(join(storageRoot, keys.upload, 'blocker'), { recursive: true })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['pending', 'pending'])
+    expect(await objectExists(keys.attachment)).toBe(false)
+
+    backend.unavailable = false
+    await rm(join(storageRoot, keys.upload), { recursive: true })
+    await putObject(keys.upload)
+    const retried = await deliverCleanups()
+    expect(retried.outcomes).toEqual(['completed', 'completed'])
+    expect(retried.purged).toEqual(new Set([chatId]))
+    expect(await objectExists(keys.upload)).toBe(false)
+  })
+
+  it('holds a queued backend purge while COPILOT_API_KEY is unset, still deleting the files', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
+    await deleteCopilotChat({ chatId, userId: ownerId })
+    Object.assign(env, { COPILOT_API_KEY: undefined })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'pending'])
+    expect(backend.purged).toEqual([])
+    expect(await objectExists(keys.upload)).toBe(false)
+    expect(await objectExists(keys.attachment)).toBe(false)
+    const [held] = await db
+      .select({ lastError: outboxEvent.lastError })
+      .from(outboxEvent)
+      .where(and(queuedBySuite(), eq(outboxEvent.status, 'pending')))
+    expect(held.lastError).toBe('Copilot cleanup is not configured')
+
+    Object.assign(env, { COPILOT_API_KEY: backend.apiKey })
+    const retried = await deliverCleanups()
+    expect(retried.outcomes).toEqual(['completed', 'completed'])
+    expect(retried.purged).toEqual(new Set([chatId]))
+  })
+})
+
+describe('cleanup of the chats a removal cascades away', () => {
+  it('purges the chats an account deletion erases and their files, and only those', async () => {
     const departingId = await seedUser()
     const bystanderId = await seedUser()
     const doomedWorkspaceId = await seedWorkspace(departingId)
     const keptWorkspaceId = await seedWorkspace(bystanderId)
     /** Chats outlive their author's membership: both were written by a member who since left. */
-    const ownChatElsewhere = await seedChat(departingId, keptWorkspaceId)
+    const ownChatElsewhere = await seedChatWithFiles(departingId, keptWorkspaceId)
     const formerMembersChat = await seedChat(bystanderId, doomedWorkspaceId)
-    const bystandersChat = await seedChat(bystanderId, keptWorkspaceId)
+    const bystandersChat = await seedChatWithFiles(bystanderId, keptWorkspaceId)
 
-    await runtime.deletion.deleteUserAccount(departingId, { recordIdentity: false })
+    await deleteUserAccount(departingId, { recordIdentity: false })
 
-    expect(await existingChats([ownChatElsewhere, formerMembersChat, bystandersChat])).toEqual(
-      new Set([bystandersChat])
-    )
-    expect(await runOutboxWorker()).toEqual(new Set([ownChatElsewhere, formerMembersChat]))
+    expect(
+      await existingChats([ownChatElsewhere.chatId, formerMembersChat, bystandersChat.chatId])
+    ).toEqual(new Set([bystandersChat.chatId]))
+    const delivered = await deliverCleanups()
+    expect(new Set(delivered.outcomes)).toEqual(new Set(['completed']))
+    expect(delivered.purged).toEqual(new Set([ownChatElsewhere.chatId, formerMembersChat]))
+    expect(await objectExists(ownChatElsewhere.keys.attachment)).toBe(false)
+    expect(await objectExists(bystandersChat.keys.attachment)).toBe(true)
+    expect(await objectExists(bystandersChat.keys.upload)).toBe(true)
   })
 
-  /** Drives the handlers Better Auth runs as the user delete's hooks around its bare delete. */
-  it('purges the chats a direct user delete erases, and only those', async () => {
+  /** Drives the hook Better Auth runs before its bare user delete; a throw there aborts the delete. */
+  it('queues a direct user delete’s cleanup before the delete, due only after it', async () => {
     const removedId = await seedUser()
     const bystanderId = await seedUser()
     const sharedWorkspaceId = await seedWorkspace(bystanderId, [removedId])
-    const ownChat = await seedChat(removedId, sharedWorkspaceId)
+    const ownChat = await seedChatWithFiles(removedId, sharedWorkspaceId)
     const chatOnRemovedUsersWorkflow = await seedChat(
       bystanderId,
       sharedWorkspaceId,
@@ -199,33 +402,47 @@ describe('copilot backend cleanup of chats a removal cascades away', () => {
       await seedWorkflow(bystanderId, sharedWorkspaceId)
     )
 
-    const removed = { id: removedId }
-    await runtime.adminRemoval.holdAdminRemovedChats(removed)
+    const queuedAt = Date.now()
+    await enqueueAdminRemovedChatCleanup({ id: removedId })
+    const queued = await queuedCleanups()
+    expect(queued.length).toBeGreaterThan(0)
+    for (const { id, availableAt } of queued) {
+      expect(availableAt.getTime()).toBeGreaterThan(queuedAt + 10 * 60_000)
+      expect(await processOutboxEventById(id, chatBackendCleanupOutboxHandlers)).toBe('pending')
+    }
     await db.delete(user).where(eq(user.id, removedId))
-    await runtime.adminRemoval.enqueueAdminRemovedChatCleanup(removed)
 
-    expect(await existingChats([ownChat, chatOnRemovedUsersWorkflow, bystandersChat])).toEqual(
-      new Set([bystandersChat])
-    )
-    expect(await runOutboxWorker()).toEqual(new Set([ownChat, chatOnRemovedUsersWorkflow]))
+    expect(
+      await existingChats([ownChat.chatId, chatOnRemovedUsersWorkflow, bystandersChat])
+    ).toEqual(new Set([bystandersChat]))
+    const delivered = await deliverCleanups()
+    expect(new Set(delivered.outcomes)).toEqual(new Set(['completed']))
+    expect(delivered.purged).toEqual(new Set([ownChat.chatId, chatOnRemovedUsersWorkflow]))
+    expect(await objectExists(ownChat.keys.upload)).toBe(false)
+    expect(await objectExists(ownChat.keys.attachment)).toBe(false)
   })
 
-  it('leaves the backend data of a chat whose delete rolled back', async () => {
-    const ownerId = await seedUser()
-    const workspaceId = await seedWorkspace(ownerId)
-    const chatId = await seedChat(ownerId, workspaceId)
-    const { enqueueChatBackendCleanup } = await import('@/lib/cleanup/chat-backend-cleanup')
+  it('purges nothing for a direct user delete that never happened', async () => {
+    const keptId = await seedUser()
+    const workspaceId = await seedWorkspace(keptId)
+    const chat = await seedChatWithFiles(keptId, workspaceId)
 
-    await expect(
-      db.transaction(async (tx) => {
-        await enqueueChatBackendCleanup(tx, [chatId])
-        await tx.delete(copilotChats).where(eq(copilotChats.id, chatId))
-        throw new Error('rolled back')
-      })
-    ).rejects.toThrow('rolled back')
-    await enqueueChatBackendCleanup(db, [chatId])
+    await enqueueAdminRemovedChatCleanup({ id: keptId })
 
-    expect(await runOutboxWorker()).toEqual(new Set())
-    expect(await existingChats([chatId])).toEqual(new Set([chatId]))
+    const delivered = await deliverCleanups()
+    expect(new Set(delivered.outcomes)).toEqual(new Set(['completed']))
+    expect(delivered.purged).toEqual(new Set())
+    expect(await objectExists(chat.keys.upload)).toBe(true)
+    expect(await objectExists(chat.keys.attachment)).toBe(true)
+  })
+
+  it('refuses a direct user delete whose cleanup cannot be queued', async () => {
+    const removedId = await seedUser()
+    const workspaceId = await seedWorkspace(removedId)
+    await seedChat(removedId, workspaceId)
+
+    await refuseWith('outbox_event', `NEW.event_type = '${CHAT_BACKEND_CLEANUP_EVENT}'`, () =>
+      enqueueAdminRemovedChatCleanup({ id: removedId })
+    )
   })
 })

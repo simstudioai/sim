@@ -1,42 +1,125 @@
-import type { db } from '@sim/db'
+import { db } from '@sim/db'
 import { copilotChats, workflow, workspace } from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
 import { eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  type ChatFileRef,
+  type ChatScopedContext,
+  collectChatFiles,
+} from '@/lib/cleanup/chat-files'
 import { env } from '@/lib/core/config/env'
 import { enqueueOutboxEvents, MAX_BULK_ENQUEUE_EVENTS } from '@/lib/core/outbox/service'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
-/** Most chat ids one cleanup event carries, so one handler run is one bounded backend call. */
+/** Most chat ids, or stored files, one cleanup event carries, so one handler run stays bounded. */
 const CHAT_BACKEND_CLEANUP_BATCH_SIZE = 100
 
-export const chatBackendCleanupPayloadSchema = z
+const chatIdSchema = z.string().min(1).max(255)
+
+const chatFileSchema = z
   .object({
-    chatIds: z.array(z.string().min(1).max(255)).min(1).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE),
+    key: z.string().min(1).max(1024),
+    context: z.enum(['copilot', 'mothership'] satisfies [
+      ChatScopedContext,
+      ...ChatScopedContext[],
+    ]),
+    chatId: chatIdSchema,
+    organizationId: chatIdSchema.optional(),
   })
   .strict()
 
+export const chatBackendCleanupPayloadSchema = z
+  .object({
+    chatIds: z.array(chatIdSchema).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE).default([]),
+    files: z.array(chatFileSchema).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE).default([]),
+  })
+  .strict()
+  .refine((payload) => payload.chatIds.length > 0 || payload.files.length > 0, {
+    message: 'A chat cleanup names at least one chat or stored file',
+  })
+
 type ChatBackendCleanupPayload = z.infer<typeof chatBackendCleanupPayloadSchema>
 
+/** What a chat deletion leaves outside Sim's rows: the chats' copilot backend data and stored files. */
+export interface ChatCleanupTargets {
+  chatIds: readonly string[]
+  /** Read while the rows naming them exist; they cascade away with the chats. */
+  files: readonly ChatFileRef[]
+}
+
 /**
- * Queues the copilot backend cleanup of chats a delete is about to cascade away, one bounded
- * event per {@link CHAT_BACKEND_CLEANUP_BATCH_SIZE} chats. Call it in the deleting transaction so
- * a rollback leaves no cleanup behind; the handler purges only chats whose rows are gone, so a
- * chat the delete ends up sparing keeps its backend data. Without `COPILOT_API_KEY` this Sim
- * never reached a copilot backend, so there is nothing to purge and nothing is queued.
+ * Queues the purge of what the given chats leave outside Sim's rows once a delete cascades them
+ * away: one bounded event per {@link CHAT_BACKEND_CLEANUP_BATCH_SIZE} chats for the copilot backend,
+ * and one per as many stored files. Call it in the deleting transaction so the cleanup commits or
+ * rolls back with the delete; the handler purges only chats whose rows are gone, so a chat the
+ * delete ends up sparing keeps its data. A delete with no transaction to join queues it first,
+ * with an `availableAt` past the moment the delete commits.
+ *
+ * Without `COPILOT_API_KEY` this Sim never reached a copilot backend, so no chat ids are queued for
+ * it; the stored files are queued either way.
  */
 export async function enqueueChatBackendCleanup(
   executor: Pick<typeof db, 'insert'>,
-  chatIds: readonly string[]
+  targets: ChatCleanupTargets,
+  options: { availableAt?: Date } = {}
 ): Promise<void> {
-  if (!env.COPILOT_API_KEY) return
-  const payloads = chunkArray([...new Set(chatIds)], CHAT_BACKEND_CLEANUP_BATCH_SIZE).map(
-    (batch): ChatBackendCleanupPayload => ({ chatIds: batch })
-  )
+  const chatIds = env.COPILOT_API_KEY ? [...new Set(targets.chatIds)] : []
+  const filesByKey = new Map<string, ChatFileRef>()
+  for (const file of targets.files) if (!filesByKey.has(file.key)) filesByKey.set(file.key, file)
+  const payloads: ChatBackendCleanupPayload[] = [
+    ...chunkArray(chatIds, CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
+      chatIds: batch,
+      files: [],
+    })),
+    ...chunkArray([...filesByKey.values()], CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
+      chatIds: [],
+      files: batch.map(({ key, context, chatId, organizationId }) => ({
+        key,
+        context,
+        chatId,
+        ...(organizationId ? { organizationId } : {}),
+      })),
+    })),
+  ]
   for (const events of chunkArray(payloads, MAX_BULK_ENQUEUE_EVENTS)) {
-    await enqueueOutboxEvents(executor, CHAT_BACKEND_CLEANUP_EVENT, events)
+    await enqueueOutboxEvents(executor, CHAT_BACKEND_CLEANUP_EVENT, events, options)
   }
+}
+
+/**
+ * Reads, before an account removal's transaction, the chats it will cascade away and their stored
+ * files, so the unbounded transcript scan behind the file keys never runs while the removal holds
+ * the account and workspace locks. {@link enqueueAccountRemovalChatCleanupInTx} completes it.
+ */
+export async function readAccountRemovalChats(params: {
+  userId: string
+  workspaceIds: readonly string[]
+}): Promise<ChatCleanupTargets> {
+  const chatIds = await collectAccountRemovalChatIds(db, params)
+  return { chatIds, files: await collectChatFiles(chatIds) }
+}
+
+/**
+ * Queues the cleanup of every chat an account removal cascades away, inside its transaction:
+ * the chat ids are re-read there, after the account row is locked, and the files of any chat
+ * created since {@link readAccountRemovalChats} ran are read in the transaction. A key a turn adds
+ * to an already-read chat between that read and the removal's run stops is not collected here;
+ * when it names one of the account's uploads, the account storage sweep still reclaims it.
+ */
+export async function enqueueAccountRemovalChatCleanupInTx(
+  tx: DbTransaction,
+  params: { userId: string; workspaceIds: readonly string[] },
+  preRead: ChatCleanupTargets
+): Promise<void> {
+  const chatIds = await collectAccountRemovalChatIds(tx, params)
+  const known = new Set(preRead.chatIds)
+  const newChatFiles = await collectChatFiles(
+    chatIds.filter((id) => !known.has(id)),
+    tx
+  )
+  await enqueueChatBackendCleanup(tx, { chatIds, files: [...preRead.files, ...newChatFiles] })
 }
 
 /**
@@ -45,7 +128,7 @@ export async function enqueueChatBackendCleanup(
  * hold (`copilot_chats` cascades from `user`, `workspace` and `workflow`, and `workflow` from
  * `user` and `workspace`). A chat a handover later spares is skipped by the handler's re-check.
  */
-export async function collectAccountRemovalChatIds(
+async function collectAccountRemovalChatIds(
   executor: DbOrTx,
   params: { userId: string; workspaceIds: readonly string[] }
 ): Promise<string[]> {

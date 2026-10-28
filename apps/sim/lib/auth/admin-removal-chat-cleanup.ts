@@ -1,54 +1,32 @@
 import { db } from '@sim/db'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
-  collectAccountRemovalChatIds,
   enqueueChatBackendCleanup,
   ownedWorkspaceIds,
+  readAccountRemovalChats,
 } from '@/lib/cleanup/chat-backend-cleanup'
 
-const logger = createLogger('AdminRemovalChatCleanup')
-
-/** Chat ids read by {@link holdAdminRemovedChats}, keyed like the removal stops by the hook's user entity. */
-const pendingChatIds = new WeakMap<object, string[]>()
+/**
+ * How long the cleanup an `/admin/remove-user` queues waits before it may run: well past any
+ * user delete's commit, so the handler finds the cascaded chats gone. Purging a removed account
+ * is not latency-sensitive, and a cleanup that runs while its delete is still in flight would
+ * see the chats alive and purge nothing.
+ */
+const ADMIN_REMOVAL_CLEANUP_DELAY_MS = 60 * 60_000
 
 /**
  * The user delete's `before` hook: `/admin/remove-user` cascades the account's chats, and those in
- * the workspaces it owns, away with no transaction to queue their copilot backend cleanup in, so
- * their ids are read now. A failed read lets the removal proceed rather than blocking an admin.
- */
-export async function holdAdminRemovedChats(user: { id: string }): Promise<void> {
-  try {
-    pendingChatIds.set(
-      user,
-      await collectAccountRemovalChatIds(db, {
-        userId: user.id,
-        workspaceIds: await ownedWorkspaceIds(db, user.id),
-      })
-    )
-  } catch (error) {
-    logger.error('Failed to read the chats a user removal deletes', {
-      userId: user.id,
-      error: getErrorMessage(error),
-    })
-  }
-}
-
-/**
- * The user delete's `after` hook, once the delete has committed: queues the backend cleanup, which
- * purges only chats whose rows are gone. Never throws.
+ * the workspaces it owns, away with no transaction to queue their cleanup in, so the cleanup is
+ * queued now, before the delete, and delayed past it. The handler purges only chats whose rows
+ * are gone, so a delete that fails or is refused purges nothing. A failed read or enqueue throws,
+ * which aborts the removal rather than erasing chats whose cleanup nothing recorded.
  */
 export async function enqueueAdminRemovedChatCleanup(user: { id: string }): Promise<void> {
-  const chatIds = pendingChatIds.get(user)
-  pendingChatIds.delete(user)
-  if (!chatIds?.length) return
-  try {
-    await enqueueChatBackendCleanup(db, chatIds)
-  } catch (error) {
-    logger.error('Failed to queue the backend cleanup of a removed user’s chats', {
-      userId: user.id,
-      chatCount: chatIds.length,
-      error: getErrorMessage(error),
-    })
-  }
+  const targets = await readAccountRemovalChats({
+    userId: user.id,
+    workspaceIds: await ownedWorkspaceIds(db, user.id),
+  })
+  if (targets.chatIds.length === 0) return
+  await enqueueChatBackendCleanup(db, targets, {
+    availableAt: new Date(Date.now() + ADMIN_REMOVAL_CLEANUP_DELAY_MS),
+  })
 }

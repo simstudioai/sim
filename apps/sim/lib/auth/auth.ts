@@ -38,10 +38,7 @@ import { readAttributionProperties } from '@/lib/analytics/attribution'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
-import {
-  enqueueAdminRemovedChatCleanup,
-  holdAdminRemovedChats,
-} from '@/lib/auth/admin-removal-chat-cleanup'
+import { enqueueAdminRemovedChatCleanup } from '@/lib/auth/admin-removal-chat-cleanup'
 import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
@@ -527,17 +524,17 @@ export const auth = betterAuth({
        * usage rows cascade away without `deleteUserAccount`. Better Auth runs `after` once the
        * delete commits, which is when the stored reporting prefixes that counted them must be
        * discarded, and when the runs the cascade orphaned are stopped: in-flight ones at once,
-       * queued ones by the outbox worker, since this module cannot load that delivery. The chats
-       * the cascade erased get their copilot backend cleanup queued the same way.
+       * queued ones by the outbox worker, since this module cannot load that delivery. The cleanup
+       * of the chats the cascade erases is queued, delayed, before the delete instead, and a
+       * failure to queue it refuses the removal.
        */
       delete: {
         before: async (user) => {
           await holdAdminRemovalStops(user)
-          await holdAdminRemovedChats(user)
+          await enqueueAdminRemovedChatCleanup(user)
         },
         after: async (user) => {
           await stopAdminRemovedRuns(user)
-          await enqueueAdminRemovedChatCleanup(user)
           await invalidateReportingUsagePrefixes()
         },
       },
