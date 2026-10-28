@@ -10,10 +10,10 @@ import { getSession } from '@/lib/auth'
 import {
   type BillingAttributionSnapshot,
   checkAttributedBillingBlocks,
-  checkAttributedUsageLimits,
   resolveBillingAttribution,
   toBillingContext,
 } from '@/lib/billing/core/attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
@@ -286,7 +286,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
       }
     } else {
-      const usage = await checkAttributedUsageLimits(billingAttribution)
+      const usage = await checkExecutionUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         return NextResponse.json(
           {
