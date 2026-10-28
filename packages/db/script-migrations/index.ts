@@ -16,6 +16,7 @@ import { backfillPublicShareEntitiesMigration } from '@sim/db/script-migrations/
 import { validateFileWorkspaceBindingMigration } from '@sim/db/script-migrations/0035_validate_file_workspace_binding'
 import { archiveLegacyScheduledJobsMigration } from '@sim/db/script-migrations/0036_archive_legacy_scheduled_jobs'
 import { sealAccountTokensMigration } from '@sim/db/script-migrations/0037_seal_account_tokens'
+import { createLogger } from '@sim/logger'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -29,6 +30,9 @@ import { remapLegacyKnowledgeConnectorCredentialsMigration } from './0011_remap_
 import { type ScriptMigration, ScriptMigrationDeferred } from './types'
 
 export type { ScriptMigration } from './types'
+
+/** The migrations container's progress log, which operators read on every upgrade. */
+const logger = createLogger('ScriptMigrations', { enabled: true, logLevel: 'INFO' })
 
 /**
  * Ordered, append-only registry of script migrations. An entry may be deleted
@@ -126,7 +130,7 @@ export async function runScriptMigrations(
 
   const pending = migrations.filter((migration) => !applied.has(migration.name))
   if (pending.length === 0) {
-    console.log('No pending script migrations.')
+    logger.info('No pending script migrations.')
     return
   }
 
@@ -138,14 +142,17 @@ export async function runScriptMigrations(
         )
       }
     }
-    console.log(`Applying script migration ${migration.name}...`)
+    logger.info(`Applying script migration ${migration.name}...`)
     const startedAt = Date.now()
     try {
       await migration.up(sql)
     } catch (error) {
       if (!(error instanceof ScriptMigrationDeferred)) throw error
-      console.log(
-        `Script migration ${migration.name} deferred (${error.message}); it runs again on the next migrate.`
+      logger.info(
+        `Script migration ${migration.name} deferred; it runs again on the next migrate.`,
+        {
+          reason: error.message,
+        }
       )
       continue
     }
@@ -154,6 +161,6 @@ export async function runScriptMigrations(
         await tx`INSERT INTO script_migrations (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`
       }
     })
-    console.log(`Script migration ${migration.name} applied in ${Date.now() - startedAt}ms.`)
+    logger.info(`Script migration ${migration.name} applied in ${Date.now() - startedAt}ms.`)
   }
 }

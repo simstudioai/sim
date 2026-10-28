@@ -7,6 +7,7 @@ import { openText } from '@sim/db/sealed-text'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { seal, sealingKeyId } from '@sim/security/encryption'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -212,8 +213,9 @@ describe('sealing stored account tokens in PostgreSQL', () => {
       await markSealedReaderRelease('2 days')
     })
 
-    afterEach(() => {
+    afterEach(async () => {
       vi.unstubAllEnvs()
+      await admin.unsafe(`DROP FUNCTION IF EXISTS "${schemaName}".on_account_update() CASCADE`)
     })
 
     /** When the database first ran the migrate step of a release that reads sealed tokens. */
@@ -330,6 +332,45 @@ describe('sealing stored account tokens in PostgreSQL', () => {
         await holding
       }
       expect((await storedRows())[0].access_token).toBe('locked-access')
+    }, 30_000)
+
+    /** Makes every account UPDATE in this schema run `body` first, as the batch's own statement. */
+    async function onAccountUpdate(body: string) {
+      await admin.unsafe(`CREATE FUNCTION "${schemaName}".on_account_update() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN ${body}; RETURN NEW; END $$`)
+      await admin.unsafe(`CREATE TRIGGER on_account_update BEFORE UPDATE ON "${schemaName}".account
+        FOR EACH ROW EXECUTE FUNCTION "${schemaName}".on_account_update()`)
+    }
+
+    it('defers when a batch hits its statement timeout', async () => {
+      await insertAccount('slow-access', 'slow-refresh')
+      await onAccountUpdate(
+        `RAISE EXCEPTION 'canceling statement due to statement timeout' USING ERRCODE = '57014'`
+      )
+
+      await migrate()
+
+      expect(await isRecorded()).toBe(false)
+      expect((await storedRows())[0].access_token).toBe('slow-access')
+    })
+
+    it('fails the run when an operator cancels a batch', async () => {
+      await insertAccount('cancelled-access', 'cancelled-refresh')
+      await onAccountUpdate('PERFORM pg_sleep(20)')
+
+      const run = migrate()
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const [cancelled] = await admin<{ cancelled: boolean }[]>`
+          SELECT pg_cancel_backend(pid) AS cancelled FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event = 'PgSleep'
+            AND query LIKE '%UPDATE account%'`
+        if (cancelled?.cancelled) break
+        await sleep(50)
+      }
+
+      await expect(run).rejects.toThrow('canceling statement due to user request')
+      expect(await isRecorded()).toBe(false)
+      expect((await storedRows())[0].access_token).toBe('cancelled-access')
     }, 30_000)
   })
 })

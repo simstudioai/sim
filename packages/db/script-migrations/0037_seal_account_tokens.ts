@@ -9,7 +9,7 @@ import {
 } from '@sim/db/sealed-text'
 import { createLogger } from '@sim/logger'
 import { sealedKeyId, sealingKeyId } from '@sim/security/encryption'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import type { Sql } from 'postgres'
 
@@ -152,8 +152,11 @@ const SEALED_READER_RELEASE_MIGRATION = '0036_archive_legacy_scheduled_jobs'
  */
 const SEALED_READER_ROLLOUT_GRACE = '1 hour'
 
-/** Lock and statement timeouts a batch sets on itself; either leaves the rest for the next run. */
-const BATCH_TIMEOUT_CODES = new Set(['55P03', '57014'])
+/**
+ * The lock and statement timeouts a batch sets on itself; either leaves the rest for the next run.
+ * An operator's cancel (`user_cancel`) is not one of them, so it fails the run visibly.
+ */
+const BATCH_TIMEOUTS = new Set(['lock_timeout', 'statement_timeout'])
 
 /**
  * Seals the account tokens stored before this deployment sealed its writes, during `migrate`.
@@ -189,9 +192,9 @@ export const sealAccountTokensMigration: ScriptMigration = {
       }
       logger.info('Account token backfill finished', result)
     } catch (error) {
-      const code = getPostgresErrorCode(error)
-      if (!code || !BATCH_TIMEOUT_CODES.has(code)) throw error
-      throw new ScriptMigrationDeferred(`an account token batch timed out (${code})`)
+      const reason = getPostgresCancellationReason(error)
+      if (!reason || !BATCH_TIMEOUTS.has(reason)) throw error
+      throw new ScriptMigrationDeferred(`an account token batch hit its ${reason}`)
     }
   },
 }
