@@ -1,10 +1,6 @@
 import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
-import {
-  BasicTracerProvider,
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base'
+import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
@@ -17,7 +13,7 @@ const transaction = dbChainMockFns.transaction
 
 describe('Mothership boundary timing', () => {
   const exporter = new InMemorySpanExporter()
-  const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+  const provider = new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({ exporter })] })
   const manager = new AsyncLocalStorageContextManager()
 
   beforeAll(() => {
