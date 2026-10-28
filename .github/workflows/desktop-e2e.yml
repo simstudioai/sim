@@ -168,9 +168,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # The bunfig age gate would resolve `latest` to the newest week-old release; the canary
+      # exists to test the release that just shipped. Already-locked packages stay locked.
       - name: Switch to electron@latest
         working-directory: apps/desktop
-        run: bun add --no-save -d electron@latest
+        run: bun add --no-save -d --minimum-release-age=0 electron@latest
 
       - name: Bundle main and preload
         working-directory: apps/desktop

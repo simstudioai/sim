@@ -140,9 +140,7 @@
     "react-dom": "19.2.4",
     "next": "16.4.1",
     "@next/env": "16.4.1",
-    "drizzle-orm": "^0.45.4",
     "postgres": "3.4.9",
-    "minimatch": "10.2.6",
     "marked": "18.0.11",
     "mermaid": "11.16.1",
     "zod": "4.3.6",
@@ -152,18 +150,15 @@
     "@hono/node-server": "1.19.15",
     "@xmldom/xmldom": "0.8.15",
     "axios": "1.20.0",
-    "baseline-browser-mapping": "2.11.28",
-    "brace-expansion": "5.0.12",
     "deepmerge-ts": "8.0.0",
     "dompurify": "3.4.17",
     "engine.io": "6.6.11",
     "fast-copy": "4.2.0",
-    "fast-uri": "3.1.8",
+    "fast-uri": "3.1.9",
     "follow-redirects": "1.16.1",
     "hono": "4.13.13",
     "image-size": "2.0.4",
     "ip-address": "10.7.4",
-    "joi": "17.13.8",
     "postcss": "8.5.30",
     "prosemirror-model": "1.25.12",
     "prosemirror-state": "1.4.4",
@@ -171,9 +166,8 @@
     "prosemirror-view": "1.42.6",
     "protobufjs": "7.6.5",
     "proxy-addr": "2.0.8",
-    "qs": "6.16.0",
+    "qs": "6.16.1",
     "shell-quote": "1.12.0",
-    "socket.io": "4.8.4",
     "socket.io-parser": "4.2.7",
     "source-map-js": "1.2.2",
     "ws": "8.21.3"
@@ -222,8 +216,7 @@
     ]
   },
   "trustedDependencies": [
-    "isolated-vm",
-    "sharp"
+    "isolated-vm"
   ],
   "patchedDependencies": {
     "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch",
