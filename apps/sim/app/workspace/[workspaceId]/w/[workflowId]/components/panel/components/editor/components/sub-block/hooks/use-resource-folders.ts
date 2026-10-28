@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -74,13 +74,10 @@ export function useResourceFolders(
    * broadcast (knowledge bases and tables still wait out their stale time).
    */
   const queryClient = useQueryClient()
-  const onFilesChanged = useCallback(() => {
-    if (workspaceId) invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
-  }, [queryClient, workspaceId])
   useWorkspaceInvalidationRoom(
     isFileResource ? (workspaceId ?? '') : '',
     ROOM_TYPES.WORKSPACE_FILES,
-    onFilesChanged,
+    () => (workspaceId ? invalidateWorkspaceFileBrowsers(queryClient, workspaceId) : undefined),
     WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
   )
 

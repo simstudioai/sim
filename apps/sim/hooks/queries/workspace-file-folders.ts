@@ -47,13 +47,18 @@ async function fetchWorkspaceFileFolders(
   return data.folders
 }
 
+/** Settles once the active file-browser queries have refetched. */
 export function invalidateWorkspaceFileBrowsers(
   queryClient: ReturnType<typeof useQueryClient>,
   workspaceId: string
 ) {
-  queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(workspaceId) })
-  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
-  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: workspaceFileFolderKeys.workspaceLists(workspaceId),
+    }),
+    queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() }),
+  ])
 }
 
 export function useWorkspaceFileFolders(

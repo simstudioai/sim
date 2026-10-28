@@ -28,6 +28,8 @@ import {
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import {
   routeWindowScans,
+  windowCount,
+  windowCounts,
   windowScan,
   windowScans,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
@@ -224,15 +226,15 @@ describe('completed listing removal counts', () => {
       complete: true,
       listedCount: 8,
     }
-    queueTableRows(schemaMock.document, [
-      {
-        ownedCount: 10,
-        listedCount: 8,
-        aclCount: options.revoked?.length ?? 0,
-        softCount: soft.length,
-        hardCount: hard.length,
-      },
-    ])
+    windowCounts.push(
+      windowCount({
+        owned: 10,
+        listed: 8,
+        acl: options.revoked?.length ?? 0,
+        soft: soft.length,
+        hard: hard.length,
+      })
+    )
     /** A walk whose count is zero never scans. Each walk here fits in one partial window. */
     if (options.revoked?.length) {
       windowScans.push(windowScan(options.revoked))
@@ -347,9 +349,7 @@ async function runPass(
   vi.clearAllMocks()
   resetDbChainMock()
   vi.setSystemTime(new Date(Date.now() + 60_000))
-  if (options.databaseTime) {
-    dbChainMockFns.execute.mockResolvedValue([{ startedAt: options.databaseTime.toISOString() }])
-  }
+  if (options.databaseTime) routeWindowScans(options.databaseTime)
   for (let index = 0; index < 16; index++) {
     queueTableRows(schemaMock.knowledgeConnector, [
       {
@@ -386,9 +386,7 @@ async function runPass(
       schemaMock.document,
       options.permissionStoredAfter ? [options.permissionStoredAfter] : []
     )
-  queueTableRows(schemaMock.document, [
-    { ownedCount: 1, listedCount: 1, softCount: 0, hardCount: 0 },
-  ])
+  windowCounts.push(windowCount({ owned: 1, listed: 1, soft: 0, hard: 0 }))
   for (let index = 0; index < 3; index++) queueTableRows(schemaMock.document, [])
   dbChainMockFns.returning.mockResolvedValue([{ id: 'document' }])
 

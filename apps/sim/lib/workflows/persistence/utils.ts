@@ -145,6 +145,16 @@ const deployedStateCache = new LRUCache<
   ttl: DEPLOYED_STATE_CACHE_TTL_MS,
 })
 
+/**
+ * The version id each workflow last cached, so the active-version read can ask
+ * Postgres to withhold a `state` this process already holds. Only a hint: a
+ * stale or evicted entry costs a re-read, never a wrong answer.
+ */
+const cachedVersionByWorkflow = new LRUCache<string, string>({
+  max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
+  ttl: DEPLOYED_STATE_CACHE_TTL_MS,
+})
+
 function getCachedDeploymentState(
   workflowId: string,
   deploymentVersionId: string
@@ -160,6 +170,7 @@ export function invalidateDeployedStateCache(deploymentVersionId?: string): void
     return
   }
   deployedStateCache.clear()
+  cachedVersionByWorkflow.clear()
 }
 
 /**
@@ -261,19 +272,30 @@ export async function materializeDeploymentState(
   if (options.cache === false) return deployedState
   /** The cached entry is shared, so each caller gets its own copy. */
   deployedStateCache.set(version.id, { workflowId, state: deployedState })
+  cachedVersionByWorkflow.set(workflowId, version.id)
   return structuredClone(deployedState)
 }
 
+/**
+ * Loads the active deployment's materialized state. The `state` blob (often tens
+ * of KB) leaves Postgres only when this process has no cached materialization
+ * of the active version: the read withholds it for the version id cached for
+ * this workflow, so a hit and a miss both cost one round trip.
+ */
 export async function loadDeployedWorkflowState(
   workflowId: string,
   providedWorkspaceId?: string
 ): Promise<DeployedWorkflowData> {
   try {
+    const cachedVersionId = cachedVersionByWorkflow.get(workflowId)
     const [active] = await db
       .select({
         id: workflowDeploymentVersion.id,
-        state: workflowDeploymentVersion.state,
-        createdAt: workflowDeploymentVersion.createdAt,
+        state: cachedVersionId
+          ? sql`CASE WHEN ${workflowDeploymentVersion.id} = ${cachedVersionId} THEN NULL ELSE ${workflowDeploymentVersion.state} END`.mapWith(
+              workflowDeploymentVersion.state
+            )
+          : workflowDeploymentVersion.state,
       })
       .from(workflowDeploymentVersion)
       .where(
@@ -285,7 +307,16 @@ export async function loadDeployedWorkflowState(
       .orderBy(desc(workflowDeploymentVersion.createdAt))
       .limit(1)
 
-    if (!active?.state) {
+    if (!active) {
+      throw new NoActiveDeploymentError(workflowId)
+    }
+
+    if (active.id === cachedVersionId && active.state == null) {
+      // Served from the cache, or re-read by id if the entry was evicted since the hint.
+      return loadWorkflowDeploymentVersionState(workflowId, active.id, providedWorkspaceId)
+    }
+
+    if (!active.state) {
       throw new NoActiveDeploymentError(workflowId)
     }
 

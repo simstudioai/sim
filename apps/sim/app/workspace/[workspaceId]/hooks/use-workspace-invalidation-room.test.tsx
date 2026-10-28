@@ -13,7 +13,10 @@ vi.mock('@/app/workspace/providers/socket-provider', () => ({
   useSocket: () => mockUseSocket(),
 }))
 
-import { useWorkspaceInvalidationRoom } from '@/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room'
+import {
+  INVALIDATION_COALESCE_MS,
+  useWorkspaceInvalidationRoom,
+} from '@/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room'
 
 function fakeSocket() {
   return { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() }
@@ -25,7 +28,7 @@ const roots: Root[] = []
 function mount(
   workspaceId: string,
   roomType: RoomType,
-  onChanged: () => void = () => {},
+  onChanged: () => unknown = () => {},
   dedupeKey?: string
 ): Root {
   function Probe() {
@@ -42,6 +45,11 @@ function mount(
 
 function unmount(root: Root) {
   act(() => root.unmount())
+}
+
+/** Delivers a `${roomType}-changed` broadcast to the handler the room registered. */
+function broadcast(event: string, workspaceId: string) {
+  for (const [name, handler] of socket.on.mock.calls) if (name === event) handler({ workspaceId })
 }
 
 const emitted = (event: string, workspaceId?: string) =>
@@ -98,5 +106,51 @@ describe('useWorkspaceInvalidationRoom', () => {
     unmount(a)
 
     expect(emitted('leave-workspace-files', 'ws-1')).toBe(1)
+  })
+
+  describe('change delivery', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('delivers a burst of broadcasts once at once and once after it, not once per broadcast', async () => {
+      const onChanged = vi.fn()
+      mount('ws-1', 'workspace-files', onChanged)
+
+      for (let index = 0; index < 20; index++) broadcast('workspace-files-changed', 'ws-1')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onChanged).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(INVALIDATION_COALESCE_MS)
+      expect(onChanged).toHaveBeenCalledTimes(2)
+
+      await vi.advanceTimersByTimeAsync(10 * INVALIDATION_COALESCE_MS)
+      expect(onChanged).toHaveBeenCalledTimes(2)
+    })
+
+    it('waits for a refetch in flight instead of starting another beside it', async () => {
+      let settle: () => void = () => {}
+      const onChanged = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            settle = resolve
+          })
+      )
+      mount('ws-1', 'workspace-files', onChanged)
+
+      broadcast('workspace-files-changed', 'ws-1')
+      await vi.advanceTimersByTimeAsync(5 * INVALIDATION_COALESCE_MS)
+      broadcast('workspace-files-changed', 'ws-1')
+      await vi.advanceTimersByTimeAsync(5 * INVALIDATION_COALESCE_MS)
+      expect(onChanged).toHaveBeenCalledTimes(1)
+
+      settle()
+      await vi.advanceTimersByTimeAsync(INVALIDATION_COALESCE_MS)
+      expect(onChanged).toHaveBeenCalledTimes(2)
+    })
   })
 })

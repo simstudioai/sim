@@ -3074,6 +3074,20 @@
       "when": 1793215243284,
       "tag": "0439_gmail_mailbox_index",
       "breakpoints": true
+    },
+    {
+      "idx": 440,
+      "version": "7",
+      "when": 1793220094350,
+      "tag": "0440_drop_redundant_indexes_vacuum_tuning",
+      "breakpoints": true
+    },
+    {
+      "idx": 441,
+      "version": "7",
+      "when": 1793220118650,
+      "tag": "0441_usage_log_billing_entity_period_cost_idx",
+      "breakpoints": true
     }
   ]
 }

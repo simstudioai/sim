@@ -28,6 +28,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import {
   routeWindowScans,
+  windowCount,
+  windowCounts,
   windowScan,
   windowScans,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
@@ -2248,9 +2250,9 @@ describe('executeSync hard-delete reconciliation', () => {
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, ownedDocs.slice(0, LISTED_DOC_COUNT))
-    queueTableRows(schemaMock.document, [
-      { ownedCount: OWNED_DOC_COUNT, listedCount: LISTED_DOC_COUNT, softCount: 40, hardCount: 40 },
-    ])
+    windowCounts.push(
+      windowCount({ owned: OWNED_DOC_COUNT, listed: LISTED_DOC_COUNT, soft: 40, hard: 40 })
+    )
     /** Less than a window remains, so the hard walk scans it once, then pages its matches. */
     windowScans.push(windowScan(missingIds.map((id) => ({ id, tombstoned: false }))))
     queueTableRows(schemaMock.document, [])
@@ -2514,9 +2516,7 @@ describe('executeSync terminal exits under a lost lock', () => {
         },
       ])
     queueTableRows(schemaMock.document, [])
-    queueTableRows(schemaMock.document, [
-      { ownedCount: 0, listedCount: 0, softCount: 0, hardCount: 0 },
-    ])
+    windowCounts.push(windowCount({ owned: 0, listed: 0, soft: 0, hard: 0 }))
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [])

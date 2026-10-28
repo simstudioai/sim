@@ -5,15 +5,13 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { chatCleanupMock, chatCleanupMockFns } from '@sim/testing/mocks/chat-cleanup.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBatchDelete, mockDeleteRowsById, mockPrepareChatCleanup, mockExecuteChatCleanup } =
-  vi.hoisted(() => ({
-    mockBatchDelete: vi.fn(async (_options: unknown) => ({ deleted: 0, failed: 0 })),
-    mockDeleteRowsById: vi.fn(async (..._args: unknown[]) => ({ deleted: 0, failed: 0 })),
-    mockPrepareChatCleanup: vi.fn(),
-    mockExecuteChatCleanup: vi.fn(async () => undefined),
-  }))
+const { mockBatchDelete, mockDeleteRowsById } = vi.hoisted(() => ({
+  mockBatchDelete: vi.fn(async (_options: unknown) => ({ deleted: 0, failed: 0 })),
+  mockDeleteRowsById: vi.fn(async (..._args: unknown[]) => ({ deleted: 0, failed: 0 })),
+}))
 
 vi.mock('@/lib/cleanup/batch-delete', () => ({
   batchDeleteByWorkspaceAndTimestamp: mockBatchDelete,
@@ -24,9 +22,11 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
     query: (ids: string[], limit: number) => Promise<unknown[]>
   ) => (ids.length ? query(ids, 500) : []),
 }))
-vi.mock('@/lib/cleanup/chat-cleanup', () => ({ prepareChatCleanup: mockPrepareChatCleanup }))
+vi.mock('@/lib/cleanup/chat-cleanup', () => chatCleanupMock)
 
 import { runCleanupTasks } from '@/background/cleanup-tasks'
+
+const { mockPrepareChatCleanup, mockExecuteChatCleanup } = chatCleanupMockFns
 
 const organizationPayload = {
   plan: 'enterprise' as const,
@@ -41,7 +41,6 @@ describe('chat retention ownership', () => {
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:00:00Z'))
-    mockPrepareChatCleanup.mockResolvedValue({ execute: mockExecuteChatCleanup })
   })
   afterEach(() => {
     vi.useRealTimers()

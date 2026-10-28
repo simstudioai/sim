@@ -2,27 +2,55 @@ import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
+  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+  VISION_CHECKPOINT_CLEANUP_EVENT,
+} from '@/lib/knowledge/documents/checkpoint-events'
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
+import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
+import {
+  WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
+  WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
+} from '@/lib/uploads/contexts/workspace/file-outbox-events'
 
 const logger = createLogger('OutboxRetention')
 
 /** How long a completed event stays readable for operators after it was enqueued. */
 export const COMPLETED_OUTBOX_RETENTION_MS = 7 * 24 * 60 * 60_000
 /**
- * Most rows deleted per type per run. Recovery enqueues only inside a run, at most 200 per run, so
- * a 1,000-row prune keeps five times its pace however often the processor runs.
+ * Most rows deleted per type per maintenance run. A type enqueued faster than this per run grows
+ * a backlog that later, quieter runs drain.
  */
 export const OUTBOX_PRUNE_BATCH_SIZE = 1_000
 
 /**
- * Event types whose completed rows nothing reads again: each carries a fresh random id and is
- * looked up only while pending or processing. Operation records, idempotency keys and
- * deterministic-id dedupe gates, such as the checkpoint expiry events, must outlive completion.
+ * Event types whose completed rows nothing reads again once the retention window has passed.
+ *
+ * Most carry a fresh random id and are looked up only while pending or processing, by the
+ * immediate `processOutboxEventById` after their transaction commits. The checkpoint expiry events
+ * are deterministic-id gates instead: a writer inserts the row before uploading and skips the
+ * upload when the row exists but is no longer pending, because the object's cleanup already ran.
+ * The row completes at the checkpoint's expiry, well inside the window, and once it is pruned a
+ * later writer of the same key inserts a fresh pending row before its upload, so every object it
+ * writes still has a cleanup.
+ *
+ * Kept: operation records and receipt effects read back by id (workflow deployment events, the
+ * workspace operation events, enterprise and admin operations), idempotency keys, and every
+ * pending, processing and dead-letter row.
  */
 const PRUNABLE_OUTBOX_EVENT_TYPES = [
   KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT,
   KNOWLEDGE_STORAGE_CLEANUP_EVENT,
+  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
+  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+  VISION_CHECKPOINT_CLEANUP_EVENT,
+  WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
+  WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
+  MEMORY_CLEANUP_EVENT,
+  CHAT_BACKEND_CLEANUP_EVENT,
 ] as const
 
 async function pruneCompletedBatch(eventType: string, cutoff: Date): Promise<number> {

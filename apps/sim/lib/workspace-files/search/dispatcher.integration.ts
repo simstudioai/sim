@@ -414,6 +414,32 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     expect(skipped.missed).toBe(0)
   }, 30_000)
 
+  it('seeds only files missing a revision and locks no file it already indexes', async () => {
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      SELECT 'file-' || lpad(n::text, 4, '0'), 'workspace-1', 'workspace',
+        CASE WHEN n = 31 THEN timestamp '2026-09-17' ELSE timestamp '2026-09-16' END
+      FROM generate_series(1, 50) n`
+    /** The owner trigger locks each file it checks, so the fixture's own revisions bypass it. */
+    await connection.begin(async (tx) => {
+      await tx`SET LOCAL session_replication_role = replica`
+      await tx`INSERT INTO workspace_file_search_revision
+        (file_id, workspace_id, entity_type, entity_id, source_content_updated_at, status)
+        SELECT id, workspace_id, 'workspace', workspace_id, content_updated_at, 'ready'
+        FROM workspace_files WHERE id NOT IN ('file-0007', 'file-0031')`
+    })
+
+    await prepareWorkspaceFileSearchDispatch()
+
+    const seeded = await connection`SELECT file_id, source_content_updated_at::date::text AS source
+      FROM workspace_file_search_revision WHERE status = 'pending' ORDER BY file_id`
+    expect(seeded.map((row) => [row.file_id, row.source])).toEqual([
+      ['file-0007', '2026-09-16'],
+      ['file-0031', '2026-09-17'],
+    ])
+    const locked = await connection`SELECT id FROM workspace_files WHERE xmax <> 0 ORDER BY id`
+    expect(locked.map((row) => row.id)).toEqual(['file-0007', 'file-0031'])
+  })
+
   it('seeks the keyset index for the backfill cursor rather than filtering', async () => {
     await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
       SELECT md5(n::text), 'workspace-' || lpad((n % 7)::text, 2, '0'), 'workspace', '2026-09-16'
@@ -425,8 +451,10 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     statements.length = 0
     await prepareWorkspaceFileSearchDispatch()
 
-    const walk = statements.find((statement) =>
-      statement.query.includes('for share of "workspace_files"')
+    const walk = statements.find(
+      (statement) =>
+        statement.query.includes('from "workspace_files"') &&
+        statement.query.includes('order by CASE WHEN')
     )
     expect(walk).toBeDefined()
     expect(walk?.query).toContain(

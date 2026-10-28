@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
-import { and, eq, gt, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gt, gte, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -27,6 +27,7 @@ import {
   connectorPartitionWorkStore,
 } from '@/lib/knowledge/connectors/partition-store'
 import {
+  countReconciliationWindows,
   type ReconciliationWalk,
   walkReconciliationWindows,
 } from '@/lib/knowledge/connectors/reconciliation-window'
@@ -495,16 +496,18 @@ async function reconcileCompletedListing(
       beforePage: input.lease.beatIfDue,
       onPage,
     })
-  const [{ ownedCount, listedCount, aclCount, softCount, hardCount }] = await db
-    .select({
-      ownedCount: sql<number>`count(*)::int`,
-      listedCount: sql<number>`count(*) FILTER (WHERE ${document.sourceSeenAt} >= ${sql.param(startedAt, document.sourceSeenAt)})::int`,
-      aclCount: sql<number>`count(*) FILTER (WHERE ${aclAbsent})::int`,
-      softCount: sql<number>`count(*) FILTER (WHERE ${soft})::int`,
-      hardCount: sql<number>`count(*) FILTER (WHERE ${hard})::int`,
-    })
-    .from(document)
-    .where(owned)
+  /** Paged like the walks: one statement over a large connector outlasts its timeout. */
+  const tally = await countReconciliationWindows({
+    connectorId: input.connectorId,
+    conditions: [gte(document.sourceSeenAt, startedAt), aclAbsent, soft, hard].map(
+      (condition) => condition ?? sql`true`
+    ),
+    deadlineAt: input.deadlineAt,
+    beforePage: input.lease.beatIfDue,
+  })
+  if (!tally.finished) return { finished: false, notice: null }
+  const ownedCount = tally.owned
+  const [listedCount, aclCount, softCount, hardCount] = tally.matching
   let notice: string | null = null
   let allowDeletion = true
   if (classifySuspectListing(listedCount, ownedCount)) {
