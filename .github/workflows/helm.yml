@@ -188,6 +188,12 @@ jobs:
             --values helm/sim/ci/kind-overlay.yaml \
             --wait --timeout 15m
 
+      - name: Run helm test
+        run: helm test sim --namespace sim --timeout 5m
+
+      # After the test, so it also explains a failed probe, not only a failed
+      # install. A failed test pod is kept (the hook deletes it only on success),
+      # so its log says which URL refused.
       - name: Diagnostics on failure
         if: failure()
         run: |
@@ -196,9 +202,8 @@ jobs:
           kubectl -n sim describe pods | tail -100 || true
           kubectl -n sim logs deploy/sim-app -c migrations --tail=50 || true
           kubectl -n sim logs deploy/sim-app --tail=80 || true
-
-      - name: Run helm test
-        run: helm test sim --namespace sim --timeout 5m
+          kubectl -n sim logs deploy/sim-realtime --tail=80 || true
+          kubectl -n sim logs sim-test-connection || true
 
   # Resolved once and shared, so the two publish paths cannot package the same
   # immutable chart version with different appVersions -- they run in parallel,
