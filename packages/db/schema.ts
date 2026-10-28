@@ -4889,6 +4889,12 @@ export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValu
 export type CopilotToolPermissionDecision =
   (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
+export interface AssistantActionBinding {
+  operationVersion: number
+  effect: 'read' | 'write'
+  credentialId: string
+}
+
 /** Stop may arrive before chat creation. Its actor/workspace scope cannot cancel another request. */
 export const copilotRequestStops = pgTable(
   'copilot_request_stops',
@@ -5050,19 +5056,27 @@ export const copilotAsyncToolCalls = pgTable(
     toolCallId: text('tool_call_id').notNull(),
     toolName: text('tool_name').notNull(),
     args: jsonb('args').notNull().default('{}'),
+    /** Canonical dispatch identity; null only on calls recorded before invocation binding. */
+    executableName: text('executable_name'),
+    targetWorkspaceId: text('target_workspace_id'),
+    /** Validated user edits, committed once with the decision; original args stay immutable. */
+    approvedArgs: jsonb('approved_args'),
+    /** Server-resolved authority sealed with the original proposal, never supplied by the worker. */
+    assistantAction: jsonb('assistant_action').$type<AssistantActionBinding>(),
+    /** External writes without a provider idempotency key must never be replayed after a crash. */
+    executionRetryable: boolean('execution_retryable').notNull().default(true),
     status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
     result: jsonb('result'),
     error: text('error'),
     /**
-     * Set only for tools declaring requiresApproval in the mothership tool catalog. A null decision
-     * on such a tool means the prompt is still outstanding, which is what lets it survive a reload.
+     * A null decision on a gated call means its prompt is still outstanding after a reload.
      */
     permissionDecision: copilotToolPermissionDecisionEnum('permission_decision'),
     permissionDecidedAt: timestamp('permission_decided_at'),
     /**
      * Set when this call was held for the user's decision. Whether a call is gated depends on the
      * turn (the feature flag, the tool's arguments, the user's allow lists), so the row records it:
-     * a desktop claim refuses a gated call until `permissionDecision` allows it.
+     * every execution claim refuses a gated call until `permissionDecision` allows it.
      */
     permissionRequestedAt: timestamp('permission_requested_at'),
     /**
@@ -6553,6 +6567,40 @@ export const credentialGroupEnrollment = pgTable(
       'credential_group_enrollment_invitation_token_hash_length_check',
       sql`length(${table.invitationTokenHash}) = 64`
     ),
+  })
+)
+
+/** Personal Assistant preferences never confer access to another account or override organization policy. */
+export const assistantToolPermission = pgTable(
+  'assistant_tool_permission',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => credential.id, { onDelete: 'cascade' }),
+    revision: integer('revision').notNull().default(1),
+    readPolicy: text('read_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('allow'),
+    writePolicy: text('write_policy').$type<'allow' | 'ask' | 'block'>().notNull().default('ask'),
+    overrides: jsonb('overrides')
+      .$type<Record<string, { version: number; policy: 'allow' | 'ask' | 'block' }>>()
+      .notNull()
+      .default({}),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.organizationId, table.userId, table.credentialId] }),
+    credentialIdx: index('assistant_tool_permission_credential_idx').on(table.credentialId),
+    userIdx: index('assistant_tool_permission_user_idx').on(table.userId),
+    policyCheck: check(
+      'assistant_tool_permission_policy_check',
+      sql`${table.readPolicy} IN ('allow', 'ask', 'block') AND ${table.writePolicy} IN ('allow', 'ask', 'block')`
+    ),
+    revisionCheck: check('assistant_tool_permission_revision_check', sql`${table.revision} > 0`),
   })
 )
 

@@ -4,11 +4,14 @@ import { createLogger } from '@sim/logger'
 import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
+import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { isComputerUseAvailableFor } from '@/lib/computer-use/application/availability'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
+import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import {
@@ -38,11 +41,11 @@ import {
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
-import { providerIdsForService } from '@/lib/oauth/utils'
 import { listOrganizationSecretNames } from '@/lib/organization-secrets/application/use-cases'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
-import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
+import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
@@ -123,6 +126,7 @@ export interface ToolSchema {
    */
   operation?: string
   oauth?: { required: boolean; provider: string }
+  assistant?: { effect: 'read' | 'write'; version: number }
 }
 
 interface BuildIntegrationToolSchemasOptions {
@@ -235,25 +239,37 @@ export async function buildIntegrationToolSchemas(
   }
 
   if (options.organizationId && personalAccountsOnly) {
-    const approvals = await listOrganizationSearchApprovals(options.organizationId)
-    const providers = new Set(
-      SEARCH_CONNECTORS.filter((connector) => approvals.get(connector.type) === true).map(
-        (connector) => connector.providerId
-      )
+    const [approvals, group, policies] = await Promise.all([
+      listOrganizationSearchApprovals(options.organizationId),
+      getOrganizationAccountsGroup(options.organizationId),
+      loadLiveSearchPolicies({ organizationId: options.organizationId }),
+    ])
+    const configured = new Set(
+      group?.status === 'active'
+        ? group.options
+            .filter((option) => option.status === 'active')
+            .map((option) => option.provider)
+        : []
     )
     return schemas.filter((schema) => {
       const original = getToolMetadata(schema.name)
       const metadata = original ? projectAssistantConnectedAccountTool(original) : undefined
+      if (!metadata?.oauth?.required || metadata.personalToken) return false
+      const oauthProvider = metadata.oauth.provider
+      const provider = findCredentialGroupProviderFromProviderId(oauthProvider)
+      if (!provider || !configured.has(provider)) return false
+      const source = assistantSearchSourceForProvider(oauthProvider)
       return (
-        !metadata?.personalToken &&
-        metadata?.oauth?.required &&
-        providerIdsForService(metadata.oauth.provider).some((providerId) =>
-          providers.has(providerId)
-        )
+        !source ||
+        (approvals.get(source) === true &&
+          !requiresScopedRetrieval(source, livePolicyFor(policies, source)))
       )
     })
   }
-  return schemas
+
+  return personalAccountsOnly
+    ? schemas.filter((schema) => schema.assistant?.effect === 'read')
+    : schemas
 }
 
 async function buildIntegrationToolSchemaVariant(
@@ -310,6 +326,14 @@ async function buildIntegrationToolSchemaVariant(
         service,
         operation,
         description,
+        ...(options.personalAccountsOnly && toolConfig.assistant
+          ? {
+              assistant: {
+                effect: toolConfig.assistant.effect,
+                version: toolConfig.assistant.version,
+              },
+            }
+          : {}),
         input_schema: { ...userSchema },
         ...(toolConfig.outputs && {
           outputs: Object.fromEntries(

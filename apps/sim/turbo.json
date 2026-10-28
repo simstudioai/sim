@@ -116,8 +116,8 @@
       "cache": false
     },
     "ci:e2e-desktop-inbox": {
-      "dependsOn": ["ci:server", "@sim/realtime#ci:runtime"],
-      "inputs": ["scripts/test-desktop-inbox-e2e.ts"],
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": ["scripts/test-desktop-inbox-e2e.ts", "scripts/test-assistant-actions-e2e.ts"],
       "cache": false
     },
     "ci:e2e-project-files": {

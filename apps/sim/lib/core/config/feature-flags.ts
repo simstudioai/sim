@@ -59,9 +59,8 @@ const FEATURE_FLAGS = {
   },
   'mothership-search-integration-tools': {
     description:
-      'Give Search Assistant read-only integration discovery, calls, and matching prompt ' +
-      'instructions. Global AppConfig on/off only; disabled by default with no env fallback.',
-    fallback: null,
+      'Enable personal-account integration reads and reviewed actions in Search Assistant. Global rollout; disabled by default.',
+    fallback: 'MSHIP_SEARCH_INTEGRATION_TOOLS',
   },
   'workflow-tests': {
     description:

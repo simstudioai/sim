@@ -144,6 +144,7 @@ function parseLatestReview(value: unknown): SubmittedReviewSummary | null {
 export const listReviewThreadsTool: ToolConfig<ListReviewThreadsParams, ListReviewThreadsResponse> =
   {
     id: 'github_list_review_threads',
+    assistant: { effect: 'read', version: 1 },
     name: 'GitHub List Review Threads',
     description:
       "List one page of a pull request's review threads with their comments, plus the newest submitted review.",

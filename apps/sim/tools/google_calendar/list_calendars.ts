@@ -212,6 +212,7 @@ export const listCalendarsV2Tool: ToolConfig<
   GoogleCalendarListCalendarsV2Response
 > = {
   id: 'google_calendar_list_calendars_v2',
+  assistant: { effect: 'read', version: 1 },
   name: 'Google Calendar List Calendars',
   description: "List all calendars in the user's calendar list.",
   version: '2.0.0',

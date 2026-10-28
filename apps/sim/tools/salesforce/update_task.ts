@@ -14,6 +14,20 @@ export const salesforceUpdateTaskTool: ToolConfig<
   name: 'Update Task in Salesforce',
   description: 'Update an existing task',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'taskId', label: 'Task', target: true },
+      { name: 'whoId', label: 'Contact or lead', target: true },
+      { name: 'whatId', label: 'Related record', target: true },
+      { name: 'subject', label: 'Subject', editable: true },
+      { name: 'description', label: 'Description', format: 'multiline', editable: true },
+      { name: 'status', label: 'Status', editable: true },
+      { name: 'priority', label: 'Priority', editable: true },
+      { name: 'activityDate', label: 'Due date', editable: true },
+    ],
+  },
 
   oauth: {
     required: true,

@@ -26,6 +26,7 @@ export const AuditAction = {
 
   CHAT_DEPLOYED: 'chat.deployed',
   CHAT_UPDATED: 'chat.updated',
+  ASSISTANT_ACTION_REVIEWED: 'assistant_action.reviewed',
   CHAT_DELETED: 'chat.deleted',
   CHAT_PASSWORD_VIEWED: 'chat.password_viewed',
 

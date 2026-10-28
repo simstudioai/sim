@@ -153,6 +153,7 @@ ${items.map((item: any) => `@${item.login} (${item.type}) - ${item.html_url}`).j
 
 export const searchUsersV2Tool: ToolConfig<SearchUsersParams, any> = {
   id: 'github_search_users_v2',
+  assistant: { effect: 'read', version: 1 },
   name: searchUsersTool.name,
   description: searchUsersTool.description,
   version: '2.0.0',

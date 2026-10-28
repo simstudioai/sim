@@ -30,7 +30,11 @@ export interface ToolExecutionLifetime {
   readonly signal: AbortSignal
   readonly owner?: SimToolExecutionOwner
   complete(input: CompleteAsyncToolCallInput): Promise<void>
-  claim(runId: string, userId: string): Promise<SimToolExecutionClaim>
+  claim(
+    runId: string,
+    userId: string,
+    admit?: (owner: SimToolExecutionOwner) => Promise<SimToolExecutionClaim>
+  ): Promise<SimToolExecutionClaim>
   hold<T>(work: Promise<T>): Promise<T>
 }
 
@@ -80,12 +84,10 @@ export async function withToolExecutionLifetime<T>(
         }
       )
     },
-    async claim(runId, userId) {
-      const claim = await claimToolExecution({ toolCallId, runId, userId, ownerToken }).catch(
-        () => {
-          throw new Error('Tool could not start because execution admission could not be recorded')
-        }
-      )
+    async claim(runId, userId, admit = claimToolExecution) {
+      const claim = await admit({ toolCallId, runId, userId, ownerToken }).catch(() => {
+        throw new Error('Tool could not start because execution admission could not be recorded')
+      })
       admitted = claim.outcome === 'claimed'
       if (admitted) {
         owner = { toolCallId, runId, userId, ownerToken }

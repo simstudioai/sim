@@ -17,6 +17,7 @@ export const listWorksheetsTool: ToolConfig<ExcelListParams, ExcelWorksheetsResp
   name: 'Microsoft Excel List Worksheets',
   description: 'List Worksheets in a Microsoft Excel workbook.',
   version: '1.0.0',
+  assistant: { effect: 'read', version: 1 },
   oauth: { required: true, provider: 'microsoft-excel' },
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
   params: { ...EXCEL_WORKBOOK_PARAMS, ...EXCEL_LIST_PARAMS },

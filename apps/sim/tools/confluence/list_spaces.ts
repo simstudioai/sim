@@ -29,6 +29,7 @@ export const confluenceListSpacesTool: InternalToolConfig<
   ConfluenceListSpacesResponse
 > = {
   id: 'confluence_list_spaces',
+  assistant: { effect: 'read', version: 1 },
   name: 'Confluence List Spaces',
   description: 'List all Confluence spaces accessible to the user.',
   version: '1.0.0',

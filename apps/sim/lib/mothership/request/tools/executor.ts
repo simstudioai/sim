@@ -1,9 +1,15 @@
 import { browserToolRendererTimeoutMs, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import type { AssistantActionBinding } from '@sim/db/schema'
 import { COMPUTER_USE_TOOL_TIMEOUT_MS } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName, resolveRunWaitMs } from '@sim/terminal-protocol'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { claimOrganizationAssistantAction } from '@/lib/assistant-actions/application/admission'
+import { resolveAssistantActionBinding } from '@/lib/assistant-actions/binding'
+import { withAssistantActionExecution } from '@/lib/assistant-actions/execution-scope'
+import { executeCopilotAssistantAction } from '@/lib/mothership/application/assistant-actions'
+import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionEnvelope,
@@ -77,6 +83,10 @@ import {
 } from '@/lib/mothership/request/tools/execution-lifetime'
 import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
 import {
+  runGatedToolExecution,
+  TOOL_AWAITING_APPROVAL_STATUS,
+} from '@/lib/mothership/request/tools/permission'
+import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
   measureWithheldContent,
@@ -104,6 +114,7 @@ import {
 } from '@/lib/mothership/tools/desktop-tools'
 import { withSandboxResourceScope } from '@/lib/mothership/tools/sandbox-resources'
 import { isMcpTool } from '@/executor/constants'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('CopilotSseToolExecution')
 
@@ -372,7 +383,8 @@ async function executeToolWithWatchdog(
   toolCall: ToolCallState,
   toolContext: ExecutionContext,
   lifetime: ToolExecutionLifetime,
-  onEvent: OrchestratorOptions['onEvent']
+  onEvent: OrchestratorOptions['onEvent'],
+  assistantAction?: AssistantActionBinding | null
 ) {
   // The frame's wire name can be a display identity (the worker's cli_* names);
   // execution always dispatches on the model's real tool name.
@@ -393,7 +405,7 @@ async function executeToolWithWatchdog(
     lifetime.signal,
     ...(toolContext.abortSignal ? [toolContext.abortSignal] : []),
   ])
-  const execute = () =>
+  const executeBound = () =>
     withCopilotSpan(TraceSpan.CopilotToolRuntime, { [TraceAttr.ToolCallId]: toolCall.id }, () =>
       withToolServiceMeter(toolContext, () =>
         executeTool(executableName, toolCall.params || {}, {
@@ -402,6 +414,22 @@ async function executeToolWithWatchdog(
         })
       )
     )
+  const execute = () => {
+    if (!assistantAction) return executeBound()
+    if (!lifetime.owner || !toolContext.organizationId)
+      throw new Error('Assistant action has no durable execution owner.')
+    return withAssistantActionExecution(
+      {
+        userId: toolContext.userId,
+        organizationId: toolContext.organizationId,
+        toolCallId: toolCall.id,
+        toolId: executableName,
+        args: toolCall.params ?? {},
+        binding: assistantAction,
+      },
+      executeBound
+    )
+  }
   const execution = lifetime.hold(
     (executableName === RunCode.id || executableName === RunFunction.id) &&
       lifetime.owner &&
@@ -748,11 +776,24 @@ async function executeToolAndReportInner(
   }
 
   toolCall.status = 'executing'
+  let executionCall = { ...toolCall, params: structuredClone(toolCall.params ?? {}) }
+  const executableName = toolCall.execName ?? toolCall.name
+  const assistantAction =
+    execContext.requestMode === 'assistant' &&
+    execContext.organizationId &&
+    isAssistantIntegrationTool(getToolMetadata(executableName))
+      ? resolveAssistantActionBinding(executableName, executionCall.params)
+      : undefined
+  let admittedAssistantAction: AssistantActionBinding | null | undefined
   const record = await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: toolCall.id,
     ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     toolName: toolCall.name,
+    executableName: toolCall.execName ?? toolCall.name,
+    ...(assistantAction
+      ? { assistantAction, executionRetryable: assistantAction.effect === 'read' }
+      : {}),
     args: toolCall.params,
     executionDeadlineAt: toDeadlineDate(toolCall.deadlineAt),
   }).catch((err) => {
@@ -762,7 +803,51 @@ async function executeToolAndReportInner(
   /** A re-run after a takeover gets what remains of the call's first deadline, never a fresh one. */
   if (record?.executionDeadlineAt) toolCall.deadlineAt = record.executionDeadlineAt.getTime()
   if (context.runId) {
-    const claim = await lifetime.claim(context.runId, execContext.userId)
+    const claim = await lifetime.claim(
+      context.runId,
+      execContext.userId,
+      assistantAction
+        ? (owner) =>
+            executeCopilotAssistantAction(
+              { ...execContext, toolCallId: toolCall.id },
+              claimOrganizationAssistantAction,
+              owner
+            )
+        : undefined
+    )
+    if (claim.outcome === 'awaiting_permission' && assistantAction) {
+      const permissionOptions = options ?? {}
+      await permissionOptions.onEvent?.({
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          arguments: toolCall.params,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: TOOL_AWAITING_APPROVAL_STATUS,
+        },
+      })
+      return runGatedToolExecution(
+        toolCall,
+        toolCall.id,
+        toolCall.name,
+        toolCall.params,
+        MothershipStreamV1ToolExecutor.sim,
+        context,
+        permissionOptions,
+        () => {
+          toolCall.status = 'pending'
+          return executeToolAndReportInner(toolCall, context, execContext, lifetime, options)
+        },
+        permissionOptions.interactive !== false && Boolean(permissionOptions.onEvent)
+      )
+    }
+    if (claim.outcome === 'permission_denied') {
+      const cancelled = await settleCancelledIfUnstarted('Action cancelled by you')
+      if (cancelled) return cancelled
+    }
     if (claim.outcome === 'closed') {
       /** A call another controller already started keeps its own result, observed below. */
       const stopped = await settleCancelledIfUnstarted('Run stopped before tool admission')
@@ -817,6 +902,17 @@ async function executeToolAndReportInner(
       })
       return terminalCompletionFromToolCall(toolCall)
     }
+    executionCall = {
+      ...executionCall,
+      execName: claim.invocation.executableName ?? executionCall.execName,
+      targetWorkspaceId:
+        claim.invocation.executableName === null
+          ? executionCall.targetWorkspaceId
+          : (claim.invocation.targetWorkspaceId ?? undefined),
+      params: claim.invocation.args,
+      deadlineAt: toolCall.deadlineAt,
+    }
+    admittedAssistantAction = claim.invocation.assistantAction
   } else {
     /** A chatless one-shot has no persisted run and cannot be certified by the chat Stop API. */
     await markAsyncToolRunning(toolCall.id, 'sim-stream')
@@ -928,7 +1024,7 @@ async function executeToolAndReportInner(
     toolName: toolCall.name,
   })
 
-  const toolExecutionContext = buildToolExecutionContext(toolCall, execContext)
+  const toolExecutionContext = buildToolExecutionContext(executionCall, execContext)
   toolExecutionContext.abortSignal = AbortSignal.any([
     lifetime.signal,
     ...(toolExecutionContext.abortSignal ? [toolExecutionContext.abortSignal] : []),
@@ -964,10 +1060,11 @@ async function executeToolAndReportInner(
   }
   try {
     let result = await executeToolWithWatchdog(
-      toolCall,
+      executionCall,
       toolExecutionContext,
       lifetime,
-      options?.onEvent
+      options?.onEvent,
+      admittedAssistantAction
     )
     if (toolCallWasCancelled()) {
       return settleCancelled(toolCall.error || 'Stopped by user', {
@@ -990,8 +1087,8 @@ async function executeToolAndReportInner(
       })
     }
     result = await maybeWriteOutputToFile(
-      toolCall.name,
-      toolCall.params,
+      executionCall.name,
+      executionCall.params,
       result,
       toolExecutionContext
     )
@@ -1005,8 +1102,8 @@ async function executeToolAndReportInner(
       })
     }
     result = await maybeWriteOutputToTable(
-      toolCall.name,
-      toolCall.params,
+      executionCall.name,
+      executionCall.params,
       result,
       toolExecutionContext
     )
@@ -1020,8 +1117,8 @@ async function executeToolAndReportInner(
       })
     }
     result = await maybeWriteReadCsvToTable(
-      toolCall.name,
-      toolCall.params,
+      executionCall.name,
+      executionCall.params,
       result,
       toolExecutionContext
     )

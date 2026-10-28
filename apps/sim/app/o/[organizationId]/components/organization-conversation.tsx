@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { useQueryStates } from 'nuqs'
+import {
+  AssistantActionReviewPanel,
+  AssistantActionReviewProvider,
+} from '@/components/assistant-actions'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
@@ -159,32 +163,29 @@ function OrganizationConversationContent({
     chat.resources,
     addResource,
   ])
-  const selectResource = useCallback(
-    async (ref: WorkspaceResourceRef) => {
-      if (!ref.workspaceId) {
-        toast.error('This resource has no workspace address.')
+  const selectResource = async (ref: WorkspaceResourceRef) => {
+    if (!ref.workspaceId) {
+      toast.error('This resource has no workspace address.')
+      return
+    }
+    try {
+      const host = await requestJson(getWorkspaceHostContextContract, {
+        params: { id: ref.workspaceId },
+      })
+      if (host.hostOrganizationId !== organization.id) {
+        toast.error('This resource is outside this organization.')
         return
       }
-      try {
-        const host = await requestJson(getWorkspaceHostContextContract, {
-          params: { id: ref.workspaceId },
-        })
-        if (host.hostOrganizationId !== organization.id) {
-          toast.error('This resource is outside this organization.')
-          return
-        }
-        const resource = await fetchWorkspaceResourceRef(queryClient, ref.workspaceId, ref)
-        if (!resource) {
-          toast.error(`Couldn't find "${ref.title}" in its workspace`)
-          return
-        }
-        addResource({ ...resource, workspaceId: ref.workspaceId })
-      } catch {
-        toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
+      const resource = await fetchWorkspaceResourceRef(queryClient, ref.workspaceId, ref)
+      if (!resource) {
+        toast.error(`Couldn't find "${ref.title}" in its workspace`)
+        return
       }
-    },
-    [queryClient, addResource, organization.id]
-  )
+      addResource({ ...resource, workspaceId: ref.workspaceId })
+    } catch {
+      toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
+    }
+  }
   const files = useFileAttachments({
     userId: session?.user?.id,
     organizationId: organization.id,
@@ -343,37 +344,49 @@ function OrganizationConversationContent({
   const content = (
     <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,50%)]'>
       {hasChat ? (
-        <MothershipChat
-          onViewSources={(messageId, requestId) =>
-            addResource({
-              type: 'sources',
-              id: 'cited-sources',
-              title: 'Sources',
-              sources: { messageId, ...(requestId ? { requestId } : {}) },
-            })
-          }
-          SearchConnectionComponent={SearchIntegrationConnection}
-          messages={chat.messages}
-          isSending={chat.isSending}
-          isReconnecting={chat.isReconnecting}
-          isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
-          onSubmit={send}
-          onStopGeneration={() => {
-            void chat.stopGeneration()
-          }}
-          messageQueue={chat.messageQueue}
-          editingQueuedId={chat.editingQueuedId}
-          dispatchingHeadId={chat.dispatchingHeadId}
-          onRemoveQueuedMessage={chat.removeFromQueue}
-          onSendQueuedMessage={chat.sendNow}
-          onEditQueuedMessage={editQueuedMessage}
-          onCancelQueueEdit={chat.cancelQueueEdit}
-          userId={session?.user?.id}
+        <AssistantActionReviewProvider
+          organizationId={organization.id}
           chatId={chat.resolvedChatId}
-          composer={composer}
-          onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={panel.initialScrollBlocked}
-        />
+          active={chat.isSending}
+          enabled={requestMode === 'assistant'}
+        >
+          <MothershipChat
+            onViewSources={(messageId, requestId) =>
+              addResource({
+                type: 'sources',
+                id: 'cited-sources',
+                title: 'Sources',
+                sources: { messageId, ...(requestId ? { requestId } : {}) },
+              })
+            }
+            SearchConnectionComponent={SearchIntegrationConnection}
+            messages={chat.messages}
+            isSending={chat.isSending}
+            isReconnecting={chat.isReconnecting}
+            isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
+            onSubmit={send}
+            onStopGeneration={() => {
+              void chat.stopGeneration()
+            }}
+            messageQueue={chat.messageQueue}
+            editingQueuedId={chat.editingQueuedId}
+            dispatchingHeadId={chat.dispatchingHeadId}
+            onRemoveQueuedMessage={chat.removeFromQueue}
+            onSendQueuedMessage={chat.sendNow}
+            onEditQueuedMessage={editQueuedMessage}
+            onCancelQueueEdit={chat.cancelQueueEdit}
+            userId={session?.user?.id}
+            chatId={chat.resolvedChatId}
+            composer={
+              <>
+                <AssistantActionReviewPanel />
+                {composer}
+              </>
+            }
+            onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
+            initialScrollBlocked={panel.initialScrollBlocked}
+          />
+        </AssistantActionReviewProvider>
       ) : (
         <OrganizationLanding
           heading={

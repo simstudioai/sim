@@ -6,9 +6,11 @@ import { createJiraClient, type JiraClient } from '@/lib/internal/jira/client'
 import { JiraOperationError } from '@/lib/internal/jira/errors'
 import type {
   JiraAddAttachmentInput,
+  JiraCreateSprintInput,
   JiraUpdateInput,
   JiraWriteInput,
 } from '@/lib/internal/jira/input'
+import { jiraSprintResponseSchema } from '@/lib/internal/jira/input'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
@@ -105,20 +107,26 @@ async function assignCreatedIssue(
   signal?: AbortSignal
 ): Promise<boolean> {
   signal?.throwIfAborted()
-  const response = await client.request(
-    client.issuePath(`/${issueKey}/assignee`),
-    {
-      method: 'PUT',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId: assignee }),
-    },
-    signal
-  )
-  if (!response.ok) {
-    logger.warn('Failed to assign issue after successful creation', {
-      status: response.status,
-      error: response.text,
-    })
+  try {
+    const response = await client.request(
+      client.issuePath(`/${issueKey}/assignee`),
+      {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: assignee }),
+      },
+      signal
+    )
+    if (!response.ok) {
+      logger.warn('Failed to assign issue after successful creation', {
+        status: response.status,
+        error: response.text,
+      })
+      return false
+    }
+  } catch (error) {
+    signal?.throwIfAborted()
+    logger.warn('Issue created, but assignment outcome could not be confirmed', { issueKey, error })
     return false
   }
   return true
@@ -181,6 +189,11 @@ export async function executeJiraWrite(input: JiraWriteInput, context: JiraOpera
       success: true,
       url: `https://${input.domain}/browse/${issueKey}`,
       ...(assigneeId ? { assigneeId } : {}),
+      ...(input.assignee && !assigneeId
+        ? {
+            warning: `Issue ${issueKey} was created, but assignment to ${input.assignee} was not confirmed. Do not recreate the issue.`,
+          }
+        : {}),
     },
   }
 }
@@ -329,5 +342,33 @@ export async function executeJiraAddAttachment(
       attachmentIds: attachments.map((attachment) => attachment.id).filter(Boolean),
       files: userFiles,
     },
+  }
+}
+
+/** Creates a future sprint using Jira Software's native operation. */
+export async function executeJiraCreateSprint(
+  input: JiraCreateSprintInput,
+  context: JiraOperationContext
+) {
+  const client = await createJiraClient(input, { signal: context.signal, validateCloudId: true })
+  const response = await client.request(
+    `https://api.atlassian.com/ex/jira/${client.cloudId}/rest/agile/1.0/sprint`,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: input.name,
+        originBoardId: input.originBoardId,
+        goal: input.goal,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      }),
+    },
+    context.signal
+  )
+  if (!response.ok) throw providerError(response, false)
+  return {
+    success: true,
+    output: { sprint: jiraSprintResponseSchema.parse(JSON.parse(response.text)) },
   }
 }

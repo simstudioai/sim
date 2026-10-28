@@ -1123,7 +1123,12 @@ const ELEVENLABS_TOOL_IDS = [
   'elevenlabs_audio_isolation',
 ] as const
 
-const JIRA_TOOL_IDS = ['jira_write', 'jira_update', 'jira_add_attachment'] as const
+const JIRA_TOOL_IDS = [
+  'jira_write',
+  'jira_update',
+  'jira_add_attachment',
+  'jira_create_sprint',
+] as const
 
 const WHATSAPP_TOOL_IDS = [
   'whatsapp_get_media',

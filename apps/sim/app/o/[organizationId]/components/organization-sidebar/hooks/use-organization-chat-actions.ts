@@ -159,6 +159,7 @@ export function useOrganizationChatActions({
     }
   }, [
     chatIdsToDelete,
+    chats,
     chatsToDelete,
     deleteChat.mutate,
     deleteChats.mutate,

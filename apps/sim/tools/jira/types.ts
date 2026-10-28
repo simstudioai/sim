@@ -943,6 +943,7 @@ export interface JiraWriteResponse extends ToolResponse {
     success: boolean
     url: string
     assigneeId: string | null
+    warning?: string
   }
 }
 
@@ -1612,5 +1613,30 @@ export interface JiraGetFieldsResponse extends ToolResponse {
       customType?: string | null
     }>
     total: number
+  }
+}
+
+export interface JiraCreateSprintParams {
+  accessToken: string
+  domain: string
+  originBoardId: number
+  name: string
+  goal?: string
+  startDate?: string
+  endDate?: string
+}
+
+export interface JiraCreateSprintResponse extends ToolResponse {
+  output: {
+    sprint: {
+      id: number
+      self: string
+      state: string
+      name: string
+      originBoardId: number
+      goal?: string
+      startDate?: string
+      endDate?: string
+    }
   }
 }

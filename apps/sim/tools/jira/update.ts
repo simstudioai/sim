@@ -13,6 +13,18 @@ export const jiraUpdateTool: InternalToolConfig<JiraUpdateParams, JiraUpdateResp
   name: 'Jira Update',
   description: 'Update a Jira issue',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'domain', label: 'Jira site', target: true },
+      { name: 'issueKey', label: 'Issue', target: true },
+      { name: 'summary', label: 'Summary', editable: true },
+      { name: 'description', label: 'Description', format: 'multiline', editable: true },
+      { name: 'priority', label: 'Priority', editable: true },
+      { name: 'assignee', label: 'Assignee', target: true },
+    ],
+  },
 
   oauth: {
     required: true,

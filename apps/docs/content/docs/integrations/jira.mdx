@@ -29,6 +29,7 @@ Sim requests these scopes when someone connects a Jira account. For a self-hoste
 | `read:jira-user` | View Jira user profiles, including email addresses |
 | `read:jira-work` | View Jira projects and issues, and search issues |
 | `write:jira-work` | Create, edit, and delete Jira issues, comments, and worklogs |
+| `write:sprint:jira-software` | Create and update Jira Software sprints |
 | `read:me` | Read profile information |
 | `offline_access` | Access account when not using the application |
 | `read:issue.vote:jira` | Read Jira issue votes |
@@ -353,7 +354,41 @@ Create a new Jira issue
 | `summary` | string | Issue summary |
 | `success` | boolean | Whether the issue was created successfully |
 | `url` | string | URL to the created issue in Jira |
+| `warning` | string | A requested follow-up that failed after issue creation; do not recreate the issue |
 | `assigneeId` | string | Account ID of the assigned user \(null if no assignee was set\) |
+
+</ReferenceDetails>
+
+### Jira Create Sprint
+
+Create a future sprint on a Jira Software board
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Jira site domain, such as yourcompany.atlassian.net |
+| `originBoardId` | number | Yes | Numeric ID of the Jira Software board that owns the sprint |
+| `name` | string | Yes | Sprint name |
+| `goal` | string | No | Sprint goal |
+| `startDate` | string | No | Planned start as an ISO 8601 timestamp with timezone |
+| `endDate` | string | No | Planned end as an ISO 8601 timestamp with timezone |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sprint` | json | Created sprint with id, self, state, name, originBoardId, and optional goal, startDate, endDate |
+|   ↳ `id` | number | Sprint ID |
+|   ↳ `self` | string | Sprint REST URL |
+|   ↳ `state` | string | Initial state: future |
+|   ↳ `name` | string | Sprint name |
+|   ↳ `originBoardId` | number | Origin board ID |
+|   ↳ `goal` | string | Sprint goal |
+|   ↳ `startDate` | string | Planned start timestamp |
+|   ↳ `endDate` | string | Planned end timestamp |
 
 </ReferenceDetails>
 

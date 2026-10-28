@@ -24,6 +24,15 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
   name: 'Jira Add Comment',
   description: 'Add a comment to a Jira issue',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'domain', label: 'Jira site', target: true },
+      { name: 'issueKey', label: 'Issue', target: true },
+      { name: 'body', label: 'Comment', format: 'multiline', editable: true },
+    ],
+  },
 
   oauth: {
     required: true,

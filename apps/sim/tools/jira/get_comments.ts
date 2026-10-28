@@ -23,6 +23,7 @@ function transformComment(comment: any) {
 
 export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetCommentsResponse> = {
   id: 'jira_get_comments',
+  assistant: { effect: 'read', version: 1 },
   name: 'Jira Get Comments',
   description: 'Get all comments from a Jira issue',
   version: '1.0.0',

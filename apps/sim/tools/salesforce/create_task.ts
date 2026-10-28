@@ -14,6 +14,19 @@ export const salesforceCreateTaskTool: ToolConfig<
   name: 'Create Task in Salesforce',
   description: 'Create a new task',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'whoId', label: 'Contact or lead', target: true },
+      { name: 'whatId', label: 'Related record', target: true },
+      { name: 'subject', label: 'Subject', editable: true },
+      { name: 'description', label: 'Description', format: 'multiline', editable: true },
+      { name: 'status', label: 'Status', editable: true },
+      { name: 'priority', label: 'Priority', editable: true },
+      { name: 'activityDate', label: 'Due date', editable: true },
+    ],
+  },
 
   oauth: {
     required: true,

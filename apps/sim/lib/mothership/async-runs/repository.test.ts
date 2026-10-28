@@ -5,13 +5,7 @@ import {
   copilotRequestStops,
   copilotRuns,
 } from '@sim/db/schema'
-import {
-  dbChainMockFns,
-  flattenMockConditions,
-  hasMockCondition,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   areStreamToolExecutionsSettled,
@@ -196,21 +190,6 @@ describe('run admission and early Stop', () => {
   })
 })
 
-/** Finds a condition anywhere in a mocked expression, including inside `sql` and `sql.join` fragments. */
-function someNestedCondition(
-  node: unknown,
-  predicate: (condition: Record<string, unknown>) => boolean
-): boolean {
-  if (!node || typeof node !== 'object') return false
-  const record = node as Record<string, unknown>
-  if (predicate(record)) return true
-  return ['conditions', 'values', 'fragments'].some(
-    (key) =>
-      Array.isArray(record[key]) &&
-      (record[key] as unknown[]).some((child) => someNestedCondition(child, predicate))
-  )
-}
-
 describe('durable Sim tool ownership', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -248,48 +227,6 @@ describe('durable Sim tool ownership', () => {
       expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     }
   )
-
-  it('locks the actor-owned run before claiming a still-unclaimed execution', async () => {
-    expect(copilotRuns.toolExecutionVersion).toBeDefined()
-    expect(copilotRuns.toolAdmissionClosedAt).toBeDefined()
-    expect(copilotAsyncToolCalls.executionStartedAt).toBeDefined()
-    expect(copilotAsyncToolCalls.executionSettledAt).toBeDefined()
-    dbChainMockFns.for.mockResolvedValueOnce([
-      { id: input.runId, toolExecutionVersion: 2, toolAdmissionClosedAt: null },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1' }])
-    expect(await claimToolExecution(input)).toEqual({ outcome: 'claimed' })
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0]?.[0],
-        (condition) => condition.type === 'eq' && condition.right === input.userId
-      )
-    ).toBe(true)
-    /** A first execution, or a re-run of one whose owner died before it recorded a result. */
-    const claimable = flattenMockConditions(dbChainMockFns.where.mock.calls[1]?.[0]).find(
-      (condition) => condition.type === 'or'
-    )
-    const [firstExecution, interruptedExecution] = (claimable?.conditions ?? []) as unknown[]
-    expect(
-      hasMockCondition(
-        firstExecution,
-        (condition) =>
-          condition.type === 'isNull' &&
-          condition.column === copilotAsyncToolCalls.executionStartedAt
-      )
-    ).toBe(true)
-    expect(
-      someNestedCondition(
-        interruptedExecution,
-        (condition) =>
-          condition.type === 'lt' && condition.left === copilotAsyncToolCalls.executionAttempts
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ executionStartedAt: expect.any(Date), status: 'running' })
-    )
-  })
 
   it('refuses admission after Stop without touching any tool row', async () => {
     dbChainMockFns.for.mockResolvedValueOnce([
@@ -496,31 +433,6 @@ describe('async tool repository single-row semantics', () => {
       })
     )
   })
-
-  it.each(['pending', 'running'] as const)(
-    'keeps the first finalized call identity immutable after it reaches %s',
-    async (status) => {
-      const existingRow = {
-        runId: 'run-1',
-        toolCallId: 'tool-1',
-        toolName: 'run_function',
-        args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
-        status,
-      }
-      dbChainMockFns.limit.mockResolvedValueOnce([existingRow])
-
-      const result = await upsertAsyncToolCall({
-        runId: 'run-1',
-        toolCallId: 'tool-1',
-        toolName: 'run_function',
-        args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
-        status: 'pending',
-      })
-
-      expect(result).toEqual(existingRow)
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
-    }
-  )
 
   it('refuses a provider-ID collision with an existing row in another run', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([

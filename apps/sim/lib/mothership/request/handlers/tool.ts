@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { prepareOrganizationAssistantAction } from '@/lib/assistant-actions/application/admission'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
+import { executeCopilotAssistantAction } from '@/lib/mothership/application/assistant-actions'
+import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import type {
   AsyncCompletionSignal,
@@ -79,6 +82,7 @@ import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { resolveWorkflowToolTargetId } from '@/lib/mothership/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
+import { getToolMetadata } from '@/tools/metadata'
 import {
   abortPendingToolIfStreamDead,
   addContentBlock,
@@ -265,6 +269,30 @@ export async function prePersistClientExecutableToolCall(
   const ui = getToolCallUI(data)
   const catalogEntry = getToolEntry(data.toolName)
   const isInternal = ui.internal === true || catalogEntry?.internal === true
+  const assistantOperation =
+    execContext?.requestMode === 'assistant' &&
+    execContext.organizationId &&
+    isAssistantIntegrationTool(getToolMetadata(data.execName ?? data.toolName))
+  const assistantAction =
+    assistantOperation && context.runId && execContext
+      ? await executeCopilotAssistantAction(
+          { ...execContext, toolCallId: data.toolCallId },
+          prepareOrganizationAssistantAction,
+          {
+            runId: context.runId,
+            toolCallId: data.toolCallId,
+            toolId: data.execName ?? data.toolName,
+            args: data.arguments ?? {},
+          }
+        )
+      : undefined
+  if (
+    assistantOperation &&
+    (!assistantAction || isInternal || ui.hidden === true || data.workspaceId)
+  )
+    throw new Error(
+      'Assistant actions require a visible call in an active organization conversation.'
+    )
 
   // Go stamps this for resolved integration operations; Sim stamps it below for
   // catalog-declared tools. Normalizing here means the dispatch path only ever
@@ -274,15 +302,16 @@ export async function prePersistClientExecutableToolCall(
   // survives to the client with nothing gating it behind renders a card whose
   // buttons answer into the void.
   const frameRequestsApproval = data.status === TOOL_AWAITING_APPROVAL_STATUS
-  const gated =
-    !isInternal &&
-    toolCallNeedsApproval(
-      data.toolName,
-      context,
-      options ?? {},
-      frameRequestsApproval,
-      data.arguments
-    )
+  const gated = assistantAction
+    ? assistantAction.policy === 'ask'
+    : !isInternal &&
+      toolCallNeedsApproval(
+        data.toolName,
+        context,
+        options ?? {},
+        frameRequestsApproval,
+        data.arguments
+      )
   if (gated) {
     data.status = TOOL_AWAITING_APPROVAL_STATUS
   } else if (frameRequestsApproval) {
@@ -294,7 +323,7 @@ export async function prePersistClientExecutableToolCall(
 
   if (isInternal) return
 
-  if (!gated) {
+  if (!gated && !assistantAction) {
     if (!ui.clientExecutable) return
 
     const delegateWorkflowRunToClient = isWorkflowToolName(data.toolName)
@@ -347,7 +376,15 @@ export async function prePersistClientExecutableToolCall(
     runId: context.runId,
     toolCallId: data.toolCallId,
     toolName: data.toolName,
+    executableName: data.execName ?? data.toolName,
+    targetWorkspaceId: data.workspaceId,
     args: data.arguments,
+    ...(assistantAction
+      ? {
+          assistantAction: assistantAction.binding,
+          executionRetryable: assistantAction.binding.effect === 'read',
+        }
+      : {}),
     sealedContext,
     // Desktop calls the desktop claims on pickup (browser, terminal, import,
     // and local reads when this turn's desktop or its bound background
@@ -358,6 +395,7 @@ export async function prePersistClientExecutableToolCall(
     // running state. A gated tool is likewise pending: nothing has been
     // dispatched yet.
     status:
+      assistantAction ||
       gated ||
       isClaimedOnPickup(
         data.toolName,
@@ -369,7 +407,7 @@ export async function prePersistClientExecutableToolCall(
     permissionRequested: gated,
     executionDeadlineAt: toDeadlineDate(frameToolDeadlineAt(data.deadlineMs, Date.now())),
   }).catch((err) => {
-    if (err instanceof AsyncToolCallOwnershipError) throw err
+    if (assistantAction || err instanceof AsyncToolCallOwnershipError) throw err
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
       toolCallId: data.toolCallId,
       toolName: data.toolName,
@@ -574,7 +612,6 @@ async function handleCallPhase(
   const isGenerating = data.status === TOOL_CALL_STATUS.generating
   const isPartial = data.partial === true || isGenerating
   const existing = context.toolCalls.get(toolCallId)
-  if (existing && data.workspaceId) existing.targetWorkspaceId = data.workspaceId
   const activityDescription = normalizeToolActivityDescription(data.activityDescription)
   if (existing) {
     existing.agentId ??= agentId
@@ -606,6 +643,8 @@ async function handleCallPhase(
     applyToolDisplay(existing)
     return
   }
+
+  if (existing && data.workspaceId) existing.targetWorkspaceId = data.workspaceId
 
   if (isSubagent) {
     if (wasToolResultSeen(context, toolCallId) || existing?.endTime) {
@@ -951,7 +990,13 @@ async function dispatchToolExecution(
     return fireToolExecution()
   }
 
-  const gated = toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)
+  const assistantAction =
+    execContext.requestMode === 'assistant' &&
+    execContext.organizationId &&
+    isAssistantIntegrationTool(getToolMetadata(toolCall.execName ?? toolName))
+  const gated = assistantAction
+    ? frameRequestsApproval
+    : toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)
   if (gated || clientExecutable) await adoptRecordedToolDeadline(toolCall)
   if (gated) {
     registerPendingToolPromise(
@@ -968,7 +1013,7 @@ async function dispatchToolExecution(
         context,
         options,
         startExecution,
-        !hiddenInUi
+        !hiddenInUi && (!assistantAction || options.interactive !== false)
       )
     )
     return

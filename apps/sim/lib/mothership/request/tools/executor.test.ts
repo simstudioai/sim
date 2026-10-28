@@ -163,12 +163,26 @@ function buildPendingToolCall(): ToolCallState {
   }
 }
 
+async function claimRecordedInvocation(owner: { toolCallId: string }) {
+  const input = upsertAsyncToolCall.mock.calls.find(
+    ([candidate]) => candidate.toolCallId === owner.toolCallId
+  )?.[0]
+  return {
+    outcome: 'claimed',
+    invocation: {
+      executableName: input?.executableName ?? null,
+      targetWorkspaceId: input?.targetWorkspaceId ?? null,
+      args: input?.args ?? {},
+    },
+  }
+}
+
 describe('tool result size diagnostics', () => {
   beforeEach(() => {
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
-    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockImplementation(claimRecordedInvocation)
     settleSimToolExecution.mockResolvedValue(undefined)
   })
 
@@ -373,7 +387,7 @@ describe('executeToolAndReport provenance isolation', () => {
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
     claimToolExecution.mockReset()
-    claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    claimToolExecution.mockImplementation(claimRecordedInvocation)
     settleSimToolExecution.mockResolvedValue(undefined)
     waitForToolConfirmation.mockReset()
   })

@@ -91,6 +91,7 @@ URL: ${data.html_url}`
 
 export const repoInfoV2Tool: ToolConfig<BaseGitHubParams, any> = {
   id: 'github_repo_info_v2',
+  assistant: { effect: 'read', version: 1 },
   name: repoInfoTool.name,
   description: repoInfoTool.description,
   version: '2.0.0',

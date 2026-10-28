@@ -265,10 +265,7 @@ async function assertManagedCredentialUsable(
       503
     )
   }
-  if (
-    row.authorizationAppId !== policy.authorizationAppId ||
-    row.managedOauthScopeVersion !== policy.scopeVersion
-  ) {
+  if (row.authorizationAppId !== policy.authorizationAppId) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_NEEDS_REAUTH',
       'Managed credential was authorized with a different OAuth app',

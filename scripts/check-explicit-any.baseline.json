@@ -1158,7 +1158,6 @@
     "apps/sim/app/o/[organizationId]/components/search-input-bar.tsx": 1,
     "apps/sim/app/o/[organizationId]/home/components/composer/composer.test.tsx": 6,
     "apps/sim/app/o/[organizationId]/integrations/live-member-integrations.test.tsx": 5,
-    "apps/sim/app/o/[organizationId]/integrations/live-member-integrations.tsx": 1,
     "apps/sim/app/o/[organizationId]/integrations/page.test.tsx": 1,
     "apps/sim/app/o/[organizationId]/settings/components/integrations/live-search-settings.test.tsx": 22,
     "apps/sim/app/o/[organizationId]/settings/components/integrations/live-search-settings.tsx": 1,

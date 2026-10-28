@@ -13,6 +13,7 @@ interface SlackWebApiDefinition<
   id: string
   name: string
   description: string
+  assistant?: ToolConfig['assistant']
   method: 'GET' | 'POST'
   endpoint: string
   oauth: OAuthConfig
@@ -33,6 +34,7 @@ export function createSlackWebApiTool<
     id: definition.id,
     name: definition.name,
     description: definition.description,
+    ...(definition.assistant ? { assistant: definition.assistant } : {}),
     version: '1.0.0',
     oauth: definition.oauth,
     params: {

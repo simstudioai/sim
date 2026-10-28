@@ -29,7 +29,7 @@ import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
 import {
   credentialProviderMatchesService,
-  getCanonicalScopesForProvider,
+  getDefaultToolScopesForProvider,
   getServiceConfigByProviderId,
   getServiceConfigByServiceId,
 } from '@/lib/oauth/utils'
@@ -562,7 +562,8 @@ export async function resolveCredentialAccessToken(
   if (kindError) return kindError
 
   const requiredScopes =
-    toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
+    toolMetadata.oauth.requiredScopes ??
+    getDefaultToolScopesForProvider(toolMetadata.oauth.provider)
   if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {
     logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
       toolId,
