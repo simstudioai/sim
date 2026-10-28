@@ -3,7 +3,6 @@ import { auditLogOperations } from '@/lib/audit-logs/application/operations'
 import {
   type AuditLogFilterParams,
   buildFilterConditions,
-  buildOrgScopeCondition,
   decodeAuditLogCursor,
   getOrgWorkspaceIds,
   queryAuditLogs,
@@ -32,12 +31,12 @@ export const listAuditLogs = defineAuthorizedAuditLogUseCase({
     if (input.filters.workspaceId && !orgWorkspaceIds.includes(input.filters.workspaceId)) {
       throw new OrchestrationError('validation', 'workspaceId does not belong to your organization')
     }
-    const scopeCondition = buildOrgScopeCondition({
+    const scope = {
       organizationId: context.organizationId,
       orgWorkspaceIds,
       orgMemberIds: context.orgMemberIds,
       includeDeparted: input.includeDeparted,
-    })
+    }
     if (
       context.workspaceId &&
       input.filters.workspaceId &&
@@ -48,6 +47,6 @@ export const listAuditLogs = defineAuthorizedAuditLogUseCase({
       ...input.filters,
       ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
     })
-    return queryAuditLogs([scopeCondition, ...filterConditions], input.limit, input.cursor)
+    return queryAuditLogs(scope, filterConditions, input.limit, input.cursor)
   },
 })

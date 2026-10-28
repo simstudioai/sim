@@ -1368,7 +1368,7 @@
     "apps/sim/lib/api/list-query.test.ts": 9,
     "apps/sim/lib/audit-logs/application/use-cases.test.ts": 3,
     "apps/sim/lib/audit-logs/query.test.ts": 8,
-    "apps/sim/lib/audit-logs/query.ts": 6,
+    "apps/sim/lib/audit-logs/query.ts": 5,
     "apps/sim/lib/auth/oauth-provider-lifecycle.integration.ts": 7,
     "apps/sim/lib/auth/oauth-provider-registration.test.ts": 4,
     "apps/sim/lib/billing/application/organization-usage/event-cursor.test.ts": 1,

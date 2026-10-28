@@ -3,8 +3,9 @@ import { db, dbReplica } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import { escapeLikePattern } from '@sim/utils/string'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
 import { parseUnorderedList } from '@/lib/api/cursor-binding'
+import { textArrayLiteral } from '@/lib/db/arrays'
 
 type DbAuditLog = InferSelectModel<typeof auditLog>
 
@@ -105,11 +106,8 @@ export interface OrgScopeParams {
   includeDeparted: boolean
 }
 
-/** Builds the tenant-boundary predicate for organization audit log access. */
-export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
-  const { organizationId, orgWorkspaceIds, orgMemberIds, includeDeparted } = params
-
-  const orgLevelCondition = and(
+function orgLevelCondition(organizationId: string): SQL<unknown> {
+  return and(
     isNull(auditLog.workspaceId),
     or(
       sql`${auditLog.metadata}->>'organizationId' = ${organizationId}`,
@@ -119,40 +117,84 @@ export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
       )
     )
   )!
+}
 
+function currentActorCondition(orgMemberIds: string[]): SQL<unknown> {
+  return orgMemberIds.length > 0
+    ? or(inArray(auditLog.actorId, orgMemberIds), isNull(auditLog.actorId))!
+    : isNull(auditLog.actorId)
+}
+
+/** Builds the tenant-boundary predicate for organization audit log access. */
+export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
+  const { organizationId, orgWorkspaceIds, orgMemberIds, includeDeparted } = params
+
+  const orgLevel = orgLevelCondition(organizationId)
   const workspaceCondition =
     orgWorkspaceIds === undefined
       ? sql`exists (select 1 from ${workspace} where ${workspace.id} = ${auditLog.workspaceId} and ${workspace.organizationId} = ${organizationId})`
       : orgWorkspaceIds.length > 0
         ? inArray(auditLog.workspaceId, orgWorkspaceIds)
         : undefined
-  const orgScope = workspaceCondition
-    ? or(workspaceCondition, orgLevelCondition)!
-    : orgLevelCondition
+  const orgScope = workspaceCondition ? or(workspaceCondition, orgLevel)! : orgLevel
 
   if (includeDeparted) return orgScope
-
-  const currentActorCondition =
-    orgMemberIds.length > 0
-      ? or(inArray(auditLog.actorId, orgMemberIds), isNull(auditLog.actorId))!
-      : isNull(auditLog.actorId)
-
-  return and(orgScope, currentActorCondition)!
+  return and(orgScope, currentActorCondition(orgMemberIds))!
 }
 
+/** The organization scope a listing reads: its workspace ids resolved up front. */
+export interface AuditLogListScope extends OrgScopeParams {
+  orgWorkspaceIds: string[]
+}
+
+const auditLogTimestamp = sql`date_trunc('milliseconds', ${auditLog.createdAt})`
+const auditLogOrder = [desc(auditLogTimestamp), desc(auditLog.id)]
+
+/**
+ * Keyset position after the cursor. A row comparison is the same order as the
+ * `ORDER BY` below, and it lets an index scan seek straight to the cursor
+ * rather than walk every newer row and discard it.
+ */
 function buildCursorCondition(cursor: string): SQL<unknown> | null {
   const cursorData = decodeAuditLogCursor(cursor)
   if (!cursorData) return null
-  const cursorDate = new Date(cursorData.createdAt)
-  const cursorTimestamp = sql`date_trunc('milliseconds', ${auditLog.createdAt})`
+  const cursorDate = sql.param(new Date(cursorData.createdAt), auditLog.createdAt)
+  return sql`(${auditLogTimestamp}, ${auditLog.id}) < (${cursorDate}::timestamp, ${cursorData.id})`
+}
 
-  return or(
-    lt(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
-    and(
-      eq(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
-      lt(auditLog.id, cursorData.id)
+function conjunction(conditions: SQL<unknown>[]): SQL<unknown> {
+  return sql.join(
+    conditions.map((condition) => sql`(${condition})`),
+    sql` and `
+  )
+}
+
+/**
+ * The ids of the first `take` rows in scope, newest first. The scope is a
+ * disjoint union — a row either belongs to one of the organization's workspaces
+ * or has no workspace and names the organization — so each part is read
+ * separately: one keyset scan of `audit_log_workspace_created_at_id_idx` per
+ * workspace, plus the organization-level rows, each stopping after `take`
+ * matches. The first `take` rows of the union are exactly the first `take` of
+ * the whole scope. Planned as one `OR`, Postgres can follow no index in order
+ * and sorts every row in the scope (for a busy organization, a full scan of the
+ * table) to return one page.
+ */
+function pageIdsQuery(scope: AuditLogListScope, conditions: SQL<unknown>[], take: number): SQL {
+  const shared = scope.includeDeparted
+    ? conditions
+    : [...conditions, currentActorCondition(scope.orgMemberIds)]
+  const branch = (part: SQL<unknown>) =>
+    sql`(select ${auditLog.id}, ${auditLog.createdAt} from ${auditLog} where ${conjunction([part, ...shared])} order by ${auditLogTimestamp} desc, ${auditLog.id} desc limit ${take})`
+
+  const parts = [branch(orgLevelCondition(scope.organizationId))]
+  const workspaceIds = [...new Set(scope.orgWorkspaceIds)]
+  if (workspaceIds.length > 0) {
+    parts.unshift(
+      sql`(select page.id, page.created_at from unnest(${textArrayLiteral(workspaceIds)}) as org_workspace(workspace_id) cross join lateral ${branch(sql`${auditLog.workspaceId} = org_workspace.workspace_id`)} as page)`
     )
-  )!
+  }
+  return sql`(select candidate.id from (${sql.join(parts, sql` union all `)}) as candidate order by date_trunc('milliseconds', candidate.created_at) desc, candidate.id desc limit ${take})`
 }
 
 interface CursorPaginatedResult {
@@ -161,8 +203,13 @@ interface CursorPaginatedResult {
   truncated?: boolean
 }
 
-/** An optional byte budget bounds each database page before hydration and stops at oversized rows. */
+/**
+ * One page of the organization's audit log matching `conditions`, newest first.
+ * An optional byte budget bounds each database page before hydration and stops
+ * at oversized rows.
+ */
 export async function queryAuditLogs(
+  scope: AuditLogListScope,
   conditions: SQL<unknown>[],
   limit: number,
   cursor?: string,
@@ -173,9 +220,8 @@ export async function queryAuditLogs(
     const cursorCondition = buildCursorCondition(cursor)
     if (cursorCondition) allConditions.push(cursorCondition)
   }
+  const inPage = inArray(auditLog.id, pageIdsQuery(scope, allConditions, limit + 1))
 
-  const condition = allConditions.length > 0 ? and(...allConditions) : undefined
-  const orderBy = [desc(sql`date_trunc('milliseconds', ${auditLog.createdAt})`), desc(auditLog.id)]
   if (maxBytes !== undefined) {
     return dbReplica.transaction(
       async (tx) => {
@@ -185,8 +231,8 @@ export async function queryAuditLogs(
             bytes: sql<number>`octet_length(row_to_json(${auditLog})::text)`.mapWith(Number),
           })
           .from(auditLog)
-          .where(condition)
-          .orderBy(...orderBy)
+          .where(inPage)
+          .orderBy(...auditLogOrder)
           .limit(limit + 1)
         const ids: string[] = []
         let bytes = 0
@@ -206,7 +252,7 @@ export async function queryAuditLogs(
                 .select()
                 .from(auditLog)
                 .where(inArray(auditLog.id, ids))
-                .orderBy(...orderBy)
+                .orderBy(...auditLogOrder)
                 .limit(limit)
             : []
         const last = data.at(-1)
@@ -226,8 +272,8 @@ export async function queryAuditLogs(
   const rows = await dbReplica
     .select()
     .from(auditLog)
-    .where(condition)
-    .orderBy(...orderBy)
+    .where(inPage)
+    .orderBy(...auditLogOrder)
     .limit(limit + 1)
 
   const hasMore = rows.length > limit

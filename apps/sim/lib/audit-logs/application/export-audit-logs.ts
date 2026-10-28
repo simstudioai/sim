@@ -5,7 +5,6 @@ import { AUDIT_LOG_CSV_HEADER, toAuditLogCsvRow } from '@/lib/audit-logs/csv'
 import {
   type AuditLogFilterParams,
   buildFilterConditions,
-  buildOrgScopeCondition,
   getOrgWorkspaceIds,
   queryAuditLogs,
 } from '@/lib/audit-logs/query'
@@ -37,13 +36,13 @@ export const exportAuditLogs = defineAuthorizedAuditLogUseCase({
     ) {
       throw new OrchestrationError('validation', 'actorId is not a member of your organization')
     }
-    const scope = buildOrgScopeCondition({
+    const scope = {
       organizationId: context.organizationId,
       orgWorkspaceIds: workspaceIds,
       orgMemberIds: context.orgMemberIds,
       includeDeparted: input.includeDeparted,
-    })
-    const conditions = [scope, ...buildFilterConditions(input.filters)]
+    }
+    const conditions = buildFilterConditions(input.filters)
     const lines = [AUDIT_LOG_CSV_HEADER]
     let rowCount = 0
     let cursor: string | undefined
@@ -52,6 +51,7 @@ export const exportAuditLogs = defineAuthorizedAuditLogUseCase({
     pages: while (rowCount < EXPORT_MAX_ROWS && bytes < EXPORT_MAX_BYTES) {
       request?.signal?.throwIfAborted()
       const page = await queryAuditLogs(
+        scope,
         conditions,
         Math.min(EXPORT_PAGE_ROWS, EXPORT_MAX_ROWS - rowCount),
         cursor,
