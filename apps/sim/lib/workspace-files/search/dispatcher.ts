@@ -227,6 +227,14 @@ function staleClaim(now: Date): SQL | undefined {
  * `owner > :owner OR (owner = :owner AND id > :id)` spelling is not something the planner
  * can turn into an index condition; it stays a filter, so each page restarts at the low end of the
  * index and re-reads every page before it, making the walk quadratic in the file count.
+ *
+ * The walk itself reads without locks, because nearly every file it passes already has its
+ * revision. Locking the whole page would write a row lock into every heap tuple of it each
+ * pass, and so would inserting rows that only conflict: the revision's owner trigger takes
+ * `FOR SHARE` on the file before the insert finds its conflict. Only the files still missing
+ * a revision are locked and reread, so a content change cannot commit between the read and the
+ * insert and leave a revision for content the file no longer has, and a file deleted since the
+ * walk is skipped instead of failing the insert.
  */
 async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   await tx
@@ -245,38 +253,56 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   const afterEntityId = cursor.completedAt ? null : cursor.afterEntityId
   const afterFileId = cursor.completedAt ? null : cursor.afterFileId
 
+  const owner = {
+    entityType: sql<string>`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
+    entityId: sql<string>`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId})`,
+  }
+  const liveSearchableFile = and(
+    sql`((${workspaceFiles.context} = 'workspace' AND ${workspaceFiles.workspaceId} IS NOT NULL) OR (${workspaceFiles.context} = 'project' AND ${workspaceFiles.projectId} IS NOT NULL))`,
+    isNull(workspaceFiles.deletedAt)
+  )
   const rows = await tx
     .select({
-      entityType: sql<string>`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
-      entityId: sql<string>`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId})`,
+      ...owner,
       fileId: workspaceFiles.id,
-      sourceContentUpdatedAt: workspaceFiles.contentUpdatedAt,
+      hasRevision: sql<boolean>`${exists(
+        tx
+          .select({ fileId: workspaceFileSearchRevision.fileId })
+          .from(workspaceFileSearchRevision)
+          .where(eq(workspaceFileSearchRevision.fileId, workspaceFiles.id))
+      )}`,
     })
     .from(workspaceFiles)
     .where(
       and(
-        sql`((${workspaceFiles.context} = 'workspace' AND ${workspaceFiles.workspaceId} IS NOT NULL) OR (${workspaceFiles.context} = 'project' AND ${workspaceFiles.projectId} IS NOT NULL))`,
-        isNull(workspaceFiles.deletedAt),
+        liveSearchableFile,
         afterEntityType && afterEntityId && afterFileId
           ? sql`(CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END, coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId}), ${workspaceFiles.id}) > (${afterEntityType}, ${afterEntityId}, ${afterFileId})`
           : undefined
       )
     )
-    .orderBy(
-      sql`CASE WHEN ${workspaceFiles.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END`,
-      sql`coalesce(${workspaceFiles.projectId}, ${workspaceFiles.workspaceId})`,
-      asc(workspaceFiles.id)
-    )
+    .orderBy(owner.entityType, owner.entityId, asc(workspaceFiles.id))
     .limit(FILE_SEARCH_BACKFILL_PAGE_SIZE)
-    .for('share', { of: workspaceFiles })
 
-  const files = rows.map((row) => ({ ...row, owner: rowOwner(row) }))
-  if (files.length > 0) {
+  const unindexedIds = rows.filter((row) => !row.hasRevision).map((row) => row.fileId)
+  const unindexed =
+    unindexedIds.length === 0
+      ? []
+      : await tx
+          .select({
+            ...owner,
+            fileId: workspaceFiles.id,
+            sourceContentUpdatedAt: workspaceFiles.contentUpdatedAt,
+          })
+          .from(workspaceFiles)
+          .where(and(inArray(workspaceFiles.id, unindexedIds), liveSearchableFile))
+          .for('share', { of: workspaceFiles })
+  if (unindexed.length > 0) {
     await tx
       .insert(workspaceFileSearchRevision)
       .values(
-        files.map((file) => ({
-          ...fileSearchOwnerFields(file.owner),
+        unindexed.map((file) => ({
+          ...fileSearchOwnerFields(rowOwner(file)),
           fileId: file.fileId,
           sourceContentUpdatedAt: file.sourceContentUpdatedAt,
           status: 'pending' as const,
@@ -284,14 +310,11 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
         }))
       )
       .onConflictDoNothing()
-    await enqueueOwners(
-      tx,
-      files.map((file) => file.owner),
-      now
-    )
   }
+  /** Every owner the page passed is woken, indexed or not, so the pass reconciles its builds. */
+  await enqueueOwners(tx, rows.map(rowOwner), now)
 
-  const last = files.at(-1)
+  const last = rows.at(-1)
   await tx
     .update(workspaceFileSearchBackfill)
     .set({
@@ -302,7 +325,7 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
       updatedAt: now,
     })
     .where(eq(workspaceFileSearchBackfill.id, BACKFILL_CURSOR_ID))
-  return files.length
+  return rows.length
 }
 
 /**
