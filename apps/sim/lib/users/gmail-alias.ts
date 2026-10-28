@@ -21,9 +21,11 @@ const logger = createLogger('GmailAlias')
  * Whether an earlier account, banned or not, already holds the Gmail inbox this
  * user's address delivers to. Only an account created before this one counts
  * (the id breaks a creation-time tie), so the inbox's first account keeps the
- * allowance however late its own stats row is created. It must have verified
- * the address, so an account that merely claimed someone else's inbox never
- * withholds that person's allowance. Pass the caller's transaction as
+ * allowance however late its own stats row is created. The earlier account
+ * counts whether or not it verified the address: the allowance is granted at
+ * signup, before verification, and where verification is off a password
+ * account never verifies, so a verified-only rule would let every alias
+ * registered unverified keep its allowance. Pass the caller's transaction as
  * `executor` to read on it; the read then runs in a savepoint, so a failed
  * lookup never aborts that transaction. Fails open: a lookup error returns
  * `false` and is logged, because refusing a legitimate person's allowance is
@@ -47,7 +49,6 @@ export async function userHasGmailAliasAccount(
       .where(
         and(
           sql`${gmailMailbox(user.email)} = ${self.mailbox}`,
-          eq(user.emailVerified, true),
           or(
             lt(user.createdAt, self.createdAt),
             and(eq(user.createdAt, self.createdAt), lt(user.id, userId))

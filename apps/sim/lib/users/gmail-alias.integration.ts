@@ -93,13 +93,20 @@ describe('Gmail inboxes and the free allowance', () => {
     expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
   })
 
-  it('grants it when the earlier account never verified the inbox', async () => {
+  it('withholds it from aliases registered before any of them verified the inbox', async () => {
     const local = uniqueLocalPart()
-    await signUp(`${local}@gmail.com`, { emailVerified: false })
+    const first = await signUp(`${local}@gmail.com`, { emailVerified: false })
+    const second = await signUp(`${local}+two@gmail.com`, { emailVerified: false })
+    await db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(inArray(user.id, [first, second]))
 
-    const owner = await signUp(`${local.slice(0, 5)}.${local.slice(5)}@gmail.com`)
+    const third = await signUp(`${local.slice(0, 5)}.${local.slice(5)}@gmail.com`)
 
-    expect(await statsOf(owner)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    expect(await statsOf(first)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    expect(await statsOf(second)).toEqual({ freeTierEligible: false, limit: 0 })
+    expect(await statsOf(third)).toEqual({ freeTierEligible: false, limit: 0 })
   })
 
   it('grants it to a different Gmail inbox and never folds addresses outside Gmail', async () => {
