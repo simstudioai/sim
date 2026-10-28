@@ -1382,7 +1382,6 @@
     "apps/sim/lib/concurrency/singleflight.test.ts": 3,
     "apps/sim/lib/core/async-jobs/backends/trigger-dev.integration.ts": 1,
     "apps/sim/lib/core/network/gateway.server.test.ts": 3,
-    "apps/sim/lib/core/outbox/retention.integration.ts": 3,
     "apps/sim/lib/core/rate-limiter/provider-admission.test.ts": 1,
     "apps/sim/lib/core/rate-limiter/provider-capacity-state.test.ts": 1,
     "apps/sim/lib/core/rate-limiter/provider-capacity.integration.ts": 9,

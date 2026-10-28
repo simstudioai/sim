@@ -47,12 +47,13 @@ describe('completed outbox retention in PostgreSQL', () => {
       onnotice: () => {},
     })
   )
+  const testDb = drizzle(connection)
   const expired = () => new Date(Date.now() - COMPLETED_OUTBOX_RETENTION_MS - 60_000)
 
   beforeAll(async () => {
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     await connection`CREATE TABLE outbox_event (LIKE public.outbox_event INCLUDING ALL)`
-    database.current = drizzle(connection)
+    database.current = testDb
   })
 
   afterEach(async () => {
@@ -70,7 +71,7 @@ describe('completed outbox retention in PostgreSQL', () => {
 
   async function seed(eventType: string, status: string, createdAt: Date) {
     const id = generateId()
-    await database.current!.insert(outboxEvent).values({
+    await testDb.insert(outboxEvent).values({
       id,
       eventType,
       payload: {},
@@ -82,7 +83,7 @@ describe('completed outbox retention in PostgreSQL', () => {
   }
 
   async function remainingIds() {
-    const rows = await database.current!.select({ id: outboxEvent.id }).from(outboxEvent)
+    const rows = await testDb.select({ id: outboxEvent.id }).from(outboxEvent)
     return new Set(rows.map((row) => row.id))
   }
 
@@ -112,7 +113,7 @@ describe('completed outbox retention in PostgreSQL', () => {
       ['recover', RECOVER],
       ['storage', STORAGE_CLEANUP],
     ]) {
-      await database.current!.execute(sql`
+      await testDb.execute(sql`
         INSERT INTO outbox_event (id, event_type, payload, status, available_at, created_at)
         SELECT ${prefix} || ':' || n, ${eventType}, '{}'::json, 'completed',
           ${createdAt}::timestamp, ${createdAt}::timestamp - n * interval '1 millisecond'
@@ -136,9 +137,9 @@ describe('completed outbox retention in PostgreSQL', () => {
         fileName: 'checkpoint.bin',
       })
     await write()
-    const [gate] = await database.current!.select().from(outboxEvent)
-    await database
-      .current!.update(outboxEvent)
+    const [gate] = await testDb.select().from(outboxEvent)
+    await testDb
+      .update(outboxEvent)
       .set({ status: 'completed', createdAt: expired() })
       .where(sql`${outboxEvent.id} = ${gate.id}`)
 
@@ -150,7 +151,7 @@ describe('completed outbox retention in PostgreSQL', () => {
     await write()
 
     expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(2)
-    const rows = await database.current!.select().from(outboxEvent)
+    const rows = await testDb.select().from(outboxEvent)
     expect(rows.map((row) => [row.id, row.status])).toEqual([[gate.id, 'pending']])
   })
 })
