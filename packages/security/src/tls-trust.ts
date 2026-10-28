@@ -6,9 +6,11 @@ import tls from 'node:tls'
  * eMudhra intermediates whose private keys were reported compromised in October
  * 2026 (https://emudhra.we-have-a-problem.com/roots.json). Mozilla's root store
  * already excludes all four, so dropping them leaves the process trusting what
- * Firefox trusts. Upstream runtimes are fixing this with their own blocklists
- * (Node.js #66871, Bun #46159); once a deployed runtime ships one, these roots
- * are absent from its store and {@link distrustCompromisedRoots} changes nothing.
+ * Firefox trusts. Upstream runtimes ship their own blocklists (Node.js #66871,
+ * Bun #46159); once a deployed runtime has one, these roots are absent from its
+ * store and {@link distrustCompromisedRoots} changes nothing. The Bun services
+ * run a Bun that has it, so only the Trigger.dev task runtime, whose Node build
+ * the platform chooses, still calls this.
  */
 const COMPROMISED_ROOT_SPKI_SHA256 = new Set([
   '8d417db2dd8bf5e3084d1e3f196d583849d81bdd4c00c70b9d39369e96b8c782', // emSign ECC Root CA - G3

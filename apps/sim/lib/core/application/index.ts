@@ -8,6 +8,7 @@ export {
   defineAuthorizedWorkspaceUseCase,
   recordProjectedUseCaseAuditEntries,
   type WorkspaceUseCaseAuditEntry,
+  type WorkspaceUseCaseAuditRollup,
 } from '@/lib/core/application/authorized-workspace-use-case'
 export {
   FORBIDDEN_DETAIL_CODES,

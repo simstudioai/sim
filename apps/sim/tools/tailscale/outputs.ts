@@ -460,3 +460,150 @@ export const USER_OUTPUT_PROPERTIES = {
     nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
+
+export const DNS_CONFIGURATION_OUTPUT = {
+  dnsConfiguration: {
+    type: 'json',
+    description: 'Dns configuration',
+    properties: {
+      nameservers: {
+        type: 'array',
+        description: 'Global DNS resolvers to use',
+        items: {
+          type: 'json',
+          properties: {
+            address: {
+              type: 'string',
+              description: 'IPv4 or IPv6 address of the DNS resolver',
+              optional: true,
+            },
+            useWithExitNode: {
+              type: 'boolean',
+              description:
+                'If true, this resolver should still be used when a device is configured to use a Tailscale exit node',
+              optional: true,
+            },
+          },
+        },
+      },
+      splitDNS: {
+        type: 'json',
+        description:
+          'Map of DNS name suffixes (domains) to lists of resolvers for Split DNS and advanced routing overlays',
+        nullable: true,
+      },
+      searchPaths: {
+        type: 'array',
+        description: 'Search domain paths to apply',
+        items: {
+          type: 'string',
+        },
+      },
+      preferences: {
+        type: 'json',
+        description: 'Preferences',
+        properties: {
+          overrideLocalDNS: {
+            type: 'boolean',
+            description:
+              'If true, resolvers in `nameservers` override the local OS DNS configuration; if false, local resolvers are used',
+            optional: true,
+          },
+          magicDNS: {
+            type: 'boolean',
+            description: 'Whether MagicDNS is enabled for this tailnet',
+            optional: true,
+          },
+        },
+        nullable: true,
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const TAILNET_SETTINGS_OUTPUT = {
+  settings: {
+    type: 'json',
+    description: 'Settings for a tailnet',
+    properties: {
+      aclsExternallyManagedOn: {
+        type: 'boolean',
+        description:
+          'Prevents users from editing policies in the admin console to avoid conflicts with external management workflows like GitOps or Terraform',
+        nullable: true,
+      },
+      aclsExternalLink: {
+        type: 'string',
+        description:
+          'Link to the external tailnet policy definition or management solution for this tailnet',
+        nullable: true,
+      },
+      adminConsoleSessionTimeoutMinutes: {
+        type: 'number',
+        description:
+          'The [admin console session timeout](/docs/account/admin-console-session-timeout) for members of this tailnet',
+        nullable: true,
+      },
+      devicesApprovalOn: {
+        type: 'boolean',
+        description:
+          'Whether [device approval](/docs/features/access-control/device-management/device-approval) is enabled for the tailnet',
+        nullable: true,
+      },
+      devicesAutoUpdatesOn: {
+        type: 'boolean',
+        description:
+          'Whether [auto updates](/docs/features/client/update#auto-updates) are enabled for devices that belong to this tailnet',
+        nullable: true,
+      },
+      devicesKeyDurationDays: {
+        type: 'number',
+        description:
+          'The [key expiry](/docs/features/access-control/key-expiry) duration for devices on this tailnet',
+        nullable: true,
+      },
+      usersApprovalOn: {
+        type: 'boolean',
+        description:
+          'Whether [user approval](/docs/features/access-control/user-approval) is enabled for this tailnet',
+        nullable: true,
+      },
+      usersRoleAllowedToJoinExternalTailnets: {
+        type: 'string',
+        description:
+          'Which user roles are allowed to [join external tailnets](/docs/features/sharing/how-to/invite-any-user)',
+        nullable: true,
+      },
+      networkFlowLoggingOn: {
+        type: 'boolean',
+        description:
+          'Whether [network flow logs](/docs/features/logging/network-flow-logs) are enabled for the tailnet',
+        nullable: true,
+      },
+      regionalRoutingOn: {
+        type: 'boolean',
+        description:
+          'Whether [regional routing](/docs/features/route-selection#regional-routing) is enabled for the tailnet',
+        nullable: true,
+      },
+      routeSelection: {
+        type: 'string',
+        description:
+          'The [route selection](/docs/features/route-selection) algorithm used by the tailnet: * `active-passive-failover` - Active-passive failover (formerly known as "Failover") * `regional-routing` - Regional routing * `regional-routing-failover` - Regional routing with in-region failover * `magicroute` - MagicRoute A PATCH request must not specify both the `regionalRoutingOn` and `routeSelection` fields',
+        nullable: true,
+      },
+      postureIdentityCollectionOn: {
+        type: 'boolean',
+        description:
+          'Whether [identity collection](/docs/features/access-control/device-management/how-to/manage-identity) is enabled for [device posture](/docs/features/device-posture) integrations for the tailnet',
+        nullable: true,
+      },
+      httpsEnabled: {
+        type: 'boolean',
+        description:
+          'Whether provisioning of [HTTPS certificates](/docs/how-to/set-up-https-certificates) is enabled for this tailnet',
+        nullable: true,
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>

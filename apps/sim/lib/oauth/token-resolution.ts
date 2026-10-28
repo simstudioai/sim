@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditRollup } from '@sim/audit'
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -58,6 +58,8 @@ export interface ResolveCredentialTokenInput {
   requestId: string
   credentialId?: string
   workflowId?: string
+  /** Workflow run the token is for; recorded on the credential-access audit entry. */
+  executionId?: string
   /** Canonical provider scopes, used only by service-account token minting. */
   scopes?: string[]
   /** Google domain-wide-delegation subject for service-account credentials. */
@@ -102,7 +104,9 @@ export function validateOAuthCredentialContext(
 
 /**
  * Emits the semantic "credential used" trail for one resolved credential.
- * Both the audit row and the analytics event are fire-and-forget.
+ * Both the audit row and the analytics event are fire-and-forget. A server-side
+ * access with no client request, such as a workflow run refreshing the token
+ * for every tool call, merges with its repeats into one row that counts them.
  */
 export function recordCredentialAccess(params: {
   actorId: string
@@ -110,22 +114,39 @@ export function recordCredentialAccess(params: {
   resourceId: string
   providerId: string | null | undefined
   credentialType: 'oauth' | 'service_account'
+  workflowId?: string
+  executionId?: string
   auditRequest?: CredentialAuditRequest
 }): void {
-  const { actorId, workspaceId, resourceId, providerId, credentialType } = params
-  recordAudit({
+  const { actorId, workspaceId, resourceId, providerId, credentialType, workflowId, executionId } =
+    params
+  const credentialLabel = `${credentialType === 'oauth' ? 'OAuth' : 'service account'} credential for provider ${providerId ?? 'unknown'}`
+  const audit = {
     workspaceId,
     actorId,
     action: AuditAction.CREDENTIAL_ACCESSED,
     resourceType: AuditResourceType.CREDENTIAL,
     resourceId,
-    description: `Accessed ${credentialType === 'oauth' ? 'OAuth' : 'service account'} credential for provider ${providerId ?? 'unknown'}`,
+    description: `Accessed ${credentialLabel}`,
     metadata: {
       provider: providerId,
       credentialType,
+      ...(workflowId ? { workflowId } : {}),
+      ...(executionId ? { executionId } : {}),
     },
-    request: params.auditRequest,
-  })
+  }
+  if (params.auditRequest) {
+    recordAudit({ ...audit, request: params.auditRequest })
+  } else {
+    recordAuditRollup({
+      key: JSON.stringify(audit.metadata),
+      params: audit,
+      rollupMetadata: audit.metadata,
+      counters: {},
+      identifiers: {},
+      describe: ({ entries }) => `Accessed ${credentialLabel} ${entries} times`,
+    })
+  }
   captureServerEvent(
     actorId,
     'credential_used',
@@ -197,9 +218,20 @@ export async function completeOAuthCredentialToken(params: {
   resolvedCredentialId: string
   actorId?: string
   workspaceId: string | null
+  workflowId?: string
+  executionId?: string
   auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
-  const { requestId, credential, resolvedCredentialId, actorId, workspaceId, auditRequest } = params
+  const {
+    requestId,
+    credential,
+    resolvedCredentialId,
+    actorId,
+    workspaceId,
+    workflowId,
+    executionId,
+    auditRequest,
+  } = params
   const contextValidation = validateOAuthCredentialContext(credential)
   if (!contextValidation.ok) {
     return { ok: false, status: 401, error: contextValidation.error }
@@ -215,6 +247,8 @@ export async function completeOAuthCredentialToken(params: {
         resourceId: resolvedCredentialId,
         providerId: credential.providerId,
         credentialType: 'oauth',
+        workflowId,
+        executionId,
         auditRequest,
       })
     }
@@ -287,6 +321,7 @@ export async function resolveCredentialToken(
     requestId,
     credentialId,
     workflowId,
+    executionId,
     scopes,
     impersonateEmail,
     callerUserId,
@@ -341,6 +376,8 @@ export async function resolveCredentialToken(
             resourceId: resolved.credentialId,
             providerId: resolved.providerId,
             credentialType: 'service_account',
+            workflowId,
+            executionId,
             auditRequest,
           })
         }
@@ -419,6 +456,8 @@ export async function resolveCredentialToken(
       resolvedCredentialId,
       actorId: authz.requesterUserId,
       workspaceId: authz.workspaceId ?? null,
+      workflowId,
+      executionId,
       auditRequest,
     })
   } catch (error) {
@@ -463,6 +502,7 @@ export async function resolveCredentialAccessToken(
       requestId,
       credentialId,
       workflowId: input.workflowId,
+      executionId: input.executionId,
       scopes: input.scopes,
       /**
        * In-process callers forward raw subblock state, where an untouched

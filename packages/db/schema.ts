@@ -72,6 +72,20 @@ export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
 }
 
 /**
+ * The Gmail mailbox an address delivers to, in SQL, or NULL for any other
+ * domain. Gmail ignores dots and everything after `+` in the local part and
+ * treats `googlemail.com` as `gmail.com`, so every such variant of one inbox
+ * maps to the same `local@gmail.com`. It is the exact expression
+ * `user_gmail_mailbox_idx` indexes; a predicate spelled any other way scans `user`.
+ */
+export function gmailMailbox(column: AnyPgColumn | SQL): SQL<string | null> {
+  const address = foldedEmail(column)
+  const isGmail = sql`split_part(${address}, '@', 2) IN ('gmail.com', 'googlemail.com')`
+  const inbox = sql`replace(split_part(split_part(${address}, '@', 1), '+', 1), '.', '')`
+  return sql<string | null>`(CASE WHEN ${isGmail} THEN ${inbox} || '@gmail.com' END)`
+}
+
+/**
  * A file name reduced to the VFS path segment it displays as, in SQL: NFC-composed, trimmed,
  * control characters removed, whitespace runs collapsed to one space. It is the exact
  * expression `workspace_files_workspace_display_name_idx` indexes, so a predicate spelled any
@@ -142,6 +156,13 @@ export const user = pgTable(
      * UNIQUE so the state cannot arise at all.
      */
     emailLowerIdx: index('user_email_lower_idx').on(foldedEmail(table.email)),
+    /**
+     * Finds the other accounts on one Gmail inbox, so a dot or `+tag` variant
+     * of an existing address does not get a second free allowance.
+     */
+    gmailMailboxIdx: index('user_gmail_mailbox_idx')
+      .on(gmailMailbox(table.email))
+      .where(sql`${gmailMailbox(table.email)} IS NOT NULL`),
   })
 )
 
@@ -1245,7 +1266,6 @@ export const jobExecutionLogs = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    scheduleIdIdx: index('job_execution_logs_schedule_id_idx').on(table.scheduleId),
     scheduleOccurrenceUnique: uniqueIndex('job_execution_logs_schedule_occurrence_unique').on(
       table.scheduleId,
       table.occurrenceAt

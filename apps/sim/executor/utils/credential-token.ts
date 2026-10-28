@@ -22,6 +22,7 @@ export interface ResolveExecutorCredentialTokenParams {
   credentialId: string
   userId?: string
   workflowId?: string
+  executionId?: string
   /** Tool consuming the token; required by the managed-OAuth scope policy. */
   toolId?: string
   /** Display label for the thrown failure ("Failed to obtain credential for X: ..."). */
@@ -112,6 +113,7 @@ export async function resolveExecutorCredentialToken(
     requestId,
     credentialId,
     workflowId,
+    executionId: params.executionId,
     toolId,
     scopes: params.scopes,
     impersonateEmail: params.impersonateEmail,

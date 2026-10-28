@@ -17,6 +17,7 @@ import {
   type OAuthReturnContext,
   readOAuthReturnContext,
 } from '@/lib/credentials/client-state'
+import { OAUTH_CREDENTIAL_ACCOUNT_CONFLICT_ERROR } from '@/lib/credentials/draft-constants'
 import {
   hasOAuthCredentialChanged,
   OAUTH_CHAT_ATTEMPT_MAX_AGE_MS,
@@ -124,11 +125,24 @@ export function resolveOAuthCallbackError(
   callbackUrl: string,
   ctx: Pick<OAuthReturnContext, 'displayName'>
 ): OAuthResultMessage | null {
-  if (!new URL(callbackUrl).searchParams.has('error')) return null
+  const params = new URL(callbackUrl).searchParams
+  if (!params.has('error')) return null
   return {
     kind: 'error',
-    text: `The "${ctx.displayName}" connection didn’t finish. Try again.`,
+    text:
+      accountConflictDescription(params) ??
+      `The "${ctx.displayName}" connection didn’t finish. Try again.`,
   }
+}
+
+/**
+ * The server-written reason a reconnect was refused because the chosen account
+ * already backs another credential. Other `error_description` values come from
+ * the provider and stay hidden behind the generic message.
+ */
+function accountConflictDescription(params: URLSearchParams): string | null {
+  if (params.get('error') !== OAUTH_CREDENTIAL_ACCOUNT_CONFLICT_ERROR) return null
+  return params.get('error_description') || null
 }
 
 function consumeOAuthCallbackError(ctx: OAuthReturnContext): OAuthResultMessage | null {
@@ -221,9 +235,13 @@ async function verifyOAuthChatAttempt(queryClient: QueryClient, attemptId: strin
   const attempt = readOAuthChatAttempt(attemptId)
   if (!attempt || Date.now() - attempt.requestedAt > OAUTH_CHAT_ATTEMPT_MAX_AGE_MS) return
 
-  if (new URL(window.location.href).searchParams.has('error')) {
+  const callbackParams = new URL(window.location.href).searchParams
+  if (callbackParams.has('error')) {
     setOAuthChatAttemptStatus(attempt.id, 'failed')
-    toast.error(`The ${attempt.displayName} connection didn’t finish. Try again.`)
+    toast.error(
+      accountConflictDescription(callbackParams) ??
+        `The ${attempt.displayName} connection didn’t finish. Try again.`
+    )
     return
   }
 

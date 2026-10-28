@@ -1931,6 +1931,7 @@ async function executeToolImplementation(
                 credentialId,
                 userId,
                 workflowId,
+                executionId: scope.executionId,
                 toolId,
                 toolLabel,
                 scopes: providerScopes,

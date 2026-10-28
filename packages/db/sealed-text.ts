@@ -46,6 +46,11 @@ function writeSealingKey(): Buffer | null {
   return key
 }
 
+/** Whether this process seals account tokens it writes: the flag is on and the key is usable. */
+export function isAccountTokenWriteSealingEnabled(): boolean {
+  return writeSealingKey() !== null
+}
+
 /** Logs once per process whether writes seal account tokens, and the key id (never the key). */
 export function reportAccountTokenSealing(): void {
   if (reportedSealing) return
