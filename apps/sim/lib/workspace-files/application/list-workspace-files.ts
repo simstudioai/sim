@@ -17,11 +17,14 @@ import { getWorkspaceShares, getWorkspaceSharesForResources } from '@/lib/public
 import {
   aggregateWorkspaceFileFolderUsage,
   findListedWorkspaceFiles,
+  findWorkspaceFileFoldersMatching,
   listWorkspaceFiles,
   loadActiveWorkspaceContext,
   lookupActiveWorkspaceFiles,
   queryWorkspaceFiles,
+  searchWorkspaceFileRecords,
   type WorkspaceFileRecord,
+  type WorkspaceFileSortBy,
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -55,7 +58,7 @@ export interface QueryWorkspaceFilePageInput {
   sizeBuckets?: readonly WorkspaceFileSizeBucket[]
   /** Files uploaded by any of these users. */
   uploadedBy?: readonly string[]
-  sortBy: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
+  sortBy: WorkspaceFileSortBy
   sortOrder: 'asc' | 'desc'
   limit: number
   after?: CursorKey[]
@@ -218,6 +221,59 @@ export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase(
         )
       ),
     }
+  },
+})
+
+export interface SearchWorkspaceFilesInput {
+  workspaceId: string
+  query: string
+  /** The folder searched, `null` for the root; absent, the whole workspace. */
+  folderId?: string | null
+  /** Whether `folderId`'s subfolders are searched too. */
+  recursive: boolean
+  limit: number
+}
+
+/**
+ * Live files a palette-style query finds, best match first (see `searchWorkspaceFileRecords`):
+ * by name — exactly, by prefix, by substring, then fuzzily — and then by the folders they sit
+ * under, so a query naming a folder finds the files anywhere beneath it. Each file carries its
+ * public share state. A folder id naming no active folder of this workspace finds nothing.
+ */
+export const searchWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.list,
+  resolveContext: ({ input }: { input: SearchWorkspaceFilesInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ input, context }) {
+    const folderIndex = await loadFileFolderIndex(context.workspaceId)
+    let folderId: string | null | string[] | undefined
+    if (input.folderId === null) {
+      folderId = input.recursive ? undefined : null
+    } else if (input.folderId !== undefined) {
+      if (!folderIndex.rowById.has(input.folderId)) return { files: [] }
+      folderId = input.recursive
+        ? resolveFolderScope(folderIndex, { kind: 'folder', folderId: input.folderId }, true)
+        : input.folderId
+    }
+    const childrenByParent = indexFolderChildren([...folderIndex.rowById.values()])
+    const pathFolderIds = new Set<string>()
+    for (const matched of await findWorkspaceFileFoldersMatching(
+      context.workspaceId,
+      input.query
+    )) {
+      if (!folderIndex.rowById.has(matched)) continue
+      pathFolderIds.add(matched)
+      for (const id of collectDescendantFolderIdsFrom(childrenByParent, matched)) {
+        pathFolderIds.add(id)
+      }
+    }
+    const files = await searchWorkspaceFileRecords(context.workspaceId, {
+      query: input.query,
+      folderId,
+      pathFolderIds: [...pathFolderIds],
+      limit: input.limit,
+    })
+    return { files: await withShares(context.workspaceId, files) }
   },
 })
 

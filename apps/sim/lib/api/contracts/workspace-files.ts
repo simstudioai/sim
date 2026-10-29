@@ -33,8 +33,18 @@ export const workspaceFileParamsSchema = workspaceFilesParamsSchema.extend({
   fileId: z.string({ error: 'File ID is required' }).min(1, 'File ID is required'),
 })
 
-/** The fields a paged list sorts by: the v2 list's, which the shared keyset implements. */
-const WORKSPACE_FILE_SORT_FIELDS = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
+/**
+ * The fields a paged list sorts by: the v2 list's, plus the browser's Type (the label its Type
+ * column shows) and Owner (the uploader's member name, a non-member uploader last).
+ */
+const WORKSPACE_FILE_SORT_FIELDS = [
+  'name',
+  'size',
+  'uploadedAt',
+  'updatedAt',
+  'type',
+  'owner',
+] as const
 
 const MAX_WORKSPACE_FILE_PAGE_SIZE = 500
 
@@ -297,8 +307,10 @@ const searchWorkspaceFilesQuerySchema = z.object({
 })
 
 /**
- * GET — case-insensitive file-name search within a workspace, optionally within one folder:
- * live files whose name contains `q`, by name, each carrying `folderPath`.
+ * GET — palette-style file search within a workspace, optionally within one folder: live files
+ * `q` finds, best match first — name equal to it, starting with it, containing it or all its
+ * words (case-insensitive), its initials or a fuzzy match — then files under a folder whose name
+ * matches it. Each carries `folderPath`.
  */
 export const searchWorkspaceFilesContract = defineRouteContract({
   method: 'GET',

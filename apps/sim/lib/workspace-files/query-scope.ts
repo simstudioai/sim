@@ -15,6 +15,7 @@ import {
   type WorkspaceFileSizeBucket,
 } from '@/lib/workspace-files/list-filters'
 import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
+import { WORKSPACE_FILE_TYPE_LABELS } from '@/lib/workspace-files/type-label'
 
 /** Durable files available to workspace resource pickers, reference mappings, and fork copies. */
 export function activeWorkspaceFileConditions(workspaceIds: string[]) {
@@ -166,3 +167,48 @@ export function workspaceFileSizeCondition(
     })
   )
 }
+
+/**
+ * A string constant of this module as an SQL literal. Only for the label and MIME tables below,
+ * which are code: inlining them keeps a query that repeats the expression (select, order, and
+ * keyset) from binding hundreds of parameters.
+ */
+function literal(value: string): SQL {
+  return sql.raw(`'${value.replaceAll("'", "''")}'`)
+}
+
+/** A `CASE <subject> WHEN … THEN … ELSE <otherwise> END` over a constant value-to-value table. */
+function caseOf(subject: SQL, table: readonly (readonly [string, string])[], otherwise: SQL): SQL {
+  if (table.length === 0) return otherwise
+  return sql`(CASE ${subject} ${sql.join(
+    table.map(([when, then]) => sql`WHEN ${literal(when)} THEN ${literal(then)}`),
+    sql` `
+  )} ELSE ${otherwise} END)`
+}
+
+/** The MIME type `resolveEffectiveMimeType` gives the file, spelled for SQL. */
+const workspaceFileEffectiveMimeType: SQL = sql`(CASE WHEN ${declaresFormat} THEN ${declaredContentType} ELSE ${caseOf(
+  workspaceFileExtension,
+  Object.keys(EXTENSION_TO_MIME).map(
+    (extension) => [extension, resolveEffectiveMimeType(undefined, `file.${extension}`)] as const
+  ),
+  literal(resolveEffectiveMimeType(undefined, 'file'))
+)} END)`
+
+const resolvedMime = sql.raw('resolved.mime')
+const resolvedExtension = sql.raw('resolved.extension')
+
+/**
+ * The file's Type column label (`workspaceFileTypeLabel`), spelled for SQL: what the list's Type
+ * sort orders by. Built from the same label table and MIME resolution, so a file sorts under the
+ * label it shows. The MIME type is resolved once per row, in a scalar subquery.
+ */
+export const workspaceFileTypeLabelExpression: SQL<string> = sql<string>`(SELECT ${caseOf(
+  resolvedMime,
+  Object.entries(WORKSPACE_FILE_TYPE_LABELS),
+  sql`(CASE WHEN ${resolvedMime} LIKE 'audio/%' THEN 'Audio'
+    WHEN ${resolvedMime} LIKE 'video/%' THEN 'Video'
+    WHEN ${resolvedMime} LIKE 'image/%' THEN 'Image'
+    WHEN ${resolvedExtension} <> '' THEN upper(${resolvedExtension})
+    ELSE ${workspaceFiles.contentType} END)`
+)} FROM (SELECT ${workspaceFileEffectiveMimeType} AS mime, ${workspaceFileExtension} AS extension) AS resolved)`

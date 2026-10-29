@@ -5,6 +5,7 @@
  */
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
+import { explainCaptured } from '@sim/db/testing/explain'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
@@ -16,7 +17,10 @@ import {
   getWorkspaceFileFolderStats,
   listWorkspaceFileCollection,
   lookupWorkspaceFiles,
+  searchWorkspaceFiles,
 } from '@/lib/workspace-files/application/list-workspace-files'
+import { workspaceFileTypeLabelExpression } from '@/lib/workspace-files/query-scope'
+import { workspaceFileTypeLabel } from '@/lib/workspace-files/type-label'
 
 const alice = generateId()
 const bob = generateId()
@@ -24,6 +28,11 @@ const carol = generateId()
 const workspaceId = generateId()
 const otherWorkspaceId = generateId()
 const filterWorkspaceId = generateId()
+const sortWorkspaceId = generateId()
+/** Uploaders with fixed display names: two members and one who has left the workspace. */
+const ann = generateId()
+const ben = generateId()
+const zed = generateId()
 const session = (userId: string) => ({ kind: 'session' as const, userId, sessionId: generateId() })
 
 /** Folder tree in the main workspace: Docs/{Sub/{Deep}}, Media; plus one in the other workspace. */
@@ -130,9 +139,9 @@ describe('bounded workspace file reads in PostgreSQL', () => {
   beforeAll(async () => {
     assertDisposableTestDatabaseUrl(process.env.DATABASE_URL ?? '')
     await db.insert(user).values(
-      [alice, bob, carol].map((id) => ({
+      [alice, bob, carol, ann, ben, zed].map((id) => ({
         id,
-        name: `Fixture ${id}`,
+        name: id === ann ? 'Ann' : id === ben ? 'Ben' : id === zed ? 'Zed' : `Fixture ${id}`,
         email: `${id}@fixture.test`,
         emailVerified: true,
         createdAt: new Date(),
@@ -143,6 +152,7 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       { id: workspaceId, name: 'Listing fixture', ownerId: alice, billedAccountUserId: alice },
       { id: otherWorkspaceId, name: 'Other fixture', ownerId: alice, billedAccountUserId: alice },
       { id: filterWorkspaceId, name: 'Filter fixture', ownerId: alice, billedAccountUserId: alice },
+      { id: sortWorkspaceId, name: 'Sort fixture', ownerId: alice, billedAccountUserId: alice },
     ])
     await db.insert(permissions).values([
       {
@@ -173,6 +183,13 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         entityId: filterWorkspaceId,
         permissionType: 'admin',
       },
+      ...[alice, ann, ben].map((userId) => ({
+        id: generateId(),
+        userId,
+        entityType: 'workspace',
+        entityId: sortWorkspaceId,
+        permissionType: 'admin' as const,
+      })),
     ])
     await db.execute(sql`
       INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id) VALUES
@@ -265,9 +282,9 @@ describe('bounded workspace file reads in PostgreSQL', () => {
   afterAll(async () => {
     await deleteWorkspaceFixture(
       db,
-      inArray(workspace.id, [workspaceId, otherWorkspaceId, filterWorkspaceId])
+      inArray(workspace.id, [workspaceId, otherWorkspaceId, filterWorkspaceId, sortWorkspaceId])
     )
-    await db.delete(user).where(inArray(user.id, [alice, bob, carol]))
+    await db.delete(user).where(inArray(user.id, [alice, bob, carol, ann, ben, zed]))
   })
 
   const byName = (name: string, folderId: string | null = null) => {
@@ -517,6 +534,197 @@ describe('bounded workspace file reads in PostgreSQL', () => {
           .sort((a, b) => b.size - a.size)
           .map((file) => file.id)
       )
+    })
+  })
+
+  describe('Type and Owner sorts', () => {
+    const fixtures = [
+      { name: 'b.pdf', contentType: 'application/pdf', userId: ben },
+      { name: 'a.pdf', contentType: 'application/pdf', userId: zed },
+      { name: 'd.pdf', contentType: 'application/pdf', userId: ann },
+      { name: 'c.txt', contentType: 'text/plain', userId: ann },
+      { name: 'x.png', contentType: 'application/octet-stream', userId: ann },
+      { name: 'y.webm', contentType: '', userId: ben },
+      { name: 'zz.foo', contentType: 'application/octet-stream', userId: zed },
+      { name: 'noext', contentType: 'application/x-custom', userId: ben },
+      { name: 'e.md', contentType: 'text/markdown', userId: ben },
+    ]
+    const ownerNames = new Map([
+      [ann, 'Ann'],
+      [ben, 'Ben'],
+    ])
+    const seeded: { id: string; name: string; label: string; owner: string | null }[] = []
+
+    beforeAll(async () => {
+      for (const [index, fixture] of fixtures.entries()) {
+        const file = await insertFile({
+          workspaceId: sortWorkspaceId,
+          name: fixture.name,
+          contentType: fixture.contentType,
+          userId: fixture.userId,
+          uploadedAt: `2026-05-01T00:00:0${index}`,
+        })
+        seeded.push({
+          id: file.id,
+          name: fixture.name,
+          label: workspaceFileTypeLabel(fixture.contentType, fixture.name),
+          owner: ownerNames.get(fixture.userId) ?? null,
+        })
+      }
+    })
+
+    async function walkSorted(sortBy: 'type' | 'owner', sortOrder: 'asc' | 'desc') {
+      const ids: string[] = []
+      let after: CursorKey[] | undefined
+      for (let guard = 0; guard < 20; guard++) {
+        const result = await page(
+          { folderId: null, sortBy, sortOrder, limit: 2, after },
+          { workspace: sortWorkspaceId }
+        )
+        ids.push(...result.files.map((file) => file.id))
+        if (!result.nextKeys) return ids
+        after = result.nextKeys
+      }
+      throw new Error('Pagination did not terminate')
+    }
+
+    /**
+     * The browser's order, collated by the database the server sorts in: the key in the
+     * requested direction, then the name A→Z, a file with no member owner last either way.
+     */
+    async function expectedOrder(key: 'label' | 'owner', sortOrder: 'asc' | 'desc') {
+      const rows = sql.join(
+        seeded.map(
+          (file) =>
+            sql`(${file.id}, ${key === 'label' ? file.label : file.owner}::text, ${file.name})`
+        ),
+        sql`, `
+      )
+      const result = await db.execute<{ id: string }>(sql`
+        SELECT id FROM (VALUES ${rows}) AS expected(id, key, name)
+        ORDER BY (key IS NULL) ASC, key ${sql.raw(sortOrder)}, name ASC, id ASC`)
+      return result.map((row) => row.id)
+    }
+
+    it.each(['asc', 'desc'] as const)(
+      'pages the Type sort by the label each file shows, ties A→Z by name (%s)',
+      async (sortOrder) => {
+        expect(await walkSorted('type', sortOrder)).toEqual(await expectedOrder('label', sortOrder))
+      }
+    )
+
+    it.each(['asc', 'desc'] as const)(
+      'pages the Owner sort by member name, a former member last (%s)',
+      async (sortOrder) => {
+        expect(await walkSorted('owner', sortOrder)).toEqual(
+          await expectedOrder('owner', sortOrder)
+        )
+      }
+    )
+
+    it('labels each file as its Type column does', async () => {
+      const rows = await db.execute<{ id: string; label: string }>(sql`
+        SELECT id, ${workspaceFileTypeLabelExpression} AS label FROM ${workspaceFiles}
+        WHERE workspace_id = ${sortWorkspaceId}`)
+      expect(new Map(rows.map((row) => [row.id, row.label]))).toEqual(
+        new Map(seeded.map((file) => [file.id, file.label]))
+      )
+    })
+
+    /**
+     * Neither key is indexed, so a page sorts its scope — but only its scope: the folder
+     * predicate must still seek the folder index rather than reading every live file.
+     */
+    it("sorts one folder's rows, reached through the folder index", async () => {
+      const padFolder = generateId()
+      await db.execute(sql`
+        INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
+          VALUES (${padFolder}, 'Pad', ${ann}, ${sortWorkspaceId}, 'file', NULL)`)
+      await db.execute(sql`
+        INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, folder_id, context, original_name, content_type, size_bytes)
+        SELECT 'wf_sortpad_' || n, 'sortpad/' || n || '/' || ${sortWorkspaceId}, ${ann},
+          ${sortWorkspaceId}, ${padFolder}, 'workspace', 'pad-' || n || '.txt', 'text/plain', 1
+        FROM generate_series(1, 3000) AS n`)
+      await db.execute(sql`ANALYZE ${workspaceFiles}`)
+      try {
+        for (const sortBy of ['type', 'owner'] as const) {
+          const nodes = await explainCaptured(
+            db,
+            () =>
+              queryWorkspaceFiles(sortWorkspaceId, {
+                folderId: null,
+                sortBy,
+                sortOrder: 'asc',
+                limit: 50,
+              }),
+            { match: /order by/ }
+          )
+          expect(nodes.some((node) => node['Index Cond']?.includes('COALESCE(folder_id'))).toBe(
+            true
+          )
+        }
+      } finally {
+        await db.execute(
+          sql`DELETE FROM ${workspaceFiles} WHERE id LIKE 'wf_sortpad_%' AND workspace_id = ${sortWorkspaceId}`
+        )
+      }
+    })
+  })
+
+  describe('palette search', () => {
+    const search = (query: string, extra: { folderId?: string | null; recursive?: boolean } = {}) =>
+      searchWorkspaceFiles.execute({
+        principal: session(alice),
+        input: {
+          workspaceId,
+          query,
+          folderId: extra.folderId,
+          recursive: extra.recursive ?? true,
+          limit: 20,
+        },
+      })
+    const names = async (
+      query: string,
+      extra?: { folderId?: string | null; recursive?: boolean }
+    ) => (await search(query, extra)).files.map((file) => file.name)
+
+    it('ranks an exact name, then a prefix, then a substring, then a fuzzy match', async () => {
+      expect((await names('alpha.txt')).slice(0, 2)).toEqual(['alpha.txt', 'alpha.txt'])
+      const ranked = await names('report')
+      expect(ranked[0]).toBe('report-draft.md')
+      expect(ranked.slice(1, 3).sort()).toEqual(['Quarterly-Report.csv', 'nested report.md'])
+    })
+
+    it('tolerates a typo in the name', async () => {
+      expect(await names('repot')).toEqual(
+        expect.arrayContaining(['report-draft.md', 'nested report.md'])
+      )
+      expect(await names('qarterly')).toContain('Quarterly-Report.csv')
+    })
+
+    it('matches words in any order and initials from a word start, as the palette did', async () => {
+      expect(await names('report nested')).toContain('nested report.md')
+      expect(await names('qrep')).toContain('Quarterly-Report.csv')
+      expect(await names('uarep')).not.toContain('Quarterly-Report.csv')
+    })
+
+    it('finds the files beneath a folder the query names', async () => {
+      expect((await names('Sub')).sort()).toEqual(['deep.bin', 'nested report.md'])
+      expect(await names('media')).toEqual(['photo.png'])
+      const docs = await names('docs')
+      expect(docs.sort()).toEqual(
+        ['alpha.txt', 'deep.bin', 'nested report.md', 'report-draft.md'].sort()
+      )
+    })
+
+    it('stays within the folder scope, and never returns deleted or chat files', async () => {
+      expect(await names('report', { folderId: folders.docs, recursive: false })).toEqual([
+        'report-draft.md',
+      ])
+      const all = await names('report')
+      expect(all).not.toContain('old report.txt')
+      expect(all).not.toContain('chat report.txt')
+      expect(await names('report', { folderId: generateId() })).toEqual([])
     })
   })
 
