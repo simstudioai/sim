@@ -150,12 +150,8 @@ export async function collectChatFiles(
       const attachments = (msg as Record<string, unknown>).fileAttachments
       if (!Array.isArray(attachments)) continue
       for (const attachment of attachments) {
-        if (
-          attachment &&
-          typeof attachment === 'object' &&
-          (attachment as Record<string, unknown>).key
-        ) {
-          const key = (attachment as Record<string, unknown>).key as string
+        if (isRecordLike(attachment) && typeof attachment.key === 'string' && attachment.key) {
+          const key = attachment.key
           if (seen.has(key)) continue
           const organizationId = organizationAttachmentOwner(key)
           if (organizationId) {
