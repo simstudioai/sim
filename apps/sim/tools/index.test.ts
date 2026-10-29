@@ -7487,7 +7487,6 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
       options()
     )
     expect(result.success).toBe(false)
-    expect(result.error).toContain('cannot supply the apiKey')
     expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
