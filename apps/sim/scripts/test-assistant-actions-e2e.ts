@@ -73,12 +73,23 @@ const lagStreamId = generateId()
 const lagFirstCallId = generateId()
 const lagSecondCallId = generateId()
 const lateCallId = generateId()
+const reviewChatId = generateId()
+const reviewRunId = generateId()
+const reviewStreamId = generateId()
+const keyboardCallId = generateId()
+const otherFocusCallId = generateId()
+const navigationCallId = generateId()
+const selectiveCallId = generateId()
+const batchFirstCallId = generateId()
+const batchSecondCallId = generateId()
+const batchLateCallId = generateId()
 const requestId = generateId()
 const firstCallId = generateId()
 const secondCallId = generateId()
 const fixtureStreams = [
   { chatId: assistantId, streamId },
   { chatId: lagChatId, streamId: lagStreamId },
+  { chatId: reviewChatId, streamId: reviewStreamId },
 ]
 const streamPollers: ReturnType<typeof setInterval>[] = []
 const catalogAccounts = [
@@ -105,6 +116,7 @@ const token = generateShortId()
 const root = `/o/${organizationId}`
 const question = 'Create the two launch follow-up tickets in Jira.'
 const answer = 'Review the two Jira issues before I create them.'
+const reviewAnswer = 'Review these keyboard and batch proposals.'
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 const browserErrors: string[] = []
@@ -236,7 +248,8 @@ try {
     }
     await tx`insert into copilot_chats (id, user_id, organization_id, type, title, conversation_id, config)
       values (${assistantId}, ${userId}, ${organizationId}, 'mothership', 'Launch follow-up', ${streamId}, ${tx.json({ conversationMode: 'assistant' })}),
-      (${lagChatId}, ${userId}, ${organizationId}, 'mothership', 'Delayed action transcript', ${lagStreamId}, ${tx.json({ conversationMode: 'assistant' })})`
+      (${lagChatId}, ${userId}, ${organizationId}, 'mothership', 'Delayed action transcript', ${lagStreamId}, ${tx.json({ conversationMode: 'assistant' })}),
+      (${reviewChatId}, ${userId}, ${organizationId}, 'mothership', 'Keyboard and batch review', ${reviewStreamId}, ${tx.json({ conversationMode: 'assistant' })})`
     const oldResponseId = generateId()
     for (const message of [
       {
@@ -273,12 +286,14 @@ try {
         values (${generateId()}, ${assistantId}, ${data.id}, ${data.role}, ${stream}, ${tx.json({ ...content, requestId, timestamp: new Date().toISOString() })}, ${index + 1})`
     }
     await tx`insert into copilot_messages (id, chat_id, message_id, role, stream_id, content, seq)
-      values (${generateId()}, ${lagChatId}, ${lagStreamId}, 'user', ${lagStreamId}, ${tx.json({ id: lagStreamId, role: 'user', content: 'Create two more Jira issues.', requestId, timestamp: new Date().toISOString() })}, 1)`
+      values (${generateId()}, ${lagChatId}, ${lagStreamId}, 'user', ${lagStreamId}, ${tx.json({ id: lagStreamId, role: 'user', content: 'Create two more Jira issues.', requestId, timestamp: new Date().toISOString() })}, 1),
+      (${generateId()}, ${reviewChatId}, ${reviewStreamId}, 'user', ${reviewStreamId}, ${tx.json({ id: reviewStreamId, role: 'user', content: 'Prepare follow-up actions for review.', requestId, timestamp: new Date().toISOString() })}, 1)`
     await tx`insert into copilot_runs (id, chat_id, user_id, organization_id, execution_id, stream_id, tool_execution_version, status, started_at, completed_at, tool_admission_closed_at)
       values (${previousRunId}, ${assistantId}, ${userId}, ${organizationId}, ${generateId()}, ${previousStreamId}, 3, 'complete', now() - interval '1 hour', now() - interval '59 minutes', now() - interval '59 minutes')`
     await tx`insert into copilot_runs (id, chat_id, user_id, organization_id, execution_id, stream_id, tool_execution_version, status)
       values (${runId}, ${assistantId}, ${userId}, ${organizationId}, ${generateId()}, ${streamId}, 3, 'paused_waiting_for_tool'),
-      (${lagRunId}, ${lagChatId}, ${userId}, ${organizationId}, ${generateId()}, ${lagStreamId}, 3, 'paused_waiting_for_tool')`
+      (${lagRunId}, ${lagChatId}, ${userId}, ${organizationId}, ${generateId()}, ${lagStreamId}, 3, 'paused_waiting_for_tool'),
+      (${reviewRunId}, ${reviewChatId}, ${userId}, ${organizationId}, ${generateId()}, ${reviewStreamId}, 3, 'paused_waiting_for_tool')`
   })
   await insertProposal(runId, firstCallId, 'Publish the launch checklist')
   await insertProposal(runId, secondCallId, 'Confirm the rollout owners')
@@ -300,6 +315,10 @@ try {
       type: 'text',
       payload: { channel: 'assistant', text: 'I have prepared two more issues for review.' },
     },
+  ])
+  await appendStreamEvents(reviewChatId, reviewStreamId, [
+    { type: 'session', payload: { kind: 'start' } },
+    { type: 'text', payload: { channel: 'assistant', text: reviewAnswer } },
   ])
   await context.addCookies([
     {
@@ -639,6 +658,249 @@ try {
       )
     }
   )
+  await check(
+    'A failed keyboard decision keeps focus and leaves the proposal pending',
+    async () => {
+      for (const [id, summary] of [
+        [keyboardCallId, 'Approve with the keyboard'],
+        [otherFocusCallId, 'Keep focus in another field'],
+        [navigationCallId, 'Leave this conversation during a decision'],
+      ] as const) {
+        await insertProposal(reviewRunId, id, summary)
+        await appendStreamEvents(reviewChatId, reviewStreamId, [pendingToolEvent(id, summary)])
+      }
+      await page.goto(`${baseUrl.origin}${root}/search/chat/${reviewChatId}`)
+      await expect(reviewCards).toHaveCount(3)
+      const actionUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${reviewChatId}/actions/${keyboardCallId}`
+      await page.route(
+        actionUrl,
+        (route) =>
+          route.fulfill({
+            status: 409,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'The review could not be saved. Try again.' }),
+          }),
+        { times: 1 }
+      )
+      const response = page.waitForResponse(
+        (response) => response.url() === actionUrl && response.request().method() === 'PATCH'
+      )
+      const allow = reviewCards.nth(0).getByRole('button', { name: 'Allow', exact: true })
+      await allow.focus()
+      await page.keyboard.press('Enter')
+      assert.equal((await response).status(), 409)
+      await expect(reviewCards.nth(0).getByRole('alert')).toBeVisible()
+      await expect(allow).toBeEnabled()
+      await expect(allow).toBeFocused()
+      const [row] =
+        await sql`select permission_decision, execution_started_at from copilot_async_tool_calls where tool_call_id = ${keyboardCallId}`
+      assert.equal(row?.permission_decision, null)
+      assert.equal(row?.execution_started_at, null)
+    }
+  )
+  await check(
+    'A completed keyboard decision restores focus without taking it from another field',
+    async () => {
+      const response = page.waitForResponse(
+        (response) =>
+          response.url().endsWith(`/actions/${keyboardCallId}`) &&
+          response.request().method() === 'PATCH'
+      )
+      await reviewCards.nth(0).getByRole('button', { name: 'Allow', exact: true }).focus()
+      await page.keyboard.press('Enter')
+      assert.equal((await response).status(), 200)
+      await expect(reviewCards).toHaveCount(2)
+      await expect(
+        page
+          .getByRole('group', { name: 'Conversation turn', exact: true })
+          .filter({ has: page.getByText(reviewAnswer, { exact: true }) })
+      ).toBeFocused()
+
+      const releaseDecision = createDeferred<void>()
+      let decisionRequested = false
+      const actionUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${reviewChatId}/actions/${otherFocusCallId}`
+      await page.route(actionUrl, async (route) => {
+        decisionRequested = true
+        await releaseDecision.promise
+        await route.continue()
+      })
+      try {
+        const cancellation = page.waitForResponse(
+          (response) => response.url() === actionUrl && response.request().method() === 'PATCH'
+        )
+        await reviewCards.nth(0).getByRole('button', { name: 'Cancel', exact: true }).focus()
+        await page.keyboard.press('Enter')
+        await expect.poll(() => decisionRequested).toBe(true)
+        const composer = page.getByRole('textbox', { name: 'Ask Sim', exact: true })
+        await composer.fill('Keep my focus here')
+        releaseDecision.resolve()
+        assert.equal((await cancellation).status(), 200)
+        await expect(reviewCards).toHaveCount(1)
+        await expect(composer).toBeFocused()
+      } finally {
+        releaseDecision.resolve()
+        await page.unroute(actionUrl)
+      }
+    }
+  )
+  for (const intent of ['focus', 'pointer'] as const) {
+    await check(
+      `A completed review respects ${intent} movement away from its control`,
+      async () => {
+        const toolCallId = generateId()
+        const summary = `Preserve the user's ${intent} intent`
+        await insertProposal(reviewRunId, toolCallId, summary)
+        await appendStreamEvents(reviewChatId, reviewStreamId, [
+          pendingToolEvent(toolCallId, summary),
+        ])
+        await expect(reviewCards).toHaveCount(2)
+        const releaseDecision = createDeferred<void>()
+        let decisionRequested = false
+        const actionUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${reviewChatId}/actions/${toolCallId}`
+        await page.route(actionUrl, async (route) => {
+          decisionRequested = true
+          await releaseDecision.promise
+          await route.continue()
+        })
+        try {
+          await reviewCards.last().getByRole('button', { name: 'Cancel', exact: true }).focus()
+          await page.keyboard.press('Enter')
+          await expect.poll(() => decisionRequested).toBe(true)
+          if (intent === 'focus') {
+            const composer = page.getByRole('textbox', { name: 'Ask Sim', exact: true })
+            await composer.fill('Continue elsewhere')
+            await expect(composer).toBeFocused()
+            await composer.evaluate((element) => {
+              if (element instanceof HTMLElement) element.blur()
+            })
+          } else {
+            await page.locator('body').click({ position: { x: 1, y: 1 } })
+          }
+          await expect(page.locator('body')).toBeFocused()
+          const response = page.waitForResponse(
+            (response) => response.url() === actionUrl && response.request().method() === 'PATCH'
+          )
+          releaseDecision.resolve()
+          assert.equal((await response).status(), 200)
+          await expect(reviewCards).toHaveCount(1)
+          await expect(page.locator('body')).toBeFocused()
+          const [row] =
+            await sql`select permission_decision, execution_started_at from copilot_async_tool_calls where tool_call_id = ${toolCallId}`
+          assert.equal(row?.permission_decision, 'skip')
+          assert.equal(row?.execution_started_at, null)
+        } finally {
+          releaseDecision.resolve()
+          await page.unroute(actionUrl)
+        }
+      }
+    )
+  }
+  await check(
+    'A decision completing after navigation does not take focus from Search',
+    async () => {
+      let decisionPersisted = false
+      const releaseResponse = createDeferred<void>()
+      let responseReleased = false
+      const actionUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${reviewChatId}/actions/${navigationCallId}`
+      await page.route(actionUrl, async (route) => {
+        const response = await route.fetch()
+        assert.equal(response.status(), 200)
+        decisionPersisted = true
+        await releaseResponse.promise
+        try {
+          await route.fulfill({ response })
+        } finally {
+          responseReleased = true
+        }
+      })
+      try {
+        await reviewCards.getByRole('button', { name: 'Cancel', exact: true }).focus()
+        await page.keyboard.press('Enter')
+        await expect.poll(() => decisionPersisted).toBe(true)
+        await page.goto(`${baseUrl.origin}${root}/search`)
+        const search = page.getByRole('textbox', { name: 'Search your sources', exact: true })
+        await search.fill('Continue searching')
+        releaseResponse.resolve()
+        await expect.poll(() => responseReleased).toBe(true)
+        await expect(search).toBeFocused()
+        const [row] =
+          await sql`select permission_decision, execution_started_at from copilot_async_tool_calls where tool_call_id = ${navigationCallId}`
+        assert.equal(row?.permission_decision, 'skip')
+        assert.equal(row?.execution_started_at, null)
+      } finally {
+        releaseResponse.resolve()
+        await page.unroute(actionUrl)
+      }
+    }
+  )
+  await check('Cancel all skips its displayed snapshot after a selective approval', async () => {
+    for (const [id, summary] of [
+      [selectiveCallId, 'Allow this proposal separately'],
+      [batchFirstCallId, 'Cancel the first pending proposal'],
+      [batchSecondCallId, 'Cancel the second pending proposal'],
+    ] as const) {
+      await insertProposal(reviewRunId, id, summary)
+      await appendStreamEvents(reviewChatId, reviewStreamId, [pendingToolEvent(id, summary)])
+    }
+    await page.goto(`${baseUrl.origin}${root}/search/chat/${reviewChatId}`)
+    await expect(reviewCards).toHaveCount(3)
+    const approval = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/actions/${selectiveCallId}`) &&
+        response.request().method() === 'PATCH'
+    )
+    await reviewCards.nth(0).getByRole('button', { name: 'Allow', exact: true }).click()
+    assert.equal((await approval).status(), 200)
+    await expect(reviewCards).toHaveCount(2)
+    const releaseFirstDecision = createDeferred<void>()
+    let firstDecisionRequested = false
+    const firstActionUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${reviewChatId}/actions/${batchFirstCallId}`
+    await page.route(firstActionUrl, async (route) => {
+      firstDecisionRequested = true
+      await releaseFirstDecision.promise
+      await route.continue()
+    })
+    try {
+      await page.getByRole('button', { name: 'Cancel 2 shown', exact: true }).click()
+      await expect.poll(() => firstDecisionRequested).toBe(true)
+      await insertProposal(reviewRunId, batchLateCallId, 'This later proposal was not canceled')
+      await appendStreamEvents(reviewChatId, reviewStreamId, [
+        pendingToolEvent(batchLateCallId, 'This later proposal was not canceled'),
+      ])
+      await expect(reviewCards).toHaveCount(3)
+      releaseFirstDecision.resolve()
+      await expect
+        .poll(async () => {
+          const rows =
+            await sql`select tool_call_id, permission_decision from copilot_async_tool_calls where tool_call_id in (${selectiveCallId}, ${batchFirstCallId}, ${batchSecondCallId}, ${batchLateCallId}) order by persist_seq`
+          return rows.map((row) => [row.tool_call_id, row.permission_decision])
+        })
+        .toEqual([
+          [selectiveCallId, 'allow'],
+          [batchFirstCallId, 'skip'],
+          [batchSecondCallId, 'skip'],
+          [batchLateCallId, null],
+        ])
+      await expect(reviewCards).toHaveCount(1)
+      const cancellation = page.waitForResponse(
+        (response) =>
+          response.url().endsWith(`/actions/${batchLateCallId}`) &&
+          response.request().method() === 'PATCH'
+      )
+      await reviewCards.getByRole('button', { name: 'Cancel', exact: true }).click()
+      assert.equal((await cancellation).status(), 200)
+      await expect(reviewCards).toHaveCount(0)
+    } finally {
+      releaseFirstDecision.resolve()
+      await page.unroute(firstActionUrl)
+    }
+    const rows =
+      await sql`select execution_started_at from copilot_async_tool_calls where run_id = ${reviewRunId}`
+    assert(
+      rows.every((row) => row.execution_started_at === null),
+      'A fixture action executed'
+    )
+  })
   await check('An organization URL cannot expose a different organization’s review', async () => {
     const response = await context.request.get(
       `${baseUrl.origin}/api/organizations/${otherOrganizationId}/chats/${assistantId}/actions`
@@ -663,8 +925,7 @@ try {
     await sql`delete from project where owner_id = ${userId}`
     await sql`delete from organization where id in (${organizationId},${otherOrganizationId})`
     await sql`delete from "user" where id = ${userId}`
-    await clearBuffer(streamId)
-    await clearBuffer(lagStreamId)
+    for (const stream of fixtureStreams) await clearBuffer(stream.streamId)
   } catch (error) {
     checks.push({
       name: 'Fixture cleanup',

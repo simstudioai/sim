@@ -953,6 +953,8 @@ interface MessageContentProps {
    * place without ever changing height.
    */
   isLast?: boolean
+  /** Pending review controls own the tail until the user decides. */
+  awaitingInteraction?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
@@ -980,6 +982,7 @@ function MessageContentInner({
   requestMode,
   isStreaming = false,
   isLast = false,
+  awaitingInteraction = false,
   questionAnswers,
   credentialSubmission,
   credentialAbandoned,
@@ -1082,7 +1085,8 @@ function MessageContentInner({
   // trailing text keeps visually revealing on a timer after the network stream
   // closes, and collapsing under a still-growing reveal reads as the blob
   // winking out early while everything shifts.
-  const thinkingExpanded = phase !== 'settled' && lastSegment?.type !== 'stopped'
+  const thinkingExpanded =
+    !awaitingInteraction && phase !== 'settled' && lastSegment?.type !== 'stopped'
 
   if (segments.length === 0 && !isLast) return null
 

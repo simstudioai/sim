@@ -47,13 +47,29 @@ interface ReviewContextValue {
   hasApprovalRows: boolean
   drafts: ReviewDrafts
   submitting: boolean
+  pendingDecision?: { toolCallId: string; decision: 'allow' | 'skip' }
   edit: (action: ReviewAction, name: string, value: string) => void
-  submit: (actions: ReviewAction[], decision: 'allow' | 'skip') => Promise<void>
+  submit: (
+    actions: ReviewAction[],
+    decision: 'allow' | 'skip',
+    onStart: () => void
+  ) => Promise<void>
+}
+
+interface ReviewMessageContextValue {
+  messageId: string
+  submit: (actions: ReviewAction[], decision: 'allow' | 'skip', source: HTMLButtonElement) => void
 }
 
 const reviewContext = createContext<ReviewContextValue | null>(null)
-const reviewMessageContext = createContext<string | null>(null)
+const reviewMessageContext = createContext<ReviewMessageContextValue | null>(null)
+const pendingReviewContext = createContext(false)
 const EMPTY_ACTIONS: ReviewAction[] = []
+
+/** Lets the current turn yield its activity footer to pending review controls. */
+export function useHasAssistantActionReview() {
+  return useContext(pendingReviewContext)
+}
 
 interface AssistantActionReviewProviderProps {
   organizationId: string
@@ -144,10 +160,15 @@ export function AssistantActionReviewProvider({
       }
     })
   }
-  const submit = async (selected: ReviewAction[], decision: 'allow' | 'skip') => {
+  const submit = async (
+    selected: ReviewAction[],
+    decision: 'allow' | 'skip',
+    onStart: () => void
+  ) => {
     if (inFlight.current || query.isError || !selected.length) return
     const controller = new AbortController()
     inFlight.current = controller
+    onStart()
     setSubmitting(true)
     const snapshot = selected.map((action) => {
       const draft = drafts.runId === action.runId ? drafts.edits[action.toolCallId] : undefined
@@ -224,6 +245,7 @@ export function AssistantActionReviewProvider({
               hasApprovalRows,
               drafts,
               submitting,
+              pendingDecision: mutation.isPending ? mutation.variables : undefined,
               edit,
               submit,
             }
@@ -244,29 +266,81 @@ export function AssistantActionReviewMessage({
   messageId,
   children,
 }: AssistantActionReviewMessageProps) {
+  const turn = useRef<HTMLDivElement>(null)
+  const focusOrigin = useRef<HTMLButtonElement | null>(null)
   const review = useContext(reviewContext)
+  const submitting = review?.submitting ?? false
+
+  useEffect(() => {
+    const origin = focusOrigin.current
+    if (!origin) return
+    if (submitting) {
+      const cancelRestore = () => {
+        focusOrigin.current = null
+      }
+      const handleFocus = (event: FocusEvent) => {
+        if (event.target !== origin && event.target !== document.body) cancelRestore()
+      }
+      document.addEventListener('focusin', handleFocus, true)
+      document.addEventListener('pointerdown', cancelRestore, true)
+      return () => {
+        document.removeEventListener('focusin', handleFocus, true)
+        document.removeEventListener('pointerdown', cancelRestore, true)
+      }
+    }
+    focusOrigin.current = null
+    if (
+      document.hasFocus() &&
+      (document.activeElement === document.body || document.activeElement === origin)
+    ) {
+      const target = origin.isConnected && !origin.disabled ? origin : turn.current
+      target?.focus({ preventScroll: true })
+    }
+  }, [submitting])
+
+  if (!review)
+    return <pendingReviewContext.Provider value={false}>{children}</pendingReviewContext.Provider>
+  const submit: ReviewMessageContextValue['submit'] = (actions, decision, source) => {
+    void review.submit(actions, decision, () => {
+      focusOrigin.current = document.activeElement === source ? source : null
+    })
+  }
+  const ownsReview = review.recoveryMessageId === messageId
   return (
-    <reviewMessageContext.Provider value={messageId}>
-      {children}
-      {review?.recoveryMessageId === messageId &&
-        !review.hasApprovalRows &&
-        review.recoveryActions.length === 0 &&
-        review.query.isError && (
-          <div className='pt-4'>
-            <ReviewAvailability label='Could not load action review' review={review} />
-          </div>
-        )}
-      {review?.recoveryMessageId === messageId && review.recoveryActions.length > 0 && (
-        <div className='flex flex-col gap-3 pt-4'>
-          {review.recoveryActions.map((action) => (
-            <ActionReview
-              key={`${action.toolCallId}:${action.proposalVersion}`}
-              action={action}
-              review={review}
-            />
-          ))}
+    <reviewMessageContext.Provider value={{ messageId, submit }}>
+      <pendingReviewContext.Provider
+        value={ownsReview && (review.actions.length > 0 || review.submitting)}
+      >
+        <div
+          ref={turn}
+          role='group'
+          aria-label='Conversation turn'
+          tabIndex={-1}
+          className='min-w-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
+        >
+          {children}
+          {ownsReview &&
+            !review.hasApprovalRows &&
+            review.recoveryActions.length === 0 &&
+            review.query.isError && (
+              <div className='pt-4'>
+                <ReviewAvailability label='Could not load action review' review={review} />
+              </div>
+            )}
+          {ownsReview && review.recoveryActions.length > 0 && (
+            <div className='flex flex-col gap-3 pb-4'>
+              {review.recoveryActions.map((action) => (
+                <ActionReview
+                  key={`${action.toolCallId}:${action.proposalVersion}`}
+                  action={action}
+                  review={review}
+                />
+              ))}
+            </div>
+          )}
+          {ownsReview && <ReviewBatchActions review={review} />}
         </div>
-      )}
+      </pendingReviewContext.Provider>
     </reviewMessageContext.Provider>
   )
 }
@@ -283,10 +357,10 @@ export function AssistantActionReviewStatus({
   fallback,
 }: AssistantActionReviewStatusProps) {
   const review = useContext(reviewContext)
-  const messageId = useContext(reviewMessageContext)
+  const message = useContext(reviewMessageContext)
   if (!review) return fallback
   if (review.query.isPending) return <ReviewAvailability label='Loading action review' />
-  if (messageId === review.assistantMessageId) {
+  if (message?.messageId === review.assistantMessageId) {
     const action = review.byId.get(toolCallId)
     if (action) return <ActionReview key={action.proposalVersion} action={action} review={review} />
     if (!review.query.isError && review.query.data?.nextCursor != null)
@@ -321,19 +395,22 @@ interface ActionReviewProps {
 }
 
 function ActionReview({ action, review }: ActionReviewProps) {
+  const message = useContext(reviewMessageContext)
   const draft =
     review.drafts.runId === action.runId ? review.drafts.edits[action.toolCallId] : undefined
   const edits = draft?.proposalVersion === action.proposalVersion ? draft.fields : {}
   const error =
     review.drafts.runId === action.runId ? review.drafts.errors[action.toolCallId] : undefined
   const disabled = review.submitting || review.query.isError
+  const pendingDecision =
+    review.pendingDecision?.toolCallId === action.toolCallId
+      ? review.pendingDecision.decision
+      : null
   const display = action.account
     ? resolveCredentialDisplay({ ...action.account, type: 'managed_oauth' })
     : undefined
-  const firstInBatch =
-    review.actions.length > 1 && review.actions[0]?.toolCallId === action.toolCallId
   return (
-    <section aria-label={`Review ${action.name}`} className='min-w-0'>
+    <section aria-label={`Review ${action.name}`} aria-busy={review.submitting} className='min-w-0'>
       <InteractionCard
         title={
           <span className='flex items-center gap-2'>
@@ -347,7 +424,7 @@ function ActionReview({ action, review }: ActionReviewProps) {
         }
       >
         <div className='flex flex-col gap-3 px-2 pb-2'>
-          <p className='text-[var(--text-muted)] text-small'>
+          <p className='break-words text-[var(--text-muted)] text-small'>
             {action.account?.displayName ?? 'Account unavailable'}
           </p>
           <div className='grid gap-3 sm:grid-cols-2'>
@@ -373,7 +450,7 @@ function ActionReview({ action, review }: ActionReviewProps) {
             <ReviewAvailability label='Could not refresh action review' review={review} />
           )}
           {error?.proposalVersion === action.proposalVersion && (
-            <p role='alert' className='text-[var(--text-error)] text-small'>
+            <p role='alert' className='text-[var(--text-error)] text-caption'>
               {error.message}
             </p>
           )}
@@ -381,32 +458,58 @@ function ActionReview({ action, review }: ActionReviewProps) {
             <Chip
               variant='primary'
               disabled={disabled || !action.account?.active}
-              onClick={() => void review.submit([action], 'allow')}
+              onClick={(event) => message?.submit([action], 'allow', event.currentTarget)}
             >
-              Allow
+              {pendingDecision === 'allow' ? 'Saving…' : 'Allow'}
             </Chip>
-            <Chip disabled={disabled} onClick={() => void review.submit([action], 'skip')}>
-              Cancel
+            <Chip
+              disabled={disabled}
+              onClick={(event) => message?.submit([action], 'skip', event.currentTarget)}
+            >
+              {pendingDecision === 'skip' ? 'Saving…' : 'Cancel'}
             </Chip>
           </div>
-          {firstInBatch && (
-            <div className='flex flex-wrap items-center gap-2 border-[var(--border)] border-t pt-3'>
-              <Chip
-                disabled={disabled || review.actions.some((entry) => !entry.account?.active)}
-                onClick={() => void review.submit(review.actions, 'allow')}
-              >
-                Allow {review.actions.length} shown
-              </Chip>
-              {review.query.data?.nextCursor != null && (
-                <span className='text-[var(--text-muted)] text-small'>
-                  More actions are waiting.
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </InteractionCard>
     </section>
+  )
+}
+
+interface ReviewBatchActionsProps {
+  review: ReviewContextValue
+}
+
+function ReviewBatchActions({ review }: ReviewBatchActionsProps) {
+  const message = useContext(reviewMessageContext)
+  const disabled = review.submitting || review.query.isError
+  const hasMore = review.query.data?.nextCursor != null
+  if (review.actions.length < 2 && !review.submitting && !hasMore) return null
+  return (
+    <div className='flex flex-col gap-3 pb-4'>
+      {review.actions.length > 1 && (
+        <div aria-busy={review.submitting} className='flex flex-wrap items-center gap-2'>
+          <Chip
+            disabled={disabled || review.actions.some((action) => !action.account?.active)}
+            onClick={(event) => message?.submit(review.actions, 'allow', event.currentTarget)}
+          >
+            Allow {review.actions.length} shown
+          </Chip>
+          <Chip
+            disabled={disabled}
+            onClick={(event) => message?.submit(review.actions, 'skip', event.currentTarget)}
+          >
+            Cancel {review.actions.length} shown
+          </Chip>
+        </div>
+      )}
+      {review.submitting ? (
+        <ActivityStatus label='Saving review' isActive />
+      ) : (
+        hasMore && (
+          <p className='text-[var(--text-muted)] text-caption'>More actions are waiting.</p>
+        )
+      )}
+    </div>
   )
 }
 
@@ -421,7 +524,7 @@ interface ActionReviewFieldProps {
 function ActionReviewField({ field, actionId, value, disabled, onEdit }: ActionReviewFieldProps) {
   const id = `assistant-action-${actionId}-${field.name}`
   return field.editable ? (
-    <div className='col-span-full flex flex-col gap-1.5'>
+    <div className='col-span-full flex flex-col gap-[9px]'>
       <label htmlFor={id} className='text-[var(--text-muted)] text-small'>
         {field.label}
       </label>
