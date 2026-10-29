@@ -20,8 +20,9 @@ const JOIN_RETRY_BASE_MS = 1000
 export const INVALIDATION_COALESCE_MS = 1000
 /**
  * The longest a delivery waits for its refetches. A fetch has no timeout of its own, so one that
- * hangs would otherwise hold the room's deliveries forever; past this, the next delivery's
- * invalidation cancels and restarts it.
+ * hangs would otherwise hold the room's deliveries forever. Past this, later deliveries run again:
+ * their invalidation cancels and restarts a hung refetch of a query that has data, while a hung
+ * first load is joined, as it always was, until it settles or its last observer unmounts.
  */
 export const DELIVERY_SETTLE_CAP_MS = 30_000
 
