@@ -121,21 +121,21 @@ function FilesFlyoutLevel({
     })
   )
   const folderStats = useWorkspaceFileFolderSizes(workspaceId, [folderId])
-  const pinned = usePinnedWorkspaceFiles(workspaceId, folderId)
+  const { files: pinnedFiles, pinnedFileIds } = usePinnedWorkspaceFiles(workspaceId, folderId)
   const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
 
   const entries = useMemo(() => {
-    const files = distinctFiles([pinned.files, fileList.data?.files])
+    const files = distinctFiles([pinnedFiles, fileList.data?.files])
     return buildFlyoutEntries({
       folders: folders
         .filter((folder) => (folder.parentId ?? null) === folderId)
         .map((folder) => ({ ...folder, parentId: null })),
       items: files.map((file) => ({ ...file, folderId: null })),
       pinnedFolderIds,
-      pinnedItemIds: pinned.pinnedFileIds,
+      pinnedItemIds: pinnedFileIds,
       hrefForItem: (file) => `/workspace/${workspaceId}/${FILE_META.listSegment}/${file.id}`,
     })
-  }, [fileList.data, folders, folderId, pinned, pinnedFolderIds, workspaceId])
+  }, [fileList.data, folders, folderId, pinnedFiles, pinnedFileIds, pinnedFolderIds, workspaceId])
 
   /** The folders that have subfolders, indexed once for the per-folder emptiness check. */
   const parentsWithSubfolders = useMemo(

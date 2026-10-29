@@ -99,7 +99,6 @@ async function fetchWorkspaceFileListPage(
   return { files: data.files, nextCursor: data.nextCursor ?? null }
 }
 
-/** The options behind one paged list. */
 function getWorkspaceFileListQueryOptions(workspaceId: string, params: WorkspaceFileListParams) {
   return {
     queryKey: workspaceFilesKeys.list(workspaceId, params),
@@ -109,6 +108,11 @@ function getWorkspaceFileListQueryOptions(workspaceId: string, params: Workspace
     getNextPageParam: (lastPage: WorkspaceFileListPage) => lastPage.nextCursor,
     staleTime: WORKSPACE_FILE_LIST_STALE_TIME,
   }
+}
+
+/** Whether `queryKey` starts with `prefix`, segment for segment. */
+function hasKeyPrefix(queryKey: QueryKey, prefix: QueryKey): boolean {
+  return prefix.every((segment, index) => queryKey[index] === segment)
 }
 
 /** Whether two lists show the same place: one folder (or the same whole-workspace span). */
@@ -154,7 +158,11 @@ export function useWorkspaceFileList(
     select: selectListFiles,
     placeholderData: (previous, previousQuery) => {
       const key = previousQuery?.queryKey
-      return key?.[2] === workspaceId && isSameListPlace(key[3], params) ? previous : undefined
+      return key &&
+        hasKeyPrefix(key, workspaceFilesKeys.workspaceLists(workspaceId)) &&
+        isSameListPlace(key[3], params)
+        ? previous
+        : undefined
     },
   })
   /** Read when called, not at render, so a caller only re-renders for what it reads itself. */
@@ -207,7 +215,12 @@ export function useWorkspaceFileSearch(
   return useQuery({
     ...getWorkspaceFileSearchQueryOptions(workspaceId, { ...params, q }),
     enabled: Boolean(workspaceId) && q.length > 0 && (options?.enabled ?? true),
-    placeholderData: keepPreviousData,
+    /** The last search's matches while the next lands — never another workspace's. */
+    placeholderData: (previous, previousQuery) =>
+      previousQuery &&
+      hasKeyPrefix(previousQuery.queryKey, workspaceFilesKeys.workspaceSearches(workspaceId))
+        ? previous
+        : undefined,
   })
 }
 
@@ -244,10 +257,7 @@ export function useWorkspaceFileFolderSizes(
   parentIds: readonly (string | null)[],
   options?: { enabled?: boolean }
 ): ReadonlyMap<string, WorkspaceFileFolderStat> {
-  const parents = useMemo(
-    () => [...new Set(parentIds.map((parentId) => parentId ?? 'root'))].sort(),
-    [parentIds]
-  )
+  const parents = [...new Set(parentIds.map((parentId) => parentId ?? 'root'))].sort()
   const { data } = useQuery({
     queryKey: workspaceFilesKeys.folderStat(workspaceId, parents),
     queryFn: ({ signal }) => fetchWorkspaceFileFolderStats(workspaceId, parents, signal),
@@ -497,8 +507,9 @@ export function useWorkspaceFilePickerOptions(
   return {
     files: settledQuery ? matching.data : recent.data?.pages[0]?.files,
     settledQuery,
-    isPending:
-      recent.isPending || (typed.length > 0 && (typed !== settledQuery || matching.isFetching)),
+    isPending: settledQuery
+      ? typed !== settledQuery || matching.isFetching
+      : recent.isPending || typed.length > 0,
   }
 }
 
@@ -713,7 +724,7 @@ function fileAddressFilter(workspaceId: string, fileId: string) {
   return {
     predicate: (query: { queryHash: string; queryKey: QueryKey; state: { data: unknown } }) =>
       query.queryHash === record ||
-      (lookups.every((segment, index) => query.queryKey[index] === segment) &&
+      (hasKeyPrefix(query.queryKey, lookups) &&
         isRecordLike(query.state.data) &&
         query.state.data.id === fileId),
   }

@@ -48,7 +48,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('FileUpload')
 
-/** How many files the picker lists per page. */
 const PICKER_PAGE_SIZE = 100
 
 const EMPTY_PICKER_FILES: WorkspaceFileRecord[] = []
@@ -147,7 +146,6 @@ interface SingleFileSelectorProps {
   onOpenChange: (open: boolean) => void
   /** Hears the typed query (and `''` when the menu closes), which the options are searched by. */
   onSearchChange: (query: string) => void
-  /** Another page of options can be loaded. */
   hasMore: boolean
   isLoadingMore: boolean
   onLoadMore: () => void

@@ -72,7 +72,6 @@ export function fileKindSql(kind: FileBrowserType, mime: SQL, extension: SQL): S
   return sql`lower(${mime}) in (${list(mimesOfKind(kind))})`
 }
 
-/** Whether a file of `size` bytes is in `bucket`. */
 export function fileSizeBucketSql(bucket: FileBrowserSize, size: SQL): SQL {
   if (bucket === 'small') return sql`${size} < ${FILE_BROWSER_SIZE_BOUNDARIES.small}`
   if (bucket === 'medium') {

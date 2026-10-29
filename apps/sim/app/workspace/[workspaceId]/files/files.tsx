@@ -639,13 +639,9 @@ function FilesContent() {
   )
 
   /** Each shown folder's whole-subtree size, rolled up on the server per parent folder. */
-  const folderSizeParents = useMemo(
-    () =>
-      isSearching
-        ? [...new Set(visibleFolders.map((folder) => folder.parentId ?? null))]
-        : [currentFolderId],
-    [isSearching, visibleFolders, currentFolderId]
-  )
+  const folderSizeParents = isSearching
+    ? visibleFolders.map((folder) => folder.parentId ?? null)
+    : [currentFolderId]
   const folderSizes = useWorkspaceFileFolderSizes(workspaceId, folderSizeParents, {
     enabled: isListOpen,
   })
@@ -2207,7 +2203,8 @@ function FilesContent() {
           virtualized
           onLoadMore={fileList.loadMore}
           hasMore={fileList.hasNextPage}
-          isLoadingMore={fileList.isFetching}
+          isLoadingMore={fileList.isFetchingNextPage}
+          isFetching={fileList.isFetching}
           emptyState={
             listState === 'empty' ? (
               <FilesEmptyState

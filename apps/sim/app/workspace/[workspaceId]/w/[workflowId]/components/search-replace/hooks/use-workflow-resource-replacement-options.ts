@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
@@ -15,7 +14,6 @@ import {
   useWorkflowSearchSelectorReplacementOptions,
   useWorkflowSearchTableReplacementOptions,
 } from '@/hooks/queries/workflow-search-replace'
-import { useDebounce } from '@/hooks/use-debounce'
 
 interface UseWorkflowResourceReplacementOptionsParams {
   matches: WorkflowSearchMatch[]
@@ -34,13 +32,12 @@ export function useWorkflowResourceReplacementOptions({
   query,
   chosen,
 }: UseWorkflowResourceReplacementOptionsParams): WorkflowSearchReplacementOption[] {
-  const fileQuery = useDebounce(query.trim(), SEARCH_DEBOUNCE_MS)
   const oauthOptions = useWorkflowSearchOAuthReplacementOptions(matches, workspaceId, workflowId)
   const knowledgeOptions = useWorkflowSearchKnowledgeReplacementOptions(matches, workspaceId)
   const selectorOptions = useWorkflowSearchSelectorReplacementOptions(matches)
   const tableOptions = useWorkflowSearchTableReplacementOptions(matches, workspaceId)
   const fileOptions = useWorkflowSearchFileReplacementOptions(matches, workspaceId, {
-    query: fileQuery,
+    query,
     chosen,
   })
   const mcpServerOptions = useWorkflowSearchMcpServerReplacementOptions(matches, workspaceId)

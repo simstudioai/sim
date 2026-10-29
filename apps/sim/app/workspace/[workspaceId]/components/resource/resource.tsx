@@ -231,7 +231,14 @@ interface ResourceTableProps {
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
   onLoadMore?: () => void
   hasMore?: boolean
+  /** The next page is loading: shows the spinner under the rows. */
   isLoadingMore?: boolean
+  /**
+   * Any request for the list is in flight, a background refetch included. Paging waits while it
+   * runs and asks again once it settles, so a sentinel reached mid-refetch is not left idle.
+   * Defaults to `isLoadingMore`.
+   */
+  isFetching?: boolean
   pagination?: PaginationConfig
   /**
    * Sanctioned overlay slot. Rendered absolutely against the table region
@@ -286,6 +293,7 @@ const ResourceTable = memo(function ResourceTable({
   onLoadMore,
   hasMore,
   isLoadingMore,
+  isFetching = isLoadingMore,
   pagination,
   overlay,
   emptyState,
@@ -298,7 +306,7 @@ const ResourceTable = memo(function ResourceTable({
    */
   const loadMoreRef = useLoadMoreSentinel({
     onLoadMore,
-    enabled: Boolean(hasMore) && !isLoadingMore,
+    enabled: Boolean(hasMore) && !isFetching,
   })
 
   const showEmptyState = rows.length === 0 && Boolean(emptyState)
