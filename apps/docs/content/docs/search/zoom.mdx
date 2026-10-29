@@ -17,7 +17,7 @@ A workflow Zoom connection does not authorize Search. Its dedicated app registra
 
 ## Search and read meetings
 
-Ask Sim on **Home**: “Search Zoom for deployment rollback decisions last week and cite the transcript.” Use short plain keywords such as `deployment rollback`. Zoom matches topics, agendas, and available meeting content.
+Open **Search → Assistant** and ask Sim: “Search Zoom for deployment rollback decisions last week and cite the transcript.” Use short plain keywords such as `deployment rollback`. Zoom matches topics, agendas, and available meeting content.
 
 Results identify past occurrences by UUID rather than recurring meeting number. Use native kind `meeting` when sending multiple queries to one account. `startDate` and `endDate` use actual start time, with an exclusive end. Continue `nextCursor` with the same account, query, and filters; rerun an expired continuation. [Zoom's Meetings API](https://developers.zoom.us/docs/api/meetings/) documents a 15-minute page-token lifetime; restart Search if the MCP continuation expires.
 

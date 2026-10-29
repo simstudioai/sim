@@ -39,9 +39,11 @@ You do not choose repositories, channels, labels, or an indexing method during p
 | Confluence service account | Connect Confluence. Both your account and the service connection must read the selected content. |
 | Coda | Connect personal Coda MCP. Service mode also verifies the parent document with its REST token. |
 | GitLab | No personal connection. Your verified Sim email must match current GitLab identity and permissions, or the admin's CSV mapping and project grant. |
-| [Generic Secrets, Member mode](/search/generic-secrets) | Select **Manage secrets** in Integrations and save your own values for Build and Plan. |
+| [Generic Secrets, Member mode](/search/generic-secrets) | Select **Manage secrets** in Integrations and save your own values for organization Home conversations. |
 
 Gmail, Calendar, and Drive have separate grants. Connecting one does not authorize the others. Except for GitLab's permission model, a service account restricts resources rather than replacing your personal connection.
+
+Creating Jira sprints requires the Jira sprint permission. If your account was connected before sprint actions were added, reconnect it to grant that permission. Existing Jira operations continue to use their existing permissions.
 
 ## Tool permissions
 
@@ -88,5 +90,3 @@ Live Search calls the provider for each request. Waiting for a Sim sync or retry
 
 - [Search access and freshness](/search#access-and-freshness)
 - [Knowledge-base connectors](/knowledgebase/connectors)
-
-Creating Jira sprints requires the Jira sprint permission. If your account was connected before sprint actions were added, reconnect it to grant that permission. Existing Jira operations continue to use their existing permissions.
