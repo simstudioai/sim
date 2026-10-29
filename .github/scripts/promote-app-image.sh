@@ -18,7 +18,10 @@ DIGEST="sha256:$(printf '%s' "$MANIFEST" | sha256sum | cut -d' ' -f1)"
 EPOCH=$(date +%s)
 bash "$SCRIPT_DIR/promote-image.sh" "$REGISTRY" "$REPOSITORY" "$SOURCE_TAG" "$DEPLOY_TAG" "$RELEASE_TAG"
 deadline=$(( $(date +%s) + 60 ))
-until [ "$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG" --allow-missing)" = "$DIGEST" ]; do
+while true; do
+  # Assigned, not tested in the loop condition, so a failed lookup stops the script under set -e.
+  CURRENT=$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG" --allow-missing)
+  [ "$CURRENT" = "$DIGEST" ] && break
   if [ "$(date +%s)" -ge "$deadline" ]; then
     echo "ERROR: $DEPLOY_TAG did not resolve to the pushed $DIGEST within 60s; cutover cannot be correlated" >&2
     exit 1
