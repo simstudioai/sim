@@ -41,7 +41,6 @@ describe('Resource.Table paging footer', () => {
 
   afterEach(() => {
     act(() => root.unmount())
-    vi.unstubAllGlobals()
   })
 
   function render(props: { isLoadingMore: boolean; isFetching: boolean; onLoadMore: () => void }) {
