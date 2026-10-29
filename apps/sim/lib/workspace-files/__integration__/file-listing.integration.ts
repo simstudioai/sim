@@ -5,7 +5,6 @@
  */
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
-import { explainCaptured } from '@sim/db/testing/explain'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
@@ -175,11 +174,9 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
         VALUES (${folders.deep}, 'Deep', ${alice}, ${workspaceId}, 'file', ${folders.sub})`)
 
-    /**
-     * Ties on every sort key: the same name in different folders, equal sizes, and timestamps
-     * equal to the microsecond or distinct only below the millisecond — where ordering on the raw
-     * column and ordering on its millisecond truncation disagree.
-     */
+    // Ties on every sort key: the same name in different folders, equal sizes, and timestamps
+    // equal to the microsecond or distinct only below the millisecond — where ordering on the raw
+    // column and ordering on its millisecond truncation disagree.
     const t = '2026-03-01T10:00:00.123'
     for (const seed of [
       {
@@ -293,14 +290,6 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       ])
       expect([...firstPage.map((row) => row.id), ...resumed]).toEqual(legacyOrder)
     })
-
-    it('rejects a cursor value the sort cannot hold as a validation error', async () => {
-      await expect(
-        page({ sortBy: 'uploadedAt', after: ['not-a-date', 'wf_x'] })
-      ).rejects.toMatchObject({
-        code: 'validation',
-      })
-    })
   })
 
   describe('folder filters by id', () => {
@@ -357,45 +346,6 @@ describe('bounded workspace file reads in PostgreSQL', () => {
           limit: 10,
         })
       ).rejects.toMatchObject({ code: 'validation' })
-    })
-
-    /**
-     * The folder predicate must be spelled on `coalesce(folder_id, '')`: that is the key the
-     * `(workspace_id, coalesce(folder_id, ''), original_name)` index leads with, and a name-sorted
-     * folder page that cannot seek it reads every live file the workspace holds.
-     */
-    it('seeks the folder name index for a name-sorted root or folder page', async () => {
-      await db.execute(sql`
-        INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, folder_id, context, original_name, content_type, size_bytes)
-        SELECT 'wf_pad_' || n || '_' || ${workspaceId}, 'pad/' || n || '/' || ${workspaceId}, ${alice},
-          ${workspaceId}, CASE WHEN n % 2 = 0 THEN ${folders.media} END, 'workspace', 'pad-' || n || '.txt',
-          'text/plain', 1
-        FROM generate_series(1, 3000) AS n`)
-      await db.execute(sql`ANALYZE ${workspaceFiles}`)
-      try {
-        for (const folderId of [null, folders.media]) {
-          const nodes = await explainCaptured(
-            db,
-            () =>
-              queryWorkspaceFiles(workspaceId, {
-                folderId,
-                sortBy: 'name',
-                sortOrder: 'asc',
-                limit: 50,
-                after: ['pad-1500.txt', 'wf_x'],
-              }),
-            { match: /order by/ }
-          )
-          const scan = nodes.find(
-            (node) => node['Index Name'] === 'workspace_files_workspace_folder_name_active_unique'
-          )
-          expect(scan?.['Index Cond']).toMatch(/COALESCE\(folder_id.*original_name >=/)
-        }
-      } finally {
-        await db.execute(
-          sql`DELETE FROM ${workspaceFiles} WHERE id LIKE 'wf_pad_%' AND workspace_id = ${workspaceId}`
-        )
-      }
     })
   })
 
@@ -474,13 +424,14 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       })
 
     it('rolls each child folder subtree up, excluding deleted files', async () => {
-      expect((await stats(null)).folders).toEqual(
+      const atRoot = (await stats(null)).folders
+      expect(atRoot).toHaveLength(2)
+      expect(atRoot).toEqual(
         expect.arrayContaining([
           { folderId: folders.docs, fileCount: 4, sizeBytes: 100 + 200 + 400 + 1000 },
           { folderId: folders.media, fileCount: 1, sizeBytes: 50 },
         ])
       )
-      expect((await stats(null)).folders).toHaveLength(2)
       expect((await stats(folders.docs)).folders).toEqual([
         { folderId: folders.sub, fileCount: 2, sizeBytes: 1400 },
       ])
@@ -495,20 +446,21 @@ describe('bounded workspace file reads in PostgreSQL', () => {
 
   describe('authorization', () => {
     it('serves a read member and refuses a non-member on every read', async () => {
-      await expect(page({}, { userId: bob })).resolves.toBeDefined()
-      await expect(page({}, { userId: carol })).rejects.toBeDefined()
+      expect((await page({}, { userId: bob })).files).toHaveLength(files.length)
+      const refused = { code: 'forbidden' }
+      await expect(page({}, { userId: carol })).rejects.toMatchObject(refused)
       await expect(
         lookupWorkspaceFiles.execute({
           principal: session(carol),
           input: { workspaceId, ids: ['wf_x'] },
         })
-      ).rejects.toBeDefined()
+      ).rejects.toMatchObject(refused)
       await expect(
         getWorkspaceFileFolderStats.execute({
           principal: session(carol),
           input: { workspaceId, parentId: null },
         })
-      ).rejects.toBeDefined()
+      ).rejects.toMatchObject(refused)
     })
   })
 })

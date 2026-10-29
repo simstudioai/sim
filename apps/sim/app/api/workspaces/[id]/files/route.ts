@@ -27,7 +27,7 @@ import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 
-/** Every param that changes which files, in which order, a page walk returns. */
+/** The params besides the sort that change which files a page walk returns; the cursor is bound to them. */
 function fileCursorFilters(
   workspaceId: string,
   query: { scope: 'active' | 'archived'; folderId?: string | null }
@@ -40,7 +40,7 @@ function fileCursorFilters(
 
 /**
  * GET /api/workspaces/[id]/files — List workspace files: one bounded page with `nextCursor`
- * when any paging param is sent, else the whole scope exactly as before paging existed.
+ * when any paging param is sent, else the whole scope.
  */
 export const GET = defineInternalJsonRoute({
   contract: listWorkspaceFilesContract,

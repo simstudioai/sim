@@ -1821,7 +1821,6 @@ export async function listWorkspaceFiles(
   }
 }
 
-/** The column each timestamp sort orders on. */
 const TIMESTAMP_SORT_COLUMNS = {
   uploadedAt: workspaceFiles.uploadedAt,
   updatedAt: workspaceFiles.updatedAt,

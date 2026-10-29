@@ -187,7 +187,7 @@ export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase(
       return { folders: [] }
     }
     const rows = [...folderIndex.rowById.values()]
-    /** One child index for every subtree: `resolveFolderScope` would rebuild it per child. */
+    // One child index for every subtree: `resolveFolderScope` would rebuild it per child.
     const childrenByParent = indexFolderChildren(rows)
     const subtrees = rows
       .filter((row) => (row.parentId ?? null) === input.parentId)

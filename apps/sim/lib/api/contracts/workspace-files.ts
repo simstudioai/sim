@@ -32,10 +32,8 @@ export const workspaceFileParamsSchema = workspaceFilesParamsSchema.extend({
 /** The fields a paged list sorts by: the v2 list's, which the shared keyset implements. */
 const WORKSPACE_FILE_SORT_FIELDS = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
 
-/** The largest page `GET /api/workspaces/[id]/files` serves when paging. */
 const MAX_WORKSPACE_FILE_PAGE_SIZE = 500
 
-/** The page size a paged list request that omits `limit` gets. */
 export const DEFAULT_WORKSPACE_FILE_PAGE_SIZE = 100
 
 /** A folder filter in the browser's addressing: `root` for the workspace root, else a folder id. */
@@ -45,7 +43,7 @@ const workspaceFileFolderFilterSchema = z
 
 /**
  * The list's paging parameters. Sending any of them asks for one bounded page (default sort
- * `uploadedAt` ascending, the unpaged order, and 100 files) answered with `nextCursor`; sending
+ * `uploadedAt` ascending, the unpaged order, and {@link DEFAULT_WORKSPACE_FILE_PAGE_SIZE} files) answered with `nextCursor`; sending
  * none keeps the unpaged response, which returns the whole scope.
  */
 export const WORKSPACE_FILE_PAGE_PARAMS = [
@@ -212,7 +210,6 @@ const workspaceFileSuccessSchema = z.object({
   success: z.boolean(),
 })
 
-/** The body every file-list read answers with. */
 const workspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
   files: z.array(workspaceFileRecordSchema),
 })
@@ -266,7 +263,6 @@ export const searchWorkspaceFilesContract = defineRouteContract({
   response: { mode: 'json', schema: workspaceFilesResponseSchema },
 })
 
-/** The most entries each of a lookup's `ids`, `keys`, and `references` may carry. */
 const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
 
 const lookupEntriesSchema = (field: string) =>
