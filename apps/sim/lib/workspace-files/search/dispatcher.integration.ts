@@ -42,6 +42,7 @@ interface QueryPlan {
   'Node Type': string
   'Relation Name'?: string
   'Index Name'?: string
+  'Index Cond'?: string
   'Shared Hit Blocks': number
   'Shared Read Blocks': number
   Plans?: QueryPlan[]
@@ -476,6 +477,50 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
 
     expect(plan).toContain('workspace_files_search_owner_keyset_idx')
     expect(plan).toMatch(/Index Cond:.*ROW\(/)
+  }, 30_000)
+
+  it('probes each walked file for its revision rather than scanning every revision', async () => {
+    const files = 20 * FILE_SEARCH_BACKFILL_PAGE_SIZE
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      SELECT md5(n::text), 'workspace-' || lpad((n % 7)::text, 2, '0'), 'workspace', '2026-09-16'
+      FROM generate_series(1, ${files}) n`
+    await connection.begin(async (tx) => {
+      await tx`SET LOCAL session_replication_role = replica`
+      await tx`INSERT INTO workspace_file_search_revision
+        (file_id, workspace_id, entity_type, entity_id, source_content_updated_at, status)
+        SELECT id, workspace_id, 'workspace', workspace_id, content_updated_at, 'ready'
+        FROM workspace_files`
+    })
+    await connection`VACUUM (ANALYZE) workspace_files, workspace_file_search_revision`
+
+    await prepareWorkspaceFileSearchDispatch()
+    statements.length = 0
+    await prepareWorkspaceFileSearchDispatch()
+
+    const walk = statements.find(
+      (statement) =>
+        statement.query.includes('from "workspace_files"') &&
+        statement.query.includes('order by CASE WHEN')
+    )
+    expect(walk).toBeDefined()
+    const [explained] = await connection.unsafe(
+      `EXPLAIN (FORMAT JSON) ${walk?.query}`,
+      walk?.params as never[]
+    )
+    const nodes = planNodes((explained['QUERY PLAN'] as { Plan: QueryPlan }[])[0].Plan)
+
+    /**
+     * A page reads a thousand files, but a revision check the planner sizes against every file
+     * left in the walk hashes the whole revision table on each page instead of probing it once
+     * per file returned.
+     */
+    expect(
+      nodes
+        .filter((node) => node['Relation Name'] === 'workspace_file_search_revision')
+        .map((node) => ({ index: node['Index Name'], condition: node['Index Cond'] }))
+    ).toEqual([
+      { index: 'workspace_file_search_revision_pkey', condition: '(file_id = workspace_files.id)' },
+    ])
   }, 30_000)
 
   it('claims from the ordered pending index rather than a hash join over the backlog', async () => {
