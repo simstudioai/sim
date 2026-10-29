@@ -3109,6 +3109,13 @@
       "when": 1793255701005,
       "tag": "0444_audit_log_org_level_created_at_id_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 445,
+      "version": "7",
+      "when": 1793264123768,
+      "tag": "0445_assistant_actions",
+      "breakpoints": true
     }
   ]
 }
