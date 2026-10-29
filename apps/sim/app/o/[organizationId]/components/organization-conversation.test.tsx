@@ -14,13 +14,18 @@ import {
   organizationProviderMock,
   organizationProviderMockFns,
 } from '@sim/testing/mocks/organization-provider.mock'
-import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
+import {
+  createMutationResultMock,
+  createQueryResultMock,
+  reactQueryMock,
+  reactQueryMockFns,
+} from '@sim/testing/mocks/react-query.mock'
+import { toRecord } from '@sim/utils/object'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthorizedAppsPage } from '@/lib/api/contracts/user'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
-import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
   plan: false,
@@ -30,7 +35,6 @@ const mocks = vi.hoisted(() => ({
   renderer: vi.fn(),
   markRead: vi.fn(),
   send: vi.fn(),
-  consume: vi.fn(),
   apiKeys: vi.fn(),
   authorizedApps: vi.fn(),
   fetchNextPage: vi.fn(),
@@ -64,9 +68,6 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () 
 }))
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
-vi.mock('@/lib/core/utils/browser-storage', () => ({
-  MothershipHandoffStorage: { consume: mocks.consume },
-}))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
   getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
@@ -90,8 +91,8 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => (
   MothershipChat: mocks.renderer,
 }))
 
+import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
 import type { Composer } from '@/app/o/[organizationId]/home/components/composer'
-import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 
 const mockSession = authClientMockFns.mockUseSession
 const mockContext = organizationProviderMockFns.mockUseOrganizationContext
@@ -102,11 +103,12 @@ deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  reactQueryMockFns.mockUseQuery.mockReturnValue(createQueryResultMock())
+  reactQueryMockFns.mockUseMutation.mockReturnValue(createMutationResultMock())
   useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
   mocks.activeResource = null
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
-  useOrganizationChatModeStore.setState({ modes: {}, assistantSearchLevels: {} })
   mocks.resourcePanel.mockImplementation(({ children }: { children: ReactNode }) => children)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
@@ -151,7 +153,9 @@ function renderHome(element: ReactNode, searchParams = '') {
   )
 }
 function composerProps(): ComponentProps<typeof Composer> {
-  return mocks.composer.mock.lastCall![0]
+  const call = mocks.composer.mock.lastCall
+  if (!call) throw new Error('Composer has not rendered')
+  return call[0]
 }
 
 async function attachDraftImage() {
@@ -186,11 +190,17 @@ describe('organization home', () => {
       sendMessage: mocks.send,
     })
     mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
-    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
+    await act(async () =>
+      renderHome(<OrganizationConversation requestMode='agent' chatId='chat-a' />)
+    )
     await act(async () => composerProps().onChange('A draft for chat A'))
-    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
+    await act(async () =>
+      renderHome(<OrganizationConversation requestMode='agent' chatId='chat-a' />)
+    )
     expect(composerProps().value).toBe('A draft for chat A')
-    await act(async () => renderHome(<OrganizationHome chatId='chat-b' />))
+    await act(async () =>
+      renderHome(<OrganizationConversation requestMode='agent' chatId='chat-b' />)
+    )
     expect(composerProps().value).toBe('')
     expect(mocks.chat).toHaveBeenLastCalledWith(
       { organizationId: 'organization-a' },
@@ -205,22 +215,32 @@ describe('organization home', () => {
 
 it('isolates saved drafts by user, organization, and conversation', async () => {
   mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
-  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  await act(async () =>
+    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+  )
   await attachDraftImage()
   await act(async () => composerProps().onChange('Chat A follow-up'))
-  await act(async () => renderHome(<OrganizationHome chatId='chat-b' requestMode='assistant' />))
+  await act(async () =>
+    renderHome(<OrganizationConversation chatId='chat-b' requestMode='assistant' />)
+  )
   expect(composerProps().value).toBe('')
-  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  await act(async () =>
+    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+  )
   expect(composerProps().value).toBe('Chat A follow-up')
   expect(composerProps().files.attachedFiles[0]?.key).toBe('image-key')
   mockSession.mockReturnValue({ data: { user: { id: 'other-user' } } })
-  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  await act(async () =>
+    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+  )
   expect(composerProps().value).toBe('')
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
   mockContext.mockReturnValue({
-    ...mockContext(),
+    ...toRecord(mockContext()),
     organization: { id: 'other-org', name: 'Other' },
   })
-  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  await act(async () =>
+    renderHome(<OrganizationConversation chatId='chat-a' requestMode='assistant' />)
+  )
   expect(composerProps().value).toBe('')
 })

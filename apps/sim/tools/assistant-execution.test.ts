@@ -68,6 +68,7 @@ function tool(id: string): InternalToolConfig {
     name: id,
     description: 'Personal integration fixture',
     version: '1.0.0',
+    assistant: { effect: 'read', version: 1 },
     oauth: { required: true, provider: 'google-drive' },
     params: { accessToken: { type: 'string', visibility: 'hidden' } },
     operation: { input: (params) => params },

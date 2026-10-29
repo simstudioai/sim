@@ -139,6 +139,7 @@ import { ABANDONED_RUN_CURSOR_KEY } from '@/lib/mothership/async-runs/orphaned-r
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { takeOverAbandonedRuns } from '@/lib/mothership/request/application/abandoned-runs'
 import { startUnattendedTurn } from '@/lib/mothership/request/lifecycle/unattended'
+import { readEvents } from '@/lib/mothership/request/session/buffer'
 import {
   chatStreamLockKey,
   StreamControllerSupersededError,
@@ -316,6 +317,16 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
     expect(await start()).toBe('duplicate')
 
     for (let death = 1; death <= 3; death++) {
+      await waitFor(
+        async () =>
+          (await readEvents(occurrenceId, '0')).some(
+            (event) =>
+              event.type === 'text' &&
+              event.payload.channel === 'assistant' &&
+              event.payload.text === parts[death - 1]
+          ),
+        'the current leg text to persist before the process dies'
+      )
       await killController(chatId, occurrenceId)
       await takeOverUntilReattached(occurrenceId)
       if (death < 3) await waitFor(async () => worker.open.has(occurrenceId), 'the next leg')

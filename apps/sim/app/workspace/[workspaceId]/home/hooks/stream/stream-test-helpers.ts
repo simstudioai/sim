@@ -22,6 +22,7 @@ export function ref<T>(current: T): MutableRefObject<T> {
 export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): StreamLoopDeps {
   return {
     workspaceId: 'ws-1',
+    requestMode: 'agent',
     queryClient: {
       invalidateQueries: vi.fn(),
       cancelQueries: vi.fn(),

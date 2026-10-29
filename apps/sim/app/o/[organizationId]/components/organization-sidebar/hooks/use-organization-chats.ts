@@ -1,3 +1,4 @@
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 
 export interface OrganizationChat {
@@ -17,7 +18,10 @@ export function useOrganizationChats(organizationId: string) {
   const chats: OrganizationChat[] = (query.data ?? []).map((chat) => ({
     id: chat.id,
     name: chat.name,
-    href: `/o/${organizationId}/chat/${chat.id}`,
+    href:
+      chat.mode === 'assistant'
+        ? organizationRoutes(organizationId).searchChat(chat.id)
+        : organizationRoutes(organizationId).chat(chat.id),
     isActive: chat.isActive,
     isUnread: chat.isUnread,
     isPinned: chat.isPinned,

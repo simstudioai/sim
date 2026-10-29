@@ -121,7 +121,7 @@ export function SidebarFolder({ item, children }: SidebarFolderProps) {
 
 export function SidebarSeparator({ item }: SidebarSeparatorProps) {
   return (
-    <div data-separator className='mt-4 mb-1.5 px-2 first:mt-0'>
+    <div data-separator className='mt-4 mb-1.5 px-2'>
       <p className='text-[var(--text-icon)] text-caption'>{item.name}</p>
     </div>
   )

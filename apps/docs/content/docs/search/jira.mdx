@@ -19,7 +19,7 @@ Sim resolves your accessible Atlassian sites and sends Jira Query Language (JQL)
 
 Search returns summaries and descriptions. Reads fetch the issue and available comments with the same account. Jira enforces project permissions, issue security, and app-access restrictions. Bounded responses may omit comments; open Jira for the full discussion.
 
-Search checks up to four accessible sites by default. A native query can select a cloud site ID and follow its continuation cursor. Changes follow Jira's search freshness. Live Search does not crawl attachments or retain an indexed issue copy, and does not edit issues. The shared account connection can request broader workflow permissions.
+Search checks up to four accessible sites by default. A native query can select a cloud site ID and follow its continuation cursor. Changes follow Jira's search freshness. Live Search does not crawl attachments or retain an indexed issue copy. Search and document-read requests do not edit issues. When integration actions are enabled, **Search → Assistant** can create or update issues, add comments, and create sprints using your connected account, subject to tool permissions and organization policy. These writes ask for [review](/search/ask-questions#review-actions) by default.
 
 ## Troubleshooting
 
@@ -40,7 +40,7 @@ Follow [Atlassian OAuth setup](/platform/self-hosting/integrations-oauth#atlassi
 https://<your-sim-domain>/api/auth/oauth2/callback/jira
 ```
 
-Search reads only, but the shared app also supports workflows. If only the app owner can connect, check **Distribution**. After client/scope changes, update the organization's saved provider configuration and reconnect affected members.
+The shared app supports Search retrieval, supported Assistant actions, and workflows. If only the app owner can connect, check **Distribution**. After client/scope changes, update the organization's saved provider configuration and reconnect affected members.
 
 ## Related docs
 

@@ -19,8 +19,8 @@ vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
 vi.mock('@/app/o/[organizationId]/search/search', () => ({
   OrganizationSearch: () => <div>Standalone Search</div>,
 }))
-vi.mock('@/app/o/[organizationId]/home/organization-home', () => ({
-  OrganizationHome: ({ requestMode }: { requestMode?: string }) => (
+vi.mock('@/app/o/[organizationId]/components/organization-conversation', () => ({
+  OrganizationConversation: ({ requestMode }: { requestMode?: string }) => (
     <div data-request-mode={requestMode}>Organization Assistant</div>
   ),
 }))
@@ -40,6 +40,7 @@ describe('organization Search page gates', () => {
     authMockFns.mockGetSession.mockResolvedValue(session)
     mocks.context.mockResolvedValue({
       mothershipAvailable: true,
+      canBuild: true,
       searchAccess: { memberScoped: true },
     })
     mockChat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'agent' })

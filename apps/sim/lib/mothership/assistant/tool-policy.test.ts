@@ -7,6 +7,7 @@ import type { ToolMetadata } from '@/tools/metadata'
 
 const tool: ToolMetadata = {
   id: 'google_drive_get_file',
+  assistant: { effect: 'read', version: 1 },
   oauth: { required: true, provider: 'google-drive', authoritativeParams: ['instanceUrl'] },
   params: {
     credential: { type: 'string', visibility: 'user-only' },
@@ -20,6 +21,7 @@ const tool: ToolMetadata = {
 describe('Assistant integration policy', () => {
   const tokenTool: ToolMetadata = {
     id: 'gitlab_list_projects',
+    assistant: { effect: 'read', version: 1 },
     personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     params: {
       accessToken: { type: 'string', required: true, visibility: 'user-only' },
@@ -47,15 +49,36 @@ describe('Assistant integration policy', () => {
     ).not.toThrow()
   })
 
-  it.each(['gmail_send', 'google_drive_create_file', 'new_provider_operation'])(
+  it.each(['google_drive_get_file', 'gmail_send', 'new_provider_operation'])(
     'rejects unapproved operation %s even with a personal account',
     (id) => {
-      expect(isAssistantIntegrationTool({ ...tool, id })).toBe(false)
+      expect(isAssistantIntegrationTool({ ...tool, id, assistant: undefined })).toBe(false)
       expect(() =>
-        assertAssistantIntegrationCall({ ...tool, id }, { credential: 'mine' })
+        assertAssistantIntegrationCall(
+          { ...tool, id, assistant: undefined },
+          { credential: 'mine' }
+        )
       ).toThrow()
     }
   )
+
+  it('admits an explicitly classified write only with a valid personal account binding', () => {
+    const writeTool: ToolMetadata = {
+      ...tool,
+      id: 'gmail_draft_v2',
+      assistant: { effect: 'write', version: 1 },
+      oauth: { required: true, provider: 'google-email' },
+    }
+    expect(() =>
+      assertAssistantIntegrationCall(writeTool, { credential: 'mine', body: 'Reviewed draft' })
+    ).not.toThrow()
+    expect(() => assertAssistantIntegrationCall(writeTool, { body: 'Missing account' })).toThrow(
+      'Select one'
+    )
+    expect(() =>
+      assertAssistantIntegrationCall(writeTool, { credential: 'mine', accessToken: 'override' })
+    ).toThrow()
+  })
 
   it.each(['accessToken', 'apiKey', 'headers', '_context', 'impersonateUserEmail', 'instanceUrl'])(
     'rejects model-supplied %s before execution',

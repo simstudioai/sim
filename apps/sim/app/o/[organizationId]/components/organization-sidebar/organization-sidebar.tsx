@@ -95,7 +95,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar({
   })
 
   const isMac = isMacPlatform()
-  const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
+  const canUseHome = mothershipAvailable && canBuild
   const navItems = buildOrganizationNavItems(
     organization.id,
     searchAccess.memberScoped,
@@ -283,7 +283,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar({
                     isCollapsed={isCollapsed}
                     pathname={pathname}
                   />
-                  {canUseHome && (
+                  {mothershipAvailable && (canBuild || searchAccess.memberScoped) && (
                     <OrganizationChats
                       key={organization.id}
                       organizationId={organization.id}

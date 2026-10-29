@@ -10,6 +10,7 @@ import {
 /** https://docs.slack.dev/reference/methods/users.conversations/ */
 export const slackListUserConversationsTool = createSlackWebApiTool({
   id: 'slack_list_user_conversations',
+  assistant: { effect: 'read', version: 1 },
   name: 'Slack List User Conversations',
   description:
     'List one page of conversations accessible to the selected user. Continue with response_metadata.next_cursor.',

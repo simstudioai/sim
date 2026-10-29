@@ -2,14 +2,18 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
+import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import {
+  AssistantActionReviewPanel,
+  AssistantActionReviewProvider,
+} from '@/components/assistant-actions'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { BrowserStorage, MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,
@@ -18,9 +22,11 @@ import { createSearchResource } from '@/lib/mothership/resources/search'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
-import { organizationHomeParsers } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { organizationSearchUrlKeys } from '@/app/o/[organizationId]/search/search-params'
+import {
+  organizationSearchParsers,
+  organizationSearchUrlKeys,
+} from '@/app/o/[organizationId]/search/search-params'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
@@ -37,7 +43,10 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
+import {
+  searchFilterParsers,
+  searchFiltersFromParams,
+} from '@/app/workspace/[workspaceId]/home/search-params'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,
@@ -49,59 +58,50 @@ import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
-import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
 
-interface OrganizationHomeProps {
+interface OrganizationConversationProps {
   userName?: string
   chatId?: string
-  requestMode?: ChatRequestMode
+  requestMode: ChatRequestMode
 }
 
-/** Home chooses the conversation mode before its first message. */
-export function OrganizationHome(props: OrganizationHomeProps) {
+/** Shared conversation surface; the destination fixes its intent before the first turn. */
+export function OrganizationConversation(props: OrganizationConversationProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
   const isClient = useHydrated()
   const isRestoredChatEntry = useRestoredChatEntry({ chatId: props.chatId })
-  if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
-  /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
+  if (
+    !mothershipAvailable ||
+    (props.requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
+  )
+    return null
   if (isRestoredChatEntry || !isClient || !session?.user?.id) return <HomeFallback />
   return (
-    <OrganizationHomeContent
-      key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}`}
+    <OrganizationConversationContent
+      key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.requestMode}`}
       {...props}
     />
   )
 }
 
-function OrganizationHomeContent({
+function OrganizationConversationContent({
   userName,
   chatId,
-  requestMode: savedMode,
-}: OrganizationHomeProps) {
-  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
+  requestMode: destinationMode,
+}: OrganizationConversationProps) {
+  const { organization, canBuild } = useOrganizationContext()
   const { data: session } = useSession()
   const userId = session?.user?.id
-  const rememberedMode = useOrganizationChatModeStore(
-    (state) => state.modes[`${userId}:${organization.id}`]
-  )
-  const [{ q, source, updated, from, to, searchLevel: urlSearchLevel }, setSearchParams] =
-    useQueryStates(organizationHomeParsers, organizationSearchUrlKeys)
-  const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
-  const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const planEnabled = useFeatureFlag('mothership-plan-mode')
+  const [planning, setPlanning] = useState(false)
   const requestMode =
-    selectedMode ??
-    (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??
-    savedMode ??
-    (!canBuild || !mothershipAvailable
-      ? 'assistant'
-      : rememberedMode === 'plan' && planEnabled
-        ? 'plan'
-        : rememberedMode === 'assistant' && searchAccess.memberScoped
-          ? 'assistant'
-          : 'agent')
+    destinationMode === 'agent' && !chatId && planEnabled && planning ? 'plan' : destinationMode
+  const [{ q, source, updated, from, to }] = useQueryStates(
+    { ...organizationSearchParsers, ...searchFilterParsers },
+    organizationSearchUrlKeys
+  )
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
   const chat = useChat(
@@ -113,12 +113,31 @@ function OrganizationHomeContent({
       activeResourceState: controller.activeResourceState,
     })
   )
-  const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
-  const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
+  const newDraftId = destinationMode === 'assistant' ? 'search-assistant' : 'home'
+  const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? newDraftId}`
+  const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? newDraftId}`
+  const [legacyDraftKey] = useState(() => {
+    if (chatId) return null
+    const key = `${userId}:organization:${organization.id}:new`
+    if (!useMothershipDraftsStore.getState().drafts[key]) return null
+    const persisted = toRecord(BrowserStorage.getItem<unknown>('organization-chat-mode', null))
+    const modes = toRecord(toRecord(persisted.state).modes)
+    const legacyMode =
+      !canBuild || modes[`${userId}:${organization.id}`] === 'assistant' ? 'assistant' : 'agent'
+    return legacyMode === destinationMode ? key : null
+  })
   const savedDraft = useMothershipDraftsStore.getState().drafts
-  const initialDraft = savedDraft[draftKey] ?? savedDraft[initialDraftKey]
+  const initialDraft =
+    savedDraft[draftKey] ??
+    savedDraft[initialDraftKey] ??
+    (legacyDraftKey ? savedDraft[legacyDraftKey] : undefined)
   const draft = useMothershipDraftsStore(
-    (state) => (state.drafts[draftKey] ?? state.drafts[initialDraftKey])?.text ?? ''
+    (state) =>
+      (
+        state.drafts[draftKey] ??
+        state.drafts[initialDraftKey] ??
+        (legacyDraftKey ? state.drafts[legacyDraftKey] : undefined)
+      )?.text ?? ''
   )
   const setDraft = useCallback(
     (text: string, contexts?: ChatContext[]) => {
@@ -131,15 +150,15 @@ function OrganizationHomeContent({
     () => initialDraft?.contexts ?? []
   )
   useEffect(() => {
-    useMothershipDraftsStore.getState().migrateDraft(initialDraftKey, draftKey)
-  }, [initialDraftKey, draftKey])
+    const store = useMothershipDraftsStore.getState()
+    if (legacyDraftKey) store.migrateDraft(legacyDraftKey, initialDraftKey)
+    store.migrateDraft(initialDraftKey, draftKey)
+  }, [initialDraftKey, draftKey, legacyDraftKey])
   const hasChat = Boolean(chatId || chat.messages.length)
-  const canSelectMode =
-    !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
   const assistantSearchLevel = 'fast'
   const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser
-  /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
+  /** Restore an explicitly selected results tab before the first turn; closing it clears the URL. */
   useEffect(() => {
     if (hasChat || !q.trim()) return
     const resource = createSearchResource({
@@ -165,32 +184,29 @@ function OrganizationHomeContent({
     chat.resources,
     addResource,
   ])
-  const selectResource = useCallback(
-    async (ref: WorkspaceResourceRef) => {
-      if (!ref.workspaceId) {
-        toast.error('This resource has no workspace address.')
+  const selectResource = async (ref: WorkspaceResourceRef) => {
+    if (!ref.workspaceId) {
+      toast.error('This resource has no workspace address.')
+      return
+    }
+    try {
+      const host = await requestJson(getWorkspaceHostContextContract, {
+        params: { id: ref.workspaceId },
+      })
+      if (host.hostOrganizationId !== organization.id) {
+        toast.error('This resource is outside this organization.')
         return
       }
-      try {
-        const host = await requestJson(getWorkspaceHostContextContract, {
-          params: { id: ref.workspaceId },
-        })
-        if (host.hostOrganizationId !== organization.id) {
-          toast.error('This resource is outside this organization.')
-          return
-        }
-        const resource = await fetchWorkspaceResourceRef(queryClient, ref.workspaceId, ref)
-        if (!resource) {
-          toast.error(`Couldn't find "${ref.title}" in its workspace`)
-          return
-        }
-        addResource({ ...resource, workspaceId: ref.workspaceId })
-      } catch {
-        toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
+      const resource = await fetchWorkspaceResourceRef(queryClient, ref.workspaceId, ref)
+      if (!resource) {
+        toast.error(`Couldn't find "${ref.title}" in its workspace`)
+        return
       }
-    },
-    [queryClient, addResource, organization.id]
-  )
+      addResource({ ...resource, workspaceId: ref.workspaceId })
+    } catch {
+      toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
+    }
+  }
   const files = useFileAttachments({
     userId: session?.user?.id,
     organizationId: organization.id,
@@ -199,16 +215,20 @@ function OrganizationHomeContent({
   })
   useEffect(() => {
     const store = useMothershipDraftsStore.getState()
-    const fileAttachments = files.attachedFiles
-      .filter((file) => !file.uploading && file.key)
-      .map((file) => ({
-        id: file.id,
-        key: file.key!,
-        filename: file.name,
-        media_type: file.type,
-        size: file.size,
-        path: file.path,
-      }))
+    const fileAttachments = files.attachedFiles.flatMap((file) =>
+      !file.uploading && file.key
+        ? [
+            {
+              id: file.id,
+              key: file.key,
+              filename: file.name,
+              media_type: file.type,
+              size: file.size,
+              path: file.path,
+            },
+          ]
+        : []
+    )
     store.setDraft(draftKey, {
       ...(store.drafts[draftKey] ?? { text: '' }),
       fileAttachments,
@@ -235,7 +255,6 @@ function OrganizationHomeContent({
       requestMode
     )
     if (handoff && (handoff.message || handoff.fileAttachments?.length)) {
-      setSelectedMode(requestMode)
       void sendMessage(handoff.message ?? '', handoff.fileAttachments, handoff.contexts, {
         requestMode,
         ...(handoff.resumeUserMessageId
@@ -259,7 +278,6 @@ function OrganizationHomeContent({
   ) => {
     if (requestMode !== 'assistant' && !canBuild) return
     if (requestMode === 'assistant') recordQuery(message)
-    setSelectedMode(requestMode)
     if (requestMode !== 'assistant') panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
       requestMode,
@@ -267,26 +285,23 @@ function OrganizationHomeContent({
       ...(assistantSearch ? { assistantSearch } : {}),
     })
   }
-  const changeMode = (mode: ChatRequestMode) => {
-    if (!canSelectMode || mode === requestMode) return
-    setSelectedMode(mode)
-    void setSearchParams({ searchLevel: null })
-    if (userId) rememberMode(userId, organization.id, mode)
-  }
-
   const submit = (text: string, contexts?: ChatContext[]) => {
     const message = text.trim()
     if (files.attachedFiles.some((file) => file.uploading)) return
-    const attachments: FileAttachmentForApi[] = files.attachedFiles
-      .filter((file) => file.key)
-      .map((file) => ({
-        id: file.id,
-        key: file.key!,
-        filename: file.name,
-        media_type: file.type,
-        size: file.size,
-        path: file.path,
-      }))
+    const attachments: FileAttachmentForApi[] = files.attachedFiles.flatMap((file) =>
+      file.key
+        ? [
+            {
+              id: file.id,
+              key: file.key,
+              filename: file.name,
+              media_type: file.type,
+              size: file.size,
+              path: file.path,
+            },
+          ]
+        : []
+    )
     if (!message && !attachments.length) return
     useMothershipDraftsStore.getState().clearDraft(draftKey)
     send(message, attachments.length ? attachments : undefined, contexts)
@@ -297,8 +312,6 @@ function OrganizationHomeContent({
   const editQueuedMessage = (id: string) => {
     const queued = chat.editQueuedMessage(id)
     if (queued) {
-      const queuedMode = queued.requestMode ?? requestMode
-      setSelectedMode(queuedMode)
       setDraft(queued.content, queued.contexts)
       setRestoredContexts(queued.contexts ?? [])
       files.restoreAttachedFiles(
@@ -320,77 +333,81 @@ function OrganizationHomeContent({
     return queued
   }
 
-  const composer =
-    requestMode !== 'assistant' && !canBuild ? (
-      <div className='px-4 py-3 text-[var(--text-muted)] text-sm'>
-        Build requires permission to create workspaces.{' '}
-        {searchAccess.memberScoped && (
-          <Link href={`/o/${organization.id}/home`} className='underline'>
-            Start a Search chat
-          </Link>
-        )}
-      </div>
-    ) : (
-      <Composer
-        requestMode={requestMode}
-        searchEnabled={searchAccess.memberScoped}
-        showModeSelector={canSelectMode}
-        onModeChange={canSelectMode ? changeMode : undefined}
-        value={draft}
-        restoredContexts={restoredContexts}
-        messages={chat.messages}
-        onEditQueuedTail={() => {
-          const tail = chat.messageQueue.at(-1)
-          return tail ? Boolean(editQueuedMessage(tail.id)) : false
-        }}
-        files={files}
-        isInitialView={!hasChat}
-        isSending={chat.isSending || chat.isReconnecting}
-        onChange={setDraft}
-        onSubmit={submit}
-        onSendQueuedHead={() => {
-          void chat.sendNow()
-        }}
-        onStop={() => {
-          void chat.stopGeneration()
-        }}
-      />
-    )
+  const composer = (
+    <Composer
+      requestMode={requestMode}
+      onPlanChange={
+        !hasChat && destinationMode === 'agent' && planEnabled
+          ? () => setPlanning((value) => !value)
+          : undefined
+      }
+      value={draft}
+      restoredContexts={restoredContexts}
+      messages={chat.messages}
+      onEditQueuedTail={() => {
+        const tail = chat.messageQueue.at(-1)
+        return tail ? Boolean(editQueuedMessage(tail.id)) : false
+      }}
+      files={files}
+      isInitialView={!hasChat}
+      isSending={chat.isSending || chat.isReconnecting}
+      onChange={setDraft}
+      onSubmit={submit}
+      onSendQueuedHead={() => {
+        void chat.sendNow()
+      }}
+      onStop={() => {
+        void chat.stopGeneration()
+      }}
+    />
+  )
 
   const content = (
     <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,50%)]'>
       {hasChat ? (
-        <MothershipChat
-          onViewSources={(messageId, requestId) =>
-            addResource({
-              type: 'sources',
-              id: 'cited-sources',
-              title: 'Sources',
-              sources: { messageId, ...(requestId ? { requestId } : {}) },
-            })
-          }
-          SearchConnectionComponent={SearchIntegrationConnection}
-          messages={chat.messages}
-          isSending={chat.isSending}
-          isReconnecting={chat.isReconnecting}
-          isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
-          onSubmit={send}
-          onStopGeneration={() => {
-            void chat.stopGeneration()
-          }}
-          messageQueue={chat.messageQueue}
-          editingQueuedId={chat.editingQueuedId}
-          dispatchingHeadId={chat.dispatchingHeadId}
-          onRemoveQueuedMessage={chat.removeFromQueue}
-          onSendQueuedMessage={chat.sendNow}
-          onEditQueuedMessage={editQueuedMessage}
-          onCancelQueueEdit={chat.cancelQueueEdit}
-          userId={session?.user?.id}
+        <AssistantActionReviewProvider
+          organizationId={organization.id}
           chatId={chat.resolvedChatId}
-          composer={composer}
-          onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={panel.initialScrollBlocked}
-        />
+          active={chat.isSending}
+          enabled={requestMode === 'assistant'}
+        >
+          <MothershipChat
+            onViewSources={(messageId, requestId) =>
+              addResource({
+                type: 'sources',
+                id: 'cited-sources',
+                title: 'Sources',
+                sources: { messageId, ...(requestId ? { requestId } : {}) },
+              })
+            }
+            SearchConnectionComponent={SearchIntegrationConnection}
+            messages={chat.messages}
+            isSending={chat.isSending}
+            isReconnecting={chat.isReconnecting}
+            isLoading={Boolean(chatId) && !chat.messages.length && chat.isChatHistoryPending}
+            onSubmit={send}
+            onStopGeneration={() => {
+              void chat.stopGeneration()
+            }}
+            messageQueue={chat.messageQueue}
+            editingQueuedId={chat.editingQueuedId}
+            dispatchingHeadId={chat.dispatchingHeadId}
+            onRemoveQueuedMessage={chat.removeFromQueue}
+            onSendQueuedMessage={chat.sendNow}
+            onEditQueuedMessage={editQueuedMessage}
+            onCancelQueueEdit={chat.cancelQueueEdit}
+            userId={session?.user?.id}
+            chatId={chat.resolvedChatId}
+            composer={
+              <>
+                <AssistantActionReviewPanel />
+                {composer}
+              </>
+            }
+            onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
+            initialScrollBlocked={panel.initialScrollBlocked}
+          />
+        </AssistantActionReviewProvider>
       ) : (
         <OrganizationLanding
           heading={
@@ -403,14 +420,14 @@ function OrganizationHomeContent({
         >
           {composer}
           <div className='relative md:absolute md:inset-x-0 md:top-full'>
-            {requestMode === 'agent' ? (
+            {requestMode !== 'assistant' ? (
               <SuggestedActions
                 organizationId={organization.id}
                 onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
               />
-            ) : searchAccess.memberScoped ? (
+            ) : (
               <GetStarted />
-            ) : null}
+            )}
           </div>
         </OrganizationLanding>
       )}

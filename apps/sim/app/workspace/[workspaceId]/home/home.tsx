@@ -35,6 +35,7 @@ import {
   fetchWorkspaceResourceRef,
   readCachedWorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
@@ -81,6 +82,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
+  const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [selectedMode, setSelectedMode] = useState<'agent' | 'plan'>('agent')
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
@@ -448,7 +450,11 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                   <UserInput
                     ref={initialViewUserInputRef}
                     requestMode={selectedMode}
-                    onModeChange={setSelectedMode}
+                    onPlanChange={
+                      planEnabled
+                        ? () => setSelectedMode((mode) => (mode === 'plan' ? 'agent' : 'plan'))
+                        : undefined
+                    }
                     defaultValue={initialPrompt}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}

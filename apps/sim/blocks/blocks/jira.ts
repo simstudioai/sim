@@ -1,5 +1,5 @@
 import { JiraIcon } from '@/components/icons'
-import { getScopesForService } from '@/lib/oauth/utils'
+import { getDefaultToolScopesForProvider } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -37,6 +37,10 @@ export const JiraBlock: BlockConfig = {
     },
     sentences: {
       byOperation: {
+        create_sprint: [
+          { text: 'Create sprint', field: 'name', core: true },
+          { text: 'on board', field: 'originBoardId' },
+        ],
         read: [{ text: 'Read issue', field: ISSUE_FIELD, core: true }],
         'read-bulk': [{ text: 'Read all issues in', field: PROJECT_FIELD, core: true }],
         update: [
@@ -135,6 +139,58 @@ export const JiraBlock: BlockConfig = {
   },
   subBlocks: [
     {
+      id: 'originBoardId',
+      title: 'Board ID',
+      type: 'short-input',
+      placeholder: 'Numeric Jira Software board ID',
+      condition: { field: 'operation', value: 'create_sprint' },
+      required: true,
+    },
+    {
+      id: 'name',
+      title: 'Sprint name',
+      type: 'short-input',
+      placeholder: 'Name for the new sprint',
+      condition: { field: 'operation', value: 'create_sprint' },
+      required: true,
+    },
+    {
+      id: 'goal',
+      title: 'Sprint goal',
+      type: 'long-input',
+      placeholder: 'What this sprint should achieve',
+      condition: { field: 'operation', value: 'create_sprint' },
+      required: false,
+    },
+    {
+      id: 'startDate',
+      title: 'Start date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 timestamp with timezone',
+      condition: { field: 'operation', value: 'create_sprint' },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: 'Return only an ISO 8601 timestamp with timezone.',
+      },
+    },
+    {
+      id: 'endDate',
+      title: 'End date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 timestamp with timezone',
+      condition: { field: 'operation', value: 'create_sprint' },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: 'Return only an ISO 8601 timestamp with timezone.',
+      },
+    },
+    {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
@@ -143,6 +199,7 @@ export const JiraBlock: BlockConfig = {
         { label: 'Read Bulk Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
+        { label: 'Create Sprint', id: 'create_sprint' },
         { label: 'Delete Issue', id: 'delete' },
         { label: 'Assign Issue', id: 'assign' },
         { label: 'Transition Issue', id: 'transition' },
@@ -187,7 +244,7 @@ export const JiraBlock: BlockConfig = {
       mode: 'basic',
       required: true,
       serviceId: 'jira',
-      requiredScopes: getScopesForService('jira'),
+      requiredScopes: getDefaultToolScopesForProvider('jira'),
       placeholder: 'Select Jira account',
     },
     {
@@ -866,6 +923,7 @@ Return ONLY the comment text - no explanations.`,
       'jira_retrieve',
       'jira_update',
       'jira_write',
+      'jira_create_sprint',
       'jira_bulk_read',
       'jira_delete_issue',
       'jira_assign_issue',
@@ -901,6 +959,8 @@ Return ONLY the comment text - no explanations.`,
             return 'jira_retrieve'
           case 'update':
             return 'jira_update'
+          case 'create_sprint':
+            return 'jira_create_sprint'
           case 'write':
             return 'jira_write'
           case 'read-bulk':
@@ -974,6 +1034,16 @@ Return ONLY the comment text - no explanations.`,
         }
 
         switch (params.operation) {
+          case 'create_sprint': {
+            return {
+              ...baseParams,
+              originBoardId: Number(params.originBoardId),
+              name: params.name,
+              goal: params.goal || undefined,
+              startDate: params.startDate || undefined,
+              endDate: params.endDate || undefined,
+            }
+          }
           case 'write': {
             const parseCommaSeparated = (value: string | undefined): string[] | undefined => {
               if (!value || value.trim() === '') return undefined
@@ -1291,6 +1361,11 @@ Return ONLY the comment text - no explanations.`,
     },
   },
   inputs: {
+    originBoardId: { type: 'number', description: 'Jira Software board ID' },
+    name: { type: 'string', description: 'Sprint name' },
+    goal: { type: 'string', description: 'Sprint goal' },
+    startDate: { type: 'string', description: 'Planned sprint start timestamp' },
+    endDate: { type: 'string', description: 'Planned sprint end timestamp' },
     operation: { type: 'string', description: 'Operation to perform' },
     domain: { type: 'string', description: 'Jira domain' },
     oauthCredential: { type: 'string', description: 'Jira access token' },

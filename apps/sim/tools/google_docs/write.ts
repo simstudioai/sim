@@ -7,6 +7,14 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
   description:
     'Append content to a Google Docs document. Content is inserted literally; Markdown is not interpreted. For formatted output from Markdown, use the Create operation with the markdown toggle enabled.',
   version: '1.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'documentId', label: 'Document', target: true },
+      { name: 'content', label: 'Content', format: 'multiline', editable: true },
+    ],
+  },
   oauth: {
     required: true,
     provider: 'google-docs',

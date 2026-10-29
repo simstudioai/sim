@@ -169,12 +169,8 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
-import {
-  isSalesforceLoginOrigin,
-  isSalesforceOAuthProviderId,
-  SALESFORCE_LOGIN_HOSTS,
-  withSalesforceInstanceScope,
-} from '@/lib/oauth/salesforce'
+import { isSalesforceOAuthProviderId, withSalesforceInstanceScope } from '@/lib/oauth/salesforce'
+import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
@@ -262,41 +258,6 @@ function resolveStripeBilling() {
 }
 
 const stripeBilling = resolveStripeBilling()
-
-/**
- * Resolves the org's API instance URL for a freshly linked Salesforce account.
- *
- * The token response never carries `instance_url`, but `/services/oauth2/userinfo`
- * returns a `profile` URL rooted at the org's own host. A response still rooted
- * at the login host means userinfo answered for the authorization server rather
- * than an org, which is not an instance URL — hence the guard.
- *
- * @returns The instance URL origin, or undefined when it cannot be determined
- * (the caller then leaves `scope` untouched rather than storing a wrong host).
- */
-async function fetchSalesforceInstanceUrl(
-  providerId: string,
-  accessToken: string
-): Promise<string | undefined> {
-  const loginHost = SALESFORCE_LOGIN_HOSTS[providerId]
-  if (!loginHost) return undefined
-  try {
-    const response = await fetch(`https://${loginHost}/services/oauth2/userinfo`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-    if (!response.ok) return undefined
-    const data = await response.json()
-    if (typeof data.profile !== 'string') return undefined
-    const url = new URL(data.profile)
-    // The origin becomes a tool base URL that carries the bearer token, so the
-    // scheme is pinned rather than inherited from whatever userinfo returned.
-    if (url.protocol !== 'https:' || isSalesforceLoginOrigin(url.origin)) return undefined
-    return url.origin
-  } catch (error) {
-    logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
-    return undefined
-  }
-}
 
 /**
  * A fresh Slack connect re-issues the installation's rotating token chain,

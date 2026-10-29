@@ -1,3 +1,4 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import type { ToolMetadata } from '@/tools/metadata'
 
@@ -10,52 +11,9 @@ export const ASSISTANT_TOOLS = new Set([
 
 const CREDENTIAL_PARAMS = new Set(['credential', 'credentialId', 'oauthCredential'])
 
-/** Read-only lookups complement search_workspace without exposing provider writes. */
-const ASSISTANT_INTEGRATION_TOOLS = new Set([
-  'slack_list_users',
-  'slack_get_user',
-  'slack_list_channels',
-  'slack_list_user_conversations',
-  'slack_get_channel_info',
-  'slack_list_members',
-  'gmail_list_labels_v2',
-  'google_calendar_list_calendars_v2',
-  'google_calendar_get_v2',
-  'google_calendar_instances_v2',
-  'google_calendar_freebusy_v2',
-  'google_drive_get_file',
-  'google_drive_list_comments',
-  'google_sheets_get_spreadsheet_v2',
-  'google_sheets_read_v2',
-  'jira_search_users',
-  'jira_list_projects',
-  'jira_get_project',
-  'jira_get_fields',
-  'jira_get_comments',
-  'confluence_list_spaces',
-  'confluence_get_user',
-  'confluence_get_page_children',
-  'confluence_get_page_ancestors',
-  'confluence_list_comments',
-  'github_search_users_v2',
-  'github_repo_info_v2',
-  'github_get_tree_v2',
-  'github_list_review_threads',
-  'github_get_pr_files_v2',
-  'gitlab_search_users',
-  'gitlab_list_members',
-  'gitlab_list_projects',
-  'gitlab_get_merge_request_changes',
-  'coda_resolve_browser_link',
-  'coda_list_pages',
-  'coda_list_tables',
-  'coda_list_columns',
-  'coda_list_rows',
-])
-
 /** Discovery and execution share the same operations and personal-account requirements. */
 export function isAssistantIntegrationTool(tool: ToolMetadata | undefined): boolean {
-  if (!tool || !ASSISTANT_INTEGRATION_TOOLS.has(tool.id)) return false
+  if (!tool || !tool.assistant) return false
   tool = projectAssistantConnectedAccountTool(tool)
   const tokenBinding = tool.personalToken
   const supportsToken =
@@ -95,25 +53,34 @@ export function isAssistantIntegrationParameter(tool: ToolMetadata, name: string
 export function assertAssistantIntegrationCall(
   tool: ToolMetadata | undefined,
   params: Record<string, unknown>
-): void {
-  if (!tool || !isAssistantIntegrationTool(tool)) {
-    throw new Error('Assistant requires an integration that supports your own connected account.')
+) {
+  if (!tool?.assistant || !isAssistantIntegrationTool(tool)) {
+    throw new OrchestrationError(
+      'validation',
+      'Assistant requires an integration that supports your own connected account.'
+    )
   }
   for (const [name, value] of Object.entries(params)) {
     if (value !== undefined && !isAssistantIntegrationParameter(tool, name)) {
-      throw new Error(
-        `Assistant cannot supply the ${name} parameter. Authentication comes from your connected account.`
+      throw new OrchestrationError(
+        'validation',
+        'Assistant cannot supply authentication or unsupported parameters. Authentication comes from your connected account.'
       )
     }
   }
   const selectors = [...CREDENTIAL_PARAMS]
     .map((name) => params[name])
     .filter((value) => value !== undefined)
+  const credentialId = selectors[0]
   if (
-    selectors.length === 0 ||
+    typeof credentialId !== 'string' ||
     selectors.some((value) => typeof value !== 'string' || !value.trim()) ||
     new Set(selectors).size !== 1
   ) {
-    throw new Error('Select one of your connected accounts for this integration.')
+    throw new OrchestrationError(
+      'validation',
+      'Select one of your connected accounts for this integration.'
+    )
   }
+  return { credentialId, operation: tool.assistant }
 }

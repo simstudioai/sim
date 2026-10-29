@@ -11,8 +11,8 @@ Your organization must enable Search and make a source available to you. [Connec
 
 ## Ask your first question
 
-1. Open **Home** in the organization sidebar. From a workspace, open the workspace menu and select **Back to organization** first.
-2. If Home shows a conversation-mode menu, choose **Search** before sending your first message. Members without builder access start in Search automatically and can ask immediately.
+1. Open **Search** in the organization sidebar. From a workspace, open the workspace menu and select **Back to organization** first.
+2. Choose **Assistant** at the top of the Search view.
 3. Ask a specific question and press **Enter**.
 
 For example:
@@ -32,7 +32,7 @@ Include the project, topic, or timeframe that matters. If you know where the ans
 
 > Find our launch plan in Confluence. Summarize the scope and the launch date, with sources.
 
-Search mode finds and reads information. You can also ask it to [draft content from the findings](/search/ask-questions#draft-from-your-sources); the draft stays in the conversation until you choose where to use it.
+Assistant finds and reads information. You can also ask it to [draft content from the findings](/search/ask-questions#draft-from-your-sources); the draft stays in the conversation until you choose where to use it.
 
 ## Check the sources
 
@@ -121,7 +121,25 @@ Continue with specific revisions:
 
 Provide a style example or brand guidance when consistency matters. Check names, numbers, dates, links, and commitments against the sources. For an external audience, include only information intended for that audience and keep internal supporting material separate for your review.
 
-Copy the reviewed draft into the app where you want to use it. Search creates text in your conversation; it doesn't send or publish the draft or change source records.
+Copy the reviewed draft into another app, or ask Assistant to create it using your connected account when that operation is available.
+
+## Review actions
+
+When integration actions are enabled, Assistant can answer questions and take supported actions in the same conversation. For example, ask it to draft an email in Gmail or create a Jira issue using your own connected account.
+
+Reads run without a prompt by default. Writes wait for review by default. Open **Review** to see the app, account, destination, and proposed content. Edit the supported fields, then select **Allow** or **Cancel** for each action. For several proposals, **Allow N shown** approves the actions currently displayed in the review.
+
+<Image
+  src="/static/search/assistant-action-review.png"
+  alt="Assistant action review showing the connected Jira account, exact site and project, editable issue summary and description, and Allow or Cancel controls"
+  width={1440}
+  height={1000}
+  variant="result"
+/>
+
+Each decision applies to that proposal. Changing its account or destination requires a new proposal. An action can still fail if your account is disconnected or an administrator changes access before execution. If the provider outcome is unknown, check the original app before asking Assistant to repeat a write.
+
+Configure persistent **Allow**, **Ask**, or **Block** preferences under **Integrations → Tool permissions** for your account. See [tool permissions](/search/connect-your-account#tool-permissions).
 
 ## Start from a document
 

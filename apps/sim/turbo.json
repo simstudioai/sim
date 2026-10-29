@@ -25,6 +25,8 @@
         "!**/CLAUDE.md",
         "!scripts/test-cli-run-latency-e2e.ts",
         "!scripts/test-desktop-inbox-e2e.ts",
+        "!scripts/test-assistant-actions-e2e.ts",
+        "!scripts/test-organization-search-e2e.ts",
         "!scripts/test-file-*-e2e.ts",
         "!scripts/test-landing-seo-e2e.ts",
         "!scripts/test-mcp-host-e2e.ts",
@@ -116,8 +118,12 @@
       "cache": false
     },
     "ci:e2e-desktop-inbox": {
-      "dependsOn": ["ci:server", "@sim/realtime#ci:runtime"],
-      "inputs": ["scripts/test-desktop-inbox-e2e.ts"],
+      "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
+      "inputs": [
+        "scripts/test-desktop-inbox-e2e.ts",
+        "scripts/test-assistant-actions-e2e.ts",
+        "scripts/test-organization-search-e2e.ts"
+      ],
       "cache": false
     },
     "ci:e2e-project-files": {
@@ -149,6 +155,8 @@
         "!**/*.integration.ts",
         "!scripts/test-cli-run-latency-e2e.ts",
         "!scripts/test-desktop-inbox-e2e.ts",
+        "!scripts/test-assistant-actions-e2e.ts",
+        "!scripts/test-organization-search-e2e.ts",
         "!scripts/test-file-*-e2e.ts",
         "!scripts/test-landing-seo-e2e.ts",
         "!scripts/test-mcp-host-e2e.ts",

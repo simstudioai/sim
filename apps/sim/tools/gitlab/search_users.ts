@@ -5,6 +5,7 @@ import type { ToolConfig } from '@/tools/types'
 export const gitlabSearchUsersTool: ToolConfig<GitLabSearchUsersParams, GitLabSearchUsersResponse> =
   {
     id: 'gitlab_search_users',
+    assistant: { effect: 'read', version: 1 },
     personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     name: 'GitLab Search Users',
     description:

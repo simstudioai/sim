@@ -3,8 +3,8 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { OrganizationConversation } from '@/app/o/[organizationId]/components/organization-conversation'
 import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
-import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 
 export const metadata: Metadata = {
@@ -26,7 +26,7 @@ export default async function OrganizationHomePage({
 
   return (
     <Suspense fallback={<HomeFallback />}>
-      <OrganizationHome userName={session.user.name} />
+      <OrganizationConversation requestMode='agent' userName={session.user.name} />
     </Suspense>
   )
 }

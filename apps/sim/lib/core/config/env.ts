@@ -606,6 +606,7 @@ export const env = createEnv({
     DASHBOARDS: z.boolean().optional(),
     PROJECTS:                              z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
     MSHIP_COMPUTER_USE: z.boolean().optional(),
+    MSHIP_SEARCH_INTEGRATION_TOOLS: z.boolean().optional(),
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),

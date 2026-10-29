@@ -12,7 +12,7 @@ export function isPlanModeEnabled(userId: string): Promise<boolean> {
   return canUseBenchmarks(userId)
 }
 
-/** One AppConfig gate controls Search integration discovery, execution, and prompt capability. */
+/** One deployment gate controls Search integration discovery, execution, and prompt capability. */
 export function isSearchIntegrationToolsEnabled(): Promise<boolean> {
   return isFeatureEnabled('mothership-search-integration-tools')
 }

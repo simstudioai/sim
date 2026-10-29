@@ -1,5 +1,6 @@
 import { type ReactNode, useMemo } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
+import { AssistantActionReviewStatus } from '@/components/assistant-actions'
 import { ActivityStatus, type ActivityStatusProps } from '@/components/ui/activity-status'
 import {
   CallIntegrationTool,
@@ -23,6 +24,7 @@ import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'
+import { getToolMetadata } from '@/tools/metadata'
 
 export interface ToolCallItemProps {
   toolName: string
@@ -136,13 +138,18 @@ export function ToolCallItem({
   const ToolIcon = getToolIcon(toolName)
 
   if (displayState === 'awaiting_approval' && toolCallId) {
-    return (
+    const fallback = (
       <ToolPermissionCard
         toolCallId={toolCallId}
         toolName={toolName}
         displayTitle={title}
         params={params}
       />
+    )
+    return getToolMetadata(toolName)?.assistant ? (
+      <AssistantActionReviewStatus title={title} fallback={fallback} />
+    ) : (
+      fallback
     )
   }
 

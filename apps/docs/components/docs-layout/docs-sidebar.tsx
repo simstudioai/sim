@@ -56,7 +56,7 @@ function SidebarScrollArea() {
       className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain', scrollFadeClass)}
       {...scrollFadeAttributes(edges)}
     >
-      <div className='flex flex-col gap-px px-2 py-4 lg:pr-3.5 lg:pl-[calc(var(--nav-inset)-8px)]'>
+      <div className='flex flex-col gap-px px-2 py-4 lg:pr-3.5 lg:pl-[calc(var(--nav-inset)-8px)] [&>[data-separator]:first-child]:mt-0'>
         <SidebarTree key={root.$id} nodes={root.children} />
       </div>
     </div>

@@ -14,6 +14,20 @@ export const salesforceUpdateTaskTool: ToolConfig<
   name: 'Update Task in Salesforce',
   description: 'Update an existing task',
   version: '1.0.0',
+  assistant: {
+    effect: 'write',
+    version: 1,
+    reviewFields: [
+      { name: 'taskId', label: 'Task', target: true },
+      { name: 'whoId', label: 'Contact or lead', target: true },
+      { name: 'whatId', label: 'Related record', target: true },
+      { name: 'subject', label: 'Subject', editable: true },
+      { name: 'description', label: 'Description', format: 'multiline', editable: true },
+      { name: 'status', label: 'Status', editable: true },
+      { name: 'priority', label: 'Priority', editable: true },
+      { name: 'activityDate', label: 'Due date', editable: true },
+    ],
+  },
 
   oauth: {
     required: true,
@@ -97,14 +111,22 @@ export const salesforceUpdateTaskTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
-      if (params.subject) body.Subject = params.subject
-      if (params.status) body.Status = params.status
-      if (params.priority) body.Priority = params.priority
-      if (params.activityDate) body.ActivityDate = params.activityDate
+      const body: Record<string, string | null> = {}
+      if (params.subject !== undefined) body.Subject = params.subject === '' ? null : params.subject
+      if (params.status !== undefined) {
+        if (!params.status.trim()) throw new Error('Task status cannot be empty')
+        body.Status = params.status
+      }
+      if (params.priority !== undefined) {
+        if (!params.priority.trim()) throw new Error('Task priority cannot be empty')
+        body.Priority = params.priority
+      }
+      if (params.activityDate !== undefined)
+        body.ActivityDate = params.activityDate === '' ? null : params.activityDate
       if (params.whoId) body.WhoId = params.whoId.trim()
       if (params.whatId) body.WhatId = params.whatId.trim()
-      if (params.description) body.Description = params.description
+      if (params.description !== undefined)
+        body.Description = params.description === '' ? null : params.description
       return body
     },
   },

@@ -203,6 +203,10 @@ case "$group" in
     export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
+    export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
+    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+    export MSHIP_SEARCH_INTEGRATION_TOOLS=true
+    bunx --no-install playwright install --with-deps chromium
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     start_app desktop-inbox 3019 'desktop executor' record-http-status
@@ -212,6 +216,16 @@ case "$group" in
     DESKTOP_INBOX_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     DESKTOP_INBOX_E2E_REPORT_PATH="$report_dir/desktop-inbox-http-report.json" \
       bun run test:desktop-inbox:e2e
+    ASSISTANT_ACTIONS_E2E_BASE_URL="$local_app_url" \
+    ASSISTANT_ACTIONS_E2E_DATABASE_URL="$DATABASE_URL" \
+    ASSISTANT_ACTIONS_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ASSISTANT_ACTIONS_E2E_REPORT_PATH="$report_dir/assistant-actions-ui-report.json" \
+      bun --no-env-file scripts/test-assistant-actions-e2e.ts
+    ORGANIZATION_SEARCH_E2E_BASE_URL="$local_app_url" \
+    ORGANIZATION_SEARCH_E2E_DATABASE_URL="$DATABASE_URL" \
+    ORGANIZATION_SEARCH_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    ORGANIZATION_SEARCH_E2E_REPORT_PATH="$report_dir/organization-search-ui-report.json" \
+      bun --no-env-file scripts/test-organization-search-e2e.ts
     ;;
 
   project-files)

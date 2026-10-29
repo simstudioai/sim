@@ -1,7 +1,7 @@
-/** A durable tool identity must never be reused by a different run. */
+/** A durable tool identity must keep its original owner and invocation. */
 export class AsyncToolCallOwnershipError extends Error {
-  constructor() {
-    super('Async tool call belongs to another run')
+  constructor(message = 'Async tool call belongs to another run') {
+    super(message)
     this.name = 'AsyncToolCallOwnershipError'
   }
 }

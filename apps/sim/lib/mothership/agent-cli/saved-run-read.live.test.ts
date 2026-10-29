@@ -1760,7 +1760,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         status: 'running',
       })
       const owner = { runId, toolCallId, ownerToken, userId: 'run-reader' }
-      expect(await claimToolExecution(owner)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution(owner)).toMatchObject({ outcome: 'claimed' })
       return { owner, chatId, streamId }
     }
 
@@ -2191,7 +2191,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           userId: 'run-reader',
           ownerToken: toolCallId,
         })
-      ).toEqual({
+      ).toMatchObject({
         outcome: 'claimed',
       })
       await closeStreamToolAdmission(streamId, 'run-reader')

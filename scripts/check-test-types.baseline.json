@@ -465,9 +465,6 @@
   "apps/sim/app/desktop/connect/page.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/app/o/[organizationId]/home/organization-home.test.tsx": {
-    "TS2698": 1
-  },
   "apps/sim/app/o/[organizationId]/settings/components/integrations/search-source-setup.test.tsx": {
     "TS2339": 31,
     "TS2345": 2
