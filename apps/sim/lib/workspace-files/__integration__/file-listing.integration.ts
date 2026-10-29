@@ -1,7 +1,7 @@
 /**
  * Real PostgreSQL behavior of the bounded workspace-file reads the browser, v2, and the Mothership
- * VFS share: keyset paging under every sort, folder filters by id, name search, batch lookup, and
- * folder rollups, under `files.list` authorization.
+ * VFS share: keyset paging under every sort, folder filters by id, name search, kind/size/uploader
+ * filters, batch lookup, and folder rollups, under `files.list` authorization.
  */
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
@@ -23,6 +23,7 @@ const bob = generateId()
 const carol = generateId()
 const workspaceId = generateId()
 const otherWorkspaceId = generateId()
+const filterWorkspaceId = generateId()
 const session = (userId: string) => ({ kind: 'session' as const, userId, sessionId: generateId() })
 
 /** Folder tree in the main workspace: Docs/{Sub/{Deep}}, Media; plus one in the other workspace. */
@@ -58,6 +59,8 @@ async function insertFile(input: {
   updatedAt?: string
   deleted?: boolean
   context?: string
+  contentType?: string
+  userId?: string
 }): Promise<SeededFile> {
   const file: SeededFile = {
     id: input.id ?? `wf_${generateId()}`,
@@ -71,8 +74,9 @@ async function insertFile(input: {
   await db.execute(sql`
     INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, folder_id, context, original_name,
       content_type, size_bytes, uploaded_at, updated_at, deleted_at)
-    VALUES (${file.id}, ${file.key}, ${alice}, ${input.workspaceId ?? workspaceId}, ${file.folderId},
-      ${input.context ?? 'workspace'}, ${file.name}, 'text/plain', ${file.size},
+    VALUES (${file.id}, ${file.key}, ${input.userId ?? alice}, ${input.workspaceId ?? workspaceId},
+      ${file.folderId}, ${input.context ?? 'workspace'}, ${file.name},
+      ${input.contentType ?? 'text/plain'}, ${file.size},
       ${file.uploadedAt}::timestamp, ${file.updatedAt}::timestamp,
       ${input.deleted ? sql`now()` : sql`NULL`})`)
   return file
@@ -138,6 +142,7 @@ describe('bounded workspace file reads in PostgreSQL', () => {
     await insertWorkspaceFixture(db, [
       { id: workspaceId, name: 'Listing fixture', ownerId: alice, billedAccountUserId: alice },
       { id: otherWorkspaceId, name: 'Other fixture', ownerId: alice, billedAccountUserId: alice },
+      { id: filterWorkspaceId, name: 'Filter fixture', ownerId: alice, billedAccountUserId: alice },
     ])
     await db.insert(permissions).values([
       {
@@ -159,6 +164,13 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         userId: alice,
         entityType: 'workspace',
         entityId: otherWorkspaceId,
+        permissionType: 'admin',
+      },
+      {
+        id: generateId(),
+        userId: alice,
+        entityType: 'workspace',
+        entityId: filterWorkspaceId,
         permissionType: 'admin',
       },
     ])
@@ -251,7 +263,10 @@ describe('bounded workspace file reads in PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(
+      db,
+      inArray(workspace.id, [workspaceId, otherWorkspaceId, filterWorkspaceId])
+    )
     await db.delete(user).where(inArray(user.id, [alice, bob, carol]))
   })
 
@@ -388,6 +403,120 @@ describe('bounded workspace file reads in PostgreSQL', () => {
 
     it('treats LIKE wildcards in the term literally', async () => {
       expect((await search('%_')).files.map((file) => file.name)).toEqual(['100%_done.txt'])
+    })
+  })
+
+  describe('kind, size, and uploader filters', () => {
+    const MIB = 1_048_576
+    /**
+     * Each file labelled with the Type filter's own classification: the declared type when it
+     * names a format, else the extension's — so a generic or empty declaration falls back, a
+     * `.webm` with nothing declared is video, and a document is decided by extension alone.
+     */
+    const fixtures = [
+      { name: 'photo.png', contentType: 'image/png', size: 500, kinds: ['image'] },
+      {
+        name: 'upload.png',
+        contentType: 'application/octet-stream',
+        size: 2 * MIB,
+        kinds: ['image'],
+      },
+      { name: 'clip.webm', contentType: '', size: MIB - 1, kinds: ['video'] },
+      { name: 'voice.webm', contentType: 'audio/webm', size: 10 * MIB, kinds: ['audio'] },
+      {
+        name: 'song.MP3',
+        contentType: 'binary/octet-stream',
+        size: 10 * MIB + 1,
+        kinds: ['audio'],
+      },
+      { name: 'movie.mov', contentType: 'video/quicktime', size: 40 * MIB, kinds: ['video'] },
+      { name: 'paper.pdf', contentType: 'application/pdf', size: MIB, kinds: ['document'] },
+      { name: 'chart.json', contentType: 'image/png', size: 10, kinds: ['document', 'image'] },
+      { name: 'bundle.zip', contentType: 'application/zip', size: 10, kinds: [] },
+      { name: 'README', contentType: 'text/plain', size: 10, kinds: [], uploader: 'bob' },
+    ] as const
+    const seeded: {
+      id: string
+      name: string
+      size: number
+      kinds: readonly string[]
+      userId: string
+    }[] = []
+
+    beforeAll(async () => {
+      for (const [index, fixture] of fixtures.entries()) {
+        const userId = 'uploader' in fixture ? bob : alice
+        const file = await insertFile({
+          workspaceId: filterWorkspaceId,
+          name: fixture.name,
+          contentType: fixture.contentType,
+          size: fixture.size,
+          userId,
+          uploadedAt: `2026-04-01T00:00:0${index}`,
+        })
+        seeded.push({ ...file, kinds: fixture.kinds, userId })
+      }
+    })
+
+    const filtered = async (input: Partial<PageQuery>) =>
+      (await page(input, { workspace: filterWorkspaceId })).files.map((file) => file.name).sort()
+    const names = (predicate: (file: (typeof seeded)[number]) => boolean) =>
+      seeded
+        .filter(predicate)
+        .map((file) => file.name)
+        .sort()
+
+    it.each([['document'], ['image'], ['audio'], ['video'], ['image', 'video']] as const)(
+      'lists the %s files a kind filter names',
+      async (...kinds) => {
+        expect(await filtered({ kinds })).toEqual(
+          names((file) => file.kinds.some((kind) => (kinds as readonly string[]).includes(kind)))
+        )
+      }
+    )
+
+    it('splits sizes into buckets at exactly 1 MiB and 10 MiB', async () => {
+      expect(await filtered({ sizeBuckets: ['small'] })).toEqual(names((file) => file.size < MIB))
+      expect(await filtered({ sizeBuckets: ['medium'] })).toEqual(
+        names((file) => file.size >= MIB && file.size <= 10 * MIB)
+      )
+      expect(await filtered({ sizeBuckets: ['small', 'large'] })).toEqual(
+        names((file) => file.size < MIB || file.size > 10 * MIB)
+      )
+    })
+
+    it('filters by uploader, and intersects every filter with the others and the search', async () => {
+      expect(await filtered({ uploadedBy: [bob] })).toEqual(['README'])
+      expect(
+        await filtered({ kinds: ['image', 'audio'], sizeBuckets: ['large'], uploadedBy: [alice] })
+      ).toEqual(['song.MP3'])
+      expect(await filtered({ kinds: ['image'], search: 'PHO' })).toEqual(['photo.png'])
+    })
+
+    it('pages a filtered list without skipping or repeating', async () => {
+      const ids: string[] = []
+      let after: CursorKey[] | undefined
+      for (let guard = 0; guard < 20; guard++) {
+        const result = await page(
+          {
+            kinds: ['image', 'audio', 'video'],
+            sortBy: 'size',
+            sortOrder: 'desc',
+            limit: 2,
+            after,
+          },
+          { workspace: filterWorkspaceId }
+        )
+        ids.push(...result.files.map((file) => file.id))
+        if (!result.nextKeys) break
+        after = result.nextKeys
+      }
+      expect(ids).toEqual(
+        seeded
+          .filter((file) => file.kinds.some((kind) => kind !== 'document'))
+          .sort((a, b) => b.size - a.size)
+          .map((file) => file.id)
+      )
     })
   })
 

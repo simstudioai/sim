@@ -131,6 +131,7 @@ import {
   normalizeDisplaySegment,
   VfsPathError,
 } from '@/lib/vfs/path'
+import type { WorkspaceFileKind, WorkspaceFileSizeBucket } from '@/lib/workspace-files/list-filters'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import {
   OWNED_FILE_CONTEXTS,
@@ -156,6 +157,8 @@ import {
   workspaceFileFolderIdCondition,
   workspaceFileFolderKey,
   workspaceFileFolderScopeCondition,
+  workspaceFileKindCondition,
+  workspaceFileSizeCondition,
 } from '@/lib/workspace-files/query-scope'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
@@ -1905,6 +1908,12 @@ export interface QueryWorkspaceFilesOptions {
   name?: string
   /** Case-insensitive substring match on the file name. */
   search?: string
+  /** Files of any of these kinds; absent or empty applies no kind filter. */
+  kinds?: readonly WorkspaceFileKind[]
+  /** Files in any of these size buckets; absent or empty applies no size filter. */
+  sizeBuckets?: readonly WorkspaceFileSizeBucket[]
+  /** Files uploaded by any of these users; absent or empty applies no uploader filter. */
+  uploadedBy?: readonly string[]
   sortBy: V2FileSortBy
   sortOrder: ListSortOrder
   limit: number
@@ -1994,6 +2003,11 @@ export async function queryFileRecords<const O extends EditableFileOwner>(
     workspaceFileFolderScopeCondition(folderScope),
     name === undefined ? undefined : eq(workspaceFiles.originalName, name),
     searchFilter(workspaceFiles.originalName, search),
+    workspaceFileKindCondition(options.kinds),
+    workspaceFileSizeCondition(options.sizeBuckets),
+    options.uploadedBy && options.uploadedBy.length > 0
+      ? inArray(workspaceFiles.userId, [...options.uploadedBy])
+      : undefined,
     resumeAfter,
   ]
 

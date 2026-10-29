@@ -25,6 +25,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import type { WorkspaceFileKind, WorkspaceFileSizeBucket } from '@/lib/workspace-files/list-filters'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 
 export interface ListAllWorkspaceFilesInput {
@@ -48,6 +49,12 @@ export interface QueryWorkspaceFilePageInput {
   /** Exact file name. */
   name?: string
   search?: string
+  /** Files of any of these kinds. */
+  kinds?: readonly WorkspaceFileKind[]
+  /** Files in any of these size buckets. */
+  sizeBuckets?: readonly WorkspaceFileSizeBucket[]
+  /** Files uploaded by any of these users. */
+  uploadedBy?: readonly string[]
   sortBy: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
   sortOrder: 'asc' | 'desc'
   limit: number
@@ -258,6 +265,9 @@ async function readWorkspaceFilePage(
     fileIds: input.fileId === undefined ? undefined : [input.fileId],
     name: input.name,
     search: input.search,
+    kinds: input.kinds,
+    sizeBuckets: input.sizeBuckets,
+    uploadedBy: input.uploadedBy,
     sortBy: input.sortBy,
     sortOrder: input.sortOrder,
     limit: input.limit,

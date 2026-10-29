@@ -413,7 +413,10 @@ const GENERIC_MIME_TYPE = 'application/octet-stream'
 const DUAL_CONTAINER_MIME: Record<string, string> = { webm: 'video/webm' }
 
 /** Every MIME type that identifies no format, including the legacy `binary/` spelling. */
-const GENERIC_MIME_TYPES = new Set([GENERIC_MIME_TYPE, 'binary/octet-stream'])
+export const GENERIC_MIME_TYPES: ReadonlySet<string> = new Set([
+  GENERIC_MIME_TYPE,
+  'binary/octet-stream',
+])
 
 /** Whether a declared MIME type names an actual format, rather than "some bytes". */
 function identifiesFormat(declared: string | undefined): declared is string {
