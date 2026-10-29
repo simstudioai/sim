@@ -1,25 +1,33 @@
 import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { toRecord } from '@sim/utils/object'
 
-/** Reconciliation window scans, which read through `db.execute`, queued in call order. */
-export const windowScans: unknown[][] = []
+/** Reconciliation window tallies, which read through `db.execute`, queued in call order. */
+export const windowTallies: unknown[][] = []
 
-/** Reconciliation window counts, which read through `db.execute`, queued in call order. */
-export const windowCounts: unknown[][] = []
+interface WindowRow {
+  id: string
+  tombstoned: boolean
+}
 
-/** The one-row result of a completed listing's counts over a connector shorter than a window. */
-export function windowCount(counts: {
+/**
+ * The one-row result of a completed listing's tally over a connector shorter than a window: the
+ * listed count, then the absent documents with ACLs, to soft-delete and to hard-delete.
+ */
+export function windowTally(tally: {
   owned: number
   listed: number
-  acl?: number
-  soft: number
-  hard: number
+  acl?: WindowRow[]
+  soft?: WindowRow[]
+  hard?: WindowRow[]
 }) {
+  const matching: WindowRow[][] = [[], tally.acl ?? [], tally.soft ?? [], tally.hard ?? []]
   return [
     {
-      size: counts.owned,
-      last: counts.owned > 0 ? 'last-owned' : null,
-      matching: [counts.listed, counts.acl ?? 0, counts.soft, counts.hard],
+      size: tally.owned,
+      last: tally.owned > 0 ? 'last-owned' : null,
+      counts: [tally.listed, ...matching.slice(1).map((rows) => rows.length)],
+      ids: matching.map((rows) => rows.map((row) => row.id)),
+      tombstoned: matching.map((rows) => rows.map((row) => row.tombstoned)),
     },
   ]
 }
@@ -43,24 +51,18 @@ function statementText(query: unknown): string {
   return [...strings, ...(Array.isArray(values) ? values.map(statementText) : [])].join(' ')
 }
 
-function windowStatement(query: unknown): 'scan' | 'count' | null {
-  const text = statementText(query)
-  if (!text.includes('MATERIALIZED')) return null
-  return text.includes('json_build_array') ? 'count' : 'scan'
-}
-
 /**
- * Empties {@link windowScans} and {@link windowCounts} and routes `db.execute`: a window scan or
- * count takes the next queued result of its kind, and any other statement reads the database
- * clock, `databaseTime` when given and the worker's clock otherwise.
+ * Empties {@link windowTallies} and routes `db.execute`: a window tally takes the next queued
+ * result, a window scan finds nothing, so a walk no test expects fails on its empty result, and
+ * any other statement reads the database clock, `databaseTime` when given and the worker's clock
+ * otherwise.
  */
-export function routeWindowScans(databaseTime?: Date) {
-  windowScans.length = 0
-  windowCounts.length = 0
+export function routeWindowTallies(databaseTime?: Date) {
+  windowTallies.length = 0
   dbChainMockFns.execute.mockImplementation(async (...args: unknown[]) => {
-    const statement = windowStatement(args[0])
-    if (statement === 'scan') return windowScans.shift() ?? []
-    if (statement === 'count') return windowCounts.shift() ?? []
+    const text = statementText(args[0])
+    if (text.includes('MATERIALIZED'))
+      return text.includes('json_build_array') ? (windowTallies.shift() ?? []) : []
     return [{ startedAt: (databaseTime ?? new Date()).toISOString() }]
   })
 }
