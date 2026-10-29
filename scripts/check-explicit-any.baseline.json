@@ -868,7 +868,6 @@
     "apps/sim/tools/salesforce/update_contact.ts": 1,
     "apps/sim/tools/salesforce/update_lead.ts": 1,
     "apps/sim/tools/salesforce/update_opportunity.ts": 1,
-    "apps/sim/tools/salesforce/update_task.ts": 1,
     "apps/sim/tools/salesforce/utils.ts": 9,
     "apps/sim/tools/sentry/events_get.ts": 1,
     "apps/sim/tools/sentry/events_list.ts": 2,

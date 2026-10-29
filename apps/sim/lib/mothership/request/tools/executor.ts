@@ -770,6 +770,8 @@ async function refuseUnstartedExecution(
         toolCallId: toolCall.id,
         toolName: toolCall.name,
         phase: MothershipStreamV1ToolPhase.result,
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
         status: completion.status,
         success: completion.status === 'success',
         output: completion.data,

@@ -4237,7 +4237,6 @@
   "apps/sim/lib/core/storage/storage.ts#isDatabaseStorage",
   "apps/sim/lib/core/storage/storage.ts#isRedisStorage",
   "apps/sim/lib/core/storage/storage.ts#requireRedis",
-  "apps/sim/lib/core/utils/browser-storage.ts#BrowserStorage",
   "apps/sim/lib/core/utils/multipart.ts#MultipartFilePart",
   "apps/sim/lib/core/utils/response-format.ts#hasResponseFormatSelection",
   "apps/sim/lib/core/utils/smooth-bottom-chase.ts#CHASE_REST_GAP",

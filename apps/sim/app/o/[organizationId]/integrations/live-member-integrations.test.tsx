@@ -19,7 +19,10 @@ vi.mock('@/hooks/queries/organization-secrets', () => ({
   useOrganizationSecretSource: () => ({ data: { source: null } }),
 }))
 vi.mock('@/hooks/queries/search-integrations', () => ({
-  useSearchIntegrations: () => ({ data: [{ connectorType: 'coda', approved: true }] }),
+  useSearchIntegrations: () => ({
+    data: [{ connectorType: 'coda', approved: true }],
+    isSuccess: true,
+  }),
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => ({

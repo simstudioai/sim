@@ -374,10 +374,10 @@ export async function rejectManagedOAuthToken(input: {
 }
 
 async function resolveProviderTokenContext(
-  providerId: string,
+  providerId: string | null,
   token: ResolvedManagedOAuthToken
 ): Promise<ResolvedManagedOAuthToken> {
-  if (!isSalesforceOAuthProviderId(providerId)) return token
+  if (!providerId || !isSalesforceOAuthProviderId(providerId)) return token
   const instanceUrl = await fetchSalesforceInstanceUrl(providerId, token.accessToken)
   if (!instanceUrl)
     throw new ManagedOAuthCredentialError(

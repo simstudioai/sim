@@ -902,7 +902,8 @@ describe('Assistant action delivery through the durable executor', () => {
           ])
         )
         const resultEvent = events.find(
-          (event) => event.type === 'tool' && event.payload.phase === 'result'
+          (event) =>
+            event.type === 'tool' && 'phase' in event.payload && event.payload.phase === 'result'
         )
         expect(resultEvent?.payload).not.toHaveProperty('error')
       }
