@@ -10,6 +10,7 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { isComputerUseAvailableFor } from '@/lib/computer-use/application/availability'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
+import { OrganizationAccountsSetupRequiredError } from '@/lib/credential-groups/organization-setup'
 import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
@@ -241,7 +242,10 @@ export async function buildIntegrationToolSchemas(
   if (options.organizationId && personalAccountsOnly) {
     const [approvals, group, policies] = await Promise.all([
       listOrganizationSearchApprovals(options.organizationId),
-      getOrganizationAccountsGroup(options.organizationId),
+      getOrganizationAccountsGroup(options.organizationId).catch((error) => {
+        if (error instanceof OrganizationAccountsSetupRequiredError) return null
+        throw error
+      }),
       loadLiveSearchPolicies({ organizationId: options.organizationId }),
     ])
     const configured = new Set(

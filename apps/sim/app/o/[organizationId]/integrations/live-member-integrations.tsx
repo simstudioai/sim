@@ -53,7 +53,8 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   if (!inventory.data)
     return <SettingsEmptyState variant='inline'>Loading your connections</SettingsEmptyState>
   const data = inventory.data
-  const approvals = new Map(policies.data?.map((policy) => [policy.connectorType, policy]))
+  const loadedPolicies = policies.isSuccess ? policies.data : undefined
+  const approvals = new Map(loadedPolicies?.map((policy) => [policy.connectorType, policy]))
   const group = data.credentialGroup
   const mcpProviders = new Map(
     group?.mcpServers.map((server) => [server.id, server.managedConnectorId])
@@ -98,7 +99,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
         organizationId={organizationId}
         search={search}
         data={data}
-        policies={policies.data}
+        policies={loadedPolicies}
       />
       <div className='flex flex-col gap-3'>
         {policies.error && (
@@ -169,8 +170,9 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
             approval?.policy?.accessMode === 'service_account'
               ? 'Selected resources you can access'
               : 'All accessible content'
-          const state =
-            approval?.available === false
+          const state = !loadedPolicies
+            ? undefined
+            : approval?.available === false
               ? 'Currently unavailable'
               : !approved
                 ? 'Disabled by your organization'
@@ -255,7 +257,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
         {!visible.length &&
           !showSecrets &&
           !assistantAccountOptions(data, search).visible.length &&
-          policies.data &&
+          loadedPolicies &&
           secrets.data &&
           query && (
             <SettingsEmptyState variant='inline'>No matching integrations</SettingsEmptyState>

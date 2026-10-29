@@ -16,6 +16,7 @@ import {
   organization,
   organizationSearchIntegration,
   permissionGroup,
+  resourcePolicy,
   user,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -50,9 +51,17 @@ import {
   recordToolPermissionDecision,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
+import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
+import { runStreamLoop } from '@/lib/mothership/request/go/stream'
+import { createEvent } from '@/lib/mothership/request/session/event'
 import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
-import type { ToolCallState } from '@/lib/mothership/request/types'
+import type {
+  ExecutionContext,
+  OrchestratorOptions,
+  StreamEvent,
+  ToolCallState,
+} from '@/lib/mothership/request/types'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool } from '@/tools'
@@ -65,6 +74,8 @@ vi.hoisted(() => {
     JIRA_CLIENT_SECRET: 'assistant-fixture-client-secret',
     GOOGLE_CLIENT_ID: 'assistant-google-fixture-client',
     GOOGLE_CLIENT_SECRET: 'assistant-google-fixture-secret',
+    SALESFORCE_CLIENT_ID: 'assistant-salesforce-fixture-client',
+    SALESFORCE_CLIENT_SECRET: 'assistant-salesforce-fixture-secret',
   })
 })
 
@@ -77,6 +88,7 @@ const secondCredentialId = generateId()
 const otherCredentialId = generateId()
 const jiraCredentialId = generateId()
 const docsCredentialId = generateId()
+const salesforceCredentialId = generateId()
 const groupId = generateId()
 const enrollmentId = generateId()
 const otherEnrollmentId = generateId()
@@ -143,6 +155,10 @@ const change = (revision: number, policy: 'allow' | 'ask' | 'block') =>
 beforeAll(async () => {
   const jiraPolicy = await getCredentialGroupProviderAdapter('jira').getPolicy(undefined, {})
   const docsPolicy = await getCredentialGroupProviderAdapter('google-docs').getPolicy(undefined, {})
+  const salesforcePolicy = await getCredentialGroupProviderAdapter('salesforce').getPolicy(
+    undefined,
+    {}
+  )
   await db.insert(user).values(
     [ownerId, otherUserId].map((id) => ({
       id,
@@ -174,28 +190,41 @@ beforeAll(async () => {
     organizationId,
     publicId: generateId(),
     name: 'Connected account fixture',
-    options: ['gmail', 'gmail-second', 'jira', 'google-docs'].map((id) => ({
+    options: ['gmail', 'gmail-second', 'jira', 'google-docs', 'salesforce'].map((id) => ({
       id,
-      provider: id === 'jira' ? 'jira' : id === 'google-docs' ? 'google-docs' : 'gmail',
+      provider:
+        id === 'jira'
+          ? 'jira'
+          : id === 'google-docs'
+            ? 'google-docs'
+            : id === 'salesforce'
+              ? 'salesforce'
+              : 'gmail',
       label: 'Gmail',
       authorizationAppId:
         id === 'jira'
           ? jiraPolicy.authorizationAppId
           : id === 'google-docs'
             ? docsPolicy.authorizationAppId
-            : 'fixture',
+            : id === 'salesforce'
+              ? salesforcePolicy.authorizationAppId
+              : 'fixture',
       requiredScopes:
         id === 'jira'
           ? jiraPolicy.requiredScopes
           : id === 'google-docs'
             ? docsPolicy.requiredScopes
-            : [],
+            : id === 'salesforce'
+              ? salesforcePolicy.requiredScopes
+              : [],
       scopeVersion:
         id === 'jira'
           ? jiraPolicy.scopeVersion
           : id === 'google-docs'
             ? docsPolicy.scopeVersion
-            : 1,
+            : id === 'salesforce'
+              ? salesforcePolicy.scopeVersion
+              : 1,
       required: false,
       status: 'active',
     })),
@@ -250,6 +279,26 @@ beforeAll(async () => {
     authorizationAppId: docsPolicy.authorizationAppId,
     encryptedOauthTokenSet: await encryptManagedOAuthTokenSet({
       accessToken: 'assistant-fixture-token',
+    }),
+    grantedAt: new Date(),
+  })
+  await db.insert(credential).values({
+    id: salesforceCredentialId,
+    createdBy: ownerId,
+    credentialGroupEnrollmentId: enrollmentId,
+    credentialGroupOptionId: 'salesforce',
+    organizationId,
+    type: 'managed_oauth',
+    displayName: 'Fixture Salesforce account',
+    providerId: 'salesforce',
+    managedOauthStatus: 'active',
+    managedOauthScopeVersion: salesforcePolicy.scopeVersion,
+    grantedScopes: salesforcePolicy.requiredScopes,
+    providerSubjectId: salesforceCredentialId,
+    authorizationAppId: salesforcePolicy.authorizationAppId,
+    encryptedOauthTokenSet: await encryptManagedOAuthTokenSet({
+      accessToken: 'assistant-salesforce-token',
+      refreshToken: 'assistant-salesforce-refresh',
     }),
     grantedAt: new Date(),
   })
@@ -353,6 +402,24 @@ afterAll(async () => {
     .delete(organization)
     .where(inArray(organization.id, [organizationId, otherOrganizationId]))
   await db.delete(user).where(inArray(user.id, [ownerId, otherUserId]))
+})
+
+describe('Assistant discovery for legacy account setup', () => {
+  it('leaves legacy grants untouched while returning an empty native catalog', async () => {
+    expect(
+      await db.select().from(resourcePolicy).where(eq(resourcePolicy.resourceId, groupId))
+    ).toEqual([])
+    expect(
+      await buildIntegrationToolSchemas(ownerId, {
+        schemaSurface: 'copilot',
+        organizationId,
+        personalAccountsOnly: true,
+      })
+    ).toEqual([])
+    expect(
+      await db.select().from(resourcePolicy).where(eq(resourcePolicy.resourceId, groupId))
+    ).toEqual([])
+  })
 })
 
 describe('organization Assistant tool permissions', () => {
@@ -642,7 +709,21 @@ describe('organization Assistant tool permissions', () => {
   })
 })
 
-function deliver(call: Awaited<ReturnType<typeof prepare>>) {
+function assistantExecutionContext(): ExecutionContext {
+  return {
+    userId: ownerId,
+    workflowId: '',
+    organizationId,
+    chatOrganizationId: organizationId,
+    chatId,
+    runId,
+    requestMode: 'assistant',
+    copilotToolExecution: true,
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+  }
+}
+
+function deliver(call: Awaited<ReturnType<typeof prepare>>, options?: OrchestratorOptions) {
   const toolCall: ToolCallState = {
     id: call.toolCallId,
     name: call.toolId,
@@ -652,17 +733,8 @@ function deliver(call: Awaited<ReturnType<typeof prepare>>) {
   return executeToolAndReport(
     call.toolCallId,
     createStreamingContext({ runId, chatId, toolCalls: new Map([[call.toolCallId, toolCall]]) }),
-    {
-      userId: ownerId,
-      workflowId: '',
-      organizationId,
-      chatOrganizationId: organizationId,
-      chatId,
-      runId,
-      requestMode: 'assistant',
-      copilotToolExecution: true,
-      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
-    }
+    assistantExecutionContext(),
+    options
   )
 }
 
@@ -767,6 +839,20 @@ describe('Assistant action delivery through the durable executor', () => {
             ? 1
             : 0
       expect(requests).toHaveLength(requestCount)
+      if (outcome === 'block') {
+        expect(result).toMatchObject({
+          message: 'This tool is blocked in your account permissions.',
+          data: { notStarted: true },
+        })
+        expect(result.data).not.toHaveProperty('outcomeUnknown')
+        expect(result.data).not.toHaveProperty('doNotRetry')
+        const [receipt] = await db
+          .select()
+          .from(copilotAsyncToolCalls)
+          .where(eq(copilotAsyncToolCalls.toolCallId, call.toolCallId))
+        expect(receipt?.executionStartedAt).toBeNull()
+        expect(await execute()).toEqual(result)
+      }
       if (delivered)
         expect(requests[0]).toMatchObject({
           url: 'https://api.atlassian.com/ex/jira/11111111-1111-4111-8111-111111111111/rest/api/3/issue',
@@ -785,8 +871,170 @@ describe('Assistant action delivery through the durable executor', () => {
       }
       if (requestCount === 2)
         expect(requests[1]).toMatchObject({ body: { accountId: 'fixture-assignee' } })
+      if (outcome === 'allow') {
+        await updateOrganizationToolPermissions.execute({
+          principal,
+          input: {
+            organizationId,
+            credentialId: jiraCredentialId,
+            revision: 0,
+            change: { kind: 'tool', toolId: 'jira_write', policy: 'block' },
+          },
+        })
+        const events: StreamEvent[] = []
+        expect(
+          await deliver(call, {
+            onEvent: (event) => {
+              events.push(event)
+            },
+          })
+        ).toMatchObject({ status: 'success' })
+        expect(events).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'tool',
+              payload: expect.objectContaining({
+                phase: 'result',
+                status: 'success',
+                success: true,
+              }),
+            }),
+          ])
+        )
+        const resultEvent = events.find(
+          (event) => event.type === 'tool' && event.payload.phase === 'result'
+        )
+        expect(resultEvent?.payload).not.toHaveProperty('error')
+      }
       await execute()
       expect(requests).toHaveLength(requestCount)
+    } finally {
+      provider.mockRestore()
+    }
+  })
+})
+
+describe('Assistant streamed refusals', () => {
+  it('reports a blocked call once and continues the stream across retransmission', async () => {
+    await change(0, 'block')
+    const streamId = generateId()
+    const toolCallId = generateId()
+    const frame = { streamId, chatId, requestId: generateId() }
+    const events = [
+      createEvent({
+        ...frame,
+        seq: 1,
+        cursor: '1',
+        type: 'tool',
+        payload: {
+          toolCallId,
+          toolName: 'gmail_list_labels_v2',
+          arguments: { credential: credentialId },
+          executor: 'sim',
+          mode: 'async',
+          phase: 'call',
+        },
+      }),
+      createEvent({
+        ...frame,
+        seq: 2,
+        cursor: '2',
+        type: 'text',
+        payload: { channel: 'assistant', text: 'The action was refused.', textOffset: 0 },
+      }),
+      createEvent({
+        ...frame,
+        seq: 3,
+        cursor: '3',
+        type: 'complete',
+        payload: { status: 'complete', textLength: 23 },
+      }),
+    ]
+    const workerUrl = 'https://assistant-stream.example.test/stream'
+    const providerRequests: string[] = []
+    const transport = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = new Request(input).url
+      if (url !== workerUrl) {
+        providerRequests.push(url)
+        throw new Error('Unexpected request')
+      }
+      return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    })
+    try {
+      for (let delivery = 0; delivery < 2; delivery++) {
+        const context = createStreamingContext({ runId, chatId, requestId: frame.requestId })
+        const forwarded: StreamEvent[] = []
+        await runStreamLoop(workerUrl, {}, context, assistantExecutionContext(), {
+          flushAfterEvent: false,
+          onEvent: (event) => {
+            forwarded.push(event)
+          },
+        })
+        await Promise.all(context.pendingToolPromises.values())
+        expect(context.accumulatedContent).toBe('The action was refused.')
+        expect(forwarded).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'tool',
+              payload: expect.objectContaining({
+                phase: 'result',
+                status: 'error',
+              }),
+            }),
+          ])
+        )
+      }
+      const receipts = await db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(eq(copilotAsyncToolCalls.runId, runId))
+      expect(receipts).toHaveLength(1)
+      expect(receipts[0]).toMatchObject({
+        status: 'failed',
+        executionStartedAt: null,
+        error: 'This tool is blocked in your account permissions.',
+      })
+      expect(providerRequests).toEqual([])
+    } finally {
+      transport.mockRestore()
+    }
+  })
+})
+
+describe('Assistant argument refusals', () => {
+  it.each([
+    { args: {}, message: 'Select one of your connected accounts for this integration.' },
+    {
+      args: { credential: credentialId, accessToken: 'untrusted-token' },
+      message: 'Assistant cannot supply authentication or unsupported parameters.',
+    },
+  ])('persists a never-started refusal for $args', async ({ args, message }) => {
+    const call = {
+      organizationId,
+      runId,
+      toolCallId: generateId(),
+      toolId: 'gmail_list_labels_v2',
+      args,
+      ownerToken: generateId(),
+    }
+    const provider = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('Unexpected provider request'))
+    try {
+      const result = await deliver(call)
+      expect(result.status).toBe('error')
+      expect(result.message).toContain(message)
+      expect(result.data).toMatchObject({ notStarted: true })
+      expect(result.data).not.toHaveProperty('outcomeUnknown')
+      const [receipt] = await db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(eq(copilotAsyncToolCalls.toolCallId, call.toolCallId))
+      expect(receipt).toMatchObject({ status: 'failed', executionStartedAt: null })
+      expect(await deliver(call)).toEqual(result)
+      expect(provider).not.toHaveBeenCalled()
     } finally {
       provider.mockRestore()
     }
@@ -985,7 +1233,7 @@ describe('Source restrictions follow native Google Docs accounts', () => {
 })
 
 describe('Assistant Jira sprint delivery', () => {
-  it.each(['current', 'legacy'] as const)(
+  it.each(['current', 'legacy', 'malformed_response', 'incomplete_response'] as const)(
     'creates a sprint only with its grant (%s)',
     async (grant) => {
       const requests: Array<{ url: string; body: unknown }> = []
@@ -998,6 +1246,8 @@ describe('Assistant Jira sprint delivery', () => {
             { id: '11111111-1111-4111-8111-111111111111', url: 'https://fixture.atlassian.net' },
           ])
         requests.push({ url: request.url, body: await request.json() })
+        if (grant === 'malformed_response') return new Response('Created', { status: 201 })
+        if (grant === 'incomplete_response') return Response.json({ id: 37 }, { status: 201 })
         return Response.json(
           {
             id: 37,
@@ -1046,7 +1296,10 @@ describe('Assistant Jira sprint delivery', () => {
           expect(account?.status).toBe('active')
           return
         }
-        expect(await deliver(call)).toMatchObject({ status: 'success' })
+        const result = await deliver(call)
+        expect(result).toMatchObject({ status: 'success' })
+        if (grant.endsWith('_response'))
+          expect(JSON.stringify(result)).toContain('Do not recreate the sprint.')
         expect(requests).toEqual([
           {
             url: 'https://api.atlassian.com/ex/jira/11111111-1111-4111-8111-111111111111/rest/agile/1.0/sprint',
@@ -1057,6 +1310,100 @@ describe('Assistant Jira sprint delivery', () => {
         expect(requests).toHaveLength(1)
       } finally {
         provider.mockRestore()
+      }
+    }
+  )
+})
+
+describe('Assistant Salesforce reviewed updates', () => {
+  it.each(['clear', 'blank_status', 'blank_priority'] as const)(
+    'honors reviewed edits with a real-shaped managed grant: %s',
+    async (scenario) => {
+      const instanceUrl = 'https://assistant-fixture.my.salesforce.com'
+      const taskId = '00T000000000001AAA'
+      const requests: Array<{ url: string; body: unknown; authorization: string | null }> = []
+      const identity = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+        const request = new Request(input, init)
+        expect(request.url).toBe('https://login.salesforce.com/services/oauth2/userinfo')
+        expect(request.headers.get('authorization')).toBe('Bearer assistant-salesforce-token')
+        return Response.json({ urls: { rest: `${instanceUrl}/services/data/v{version}/` } })
+      })
+      const dns = vi
+        .spyOn(providerTransport, 'validateUrlWithDNS')
+        .mockImplementation(async (url) => {
+          if (url !== `${instanceUrl}/services/data/v59.0/sobjects/Task/${taskId}`)
+            throw new Error('Unexpected fixture destination')
+          return {
+            isValid: true,
+            resolvedIP: '203.0.113.1',
+            originalHostname: new URL(instanceUrl).hostname,
+          }
+        })
+      const transport = vi
+        .spyOn(providerTransport, 'secureFetchWithPinnedIP')
+        .mockImplementation(async (url, _ip, options) => {
+          const request = new Request(url, {
+            method: options.method,
+            headers: options.headers,
+            body: typeof options.body === 'string' ? options.body : undefined,
+          })
+          requests.push({
+            url: request.url,
+            body: await request.json(),
+            authorization: request.headers.get('authorization'),
+          })
+          const response = new Response(null, { status: 204 })
+          return {
+            ok: true,
+            status: 204,
+            statusText: 'No Content',
+            headers: new providerTransport.SecureFetchHeaders({}),
+            body: response.body,
+            text: () => response.text(),
+            json: () => response.json(),
+            arrayBuffer: () => response.arrayBuffer(),
+          }
+        })
+      try {
+        const call = await prepare('salesforce_update_task', {
+          credential: salesforceCredentialId,
+          taskId,
+          subject: 'Original subject',
+          description: 'Original description',
+          activityDate: '2026-10-30',
+        })
+        const proposal = (await review()).actions.find(
+          (action) => action.toolCallId === call.toolCallId
+        )
+        if (!proposal) throw new Error('Expected task update review')
+        await decide(
+          call.toolCallId,
+          proposal.proposalVersion,
+          'allow',
+          scenario === 'clear'
+            ? { subject: '', description: '', activityDate: '' }
+            : { [scenario === 'blank_status' ? 'status' : 'priority']: '' }
+        )
+        const result = await deliver(call)
+        expect(result.status).toBe(scenario === 'clear' ? 'success' : 'error')
+        if (scenario === 'clear')
+          expect(requests).toEqual([
+            {
+              url: `${instanceUrl}/services/data/v59.0/sobjects/Task/${taskId}`,
+              body: { Subject: null, Description: null, ActivityDate: null },
+              authorization: 'Bearer assistant-salesforce-token',
+            },
+          ])
+        else {
+          expect(result.message).toContain('cannot be empty')
+          expect(requests).toEqual([])
+        }
+        await deliver(call)
+        expect(requests).toHaveLength(scenario === 'clear' ? 1 : 0)
+      } finally {
+        identity.mockRestore()
+        dns.mockRestore()
+        transport.mockRestore()
       }
     }
   )

@@ -8,6 +8,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { claimOrganizationAssistantAction } from '@/lib/assistant-actions/application/admission'
 import { resolveAssistantActionBinding } from '@/lib/assistant-actions/binding'
 import { withAssistantActionExecution } from '@/lib/assistant-actions/execution-scope'
+import { asOrchestrationError, type OrchestrationError } from '@/lib/core/orchestration/types'
 import { executeCopilotAssistantAction } from '@/lib/mothership/application/assistant-actions'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
@@ -20,6 +21,7 @@ import {
   completePendingAsyncToolCall,
   getAsyncToolCall,
   markAsyncToolRunning,
+  type SimToolExecutionClaim,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
 import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
@@ -70,6 +72,11 @@ import {
   setTerminalToolCallState,
 } from '@/lib/mothership/request/tool-call-state'
 import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
+import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
+import {
+  SEALED_CLIENT_TOOL_COMPLETION_FIELD,
+  SEALED_CLIENT_TOOL_PROJECTION_FIELD,
+} from '@/lib/mothership/request/tools/client-completion-seal.server'
 import {
   capToToolDeadline,
   TOOL_DEADLINE_BEFORE_START_MESSAGE,
@@ -583,7 +590,6 @@ async function settleAbandonedToolCall(
     toolCallId: toolCall.id,
     runId: context.runId,
     userId: execContext.userId,
-    registry: execContext.resolvedSecretTraceRegistry,
     message: failure.message,
     data: failure.data,
     unclaimedOnly: failure.unclaimedOnly,
@@ -742,6 +748,96 @@ export async function executeToolAndReport(
   )
 }
 
+/** A refused admission can settle only a call that no controller has started. */
+async function refuseUnstartedExecution(
+  toolCall: ToolCallState,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  message: string,
+  options?: OrchestratorOptions
+): Promise<AsyncCompletionSignal> {
+  const completion = (await failUnstartedToolCall(toolCall.id, context, execContext, message))
+    ? terminalCompletionFromToolCall(toolCall)
+    : await observeExistingExecution(toolCall, context, execContext, options)
+  if (
+    completion.status === 'success' ||
+    completion.status === 'error' ||
+    completion.status === 'cancelled'
+  )
+    await options?.onEvent?.({
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        phase: MothershipStreamV1ToolPhase.result,
+        status: completion.status,
+        success: completion.status === 'success',
+        output: completion.data,
+        ...(completion.status === 'success' ? {} : { error: completion.message }),
+      },
+    })
+  return completion
+}
+
+/** Losing admission or refusal observes the winning controller's durable result. */
+async function observeExistingExecution(
+  toolCall: ToolCallState,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options?: OrchestratorOptions
+): Promise<AsyncCompletionSignal> {
+  let completion = await waitForToolConfirmation(
+    toolCall.id,
+    pendingToolWaitBudgetMs(toolCall, context.desktopDeviceId),
+    options?.abortSignal ?? execContext.abortSignal,
+    {
+      ...(context.runId
+        ? { executionScope: { runId: context.runId, userId: execContext.userId } }
+        : {}),
+      acceptStatus: (status) =>
+        status === 'success' || status === 'error' || status === 'cancelled',
+    }
+  )
+  if (
+    isRecordLike(completion?.data) &&
+    (Object.hasOwn(completion.data, SEALED_CLIENT_TOOL_COMPLETION_FIELD) ||
+      Object.hasOwn(completion.data, SEALED_CLIENT_TOOL_PROJECTION_FIELD))
+  ) {
+    completion = await waitForClientToolCompletion({
+      toolCallId: toolCall.id,
+      runId: context.runId,
+      userId: execContext.userId,
+      timeoutMs: pendingToolWaitBudgetMs(toolCall, context.desktopDeviceId),
+      abortSignal: options?.abortSignal ?? execContext.abortSignal,
+      registry: execContext.resolvedSecretTraceRegistry,
+    })
+  }
+  if (
+    !completion ||
+    (completion.status !== 'success' &&
+      completion.status !== 'error' &&
+      completion.status !== 'cancelled')
+  )
+    return buildCompletionSignal({
+      status: 'running',
+      message: 'Existing tool execution has no confirmed result',
+    })
+  setTerminalToolCallState(toolCall, {
+    status: completion.status,
+    ...(completion.data !== null && completion.data !== undefined
+      ? { output: completion.data }
+      : {}),
+    ...(completion.status === 'success'
+      ? {}
+      : {
+          error:
+            completion.message ||
+            (completion.status === 'cancelled' ? 'Tool cancelled' : 'Tool failed'),
+        }),
+  })
+  return terminalCompletionFromToolCall(toolCall)
+}
+
 type CancelledSpanDetail = { cancelReason: string; error?: string | undefined }
 
 async function executeToolAndReportInner(
@@ -778,12 +874,20 @@ async function executeToolAndReportInner(
   toolCall.status = 'executing'
   let executionCall = { ...toolCall, params: structuredClone(toolCall.params ?? {}) }
   const executableName = toolCall.execName ?? toolCall.name
-  const assistantAction =
+  let assistantAction: AssistantActionBinding | undefined
+  let bindingRefusal: OrchestrationError | null = null
+  if (
     execContext.requestMode === 'assistant' &&
     execContext.organizationId &&
     isAssistantIntegrationTool(getToolMetadata(executableName))
-      ? resolveAssistantActionBinding(executableName, executionCall.params)
-      : undefined
+  ) {
+    try {
+      assistantAction = resolveAssistantActionBinding(executableName, executionCall.params)
+    } catch (error) {
+      bindingRefusal = asOrchestrationError(error)
+      if (!bindingRefusal || bindingRefusal.code === 'internal') throw error
+    }
+  }
   let admittedAssistantAction: AssistantActionBinding | null | undefined
   const record = await upsertAsyncToolCall({
     runId: context.runId,
@@ -802,19 +906,28 @@ async function executeToolAndReportInner(
   })
   /** A re-run after a takeover gets what remains of the call's first deadline, never a fresh one. */
   if (record?.executionDeadlineAt) toolCall.deadlineAt = record.executionDeadlineAt.getTime()
+  if (bindingRefusal)
+    return refuseUnstartedExecution(toolCall, context, execContext, bindingRefusal.message, options)
   if (context.runId) {
-    const claim = await lifetime.claim(
-      context.runId,
-      execContext.userId,
-      assistantAction
-        ? (owner) =>
-            executeCopilotAssistantAction(
-              { ...execContext, toolCallId: toolCall.id },
-              claimOrganizationAssistantAction,
-              owner
-            )
-        : undefined
-    )
+    let claim: SimToolExecutionClaim
+    try {
+      claim = await lifetime.claim(
+        context.runId,
+        execContext.userId,
+        assistantAction
+          ? (owner) =>
+              executeCopilotAssistantAction(
+                { ...execContext, toolCallId: toolCall.id },
+                claimOrganizationAssistantAction,
+                owner
+              )
+          : undefined
+      )
+    } catch (error) {
+      const refusal = asOrchestrationError(error)
+      if (!assistantAction || !refusal || refusal.code === 'internal') throw error
+      return refuseUnstartedExecution(toolCall, context, execContext, refusal.message, options)
+    }
     if (claim.outcome === 'awaiting_permission' && assistantAction) {
       const permissionOptions = options ?? {}
       await permissionOptions.onEvent?.({
@@ -865,43 +978,8 @@ async function executeToolAndReportInner(
       ))
     )
       return terminalCompletionFromToolCall(toolCall)
-    if (claim.outcome !== 'claimed') {
-      /** The winning controller owns execution; this promise observes its durable result. */
-      const completion = await waitForToolConfirmation(
-        toolCall.id,
-        pendingToolWaitBudgetMs(toolCall, context.desktopDeviceId),
-        options?.abortSignal ?? execContext.abortSignal,
-        {
-          executionScope: { runId: context.runId, userId: execContext.userId },
-          acceptStatus: (status) =>
-            status === 'success' || status === 'error' || status === 'cancelled',
-        }
-      )
-      if (
-        !completion ||
-        (completion.status !== 'success' &&
-          completion.status !== 'error' &&
-          completion.status !== 'cancelled')
-      )
-        return buildCompletionSignal({
-          status: 'running',
-          message: 'Existing tool execution has no confirmed result',
-        })
-      setTerminalToolCallState(toolCall, {
-        status: completion.status,
-        ...(completion.data !== null && completion.data !== undefined
-          ? { output: completion.data }
-          : {}),
-        ...(completion.status === 'success'
-          ? {}
-          : {
-              error:
-                completion.message ||
-                (completion.status === 'cancelled' ? 'Tool cancelled' : 'Tool failed'),
-            }),
-      })
-      return terminalCompletionFromToolCall(toolCall)
-    }
+    if (claim.outcome !== 'claimed')
+      return observeExistingExecution(toolCall, context, execContext, options)
     executionCall = {
       ...executionCall,
       execName: claim.invocation.executableName ?? executionCall.execName,

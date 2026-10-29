@@ -59,7 +59,7 @@ const FEATURE_FLAGS = {
   },
   'mothership-search-integration-tools': {
     description:
-      'Enable personal-account integration reads and reviewed actions in Search Assistant. Global rollout; disabled by default.',
+      'Enable personal-account integration reads and reviewed actions in Search Assistant. Global rollout with MSHIP_SEARCH_INTEGRATION_TOOLS fallback when AppConfig is unavailable; disabled by default.',
     fallback: 'MSHIP_SEARCH_INTEGRATION_TOOLS',
   },
   'workflow-tests': {

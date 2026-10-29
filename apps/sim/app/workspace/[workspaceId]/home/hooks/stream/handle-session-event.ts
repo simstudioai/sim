@@ -66,7 +66,8 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
           '',
           chatUrl(
             deps.organizationId ? { organizationId: deps.organizationId } : deps.workspaceId!,
-            payloadChatId
+            payloadChatId,
+            deps.requestMode
           )
         )
       }

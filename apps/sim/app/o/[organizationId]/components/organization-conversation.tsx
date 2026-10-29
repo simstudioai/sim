@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
+import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { useQueryStates } from 'nuqs'
 import {
@@ -12,7 +13,7 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { BrowserStorage, MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,
@@ -112,13 +113,31 @@ function OrganizationConversationContent({
       activeResourceState: controller.activeResourceState,
     })
   )
-  const newDraftId = requestMode === 'assistant' ? 'search-assistant' : 'new'
+  const newDraftId = destinationMode === 'assistant' ? 'search-assistant' : 'home'
   const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? newDraftId}`
   const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? newDraftId}`
+  const [legacyDraftKey] = useState(() => {
+    if (chatId) return null
+    const key = `${userId}:organization:${organization.id}:new`
+    if (!useMothershipDraftsStore.getState().drafts[key]) return null
+    const persisted = toRecord(BrowserStorage.getItem<unknown>('organization-chat-mode', null))
+    const modes = toRecord(toRecord(persisted.state).modes)
+    const legacyMode =
+      !canBuild || modes[`${userId}:${organization.id}`] === 'assistant' ? 'assistant' : 'agent'
+    return legacyMode === destinationMode ? key : null
+  })
   const savedDraft = useMothershipDraftsStore.getState().drafts
-  const initialDraft = savedDraft[draftKey] ?? savedDraft[initialDraftKey]
+  const initialDraft =
+    savedDraft[draftKey] ??
+    savedDraft[initialDraftKey] ??
+    (legacyDraftKey ? savedDraft[legacyDraftKey] : undefined)
   const draft = useMothershipDraftsStore(
-    (state) => (state.drafts[draftKey] ?? state.drafts[initialDraftKey])?.text ?? ''
+    (state) =>
+      (
+        state.drafts[draftKey] ??
+        state.drafts[initialDraftKey] ??
+        (legacyDraftKey ? state.drafts[legacyDraftKey] : undefined)
+      )?.text ?? ''
   )
   const setDraft = useCallback(
     (text: string, contexts?: ChatContext[]) => {
@@ -131,8 +150,10 @@ function OrganizationConversationContent({
     () => initialDraft?.contexts ?? []
   )
   useEffect(() => {
-    useMothershipDraftsStore.getState().migrateDraft(initialDraftKey, draftKey)
-  }, [initialDraftKey, draftKey])
+    const store = useMothershipDraftsStore.getState()
+    if (legacyDraftKey) store.migrateDraft(legacyDraftKey, initialDraftKey)
+    store.migrateDraft(initialDraftKey, draftKey)
+  }, [initialDraftKey, draftKey, legacyDraftKey])
   const hasChat = Boolean(chatId || chat.messages.length)
   const assistantSearchLevel = 'fast'
   const panel = useChatResourcePanel(chat, controller, userId)

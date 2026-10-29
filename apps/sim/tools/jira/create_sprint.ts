@@ -73,7 +73,13 @@ export const jiraCreateSprintTool: InternalToolConfig<
     }),
   },
   outputs: {
+    warning: {
+      type: 'string',
+      description: 'Creation succeeded but sprint details are unavailable',
+      optional: true,
+    },
     sprint: {
+      optional: true,
       type: 'json',
       description:
         'Created sprint with id, self, state, name, originBoardId, and optional goal, startDate, endDate',

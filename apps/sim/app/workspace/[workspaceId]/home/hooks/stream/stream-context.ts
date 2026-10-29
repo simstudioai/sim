@@ -21,6 +21,7 @@ import {
 import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type {
   ChatMessage,
+  ChatRequestMode,
   ContentBlock,
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
@@ -99,6 +100,7 @@ export interface StreamEventScope {
 }
 
 export interface StreamLoopDeps {
+  requestMode: ChatRequestMode
   viewerId?: string
   citedSourcesEnabled?: boolean
   workspaceId?: string

@@ -35,7 +35,6 @@ const mocks = vi.hoisted(() => ({
   renderer: vi.fn(),
   markRead: vi.fn(),
   send: vi.fn(),
-  consume: vi.fn(),
   apiKeys: vi.fn(),
   authorizedApps: vi.fn(),
   fetchNextPage: vi.fn(),
@@ -69,9 +68,6 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () 
 }))
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
-vi.mock('@/lib/core/utils/browser-storage', () => ({
-  MothershipHandoffStorage: { consume: mocks.consume },
-}))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
   getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),

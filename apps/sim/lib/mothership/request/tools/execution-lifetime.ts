@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import {
   SIM_TOOL_EXECUTION_HEARTBEAT_MS,
@@ -85,7 +86,9 @@ export async function withToolExecutionLifetime<T>(
       )
     },
     async claim(runId, userId, admit = claimToolExecution) {
-      const claim = await admit({ toolCallId, runId, userId, ownerToken }).catch(() => {
+      const claim = await admit({ toolCallId, runId, userId, ownerToken }).catch((error) => {
+        const refusal = asOrchestrationError(error)
+        if (refusal && refusal.code !== 'internal') throw refusal
         throw new Error('Tool could not start because execution admission could not be recorded')
       })
       admitted = claim.outcome === 'claimed'

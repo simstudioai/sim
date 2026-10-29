@@ -13,10 +13,6 @@ export function resolveAssistantActionBinding(
       'payload_too_large',
       'This action is too large to review. Ask Assistant to split it into smaller actions.'
     )
-  const tool = getToolMetadata(toolId)
-  assertAssistantIntegrationCall(tool, args)
-  const credentialId = args.credential ?? args.credentialId ?? args.oauthCredential
-  if (!tool?.assistant || typeof credentialId !== 'string')
-    throw new OrchestrationError('validation', 'This Assistant operation is unavailable.')
-  return { credentialId, operationVersion: tool.assistant.version, effect: tool.assistant.effect }
+  const { credentialId, operation } = assertAssistantIntegrationCall(getToolMetadata(toolId), args)
+  return { credentialId, operationVersion: operation.version, effect: operation.effect }
 }

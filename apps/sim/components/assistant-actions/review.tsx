@@ -165,7 +165,7 @@ export function AssistantActionReviewProvider({
           primaryAction={{
             label: actions.length > 1 ? `Allow ${actions.length} shown` : 'Allow',
             onClick: () => void submit(actions, 'allow'),
-            disabled: submitting || !actions.length,
+            disabled: submitting || !actions.length || actions.some((action) => !action.account),
           }}
         />
       </ChipModal>

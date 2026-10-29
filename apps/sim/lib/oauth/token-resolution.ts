@@ -609,6 +609,7 @@ export async function resolveCredentialAccessToken(
         accessToken: result.accessToken,
         credentialType: 'managed_oauth',
         idToken: result.idToken,
+        ...(result.instanceUrl ? { instanceUrl: result.instanceUrl } : {}),
       },
     }
   } catch (error) {

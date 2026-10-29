@@ -1,3 +1,4 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import type { ToolMetadata } from '@/tools/metadata'
 
@@ -52,25 +53,34 @@ export function isAssistantIntegrationParameter(tool: ToolMetadata, name: string
 export function assertAssistantIntegrationCall(
   tool: ToolMetadata | undefined,
   params: Record<string, unknown>
-): void {
-  if (!tool || !isAssistantIntegrationTool(tool)) {
-    throw new Error('Assistant requires an integration that supports your own connected account.')
+) {
+  if (!tool?.assistant || !isAssistantIntegrationTool(tool)) {
+    throw new OrchestrationError(
+      'validation',
+      'Assistant requires an integration that supports your own connected account.'
+    )
   }
   for (const [name, value] of Object.entries(params)) {
     if (value !== undefined && !isAssistantIntegrationParameter(tool, name)) {
-      throw new Error(
-        `Assistant cannot supply the ${name} parameter. Authentication comes from your connected account.`
+      throw new OrchestrationError(
+        'validation',
+        'Assistant cannot supply authentication or unsupported parameters. Authentication comes from your connected account.'
       )
     }
   }
   const selectors = [...CREDENTIAL_PARAMS]
     .map((name) => params[name])
     .filter((value) => value !== undefined)
+  const credentialId = selectors[0]
   if (
-    selectors.length === 0 ||
+    typeof credentialId !== 'string' ||
     selectors.some((value) => typeof value !== 'string' || !value.trim()) ||
     new Set(selectors).size !== 1
   ) {
-    throw new Error('Select one of your connected accounts for this integration.')
+    throw new OrchestrationError(
+      'validation',
+      'Select one of your connected accounts for this integration.'
+    )
   }
+  return { credentialId, operation: tool.assistant }
 }

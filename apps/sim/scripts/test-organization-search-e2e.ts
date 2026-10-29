@@ -77,6 +77,94 @@ async function capture(name: string) {
   await page.screenshot({ path: resolve(artifactDirectory, `${name}.png`) })
 }
 
+async function verifyLegacyDraft(
+  mode: 'agent' | 'assistant' | undefined,
+  destination: 'agent' | 'assistant',
+  existingDraft = false
+) {
+  const legacyContext = await browser.newContext()
+  await legacyContext.addCookies(await context.cookies())
+  const legacyPage = await legacyContext.newPage()
+  legacyPage.on('pageerror', (error) => browserErrors.push(error.message))
+  const prefix = `${userId}:organization:${organizationId}:`
+  const draftKey = `${prefix}${destination === 'assistant' ? 'search-assistant' : 'home'}`
+  const attachment = {
+    id: 'legacy-upload',
+    key: 'legacy-note.png',
+    filename: 'legacy-note.png',
+    media_type: 'image/png',
+    size: 68,
+    path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jFmcAAAAASUVORK5CYII=',
+  }
+  const expectedDraft = {
+    text: existingDraft ? 'A newer destination draft' : 'An unsent question from before the move',
+    fileAttachments: [
+      existingDraft
+        ? { ...attachment, id: 'new-upload', key: 'new-note.png', filename: 'new-note.png' }
+        : attachment,
+    ],
+  }
+  await legacyPage.addInitScript(
+    ({ prefix, draftKey, expectedDraft, attachment, existingDraft, mode, modeKey }) => {
+      if (sessionStorage.getItem('legacy-draft-seeded')) return
+      sessionStorage.setItem('legacy-draft-seeded', 'true')
+      localStorage.setItem(
+        'mothership-drafts:v1',
+        JSON.stringify({
+          version: 1,
+          state: {
+            drafts: {
+              [`${prefix}new`]: {
+                text: 'An unsent question from before the move',
+                fileAttachments: [attachment],
+              },
+              ...(existingDraft ? { [draftKey]: expectedDraft } : {}),
+            },
+          },
+        })
+      )
+      localStorage.setItem(
+        'organization-chat-mode',
+        JSON.stringify({ version: 2, state: { modes: mode ? { [modeKey]: mode } : {} } })
+      )
+    },
+    {
+      prefix,
+      draftKey,
+      expectedDraft,
+      attachment,
+      existingDraft,
+      mode,
+      modeKey: `${userId}:${organizationId}`,
+    }
+  )
+  try {
+    const destinationUrl = `${baseUrl.origin}${root}/${destination === 'assistant' ? 'search?mode=assistant' : 'home'}`
+    await legacyPage.goto(destinationUrl)
+    const input = legacyPage.getByRole('textbox', { name: 'Ask Sim' })
+    await expect(input).toHaveValue(expectedDraft.text)
+    if (mode) {
+      await legacyPage.goto(
+        `${baseUrl.origin}${root}/${destination === 'assistant' ? 'home' : 'search?mode=assistant'}`
+      )
+      await expect(legacyPage.getByRole('textbox', { name: 'Ask Sim' })).toHaveValue('')
+      await legacyPage.goto(destinationUrl)
+    }
+    await expect(input).toHaveValue(expectedDraft.text)
+    await input.fill('Continue the recovered draft')
+    await legacyPage.reload()
+    await expect(input).toHaveValue('Continue the recovered draft')
+    const stored = await legacyPage.evaluate(() =>
+      JSON.parse(localStorage.getItem('mothership-drafts:v1') ?? '{}')
+    )
+    const drafts = toRecord(toRecord(toRecord(stored).state).drafts)
+    assert.deepEqual(toRecord(drafts[draftKey]).fileAttachments, expectedDraft.fileAttachments)
+    assert.equal(drafts[`${prefix}new`], undefined)
+  } finally {
+    await legacyContext.close()
+  }
+}
+
 try {
   await mkdir(artifactDirectory, { recursive: true })
   await sql.begin(async (tx) => {
@@ -119,6 +207,15 @@ try {
       sameSite: 'Lax',
     },
   ])
+  await check('Existing Assistant drafts move with their attachments and stay out of Home', () =>
+    verifyLegacyDraft('assistant', 'assistant')
+  )
+  await check('Existing Home drafts and their attachments stay out of Assistant', () =>
+    verifyLegacyDraft('agent', 'agent')
+  )
+  await check('A newer Assistant draft takes precedence over the legacy shared draft', () =>
+    verifyLegacyDraft('assistant', 'assistant', true)
+  )
   await check(
     'Search and Assistant preserve independent drafts across tabs and reloads',
     async () => {
@@ -232,6 +329,9 @@ try {
       await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
       await expect(page.getByText(answer, { exact: true })).toBeVisible()
     }
+  )
+  await check('Search-only members recover legacy drafts without a remembered mode', () =>
+    verifyLegacyDraft(undefined, 'assistant')
   )
   await check('The UI completes without browser runtime errors', async () => {
     assert.deepEqual(browserErrors, [])

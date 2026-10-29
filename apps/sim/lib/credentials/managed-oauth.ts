@@ -23,6 +23,8 @@ import {
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
+import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('ManagedOAuthCredential')
@@ -40,6 +42,7 @@ export type ManagedOAuthCredentialErrorCode =
   | 'MANAGED_CREDENTIAL_INSUFFICIENT_SCOPE'
   | 'MANAGED_CREDENTIAL_INVALID_TOKEN_SET'
   | 'MANAGED_CREDENTIAL_CONFIGURATION_UNAVAILABLE'
+  | 'MANAGED_CREDENTIAL_IDENTITY_UNAVAILABLE'
   | 'MANAGED_CREDENTIAL_REFRESH_FAILED'
 
 export class ManagedOAuthCredentialError extends Error {
@@ -65,6 +68,7 @@ export interface ManagedOAuthTokenSet {
 export interface ResolvedManagedOAuthToken {
   accessToken: string
   idToken?: string
+  instanceUrl?: string
   refreshed: boolean
 }
 
@@ -369,6 +373,21 @@ export async function rejectManagedOAuthToken(input: {
   }
 }
 
+async function resolveProviderTokenContext(
+  providerId: string,
+  token: ResolvedManagedOAuthToken
+): Promise<ResolvedManagedOAuthToken> {
+  if (!isSalesforceOAuthProviderId(providerId)) return token
+  const instanceUrl = await fetchSalesforceInstanceUrl(providerId, token.accessToken)
+  if (!instanceUrl)
+    throw new ManagedOAuthCredentialError(
+      'MANAGED_CREDENTIAL_IDENTITY_UNAVAILABLE',
+      'The Salesforce account destination could not be verified. Try again before starting this action.',
+      502
+    )
+  return { ...token, instanceUrl }
+}
+
 /** Resolves a managed credential ID into a usable token without exposing it to list APIs. */
 export async function resolveManagedOAuthToken(
   params: ResolveManagedOAuthTokenParams
@@ -404,11 +423,11 @@ export async function resolveManagedOAuthToken(
   const initialTokenSet = await decryptManagedOAuthTokenSet(initial.encryptedOauthTokenSet!)
   const now = new Date()
   if (hasFreshAccessToken(initial.accessTokenExpiresAt, now)) {
-    return {
+    return resolveProviderTokenContext(initial.providerId, {
       accessToken: initialTokenSet.accessToken,
       ...(initialTokenSet.idToken ? { idToken: initialTokenSet.idToken } : {}),
       refreshed: false,
-    }
+    })
   }
 
   const refreshOutcome = await db.transaction(async (tx) => {
@@ -530,7 +549,8 @@ export async function resolveManagedOAuthToken(
   })
 
   if ('error' in refreshOutcome && refreshOutcome.error) throw refreshOutcome.error
-  if ('token' in refreshOutcome && refreshOutcome.token) return refreshOutcome.token
+  if ('token' in refreshOutcome && refreshOutcome.token)
+    return resolveProviderTokenContext(initial.providerId, refreshOutcome.token)
   throw new ManagedOAuthCredentialError(
     'MANAGED_CREDENTIAL_REFRESH_FAILED',
     'Managed credential refresh returned no token',

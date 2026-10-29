@@ -2361,6 +2361,7 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
+        requestMode: requestModeRef.current,
         citedSourcesEnabled: requestModeRef.current === 'assistant',
         refreshRoute: () => router.refresh(),
         viewerId,

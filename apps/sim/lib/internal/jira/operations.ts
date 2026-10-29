@@ -367,8 +367,14 @@ export async function executeJiraCreateSprint(
     context.signal
   )
   if (!response.ok) throw providerError(response, false)
+  const sprint = jiraSprintResponseSchema.safeParse(optionalObject(response.text))
   return {
     success: true,
-    output: { sprint: jiraSprintResponseSchema.parse(JSON.parse(response.text)) },
+    output: sprint.success
+      ? { sprint: sprint.data }
+      : {
+          warning:
+            'Jira confirmed sprint creation, but its details could not be read. Check the board to find the sprint. Do not recreate the sprint.',
+        },
   }
 }

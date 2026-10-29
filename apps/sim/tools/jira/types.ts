@@ -1628,7 +1628,8 @@ export interface JiraCreateSprintParams {
 
 export interface JiraCreateSprintResponse extends ToolResponse {
   output: {
-    sprint: {
+    warning?: string
+    sprint?: {
       id: number
       self: string
       state: string

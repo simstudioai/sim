@@ -267,7 +267,7 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
     })
     expect(
       await claimToolExecution({ toolCallId: simCallId, runId, userId, ownerToken: 'dead' })
-    ).toEqual({ outcome: 'claimed' })
+    ).toMatchObject({ outcome: 'claimed' })
     await completeOwnedSimToolCall(
       { toolCallId: simCallId, status: 'completed', result: storedResult },
       'dead'
