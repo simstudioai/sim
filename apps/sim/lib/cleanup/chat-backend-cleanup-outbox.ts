@@ -17,9 +17,8 @@ import {
   INLINE_CHAT_IMAGE_PREFIX,
   inlineImageRequestIdSchema,
 } from '@/lib/mothership/chat/inline-image-reference'
-import { outboxDeadlineNear } from '@/lib/uploads/core/prefix-sweep'
+import { outboxDeadlineNear, sweepStoragePrefix } from '@/lib/uploads/core/prefix-sweep'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { sweepStoragePrefix } from '@/lib/uploads/core/sweep-prefix'
 
 const FILE_DELETE_CONCURRENCY = 10
 
