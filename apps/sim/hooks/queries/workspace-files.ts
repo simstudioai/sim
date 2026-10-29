@@ -373,8 +373,16 @@ export function useWorkspaceFileSelectionCandidates(
     })),
     combine: combineSearches,
   })
+  /** Distinct by id: a file two reads found is one candidate, or a unique name reads as shared. */
   const candidates = useMemo(
-    () => [...byId.byValue.values(), ...byKey.byValue.values(), ...byName.files],
+    () => [
+      ...new Map(
+        [...byId.byValue.values(), ...byKey.byValue.values(), ...byName.files].map((file) => [
+          file.id,
+          file,
+        ])
+      ).values(),
+    ],
     [byId.byValue, byKey.byValue, byName.files]
   )
   return {
@@ -392,16 +400,22 @@ function combineSearches(
   }
 }
 
+/** The file's record, or `null` once no live file has that id (deleted, or never existed). */
 async function fetchWorkspaceFileRecord(
   workspaceId: string,
   fileId: string,
   signal?: AbortSignal
-): Promise<WorkspaceFileRecord> {
-  const result = await requestJson(readWorkspaceFileContract, {
-    params: { id: workspaceId, fileId },
-    signal,
-  })
-  return result.file
+): Promise<WorkspaceFileRecord | null> {
+  try {
+    const result = await requestJson(readWorkspaceFileContract, {
+      params: { id: workspaceId, fileId },
+      signal,
+    })
+    return result.file
+  } catch (error) {
+    if (isApiClientError(error) && error.status === 404) return null
+    throw error
+  }
 }
 
 /**
@@ -427,7 +441,10 @@ export function getWorkspaceFileRecordQueryOptions(
   }
 }
 
-/** One live file's record by id; a missing or inaccessible file settles as an error. */
+/**
+ * One live file's record by id. `data` is `null` once the file is gone — a 404 is an answer, not
+ * a failure, so a file deleted while open does not keep showing the record it was opened from.
+ */
 export function useWorkspaceFileRecord(
   workspaceId: string,
   fileId: string,
@@ -981,14 +998,8 @@ export function useReloadWorkspaceFileContent() {
     }) => {
       const recordOptions = getWorkspaceFileRecordQueryOptions(queryClient, workspaceId, fileId)
       await queryClient.cancelQueries({ queryKey: recordOptions.queryKey })
-      const file = await queryClient
-        .fetchQuery({ ...recordOptions, staleTime: 0 })
-        .catch((error: unknown) => {
-          if (isApiClientError(error) && error.status === 404) {
-            throw new Error('File no longer exists')
-          }
-          throw error
-        })
+      const file = await queryClient.fetchQuery({ ...recordOptions, staleTime: 0 })
+      if (!file) throw new Error('File no longer exists')
       if (!file.contentUpdatedAt) throw new Error('The latest file version is unavailable')
       const content = await queryClient.fetchQuery({
         queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', file.key),

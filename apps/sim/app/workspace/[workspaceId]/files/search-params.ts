@@ -112,6 +112,7 @@ export const filesListPreferenceConfig = {
   module: 'files',
   sortColumns: FILE_SORT_COLUMNS,
   filterKeys: ['type', 'size', 'uploadedBy'],
+  filterValues: { type: WORKSPACE_FILE_KINDS, size: WORKSPACE_FILE_SIZE_BUCKETS },
   preferenceUrlKeys: filesFilterUrlKeyMap,
   defaultPreference: {
     sort: filesSortParams.default,

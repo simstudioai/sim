@@ -21,6 +21,8 @@ import {
 import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 import { testRunSelectionKey, useTestRunSelectionStore } from '@/stores/workflow-tests/store'
 
+const FILE_NOT_FOUND_MESSAGE = 'File not found'
+
 interface TestTarget {
   workspaceId: string
   name: string
@@ -120,10 +122,10 @@ export function TestView({ workspaceId, name, previewMode }: TestViewProps) {
   })
 
   const error = query.error ?? file.error
-  if (error) {
+  if (error || file.data === null) {
     return (
       <p role='alert' className='p-6 text-[var(--text-error)] text-small'>
-        {error.message}
+        {error?.message ?? FILE_NOT_FOUND_MESSAGE}
       </p>
     )
   }

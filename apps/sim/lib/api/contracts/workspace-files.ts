@@ -311,10 +311,16 @@ export const searchWorkspaceFilesContract = defineRouteContract({
 /** The most entries each of a lookup's `ids`, `keys`, and `references` may carry. */
 export const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
 
+/** The longest id, key, or reference a lookup accepts. */
+export const MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH = 1024
+
 const lookupEntriesSchema = (field: string) =>
   z
     .array(
-      z.string().min(1, `${field} entries cannot be empty`).max(1024, `${field} entry is too long`)
+      z
+        .string()
+        .min(1, `${field} entries cannot be empty`)
+        .max(MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH, `${field} entry is too long`)
     )
     .max(
       MAX_WORKSPACE_FILE_LOOKUP_ENTRIES,

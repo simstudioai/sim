@@ -201,7 +201,7 @@ export const MothershipView = memo(
       active?.type === 'file' ? active.id : '',
       { enabled: active?.type === 'file' }
     )
-    const activeFile = active?.type === 'file' ? activeFileRecord : undefined
+    const activeFile = active?.type === 'file' ? (activeFileRecord ?? undefined) : undefined
     const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
     const isActiveFilePreviewable =

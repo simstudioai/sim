@@ -1,4 +1,7 @@
-import { MAX_WORKSPACE_FILE_LOOKUP_ENTRIES } from '@/lib/api/contracts/workspace-files'
+import {
+  MAX_WORKSPACE_FILE_LOOKUP_ENTRIES,
+  MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH,
+} from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileLookupKind } from '@/hooks/queries/utils/workspace-file-keys'
 
@@ -108,6 +111,11 @@ export function createWorkspaceFileLookupBatcher(fetchLookup: FetchLookup) {
       return new Promise((resolve, reject) => {
         if (signal?.aborted) {
           reject(signal.reason)
+          return
+        }
+        /** No file answers to a value the endpoint refuses; batched, it would fail its neighbours. */
+        if (value.length === 0 || value.length > MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH) {
+          resolve(null)
           return
         }
         const entry: PendingLookup = { kind, value, resolve, reject }

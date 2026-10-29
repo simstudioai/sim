@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
@@ -15,7 +16,7 @@ const METADATA_READS = ['list', 'search', 'lookup', 'record'] as const
 type ListData = InfiniteData<WorkspaceFileListPage, string | null>
 type SearchData = WorkspaceFileRecord[]
 type LookupData = WorkspaceFileRecord | null
-type RecordData = WorkspaceFileRecord
+type RecordData = WorkspaceFileRecord | null
 
 /** Whether `queryKey` is one of {@link METADATA_READS} for `workspaceId`. */
 export function isWorkspaceFileMetadataKey(queryKey: QueryKey, workspaceId: string): boolean {
@@ -55,12 +56,15 @@ function filesOf(queryKey: QueryKey, data: unknown): readonly WorkspaceFileRecor
   if (!data) return []
   switch (queryKey[1]) {
     case 'list':
-      return (data as ListData).pages.flatMap((page) => page.files)
+      /** Only a live list seeds a live read: an archived one holds deleted files. */
+      return isRecordLike(queryKey[3]) && queryKey[3].scope === 'active'
+        ? (data as ListData).pages.flatMap((page) => page.files)
+        : []
     case 'search':
       return data as SearchData
     case 'lookup':
     case 'record':
-      return [data as RecordData]
+      return [data as WorkspaceFileRecord]
     default:
       return []
   }

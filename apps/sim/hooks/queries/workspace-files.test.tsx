@@ -19,6 +19,7 @@ import { sleep } from '@sim/utils/helpers'
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '@/lib/api/client/errors'
 import {
   listWorkspaceFilesContract,
   readWorkspaceFileContract,
@@ -558,6 +559,30 @@ describe('workspace file records', () => {
       record.unmount()
     } finally {
       list.unmount()
+    }
+  })
+})
+
+describe('a file deleted while open', () => {
+  it('reads as gone once its record 404s, not as the list copy it was opened from', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const params = workspaceFileListParams({ folderId: null, sortBy: 'name', sortOrder: 'asc' })
+    client.setQueryData(workspaceFilesKeys.list('ws-1', params), {
+      pages: [{ files: [fileRecord('a')], nextCursor: null }],
+      pageParams: [null],
+    })
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ message: 'File not found', status: 404, body: {} })
+    )
+    const record = mountHookWith(client, () => useWorkspaceFileRecord('ws-1', 'a'))
+    try {
+      expect(record.result().data?.id).toBe('a')
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: workspaceFilesKeys.record('ws-1', 'a') })
+      })
+      await vi.waitFor(() => expect(record.result().data).toBeNull())
+    } finally {
+      record.unmount()
     }
   })
 })

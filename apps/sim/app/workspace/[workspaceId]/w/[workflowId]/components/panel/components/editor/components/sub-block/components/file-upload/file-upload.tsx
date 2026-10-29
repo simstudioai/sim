@@ -470,8 +470,13 @@ export function FileUpload({
 
   /** The selected files, resolved on their own: they need not be on the page the picker shows. */
   const selections = useWorkspaceFileSelectionCandidates(isPreview ? '' : workspaceId, filesArray)
+  /** Distinct by id: the same file on the page and among the candidates is one file. */
   const workspaceFiles = useMemo(
-    () => [...selections.candidates, ...pickerFiles],
+    () => [
+      ...new Map(
+        [...selections.candidates, ...pickerFiles].map((file) => [file.id, file])
+      ).values(),
+    ],
     [selections.candidates, pickerFiles]
   )
 

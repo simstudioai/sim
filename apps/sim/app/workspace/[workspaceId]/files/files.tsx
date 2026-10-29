@@ -485,8 +485,16 @@ function FilesContent() {
   const isSearching = isSearchingResources(debouncedSearchTerm)
   const isFilteringFiles =
     typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
+  /** The open file, from the list it was clicked in when that is cached, else its own record. */
+  const selectedFileRecord = useWorkspaceFileRecord(workspaceId, fileIdFromRoute ?? '', {
+    enabled: fileIdFromRoute !== null,
+  })
+  const selectedFile = fileIdFromRoute ? selectedFileRecord.data : null
+  /** A route naming no live file falls back to the list, which is then what is shown. */
+  const isRoutedFileMissing =
+    fileIdFromRoute !== null && (selectedFileRecord.data === null || selectedFileRecord.isError)
   /** A remembered sort or filter is applied before the list is read, so it is read once. */
-  const isListOpen = fileIdFromRoute === null && isListPreferenceReady
+  const isListOpen = (fileIdFromRoute === null || isRoutedFileMissing) && isListPreferenceReady
 
   /**
    * The open folder's files (or, while searching, matches from every folder), a server-sorted,
@@ -547,12 +555,6 @@ function FilesContent() {
   }, [pinnedFolderFiles, pagedFiles])
   const fileByIdRef = useRef(fileById)
   fileByIdRef.current = fileById
-
-  /** The open file, from the list it was clicked in when that is cached, else its own record. */
-  const selectedFileRecord = useWorkspaceFileRecord(workspaceId, fileIdFromRoute ?? '', {
-    enabled: fileIdFromRoute !== null,
-  })
-  const selectedFile = fileIdFromRoute ? selectedFileRecord.data : null
 
   const loadMoreFilesRef = useRef(fileList)
   loadMoreFilesRef.current = fileList
@@ -619,7 +621,7 @@ function FilesContent() {
         const currentFile = await queryClient.fetchQuery(
           getWorkspaceFileRecordQueryOptions(queryClient, workspaceId, fileId)
         )
-        if (!isUntitledName(currentFile.name)) return
+        if (!currentFile || !isUntitledName(currentFile.name)) return
         const derived = deriveMarkdownFileName(headingText)
         if (!derived) return
         /** The folder's files whose names could collide: every `<title>…` the search can name. */
@@ -1541,7 +1543,7 @@ function FilesContent() {
    * 'editor' instead of waiting forever).
    */
   const appliedModeFileIdRef = useRef<string | null>(null)
-  const routedFileResolved = selectedFile != null || selectedFileRecord.isError
+  const routedFileResolved = selectedFile != null || isRoutedFileMissing
   useEffect(() => {
     if (fileIdFromRoute === appliedModeFileIdRef.current) return
     const isJustCreated =
@@ -2227,7 +2229,7 @@ function FilesContent() {
           virtualized
           onLoadMore={loadMoreFiles}
           hasMore={fileList.hasNextPage}
-          isLoadingMore={fileList.isFetchingNextPage}
+          isLoadingMore={fileList.isFetching}
           emptyState={
             listState === 'empty' ? (
               <FilesEmptyState

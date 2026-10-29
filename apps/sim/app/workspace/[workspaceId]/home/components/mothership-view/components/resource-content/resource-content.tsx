@@ -735,7 +735,7 @@ const fileLogger = createLogger('EmbeddedFileActions')
 function useEmbeddedWorkspaceFile(workspaceId: string, fileId: string, filePath?: string) {
   const record = useWorkspaceFileRecord(workspaceId, fileId)
   const pathLookup = useWorkspaceFileLookup(workspaceId, 'reference', filePath, {
-    enabled: record.isError,
+    enabled: record.data === null,
   })
   /** The reference lookup also answers by bare name; only an exact path match is this file. */
   const fileAtPath = findWorkspaceFileByPath(

@@ -1994,13 +1994,14 @@ function WorkspaceResourceDisplayContent({
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
   const isFile = data.type === 'file'
-  const { data: fileById } = useWorkspaceFileLookup(workspaceId, 'id', isFile ? data.id : undefined)
+  const idLookup = useWorkspaceFileLookup(workspaceId, 'id', isFile ? data.id : undefined)
+  const fileById = idLookup.data
   /** Only when the id names no file (or there is none): a path is the chip's fallback identity. */
   const { data: pathMatch } = useWorkspaceFileLookup(
     workspaceId,
     'reference',
     isFile ? data.path : undefined,
-    { enabled: !data.id || fileById === null }
+    { enabled: !data.id || fileById === null || idLookup.isError }
   )
   /** The reference lookup also answers by bare name; only an exact path match identifies the file. */
   const fileFromPath = findWorkspaceFileByPath(pathMatch ? [pathMatch] : undefined, data.path)

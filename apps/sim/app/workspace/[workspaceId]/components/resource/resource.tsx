@@ -291,7 +291,15 @@ const ResourceTable = memo(function ResourceTable({
   emptyState,
 }: ResourceTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const loadMoreRef = useLoadMoreSentinel({ onLoadMore, enabled: Boolean(hasMore) })
+  /**
+   * Re-armed whenever a load settles: an observer only reports a change in intersection, so a
+   * sentinel still on screen after the rows it revealed (or a request it was refused during)
+   * would otherwise never ask again.
+   */
+  const loadMoreRef = useLoadMoreSentinel({
+    onLoadMore,
+    enabled: Boolean(hasMore) && !isLoadingMore,
+  })
 
   const showEmptyState = rows.length === 0 && Boolean(emptyState)
 

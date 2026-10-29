@@ -95,9 +95,9 @@ export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: R
             ))}
         </div>
 
-        {file.error ? (
+        {file.error || file.data === null ? (
           <p role='alert' className='text-[var(--text-error)] text-small'>
-            {file.error.message}
+            {file.error?.message ?? 'File not found'}
           </p>
         ) : file.data ? (
           <div

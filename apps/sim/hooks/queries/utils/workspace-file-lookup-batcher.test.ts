@@ -114,6 +114,22 @@ describe('createWorkspaceFileLookupBatcher', () => {
     expect(await kept).toBe(b)
   })
 
+  it('answers a value the endpoint would refuse with no file, keeping it out of the shared request', async () => {
+    const a = record('wf_a')
+    const fetchLookup = serve([a])
+    const batcher = createWorkspaceFileLookupBatcher(fetchLookup)
+
+    const results = Promise.all([
+      batcher.load('ws-1', 'key', 'x'.repeat(1025)),
+      batcher.load('ws-1', 'reference', ''),
+      batcher.load('ws-1', 'id', a.id),
+    ])
+    await vi.runAllTimersAsync()
+
+    expect(await results).toEqual([null, null, a])
+    expect(fetchLookup).toHaveBeenCalledExactlyOnceWith('ws-1', { ids: [a.id] })
+  })
+
   it('rejects the waiters of a failed request only', async () => {
     const a = record('wf_a')
     const fetchLookup = vi.fn(async (workspaceId: string) => {

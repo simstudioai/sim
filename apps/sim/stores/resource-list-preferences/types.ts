@@ -21,6 +21,12 @@ export interface ResourceListPreferenceConfig {
   module: ResourceListModule
   sortColumns: readonly string[]
   filterKeys: readonly string[]
+  /**
+   * The values a filter accepts, for filters whose URL parser admits only a closed set. A
+   * remembered value outside it is dropped on restore, as the URL parser would drop it — kept,
+   * it could never match the URL state it was applied to.
+   */
+  filterValues?: Readonly<Record<string, readonly string[]>>
   preferenceUrlKeys?: Readonly<Record<string, string>>
   defaultPreference: ResourceListPreference
 }
