@@ -141,9 +141,14 @@ describe('deletable chat files against PostgreSQL message rows', () => {
   })
 
   it('keeps a key another chat of its scope still attaches, and deletes the rest', async () => {
-    const shared = `copilot/${generateId()}/shared.png`
+    const shared = `assistant/${organizationId}/${userId}/u1/shared.png`
+    const own = `assistant/${organizationId}/${userId}/u2/own.png`
     const elsewhere = `copilot/${generateId()}/elsewhere.png`
-    const own = `copilot/${generateId()}/own.png`
+    const source = await seedChat(
+      [{ role: 'user', content: 'look', fileAttachments: [attachment(shared), attachment(own)] }],
+      [],
+      organizationId
+    )
     await seedChat(
       [{ role: 'user', content: 'fork', fileAttachments: [attachment(shared), 'x', { key: 7 }] }],
       [],
@@ -151,12 +156,12 @@ describe('deletable chat files against PostgreSQL message rows', () => {
     )
     // Attached only by a chat outside the scope, which cannot be a fork of the deleted one.
     await seedChat([{ role: 'user', content: 'other', fileAttachments: [attachment(elsewhere)] }])
-    const scope = { kind: 'organization', id: organizationId } as const
+    const files = await collectChatFiles([source])
+    await db.delete(copilotChats).where(eq(copilotChats.id, source))
 
     const deletable = await deletableChatFiles([
-      ref(shared, scope),
-      ref(elsewhere, scope),
-      ref(own, scope),
+      ...files,
+      ref(elsewhere, { kind: 'organization', id: organizationId }),
     ])
 
     expect(deletable.map((file) => file.key).sort(compareStrings)).toEqual(
