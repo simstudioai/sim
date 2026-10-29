@@ -31,8 +31,12 @@ const SESSION_SANDBOX_PAUSED_RETENTION_MS = 15 * 60_000
 
 const REAP_LOCK_TIMEOUT_MS = 10_000
 const REAP_CONCURRENCY = 8
-/** Bounds one sweep's runtime; a backlog drains over the following runs. */
-const REAP_BATCH_LIMIT = 200
+/**
+ * A sweep starts no kill after this. One kill takes at most the lock wait plus two 5-second
+ * provider requests, so the sweep reports within the cron route's 60-second limit; the rest waits
+ * for the next run.
+ */
+const REAP_DEADLINE_MS = 30_000
 
 interface SessionAcquisition {
   created: CreatedSandbox
@@ -104,26 +108,31 @@ export async function ensureSessionSandbox(args: {
 export async function reapPausedSessionSandboxes(): Promise<{
   killed: number
   skipped: number
+  deferred: number
   failed: number
 }> {
   const provider = resolveProvider()
-  const result = { killed: 0, skipped: 0, failed: 0 }
+  const result = { killed: 0, skipped: 0, deferred: 0, failed: 0 }
   if (!provider.listPausedSessionSandboxes || !provider.killPausedSessionSandbox) return result
   const killPaused = provider.killPausedSessionSandbox.bind(provider)
 
+  const deadline = AbortSignal.timeout(REAP_DEADLINE_MS)
   const pausedBeforeMs = Date.now() - SESSION_SANDBOX_PAUSED_RETENTION_MS
-  const expired = (await provider.listPausedSessionSandboxes())
-    .filter((sandbox) => sandbox.pausedAtMs <= pausedBeforeMs)
-    .slice(0, REAP_BATCH_LIMIT)
-  const outcomes = await mapSettledWithConcurrency(expired, REAP_CONCURRENCY, (sandbox) =>
-    withSandboxSessionLock(sandbox.sessionKey, AbortSignal.timeout(REAP_LOCK_TIMEOUT_MS), () =>
-      killPaused(sandbox, pausedBeforeMs)
-    )
+  const expired = (await provider.listPausedSessionSandboxes()).filter(
+    (sandbox) => sandbox.pausedAtMs <= pausedBeforeMs
   )
+  const outcomes = await mapSettledWithConcurrency(expired, REAP_CONCURRENCY, async (sandbox) => {
+    if (deadline.aborted) return 'deferred' as const
+    const killed = await withSandboxSessionLock(
+      sandbox.sessionKey,
+      AbortSignal.timeout(REAP_LOCK_TIMEOUT_MS),
+      () => killPaused(sandbox, pausedBeforeMs)
+    )
+    return killed ? ('killed' as const) : ('skipped' as const)
+  })
   outcomes.forEach((outcome, index) => {
     if (outcome.status === 'fulfilled') {
-      if (outcome.value) result.killed++
-      else result.skipped++
+      result[outcome.value]++
       return
     }
     result.failed++
