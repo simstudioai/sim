@@ -32,7 +32,10 @@ import {
   integrationsParsers,
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
@@ -150,7 +153,14 @@ function IntegrationsContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
-  const { integrationAvailability, isBlockPermitted } = usePermissionConfig()
+  const {
+    integrationAvailability,
+    isBlockPermitted,
+    isIntegrationAvailabilityReady,
+    isIntegrationAvailabilityFetching,
+    integrationAvailabilityError,
+    refetchIntegrationAvailability,
+  } = usePermissionConfig()
 
   const [{ category: urlCategory, search: urlSearchTerm }, setIntegrationFilters] = useQueryStates(
     integrationsParsers,
@@ -207,20 +217,30 @@ function IntegrationsContent() {
     })
   }, [oauthCredentials])
 
+  /**
+   * The catalog lists nothing until the deployment allowlist has loaded, so a
+   * pending or failed availability request never shows an integration the
+   * deployment's `ALLOWED_INTEGRATIONS` excludes.
+   */
   const permittedFeatured = useMemo(
-    () => FEATURED_INTEGRATIONS.filter((integration) => isBlockPermitted(integration.type)),
-    [isBlockPermitted]
+    () =>
+      isIntegrationAvailabilityReady
+        ? FEATURED_INTEGRATIONS.filter((integration) => isBlockPermitted(integration.type))
+        : [],
+    [isIntegrationAvailabilityReady, isBlockPermitted]
   )
 
   const permittedCategorySections = useMemo(
     () =>
-      ALL_CATEGORY_SECTIONS.flatMap((section) => {
-        const integrations = section.integrations.filter((integration) =>
-          isBlockPermitted(integration.type)
-        )
-        return integrations.length > 0 ? [{ label: section.label, integrations }] : []
-      }),
-    [isBlockPermitted]
+      isIntegrationAvailabilityReady
+        ? ALL_CATEGORY_SECTIONS.flatMap((section) => {
+            const integrations = section.integrations.filter((integration) =>
+              isBlockPermitted(integration.type)
+            )
+            return integrations.length > 0 ? [{ label: section.label, integrations }] : []
+          })
+        : [],
+    [isIntegrationAvailabilityReady, isBlockPermitted]
   )
 
   const setSelectedCategory = useCallback(
@@ -321,6 +341,7 @@ function IntegrationsContent() {
   ])
 
   const showNoResults =
+    isIntegrationAvailabilityReady &&
     Boolean(urlSearchTerm.trim() || !isAllCategorySelected) &&
     filteredCategorySections.length === 0 &&
     visibleConnectedItems.length === 0
@@ -378,6 +399,16 @@ function IntegrationsContent() {
                   />
                 ))}
               </IntegrationSection>
+            )}
+
+            {integrationAvailabilityError && (
+              <SettingsQueryErrorState
+                variant='inline'
+                error={integrationAvailabilityError}
+                fallback='Unable to load integrations'
+                isRetrying={isIntegrationAvailabilityFetching}
+                onRetry={() => void refetchIntegrationAvailability()}
+              />
             )}
 
             {filteredCategorySections.map((section) => (

@@ -27,12 +27,16 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
   const params = useParams()
   const router = useRouter()
   const { chatEnabled } = useDeploymentShape()
-  const { isBlockPermitted } = usePermissionConfig()
+  const { isBlockPermitted, isIntegrationAvailabilityReady } = usePermissionConfig()
   const workspaceId = (params?.workspaceId as string) || ''
 
   return (
     <div className='relative'>
-      <IntegrationsShowcase isBlockPermitted={isBlockPermitted} />
+      <IntegrationsShowcase
+        isBlockPermitted={(blockType) =>
+          isIntegrationAvailabilityReady && isBlockPermitted(blockType)
+        }
+      />
       {chatEnabled && (
         <Chip
           active

@@ -68,12 +68,14 @@ interface IntegrationBlockDetailProps {
  * Integration detail page, shown only when the viewer's integration policy
  * permits the integration. A direct link to a restricted one renders an
  * access-required state instead of the connect actions, and the check fails
- * closed until the deployment allowlist has loaded.
+ * closed until both the permission group and the deployment allowlist have
+ * loaded.
  */
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
   const {
     isBlockPermitted,
     isBlockRequestable,
+    isPermissionReady,
     isIntegrationAvailabilityReady,
     integrationAvailabilityError,
     refetchIntegrationAvailability,
@@ -90,7 +92,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
       />
     )
   }
-  if (!isIntegrationAvailabilityReady) {
+  if (!isPermissionReady || !isIntegrationAvailabilityReady) {
     return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
   }
   if (isBlockPermitted(integration.type)) {
