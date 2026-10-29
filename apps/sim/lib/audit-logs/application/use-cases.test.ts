@@ -29,7 +29,6 @@ const hoisted = vi.hoisted(() => ({
   resolveDefaultOrganization: vi.fn(),
   getOrgWorkspaceIds: vi.fn(),
   buildOrgScopeCondition: vi.fn(),
-  buildFilterConditions: vi.fn(),
   decodeAuditLogCursor: vi.fn(),
   queryAuditLogs: vi.fn(),
   isCapabilityWithheldForUser: vi.fn(),
@@ -50,7 +49,6 @@ vi.mock('@/lib/audit-logs/authorization', () => ({
 vi.mock('@/lib/audit-logs/query', () => ({
   getOrgWorkspaceIds: hoisted.getOrgWorkspaceIds,
   buildOrgScopeCondition: hoisted.buildOrgScopeCondition,
-  buildFilterConditions: hoisted.buildFilterConditions,
   decodeAuditLogCursor: hoisted.decodeAuditLogCursor,
   queryAuditLogs: hoisted.queryAuditLogs,
 }))
@@ -96,7 +94,6 @@ describe('audit-log application use cases', () => {
     })
     mocks.getOrgWorkspaceIds.mockResolvedValue(['workspace-1'])
     mocks.buildOrgScopeCondition.mockReturnValue({ type: 'scope' })
-    mocks.buildFilterConditions.mockReturnValue([])
     mocks.decodeAuditLogCursor.mockReturnValue({
       createdAt: '2026-01-01T00:00:00.000Z',
       id: 'audit-1',
@@ -111,7 +108,12 @@ describe('audit-log application use cases', () => {
     await listAuditLogs.execute({ principal, input: { ...listInput, organizationId: undefined } })
     expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
     expect(mocks.resolveDefaultOrganization).not.toHaveBeenCalled()
-    expect(mocks.buildFilterConditions).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
+    expect(mocks.queryAuditLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'organization-1' }),
+      { workspaceId: 'workspace-1' },
+      50,
+      undefined
+    )
     mocks.resolveAccess.mockResolvedValueOnce({
       success: false,
       code: 'FORBIDDEN',

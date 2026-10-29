@@ -2,8 +2,6 @@ import { defineAuthorizedAuditLogUseCase } from '@/lib/audit-logs/application/au
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
 import {
   type AuditLogFilterParams,
-  buildFilterConditions,
-  buildOrgScopeCondition,
   decodeAuditLogCursor,
   getOrgWorkspaceIds,
   queryAuditLogs,
@@ -32,22 +30,25 @@ export const listAuditLogs = defineAuthorizedAuditLogUseCase({
     if (input.filters.workspaceId && !orgWorkspaceIds.includes(input.filters.workspaceId)) {
       throw new OrchestrationError('validation', 'workspaceId does not belong to your organization')
     }
-    const scopeCondition = buildOrgScopeCondition({
-      organizationId: context.organizationId,
-      orgWorkspaceIds,
-      orgMemberIds: context.orgMemberIds,
-      includeDeparted: input.includeDeparted,
-    })
     if (
       context.workspaceId &&
       input.filters.workspaceId &&
       context.workspaceId !== input.filters.workspaceId
     )
       throw new OrchestrationError('not_found', 'Audit logs not found in the selected workspace')
-    const filterConditions = buildFilterConditions({
-      ...input.filters,
-      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
-    })
-    return queryAuditLogs([scopeCondition, ...filterConditions], input.limit, input.cursor)
+    return queryAuditLogs(
+      {
+        organizationId: context.organizationId,
+        orgWorkspaceIds,
+        orgMemberIds: context.orgMemberIds,
+        includeDeparted: input.includeDeparted,
+      },
+      {
+        ...input.filters,
+        ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+      },
+      input.limit,
+      input.cursor
+    )
   },
 })
