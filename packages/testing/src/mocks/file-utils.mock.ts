@@ -498,8 +498,6 @@ export const fileUtilsMockFns = {
   mockGetContentType: vi.fn(getContentType),
   mockIsSupportedFileType: vi.fn((mimeType: string) => mimeType.toLowerCase() in MIME_TYPE_MAPPING),
   mockIsImageFileType: vi.fn((mimeType: string) => getContentType(mimeType) === 'image'),
-  mockIsAudioFileType: vi.fn((mimeType: string) => getContentType(mimeType) === 'audio'),
-  mockIsVideoFileType: vi.fn((mimeType: string) => getContentType(mimeType) === 'video'),
   mockBufferToBase64: vi.fn((buffer: Buffer) => buffer.toString('base64')),
   mockCreateFileContent: vi.fn((fileBuffer: Buffer, mimeType: string) =>
     createFileContentFromBase64(fileBuffer.toString('base64'), mimeType)
@@ -713,8 +711,6 @@ export const fileUtilsMock = {
   getContentType: fileUtilsMockFns.mockGetContentType,
   isSupportedFileType: fileUtilsMockFns.mockIsSupportedFileType,
   isImageFileType: fileUtilsMockFns.mockIsImageFileType,
-  isAudioFileType: fileUtilsMockFns.mockIsAudioFileType,
-  isVideoFileType: fileUtilsMockFns.mockIsVideoFileType,
   bufferToBase64: fileUtilsMockFns.mockBufferToBase64,
   createFileContent: fileUtilsMockFns.mockCreateFileContent,
   createFileContentFromBase64: fileUtilsMockFns.mockCreateFileContentFromBase64,

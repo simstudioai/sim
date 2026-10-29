@@ -9,7 +9,8 @@ import { getUserColor } from '@/lib/workspaces/colors'
 import { FileDocProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
 import { useReportFileDocOthers } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { workspaceFileMetadataFilter } from '@/hooks/queries/utils/workspace-file-cache'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 
 /** The live collaboration binding the editor wires into TipTap's Collaboration
  * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
@@ -120,8 +121,7 @@ export function useFileDocCollaboration({
       onWriteAccessLostRef.current?.()
       const filters: QueryFilters[] = [
         { queryKey: workspaceFilesKeys.contentFile(workspaceId, fileId) },
-        { queryKey: workspaceFilesKeys.record(workspaceId, fileId) },
-        { queryKey: workspaceFilesKeys.workspaceLists(workspaceId) },
+        workspaceFileMetadataFilter(workspaceId),
       ]
       await Promise.all(filters.map((filter) => queryClient.cancelQueries(filter)))
       await Promise.all(filters.map((filter) => queryClient.resetQueries(filter)))

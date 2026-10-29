@@ -153,10 +153,12 @@ export const PlusMenuDropdown = React.memo(
     })
 
     const inventoryEnabled = open || !!warm
+    const query = isMention ? (mentionQuery ?? '') : search
     const workspaceInventory = useAvailableResources(organizationId ? '' : workspaceId, {
       enabled: inventoryEnabled,
       includeFolderMentions: true,
       excludeTypes: COMPOSER_EXCLUDED_TYPES,
+      fileSearch: query,
     })
     const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
@@ -232,7 +234,6 @@ export const PlusMenuDropdown = React.memo(
       selectFolders: true,
     })
 
-    const query = isMention ? (mentionQuery ?? '') : search
     const filteredItems = useMemo((): MentionCandidate[] | null => {
       const q = query.toLowerCase().trim()
       if (!isMention && !q) return null
@@ -415,6 +416,7 @@ export const PlusMenuDropdown = React.memo(
               key={workspace.id}
               workspaceId={workspace.id}
               excludeTypes={COMPOSER_EXCLUDED_TYPES}
+              fileSearch={query}
               onChange={receiveInventory}
             />
           ))}

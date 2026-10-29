@@ -2,7 +2,7 @@ import { truncate } from '@sim/utils/string'
 
 /**
  * The name a freshly-created markdown file is given in `handleCreateFile`: `untitled.md`, or
- * `untitled (n).md` when that is taken. A file keeps this "unnamed" status until it is renamed —
+ * `untitled (n).md` when that is taken (the server numbers it). A file keeps this "unnamed" status until it is renamed —
  * while unnamed, typing a leading heading names the file (one direction only; the reverse
  * name→heading seed was removed as unsafe on the shared editor). See {@link isUntitledName}.
  */
@@ -42,7 +42,7 @@ export function deriveMarkdownFileName(headingText: string): string | null {
 
 /**
  * Makes `name` unique among `existingNames` by appending ` (n)` before the `.md` extension — the same
- * scheme `handleCreateFile` uses for the default untitled name.
+ * scheme the server numbers a newly created file's name with.
  */
 export function uniqueMarkdownName(name: string, existingNames: ReadonlySet<string>): string {
   if (!existingNames.has(name)) return name

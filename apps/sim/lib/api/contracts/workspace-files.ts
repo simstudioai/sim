@@ -266,8 +266,6 @@ const listWorkspaceFilesResponseSchema = workspaceFilesResponseSchema.extend({
   nextCursor: z.string().nullable().optional(),
 })
 
-export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
-
 export const extractWorkspaceFileResponseSchema = workspaceFileSuccessSchema.extend({
   folderName: z.string(),
   extractedCount: z.number().int().nonnegative(),
@@ -310,7 +308,8 @@ export const searchWorkspaceFilesContract = defineRouteContract({
   response: { mode: 'json', schema: workspaceFilesResponseSchema },
 })
 
-const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
+/** The most entries each of a lookup's `ids`, `keys`, and `references` may carry. */
+export const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
 
 const lookupEntriesSchema = (field: string) =>
   z

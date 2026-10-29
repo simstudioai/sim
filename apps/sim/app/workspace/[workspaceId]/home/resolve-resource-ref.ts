@@ -1,7 +1,13 @@
+import type { QueryClient } from '@tanstack/react-query'
+import { V2_SEARCH_MAX_LENGTH } from '@/lib/api/contracts/v2/shared'
 import type { MothershipResource, WorkspaceResourceRef } from '@/lib/mothership/resources/types'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
+import {
+  getWorkspaceFileLookupQueryOptions,
+  getWorkspaceFileSearchQueryOptions,
+} from '@/hooks/queries/workspace-files'
 
 /**
  * The one file whose name is exactly {@link name}, or undefined. Two files can
@@ -72,4 +78,95 @@ export function resolveWorkspaceResourceRef(
     // handed — the viewer reads this as a real path.
     path: canonicalWorkspaceFilePath({ folderPath: match.folderPath, name: match.name }),
   }
+}
+
+/** The most files a chip's name candidate is checked against for ambiguity. */
+const NAME_CANDIDATE_LIMIT = 50
+
+/** The values a file chip may be identified by, in the order they are tried. */
+function fileRefCandidates(ref: WorkspaceResourceRef): string[] {
+  return [
+    ...new Set(
+      [ref.id?.trim(), ref.path?.trim(), ref.title.trim()].filter((value): value is string =>
+        Boolean(value)
+      )
+    ),
+  ]
+}
+
+/**
+ * The reads that together hold every file a chip's candidates can match under
+ * {@link resolveWorkspaceResourceRef}'s rules: each candidate as an exact id, as a reference (an
+ * exact VFS path resolves first), and — for a candidate that could be a bare name — every file
+ * whose name contains it, so a name shared by two files is still seen as ambiguous.
+ */
+function fileRefReads(queryClient: QueryClient, workspaceId: string, ref: WorkspaceResourceRef) {
+  return fileRefCandidates(ref).flatMap((candidate) => [
+    getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, 'id', candidate),
+    getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, 'reference', candidate),
+    ...(candidate.includes('/') || candidate.length > V2_SEARCH_MAX_LENGTH
+      ? []
+      : [
+          getWorkspaceFileSearchQueryOptions(workspaceId, {
+            q: candidate,
+            limit: NAME_CANDIDATE_LIMIT,
+          }),
+        ]),
+  ])
+}
+
+/** The distinct files several reads returned: one file found by two reads is still one file. */
+function distinctFiles(
+  reads: readonly (WorkspaceFileRecord | WorkspaceFileRecord[] | null)[]
+): WorkspaceFileRecord[] {
+  const files = new Map<string, WorkspaceFileRecord>()
+  for (const data of reads) {
+    for (const file of Array.isArray(data) ? data : data ? [data] : []) files.set(file.id, file)
+  }
+  return [...files.values()]
+}
+
+/**
+ * Resolves a chip against the workspace's live files, fetching only the handful of files its
+ * candidates can name rather than the workspace's list. `fresh` re-reads them all: a chip may
+ * name a file the agent created a moment ago, which a cached miss would hide. Rejects when a
+ * read fails, so "we could not look" stays distinct from "it is not there".
+ */
+export async function fetchWorkspaceResourceRef(
+  queryClient: QueryClient,
+  workspaceId: string,
+  ref: WorkspaceResourceRef,
+  options?: { fresh?: boolean }
+): Promise<MothershipResource | null> {
+  if (ref.type !== 'file') return resolveWorkspaceResourceRef(ref, [])
+  const reads = await Promise.all(
+    fileRefReads(queryClient, workspaceId, ref).map((read) =>
+      queryClient.fetchQuery<WorkspaceFileRecord | WorkspaceFileRecord[] | null>({
+        ...read,
+        ...(options?.fresh ? { staleTime: 0 } : {}),
+      })
+    )
+  )
+  return resolveWorkspaceResourceRef(ref, distinctFiles(reads))
+}
+
+/**
+ * {@link fetchWorkspaceResourceRef} from the cache alone: the resolved resource, `null` when the
+ * cached reads name no file, or `undefined` when a read it needs has not been cached yet.
+ */
+export function readCachedWorkspaceResourceRef(
+  queryClient: QueryClient,
+  workspaceId: string,
+  ref: WorkspaceResourceRef
+): MothershipResource | null | undefined {
+  if (ref.type !== 'file') return resolveWorkspaceResourceRef(ref, [])
+  const reads: (WorkspaceFileRecord | WorkspaceFileRecord[] | null)[] = []
+  for (const read of fileRefReads(queryClient, workspaceId, ref)) {
+    const data = queryClient.getQueryData<WorkspaceFileRecord | WorkspaceFileRecord[] | null>(
+      read.queryKey
+    )
+    if (data === undefined) return undefined
+    reads.push(data)
+  }
+  return resolveWorkspaceResourceRef(ref, distinctFiles(reads))
 }

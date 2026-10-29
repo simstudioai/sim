@@ -14,7 +14,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace/file-manager'
-import { WORKSPACE_FILE_SEED_MAX } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
 
 const ownerId = generateId()
 const workspaceId = generateId()
@@ -121,17 +120,15 @@ describe('workspace file list in PostgreSQL', () => {
    * With every sorting plan ruled out, an ordered plan exists only if an index's predicate is
    * implied by the list's filter and its key gives the list's order.
    */
-  it('reads the live list, whole or bounded, in order from its workspace index', async () => {
-    for (const limit of [undefined, WORKSPACE_FILE_SEED_MAX + 1]) {
-      const nodes = await explainCaptured(
-        db,
-        () => listWorkspaceFiles(workspaceId, { limit, throwOnError: true }),
-        { match: /from "workspace_files"/, gucs: { enable_sort: 'off' } }
-      )
-      expect(nodes.map((node) => node['Node Type'])).not.toContain('Sort')
-      expect(nodes.map((node) => node['Index Name'])).toContain(
-        'workspace_files_workspace_active_uploaded_idx'
-      )
-    }
+  it('reads the live list in order from its workspace index', async () => {
+    const nodes = await explainCaptured(
+      db,
+      () => listWorkspaceFiles(workspaceId, { throwOnError: true }),
+      { match: /from "workspace_files"/, gucs: { enable_sort: 'off' } }
+    )
+    expect(nodes.map((node) => node['Node Type'])).not.toContain('Sort')
+    expect(nodes.map((node) => node['Index Name'])).toContain(
+      'workspace_files_workspace_active_uploaded_idx'
+    )
   })
 })

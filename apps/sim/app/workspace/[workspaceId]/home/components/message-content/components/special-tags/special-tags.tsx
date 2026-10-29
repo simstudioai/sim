@@ -114,7 +114,7 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileLookup } from '@/hooks/queries/workspace-files'
 import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -1992,12 +1992,20 @@ function WorkspaceResourceDisplayContent({
 }: WorkspaceResourceDisplayProps & { workspaceId: string; addressed?: boolean }) {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
+  const isFile = data.type === 'file'
+  const { data: fileById } = useWorkspaceFileLookup(workspaceId, 'id', isFile ? data.id : undefined)
+  /** Only when the id names no file (or there is none): a path is the chip's fallback identity. */
+  const { data: pathMatch } = useWorkspaceFileLookup(
+    workspaceId,
+    'reference',
+    isFile ? data.path : undefined,
+    { enabled: !data.id || fileById === null }
+  )
+  /** The reference lookup also answers by bare name; only an exact path match identifies the file. */
+  const fileFromPath = findWorkspaceFileByPath(pathMatch ? [pathMatch] : undefined, data.path)
 
   const resource = useMemo<WorkspaceResourceRef>(() => {
-    const fileFromPath =
-      data.type === 'file' ? findWorkspaceFileByPath(files, data.path) : undefined
     const title =
       data.type === 'workflow'
         ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
@@ -2008,7 +2016,7 @@ function WorkspaceResourceDisplayContent({
           : data.type === 'dashboard'
             ? (data.title ?? fallbackWorkspaceResourceTitle(data.type))
             : data.type === 'file'
-              ? (files.find((file) => file.id === data.id)?.name ??
+              ? (fileById?.name ??
                 fileFromPath?.name ??
                 data.title ??
                 fallbackWorkspaceResourceTitle(data.type))
@@ -2028,7 +2036,8 @@ function WorkspaceResourceDisplayContent({
     data.path,
     data.title,
     data.type,
-    files,
+    fileById,
+    fileFromPath,
     knowledgeBases,
     tables,
     workflows,

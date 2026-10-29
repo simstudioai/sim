@@ -11,20 +11,34 @@
  */
 
 import { useMemo } from 'react'
+import { DropdownMenuItem } from '@sim/emcn'
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   buildFlyoutEntries,
   FOLDERED_RESOURCE_HEADERS,
+  folderedResourceListHref,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { CollapsedResourceFlyout } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/collapsed-sidebar-menu'
 import { useFolders } from '@/hooks/queries/folders'
 import { usePinnedIds } from '@/hooks/queries/pinned-items'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
+import {
+  useWorkspaceFileFolders,
+  type WorkspaceFileFolderApi,
+} from '@/hooks/queries/workspace-file-folders'
+import {
+  useWorkspaceFileFolderSizes,
+  useWorkspaceFileList,
+  useWorkspaceFileLookups,
+} from '@/hooks/queries/workspace-files'
 
 const TABLE_META = FOLDERED_RESOURCE_HEADERS.table
 const FILE_META = FOLDERED_RESOURCE_HEADERS.file
+
+const EMPTY_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
 
 /**
  * A list is usable only once it has resolved for THIS workspace. Every list here keeps the
@@ -72,33 +86,116 @@ export function TablesRailFlyout({ workspaceId }: { workspaceId: string }) {
   )
 }
 
-export function FilesRailFlyout({ workspaceId }: { workspaceId: string }) {
-  const params = useParams()
-  const filesQuery = useWorkspaceFiles(workspaceId)
-  const foldersQuery = useWorkspaceFileFolders(workspaceId)
+/** How many of a folder's files the flyout lists before linking to the rest in Files. */
+const FILE_FLYOUT_PAGE_SIZE = 50
+
+interface FilesFlyoutLevelProps {
+  workspaceId: string
+  /** The folder this level lists, `null` for the root. */
+  folderId: string | null
+  folders: readonly WorkspaceFileFolderApi[]
+  foldersResolved: boolean
+  currentItemId?: string
+}
+
+/**
+ * One level of the Files flyout: the folder's subfolders and its most recently updated files,
+ * fetched when the level opens rather than the workspace's whole file list. A folder's submenu is
+ * the same component one level down, mounted only when it opens. A level with more files than it
+ * lists ends in a link to the folder in Files.
+ */
+function FilesFlyoutLevel({
+  workspaceId,
+  folderId,
+  folders,
+  foldersResolved,
+  currentItemId,
+}: FilesFlyoutLevelProps) {
+  const fileList = useWorkspaceFileList(
+    workspaceId,
+    workspaceFileListParams({
+      folderId,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+      limit: FILE_FLYOUT_PAGE_SIZE,
+    })
+  )
+  const folderStats = useWorkspaceFileFolderSizes(workspaceId, [folderId])
   const pinnedFileIds = usePinnedIds(workspaceId, 'file')
   const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
-  const { data: files } = filesQuery
-  const { data: folders } = foldersQuery
+  const pinnedFileIdList = useMemo(() => [...pinnedFileIds], [pinnedFileIds])
+  const pinnedFiles = useWorkspaceFileLookups(workspaceId, 'id', pinnedFileIdList)
 
-  const entries = useMemo(
-    () =>
-      buildFlyoutEntries({
-        folders: folders ?? [],
-        items: files ?? [],
-        pinnedFolderIds,
-        pinnedItemIds: pinnedFileIds,
-        hrefForItem: (file) => `/workspace/${workspaceId}/${FILE_META.listSegment}/${file.id}`,
-      }),
-    [folders, files, pinnedFolderIds, pinnedFileIds, workspaceId]
-  )
+  const entries = useMemo(() => {
+    const files = new Map<string, WorkspaceFileRecord>()
+    for (const fileId of pinnedFileIdList) {
+      const file = pinnedFiles.byValue.get(fileId)
+      if (file && (file.folderId ?? null) === folderId) files.set(file.id, file)
+    }
+    for (const file of fileList.data?.pages[0]?.files ?? []) files.set(file.id, file)
+    return buildFlyoutEntries({
+      folders: folders
+        .filter((folder) => (folder.parentId ?? null) === folderId)
+        .map((folder) => ({ ...folder, parentId: null })),
+      items: [...files.values()].map((file) => ({ ...file, folderId: null })),
+      pinnedFolderIds,
+      pinnedItemIds: pinnedFileIds,
+      hrefForItem: (file) => `/workspace/${workspaceId}/${FILE_META.listSegment}/${file.id}`,
+    })
+  }, [
+    fileList.data,
+    folders,
+    folderId,
+    pinnedFiles.byValue,
+    pinnedFileIdList,
+    pinnedFolderIds,
+    pinnedFileIds,
+    workspaceId,
+  ])
+
+  const hasSubfolders = (id: string) => folders.some((folder) => folder.parentId === id)
 
   return (
     <CollapsedResourceFlyout
       entries={entries}
+      currentItemId={currentItemId}
+      isLoading={isResolving(fileList) || !foldersResolved}
+      emptyLabel={folderId ? 'No files in this folder' : 'No files yet'}
+      lazyFolders={{
+        isEmpty: (id) => !hasSubfolders(id) && folderStats.get(id)?.fileCount === 0,
+        render: (id) => (
+          <FilesFlyoutLevel
+            workspaceId={workspaceId}
+            folderId={id}
+            folders={folders}
+            foldersResolved={foldersResolved}
+            currentItemId={currentItemId}
+          />
+        ),
+      }}
+      footer={
+        fileList.hasNextPage ? (
+          <DropdownMenuItem asChild>
+            <Link href={folderedResourceListHref('file', workspaceId, folderId)}>
+              Show all in Files
+            </Link>
+          </DropdownMenuItem>
+        ) : null
+      }
+    />
+  )
+}
+
+export function FilesRailFlyout({ workspaceId }: { workspaceId: string }) {
+  const params = useParams()
+  const foldersQuery = useWorkspaceFileFolders(workspaceId)
+  return (
+    <FilesFlyoutLevel
+      workspaceId={workspaceId}
+      folderId={null}
+      folders={foldersQuery.data ?? EMPTY_FILE_FOLDERS}
+      foldersResolved={!isResolving(foldersQuery)}
       currentItemId={typeof params.fileId === 'string' ? params.fileId : undefined}
-      isLoading={isResolving(filesQuery) || isResolving(foldersQuery)}
-      emptyLabel='No files yet'
     />
   )
 }

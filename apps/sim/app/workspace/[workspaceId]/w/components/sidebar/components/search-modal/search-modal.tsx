@@ -47,6 +47,7 @@ import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -92,7 +93,9 @@ import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/componen
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
+import { useWorkspaceFileList, useWorkspaceFileSearch } from '@/hooks/queries/workspace-files'
+import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -122,6 +125,11 @@ const MAX_SEARCH_RESULTS = 50
 
 /** Stable empty default so a pending folder map does not remount the memos below. */
 const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
+
+/** The files the palette offers before anything is typed: the most recently updated anywhere. */
+const RECENT_FILES = workspaceFileListParams({ sortBy: 'updatedAt', sortOrder: 'desc', limit: 50 })
+
+const FILE_SEARCH_LIMIT = MAX_SEARCH_RESULTS
 
 export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
@@ -189,9 +197,6 @@ function SearchModalContent({
   const { data: fetchedTables = [] } = useTablesList(workspaceId, 'active', {
     enabled: !permissionConfig.hideTablesTab,
   })
-  const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId, 'active', {
-    enabled: !permissionConfig.hideFilesTab,
-  })
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
     enabled: !permissionConfig.hideKnowledgeBaseTab,
   })
@@ -221,21 +226,6 @@ function SearchModalContent({
             folderPath: getFolderPathNames(tableFolderMap, t.folderId),
           })),
     [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
-  )
-
-  const files = useMemo(
-    () =>
-      permissionConfig.hideFilesTab
-        ? []
-        : fetchedFiles.map((f) => ({
-            id: f.id,
-            name: f.name,
-            href: `/workspace/${workspaceId}/files/${f.id}`,
-            folderPath: f.folderPath
-              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
-              : undefined,
-          })),
-    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
   )
 
   const knowledgeBases = useMemo(
@@ -692,6 +682,35 @@ function SearchModalContent({
   const [askMode, setAskMode] = useState(false)
   const searchRef = useRef(search)
   searchRef.current = search
+
+  /**
+   * Files are not listed whole — a workspace can hold far more than the palette ranks. Browsing
+   * offers the most recently updated; a query, once typing settles, searches every file by name.
+   */
+  const fileQuery = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
+  const recentFiles = useWorkspaceFileList(workspaceId, RECENT_FILES, {
+    enabled: !permissionConfig.hideFilesTab,
+  })
+  const matchingFiles = useWorkspaceFileSearch(
+    workspaceId,
+    { q: fileQuery, limit: FILE_SEARCH_LIMIT },
+    { enabled: !permissionConfig.hideFilesTab }
+  )
+  const fetchedFiles = fileQuery ? matchingFiles.data : recentFiles.data?.pages[0]?.files
+  const files = useMemo(
+    () =>
+      permissionConfig.hideFilesTab
+        ? []
+        : (fetchedFiles ?? []).map((f) => ({
+            id: f.id,
+            name: f.name,
+            href: `/workspace/${workspaceId}/files/${f.id}`,
+            folderPath: f.folderPath
+              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
+              : undefined,
+          })),
+    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
+  )
 
   /**
    * Focus once the dialog is actually visible: under atomic browser-panel

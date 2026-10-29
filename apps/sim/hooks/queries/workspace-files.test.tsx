@@ -9,6 +9,8 @@
  */
 
 import { act, type ReactNode } from 'react'
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   apiClientRequestMock,
   apiClientRequestMockFns,
@@ -18,18 +20,27 @@ import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  listWorkspaceFilesContract,
   readWorkspaceFileContract,
+  renameWorkspaceFileContract,
+  searchWorkspaceFilesContract,
   updateWorkspaceFileContentContract,
 } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
-  useAddressedWorkspaceFileRecord,
+  type WorkspaceFileListParams,
+  workspaceFileListParams,
+  workspaceFilesKeys,
+} from '@/hooks/queries/utils/workspace-file-keys'
+import { invalidateWorkspaceFileBrowsers } from '@/hooks/queries/workspace-file-folders'
+import {
   useReloadWorkspaceFileContent,
+  useRenameWorkspaceFile,
   useUpdateWorkspaceFileContent,
   useWorkspaceFileContent,
-  useWorkspaceFiles,
+  useWorkspaceFileList,
+  useWorkspaceFileRecord,
   type WorkspaceFileContentResult,
-  workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
@@ -147,7 +158,7 @@ describe('useReloadWorkspaceFileContent', () => {
       },
     })
     root = createRoot(document.createElement('div'))
-    mockRequestJson.mockResolvedValue({ success: true, files: [file] })
+    mockRequestJson.mockResolvedValue({ success: true, file })
     function Probe() {
       mutation = useReloadWorkspaceFileContent()
       return null
@@ -179,8 +190,8 @@ describe('useReloadWorkspaceFileContent', () => {
         mutations: { retryDelay: 0 },
       })
       mockRequestJson
-        .mockResolvedValueOnce({ success: true, files: [file] })
-        .mockResolvedValueOnce({ success: true, files: [nextFile] })
+        .mockResolvedValueOnce({ success: true, file })
+        .mockResolvedValueOnce({ success: true, file: nextFile })
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(new Response('gone', { status: 404 }))
@@ -259,7 +270,7 @@ describe('useWorkspaceFileContent stale storage key', () => {
 
     expect(fetchCount).toBe(1)
     expect(refetchQueries).toHaveBeenCalledWith(
-      { queryKey: workspaceFilesKeys.workspaceLists('ws-1') },
+      expect.objectContaining({ type: 'active', predicate: expect.any(Function) }),
       { cancelRefetch: true }
     )
     // The RECORD is re-resolved, never this query — re-driving the read against the same dead key
@@ -287,7 +298,7 @@ describe('useWorkspaceFileContent while a superseded key is being re-resolved', 
     mockRequestJson.mockImplementation(async () => {
       // First call is the initial record load; the one the 404 triggers is held open.
       if (++call > 1) await new Promise<void>((resolve) => (releaseRecord = resolve))
-      return { success: true, files: [] }
+      return { success: true, file: { id: 'file-1', key: 'workspace/ws-1/123-abc-doc.md' } }
     })
 
     const queryClient = new QueryClient({
@@ -297,7 +308,7 @@ describe('useWorkspaceFileContent while a superseded key is being re-resolved', 
     let result: WorkspaceFileContentResult | undefined
 
     function Probe() {
-      useWorkspaceFiles('ws-1')
+      useWorkspaceFileRecord('ws-1', 'file-1')
       result = useWorkspaceFileContent('ws-1', 'file-1', 'workspace/ws-1/123-abc-doc.md', false)
       return null
     }
@@ -355,7 +366,7 @@ describe('addressed file metadata fallback', () => {
     const container = document.createElement('div')
     const root = createRoot(container)
     function Probe() {
-      const record = useAddressedWorkspaceFileRecord('ws-1', 'upload-1')
+      const record = useWorkspaceFileRecord('ws-1', 'upload-1')
       return <div>{record.data?.id}</div>
     }
     try {
@@ -373,10 +384,264 @@ describe('addressed file metadata fallback', () => {
         params: { id: 'ws-1', fileId: 'upload-1' },
         signal: expect.any(AbortSignal),
       })
-      expect(client.getQueryData(workspaceFilesKeys.list('ws-1'))).toBeUndefined()
+      expect(client.getQueryCache().findAll({ queryKey: workspaceFilesKeys.lists() })).toEqual([])
     } finally {
       act(() => root.unmount())
       client.clear()
+    }
+  })
+})
+
+function fileRecord(id: string, overrides: Partial<WorkspaceFileRecord> = {}): WorkspaceFileRecord {
+  return {
+    id,
+    workspaceId: 'ws-1',
+    name: `${id}.md`,
+    key: `workspace/ws-1/${id}.md`,
+    path: `/api/files/serve/workspace%2Fws-1%2F${id}.md`,
+    size: 1,
+    type: 'text/markdown',
+    uploadedBy: 'user-1',
+    folderId: null,
+    uploadedAt: new Date('2026-09-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+    ...overrides,
+  }
+}
+
+/** Mounts `useHook` under a fresh client, exposing its latest result. */
+function mountHook<T>(useHook: () => T) {
+  return mountHookWith(
+    new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    }),
+    useHook
+  )
+}
+
+/** Mounts `useHook` under `client`, exposing its latest result. */
+function mountHookWith<T>(client: QueryClient, useHook: () => T) {
+  const root: Root = createRoot(document.createElement('div'))
+  const state: { current?: T } = {}
+  function Probe() {
+    state.current = useHook()
+    return null
+  }
+  act(() => {
+    root.render(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>
+    )
+  })
+  return {
+    client,
+    result: () => {
+      if (state.current === undefined) throw new Error('Hook did not render')
+      return state.current
+    },
+    rerender: () =>
+      act(() => {
+        root.render(
+          <QueryClientProvider client={client}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      }),
+    unmount: () => {
+      act(() => root.unmount())
+      client.clear()
+    },
+  }
+}
+
+/** Answers list pages from `pages` in order, recording each request's query. */
+function servePages(pages: { files: WorkspaceFileRecord[]; nextCursor: string | null }[]) {
+  const queries: Record<string, unknown>[] = []
+  mockRequestJson.mockImplementation(async (contract, input) => {
+    if (contract !== listWorkspaceFilesContract) throw new Error('unexpected request')
+    const query = (input as { query: Record<string, unknown> }).query
+    queries.push(query)
+    const index = query.cursor ? Number(String(query.cursor).replace('c', '')) : 0
+    return { success: true, ...pages[index] }
+  })
+  return queries
+}
+
+describe('useWorkspaceFileList paging', () => {
+  it('walks a folder a page at a time, resuming each page from the last cursor', async () => {
+    const queries = servePages([
+      { files: [fileRecord('a')], nextCursor: 'c1' },
+      { files: [fileRecord('b')], nextCursor: null },
+    ])
+    const params = workspaceFileListParams({
+      folderId: null,
+      types: ['image', 'document', 'image'],
+      sortBy: 'name',
+      sortOrder: 'asc',
+      limit: 1,
+    })
+    const hook = mountHook(() => useWorkspaceFileList('ws-1', params))
+    try {
+      await vi.waitFor(() => expect(hook.result().data?.pages).toHaveLength(1))
+      expect(hook.result().hasNextPage).toBe(true)
+      await act(async () => {
+        await hook.result().fetchNextPage()
+      })
+      await vi.waitFor(() => expect(hook.result().hasNextPage).toBe(false))
+      expect(
+        hook.result().data?.pages.flatMap((page) => page.files.map((file) => file.id))
+      ).toEqual(['a', 'b'])
+      expect(queries).toEqual([
+        expect.objectContaining({ folderId: 'root', types: 'document,image', limit: 1 }),
+        expect.objectContaining({ folderId: 'root', cursor: 'c1' }),
+      ])
+      expect(queries[0]).not.toHaveProperty('cursor')
+    } finally {
+      hook.unmount()
+    }
+  })
+
+  it("restarts from the first page on a re-sort, showing the old rows until it lands, but never another folder's", async () => {
+    const release = { current: () => {} }
+    let call = 0
+    mockRequestJson.mockImplementation(async (_contract, input) => {
+      const query = (input as { query: Record<string, unknown> }).query
+      call++
+      if (call > 1) await new Promise<void>((resolve) => (release.current = resolve))
+      return {
+        success: true,
+        files: [fileRecord(`${String(query.folderId)}-${String(query.sortBy)}`)],
+        nextCursor: null,
+      }
+    })
+    let params: WorkspaceFileListParams = workspaceFileListParams({
+      folderId: null,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    })
+    const hook = mountHook(() => useWorkspaceFileList('ws-1', params))
+    try {
+      await vi.waitFor(() => expect(hook.result().data).toBeDefined())
+
+      params = workspaceFileListParams({ folderId: null, sortBy: 'name', sortOrder: 'asc' })
+      hook.rerender()
+      expect(hook.result().isPlaceholderData).toBe(true)
+      expect(hook.result().data?.pages[0].files[0].id).toBe('root-updatedAt')
+      await act(async () => release.current())
+      await vi.waitFor(() => expect(hook.result().isPlaceholderData).toBe(false))
+      expect(hook.result().data?.pages[0].files[0].id).toBe('root-name')
+      expect(mockRequestJson.mock.calls[1][1]).not.toHaveProperty('query.cursor')
+
+      params = workspaceFileListParams({ folderId: 'folder-2', sortBy: 'name', sortOrder: 'asc' })
+      hook.rerender()
+      expect(hook.result().data).toBeUndefined()
+      await act(async () => release.current())
+    } finally {
+      hook.unmount()
+    }
+  })
+})
+
+describe('workspace file records', () => {
+  it('opens a file from the list page it was clicked in, without a request', async () => {
+    servePages([{ files: [fileRecord('a')], nextCursor: null }])
+    const params = workspaceFileListParams({ folderId: null, sortBy: 'name', sortOrder: 'asc' })
+    const list = mountHook(() => useWorkspaceFileList('ws-1', params))
+    try {
+      await vi.waitFor(() => expect(list.result().data).toBeDefined())
+      mockRequestJson.mockClear()
+      const record = mountHookWith(list.client, () => useWorkspaceFileRecord('ws-1', 'a'))
+      expect(record.result().data?.id).toBe('a')
+      await flushMacrotask()
+      expect(mockRequestJson).not.toHaveBeenCalled()
+      record.unmount()
+    } finally {
+      list.unmount()
+    }
+  })
+})
+
+describe('useRenameWorkspaceFile', () => {
+  it('renames the file in every cached read at once, and restores them all when the rename fails', async () => {
+    const hook = mountHook(() => useRenameWorkspaceFile())
+    const { client } = hook
+    const params = workspaceFileListParams({ folderId: null, sortBy: 'name', sortOrder: 'asc' })
+    const searchKey = workspaceFilesKeys.search('ws-1', { q: 'a', limit: 20 })
+    client.setQueryData(workspaceFilesKeys.list('ws-1', params), {
+      pages: [{ files: [fileRecord('a'), fileRecord('b')], nextCursor: null }],
+      pageParams: [null],
+    })
+    client.setQueryData(searchKey, [fileRecord('a')])
+    client.setQueryData(workspaceFilesKeys.record('ws-1', 'a'), fileRecord('a'))
+    const names = () => [
+      (
+        client.getQueryData(workspaceFilesKeys.list('ws-1', params)) as {
+          pages: { files: WorkspaceFileRecord[] }[]
+        }
+      ).pages[0].files.map((file) => file.name),
+      (client.getQueryData(searchKey) as WorkspaceFileRecord[])[0].name,
+      (client.getQueryData(workspaceFilesKeys.record('ws-1', 'a')) as WorkspaceFileRecord).name,
+    ]
+    const rename = createDeferred<never>()
+    mockRequestJson.mockImplementation((contract) =>
+      contract === renameWorkspaceFileContract ? rename.promise : new Promise(() => {})
+    )
+    try {
+      let settled: Promise<unknown> = Promise.resolve()
+      act(() => {
+        settled = hook
+          .result()
+          .mutateAsync({ workspaceId: 'ws-1', fileId: 'a', name: 'renamed.md' })
+          .catch(() => {})
+      })
+      await vi.waitFor(() =>
+        expect(names()).toEqual([['renamed.md', 'b.md'], 'renamed.md', 'renamed.md'])
+      )
+      await act(async () => {
+        rename.reject(new Error('Name taken'))
+        await settled
+      })
+      expect(names()).toEqual([['a.md', 'b.md'], 'a.md', 'a.md'])
+    } finally {
+      hook.unmount()
+    }
+  })
+})
+
+describe('invalidateWorkspaceFileBrowsers', () => {
+  it('settles only once the mounted list and search reads have refetched', async () => {
+    let listCalls = 0
+    let searchCalls = 0
+    const refetch = createDeferred<void>()
+    mockRequestJson.mockImplementation(async (contract) => {
+      if (contract === listWorkspaceFilesContract) {
+        if (++listCalls > 1) await refetch.promise
+        return { success: true, files: [fileRecord('a')], nextCursor: null }
+      }
+      if (contract === searchWorkspaceFilesContract) {
+        searchCalls++
+        return { success: true, files: [fileRecord('a')] }
+      }
+      return { success: true, folders: [] }
+    })
+    const params = workspaceFileListParams({ folderId: null, sortBy: 'name', sortOrder: 'asc' })
+    const hook = mountHook(() => useWorkspaceFileList('ws-1', params))
+    try {
+      await vi.waitFor(() => expect(hook.result().data).toBeDefined())
+      let done = false
+      const invalidation = invalidateWorkspaceFileBrowsers(hook.client, 'ws-1').then(() => {
+        done = true
+      })
+      await vi.waitFor(() => expect(listCalls).toBe(2))
+      await flushMacrotask()
+      expect(done).toBe(false)
+      refetch.resolve()
+      await invalidation
+      expect(done).toBe(true)
+      expect(searchCalls).toBe(0)
+    } finally {
+      hook.unmount()
     }
   })
 })

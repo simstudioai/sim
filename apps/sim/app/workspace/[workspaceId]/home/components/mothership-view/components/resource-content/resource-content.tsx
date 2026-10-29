@@ -33,7 +33,6 @@ import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permission
 import { prefersInPlaceNavigation } from '@/lib/desktop'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-execution'
-import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
@@ -71,11 +70,12 @@ import { useLogByExecutionId, useLogDetail } from '@/hooks/queries/logs'
 import { useProjectFile } from '@/hooks/queries/projects'
 import { exportTable } from '@/hooks/queries/tables'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
+import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflowTest } from '@/hooks/queries/workflow-tests'
 import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
-import { useAddressedWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileLookup, useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 import {
   createProjectFileContentSource,
   createWorkspaceFileContentSource,
@@ -728,6 +728,26 @@ function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProp
 
 const fileLogger = createLogger('EmbeddedFileActions')
 
+/**
+ * The file an embedded resource tab shows: its record by id — including an addressed chat upload —
+ * or, when that id no longer names a live file, the file now at the tab's canonical path.
+ */
+function useEmbeddedWorkspaceFile(workspaceId: string, fileId: string, filePath?: string) {
+  const record = useWorkspaceFileRecord(workspaceId, fileId)
+  const pathLookup = useWorkspaceFileLookup(workspaceId, 'reference', filePath, {
+    enabled: record.isError,
+  })
+  /** The reference lookup also answers by bare name; only an exact path match is this file. */
+  const fileAtPath = findWorkspaceFileByPath(
+    pathLookup.data ? [pathLookup.data] : undefined,
+    filePath
+  )
+  return {
+    file: record.data ?? fileAtPath,
+    isResolving: record.isFetching || pathLookup.isFetching,
+  }
+}
+
 interface EmbeddedFileActionsProps {
   workspaceId: string
   fileId: string
@@ -744,17 +764,7 @@ function EmbeddedFileActions({
   const router = useRouter()
   const { canEdit } = useUserPermissionsContext()
   const [isShareOpen, setIsShareOpen] = useState(false)
-  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
-  const listedFile = files.find(
-    (file) =>
-      file.id === fileId ||
-      (filePath &&
-        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
-  )
-  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
-    enabled: !listedFile && !listLoading,
-  })
-  const file = listedFile ?? detail.data
+  const { file } = useEmbeddedWorkspaceFile(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
 
   const handleDownload = async () => {
@@ -938,17 +948,7 @@ function EmbeddedFile({
   previewContextKey,
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
-  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
-  const listedFile = files.find(
-    (file) =>
-      file.id === fileId ||
-      (filePath &&
-        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
-  )
-  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
-    enabled: !listedFile && !listLoading,
-  })
-  const file = listedFile ?? detail.data
+  const { file, isResolving } = useEmbeddedWorkspaceFile(workspaceId, fileId, filePath)
   const isUpload = file?.vfsNamespace === 'uploads'
   const contentSource = useMemo(
     () =>
@@ -958,7 +958,7 @@ function EmbeddedFile({
     [isUpload, workspaceId, file?.storageContext]
   )
 
-  if (!file && (listLoading || detail.isFetching)) return LOADING_SKELETON
+  if (!file && isResolving) return LOADING_SKELETON
 
   if (!file) return FILE_NOT_FOUND
 

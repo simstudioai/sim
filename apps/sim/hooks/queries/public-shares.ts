@@ -12,7 +12,7 @@ import {
   type VerifyPublicFileOtpResponse,
   verifyPublicFileOtpContract,
 } from '@/lib/api/contracts/public-shares'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { invalidateWorkspaceFileReads } from '@/hooks/queries/utils/workspace-file-cache'
 
 export const FILE_SHARE_STALE_TIME = 30 * 1000
 
@@ -68,7 +68,7 @@ export function useUpsertFileShare() {
       toast.error(error.message)
     },
     onSettled: (_data, _error, { workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      void invalidateWorkspaceFileReads(queryClient, workspaceId)
     },
   })
 }

@@ -216,9 +216,12 @@ interface ResourceTableProps {
   apiRef?: RefObject<ResourceTableHandle | null>
   /**
    * Window the row list with `@tanstack/react-virtual`, keeping only the visible
-   * slice in the DOM. Opt-in because it removes off-screen rows — consumers that
-   * depend on every row being mounted (e.g. drag-and-drop drop targets) must stay
-   * on the full-DOM path. Enable it only for unbounded, accumulating lists (logs).
+   * slice in the DOM. Opt-in because it removes off-screen rows — a consumer that
+   * reaches rows through the DOM rather than its own row ids must stay on the
+   * full-DOM path. Row drag-and-drop works windowed: a drop target is only ever a
+   * row under the pointer, and the drag's teardown never depends on its source row
+   * staying mounted (`useDragTeardown`). Enable it only for unbounded, accumulating
+   * lists (logs, files).
    */
   virtualized?: boolean
   selectable?: SelectableConfig

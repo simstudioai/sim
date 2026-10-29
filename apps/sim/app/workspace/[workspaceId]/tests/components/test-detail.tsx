@@ -18,7 +18,7 @@ import {
   useRunWorkflowTests,
   useWorkflowTest,
 } from '@/hooks/queries/workflow-tests'
-import { useAddressedWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 import { testRunSelectionKey, useTestRunSelectionStore } from '@/stores/workflow-tests/store'
 
 interface TestTarget {
@@ -115,7 +115,7 @@ export function TestView({ workspaceId, name, previewMode }: TestViewProps) {
   const testKey = testRunSelectionKey(workspaceId, name)
   useEffect(() => () => setUnsaved(testKey, false), [setUnsaved, testKey])
   const detail = query.data
-  const file = useAddressedWorkspaceFileRecord(workspaceId, detail?.test.fileId ?? '', {
+  const file = useWorkspaceFileRecord(workspaceId, detail?.test.fileId ?? '', {
     enabled: Boolean(detail),
   })
 

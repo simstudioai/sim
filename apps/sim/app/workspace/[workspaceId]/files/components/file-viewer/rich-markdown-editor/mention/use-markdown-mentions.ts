@@ -1,23 +1,34 @@
 import { useMemo } from 'react'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
+import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileList, useWorkspaceFileSearch } from '@/hooks/queries/workspace-files'
+import { useDebounce } from '@/hooks/use-debounce'
 import { mentionIcon } from './mention-icon'
 import type { MentionItem } from './types'
+
+/** The files the menu offers before anything is typed: the most recently updated anywhere. */
+const RECENT_FILES = workspaceFileListParams({ sortBy: 'updatedAt', sortOrder: 'desc', limit: 50 })
+
+const FILE_SEARCH_LIMIT = 50
 
 /**
  * Aggregates the workspace-scoped entities the `@` menu can reference, composing the canonical
  * per-resource React Query hooks (never the chat-coupled `useAvailableResources` aggregator). All
  * queries stay disabled until `enabled` flips true — the host activates it on the first `@` trigger —
  * so a markdown field that never opens the menu fetches nothing.
+ *
+ * Files are the one family not listed whole: the menu offers the most recently updated, and once
+ * `fileQuery` (the text after the `@`) settles, the files whose names match it anywhere.
  */
 export function useMarkdownMentions(
   workspaceId: string | undefined,
-  options: { enabled: boolean }
+  options: { enabled: boolean; fileQuery?: string }
 ): MentionItem[] {
   const active = options.enabled && Boolean(workspaceId)
   // When inactive, `ws` is undefined and `wsStr` is '' so every query stays disabled until the first
@@ -26,7 +37,14 @@ export function useMarkdownMentions(
   const ws = active ? workspaceId : undefined
   const wsStr = ws ?? ''
 
-  const files = useWorkspaceFiles(wsStr, 'active', { enabled: active })
+  const fileQuery = useDebounce(options.fileQuery?.trim() ?? '', SEARCH_DEBOUNCE_MS)
+  const recentFiles = useWorkspaceFileList(wsStr, RECENT_FILES, { enabled: active })
+  const matchingFiles = useWorkspaceFileSearch(
+    wsStr,
+    { q: fileQuery, limit: FILE_SEARCH_LIMIT },
+    { enabled: active }
+  )
+  const files = fileQuery ? matchingFiles.data : recentFiles.data?.pages[0]?.files
   const folders = useWorkspaceFileFolders(wsStr, 'active')
   const tables = useTablesList(ws, 'active')
   const knowledgeBases = useKnowledgeBasesQuery(ws, { enabled: active })
@@ -49,7 +67,7 @@ export function useMarkdownMentions(
     if (!active) return []
     const items: MentionItem[] = []
 
-    for (const file of files.data ?? [])
+    for (const file of files ?? [])
       items.push({
         kind: 'file',
         id: file.id,
@@ -102,7 +120,7 @@ export function useMarkdownMentions(
     return items
   }, [
     active,
-    files.data,
+    files,
     folders.data,
     tables.data,
     knowledgeBases.data,

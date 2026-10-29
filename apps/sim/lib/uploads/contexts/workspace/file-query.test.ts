@@ -26,10 +26,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 
-import {
-  listWorkspaceFiles,
-  queryWorkspaceFiles,
-} from '@/lib/uploads/contexts/workspace/file-manager'
+import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace/file-manager'
 
 uploadsMockFns.mockGetServePathPrefix.mockImplementation(() => '/api/files/serve/s3/')
 
@@ -144,16 +141,3 @@ describe('queryWorkspaceFiles', () => {
  * stays bounded: the projection, and the optional row cap its one budgeted caller
  * (the workspace layout's server seed) uses to detect an oversized workspace.
  */
-describe('listWorkspaceFiles', () => {
-  beforeEach(() => {
-    resetDbChainMock()
-  })
-
-  it('caps the rows read when the caller only needs to fit a budget', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await listWorkspaceFiles(WS, { limit: 2 })
-
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
-  })
-})

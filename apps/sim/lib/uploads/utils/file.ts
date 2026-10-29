@@ -110,20 +110,6 @@ export function isImageFileType(mimeType: string): boolean {
 }
 
 /**
- * Check if a MIME type is an audio type
- */
-export function isAudioFileType(mimeType: string): boolean {
-  return getContentType(mimeType) === 'audio'
-}
-
-/**
- * Check if a MIME type is a video type
- */
-export function isVideoFileType(mimeType: string): boolean {
-  return getContentType(mimeType) === 'video'
-}
-
-/**
  * Convert a file buffer to base64
  */
 export function bufferToBase64(buffer: Buffer): string {

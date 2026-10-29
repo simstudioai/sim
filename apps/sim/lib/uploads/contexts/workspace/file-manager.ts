@@ -166,7 +166,7 @@ import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WorkspaceFileStorage')
 
-export type WorkspaceFileScope = 'active' | 'archived' | 'all'
+type WorkspaceFileScope = 'active' | 'archived' | 'all'
 
 /**
  * An {@link OrchestrationError} so every surface reaches 409 by class rather than by
@@ -265,12 +265,6 @@ interface ListWorkspaceFilesOptions {
   hydrateFolderPaths?: boolean
   /** Propagate storage errors when an incomplete list would be unsafe. */
   throwOnError?: boolean
-  /**
-   * Row cap for callers that only need to know whether the workspace fits a budget.
-   * The result is a prefix of the full list, so a caller that reads it as "the
-   * workspace's files" must not set this.
-   */
-  limit?: number
 }
 
 /**
@@ -1810,13 +1804,11 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active', limit } = options ?? {}
-    const query = db
+    const files = await db
       .select(workspaceFileListColumns)
       .from(workspaceFiles)
-      .where(workspaceFileScopeCondition(workspaceId, scope))
+      .where(workspaceFileScopeCondition(workspaceId, options?.scope ?? 'active'))
       .orderBy(workspaceFiles.uploadedAt, workspaceFiles.id)
-    const files = await (limit === undefined ? query : query.limit(limit))
 
     return await hydrateWorkspaceFilePaths(files, workspaceId, options)
   } catch (error) {

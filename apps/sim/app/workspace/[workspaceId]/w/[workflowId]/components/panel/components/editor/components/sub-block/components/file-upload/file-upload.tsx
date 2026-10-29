@@ -15,6 +15,7 @@ import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
 import { formatFileSize, getExtensionFromMimeType } from '@/lib/uploads/utils/file'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection'
@@ -26,18 +27,27 @@ import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w
 import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { invalidateWorkspaceFileReads } from '@/hooks/queries/utils/workspace-file-cache'
+import {
+  workspaceFileListParams,
+  workspaceFilesKeys,
+} from '@/hooks/queries/utils/workspace-file-keys'
 import {
   useCloudStorageConfigured,
   useUploadWorkspaceFile,
-  useWorkspaceFiles,
-  workspaceFilesKeys,
+  useWorkspaceFileList,
+  useWorkspaceFileSelectionCandidates,
 } from '@/hooks/queries/workspace-files'
+import { useDebounce } from '@/hooks/use-debounce'
 import { getProviderAttachmentMaxBytes } from '@/providers/attachments'
 import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('FileUpload')
+
+/** How many files the picker lists per page. */
+const PICKER_PAGE_SIZE = 100
 
 interface FileUploadProps {
   blockId: string
@@ -131,6 +141,12 @@ interface SingleFileSelectorProps {
   onInputChange: (value: string) => void
   onClear: (e: React.MouseEvent) => void
   onOpenChange: (open: boolean) => void
+  /** Hears the typed query (and `''` when the menu closes), which the options are searched by. */
+  onSearchChange: (query: string) => void
+  /** Another page of options can be loaded. */
+  hasMore: boolean
+  isLoadingMore: boolean
+  onLoadMore: () => void
   disabled: boolean
   isLoading: boolean
   truncateMiddle: (text: string, start?: number, end?: number) => string
@@ -150,6 +166,10 @@ function SingleFileSelector({
   onInputChange,
   onClear,
   onOpenChange,
+  onSearchChange,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
   disabled,
   isLoading,
   truncateMiddle,
@@ -180,14 +200,19 @@ function SingleFileSelector({
           // User is typing to search
           setIsEditing(true)
           setSearchQuery(newValue)
+          onSearchChange(newValue)
         }}
         onOpenChange={(open) => {
           if (!open) {
             setIsEditing(false)
             setSearchQuery('')
+            onSearchChange('')
           }
           onOpenChange(open)
         }}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={onLoadMore}
         placeholder={isLoading ? 'Loading files...' : 'Select or upload file'}
         disabled={disabled || isDeleting}
         editable={true}
@@ -273,13 +298,6 @@ export function FileUpload({
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { workspaceId } = useWorkflowScope()
-
-  const {
-    data: workspaceFiles = [],
-    isLoading: loadingWorkspaceFiles,
-    isPlaceholderData: workspaceFilesArePlaceholderData,
-    refetch: refetchWorkspaceFiles,
-  } = useWorkspaceFiles(isPreview ? '' : workspaceId)
 
   const { data: cloudConfigured, isLoading: loadingCloudStatus } = useCloudStorageConfigured(
     requiresCloudStorage && !isPreview
@@ -404,18 +422,57 @@ export function FileUpload({
     loadingFolderScope,
   ])
   const folderScopeUploadBlocked = uploadTargetFolderId === undefined
+  /**
+   * The picker offers files a page at a time rather than the workspace's whole list: with a
+   * typed query, the files whose names match it; without one, the most recently updated. A
+   * single concrete folder scope is applied by the server (descending when the scope does);
+   * any other scope is applied to the page here, which keeps it correct but sparser.
+   */
+  const pickerQuery = useDebounce(inputValue.trim(), SEARCH_DEBOUNCE_MS)
+  const scopeFolderId =
+    hasConcreteFolderScope && folderScopePaths.length === 1
+      ? folderScopePaths[0] === ROOT_FOLDER_PATH
+        ? null
+        : folderByPath.get(folderScopePaths[0])?.id
+      : undefined
+  const pickerList = useWorkspaceFileList(
+    isPreview ? '' : workspaceId,
+    workspaceFileListParams({
+      folderId: scopeFolderId,
+      recursive: folderScopeIncludesSubfolders,
+      q: pickerQuery,
+      sortBy: pickerQuery ? 'name' : 'updatedAt',
+      sortOrder: pickerQuery ? 'asc' : 'desc',
+      limit: PICKER_PAGE_SIZE,
+    })
+  )
+  const loadingWorkspaceFiles = pickerList.isLoading
+  const loadMorePickerFiles = () => {
+    if (!pickerList.isFetching && pickerList.hasNextPage) void pickerList.fetchNextPage()
+  }
+  const pickerFiles = useMemo(
+    () => pickerList.data?.pages.flatMap((page) => page.files) ?? [],
+    [pickerList.data]
+  )
   const scopedWorkspaceFiles = useMemo(
     () =>
       hasConcreteFolderScope
-        ? workspaceFiles.filter((workspaceFile) =>
+        ? pickerFiles.filter((workspaceFile) =>
             folderScopePaths.some((folderScopePath) =>
               isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
                 includeSubfolders: folderScopeIncludesSubfolders,
               })
             )
           )
-        : workspaceFiles,
-    [folderScopeIncludesSubfolders, folderScopePaths, hasConcreteFolderScope, workspaceFiles]
+        : pickerFiles,
+    [folderScopeIncludesSubfolders, folderScopePaths, hasConcreteFolderScope, pickerFiles]
+  )
+
+  /** The selected files, resolved on their own: they need not be on the page the picker shows. */
+  const selections = useWorkspaceFileSelectionCandidates(isPreview ? '' : workspaceId, filesArray)
+  const workspaceFiles = useMemo(
+    () => [...selections.candidates, ...pickerFiles],
+    [selections.candidates, pickerFiles]
   )
 
   const selectedWorkspaceFileIds = useMemo(
@@ -430,20 +487,20 @@ export function FileUpload({
   )
 
   useEffect(() => {
-    if (
-      !folderScope ||
-      !hasConcreteFolderScope ||
-      loadingWorkspaceFiles ||
-      workspaceFilesArePlaceholderData ||
-      isPreview
-    ) {
+    if (!folderScope || !hasConcreteFolderScope || selections.isPending || isPreview) {
       return
     }
 
-    const scopedIds = new Set(scopedWorkspaceFiles.map((file) => file.id))
     const nextFiles = filesArray.filter((file) => {
-      const workspaceFile = findSelectedWorkspaceFile(file, workspaceFiles)
-      return !workspaceFile || scopedIds.has(workspaceFile.id)
+      const workspaceFile = findSelectedWorkspaceFile(file, selections.candidates)
+      return (
+        !workspaceFile ||
+        folderScopePaths.some((folderScopePath) =>
+          isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
+            includeSubfolders: folderScopeIncludesSubfolders,
+          })
+        )
+      )
     })
     if (nextFiles.length === filesArray.length) return
 
@@ -452,13 +509,13 @@ export function FileUpload({
     commitValue,
     filesArray,
     folderScope,
+    folderScopeIncludesSubfolders,
+    folderScopePaths,
     hasConcreteFolderScope,
     isPreview,
-    loadingWorkspaceFiles,
     multiple,
-    scopedWorkspaceFiles,
-    workspaceFiles,
-    workspaceFilesArePlaceholderData,
+    selections.candidates,
+    selections.isPending,
   ])
 
   const availableWorkspaceFiles = useMemo(
@@ -589,7 +646,7 @@ export function FileUpload({
         setUploadError(null)
 
         if (workspaceId) {
-          void refetchWorkspaceFiles()
+          void invalidateWorkspaceFileReads(queryClient, workspaceId)
           void queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
         }
 
@@ -943,8 +1000,11 @@ export function FileUpload({
           value={inputValue}
           onChange={handleComboboxChange}
           onOpenChange={(open) => {
-            if (open) void refetchWorkspaceFiles()
+            if (open) void pickerList.refetch()
           }}
+          hasMore={pickerList.hasNextPage}
+          isLoadingMore={pickerList.isFetchingNextPage}
+          onLoadMore={loadMorePickerFiles}
           placeholder={loadingWorkspaceFiles ? 'Loading files...' : '+ Add More'}
           disabled={disabled || loadingWorkspaceFiles}
           editable={true}
@@ -962,8 +1022,12 @@ export function FileUpload({
           onInputChange={handleComboboxChange}
           onClear={(e) => handleRemoveFile(filesArray[0], e)}
           onOpenChange={(open) => {
-            if (open) void refetchWorkspaceFiles()
+            if (open) void pickerList.refetch()
           }}
+          onSearchChange={setInputValue}
+          hasMore={pickerList.hasNextPage}
+          isLoadingMore={pickerList.isFetchingNextPage}
+          onLoadMore={loadMorePickerFiles}
           disabled={disabled}
           isLoading={loadingWorkspaceFiles}
           truncateMiddle={truncateMiddle}
@@ -985,8 +1049,11 @@ export function FileUpload({
           value={inputValue}
           onChange={handleComboboxChange}
           onOpenChange={(open) => {
-            if (open) void refetchWorkspaceFiles()
+            if (open) void pickerList.refetch()
           }}
+          hasMore={pickerList.hasNextPage}
+          isLoadingMore={pickerList.isFetchingNextPage}
+          onLoadMore={loadMorePickerFiles}
           placeholder={loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
           disabled={disabled || loadingWorkspaceFiles}
           editable={true}

@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react'
+import { isRecordLike } from '@sim/utils/object'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
@@ -15,10 +16,6 @@ import {
   type ListTablesResponse,
   listTablesContract,
 } from '@/lib/api/contracts/tables'
-import {
-  type ListWorkspaceFilesResponse,
-  listWorkspaceFilesContract,
-} from '@/lib/api/contracts/workspace-files'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import type { Credential } from '@/lib/oauth'
 import {
@@ -33,6 +30,8 @@ import {
   type SelectorKey,
 } from '@/lib/selectors/manifest'
 import type { SelectorOption, SelectorScope } from '@/lib/selectors/types'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { extractStorageKey } from '@/lib/uploads/utils/file'
 import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resources'
 import type {
   WorkflowSearchMatch,
@@ -46,6 +45,12 @@ import {
 } from '@/hooks/queries/oauth/credentials'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
+import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
+import {
+  useWorkspaceFileList,
+  useWorkspaceFileLookups,
+  useWorkspaceFileSearch,
+} from '@/hooks/queries/workspace-files'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 /** Stable identity while a folder list loads, so `select` isn't re-keyed on it. */
@@ -89,11 +94,6 @@ export const workflowSearchReplaceKeys = {
     [...workflowSearchReplaceKeys.tableDetails(), workspaceId ?? '', tableId ?? ''] as const,
   tableReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'table', workspaceId ?? ''] as const,
-  fileDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'file'] as const,
-  fileListDetails: (workspaceId?: string) =>
-    [...workflowSearchReplaceKeys.fileDetails(), 'list', workspaceId ?? ''] as const,
-  fileReplacementOptions: (workspaceId?: string) =>
-    [...workflowSearchReplaceKeys.replacementOptions(), 'file', workspaceId ?? ''] as const,
   mcpServerDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'mcp-server'] as const,
   mcpServerListDetails: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.mcpServerDetails(), 'list', workspaceId ?? ''] as const,
@@ -127,14 +127,12 @@ export const workflowSearchReplaceKeys = {
 export const WORKFLOW_SEARCH_OAUTH_DETAIL_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_KNOWLEDGE_DETAIL_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_TABLE_DETAIL_STALE_TIME = 60 * 1000
-export const WORKFLOW_SEARCH_FILE_LIST_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_MCP_SERVER_LIST_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_MCP_TOOL_LIST_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_SELECTOR_DETAIL_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_OAUTH_REPLACEMENT_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_KNOWLEDGE_REPLACEMENT_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_TABLE_REPLACEMENT_STALE_TIME = 60 * 1000
-export const WORKFLOW_SEARCH_FILE_REPLACEMENT_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_MCP_SERVER_REPLACEMENT_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_MCP_TOOL_REPLACEMENT_STALE_TIME = 60 * 1000
 export const WORKFLOW_SEARCH_SELECTOR_REPLACEMENT_STALE_TIME = 60 * 1000
@@ -358,27 +356,32 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
       ),
     [matches]
   )
-
-  const filesQuery = useQuery({
-    queryKey: workflowSearchReplaceKeys.fileListDetails(workspaceId),
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      requestJson(listWorkspaceFilesContract, {
-        params: { id: workspaceId as string },
-        query: { scope: 'active' },
-        signal,
-      }),
-    enabled: Boolean(workspaceId && fileMatches.length > 0),
-    staleTime: WORKFLOW_SEARCH_FILE_LIST_STALE_TIME,
+  /** A stored file value is an id, a storage key, a serve path, or a name: each is looked up as each. */
+  const rawValues = useMemo(
+    () => [...new Set(fileMatches.map((match) => match.rawValue))],
+    [fileMatches]
+  )
+  const storageKeys = useMemo(
+    () => [...new Set(rawValues.map((value) => extractStorageKey(value)))],
+    [rawValues]
+  )
+  const enabled = rawValues.length > 0
+  const byId = useWorkspaceFileLookups(workspaceId ?? '', 'id', rawValues, { enabled })
+  const byKey = useWorkspaceFileLookups(workspaceId ?? '', 'key', storageKeys, { enabled })
+  const byReference = useWorkspaceFileLookups(workspaceId ?? '', 'reference', rawValues, {
+    enabled,
   })
+  const settled = !byId.isPending && !byKey.isPending && !byReference.isPending
 
   return useMemo(
     () =>
       fileMatches.map((match) => {
-        const file = filesQuery.data?.files.find((item) =>
-          [item.id, item.key, item.path, item.name].includes(match.rawValue)
-        )
+        const file =
+          byId.byValue.get(match.rawValue) ??
+          byKey.byValue.get(extractStorageKey(match.rawValue)) ??
+          byReference.byValue.get(match.rawValue)
         return {
-          data: filesQuery.data
+          data: settled
             ? {
                 matchRawValue: match.rawValue,
                 resourceGroupKey: match.resource?.resourceGroupKey,
@@ -389,7 +392,7 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
             : undefined,
         }
       }),
-    [fileMatches, filesQuery.data]
+    [fileMatches, byId.byValue, byKey.byValue, byReference.byValue, settled]
   )
 }
 
@@ -666,30 +669,66 @@ export function useWorkflowSearchTableReplacementOptions(
   })
 }
 
+/** The files a replacement can be chosen from before anything is typed: the most recently updated. */
+const RECENT_REPLACEMENT_FILES = workspaceFileListParams({
+  sortBy: 'updatedAt',
+  sortOrder: 'desc',
+  limit: 100,
+})
+
+const REPLACEMENT_FILE_SEARCH_LIMIT = 50
+
+/** The storage key a chosen file replacement value carries, if it is one. */
+function replacementFileKey(value: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return isRecordLike(parsed) && typeof parsed.key === 'string' ? parsed.key : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The files a file reference can be replaced with: those matching `options.query` (settled),
+ * else the most recently updated — never the workspace's whole list — plus every file already
+ * chosen as a replacement (`options.chosen`), so a choice stays valid after the query changes.
+ */
 export function useWorkflowSearchFileReplacementOptions(
   matches: WorkflowSearchMatch[],
-  workspaceId?: string
+  workspaceId: string | undefined,
+  options: { query: string; chosen: readonly string[] }
 ) {
   const fileGroups = useMemo(
     () => uniqueResourceOptionGroups(matches, 'file', (match) => !match.resource?.selectorKey),
     [matches]
   )
+  const enabled = Boolean(workspaceId && fileGroups.length > 0)
+  const recentFiles = useWorkspaceFileList(workspaceId ?? '', RECENT_REPLACEMENT_FILES, { enabled })
+  const matchingFiles = useWorkspaceFileSearch(
+    workspaceId ?? '',
+    { q: options.query, limit: REPLACEMENT_FILE_SEARCH_LIMIT },
+    { enabled }
+  )
+  const chosenKeys = useMemo(
+    () =>
+      options.chosen.flatMap((value) => {
+        const key = replacementFileKey(value)
+        return key ? [key] : []
+      }),
+    [options.chosen]
+  )
+  const chosenFiles = useWorkspaceFileLookups(workspaceId ?? '', 'key', chosenKeys, { enabled })
+  const offered = options.query.trim() ? matchingFiles.data : recentFiles.data?.pages[0]?.files
 
-  return useQueries({
-    queries: [
+  return useMemo(() => {
+    const files = new Map<string, WorkspaceFileRecord>()
+    for (const file of chosenFiles.byValue.values()) files.set(file.id, file)
+    for (const file of offered ?? []) files.set(file.id, file)
+    return [
       {
-        queryKey: workflowSearchReplaceKeys.fileReplacementOptions(workspaceId),
-        queryFn: ({ signal }: { signal: AbortSignal }) =>
-          requestJson(listWorkspaceFilesContract, {
-            params: { id: workspaceId as string },
-            query: { scope: 'active' },
-            signal,
-          }),
-        enabled: Boolean(workspaceId && fileGroups.length > 0),
-        staleTime: WORKFLOW_SEARCH_FILE_REPLACEMENT_STALE_TIME,
-        select: (response: ListWorkspaceFilesResponse): WorkflowSearchReplacementOption[] =>
-          fileGroups.flatMap((match) =>
-            response.files.map((file) => ({
+        data: fileGroups.flatMap((match) =>
+          [...files.values()].map(
+            (file): WorkflowSearchReplacementOption => ({
               kind: 'file',
               value: JSON.stringify({
                 name: file.name,
@@ -700,11 +739,12 @@ export function useWorkflowSearchFileReplacementOptions(
               }),
               label: file.name,
               resourceGroupKey: match.resource?.resourceGroupKey,
-            }))
-          ),
+            })
+          )
+        ),
       },
-    ],
-  })
+    ]
+  }, [chosenFiles.byValue, offered, fileGroups])
 }
 
 export function useWorkflowSearchMcpServerReplacementOptions(
