@@ -1,14 +1,16 @@
 -- Replaces usage_log_workspace_created_at_idx with a covering index under the same two leading
 -- columns.
 --
--- Every Workspaces drill-down read filters on the billing entity, the workspace and a created_at
--- window, and reads cost with user_id, source or workflow_id. The old index held only
+-- A Workspaces drill-down over a created_at window (a range, or a reporting period) filters on the
+-- billing entity, the workspace and that window, and reads cost with user_id, source or
+-- workflow_id. The old index held only
 -- (workspace_id, created_at), so a drill-down matched the window there or on
 -- usage_log_billing_entity_created_at_cost_idx and fetched every matched row from the heap to
 -- check the rest: the workspace's rows on one, the whole organization's on the other. Dropping
 -- usage_log_billing_entity_period_idx in 0441 took away the bitmap that used to narrow the second.
 -- With the entity and every column those reads return in the key, each one is an index-only scan
--- bounded by the workspace's rows in the window.
+-- bounded by the workspace's rows in the window. A drill-down over a Stripe period matches the
+-- period stamps instead, which this index does not carry, so it keeps the plans it had.
 --
 -- The new key extends the old one, so it serves every read the old index served in the same
 -- order: the workspace_id foreign key's ON DELETE SET NULL, and the ledger list filtered to a

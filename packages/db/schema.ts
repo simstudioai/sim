@@ -6116,10 +6116,11 @@ export const usageLog = pgTable(
       )`
     ),
     /**
-     * Serves the Workspaces drill-down index-only: every analytics read narrowed to
-     * one workspace (entity + `workspace_id` + a `created_at` window) reads its
-     * totals, series, and member, source and workflow rankings from here, and skips
-     * the workspace's rows billed to another entity without a heap fetch.
+     * Serves the Workspaces drill-down index-only: an analytics read narrowed to one
+     * workspace over a `created_at` window (entity + `workspace_id` + the window)
+     * reads its totals, series, and member, source and workflow rankings from here,
+     * and skips the workspace's rows billed to another entity without a heap fetch.
+     * A Stripe-period drill-down matches the period stamps, which are not here.
      *
      * `workspace_id` and `created_at` lead so the scan is bounded by the
      * workspace's rows in the window rather than its organization's, and so the
