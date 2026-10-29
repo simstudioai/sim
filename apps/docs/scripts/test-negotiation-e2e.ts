@@ -25,9 +25,41 @@ interface CheckResult {
 }
 
 const cases = [
-  { name: 'HTML advertises its representation and router cache dimensions', accept: 'text/html' },
-  { name: 'Markdown negotiates at the same URL', accept: 'text/markdown' },
-  { name: 'HTML remains available after a Markdown request', accept: 'text/html' },
+  {
+    name: 'HTML advertises its representation and router cache dimensions',
+    accept: 'text/html',
+    expected: 'text/html',
+  },
+  {
+    name: 'Markdown negotiates at the same URL',
+    accept: 'text/markdown',
+    expected: 'text/markdown',
+  },
+  {
+    name: 'HTML remains available after a Markdown request',
+    accept: 'text/html',
+    expected: 'text/html',
+  },
+  {
+    name: 'Higher Markdown quality wins',
+    accept: 'text/html;q=0.4,text/markdown;q=0.8',
+    expected: 'text/markdown',
+  },
+  {
+    name: 'Equal quality defaults to HTML',
+    accept: 'text/markdown;q=0.8,text/html;q=0.8',
+    expected: 'text/html',
+  },
+  {
+    name: 'Explicit Markdown rejection overrides wildcard',
+    accept: 'text/markdown;q=0,*/*;q=1',
+    expected: 'text/html',
+  },
+  {
+    name: 'Explicit HTML rejection permits Markdown wildcard',
+    accept: 'text/html;q=0,text/*;q=0.5',
+    expected: 'text/markdown',
+  },
 ] as const
 
 for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -53,11 +85,11 @@ for (const entry of cases) {
     result.vary = response.headers.get('Vary') ?? ''
     const fields = result.vary.split(',').map((field) => field.trim().toLowerCase())
     if (!response.ok) throw new Error(`Unexpected HTTP status ${response.status}`)
-    if (!result.contentType.startsWith(entry.accept)) {
-      throw new Error(`Expected ${entry.accept}; received ${result.contentType}`)
+    if (!result.contentType.startsWith(entry.expected)) {
+      throw new Error(`Expected ${entry.expected}; received ${result.contentType}`)
     }
     if (!fields.includes('accept')) throw new Error('The response lost Vary: Accept')
-    if (entry.accept === 'text/html') {
+    if (entry.expected === 'text/html') {
       for (const field of [
         'rsc',
         'next-router-state-tree',

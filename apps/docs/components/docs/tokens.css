@@ -1,0 +1,159 @@
+@theme inline {
+  --text-small: 13px;
+  --text-small--line-height: 18px;
+  --text-caption: 12px;
+  --text-caption--line-height: 18px;
+  --text-docs-title: 32px;
+  --text-docs-title--line-height: 40px;
+  --text-docs-h1: 32px;
+  --text-docs-h1--line-height: 40px;
+  --text-docs-h2: 24px;
+  --text-docs-h2--line-height: 32px;
+  --text-docs-h3: 18px;
+  --text-docs-h3--line-height: 28px;
+  --text-docs-body: 16px;
+  --text-docs-body--line-height: 26px;
+  --text-docs-lead: 18px;
+  --text-docs-lead--line-height: 28px;
+  --text-docs-nav: 14px;
+  --text-docs-nav--line-height: 20px;
+  --text-docs-table: 14px;
+  --text-docs-table--line-height: 22px;
+  --text-docs-control: 13px;
+  --text-docs-control--line-height: 18px;
+  --text-docs-header: 13px;
+  --text-docs-header--line-height: 19.5px;
+  --text-docs-caption: 12px;
+  --text-docs-caption--line-height: 18px;
+  --text-docs-code: 13px;
+  --text-docs-code--line-height: 22px;
+  --text-docs-keyboard: 11px;
+  --text-docs-keyboard--line-height: 14px;
+}
+
+.docs-root,
+.docs-portal {
+  --docs-canvas: #fff;
+  --docs-heading: #0a0a0a;
+  --docs-text: rgb(10 10 10 / 80%);
+  --docs-muted: rgb(10 10 10 / 60%);
+  --docs-surface: rgb(10 10 10 / 4%);
+  --docs-border: rgb(0 0 0 / 6%);
+  --docs-rule: rgb(0 0 0 / 12%);
+  --docs-hover: rgb(10 10 10 / 6%);
+  --docs-selected: rgb(0 0 0 / 8%);
+  --docs-pressed: rgb(0 0 0 / 12%);
+  --docs-link: #0066cc;
+  --docs-glass: rgb(255 255 255 / 80%);
+  --docs-overlay: rgb(255 255 255 / 88%);
+  --docs-reading: rgb(255 255 255 / 96%);
+  --docs-highlight: rgb(255 255 255 / 70%);
+  --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 8%);
+  --docs-radius: 8px;
+  --docs-blue: #0066cc;
+  --docs-blue-soft: rgb(191 219 254 / 35%);
+  --docs-green: #15803d;
+  --docs-green-soft: rgb(187 247 208 / 35%);
+  --docs-purple: #7c3aed;
+  --docs-purple-soft: rgb(233 213 255 / 35%);
+  --docs-orange: #c2410c;
+  --docs-orange-soft: rgb(254 215 170 / 35%);
+  --docs-red: #c83232;
+  --docs-red-soft: rgb(254 202 202 / 35%);
+  --docs-sticky-offset: 80px;
+  --text-primary: var(--docs-heading);
+  --text-body: var(--docs-text);
+  --text-secondary: var(--docs-muted);
+  --text-muted: var(--docs-muted);
+  --text-icon: var(--docs-muted);
+  --text-subtle: var(--docs-muted);
+  --text-tertiary: var(--docs-muted);
+  --workflow-edge: var(--docs-rule);
+  --border-success: var(--docs-green);
+  --warning: var(--docs-orange);
+  --white: #fff;
+  --border: var(--docs-border);
+  --border-1: var(--docs-border);
+  --surface-1: var(--docs-canvas);
+  --surface-2: var(--docs-reading);
+  --surface-3: var(--docs-surface);
+  --surface-4: var(--docs-surface);
+  --surface-5: var(--docs-surface);
+  --surface-hover: var(--docs-hover);
+  --surface-active: var(--docs-selected);
+  --bg: var(--docs-canvas);
+  --brand-accent: var(--docs-link);
+  --brand-secondary: var(--docs-link);
+  --brand-blue: var(--docs-link);
+  --text-error: var(--docs-red);
+  --shadow-overlay: var(--docs-shadow);
+  color: var(--docs-text);
+  color-scheme: light;
+}
+
+.dark .docs-root,
+.dark .docs-portal,
+.docs-root.dark,
+.docs-portal.dark {
+  --docs-canvas: #1b1b1b;
+  --docs-heading: #e6e6e6;
+  --docs-text: #e6e6e6;
+  --docs-muted: #ccc;
+  --docs-surface: #1f1f1f;
+  --docs-border: #444;
+  --docs-rule: #444;
+  --docs-hover: #262626;
+  --docs-selected: #2c2c2c;
+  --docs-pressed: #333;
+  --docs-link: #93c5fd;
+  --docs-glass: rgb(27 27 27 / 80%);
+  --docs-overlay: rgb(31 31 31 / 88%);
+  --docs-reading: #1f1f1f;
+  --docs-highlight: rgb(255 255 255 / 8%);
+  --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 40%);
+  --docs-blue: #93c5fd;
+  --docs-blue-soft: rgb(59 130 246 / 16%);
+  --docs-green: #86efac;
+  --docs-green-soft: rgb(34 197 94 / 16%);
+  --docs-purple: #d8b4fe;
+  --docs-purple-soft: rgb(168 85 247 / 16%);
+  --docs-orange: #fdba74;
+  --docs-orange-soft: rgb(249 115 22 / 16%);
+  --docs-red: #fca5a5;
+  --docs-red-soft: rgb(239 68 68 / 16%);
+  color-scheme: dark;
+}
+
+@media (max-width: 1023px) {
+  .docs-root {
+    --docs-sticky-offset: 136px;
+  }
+}
+
+@media (max-width: 767px) {
+  .docs-root {
+    --docs-sticky-offset: 172px;
+  }
+}
+
+.docs-root .shiki,
+.docs-root .shiki span {
+  color: var(--shiki-light);
+}
+.dark .docs-root .shiki,
+.dark .docs-root .shiki span {
+  color: var(--shiki-dark);
+}
+
+.docs-root [hidden="until-found"] {
+  content-visibility: hidden;
+}
+
+@media print {
+  .docs-root [hidden="until-found"] {
+    content-visibility: visible;
+  }
+  .docs-root [data-docs-tab-panel] {
+    display: block;
+  }
+}

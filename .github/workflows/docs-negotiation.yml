@@ -29,11 +29,29 @@ jobs:
   http:
     name: docs HTTP
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      search-postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: docs_test
+          POSTGRES_PASSWORD: docs_test
+          POSTGRES_DB: docs_search_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docs_test -d docs_search_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
       DOCS_E2E_BASE_URL: http://127.0.0.1:3001
       DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/test-results/docs-negotiation.json
+      DOCS_SEARCH_E2E_DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:5432/docs_search_test
+      DOCS_SEARCH_E2E_REPORT_PATH: ${{ github.workspace }}/test-results/search-postgres/report.json
+      DOCS_INTERFACES_REPORT_PATH: ${{ github.workspace }}/test-results/docs-interfaces.json
+      DOCS_CORPUS_REPORT_PATH: ${{ github.workspace }}/test-results/docs-corpus.json
       DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/test-results/docs-headers.json
       DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/test-results/navigation/docs.json
     steps:
@@ -47,6 +65,8 @@ jobs:
         run: bun run --cwd apps/docs build
       - name: Verify native header edge cases
         run: bun run --cwd apps/docs test:headers:e2e
+      - name: Verify isolated PostgreSQL search and index lifecycle
+        run: bun run --cwd apps/docs test:search:postgres:e2e
       - name: Install browser for navigation checks
         run: bunx --no-install playwright install --with-deps chromium
       - name: Verify HTTP content negotiation
@@ -56,6 +76,8 @@ jobs:
           DOCS_SERVER_PID=$!
           trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
           bun run --cwd apps/docs test:negotiation:e2e
+          bun run --cwd apps/docs scripts/test-docs-interfaces-e2e.ts
+          bun run --cwd apps/docs test:corpus:e2e
           bun run --cwd apps/docs test:navigation:e2e
       - name: Upload HTTP regression report
         if: always()

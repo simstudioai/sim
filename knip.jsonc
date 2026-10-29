@@ -125,6 +125,8 @@
     },
     "apps/docs": {
       "includeEntryExports": false,
+      // The docs compiler discovers MDX by filesystem path and emits ignored page modules.
+      "entry": ["content/docs/**/*.mdx"],
       // scripts/generate-docs.ts copies this verbatim from apps/sim/components/icons.tsx, whose
       // export surface is already ratcheted there; docs consumes only the icons it maps.
       "ignoreIssues": { "components/icons.tsx": ["exports", "types", "duplicates"] }

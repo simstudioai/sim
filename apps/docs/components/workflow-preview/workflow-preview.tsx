@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Chip } from '@sim/emcn'
 import { Expand, X } from '@sim/emcn/icons'
 import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
@@ -14,8 +14,9 @@ import {
   ReactFlow,
   ReactFlowProvider,
 } from '@xyflow/react'
-import { domAnimation, LazyMotion, m } from 'framer-motion'
+import { domAnimation, LazyMotion, m, useReducedMotion } from 'framer-motion'
 import '@xyflow/react/dist/style.css'
+import { DocsButton, docsControlClass } from '@/components/docs/primitives'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
@@ -31,7 +32,7 @@ import {
   toReactFlowElements,
 } from '@/components/workflow-preview/workflow-data'
 
-interface WorkflowPreviewProps {
+export interface WorkflowPreviewProps {
   workflow: PreviewWorkflow
   /** Canvas height in px. Default 260. */
   height?: number
@@ -44,7 +45,6 @@ interface WorkflowPreviewProps {
 
 /** Smooth-step edge, matching the app's connection styling. */
 function PreviewEdge({
-  id,
   sourceX,
   sourceY,
   targetX,
@@ -68,7 +68,6 @@ function PreviewEdge({
   if (data?.animate) {
     return (
       <m.path
-        id={id}
         className='react-flow__edge-path'
         d={edgePath}
         style={{ ...style, fill: 'none' }}
@@ -82,14 +81,7 @@ function PreviewEdge({
     )
   }
 
-  return (
-    <path
-      id={id}
-      className='react-flow__edge-path'
-      d={edgePath}
-      style={{ ...style, fill: 'none' }}
-    />
-  )
+  return <path className='react-flow__edge-path' d={edgePath} style={{ ...style, fill: 'none' }} />
 }
 
 const NODE_TYPES = {
@@ -175,6 +167,7 @@ function PreviewFlow({
   onNodeClick?: (blockId: string) => void
   onPaneClick?: () => void
 }) {
+  const flowId = useId()
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => toReactFlowElements(workflow, animate, { highlightBlock, highlightEdge, selectedBlock }),
     [workflow, animate, highlightBlock, highlightEdge, selectedBlock]
@@ -198,38 +191,41 @@ function PreviewFlow({
   )
 
   return (
-    <PreviewSelectionContext value={onNodeClick}>
-      <ReactFlow<PreviewNode, PreviewFlowEdge>
-        colorMode={colorMode}
-        zIndexMode={CANVAS_Z_INDEX_MODE}
-        nodes={nodes}
-        edges={initialEdges}
-        onNodesChange={onNodesChange}
-        onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
-        onPaneClick={onPaneClick}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
-        defaultEdgeOptions={{ type: 'previewEdge' }}
-        elementsSelectable={false}
-        nodesFocusable={false}
-        edgesFocusable={false}
-        disableKeyboardA11y
-        nodesDraggable
-        nodesConnectable={false}
-        zoomOnScroll={interactive}
-        zoomOnDoubleClick={interactive}
-        panOnScroll={false}
-        zoomOnPinch
-        panOnDrag
-        preventScrolling={interactive}
-        autoPanOnNodeDrag={false}
-        proOptions={PRO_OPTIONS}
-        minZoom={0.1}
-        className='size-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
-      >
-        <FitViewAfterInit options={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS} />
-      </ReactFlow>
-    </PreviewSelectionContext>
+    <ReactFlowProvider initialNodes={nodes} initialEdges={initialEdges}>
+      <PreviewSelectionContext value={onNodeClick}>
+        <ReactFlow<PreviewNode, PreviewFlowEdge>
+          id={flowId}
+          colorMode={colorMode}
+          zIndexMode={CANVAS_Z_INDEX_MODE}
+          nodes={nodes}
+          edges={initialEdges}
+          onNodesChange={onNodesChange}
+          onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
+          onPaneClick={onPaneClick}
+          nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
+          defaultEdgeOptions={{ type: 'previewEdge' }}
+          elementsSelectable={false}
+          nodesFocusable={false}
+          edgesFocusable={false}
+          disableKeyboardA11y
+          nodesDraggable
+          nodesConnectable={false}
+          zoomOnScroll={interactive}
+          zoomOnDoubleClick={interactive}
+          panOnScroll={false}
+          zoomOnPinch
+          panOnDrag
+          preventScrolling={interactive}
+          autoPanOnNodeDrag={false}
+          proOptions={PRO_OPTIONS}
+          minZoom={0.1}
+          className='size-full [--text-muted:var(--text-secondary)]! [--xy-background-color:var(--bg)]'
+        >
+          <FitViewAfterInit options={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS} />
+        </ReactFlow>
+      </PreviewSelectionContext>
+    </ReactFlowProvider>
   )
 }
 
@@ -251,6 +247,7 @@ export function WorkflowPreview({
   highlightBlock,
   highlightEdge,
 }: WorkflowPreviewProps) {
+  const reducedMotion = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -285,27 +282,30 @@ export function WorkflowPreview({
   return (
     <LazyMotion features={domAnimation}>
       <div
-        className='not-prose group relative my-6 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'
+        className='not-prose relative my-7 flex min-w-0 flex-col overflow-hidden rounded-lg border border-[var(--docs-border)] bg-[var(--docs-canvas)]'
         style={{ height }}
       >
-        <ReactFlowProvider key={`${workflow.id}-${highlightBlock ?? ''}-${highlightEdge ?? ''}`}>
+        <div className='flex h-11 shrink-0 items-center justify-between gap-3 border-[var(--docs-border)] border-b px-4'>
+          <span className='min-w-0 text-docs-control'>{workflow.name}</span>
+          <DocsButton
+            aria-label={`Expand ${workflow.name} workflow preview`}
+            onClick={() => openWith(null)}
+          >
+            <Expand className='size-4' />
+            Inspect workflow
+          </DocsButton>
+        </div>
+        <div className='min-h-0 min-w-0 flex-1'>
           <PreviewFlow
+            key={`${workflow.id}-${highlightBlock ?? ''}-${highlightEdge ?? ''}`}
             workflow={workflow}
-            animate={animate}
+            animate={animate && !reducedMotion}
             highlightBlock={highlightBlock}
             highlightEdge={highlightEdge}
             onNodeClick={(id) => openWith(id)}
             onPaneClick={() => openWith(null)}
           />
-        </ReactFlowProvider>
-        <button
-          type='button'
-          aria-label={`Expand ${workflow.name} workflow preview`}
-          onClick={() => openWith(null)}
-          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] opacity-0 transition-opacity duration-150 hover:text-[var(--text-primary)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--text-primary)] focus-visible:outline-offset-2 group-hover:opacity-100'
-        >
-          <Expand className='size-[13px]' />
-        </button>
+        </div>
       </div>
 
       <dialog
@@ -327,7 +327,7 @@ export function WorkflowPreview({
           )
             setExpanded(false)
         }}
-        className='fixed inset-0 m-auto h-[86dvh] max-h-none w-[92vw] max-w-none overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] p-0 text-[var(--text-body)] backdrop:bg-black/70 backdrop:backdrop-blur-sm'
+        className='fixed inset-0 m-auto h-[90dvh] max-h-none w-[calc(100%-24px)] max-w-none overflow-hidden rounded-2xl border border-[var(--docs-border)] bg-[var(--docs-overlay)] p-0 text-[var(--docs-text)] shadow-[var(--docs-shadow)] backdrop-blur-[20px] backdrop:bg-black/50 backdrop:backdrop-blur-sm sm:w-[92vw]'
       >
         {expanded && (
           <div className='relative flex size-full flex-col sm:flex-row'>
@@ -339,22 +339,21 @@ export function WorkflowPreview({
                   type='button'
                   aria-label='Close'
                   onClick={() => setExpanded(false)}
-                  className='pointer-events-auto flex size-[28px] items-center justify-center rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
+                  className={`${docsControlClass} pointer-events-auto pointer-coarse:size-11`}
                 >
-                  <X className='size-[14px]' />
+                  <X className='size-4' />
                 </button>
               </div>
-              <ReactFlowProvider key={`${workflow.id}-lightbox`}>
-                <PreviewFlow
-                  workflow={workflow}
-                  highlightBlock={highlightBlock}
-                  highlightEdge={highlightEdge}
-                  selectedBlock={selectedId ?? undefined}
-                  interactive
-                  onNodeClick={(id) => setSelectedId(id)}
-                  onPaneClick={() => setSelectedId(null)}
-                />
-              </ReactFlowProvider>
+              <PreviewFlow
+                key={`${workflow.id}-lightbox`}
+                workflow={workflow}
+                highlightBlock={highlightBlock}
+                highlightEdge={highlightEdge}
+                selectedBlock={selectedId ?? undefined}
+                interactive
+                onNodeClick={(id) => setSelectedId(id)}
+                onPaneClick={() => setSelectedId(null)}
+              />
             </div>
 
             <div className='flex max-h-[50%] min-h-0 w-full flex-shrink-0 flex-col overflow-y-auto border-[var(--border)] border-t sm:max-h-none sm:w-[340px] sm:border-t-0 sm:border-l'>

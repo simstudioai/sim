@@ -30,11 +30,21 @@ jobs:
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          node-version: '22'
+          node-version: '24'
 
       - name: Process docs embeddings
-        working-directory: ./apps/sim
+        working-directory: ./apps/docs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: bun run scripts/process-docs.ts --clear 
+        run: |
+          bun run content:generate
+          bun run scripts/index-search.ts
+          bun run scripts/index-search.ts --check
+
+      - name: Upload search index report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-search-index
+          path: apps/docs/test-results/docs-search-index.json

@@ -1,0 +1,79 @@
+{
+  "checks": [
+    {
+      "name": "Complete JSON and Markdown representations agree: /introduction",
+      "status": "passed",
+      "durationMs": 567
+    },
+    {
+      "name": "Complete JSON and Markdown representations agree: /integrations/slack",
+      "status": "passed",
+      "durationMs": 22
+    },
+    {
+      "name": "Complete JSON and Markdown representations agree: /api-reference/workflows/listWorkflows",
+      "status": "passed",
+      "durationMs": 6
+    },
+    {
+      "name": "Complete JSON and Markdown representations agree: /cli",
+      "status": "passed",
+      "durationMs": 8
+    },
+    {
+      "name": "Complete JSON and Markdown representations agree: /mcp/overview",
+      "status": "passed",
+      "durationMs": 5
+    },
+    {
+      "name": "Discovery pagination has no gaps, duplicates or unbounded pages",
+      "status": "passed",
+      "durationMs": 24
+    },
+    {
+      "name": "Unknown pages and arbitrary URL inputs fail explicitly",
+      "status": "passed",
+      "durationMs": 35
+    },
+    {
+      "name": "Credential-free search covers /integrations/",
+      "status": "passed",
+      "durationMs": 673
+    },
+    {
+      "name": "Credential-free search covers /api-reference/",
+      "status": "passed",
+      "durationMs": 20
+    },
+    {
+      "name": "Credential-free search covers /cli",
+      "status": "passed",
+      "durationMs": 15
+    },
+    {
+      "name": "Credential-free search covers /mcp/",
+      "status": "passed",
+      "durationMs": 11
+    },
+    {
+      "name": "Search keeps empty, bounded, and alias behavior",
+      "status": "passed",
+      "durationMs": 37
+    },
+    {
+      "name": "MCP rejects untrusted origins and oversized bodies before executing tools",
+      "status": "passed",
+      "durationMs": 24
+    },
+    {
+      "name": "Official MCP client connects, discovers and invokes all read-only tools",
+      "status": "passed",
+      "durationMs": 106
+    },
+    {
+      "name": "MCP unknown pages and invalid inputs return errors through the real client",
+      "status": "passed",
+      "durationMs": 9
+    }
+  ]
+}
