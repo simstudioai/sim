@@ -1,8 +1,13 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { createSandboxPricing } from '@/lib/billing/sandbox-pricing'
+import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
 import { type CreatedSandbox, createSelectedSandbox } from '@/lib/execution/remote-sandbox/create'
+import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import type { ResolvedSandbox } from '@/lib/execution/remote-sandbox/resolve'
 import { ensureSessionCli } from '@/lib/execution/remote-sandbox/session-cli'
 import { initializeSessionFileProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
+import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type {
   CreateSandboxOptions,
   SandboxKind,
@@ -10,7 +15,24 @@ import type {
   SandboxSessionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
-export const SESSION_SANDBOX_IDLE_MS = 20 * 60_000
+const logger = createLogger('SessionSandbox')
+
+/**
+ * How long a session sandbox keeps running after its last use. The provider then pauses it
+ * rather than killing it, so a later call resumes the same machine with its files intact.
+ */
+export const SESSION_SANDBOX_IDLE_MS = 5 * 60_000
+
+/**
+ * How long a paused session sandbox is kept before the sweep kills it. With the idle lease, a
+ * workbench is discarded about 20 minutes after its last use.
+ */
+const SESSION_SANDBOX_PAUSED_RETENTION_MS = 15 * 60_000
+
+const REAP_LOCK_TIMEOUT_MS = 10_000
+const REAP_CONCURRENCY = 8
+/** Bounds one sweep's runtime; a backlog drains over the following runs. */
+const REAP_BATCH_LIMIT = 200
 
 interface SessionAcquisition {
   created: CreatedSandbox
@@ -47,7 +69,7 @@ export async function ensureSessionSandbox(args: {
         providerId: provider.id,
         startedAtMs: Date.now(),
         effectiveLifetimeMs: provider.resolveLifetimeMs(lifetimeMs),
-        pricing: createSandboxPricing(provider.id),
+        pricing: createSandboxPricing(provider.id, kind),
       }
     : await createSelectedSandbox(
         kind,
@@ -72,4 +94,43 @@ export async function ensureSessionSandbox(args: {
   }
   signal.throwIfAborted()
   return { created, status: existing ? 'reused' : 'created' }
+}
+
+/**
+ * Kills session sandboxes paused past {@link SESSION_SANDBOX_PAUSED_RETENTION_MS}. Each kill runs
+ * under the session's lock, the same lock every resume takes, and the provider re-checks the
+ * sandbox there, so a workbench a caller has just resumed is never killed.
+ */
+export async function reapPausedSessionSandboxes(): Promise<{
+  killed: number
+  skipped: number
+  failed: number
+}> {
+  const provider = resolveProvider()
+  const result = { killed: 0, skipped: 0, failed: 0 }
+  if (!provider.listPausedSessionSandboxes || !provider.killPausedSessionSandbox) return result
+  const killPaused = provider.killPausedSessionSandbox.bind(provider)
+
+  const pausedBeforeMs = Date.now() - SESSION_SANDBOX_PAUSED_RETENTION_MS
+  const expired = (await provider.listPausedSessionSandboxes())
+    .filter((sandbox) => sandbox.pausedAtMs <= pausedBeforeMs)
+    .slice(0, REAP_BATCH_LIMIT)
+  const outcomes = await mapSettledWithConcurrency(expired, REAP_CONCURRENCY, (sandbox) =>
+    withSandboxSessionLock(sandbox.sessionKey, AbortSignal.timeout(REAP_LOCK_TIMEOUT_MS), () =>
+      killPaused(sandbox, pausedBeforeMs)
+    )
+  )
+  outcomes.forEach((outcome, index) => {
+    if (outcome.status === 'fulfilled') {
+      if (outcome.value) result.killed++
+      else result.skipped++
+      return
+    }
+    result.failed++
+    logger.warn('Failed to reap paused session sandbox; the next sweep retries', {
+      sandboxId: expired[index].sandboxId,
+      error: getErrorMessage(outcome.reason),
+    })
+  })
+  return result
 }
