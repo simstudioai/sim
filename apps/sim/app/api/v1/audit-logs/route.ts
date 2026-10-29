@@ -25,7 +25,12 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListAuditLogsContract } from '@/lib/api/contracts/v1/audit-logs'
 import { parseRequest } from '@/lib/api/server'
-import { buildFilterConditions, getOrgWorkspaceIds, queryAuditLogs } from '@/lib/audit-logs/query'
+import {
+  buildFilterConditions,
+  buildOrgScopeCondition,
+  getOrgWorkspaceIds,
+  queryAuditLogs,
+} from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateV1EnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
@@ -94,12 +99,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const scope = {
+    const scopeCondition = buildOrgScopeCondition({
       organizationId,
       orgWorkspaceIds,
       orgMemberIds,
       includeDeparted: params.includeDeparted,
-    }
+    })
     const filterConditions = buildFilterConditions({
       action: params.action,
       resourceType: params.resourceType,
@@ -111,8 +116,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
 
     const { data, nextCursor } = await queryAuditLogs(
-      scope,
-      filterConditions,
+      [scopeCondition, ...filterConditions],
       params.limit,
       params.cursor
     )
