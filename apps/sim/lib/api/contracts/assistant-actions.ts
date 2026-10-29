@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { ASSISTANT_REVIEW_FIELD_MAX_CHARS } from '@/lib/assistant-actions/limits'
 
 const policySchema = z.enum(['allow', 'ask', 'block'])
 const toolIdSchema = z.string().min(1).max(256)
@@ -113,7 +114,7 @@ export const listAssistantActionsContract = defineRouteContract({
                   target: z.boolean(),
                   editable: z.boolean(),
                   format: z.enum(['text', 'multiline', 'json']),
-                  value: z.string().max(65_536),
+                  value: z.string().max(ASSISTANT_REVIEW_FIELD_MAX_CHARS),
                 })
               )
               .max(256),
@@ -131,7 +132,7 @@ const decisionBodySchema = z
     proposalVersion: z.string().regex(/^[a-f0-9]{64}$/),
     decision: z.enum(['allow', 'skip']),
     edits: z
-      .record(z.string().min(1).max(256), z.string().max(65_536))
+      .record(z.string().min(1).max(256), z.string().max(ASSISTANT_REVIEW_FIELD_MAX_CHARS))
       .refine((value) => Object.keys(value).length <= 32, 'Too many edited fields')
       .optional(),
   })

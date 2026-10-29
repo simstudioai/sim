@@ -349,7 +349,7 @@ export async function rejectManagedOAuthToken(input: {
   if (updated.length === 0) return false
   if (!tokenSet.refreshToken) return true
   try {
-    await resolveManagedOAuthToken({
+    await resolveManagedOAuthAccessToken({
       credentialId: input.credentialId,
       workspaceId: input.workspaceId,
       organizationId: input.organizationId,
@@ -374,10 +374,10 @@ export async function rejectManagedOAuthToken(input: {
 }
 
 async function resolveProviderTokenContext(
-  providerId: string | null,
+  providerId: string,
   token: ResolvedManagedOAuthToken
 ): Promise<ResolvedManagedOAuthToken> {
-  if (!providerId || !isSalesforceOAuthProviderId(providerId)) return token
+  if (!isSalesforceOAuthProviderId(providerId)) return token
   const instanceUrl = await fetchSalesforceInstanceUrl(providerId, token.accessToken)
   if (!instanceUrl)
     throw new ManagedOAuthCredentialError(
@@ -390,6 +390,15 @@ async function resolveProviderTokenContext(
 
 /** Resolves a managed credential ID into a usable token without exposing it to list APIs. */
 export async function resolveManagedOAuthToken(
+  params: ResolveManagedOAuthTokenParams
+): Promise<ResolvedManagedOAuthToken> {
+  return resolveProviderTokenContext(
+    params.expectedProviderId,
+    await resolveManagedOAuthAccessToken(params)
+  )
+}
+
+async function resolveManagedOAuthAccessToken(
   params: ResolveManagedOAuthTokenParams
 ): Promise<ResolvedManagedOAuthToken> {
   const initial = await getManagedCredential(db, params.credentialId, params)
@@ -423,11 +432,11 @@ export async function resolveManagedOAuthToken(
   const initialTokenSet = await decryptManagedOAuthTokenSet(initial.encryptedOauthTokenSet!)
   const now = new Date()
   if (hasFreshAccessToken(initial.accessTokenExpiresAt, now)) {
-    return resolveProviderTokenContext(initial.providerId, {
+    return {
       accessToken: initialTokenSet.accessToken,
       ...(initialTokenSet.idToken ? { idToken: initialTokenSet.idToken } : {}),
       refreshed: false,
-    })
+    }
   }
 
   const refreshOutcome = await db.transaction(async (tx) => {
@@ -549,8 +558,7 @@ export async function resolveManagedOAuthToken(
   })
 
   if ('error' in refreshOutcome && refreshOutcome.error) throw refreshOutcome.error
-  if ('token' in refreshOutcome && refreshOutcome.token)
-    return resolveProviderTokenContext(initial.providerId, refreshOutcome.token)
+  if ('token' in refreshOutcome && refreshOutcome.token) return refreshOutcome.token
   throw new ManagedOAuthCredentialError(
     'MANAGED_CREDENTIAL_REFRESH_FAILED',
     'Managed credential refresh returned no token',

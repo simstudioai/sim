@@ -12,7 +12,10 @@ export const GET = defineInternalJsonRoute({
   contract: listAssistantActionsContract,
   auth: internalSessionAuth,
   operation: assistantActionOperations.list,
-  rateLimit: internalRateLimits.user({ bucketName: 'assistant-actions-review' }),
+  rateLimit: internalRateLimits.user({
+    bucketName: 'assistant-actions-review',
+    config: { maxTokens: 120, refillRate: 120, refillIntervalMs: 60_000 },
+  }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, query }) => ({
     organizationId: params.id,

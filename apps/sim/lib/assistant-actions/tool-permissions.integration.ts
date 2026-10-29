@@ -45,7 +45,11 @@ import {
 import * as providerTransport from '@/lib/core/security/input-validation.server'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
-import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
+import {
+  decryptManagedOAuthTokenSet,
+  encryptManagedOAuthTokenSet,
+  rejectManagedOAuthToken,
+} from '@/lib/credentials/managed-oauth'
 import {
   claimToolExecution,
   recordToolPermissionDecision,
@@ -1113,7 +1117,7 @@ describe('Assistant Google Docs delivery', () => {
 })
 
 describe('Assistant writes cannot escape their admitted invocation', () => {
-  it.each(['missing', 'changed', 'consumed'] as const)(
+  it.each(['missing', 'workspace', 'unscoped', 'changed', 'consumed'] as const)(
     'refuses %s execution authority before reaching the provider',
     async (attempt) => {
       const provider = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
@@ -1130,7 +1134,11 @@ describe('Assistant writes cannot escape their admitted invocation', () => {
       const context = {
         userId: ownerId,
         workflowId: '',
-        organizationId,
+        ...(attempt === 'workspace'
+          ? { workspaceId: generateId() }
+          : attempt === 'unscoped'
+            ? {}
+            : { organizationId }),
         chatId,
         toolCallId,
         requestMode: 'assistant' as const,
@@ -1143,7 +1151,7 @@ describe('Assistant writes cannot escape their admitted invocation', () => {
           { operationContext: context }
         )
       try {
-        if (attempt === 'missing') {
+        if (attempt === 'missing' || attempt === 'workspace' || attempt === 'unscoped') {
           expect(await execute()).toMatchObject({
             success: false,
             error: expect.stringContaining('approved, durable'),
@@ -1317,6 +1325,70 @@ describe('Assistant Jira sprint delivery', () => {
 })
 
 describe('Assistant Salesforce reviewed updates', () => {
+  it('preserves a refreshed grant during rejection without resolving its API destination', async () => {
+    const [saved] = await db
+      .select({
+        encryptedOauthTokenSet: credential.encryptedOauthTokenSet,
+        accessTokenExpiresAt: credential.accessTokenExpiresAt,
+        refreshTokenExpiresAt: credential.refreshTokenExpiresAt,
+        lastRefreshedAt: credential.lastRefreshedAt,
+        managedOauthStatus: credential.managedOauthStatus,
+        updatedAt: credential.updatedAt,
+      })
+      .from(credential)
+      .where(eq(credential.id, salesforceCredentialId))
+    if (!saved?.encryptedOauthTokenSet) throw new Error('Expected a saved Salesforce grant')
+    const policy = await getCredentialGroupProviderAdapter('salesforce').getPolicy(undefined, {})
+    const requests: string[] = []
+    const originalFetch = globalThis.fetch
+    const provider = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const request = new Request(input, init)
+      const url = new URL(request.url)
+      if (url.hostname !== 'login.salesforce.com') return originalFetch(input, init)
+      requests.push(url.pathname)
+      if (url.pathname === '/services/oauth2/token') {
+        expect(request.method).toBe('POST')
+        expect(new URLSearchParams(await request.text()).get('refresh_token')).toBe(
+          'assistant-salesforce-refresh'
+        )
+        return Response.json({
+          access_token: 'refreshed-salesforce-token',
+          refresh_token: 'rotated-salesforce-refresh',
+          expires_in: 3600,
+          token_type: 'Bearer',
+        })
+      }
+      return new Response(null, { status: 503 })
+    })
+    try {
+      await expect(
+        rejectManagedOAuthToken({
+          organizationId,
+          credentialId: salesforceCredentialId,
+          expectedProviderId: 'salesforce',
+          requiredScopes: policy.requiredScopes,
+          rejectedAccessToken: 'assistant-salesforce-token',
+        })
+      ).resolves.toBe(false)
+      expect(requests).toEqual(['/services/oauth2/token'])
+      const [current] = await db
+        .select()
+        .from(credential)
+        .where(eq(credential.id, salesforceCredentialId))
+      if (!current?.encryptedOauthTokenSet) throw new Error('Expected the refreshed grant')
+      expect(current.managedOauthStatus).toBe('active')
+      expect(current.lastRefreshedAt).toBeInstanceOf(Date)
+      expect(current.accessTokenExpiresAt?.getTime()).toBeGreaterThan(Date.now())
+      expect(await decryptManagedOAuthTokenSet(current.encryptedOauthTokenSet)).toMatchObject({
+        accessToken: 'refreshed-salesforce-token',
+        refreshToken: 'rotated-salesforce-refresh',
+      })
+    } finally {
+      provider.mockRestore()
+      await db.update(credential).set(saved).where(eq(credential.id, salesforceCredentialId))
+    }
+  })
+
   it.each(['clear', 'blank_status', 'blank_priority'] as const)(
     'honors reviewed edits with a real-shaped managed grant: %s',
     async (scenario) => {

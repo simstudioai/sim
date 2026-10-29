@@ -16,6 +16,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type { AssistantActionsResponse } from '@/lib/api/contracts/assistant-actions'
 import {
+  ASSISTANT_ACTION_MAX_BYTES,
+  ASSISTANT_REVIEW_FIELD_MAX_CHARS,
+} from '@/lib/assistant-actions/limits'
+import {
   useAssistantActionReview,
   useDecideAssistantAction,
 } from '@/hooks/queries/assistant-actions'
@@ -116,7 +120,8 @@ export function AssistantActionReviewProvider({
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-muted)] text-small'>
-            Review each action before it runs. Allow and Cancel apply only to these proposals.
+            Review each action before it runs. Allow and Cancel apply only to these proposals. Each
+            action has a {ASSISTANT_ACTION_MAX_BYTES / 1024} KB total limit across all fields.
           </p>
           {actions.map((action) => (
             <ActionReview
@@ -208,7 +213,7 @@ function ActionReview({ action, edits, disabled, onEdit, onDecide }: ActionRevie
               title={field.label}
               value={edits[field.name] ?? field.value}
               disabled={disabled}
-              maxLength={65_536}
+              maxLength={ASSISTANT_REVIEW_FIELD_MAX_CHARS}
               onChange={(value) => onEdit(field.name, value)}
               rows={field.format === 'multiline' ? 4 : 2}
             />

@@ -19,7 +19,8 @@ const assistantActionKeys = {
 }
 
 const ASSISTANT_PERMISSIONS_STALE_TIME = 10_000
-const ASSISTANT_REVIEW_STALE_TIME = 1_000
+const ASSISTANT_REVIEW_STALE_TIME = 3_000
+const ASSISTANT_REVIEW_POLL_INTERVAL = 3_000
 
 export function useAssistantToolPermissions(organizationId: string, credentialId: string) {
   return useQuery({
@@ -51,7 +52,7 @@ export function useAssistantActionReview(
     enabled: enabled && Boolean(organizationId && chatId),
     staleTime: ASSISTANT_REVIEW_STALE_TIME,
     refetchInterval: (query) =>
-      active || query.state.data?.actions.length ? ASSISTANT_REVIEW_STALE_TIME : false,
+      active || query.state.data?.actions.length ? ASSISTANT_REVIEW_POLL_INTERVAL : false,
   })
 }
 
