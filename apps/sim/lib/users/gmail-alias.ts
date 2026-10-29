@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, gt, lt, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { acquireAdvisoryXactLock, withLockTimeout } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 /**
@@ -45,9 +45,8 @@ function createdRelativeToSubject(compare: typeof lt | typeof gt) {
 
 /**
  * Serializes free-allowance decisions for the Gmail inbox this user's address
- * delivers to, until `tx` ends. Takes no lock for any other address. Bounds
- * `lock_timeout` for the rest of `tx`, so take it in a short transaction of
- * its own.
+ * delivers to, until `tx` ends. Takes no lock for any other address. The wait
+ * is bounded by its own `lock_timeout`, restored once the lock is held.
  */
 export async function acquireGmailInboxLock(tx: DbTransaction, userId: string): Promise<void> {
   if (!isBillingEnabled) return
@@ -57,10 +56,10 @@ export async function acquireGmailInboxLock(tx: DbTransaction, userId: string): 
     .where(eq(user.id, userId))
     .limit(1)
   if (!row?.mailbox) return
-  await tx.execute(
-    sql`select set_config('lock_timeout', ${`${GMAIL_INBOX_LOCK_TIMEOUT_MS}ms`}, true)`
+  const mailbox = row.mailbox
+  await withLockTimeout(tx, GMAIL_INBOX_LOCK_TIMEOUT_MS, () =>
+    acquireAdvisoryXactLock(tx, 'gmail_inbox', `gmail-inbox:${mailbox}`)
   )
-  await acquireAdvisoryXactLock(tx, 'gmail_inbox', `gmail-inbox:${row.mailbox}`)
 }
 
 /**

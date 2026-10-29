@@ -6,8 +6,8 @@ import { userHasGmailAliasAccount } from '@/lib/users/gmail-alias'
 /**
  * Whether a new user's identity already had the free allowance: its email or a
  * linked sign-in (with `includeSignIns`) belonged to a recently deleted account,
- * or an earlier account holds its Gmail inbox. Every path that creates a user's
- * stats row decides its allowance with this.
+ * or an earlier account holds its Gmail inbox. Signup, the stats-row fallback,
+ * and the admin balance grant decide a new row's allowance with this.
  */
 export async function identityHadFreeAllowance(
   userId: string,
