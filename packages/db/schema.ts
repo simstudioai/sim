@@ -2943,6 +2943,35 @@ export const workspaceFiles = pgTable(
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
+    /**
+     * Serves a folder page by upload date: `(workspace_id, coalesce(folder_id, ''))` equality,
+     * then the raw `(uploaded_at, id)` keyset the file sorts order on, and seeks a folder's live
+     * files for its rollup, which reads `size_bytes` from the heap. The folder expression must
+     * match `workspaceFileFolderKey` and the predicate the list's owner and lifecycle filter, or
+     * the planner cannot use it. `size_bytes` stays out of the key to keep the index narrow.
+     */
+    workspaceFolderUploadedIdx: index('workspace_files_workspace_folder_uploaded_idx')
+      .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.uploadedAt, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /**
+     * Serves the case-insensitive substring name search (`original_name ILIKE '%term%'`).
+     * `fastupdate` is off so file writes never stall on a foreground merge of every other
+     * writer's pending entries.
+     */
+    workspaceNameTrgmIdx: index('workspace_files_workspace_name_trgm_idx')
+      .using(
+        'gin',
+        table.workspaceId.asc().op('text_ops'),
+        table.originalName.asc().op('gin_trgm_ops')
+      )
+      .with({ fastupdate: 'off' })
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
     /** Serves name references that miss the exact-name lookup; see `displaySegmentKey`. */
     workspaceDisplayNameIdx: index('workspace_files_workspace_display_name_idx')
       .on(table.workspaceId, displaySegmentKey(table.originalName))
