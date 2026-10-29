@@ -1,23 +1,23 @@
 'use client'
 
-import { Chip, ChipLink, ChipSelect, ChipSwitch, Tooltip, toast } from '@sim/emcn'
-import { ArrowLeft, Ban, Check, Hand } from '@sim/emcn/icons'
+import { Chip, ChipInput, ChipLink, ChipSelect, ChipSwitch, Tooltip, toast } from '@sim/emcn'
+import { ArrowLeft, Search } from '@sim/emcn/icons'
 import type {
   AssistantToolPermissionsResponse,
   UpdateAssistantToolPermissionsBody,
 } from '@/lib/api/contracts/assistant-actions'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page'
 import {
-  OrganizationPage,
-  useOrganizationPageFilters,
-} from '@/app/o/[organizationId]/components/organization-page'
+  CredentialDetailHeading,
+  CredentialDetailLayout,
+} from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useAssistantToolPermissions,
@@ -25,9 +25,9 @@ import {
 } from '@/hooks/queries/assistant-actions'
 
 const POLICY_OPTIONS = [
-  { value: 'allow', label: 'Allow', icon: Check },
-  { value: 'ask', label: 'Ask', icon: Hand },
-  { value: 'block', label: 'Block', icon: Ban },
+  { value: 'allow', label: 'Allow' },
+  { value: 'ask', label: 'Ask' },
+  { value: 'block', label: 'Block' },
 ] as const
 const TOOL_GROUPS = [
   { effect: 'read', label: 'Read-only tools' },
@@ -45,7 +45,7 @@ export function AccountToolPermissions({
 }: AccountToolPermissionsProps) {
   const query = useAssistantToolPermissions(organizationId, credentialId)
   const update = useUpdateAssistantToolPermissions(organizationId, credentialId)
-  const { search } = useOrganizationPageFilters()
+  const { search, setSearch } = useOrganizationPageFilters()
   const data = query.data
   const display = data
     ? resolveCredentialDisplay({ ...data.account, type: 'managed_oauth' })
@@ -59,16 +59,9 @@ export function AccountToolPermissions({
   }
 
   return (
-    <OrganizationPage
-      title='Tool permissions'
-      searchMode='expanded'
-      searchPlaceholder='Search tools'
-      action={
-        <ChipLink
-          href={organizationRoutes(organizationId).integrations}
-          leftIcon={ArrowLeft}
-          mobileIconOnly
-        >
+    <CredentialDetailLayout
+      back={
+        <ChipLink href={organizationRoutes(organizationId).integrations} leftIcon={ArrowLeft}>
           Integrations
         </ChipLink>
       }
@@ -86,20 +79,15 @@ export function AccountToolPermissions({
       ) : (
         <div className='flex flex-col gap-7'>
           <div className='flex flex-col gap-3'>
-            <SettingsResourceRow
-              flush
+            <CredentialDetailHeading
               title={display?.detailTitle ?? data.account.providerId}
-              description={data.account.displayName}
-              iconVariant='custom'
-              icon={
+              subtitle={data.account.displayName}
+              leading={
                 display?.icon ? (
                   <IntegrationTile blockType={display.blockType} icon={display.icon} />
                 ) : undefined
               }
             />
-            <p className='text-[var(--text-muted)] text-small'>
-              Allow runs automatically. Ask pauses for your review. Block prevents use.
-            </p>
             {!data.canAutoApprove && (
               <p className='text-[var(--text-muted)] text-small'>
                 Your organization requires approval before tools run.
@@ -112,6 +100,15 @@ export function AccountToolPermissions({
               </p>
             )}
           </div>
+          {data.tools.length > 0 && (
+            <ChipInput
+              icon={Search}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder='Search tools'
+              aria-label='Search tools'
+            />
+          )}
           {TOOL_GROUPS.map((group) => (
             <ToolPermissionGroup
               key={group.effect}
@@ -129,7 +126,7 @@ export function AccountToolPermissions({
           )}
         </div>
       )}
-    </OrganizationPage>
+    </CredentialDetailLayout>
   )
 }
 

@@ -22,6 +22,10 @@ import {
 } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import {
+  AssistantActionReviewMessage,
+  useHasAssistantActionReview,
+} from '@/components/assistant-actions'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
@@ -281,6 +285,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   onOptionSelect,
   onAnimatingChange,
 }: AssistantMessageRowProps) {
+  const hasActionReview = useHasAssistantActionReview()
   const permissions = useOptionalWorkspacePermissionsContext()
   const canEdit = permissions?.userPermissions.canEdit ?? false
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
@@ -324,15 +329,18 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   // Settle timing lives in MessageContent (the actions take the thinking
   // slot's place in the same render), so eligibility here is phase-free:
   // `phase: 'settled'` asks the helper "would a settled turn show them?".
-  const actionsEligible = shouldShowAssistantMessageActions({
-    phase: 'settled',
-    hasContent: Boolean(message.content) || hasAnyBlocks,
-    endsWithInteraction: endsWithQuestion || showsCredentialCard,
-    questionDismissed,
-  })
+  const actionsEligible =
+    !hasActionReview &&
+    shouldShowAssistantMessageActions({
+      phase: 'settled',
+      hasContent: Boolean(message.content) || hasAnyBlocks,
+      endsWithInteraction: endsWithQuestion || showsCredentialCard,
+      questionDismissed,
+    })
 
   /** Match the 16px prose/card gap when the card is the message's last visible content. */
-  const showsInteractionCard = (endsWithQuestion && !questionDismissed) || showsCredentialCard
+  const showsInteractionCard =
+    (endsWithQuestion && !questionDismissed) || showsCredentialCard || hasActionReview
 
   return (
     <div className={cn(rowClassName, showsInteractionCard && 'pb-4')}>
@@ -344,6 +352,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         fallbackContent={message.content}
         isStreaming={isStreaming}
         isLast={isLast}
+        awaitingInteraction={hasActionReview}
         questionAnswers={questionAnswers}
         credentialSubmission={credentialSubmission}
         credentialAbandoned={credentialAbandoned}
@@ -937,39 +946,43 @@ export function MothershipChat({
                     className='absolute left-0 w-full'
                     style={{ top: virtualItem.start }}
                   >
-                    {msg.role === 'user' ? (
-                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
-                        <AutomatedTurnRow
-                          origin={msg.origin}
-                          content={msg.content}
-                          rowClassName={styles.rowGap}
-                        />
+                    <AssistantActionReviewMessage messageId={msg.id}>
+                      {msg.role === 'user' ? (
+                        interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
+                          <AutomatedTurnRow
+                            origin={msg.origin}
+                            content={msg.content}
+                            rowClassName={styles.rowGap}
+                          />
+                        ) : (
+                          <UserMessageRow
+                            content={msg.content}
+                            contexts={msg.contexts}
+                            attachments={msg.attachments}
+                            rowClassName={cn(styles.userRow, styles.rowGap)}
+                            bubbleClassName={styles.userBubble}
+                            attachmentWidthClassName={styles.attachmentWidth}
+                          />
+                        )
                       ) : (
-                        <UserMessageRow
-                          content={msg.content}
-                          contexts={msg.contexts}
-                          attachments={msg.attachments}
-                          rowClassName={cn(styles.userRow, styles.rowGap)}
-                          bubbleClassName={styles.userBubble}
-                          attachmentWidthClassName={styles.attachmentWidth}
+                        <AssistantMessageRow
+                          message={msg}
+                          prepareContentForCopy={prepareContentForCopy}
+                          isStreaming={isLast && msg.id === streamingMessageId}
+                          isLast={isLast}
+                          precedingUserContent={precedingUserByIndex[index]?.content}
+                          requestMode={precedingUserByIndex[index]?.requestMode}
+                          questionAnswers={interactionPairing.answersByIndex[index]}
+                          credentialSubmission={
+                            interactionPairing.credentialSubmissionByIndex[index]
+                          }
+                          credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
+                          rowClassName={cn(styles.assistantRow, styles.rowGap)}
+                          onOptionSelect={isLast ? stableOnOptionSelect : undefined}
+                          onAnimatingChange={isLast ? setLastRowAnimating : undefined}
                         />
-                      )
-                    ) : (
-                      <AssistantMessageRow
-                        message={msg}
-                        prepareContentForCopy={prepareContentForCopy}
-                        isStreaming={isLast && msg.id === streamingMessageId}
-                        isLast={isLast}
-                        precedingUserContent={precedingUserByIndex[index]?.content}
-                        requestMode={precedingUserByIndex[index]?.requestMode}
-                        questionAnswers={interactionPairing.answersByIndex[index]}
-                        credentialSubmission={interactionPairing.credentialSubmissionByIndex[index]}
-                        credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
-                        rowClassName={cn(styles.assistantRow, styles.rowGap)}
-                        onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                        onAnimatingChange={isLast ? setLastRowAnimating : undefined}
-                      />
-                    )}
+                      )}
+                    </AssistantActionReviewMessage>
                   </div>
                 )
               })}

@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { chromium, expect } from '@playwright/test'
+import { type BrowserContext, chromium, expect } from '@playwright/test'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 
@@ -48,13 +50,147 @@ const question = 'What is the latest on the product launch?'
 const answer = 'The launch checklist is complete and ready for approval.'
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
+const DIAGNOSTIC_LIMITS = { samples: 40, text: 2000, stack: 8000, templates: 8 } as const
+interface BrowserErrorSample {
+  stage: string
+  url: string
+  message: string
+  stack: string
+  digest: string | null
+  templates: { digest: string | null; message: string | null }[]
+  count: number
+}
 const browserErrors: string[] = []
+const browserErrorSamples: BrowserErrorSample[] = []
+const browserErrorEvents: BrowserErrorSample[] = []
+const documentResponses: {
+  stage: string
+  url: string
+  status: number
+  headers: Record<string, string>
+}[] = []
+let browserErrorCount = 0
+let browserErrorEventCount = 0
+let currentCheck = 'Setup'
+
+function recordErrorSample(
+  samples: BrowserErrorSample[],
+  sample: Omit<BrowserErrorSample, 'count'>
+) {
+  const previous = samples.find(
+    (entry) =>
+      entry.stage === sample.stage &&
+      entry.url === sample.url &&
+      entry.message === sample.message &&
+      entry.stack === sample.stack &&
+      entry.digest === sample.digest
+  )
+  if (previous) previous.count += 1
+  else if (samples.length < DIAGNOSTIC_LIMITS.samples) samples.push({ ...sample, count: 1 })
+}
+
+async function observeBrowserContext(observedContext: BrowserContext) {
+  await observedContext.exposeBinding(
+    'recordOrganizationSearchError',
+    (_source, payload: unknown) => {
+      const event = toRecord(payload)
+      browserErrorEventCount += 1
+      recordErrorSample(browserErrorEvents, {
+        stage: currentCheck,
+        url: truncate(toStringOrNull(event.url) ?? '', DIAGNOSTIC_LIMITS.text),
+        message: truncate(toStringOrNull(event.message) ?? '', DIAGNOSTIC_LIMITS.text),
+        stack: truncate(toStringOrNull(event.stack) ?? '', DIAGNOSTIC_LIMITS.stack),
+        digest: toStringOrNull(event.digest)?.slice(0, DIAGNOSTIC_LIMITS.text) ?? null,
+        templates: Array.isArray(event.templates)
+          ? event.templates.slice(0, DIAGNOSTIC_LIMITS.templates).map((value: unknown) => {
+              const template = toRecord(value)
+              return {
+                digest: toStringOrNull(template.digest)?.slice(0, DIAGNOSTIC_LIMITS.text) ?? null,
+                message: toStringOrNull(template.message)?.slice(0, DIAGNOSTIC_LIMITS.text) ?? null,
+              }
+            })
+          : [],
+      })
+    }
+  )
+  await observedContext.addInitScript((limits) => {
+    const report = (
+      window as typeof window & {
+        recordOrganizationSearchError: (sample: unknown) => Promise<void>
+      }
+    ).recordOrganizationSearchError
+    window.addEventListener('error', (event) => {
+      const message: unknown = event.error?.message
+      const stack: unknown = event.error?.stack
+      const digest: unknown = event.error?.digest
+      void report({
+        url: location.href.slice(0, limits.text),
+        message: (typeof message === 'string' ? message : event.message).slice(0, limits.text),
+        stack: typeof stack === 'string' ? stack.slice(0, limits.stack) : '',
+        digest: typeof digest === 'string' ? digest.slice(0, limits.text) : null,
+        templates: Array.from(document.querySelectorAll('template[data-dgst], template[data-msg]'))
+          .slice(0, limits.templates)
+          .map((template) => ({
+            digest: template.getAttribute('data-dgst')?.slice(0, limits.text) ?? null,
+            message: template.getAttribute('data-msg')?.slice(0, limits.text) ?? null,
+          })),
+      }).catch(() => {})
+    })
+  }, DIAGNOSTIC_LIMITS)
+  observedContext.on('page', (observedPage) => {
+    observedPage.on('pageerror', (error) => {
+      browserErrorCount += 1
+      const message = truncate(error.message, DIAGNOSTIC_LIMITS.text)
+      if (!browserErrors.includes(message) && browserErrors.length < DIAGNOSTIC_LIMITS.samples) {
+        browserErrors.push(message)
+      }
+      recordErrorSample(browserErrorSamples, {
+        stage: currentCheck,
+        url: truncate(observedPage.url(), DIAGNOSTIC_LIMITS.text),
+        message,
+        stack: truncate(error.stack ?? '', DIAGNOSTIC_LIMITS.stack),
+        digest: null,
+        templates: [],
+      })
+    })
+    observedPage.on('response', (response) => {
+      if (
+        response.request().resourceType() !== 'document' ||
+        response.frame() !== observedPage.mainFrame() ||
+        documentResponses.length >= DIAGNOSTIC_LIMITS.samples
+      ) {
+        return
+      }
+      const headers: Record<string, string> = {}
+      for (const name of [
+        'content-type',
+        'cache-control',
+        'x-nextjs-cache',
+        'x-nextjs-prerender',
+        'x-nextjs-stale-time',
+        'x-nextjs-postponed',
+        'x-matched-path',
+      ]) {
+        const value = response.headers()[name]
+        if (value) headers[name] = truncate(value, DIAGNOSTIC_LIMITS.text)
+      }
+      documentResponses.push({
+        stage: currentCheck,
+        url: truncate(response.url(), DIAGNOSTIC_LIMITS.text),
+        status: response.status(),
+        headers,
+      })
+    })
+  })
+}
+
 const browser = await chromium.launch()
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+await observeBrowserContext(context)
 const page = await context.newPage()
-page.on('pageerror', (error) => browserErrors.push(error.message))
 
 async function check(name: string, run: () => Promise<void>) {
+  currentCheck = name
   const started = performance.now()
   try {
     await run()
@@ -83,9 +219,9 @@ async function verifyLegacyDraft(
   existingDraft = false
 ) {
   const legacyContext = await browser.newContext()
+  await observeBrowserContext(legacyContext)
   await legacyContext.addCookies(await context.cookies())
   const legacyPage = await legacyContext.newPage()
-  legacyPage.on('pageerror', (error) => browserErrors.push(error.message))
   const prefix = `${userId}:organization:${organizationId}:`
   const draftKey = `${prefix}${destination === 'assistant' ? 'search-assistant' : 'home'}`
   const attachment = {
@@ -261,8 +397,9 @@ try {
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.query, 'Launch notes')
       await expect(page.getByText('Search found no results.', { exact: true })).toBeVisible()
-      assert.equal(new URL(page.url()).pathname, `${root}/search`)
-      assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch notes')
+      await expect(page).toHaveURL(
+        (url) => url.pathname === `${root}/search` && url.searchParams.get('q') === 'Launch notes'
+      )
       await capture('search-results-desktop')
     }
   )
@@ -350,6 +487,7 @@ try {
   await capture('failure').catch(() => {})
   process.exitCode = 1
 } finally {
+  currentCheck = 'Teardown'
   await browser.close()
   try {
     await sql.begin(async (tx) => {
@@ -370,5 +508,21 @@ try {
     await sql.end()
   }
   await mkdir(dirname(reportPath), { recursive: true })
-  await writeFile(reportPath, JSON.stringify({ checks, browserErrors, artifactDirectory }, null, 2))
+  await writeFile(
+    reportPath,
+    JSON.stringify(
+      {
+        checks,
+        browserErrors,
+        browserErrorCount,
+        browserErrorSamples,
+        browserErrorEventCount,
+        browserErrorEvents,
+        documentResponses,
+        artifactDirectory,
+      },
+      null,
+      2
+    )
+  )
 }

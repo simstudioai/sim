@@ -25,11 +25,6 @@ vi.mock('@/hooks/queries/search-integrations', () => ({
   }),
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
-vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => ({
-  DisconnectAccountMenu: ({ accounts }: { accounts: { displayName: string }[] }) => (
-    <span>{accounts.map((account) => account.displayName).join(', ')}</span>
-  ),
-}))
 vi.mock('@/app/workspace/[workspaceId]/integrations/components/integrations-showcase', () => ({
   IntegrationTile: () => null,
 }))
@@ -95,8 +90,13 @@ it('never presents another MCP provider as a Coda connection', async () => {
   })
   await act(async () => root.render(<LiveMemberIntegrations organizationId='org' search='' />))
   expect(container.textContent).not.toContain('Other private account')
-  const connect = [...container.querySelectorAll('button')].find(
-    (button) => button.textContent === 'Connect'
+  const menu = container.querySelector<HTMLButtonElement>('[aria-label="Coda integration actions"]')
+  if (!menu) throw new Error('Missing Coda actions menu')
+  await act(async () =>
+    menu.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+  )
+  const connect = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (item) => item.textContent === 'Connect'
   )
   if (!connect) throw new Error('Missing Coda connection control')
   await act(async () => connect.click())

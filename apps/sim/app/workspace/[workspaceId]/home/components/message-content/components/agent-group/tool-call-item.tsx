@@ -147,7 +147,7 @@ export function ToolCallItem({
       />
     )
     return getToolMetadata(toolName)?.assistant ? (
-      <AssistantActionReviewStatus title={title} fallback={fallback} />
+      <AssistantActionReviewStatus toolCallId={toolCallId} title={title} fallback={fallback} />
     ) : (
       fallback
     )

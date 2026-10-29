@@ -86,7 +86,11 @@ export function assistantReviewFields(record: ActionRecord) {
           field.target !== true &&
           tool?.params[name]?.type === 'string',
         format:
-          field?.format ?? (typeof value === 'string' ? ('text' as const) : ('json' as const)),
+          field?.format ??
+          (typeof value === 'string' ||
+          (value === undefined && tool?.params[name]?.type === 'string')
+            ? ('text' as const)
+            : ('json' as const)),
         value: value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value),
       }
     })

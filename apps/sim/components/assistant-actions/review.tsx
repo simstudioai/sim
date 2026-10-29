@@ -1,37 +1,80 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useState } from 'react'
 import {
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalField,
-  ChipModalFooter,
-  ChipModalHeader,
-  OverflowText,
-  toast,
-} from '@sim/emcn'
-import { Hand } from '@sim/emcn/icons'
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { Chip, ChipInput, ChipTextarea, cn } from '@sim/emcn'
+import { ShieldCheck } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import { ActivityStatus } from '@/components/ui/activity-status'
 import type { AssistantActionsResponse } from '@/lib/api/contracts/assistant-actions'
-import {
-  ASSISTANT_ACTION_MAX_BYTES,
-  ASSISTANT_REVIEW_FIELD_MAX_CHARS,
-} from '@/lib/assistant-actions/limits'
+import { ASSISTANT_REVIEW_FIELD_MAX_CHARS } from '@/lib/assistant-actions/limits'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import { InteractionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
+import { type ChatMessage, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
+import { BrandIcon } from '@/blocks/brand-icon'
 import {
   useAssistantActionReview,
   useDecideAssistantAction,
 } from '@/hooks/queries/assistant-actions'
+import { getToolMetadata } from '@/tools/metadata'
 
 type ReviewAction = AssistantActionsResponse['actions'][number]
 type ReviewEdits = Record<string, { proposalVersion: string; fields: Record<string, string> }>
+type ReviewErrors = Record<string, { proposalVersion: string; message: string }>
 
-const reviewContext = createContext<{ open: () => void; panel: ReactNode } | null>(null)
+interface ReviewDrafts {
+  runId: string | null
+  edits: ReviewEdits
+  errors: ReviewErrors
+}
+
+interface ReviewContextValue {
+  query: ReturnType<typeof useAssistantActionReview>
+  actions: ReviewAction[]
+  byId: ReadonlyMap<string, ReviewAction>
+  assistantMessageId: string | null
+  recoveryMessageId: string | null
+  recoveryActions: ReviewAction[]
+  hasApprovalRows: boolean
+  drafts: ReviewDrafts
+  submitting: boolean
+  pendingDecision?: { toolCallId: string; decision: 'allow' | 'skip' }
+  edit: (action: ReviewAction, name: string, value: string) => void
+  submit: (
+    actions: ReviewAction[],
+    decision: 'allow' | 'skip',
+    onStart: () => void
+  ) => Promise<void>
+}
+
+interface ReviewMessageContextValue {
+  messageId: string
+  submit: (actions: ReviewAction[], decision: 'allow' | 'skip', source: HTMLButtonElement) => void
+}
+
+const reviewContext = createContext<ReviewContextValue | null>(null)
+const reviewMessageContext = createContext<ReviewMessageContextValue | null>(null)
+const pendingReviewContext = createContext(false)
+const EMPTY_ACTIONS: ReviewAction[] = []
+
+/** Lets the current turn yield its activity footer to pending review controls. */
+export function useHasAssistantActionReview() {
+  return useContext(pendingReviewContext)
+}
 
 interface AssistantActionReviewProviderProps {
   organizationId: string
   chatId?: string
+  messages: ChatMessage[]
   active: boolean
   enabled: boolean
   children: ReactNode
@@ -40,215 +83,477 @@ interface AssistantActionReviewProviderProps {
 export function AssistantActionReviewProvider({
   organizationId,
   chatId,
+  messages,
   active,
   enabled,
   children,
 }: AssistantActionReviewProviderProps) {
+  const inFlight = useRef<AbortController | null>(null)
   const query = useAssistantActionReview(organizationId, chatId ?? '', active, enabled)
   const mutation = useDecideAssistantAction(organizationId, chatId ?? '')
-  const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [edits, setEdits] = useState<ReviewEdits>({})
-  const actions = query.data?.actions ?? []
-  const submit = async (selected: ReviewAction[], decision: 'allow' | 'skip') => {
-    if (submitting) return
+  const [drafts, setDrafts] = useState<ReviewDrafts>({ runId: null, edits: {}, errors: {} })
+  const actions = query.data?.actions ?? EMPTY_ACTIONS
+  const runId = query.data?.runId ?? null
+  const streamId = query.data?.streamId ?? null
+  const byId = useMemo(
+    () => new Map(actions.map((action) => [action.toolCallId, action])),
+    [actions]
+  )
+  const { assistantMessageId, recoveryMessageId, recoveryActions, hasApprovalRows } =
+    useMemo(() => {
+      if (!streamId) {
+        const hasApprovalRows = messages.some((message) =>
+          message.contentBlocks?.some(
+            ({ toolCall }) =>
+              toolCall?.status === ToolCallStatus.awaiting_approval &&
+              getToolMetadata(toolCall.name)?.assistant
+          )
+        )
+        return {
+          assistantMessageId: null,
+          recoveryMessageId: hasApprovalRows ? null : (messages.at(-1)?.id ?? null),
+          recoveryActions: EMPTY_ACTIONS,
+          hasApprovalRows,
+        }
+      }
+      const messageId = getLiveAssistantMessageId(streamId)
+      const assistant = messages.find((message) => message.id === messageId)
+      const representedIds = new Set(
+        assistant?.contentBlocks?.flatMap(({ toolCall }) =>
+          toolCall?.status === ToolCallStatus.awaiting_approval &&
+          getToolMetadata(toolCall.name)?.assistant
+            ? [toolCall.id]
+            : []
+        )
+      )
+      return {
+        assistantMessageId: messageId,
+        recoveryMessageId: assistant
+          ? messageId
+          : (messages.find((message) => message.role === 'user' && message.id === streamId)?.id ??
+            null),
+        recoveryActions: actions.filter((action) => !representedIds.has(action.toolCallId)),
+        hasApprovalRows: representedIds.size > 0,
+      }
+    }, [actions, messages, streamId])
+
+  useEffect(() => () => inFlight.current?.abort(), [runId])
+
+  const edit = (action: ReviewAction, name: string, value: string) => {
+    setDrafts((current) => {
+      const edits = current.runId === action.runId ? current.edits : {}
+      const draft = edits[action.toolCallId]
+      return {
+        runId: action.runId,
+        errors: current.runId === action.runId ? omit(current.errors, [action.toolCallId]) : {},
+        edits: {
+          ...edits,
+          [action.toolCallId]: {
+            proposalVersion: action.proposalVersion,
+            fields: {
+              ...(draft?.proposalVersion === action.proposalVersion ? draft.fields : {}),
+              [name]: value,
+            },
+          },
+        },
+      }
+    })
+  }
+  const submit = async (
+    selected: ReviewAction[],
+    decision: 'allow' | 'skip',
+    onStart: () => void
+  ) => {
+    if (inFlight.current || query.isError || !selected.length) return
+    const controller = new AbortController()
+    inFlight.current = controller
+    onStart()
     setSubmitting(true)
+    const snapshot = selected.map((action) => {
+      const draft = drafts.runId === action.runId ? drafts.edits[action.toolCallId] : undefined
+      return {
+        action,
+        fields: draft?.proposalVersion === action.proposalVersion ? { ...draft.fields } : {},
+      }
+    })
+    setDrafts((current) => ({
+      runId,
+      edits: current.runId === runId ? current.edits : {},
+      errors:
+        current.runId === runId
+          ? omit(
+              current.errors,
+              selected.map((action) => action.toolCallId)
+            )
+          : {},
+    }))
     try {
-      for (const action of selected) {
-        const draft = edits[action.toolCallId]
+      for (const { action, fields } of snapshot) {
+        if (controller.signal.aborted) break
         try {
           await mutation.mutateAsync({
             toolCallId: action.toolCallId,
             runId: action.runId,
             proposalVersion: action.proposalVersion,
             decision,
-            ...(decision === 'allow' && draft?.proposalVersion === action.proposalVersion
-              ? { edits: draft.fields }
-              : {}),
+            signal: controller.signal,
+            ...(decision === 'allow' ? { edits: fields } : {}),
           })
-          setEdits((current) => omit(current, [action.toolCallId]))
+          setDrafts((current) =>
+            current.runId === action.runId
+              ? { ...current, edits: omit(current.edits, [action.toolCallId]) }
+              : current
+          )
         } catch (error) {
-          toast.error(getErrorMessage(error, 'Could not save this review'))
+          if (controller.signal.aborted) break
+          setDrafts((current) =>
+            current.runId === action.runId
+              ? {
+                  ...current,
+                  errors: {
+                    ...current.errors,
+                    [action.toolCallId]: {
+                      proposalVersion: action.proposalVersion,
+                      message: getErrorMessage(error, 'Could not save this review'),
+                    },
+                  },
+                }
+              : current
+          )
         }
       }
     } finally {
-      setSubmitting(false)
+      if (inFlight.current === controller) {
+        inFlight.current = null
+        setSubmitting(false)
+      }
     }
   }
-  const panel =
-    !enabled || (!actions.length && !query.error) ? null : (
-      <div className='mb-3 flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3'>
-        <div className='flex items-center justify-between gap-3'>
-          <span className='flex items-center gap-2 font-medium text-[var(--text-body)] text-small'>
-            <Hand className='size-[14px]' />
-            {actions.length
-              ? `${actions.length} ${actions.length === 1 ? 'action' : 'actions'} to review`
-              : 'Action review unavailable'}
-          </span>
-          <Chip onClick={() => (actions.length ? setOpen(true) : void query.refetch())}>
-            {actions.length ? 'Review' : 'Retry'}
-          </Chip>
-        </div>
-        {actions.slice(0, 3).map((action) => (
-          <OverflowText
-            key={action.toolCallId}
-            label={`${action.name} · ${
-              action.fields.find((field) => field.target && field.value)?.value ??
-              action.account?.displayName ??
-              'Account unavailable'
-            }`}
-            className='text-[var(--text-muted)] text-small'
-          />
-        ))}
-        {actions.length > 3 && (
-          <p className='text-[var(--text-muted)] text-small'>And {actions.length - 3} more</p>
-        )}
-      </div>
-    )
+
   return (
-    <reviewContext.Provider value={enabled ? { open: () => setOpen(true), panel } : null}>
+    <reviewContext.Provider
+      value={
+        enabled
+          ? {
+              query,
+              actions,
+              byId,
+              assistantMessageId,
+              recoveryMessageId,
+              recoveryActions,
+              hasApprovalRows,
+              drafts,
+              submitting,
+              pendingDecision: mutation.isPending ? mutation.variables : undefined,
+              edit,
+              submit,
+            }
+          : null
+      }
+    >
       {children}
-      <ChipModal
-        open={enabled && open}
-        onOpenChange={setOpen}
-        dismissDisabled={submitting}
-        size='lg'
-        srTitle='Review Assistant actions'
-      >
-        <ChipModalHeader icon={Hand} onClose={() => setOpen(false)}>
-          Review actions
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-muted)] text-small'>
-            Review each action before it runs. Allow and Cancel apply only to these proposals. Each
-            action has a {ASSISTANT_ACTION_MAX_BYTES / 1024} KB total limit across all fields.
-          </p>
-          {actions.map((action) => (
-            <ActionReview
-              key={`${action.toolCallId}:${action.proposalVersion}`}
-              action={action}
-              edits={
-                edits[action.toolCallId]?.proposalVersion === action.proposalVersion
-                  ? (edits[action.toolCallId]?.fields ?? {})
-                  : {}
-              }
-              disabled={submitting}
-              onEdit={(name, value) =>
-                setEdits((current) => ({
-                  ...current,
-                  [action.toolCallId]: {
-                    proposalVersion: action.proposalVersion,
-                    fields: {
-                      ...(current[action.toolCallId]?.proposalVersion === action.proposalVersion
-                        ? current[action.toolCallId].fields
-                        : {}),
-                      [name]: value,
-                    },
-                  },
-                }))
-              }
-              onDecide={(decision) => void submit([action], decision)}
-            />
-          ))}
-          {!actions.length && (
-            <p className='px-2 text-[var(--text-muted)] text-small'>
-              {query.error
-                ? 'Could not load the current actions. Close this review and retry.'
-                : 'No actions are waiting for review.'}
-            </p>
-          )}
-          {query.data?.nextCursor !== null && query.data?.nextCursor !== undefined && (
-            <p className='px-2 text-[var(--text-muted)] text-small'>
-              More actions are waiting. Review these first.
-            </p>
-          )}
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setOpen(false)}
-          cancelLabel='Close'
-          defaultAction='none'
-          primaryAction={{
-            label: actions.length > 1 ? `Allow ${actions.length} shown` : 'Allow',
-            onClick: () => void submit(actions, 'allow'),
-            disabled: submitting || !actions.length || actions.some((action) => !action.account),
-          }}
-        />
-      </ChipModal>
     </reviewContext.Provider>
+  )
+}
+
+interface AssistantActionReviewMessageProps {
+  messageId: string
+  children: ReactNode
+}
+
+export function AssistantActionReviewMessage({
+  messageId,
+  children,
+}: AssistantActionReviewMessageProps) {
+  const turn = useRef<HTMLDivElement>(null)
+  const focusOrigin = useRef<HTMLButtonElement | null>(null)
+  const review = useContext(reviewContext)
+  const submitting = review?.submitting ?? false
+
+  useEffect(() => {
+    const origin = focusOrigin.current
+    if (!origin) return
+    if (submitting) {
+      const cancelRestore = () => {
+        focusOrigin.current = null
+      }
+      const handleFocus = (event: FocusEvent) => {
+        if (event.target !== origin && event.target !== document.body) cancelRestore()
+      }
+      document.addEventListener('focusin', handleFocus, true)
+      document.addEventListener('pointerdown', cancelRestore, true)
+      return () => {
+        document.removeEventListener('focusin', handleFocus, true)
+        document.removeEventListener('pointerdown', cancelRestore, true)
+      }
+    }
+    focusOrigin.current = null
+    if (
+      document.hasFocus() &&
+      (document.activeElement === document.body || document.activeElement === origin)
+    ) {
+      const target = origin.isConnected && !origin.disabled ? origin : turn.current
+      target?.focus({ preventScroll: true })
+    }
+  }, [submitting])
+
+  if (!review)
+    return <pendingReviewContext.Provider value={false}>{children}</pendingReviewContext.Provider>
+  const submit: ReviewMessageContextValue['submit'] = (actions, decision, source) => {
+    void review.submit(actions, decision, () => {
+      focusOrigin.current = document.activeElement === source ? source : null
+    })
+  }
+  const ownsReview = review.recoveryMessageId === messageId
+  return (
+    <reviewMessageContext.Provider value={{ messageId, submit }}>
+      <pendingReviewContext.Provider
+        value={ownsReview && (review.actions.length > 0 || review.submitting)}
+      >
+        <div
+          ref={turn}
+          role='group'
+          aria-label='Conversation turn'
+          tabIndex={-1}
+          className='min-w-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
+        >
+          {children}
+          {ownsReview &&
+            !review.hasApprovalRows &&
+            review.recoveryActions.length === 0 &&
+            review.query.isError && (
+              <div className='pt-4'>
+                <ReviewAvailability label='Could not load action review' review={review} />
+              </div>
+            )}
+          {ownsReview && review.recoveryActions.length > 0 && (
+            <div className='flex flex-col gap-3 pb-4'>
+              {review.recoveryActions.map((action) => (
+                <ActionReview
+                  key={`${action.toolCallId}:${action.proposalVersion}`}
+                  action={action}
+                  review={review}
+                />
+              ))}
+            </div>
+          )}
+          {ownsReview && <ReviewBatchActions review={review} />}
+        </div>
+      </pendingReviewContext.Provider>
+    </reviewMessageContext.Provider>
+  )
+}
+
+interface AssistantActionReviewStatusProps {
+  toolCallId: string
+  title: string
+  fallback: ReactNode
+}
+
+export function AssistantActionReviewStatus({
+  toolCallId,
+  title,
+  fallback,
+}: AssistantActionReviewStatusProps) {
+  const review = useContext(reviewContext)
+  const message = useContext(reviewMessageContext)
+  if (!review) return fallback
+  if (review.query.isPending) return <ReviewAvailability label='Loading action review' />
+  if (message?.messageId === review.assistantMessageId) {
+    const action = review.byId.get(toolCallId)
+    if (action) return <ActionReview key={action.proposalVersion} action={action} review={review} />
+    if (!review.query.isError && review.query.data?.nextCursor != null)
+      return <ReviewAvailability label='Review the current batch first' />
+  }
+  if (review.query.isError)
+    return <ReviewAvailability label='Could not load action review' review={review} />
+  return <ActivityStatus label={`${title} · No longer waiting for review`} isActive={false} />
+}
+
+interface ReviewAvailabilityProps {
+  label: string
+  review?: ReviewContextValue
+}
+
+function ReviewAvailability({ label, review }: ReviewAvailabilityProps) {
+  return (
+    <div className='flex flex-wrap items-center gap-2'>
+      <ActivityStatus label={label} isActive={false} icon={<ShieldCheck className='size-full' />} />
+      {review && (
+        <Chip disabled={review.query.isFetching} onClick={() => void review.query.refetch()}>
+          Retry
+        </Chip>
+      )}
+    </div>
   )
 }
 
 interface ActionReviewProps {
   action: ReviewAction
-  edits: Record<string, string>
-  disabled: boolean
-  onEdit: (name: string, value: string) => void
-  onDecide: (decision: 'allow' | 'skip') => void
+  review: ReviewContextValue
 }
 
-function ActionReview({ action, edits, disabled, onEdit, onDecide }: ActionReviewProps) {
+function ActionReview({ action, review }: ActionReviewProps) {
+  const message = useContext(reviewMessageContext)
+  const draft =
+    review.drafts.runId === action.runId ? review.drafts.edits[action.toolCallId] : undefined
+  const edits = draft?.proposalVersion === action.proposalVersion ? draft.fields : {}
+  const error =
+    review.drafts.runId === action.runId ? review.drafts.errors[action.toolCallId] : undefined
+  const disabled = review.submitting || review.query.isError
+  const pendingDecision =
+    review.pendingDecision?.toolCallId === action.toolCallId
+      ? review.pendingDecision.decision
+      : null
+  const display = action.account
+    ? resolveCredentialDisplay({ ...action.account, type: 'managed_oauth' })
+    : undefined
   return (
-    <section className='flex flex-col gap-3 border-[var(--border)] border-b pb-4 last:border-0'>
-      <ChipModalField
-        type='custom'
-        title={action.name}
-        hint={action.account?.displayName ?? 'Account unavailable'}
+    <section aria-label={`Review ${action.name}`} aria-busy={review.submitting} className='min-w-0'>
+      <InteractionCard
+        title={
+          <span className='flex items-center gap-2'>
+            {display?.icon ? (
+              <BrandIcon icon={display.icon} className='size-[14px] shrink-0' />
+            ) : (
+              <ShieldCheck className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+            )}
+            {action.name}
+          </span>
+        }
       >
-        <div className='flex flex-wrap gap-2'>
-          <Chip disabled={disabled || !action.account} onClick={() => onDecide('allow')}>
-            Allow
-          </Chip>
-          <Chip disabled={disabled} onClick={() => onDecide('skip')}>
-            Cancel
-          </Chip>
-        </div>
-      </ChipModalField>
-      {action.fields
-        .filter((field) => field.value || field.editable)
-        .map((field) =>
-          field.editable ? (
-            <ChipModalField
-              key={field.name}
-              type='textarea'
-              title={field.label}
-              value={edits[field.name] ?? field.value}
+        <div className='flex flex-col gap-3 px-2 pb-2'>
+          <p className='break-words text-[var(--text-muted)] text-small'>
+            {action.account?.displayName ?? 'Account unavailable'}
+          </p>
+          <div className='grid gap-3 sm:grid-cols-2'>
+            {action.fields
+              .filter((field) => field.value || field.editable)
+              .map((field) => (
+                <ActionReviewField
+                  key={field.name}
+                  field={field}
+                  actionId={action.toolCallId}
+                  value={edits[field.name] ?? field.value}
+                  disabled={disabled}
+                  onEdit={(value) => review.edit(action, field.name, value)}
+                />
+              ))}
+          </div>
+          {!action.account?.active && (
+            <p className='text-[var(--text-muted)] text-small'>
+              This account is no longer available.
+            </p>
+          )}
+          {review.query.isError && (
+            <ReviewAvailability label='Could not refresh action review' review={review} />
+          )}
+          {error?.proposalVersion === action.proposalVersion && (
+            <p role='alert' className='text-[var(--text-error)] text-caption'>
+              {error.message}
+            </p>
+          )}
+          <div className='flex flex-wrap items-center gap-2'>
+            <Chip
+              variant='primary'
+              disabled={disabled || !action.account?.active}
+              onClick={(event) => message?.submit([action], 'allow', event.currentTarget)}
+            >
+              {pendingDecision === 'allow' ? 'Saving…' : 'Allow'}
+            </Chip>
+            <Chip
               disabled={disabled}
-              maxLength={ASSISTANT_REVIEW_FIELD_MAX_CHARS}
-              onChange={(value) => onEdit(field.name, value)}
-              rows={field.format === 'multiline' ? 4 : 2}
-            />
-          ) : (
-            <ChipModalField
-              key={field.name}
-              type='textarea'
-              title={field.label}
-              value={field.value}
-              viewOnly
-              rows={field.format === 'text' ? 2 : 4}
-              mono={field.format === 'json'}
-            />
-          )
-        )}
+              onClick={(event) => message?.submit([action], 'skip', event.currentTarget)}
+            >
+              {pendingDecision === 'skip' ? 'Saving…' : 'Cancel'}
+            </Chip>
+          </div>
+        </div>
+      </InteractionCard>
     </section>
   )
 }
 
-export function AssistantActionReviewPanel() {
-  return useContext(reviewContext)?.panel ?? null
+interface ReviewBatchActionsProps {
+  review: ReviewContextValue
 }
 
-interface AssistantActionReviewStatusProps {
-  title: string
-  fallback: ReactNode
+function ReviewBatchActions({ review }: ReviewBatchActionsProps) {
+  const message = useContext(reviewMessageContext)
+  const disabled = review.submitting || review.query.isError
+  const hasMore = review.query.data?.nextCursor != null
+  if (review.actions.length < 2 && !review.submitting && !hasMore) return null
+  return (
+    <div className='flex flex-col gap-3 pb-4'>
+      {review.actions.length > 1 && (
+        <div aria-busy={review.submitting} className='flex flex-wrap items-center gap-2'>
+          <Chip
+            disabled={disabled || review.actions.some((action) => !action.account?.active)}
+            onClick={(event) => message?.submit(review.actions, 'allow', event.currentTarget)}
+          >
+            Allow {review.actions.length} shown
+          </Chip>
+          <Chip
+            disabled={disabled}
+            onClick={(event) => message?.submit(review.actions, 'skip', event.currentTarget)}
+          >
+            Cancel {review.actions.length} shown
+          </Chip>
+        </div>
+      )}
+      {review.submitting ? (
+        <ActivityStatus label='Saving review' isActive />
+      ) : (
+        hasMore && (
+          <p className='text-[var(--text-muted)] text-caption'>More actions are waiting.</p>
+        )
+      )}
+    </div>
+  )
 }
 
-export function AssistantActionReviewStatus({ title, fallback }: AssistantActionReviewStatusProps) {
-  const review = useContext(reviewContext)
-  return review ? (
-    <Chip leftIcon={Hand} onClick={review.open}>
-      {title} · Review
-    </Chip>
+interface ActionReviewFieldProps {
+  field: ReviewAction['fields'][number]
+  actionId: string
+  value: string
+  disabled: boolean
+  onEdit: (value: string) => void
+}
+
+function ActionReviewField({ field, actionId, value, disabled, onEdit }: ActionReviewFieldProps) {
+  const id = `assistant-action-${actionId}-${field.name}`
+  return field.editable ? (
+    <div className='col-span-full flex flex-col gap-[9px]'>
+      <label htmlFor={id} className='text-[var(--text-muted)] text-small'>
+        {field.label}
+      </label>
+      {field.format === 'text' ? (
+        <ChipInput
+          id={id}
+          value={value}
+          disabled={disabled}
+          maxLength={ASSISTANT_REVIEW_FIELD_MAX_CHARS}
+          onChange={(event) => onEdit(event.target.value)}
+        />
+      ) : (
+        <ChipTextarea
+          id={id}
+          value={value}
+          disabled={disabled}
+          rows={3}
+          resizable
+          maxLength={ASSISTANT_REVIEW_FIELD_MAX_CHARS}
+          onChange={(event) => onEdit(event.target.value)}
+        />
+      )}
+    </div>
   ) : (
-    fallback
+    <dl className={cn('flex min-w-0 flex-col gap-1', field.format !== 'text' && 'col-span-full')}>
+      <dt className='text-[var(--text-muted)] text-small'>{field.label}</dt>
+      <dd className='whitespace-pre-wrap break-words text-[var(--text-body)] text-small'>
+        {value}
+      </dd>
+    </dl>
   )
 }

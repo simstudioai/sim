@@ -1,9 +1,9 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { copilotAsyncToolCalls, copilotRuns } from '@sim/db/schema'
+import { copilotAsyncToolCalls, copilotChats, copilotRuns } from '@sim/db/schema'
 import { toRecord } from '@sim/utils/object'
-import { and, asc, desc, eq, gt, isNotNull, isNull, notInArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, isNotNull, isNull, notInArray, or } from 'drizzle-orm'
 import {
   lockAssistantActionScope,
   requireAssistantRun,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/core/application/authorized-organization-use-case'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { SIM_TOOL_MIN_START_BUDGET_MS } from '@/lib/mothership/async-runs/execution-lease'
 import {
   recordToolPermissionDecision,
   TERMINAL_RUN_STATUSES,
@@ -43,26 +44,29 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
     principal,
     input,
     context,
-  }: OrganizationUseCaseContext<Omit<ReviewInput, 'runId'> & { runId?: string; cursor?: number }>) {
-    const [latest] = input.runId
-      ? [{ id: input.runId }]
-      : await db
-          .select({ id: copilotRuns.id })
-          .from(copilotRuns)
-          .where(
-            and(
-              eq(copilotRuns.chatId, input.chatId),
-              eq(copilotRuns.organizationId, context.organizationId),
-              eq(copilotRuns.userId, context.userId),
-              isNull(copilotRuns.toolAdmissionClosedAt),
-              notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)
-            )
-          )
-          .orderBy(desc(copilotRuns.startedAt), desc(copilotRuns.id))
-          .limit(1)
-    if (!latest) return { actions: [], nextCursor: null }
+  }: OrganizationUseCaseContext<Omit<ReviewInput, 'runId'> & { cursor?: number }>) {
+    const [latest] = await db
+      .select({ id: copilotRuns.id })
+      .from(copilotRuns)
+      .innerJoin(copilotChats, eq(copilotChats.id, copilotRuns.chatId))
+      .where(
+        and(
+          eq(copilotRuns.chatId, input.chatId),
+          eq(copilotRuns.organizationId, context.organizationId),
+          eq(copilotRuns.userId, context.userId),
+          eq(copilotChats.userId, context.userId),
+          eq(copilotChats.organizationId, context.organizationId),
+          eq(copilotChats.conversationId, copilotRuns.streamId),
+          isNull(copilotChats.deletedAt),
+          isNull(copilotRuns.toolAdmissionClosedAt),
+          notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)
+        )
+      )
+      .orderBy(desc(copilotRuns.startedAt), desc(copilotRuns.id))
+      .limit(1)
+    if (!latest) return { runId: null, streamId: null, actions: [], nextCursor: null }
     const runId = latest.id
-    await requireAssistantRun(principal, { ...input, runId }, context.userId)
+    const run = await requireAssistantRun(principal, { ...input, runId }, context.userId)
     const records = await db
       .select()
       .from(copilotAsyncToolCalls)
@@ -73,6 +77,13 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
           isNotNull(copilotAsyncToolCalls.assistantAction),
           isNotNull(copilotAsyncToolCalls.permissionRequestedAt),
           isNull(copilotAsyncToolCalls.permissionDecision),
+          or(
+            isNull(copilotAsyncToolCalls.executionDeadlineAt),
+            gte(
+              copilotAsyncToolCalls.executionDeadlineAt,
+              new Date(Date.now() + SIM_TOOL_MIN_START_BUDGET_MS)
+            )
+          ),
           input.cursor === undefined
             ? undefined
             : gt(copilotAsyncToolCalls.persistSeq, input.cursor)
@@ -101,6 +112,7 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
                 credentialId: account.credentialId,
                 displayName: account.displayName,
                 providerId: account.providerId,
+                active: account.active,
               }
             : null,
           proposalVersion: assistantProposalVersion(record),
@@ -108,7 +120,11 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
         }
       })
     )
-    return { actions, nextCursor: records.length > 32 ? (page.at(-1)?.persistSeq ?? null) : null }
+    return {
+      ...run,
+      actions,
+      nextCursor: records.length > 32 ? (page.at(-1)?.persistSeq ?? null) : null,
+    }
   },
 })
 
@@ -147,6 +163,7 @@ export const decideOrganizationAssistantAction = defineAuthorizedOrganizationUse
         executor: tx,
         forUpdate: true,
       })
+      await requireAssistantRun(principal, input, context.userId, tx)
       await tx
         .select({ id: copilotRuns.id })
         .from(copilotRuns)

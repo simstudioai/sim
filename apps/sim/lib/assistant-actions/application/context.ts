@@ -45,6 +45,7 @@ export async function loadAssistantAccountPolicyContext(
   return { account, tools, canAutoApprove }
 }
 
+/** A transaction retains the chat lock until its decision or claim commits, before locking the run. */
 export async function requireAssistantRun(
   principal: Principal,
   input: { organizationId: string; runId: string; chatId?: string },
@@ -61,6 +62,9 @@ export async function requireAssistantRun(
     throw new OrchestrationError('forbidden', 'Assistant actions require a private conversation.')
   const [run] = await executor
     .select({
+      runId: copilotRuns.id,
+      streamId: copilotRuns.streamId,
+      currentStreamId: copilotChats.conversationId,
       config: copilotChats.config,
       version: copilotRuns.toolExecutionVersion,
       closedAt: copilotRuns.toolAdmissionClosedAt,
@@ -80,14 +84,20 @@ export async function requireAssistantRun(
       )
     )
     .limit(1)
+    .for('share', { of: copilotChats })
   if (
     !run ||
     toRecord(run.config).conversationMode !== 'assistant' ||
     run.version !== SIM_TOOL_EXECUTION_VERSION
   )
     throw new OrchestrationError('not_found', 'Assistant conversation is unavailable.')
-  if (run.closedAt || TERMINAL_RUN_STATUSES.includes(run.status))
+  if (
+    run.currentStreamId !== run.streamId ||
+    run.closedAt ||
+    TERMINAL_RUN_STATUSES.includes(run.status)
+  )
     throw new OrchestrationError('conflict', 'This conversation is no longer accepting actions.')
+  return { runId: run.runId, streamId: run.streamId }
 }
 
 export async function resolveAssistantActionPolicy(

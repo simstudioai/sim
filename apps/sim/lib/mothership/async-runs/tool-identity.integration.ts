@@ -4,6 +4,8 @@
  * Set TEST_DATABASE_URL to a local PostgreSQL database and
  * TEST_REDIS_URL to an isolated local Redis service.
  */
+
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import Redis from 'ioredis'
@@ -476,6 +478,50 @@ describe('Copilot tool identity with PostgreSQL', () => {
   })
 
   describe.skipIf(!redisUrl)('with actual Redis confirmation and permission channels', () => {
+    it.each(['abort', 'timeout'] as const)(
+      'stops durable permission reads after %s',
+      async (ending) => {
+        await createCurrentCalls()
+        const durableReads = vi.spyOn(asyncRepository, 'getAsyncToolCall')
+        const abort = new AbortController()
+        const waiting = waitForToolPermissionDecision(
+          firstId,
+          ending === 'timeout' ? 100 : 5_000,
+          abort.signal
+        )
+        try {
+          await vi.waitFor(() => expect(durableReads).toHaveBeenCalledTimes(1))
+          await Promise.all(durableReads.mock.results.map((result) => result.value))
+          if (ending === 'abort') abort.abort()
+          expect(await waiting).toBeNull()
+          const readsAtSettlement = durableReads.mock.calls.length
+          await recordToolPermissionDecision(firstId, 'allow')
+          await sleep(1_200)
+          expect(durableReads).toHaveBeenCalledTimes(readsAtSettlement)
+        } finally {
+          abort.abort()
+          await waiting
+        }
+      }
+    )
+
+    it('recovers a committed permission decision when its notification is lost', async () => {
+      await createCurrentCalls()
+      const durableReads = vi.spyOn(asyncRepository, 'getAsyncToolCall')
+      const abort = new AbortController()
+      const waiting = waitForToolPermissionDecision(firstId, 3_000, abort.signal)
+      try {
+        await vi.waitFor(() => expect(durableReads).toHaveBeenCalledTimes(1))
+        await Promise.all(durableReads.mock.results.map((result) => result.value))
+        await recordToolPermissionDecision(firstId, 'allow')
+        expect(await waiting).toMatchObject({ toolCallId: firstId, decision: 'allow' })
+        expect((await getAsyncToolCall(secondId))?.permissionDecision).toBeNull()
+      } finally {
+        abort.abort()
+        await waiting
+      }
+    })
+
     it('wakes only the matching waiter and reads its durable terminal result', async () => {
       await createCurrentCalls()
       const durableReads = vi.spyOn(asyncRepository, 'getAsyncToolCalls')

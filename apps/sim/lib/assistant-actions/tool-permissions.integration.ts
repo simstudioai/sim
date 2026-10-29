@@ -51,6 +51,7 @@ import {
   rejectManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
 import {
+  claimAssistantToolExecution,
   claimToolExecution,
   recordToolPermissionDecision,
   upsertAsyncToolCall,
@@ -98,6 +99,7 @@ const enrollmentId = generateId()
 const otherEnrollmentId = generateId()
 const chatId = generateId()
 const runId = generateId()
+const streamId = generateId()
 const principal: SessionPrincipal = { kind: 'session', userId: ownerId, sessionId: generateId() }
 const input = { organizationId, credentialId }
 const delegated: OrganizationDelegatedPrincipal = {
@@ -138,7 +140,7 @@ const prepare = async (
 const claim = (call: Awaited<ReturnType<typeof prepare>>) =>
   claimOrganizationAssistantAction.execute({ principal: delegated, input: call })
 const review = () =>
-  listOrganizationAssistantActions.execute({ principal, input: { organizationId, chatId, runId } })
+  listOrganizationAssistantActions.execute({ principal, input: { organizationId, chatId } })
 const decide = (
   toolCallId: string,
   proposalVersion: string,
@@ -355,6 +357,7 @@ beforeAll(async () => {
     organizationId,
     type: 'mothership',
     config: { conversationMode: 'assistant' },
+    conversationId: streamId,
   })
   await db.insert(copilotRuns).values({
     id: runId,
@@ -362,12 +365,13 @@ beforeAll(async () => {
     userId: ownerId,
     organizationId,
     executionId: generateId(),
-    streamId: generateId(),
+    streamId,
     toolExecutionVersion: 3,
   })
 })
 
 beforeEach(async () => {
+  await db.update(copilotChats).set({ conversationId: streamId }).where(eq(copilotChats.id, chatId))
   const jiraPolicy = await getCredentialGroupProviderAdapter('jira').getPolicy(undefined, {})
   await db
     .update(credential)
@@ -427,6 +431,120 @@ describe('Assistant discovery for legacy account setup', () => {
 })
 
 describe('organization Assistant tool permissions', () => {
+  it.each(['list', 'decide', 'prepare', 'claim', 'owner_claim'] as const)(
+    'rejects an orphaned earlier turn at the %s boundary',
+    async (boundary) => {
+      await change(0, 'ask')
+      const call = await prepare()
+      const proposal = (await review()).actions[0]
+      if (!proposal) throw new Error('Pending action not available for review')
+      if (boundary === 'claim' || boundary === 'owner_claim')
+        await decide(call.toolCallId, proposal.proposalVersion, 'allow')
+      const successorId = generateId()
+      const successorStream = generateId()
+      await db.transaction(async (tx) => {
+        await tx
+          .update(copilotChats)
+          .set({ conversationId: successorStream })
+          .where(eq(copilotChats.id, chatId))
+        await tx.insert(copilotRuns).values({
+          id: successorId,
+          chatId,
+          userId: ownerId,
+          organizationId,
+          executionId: generateId(),
+          streamId: successorStream,
+          status: 'complete',
+          toolExecutionVersion: 3,
+        })
+      })
+      try {
+        if (boundary === 'list') {
+          expect(
+            await listOrganizationAssistantActions.execute({
+              principal,
+              input: { organizationId, chatId },
+            })
+          ).toEqual({
+            runId: null,
+            streamId: null,
+            actions: [],
+            nextCursor: null,
+          })
+        } else if (boundary === 'decide') {
+          await expect(decide(call.toolCallId, proposal.proposalVersion, 'allow')).rejects.toThrow(
+            'no longer accepting actions'
+          )
+        } else if (boundary === 'prepare') {
+          await expect(prepare()).rejects.toThrow('no longer accepting actions')
+        } else if (boundary === 'claim') {
+          await expect(claim(call)).rejects.toThrow('no longer accepting actions')
+        } else {
+          expect(
+            await db.transaction((tx) =>
+              claimAssistantToolExecution({ ...call, userId: ownerId }, tx)
+            )
+          ).toEqual({ outcome: 'closed' })
+        }
+        const [record] = await db
+          .select({ started: copilotAsyncToolCalls.executionStartedAt })
+          .from(copilotAsyncToolCalls)
+          .where(eq(copilotAsyncToolCalls.toolCallId, call.toolCallId))
+        expect(record?.started).toBeNull()
+      } finally {
+        await db.delete(copilotRuns).where(eq(copilotRuns.id, successorId))
+      }
+    }
+  )
+
+  it('pages eligible proposals past expired rows and keeps canonical turn metadata', async () => {
+    await change(0, 'ask')
+    const expired = []
+    for (let index = 0; index < 33; index++) expired.push(await prepare())
+    await db
+      .update(copilotAsyncToolCalls)
+      .set({ executionDeadlineAt: new Date(Date.now() + 30_000) })
+      .where(
+        inArray(
+          copilotAsyncToolCalls.toolCallId,
+          expired.map((call) => call.toolCallId)
+        )
+      )
+    const eligible = await prepare()
+    const result = await listOrganizationAssistantActions.execute({
+      principal,
+      input: { organizationId, chatId },
+    })
+    expect(result).toMatchObject({ runId, streamId, nextCursor: null })
+    expect(result.actions.map((action) => action.toolCallId)).toEqual([eligible.toolCallId])
+    const [expiredProposal] = expired
+    if (!expiredProposal) throw new Error('Missing expired proposal')
+    const [record] = await db
+      .select()
+      .from(copilotAsyncToolCalls)
+      .where(eq(copilotAsyncToolCalls.toolCallId, expiredProposal.toolCallId))
+    expect(record?.executionStartedAt).toBeNull()
+  })
+
+  it('keeps a revoked account identifiable and cancellable without offering active access', async () => {
+    await change(0, 'ask')
+    const call = await prepare()
+    await db
+      .update(credential)
+      .set({ managedOauthStatus: 'revoked' })
+      .where(eq(credential.id, credentialId))
+    const action = (await review()).actions[0]
+    expect(action?.account).toMatchObject({ credentialId, active: false })
+    if (!action) throw new Error('Pending action not available for cancellation')
+    await expect(decide(call.toolCallId, action.proposalVersion, 'allow')).rejects.toThrow(
+      'active connected account'
+    )
+    expect(await decide(call.toolCallId, action.proposalVersion, 'skip')).toMatchObject({
+      decision: 'skip',
+      applied: true,
+    })
+  })
+
   it('reads safe defaults without persisting a grant', async () => {
     const result = await read()
     expect(result).toMatchObject({ revision: 0, readPolicy: 'allow', writePolicy: 'ask' })

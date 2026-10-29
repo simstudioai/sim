@@ -1142,10 +1142,26 @@ export function claimToolExecution(owner: SimToolExecutionOwner): Promise<SimToo
 }
 
 /** Called inside the authorized Assistant use case, after current account and policy locks. */
-export function claimAssistantToolExecution(
+export async function claimAssistantToolExecution(
   owner: SimToolExecutionOwner,
   transaction: DbTransaction
 ): Promise<SimToolExecutionClaim> {
+  const [currentTurn] = await transaction
+    .select({ id: copilotRuns.id })
+    .from(copilotRuns)
+    .innerJoin(copilotChats, eq(copilotChats.id, copilotRuns.chatId))
+    .where(
+      and(
+        eq(copilotRuns.id, owner.runId),
+        eq(copilotRuns.userId, owner.userId),
+        eq(copilotChats.userId, owner.userId),
+        eq(copilotChats.conversationId, copilotRuns.streamId),
+        isNull(copilotChats.deletedAt)
+      )
+    )
+    .for('share', { of: copilotChats })
+    .limit(1)
+  if (!currentTurn) return { outcome: 'closed' }
   return claimSimToolExecution(owner, true, transaction)
 }
 

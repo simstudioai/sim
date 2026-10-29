@@ -5,10 +5,7 @@ import { toast } from '@sim/emcn'
 import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { useQueryStates } from 'nuqs'
-import {
-  AssistantActionReviewPanel,
-  AssistantActionReviewProvider,
-} from '@/components/assistant-actions'
+import { AssistantActionReviewProvider } from '@/components/assistant-actions'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
@@ -368,6 +365,7 @@ function OrganizationConversationContent({
         <AssistantActionReviewProvider
           organizationId={organization.id}
           chatId={chat.resolvedChatId}
+          messages={chat.messages}
           active={chat.isSending}
           enabled={requestMode === 'assistant'}
         >
@@ -398,12 +396,7 @@ function OrganizationConversationContent({
             onCancelQueueEdit={chat.cancelQueueEdit}
             userId={session?.user?.id}
             chatId={chat.resolvedChatId}
-            composer={
-              <>
-                <AssistantActionReviewPanel />
-                {composer}
-              </>
-            }
+            composer={composer}
             onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
             initialScrollBlocked={panel.initialScrollBlocked}
           />
