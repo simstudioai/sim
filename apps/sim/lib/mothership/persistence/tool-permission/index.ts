@@ -1,12 +1,13 @@
 import type { CopilotToolPermissionDecision } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 import { isExecutableToolPermissionDecision } from '@/lib/mothership/async-runs/lifecycle'
 import { getAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 
 const logger = createLogger('CopilotToolPermission')
-const DECISION_RECHECK_INTERVAL_MS = 1_000
+const DECISION_RECHECK_BACKOFF = { baseMs: 1_000, maxMs: 10_000 } as const
 
 export const TOOL_PERMISSION_DECISION = {
   allow: 'allow',
@@ -113,6 +114,7 @@ export async function waitForToolPermissionDecision(
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     let recheckId: ReturnType<typeof setTimeout> | null = null
+    let recheckAttempt = 0
     let unsubscribe: (() => void) | null = null
 
     const cleanup = () => {
@@ -160,7 +162,11 @@ export async function waitForToolPermissionDecision(
         settle(existing)
         return
       }
-      recheckId = setTimeout(() => void readDecision(), DECISION_RECHECK_INTERVAL_MS)
+      recheckAttempt += 1
+      recheckId = setTimeout(
+        () => void readDecision(),
+        backoffWithJitter(recheckAttempt, null, DECISION_RECHECK_BACKOFF)
+      )
     }
     void readDecision()
   })

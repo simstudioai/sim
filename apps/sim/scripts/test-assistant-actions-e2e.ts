@@ -46,7 +46,7 @@ const databaseUrl = assertDisposableTestDatabaseUrl(
   requiredEnvironment('ASSISTANT_ACTIONS_E2E_DATABASE_URL')
 )
 const redisUrl = new URL(requiredEnvironment('REDIS_URL'))
-assert.equal(redisUrl.protocol, 'redis:')
+assert(['redis:', 'rediss:'].includes(redisUrl.protocol), 'Use a Redis URL')
 assert(['localhost', '127.0.0.1', '[::1]'].includes(redisUrl.hostname), 'Use local Redis')
 assert(!redisUrl.username && !redisUrl.password && !redisUrl.search, 'Use credential-free Redis')
 const authSecret = requiredEnvironment('ASSISTANT_ACTIONS_E2E_AUTH_SECRET')
