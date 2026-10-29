@@ -106,17 +106,45 @@ export interface OrgScopeParams {
   includeDeparted: boolean
 }
 
+/**
+ * An organization-level row has no workspace and names the organization in its metadata, or is
+ * the organization resource itself: {@link orgLevelCondition}, read by a listing as
+ * {@link orgLevelParts}.
+ */
+function orgMetadataMatch(organizationId: string): SQL<unknown> {
+  return sql`${auditLog.metadata}->>'organizationId' = ${organizationId}`
+}
+
+function orgResourceMatch(organizationId: string): SQL<unknown>[] {
+  return [
+    eq(auditLog.resourceType, AuditResourceType.ORGANIZATION),
+    eq(auditLog.resourceId, organizationId),
+  ]
+}
+
 function orgLevelCondition(organizationId: string): SQL<unknown> {
   return and(
     isNull(auditLog.workspaceId),
-    or(
-      sql`${auditLog.metadata}->>'organizationId' = ${organizationId}`,
-      and(
-        eq(auditLog.resourceType, AuditResourceType.ORGANIZATION),
-        eq(auditLog.resourceId, organizationId)
-      )
-    )
+    or(orgMetadataMatch(organizationId), and(...orgResourceMatch(organizationId)))
   )!
+}
+
+/**
+ * {@link orgLevelCondition} as two disjoint parts, each with its own index. The metadata match,
+ * which can hold thousands of rows, is read through `audit_log_org_level_created_at_id_idx`, which
+ * can stream it in keyset order and stop after a page: it spells `workspace_id IS NULL` and a strict equality on the key, which proves that
+ * partial index's predicate. The resource match whose metadata does not already name the
+ * organization is a few rows, sought on `audit_log_resource_idx` and sorted.
+ */
+function orgLevelParts(organizationId: string): SQL<unknown>[] {
+  return [
+    conjunction([isNull(auditLog.workspaceId), orgMetadataMatch(organizationId)]),
+    conjunction([
+      isNull(auditLog.workspaceId),
+      ...orgResourceMatch(organizationId),
+      sql`(${orgMetadataMatch(organizationId)}) is not true`,
+    ]),
+  ]
 }
 
 function currentActorCondition(orgMemberIds: string[]): SQL<unknown> {
@@ -170,15 +198,15 @@ function conjunction(conditions: SQL<unknown>[]): SQL<unknown> {
 }
 
 /**
- * The ids of the first `take` rows in scope, newest first. The scope is a
- * disjoint union — a row either belongs to one of the organization's workspaces
- * or has no workspace and names the organization — so each part is read
- * separately: one keyset scan of `audit_log_workspace_created_at_id_idx` per
- * workspace, plus the organization-level rows, each stopping after `take`
- * matches. The first `take` rows of the union are exactly the first `take` of
- * the whole scope. Planned as one `OR`, Postgres can follow no index in order
- * and sorts every row in the scope (for a busy organization, a full scan of the
- * table) to return one page.
+ * The ids of the first `take` rows in scope, newest first. The scope is a disjoint union, read
+ * part by part, each part limited to `take`: one keyset scan of
+ * `audit_log_workspace_created_at_id_idx` per organization workspace, and the two
+ * {@link orgLevelParts}. The first `take` rows of the union are exactly the first `take` of the
+ * whole scope, and disjointness keeps `union all` free of duplicates. A part is cheap only when an
+ * index serves its filter in order, so the scan stops after a page, or its filter matches few
+ * rows; otherwise it reads and sorts every row it matches. Planned as one `OR`, that is the whole
+ * scope (for a busy organization, a full scan of the table); with only `workspace_id IS NULL`
+ * indexed, it is every workspace-less row in the table, spread across the heap.
  */
 function pageIdsQuery(scope: AuditLogListScope, conditions: SQL<unknown>[], take: number): SQL {
   const shared = scope.includeDeparted
@@ -187,7 +215,7 @@ function pageIdsQuery(scope: AuditLogListScope, conditions: SQL<unknown>[], take
   const branch = (part: SQL<unknown>) =>
     sql`(select ${auditLog.id}, ${auditLog.createdAt} from ${auditLog} where ${conjunction([part, ...shared])} order by ${auditLogTimestamp} desc, ${auditLog.id} desc limit ${take})`
 
-  const parts = [branch(orgLevelCondition(scope.organizationId))]
+  const parts = orgLevelParts(scope.organizationId).map(branch)
   const workspaceIds = [...new Set(scope.orgWorkspaceIds)]
   if (workspaceIds.length > 0) {
     parts.unshift(

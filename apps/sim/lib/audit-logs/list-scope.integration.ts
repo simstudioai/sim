@@ -21,21 +21,34 @@ const foreignWorkspace = generateId()
 const workspaceIds = [workspaceA, workspaceB, foreignWorkspace]
 
 type Placement = { workspaceId: string | null; resourceId: string; metadata: object }
+/**
+ * Organization-level rows reach the listing through two disjoint parts, so the placements cover
+ * each part alone, a row both parts would match (it must be read once), a resource row whose
+ * metadata names another organization (only the resource part matches it), and rows of another
+ * organization that neither part may read.
+ */
 const PLACEMENTS: Placement[] = [
   { workspaceId: workspaceA, resourceId: generateId(), metadata: {} },
   { workspaceId: workspaceB, resourceId: generateId(), metadata: {} },
   { workspaceId: foreignWorkspace, resourceId: generateId(), metadata: {} },
   { workspaceId: null, resourceId: generateId(), metadata: { organizationId } },
   { workspaceId: null, resourceId: organizationId, metadata: {} },
+  { workspaceId: null, resourceId: organizationId, metadata: { organizationId } },
+  {
+    workspaceId: null,
+    resourceId: organizationId,
+    metadata: { organizationId: otherOrganizationId },
+  },
   {
     workspaceId: null,
     resourceId: generateId(),
     metadata: { organizationId: otherOrganizationId },
   },
+  { workspaceId: null, resourceId: otherOrganizationId, metadata: {} },
 ]
 const ACTORS = [memberId, departedId, null]
 
-const rows = Array.from({ length: 72 }, (_, index) => {
+const rows = Array.from({ length: 81 }, (_, index) => {
   const placement = PLACEMENTS[index % PLACEMENTS.length]
   return {
     id: `${generateId()}-${String(index).padStart(2, '0')}`,
@@ -43,7 +56,9 @@ const rows = Array.from({ length: 72 }, (_, index) => {
     workspaceId: placement.workspaceId,
     actorId: ACTORS[Math.floor(index / PLACEMENTS.length) % ACTORS.length],
     action: index % 4 === 0 ? 'workflow.deployed' : 'workflow.updated',
-    resourceType: placement.resourceId === organizationId ? 'organization' : 'workflow',
+    resourceType: [organizationId, otherOrganizationId].includes(placement.resourceId)
+      ? 'organization'
+      : 'workflow',
     resourceId: placement.resourceId,
     metadata: { ...placement.metadata, fixture: 'x'.repeat(200) },
   }
@@ -162,6 +177,11 @@ describe('queryAuditLogs scope against real Postgres', () => {
     expect(
       new Set(rows.filter((row) => ids.includes(row.id)).map((row) => row.workspaceId))
     ).toEqual(new Set([null]))
+    expect(
+      new Set(
+        rows.filter((row) => ids.includes(row.id)).map((row) => row.index % PLACEMENTS.length)
+      )
+    ).toEqual(new Set([3, 4, 5, 6]))
   })
 
   it('narrows to one workspace when the filter names it', async () => {

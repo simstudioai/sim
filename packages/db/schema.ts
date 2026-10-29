@@ -5911,6 +5911,20 @@ export const auditLog = pgTable(
       table.id
     ),
     actorCreatedIdx: index('audit_log_actor_created_idx').on(table.actorId, table.createdAt),
+    /**
+     * Serves the organization-level branch of an organization's listing: workspace-less rows
+     * attributed through `metadata.organizationId`, read newest first by the listing keyset.
+     */
+    orgLevelCreatedAtIdIdx: index('audit_log_org_level_created_at_id_idx')
+      .on(
+        sql`(${table.metadata}->>'organizationId')`,
+        sql`date_trunc('milliseconds', ${table.createdAt})`,
+        table.id
+      )
+      .concurrently()
+      .where(
+        sql`${table.workspaceId} IS NULL AND (${table.metadata}->>'organizationId') IS NOT NULL`
+      ),
     resourceIdx: index('audit_log_resource_idx').on(table.resourceType, table.resourceId),
     actionIdx: index('audit_log_action_idx').on(table.action),
   })
