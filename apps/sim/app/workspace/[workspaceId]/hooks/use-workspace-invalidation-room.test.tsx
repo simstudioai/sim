@@ -14,6 +14,7 @@ vi.mock('@/app/workspace/providers/socket-provider', () => ({
 }))
 
 import {
+  DELIVERY_SETTLE_CAP_MS,
   INVALIDATION_COALESCE_MS,
   useWorkspaceInvalidationRoom,
 } from '@/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room'
@@ -150,6 +151,20 @@ describe('useWorkspaceInvalidationRoom', () => {
 
       settle()
       await vi.advanceTimersByTimeAsync(INVALIDATION_COALESCE_MS)
+      expect(onChanged).toHaveBeenCalledTimes(2)
+    })
+
+    it('delivers again once a refetch that never settles outlasts the cap', async () => {
+      const onChanged = vi.fn(() => new Promise<void>(() => {}))
+      mount('ws-1', 'workspace-files', onChanged)
+
+      broadcast('workspace-files-changed', 'ws-1')
+      await vi.advanceTimersByTimeAsync(0)
+      broadcast('workspace-files-changed', 'ws-1')
+      await vi.advanceTimersByTimeAsync(DELIVERY_SETTLE_CAP_MS - 1)
+      expect(onChanged).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(1 + INVALIDATION_COALESCE_MS)
       expect(onChanged).toHaveBeenCalledTimes(2)
     })
   })
