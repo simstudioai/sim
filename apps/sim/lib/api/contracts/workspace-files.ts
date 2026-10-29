@@ -1,6 +1,7 @@
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { z } from 'zod'
 import {
+  booleanQueryFlagSchema,
   folderIdSchema,
   inlineFileRefQuerySchema,
   isCanonicalBase64,
@@ -9,6 +10,8 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { V2_SEARCH_MAX_LENGTH, v2LimitSchema } from '@/lib/api/contracts/v2/shared'
+import { LIST_SORT_ORDERS } from '@/lib/api/list-query'
 
 /**
  * Client-reachable listing scopes. `all` is deliberately excluded: it drops the
@@ -26,8 +29,45 @@ export const workspaceFileParamsSchema = workspaceFilesParamsSchema.extend({
   fileId: z.string({ error: 'File ID is required' }).min(1, 'File ID is required'),
 })
 
+/** The fields a paged list sorts by: the v2 list's, which the shared keyset implements. */
+const WORKSPACE_FILE_SORT_FIELDS = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
+
+const MAX_WORKSPACE_FILE_PAGE_SIZE = 500
+
+export const DEFAULT_WORKSPACE_FILE_PAGE_SIZE = 100
+
+/** A folder filter in the browser's addressing: `root` for the workspace root, else a folder id. */
+const workspaceFileFolderFilterSchema = z
+  .union([z.literal('root'), folderIdSchema])
+  .transform((value) => (value === 'root' ? null : value))
+
+/**
+ * The list's paging parameters. Sending any of them asks for one bounded page (default sort
+ * `uploadedAt` ascending, the unpaged order, and {@link DEFAULT_WORKSPACE_FILE_PAGE_SIZE} files) answered with `nextCursor`; sending
+ * none keeps the unpaged response, which returns the whole scope.
+ */
+export const WORKSPACE_FILE_PAGE_PARAMS = [
+  'folderId',
+  'sortBy',
+  'sortOrder',
+  'limit',
+  'cursor',
+] as const
+
 export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
+  /** The folder to list directly (not its subfolders); `root` for root files. Omit for every folder. */
+  folderId: workspaceFileFolderFilterSchema.optional(),
+  sortBy: z.enum(WORKSPACE_FILE_SORT_FIELDS).optional(),
+  sortOrder: z.enum(LIST_SORT_ORDERS).optional(),
+  limit: z.coerce
+    .number({ error: 'limit must be a number' })
+    .int('limit must be a whole number')
+    .min(1, 'limit must be at least 1')
+    .max(MAX_WORKSPACE_FILE_PAGE_SIZE, `limit cannot exceed ${MAX_WORKSPACE_FILE_PAGE_SIZE}`)
+    .optional(),
+  /** The previous page's `nextCursor`, sent back with the same scope, folder, and sort. */
+  cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
 })
 
 /**
@@ -170,8 +210,13 @@ const workspaceFileSuccessSchema = z.object({
   success: z.boolean(),
 })
 
-const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
+const workspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
   files: z.array(workspaceFileRecordSchema),
+})
+
+const listWorkspaceFilesResponseSchema = workspaceFilesResponseSchema.extend({
+  /** Present only on a paged request: the next page's cursor, `null` on the last page. */
+  nextCursor: z.string().nullable().optional(),
 })
 
 export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
@@ -191,6 +236,99 @@ export const listWorkspaceFilesContract = defineRouteContract({
     mode: 'json',
     schema: listWorkspaceFilesResponseSchema,
   },
+})
+
+const searchWorkspaceFilesQuerySchema = z.object({
+  /**
+   * A term of one or two characters holds no trigram, so it cannot use the name index and
+   * scans the workspace's live files; three or more probe `workspace_files_workspace_name_trgm_idx`.
+   */
+  q: z.string().trim().min(1, 'q cannot be empty').max(V2_SEARCH_MAX_LENGTH, 'q is too long'),
+  /** Confine the search to this folder (`root` for the workspace root). Omit to search everywhere. */
+  folderId: workspaceFileFolderFilterSchema.optional(),
+  /** Whether the folder's subfolders are searched too. Ignored without `folderId`. */
+  recursive: booleanQueryFlagSchema.default(true),
+  limit: v2LimitSchema({ max: 50, fallback: 20, description: 'Maximum files to return.' }),
+})
+
+/**
+ * GET — case-insensitive file-name search within a workspace, optionally within one folder:
+ * live files whose name contains `q`, by name, each carrying `folderPath`.
+ */
+export const searchWorkspaceFilesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/search',
+  params: workspaceFilesParamsSchema,
+  query: searchWorkspaceFilesQuerySchema,
+  response: { mode: 'json', schema: workspaceFilesResponseSchema },
+})
+
+const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
+
+const lookupEntriesSchema = (field: string) =>
+  z
+    .array(
+      z.string().min(1, `${field} entries cannot be empty`).max(1024, `${field} entry is too long`)
+    )
+    .max(
+      MAX_WORKSPACE_FILE_LOOKUP_ENTRIES,
+      `${field} cannot exceed ${MAX_WORKSPACE_FILE_LOOKUP_ENTRIES} entries`
+    )
+    .optional()
+
+const lookupWorkspaceFilesBodySchema = z
+  .object({
+    ids: lookupEntriesSchema('ids'),
+    /** Storage keys (`workspace/<workspaceId>/…`). */
+    keys: lookupEntriesSchema('keys'),
+    /** Ids, VFS paths (`files/<folder>/<name>`), or bare names, resolved as the agent resolves them. */
+    references: lookupEntriesSchema('references'),
+  })
+  .strict()
+  .refine(
+    (body) =>
+      (body.ids?.length ?? 0) + (body.keys?.length ?? 0) + (body.references?.length ?? 0) > 0,
+    { message: 'Provide at least one id, key, or reference' }
+  )
+
+/** `files` holds every live file any id, key, or reference resolved to, once each. */
+const lookupWorkspaceFilesResponseSchema = workspaceFilesResponseSchema.extend({
+  /** Per requested reference, in request order (deduplicated): the file it resolved to, or `null`. */
+  references: z.array(z.object({ reference: z.string(), fileId: z.string().nullable() })),
+})
+
+/** POST — resolve a bounded batch of live workspace files by id, storage key, or reference. */
+export const lookupWorkspaceFilesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/lookup',
+  params: workspaceFilesParamsSchema,
+  body: lookupWorkspaceFilesBodySchema,
+  response: { mode: 'json', schema: lookupWorkspaceFilesResponseSchema },
+})
+
+const workspaceFileFolderStatsQuerySchema = z.object({
+  /** The folder whose child folders to report: `root` (default) or a folder id. */
+  parentId: workspaceFileFolderFilterSchema.prefault('root'),
+})
+
+const workspaceFileFolderStatsResponseSchema = workspaceFileSuccessSchema.extend({
+  /** One entry per direct child folder of `parentId`, totals covering its whole subtree. */
+  folders: z.array(
+    z.object({
+      folderId: z.string(),
+      fileCount: z.number().int().nonnegative(),
+      sizeBytes: z.number().int().nonnegative(),
+    })
+  ),
+})
+
+/** GET — live file count and bytes under each child folder of `parentId`, subtrees rolled up. */
+export const workspaceFileFolderStatsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/folder-stats',
+  params: workspaceFilesParamsSchema,
+  query: workspaceFileFolderStatsQuerySchema,
+  response: { mode: 'json', schema: workspaceFileFolderStatsResponseSchema },
 })
 
 export const createWorkspaceFileContract = defineRouteContract({

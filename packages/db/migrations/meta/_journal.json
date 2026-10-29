@@ -3095,6 +3095,13 @@
       "when": 1793238399274,
       "tag": "0442_workspace_files_active_uploaded_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 443,
+      "version": "7",
+      "when": 1793242393900,
+      "tag": "0443_workspace_file_folder_upload_and_name_search_idx",
+      "breakpoints": true
     }
   ]
 }

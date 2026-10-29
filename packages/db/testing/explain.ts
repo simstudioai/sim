@@ -4,6 +4,8 @@ import type { db } from '@sim/db'
 export interface PlanNode {
   'Node Type': string
   'Index Name'?: string
+  /** The scan's index search condition, as PostgreSQL prints it. */
+  'Index Cond'?: string
   Plans?: PlanNode[]
 }
 
