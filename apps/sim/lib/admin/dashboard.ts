@@ -7,29 +7,18 @@ import {
   outboxEvent,
   permissions,
   subscription,
-  usageLog,
   user,
   userStats,
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { and, count, countDistinct, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import {
-  and,
-  count,
-  countDistinct,
-  desc,
-  eq,
-  gte,
-  ilike,
-  inArray,
-  isNull,
-  lt,
-  notExists,
-  or,
-  sql,
-} from 'drizzle-orm'
-import { alias } from 'drizzle-orm/pg-core'
+  readDashboardHistoricalActorUsage,
+  readDashboardLedgerUsage,
+  readDashboardLedgerUsageByUser,
+} from '@/lib/admin/dashboard-usage'
 import {
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
@@ -216,148 +205,46 @@ async function getDashboardOrganizationUsage(
 
   const includeUserBreakdown = options.includeUserBreakdown ?? true
   if (options.userIds?.length === 0) return result
-  const ledgerPeriodWhere = or(
-    ...contexts.map((context) =>
-      and(
-        eq(usageLog.billingEntityType, 'organization'),
-        eq(usageLog.billingEntityId, context.organizationId),
-        ...(context.period.source === 'reporting'
-          ? [
-              gte(usageLog.createdAt, context.period.start),
-              lt(usageLog.createdAt, context.period.end),
-            ]
-          : [
-              eq(usageLog.billingPeriodStart, context.period.start),
-              eq(usageLog.billingPeriodEnd, context.period.end),
-            ])
-      )
-    )
-  )
+  const windows = contexts.map(({ organizationId, period }) => ({
+    entity: { type: 'organization' as const, id: organizationId },
+    period,
+  }))
 
   if (!includeUserBreakdown) {
-    const ledgerTotals = await db
-      .select({
-        organizationId: usageLog.billingEntityId,
-        cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
-        workflowRuns:
-          sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
-            Number
-          ),
-      })
-      .from(usageLog)
-      .where(ledgerPeriodWhere)
-      .groupBy(usageLog.billingEntityId)
-    for (const row of ledgerTotals) {
-      if (!row.organizationId) continue
-      const usage = result.get(row.organizationId)
+    for (const [organizationId, ledger] of await readDashboardLedgerUsage(windows)) {
+      const usage = result.get(organizationId)
       if (usage) {
-        usage.total += Number(row.cost)
-        usage.workflowRuns += row.workflowRuns
+        usage.total += ledger.cost
+        usage.workflowRuns += ledger.workflowRuns
       }
     }
-
     return result
   }
 
-  const ledgerRows = await db
-    .select({
-      organizationId: usageLog.billingEntityId,
-      userId: usageLog.userId,
-      cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
-      workflowRuns:
-        sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
-          Number
-        ),
-    })
-    .from(usageLog)
-    .where(
-      options.userIds
-        ? and(ledgerPeriodWhere, inArray(usageLog.userId, options.userIds))
-        : ledgerPeriodWhere
-    )
-    .groupBy(usageLog.billingEntityId, usageLog.userId)
-
-  for (const row of ledgerRows) {
-    if (!row.organizationId) continue
-    const usage = result.get(row.organizationId)
+  const ledgerByUser = await readDashboardLedgerUsageByUser(windows, options.userIds)
+  for (const [organizationId, users] of ledgerByUser) {
+    const usage = result.get(organizationId)
     if (!usage) continue
-    const amount = Number(row.cost)
-    usage.total += amount
-    usage.byUser.set(row.userId, (usage.byUser.get(row.userId) ?? 0) + amount)
-    usage.workflowRuns += row.workflowRuns
-    usage.workflowRunsByUser.set(
-      row.userId,
-      (usage.workflowRunsByUser.get(row.userId) ?? 0) + row.workflowRuns
-    )
+    for (const [userId, ledger] of users) {
+      usage.total += ledger.cost
+      usage.byUser.set(userId, (usage.byUser.get(userId) ?? 0) + ledger.cost)
+      usage.workflowRuns += ledger.workflowRuns
+      usage.workflowRunsByUser.set(
+        userId,
+        (usage.workflowRunsByUser.get(userId) ?? 0) + ledger.workflowRuns
+      )
+    }
   }
 
   return result
 }
 
-const historicalUsageMember = alias(member, 'historical_usage_member')
-const historicalUsagePermission = alias(permissions, 'historical_usage_permission')
-const historicalUsageWorkspace = alias(workspace, 'historical_usage_workspace')
-
 async function getHistoricalActorUsage(
   organizationId: string,
   period: ResolvedUsagePeriod
 ): Promise<{ usedDollars: number; usedCredits: number; workflowRuns: number; actorCount: number }> {
-  const currentMember = db
-    .select({ value: sql`1` })
-    .from(historicalUsageMember)
-    .where(
-      and(
-        eq(historicalUsageMember.organizationId, organizationId),
-        eq(historicalUsageMember.userId, usageLog.userId)
-      )
-    )
-  const currentCollaborator = db
-    .select({ value: sql`1` })
-    .from(historicalUsagePermission)
-    .innerJoin(
-      historicalUsageWorkspace,
-      and(
-        eq(historicalUsagePermission.entityType, 'workspace'),
-        eq(historicalUsagePermission.entityId, historicalUsageWorkspace.id)
-      )
-    )
-    .where(
-      and(
-        eq(historicalUsageWorkspace.organizationId, organizationId),
-        eq(historicalUsagePermission.userId, usageLog.userId)
-      )
-    )
-  const [row] = await db
-    .select({
-      usedDollars: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
-      workflowRuns:
-        sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
-          Number
-        ),
-      actorCount: countDistinct(usageLog.userId),
-    })
-    .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, 'organization'),
-        eq(usageLog.billingEntityId, organizationId),
-        ...(period.source === 'reporting'
-          ? [gte(usageLog.createdAt, period.start), lt(usageLog.createdAt, period.end)]
-          : [
-              eq(usageLog.billingPeriodStart, period.start),
-              eq(usageLog.billingPeriodEnd, period.end),
-            ]),
-        notExists(currentMember),
-        notExists(currentCollaborator)
-      )
-    )
-  const usedDollars = Number(row?.usedDollars ?? 0)
-  return {
-    usedDollars,
-    usedCredits: dollarsToCredits(usedDollars),
-    workflowRuns: row?.workflowRuns ?? 0,
-    actorCount: row?.actorCount ?? 0,
-  }
+  const usage = await readDashboardHistoricalActorUsage(organizationId, period)
+  return { ...usage, usedCredits: dollarsToCredits(usage.usedDollars) }
 }
 
 export function toDashboardProvisioning(view: EnterpriseProvisioningView) {
@@ -573,49 +460,11 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
   const personalSubscriptionMap = new Map(
     personalSubscriptions.map((row) => [row.referenceId, row])
   )
-  const personalPeriods = new Map(
-    personalUserIds.map((userId) => [
-      userId,
-      resolveDashboardUsagePeriod(personalSubscriptionMap.get(userId) ?? null),
-    ])
-  )
-  const personalLedgerRows =
-    personalUserIds.length === 0
-      ? []
-      : await db
-          .select({
-            userId: usageLog.billingEntityId,
-            cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
-            workflowRuns:
-              sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
-                Number
-              ),
-          })
-          .from(usageLog)
-          .where(
-            or(
-              ...personalUserIds.map((userId) => {
-                const period = personalPeriods.get(userId) as ResolvedUsagePeriod
-                return and(
-                  eq(usageLog.billingEntityType, 'user'),
-                  eq(usageLog.billingEntityId, userId),
-                  ...(period.source === 'reporting'
-                    ? [gte(usageLog.createdAt, period.start), lt(usageLog.createdAt, period.end)]
-                    : [
-                        eq(usageLog.billingPeriodStart, period.start),
-                        eq(usageLog.billingPeriodEnd, period.end),
-                      ])
-                )
-              })
-            )
-          )
-          .groupBy(usageLog.billingEntityId)
-  const personalUsage = new Map(
-    personalLedgerRows.flatMap((row) =>
-      row.userId
-        ? ([[row.userId, { dollars: Number(row.cost), workflowRuns: row.workflowRuns }]] as const)
-        : []
-    )
+  const personalUsage = await readDashboardLedgerUsage(
+    personalUserIds.map((userId) => ({
+      entity: { type: 'user' as const, id: userId },
+      period: resolveDashboardUsagePeriod(personalSubscriptionMap.get(userId) ?? null),
+    }))
   )
 
   return {
@@ -625,7 +474,7 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
         : undefined
       const usageDollars = row.organizationId
         ? (organization?.byUser.get(row.id) ?? 0)
-        : (personalUsage.get(row.id)?.dollars ?? 0)
+        : (personalUsage.get(row.id)?.cost ?? 0)
       return {
         id: row.id,
         name: row.name,
