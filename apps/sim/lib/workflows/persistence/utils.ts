@@ -313,23 +313,17 @@ export async function loadDeployedWorkflowState(
       throw new NoActiveDeploymentError(workflowId)
     }
 
-    let deployedState: DeployedWorkflowData
-    if (active.id === cachedVersionId && active.state == null) {
-      // Served from the cache, or re-read by id if the entry was evicted since the hint.
-      deployedState = await loadWorkflowDeploymentVersionState(
-        workflowId,
-        active.id,
-        providedWorkspaceId
-      )
-    } else if (!active.state) {
-      throw new NoActiveDeploymentError(workflowId)
-    } else {
-      deployedState = await materializeDeploymentState(
-        workflowId,
-        active,
-        await resolveWorkspaceId(workflowId, providedWorkspaceId)
-      )
-    }
+    /** Postgres withheld the state this process already caches for the active version. */
+    const withheld = active.id === cachedVersionId && active.state == null
+    if (!withheld && !active.state) throw new NoActiveDeploymentError(workflowId)
+    const deployedState = withheld
+      ? // Served from the cache, or re-read by id if the entry was evicted since the hint.
+        await loadWorkflowDeploymentVersionState(workflowId, active.id, providedWorkspaceId)
+      : await materializeDeploymentState(
+          workflowId,
+          active,
+          await resolveWorkspaceId(workflowId, providedWorkspaceId)
+        )
     cachedVersionByWorkflow.set(workflowId, active.id)
     return deployedState
   } catch (error) {
