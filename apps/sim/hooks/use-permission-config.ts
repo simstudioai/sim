@@ -35,6 +35,14 @@ export interface PermissionConfigResult {
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
   isBlockAllowed: (blockType: string) => boolean
+  /**
+   * Whether the integration policy (permission group allowlist intersected with
+   * the deployment's `ALLOWED_INTEGRATIONS`) permits a block, regardless of
+   * whether this deployment has the block's OAuth client configured. Surfaces
+   * that show an unconfigured integration as unavailable, rather than hiding
+   * it, filter by this instead of {@link isBlockAllowed}.
+   */
+  isBlockPermitted: (blockType: string) => boolean
   /** Presentation-only hint; request creation revalidates the deployed public catalog. */
   isBlockRequestable: (blockType: string) => boolean
   /**
@@ -138,6 +146,14 @@ export function usePermissionConfig(): PermissionConfigResult {
     [envAllowlistData?.oauthServiceAvailability]
   )
 
+  const isBlockPermitted = useMemo(() => {
+    return (blockType: string) => {
+      if (isBlockTypeAccessControlExempt(blockType)) return true
+      if (allowedAccessControlTypes === null) return true
+      return allowedAccessControlTypes.has(resolveAccessControlBlockType(blockType.toLowerCase()))
+    }
+  }, [allowedAccessControlTypes])
+
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
       const normalizedBlockType = blockType.toLowerCase()
@@ -152,11 +168,9 @@ export function usePermissionConfig(): PermissionConfigResult {
       ) {
         return false
       }
-      if (isBlockTypeAccessControlExempt(blockType)) return true
-      if (allowedAccessControlTypes === null) return true
-      return allowedAccessControlTypes.has(resolveAccessControlBlockType(normalizedBlockType))
+      return isBlockPermitted(blockType)
     }
-  }, [hostContext?.features?.credentialGroups, integrationAvailability, allowedAccessControlTypes])
+  }, [hostContext?.features?.credentialGroups, integrationAvailability, isBlockPermitted])
 
   const isBlockRequestable = useMemo(() => {
     const deploymentAllowlist = intersectAccessControlAllowlists(
@@ -241,6 +255,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
+      isBlockPermitted,
       isBlockRequestable,
       isModelUsable,
       isToolAllowed,
@@ -264,6 +279,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
+      isBlockPermitted,
       isBlockRequestable,
       isModelUsable,
       isToolAllowed,

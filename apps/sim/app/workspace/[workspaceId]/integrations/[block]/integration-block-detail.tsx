@@ -5,6 +5,7 @@ import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -16,6 +17,7 @@ import {
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
+import { IntegrationBlockDetailFallback } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail-fallback'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
 import { ConnectPersonalTokenModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-personal-token-modal'
@@ -42,6 +44,8 @@ import {
   getTemplatesForBlock,
   type ScopedBlockTemplate,
 } from '@/blocks/registry'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
+import { RequestAccessAction } from '@/ee/access-requests/components/request-access-action'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -60,7 +64,52 @@ interface IntegrationBlockDetailProps {
   workspaceId: string
 }
 
+/**
+ * Integration detail page, shown only when the viewer's integration policy
+ * permits the integration. A direct link to a restricted one renders an
+ * access-required state instead of the connect actions.
+ */
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
+  const { isLoading, isBlockPermitted, isBlockRequestable } = usePermissionConfig()
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+
+  if (isLoading) return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
+  if (isBlockPermitted(integration.type)) {
+    return <IntegrationBlockDetailContent integration={integration} workspaceId={workspaceId} />
+  }
+
+  const requestable = accessRequests.data?.enabled === true && isBlockRequestable(integration.type)
+
+  return (
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className={PAGE_HEADER_BAR}>
+        <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
+          Integrations
+        </ChipLink>
+      </div>
+      <EmptyState
+        title='Access required'
+        description={
+          requestable
+            ? 'Ask an administrator for access.'
+            : 'Your organization restricts this integration.'
+        }
+        action={
+          requestable ? (
+            <RequestAccessAction
+              scope={{ kind: 'workspace', workspaceId }}
+              target={{ kind: 'integration', id: integration.type }}
+              label={integration.name}
+              variant='primary'
+            />
+          ) : undefined
+        }
+      />
+    </div>
+  )
+}
+
+function IntegrationBlockDetailContent({ integration, workspaceId }: IntegrationBlockDetailProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   useOAuthReturnRouter()
   const router = useRouter()

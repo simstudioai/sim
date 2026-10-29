@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 interface ShowcaseWithExploreProps {
   /**
@@ -26,11 +27,12 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
   const params = useParams()
   const router = useRouter()
   const { chatEnabled } = useDeploymentShape()
+  const { isBlockPermitted } = usePermissionConfig()
   const workspaceId = (params?.workspaceId as string) || ''
 
   return (
     <div className='relative'>
-      <IntegrationsShowcase />
+      <IntegrationsShowcase isBlockPermitted={isBlockPermitted} />
       {chatEnabled && (
         <Chip
           active

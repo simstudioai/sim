@@ -101,6 +101,21 @@ describe('usePermissionConfig deployment readiness', () => {
     expect(current!.isBlockRequestable('credential_group')).toBe(false)
   })
 
+  it('judges policy permission independently of deployment OAuth readiness', () => {
+    mockUseUserPermissionConfig.mockReturnValue({
+      data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['airtable'] } },
+      isLoading: false,
+    })
+    queryClient.setQueryData(integrationAvailabilityKeys.environments(), {
+      ...AVAILABILITY,
+      integrationAvailability: [{ type: 'airtable', state: 'unavailable', oauthAvailable: false }],
+    })
+    render()
+    expect(current!.isBlockAllowed('airtable')).toBe(false)
+    expect(current!.isBlockPermitted('airtable')).toBe(true)
+    expect(current!.isBlockPermitted('slack')).toBe(false)
+  })
+
   it('does not offer a request before deployment availability resolves', () => {
     mockUseUserPermissionConfig.mockReturnValue({
       data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: [] } },

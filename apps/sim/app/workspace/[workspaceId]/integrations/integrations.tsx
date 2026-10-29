@@ -150,7 +150,7 @@ function IntegrationsContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
-  const { integrationAvailability } = usePermissionConfig()
+  const { integrationAvailability, isBlockPermitted } = usePermissionConfig()
 
   const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =
     useQueryStates(integrationsParsers, integrationsUrlKeys)
@@ -205,6 +205,22 @@ function IntegrationsContent() {
     })
   }, [oauthCredentials])
 
+  const permittedFeatured = useMemo(
+    () => FEATURED_INTEGRATIONS.filter((integration) => isBlockPermitted(integration.type)),
+    [isBlockPermitted]
+  )
+
+  const permittedCategorySections = useMemo(
+    () =>
+      ALL_CATEGORY_SECTIONS.flatMap((section) => {
+        const integrations = section.integrations.filter((integration) =>
+          isBlockPermitted(integration.type)
+        )
+        return integrations.length > 0 ? [{ label: section.label, integrations }] : []
+      }),
+    [isBlockPermitted]
+  )
+
   const setSelectedCategory = useCallback(
     (category: string) => {
       setIntegrationFilters({ category })
@@ -215,8 +231,8 @@ function IntegrationsContent() {
   const categoryOptions = [
     ALL_CATEGORY,
     ...(connectedItems.length > 0 ? [CONNECTED_LABEL] : []),
-    FEATURED_LABEL,
-    ...ALL_CATEGORY_SECTIONS.map((section) => section.label),
+    ...(permittedFeatured.length > 0 ? [FEATURED_LABEL] : []),
+    ...permittedCategorySections.map((section) => section.label),
   ]
 
   const isAllCategorySelected = selectedCategory === ALL_CATEGORY
@@ -234,7 +250,7 @@ function IntegrationsContent() {
       integration.description.toLowerCase().includes(normalizedSearch)
 
     if (isFeaturedSelected) {
-      const items = FEATURED_INTEGRATIONS.filter(matchesSearch)
+      const items = permittedFeatured.filter(matchesSearch)
       return items.length > 0 ? [{ label: FEATURED_LABEL, integrations: items }] : []
     }
 
@@ -243,27 +259,22 @@ function IntegrationsContent() {
 
     // Featured is a curated home-row pin: hide it during search so results
     // are not duplicated between the Featured section and the category list.
-    const featured = normalizedSearch ? [] : FEATURED_INTEGRATIONS.filter(matchesCategory)
+    const featured = normalizedSearch ? [] : permittedFeatured.filter(matchesCategory)
     const featuredSection =
       featured.length > 0 ? [{ label: FEATURED_LABEL, integrations: featured }] : []
 
-    if (isAllCategorySelected) {
-      const rest = ALL_CATEGORY_SECTIONS.map((section) => ({
+    const categorySections = permittedCategorySections
+      .filter((section) => isAllCategorySelected || section.label === selectedCategory)
+      .map((section) => ({
         label: section.label,
         integrations: section.integrations.filter(matchesSearch),
-      })).filter((section) => section.integrations.length > 0)
-      return [...featuredSection, ...rest]
-    }
+      }))
+      .filter((section) => section.integrations.length > 0)
 
-    const integrations = INTEGRATIONS.filter(matchesCategory)
-      .filter(matchesSearch)
-      .sort((a, b) => a.name.localeCompare(b.name))
-
-    return [
-      ...featuredSection,
-      ...(integrations.length > 0 ? [{ label: selectedCategory, integrations }] : []),
-    ]
+    return [...featuredSection, ...categorySections]
   }, [
+    permittedFeatured,
+    permittedCategorySections,
     isAllCategorySelected,
     isConnectedSelected,
     isFeaturedSelected,
