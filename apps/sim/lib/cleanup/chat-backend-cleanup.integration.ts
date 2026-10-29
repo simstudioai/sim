@@ -76,8 +76,12 @@ const { backend, storageRoot } = await vi.hoisted(async () => {
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { enqueueAdminRemovedChatCleanup } from '@/lib/auth/admin-removal-chat-cleanup'
-import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+} from '@/lib/cleanup/chat-backend-cleanup-event'
 import { chatBackendCleanupOutboxHandlers } from '@/lib/cleanup/chat-backend-cleanup-outbox'
+import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { deleteCopilotChat } from '@/lib/mothership/chat/deletion'
@@ -203,7 +207,7 @@ async function seedChatWithFiles(userId: string, workspaceId: string) {
 
 const queuedBySuite = () =>
   and(
-    eq(outboxEvent.eventType, CHAT_BACKEND_CLEANUP_EVENT),
+    inArray(outboxEvent.eventType, [CHAT_BACKEND_CLEANUP_EVENT, CHAT_INLINE_IMAGE_CLEANUP_EVENT]),
     sql`${outboxEvent.createdAt} >= ${suiteStartedAt}::timestamp`
   )
 
@@ -304,7 +308,7 @@ describe('cleanup of a permanently deleted chat', () => {
 
     expect(await existingChats([chatId])).toEqual(new Set())
     const delivered = await deliverCleanups()
-    expect(delivered.outcomes).toEqual(['completed', 'completed'])
+    expect(delivered.outcomes).toEqual(['completed', 'completed', 'completed'])
     expect(delivered.purged).toEqual(new Set([chatId]))
     expect(await objectExists(keys.upload)).toBe(false)
     expect(await objectExists(keys.attachment)).toBe(false)
@@ -403,6 +407,83 @@ describe('cleanup of a permanently deleted chat', () => {
     expect(await objectExists(unplaceable)).toBe(true)
   })
 
+  it('accepts the payloads queued before refs carried their scope', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const deletedChat = await seedChat(ownerId, workspaceId)
+    const organizationAttachment = `copilot/${generateId()}/org-attachment.png`
+    await putObject(organizationAttachment)
+    await db.delete(copilotChats).where(eq(copilotChats.id, deletedChat))
+    const organizationId = generateId()
+    await db.insert(outboxEvent).values([
+      {
+        id: generateId(),
+        eventType: CHAT_BACKEND_CLEANUP_EVENT,
+        payload: { chatIds: [deletedChat], files: [] },
+      },
+      {
+        id: generateId(),
+        eventType: CHAT_BACKEND_CLEANUP_EVENT,
+        payload: {
+          chatIds: [],
+          files: [
+            {
+              key: organizationAttachment,
+              context: 'copilot',
+              chatId: deletedChat,
+              organizationId,
+            },
+          ],
+        },
+      },
+    ])
+
+    const delivered = await deliverCleanups()
+    expect(delivered.outcomes).toEqual(['completed', 'completed'])
+    expect(delivered.purged).toEqual(new Set([deletedChat]))
+    // Its legacy `organizationId` places it, and no chat of that organization still names it.
+    expect(await objectExists(organizationAttachment)).toBe(false)
+  })
+
+  it('sweeps the inline images of the chats whose rows are gone, never a surviving chat’s', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const gone = await seedChat(ownerId, workspaceId)
+    const survivor = await seedChat(ownerId, workspaceId)
+    const goneImages = [
+      inlineChatImageKey(gone, 'req-1', 'files/a.png'),
+      inlineChatImageKey(gone, 'req-2', 'files/b.png'),
+    ]
+    const survivorImage = inlineChatImageKey(survivor, 'req-1', 'files/a.png')
+    for (const key of [...goneImages, survivorImage]) await putObject(key)
+    await db.delete(copilotChats).where(eq(copilotChats.id, gone))
+    await db.insert(outboxEvent).values({
+      id: generateId(),
+      eventType: CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+      payload: { chatIds: [gone, survivor] },
+    })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
+    for (const key of goneImages) expect(await objectExists(key)).toBe(false)
+    expect(await objectExists(survivorImage)).toBe(true)
+  })
+
+  it('queues the inline image sweep of the chats a cleanup job purges', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const chatId = await seedChat(ownerId, workspaceId)
+    const image = inlineChatImageKey(chatId, 'req-1', 'files/a.png')
+    await putObject(image)
+
+    const cleanup = await prepareChatCleanup([chatId], 'test')
+    await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+    await cleanup.execute()
+
+    expect(backend.purged).toEqual([[chatId]])
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
+    expect(await objectExists(image)).toBe(false)
+  })
+
   it('records no cleanup when the delete rolls back', async () => {
     const ownerId = await seedUser()
     const workspaceId = await seedWorkspace(ownerId)
@@ -428,14 +509,14 @@ describe('cleanup of a permanently deleted chat', () => {
     await rm(join(storageRoot, keys.upload))
     await mkdir(join(storageRoot, keys.upload, 'blocker'), { recursive: true })
 
-    expect((await deliverCleanups()).outcomes).toEqual(['pending', 'pending'])
+    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'pending', 'pending'])
     expect(await objectExists(keys.attachment)).toBe(false)
 
     backend.unavailable = false
     await rm(join(storageRoot, keys.upload), { recursive: true })
     await putObject(keys.upload)
     const retried = await deliverCleanups()
-    expect(retried.outcomes).toEqual(['completed', 'completed'])
+    expect(retried.outcomes).toEqual(['completed', 'completed', 'completed'])
     expect(retried.purged).toEqual(new Set([chatId]))
     expect(await objectExists(keys.upload)).toBe(false)
   })
@@ -447,7 +528,7 @@ describe('cleanup of a permanently deleted chat', () => {
     await deleteCopilotChat({ chatId, userId: ownerId })
     Object.assign(env, { COPILOT_API_KEY: undefined })
 
-    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'pending'])
+    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'completed', 'pending'])
     expect(backend.purged).toEqual([])
     expect(await objectExists(keys.upload)).toBe(false)
     expect(await objectExists(keys.attachment)).toBe(false)
@@ -459,7 +540,7 @@ describe('cleanup of a permanently deleted chat', () => {
 
     Object.assign(env, { COPILOT_API_KEY: backend.apiKey })
     const retried = await deliverCleanups()
-    expect(retried.outcomes).toEqual(['completed', 'completed'])
+    expect(retried.outcomes).toEqual(['completed', 'completed', 'completed'])
     expect(retried.purged).toEqual(new Set([chatId]))
   })
 })

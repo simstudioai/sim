@@ -166,12 +166,10 @@ export const forkChat = defineAuthorizedChatUseCase({
             )
         }
         /**
-         * The fork can share keys with its source (organization attachments, message-only
-         * attachments, uploads whose copy failed), and chat cleanup deletes such a key only once
-         * no remaining chat of the source's workspace or organization names it in its
-         * `fileAttachments`, checking only after the source row is deleted. Holding the source row
-         * until commit orders the two: a purge that already removed it refuses this fork, and one
-         * that has not waits for this commit and then sees the fork's references.
+         * The fork can share keys with its source (`ChatFileRef` in `lib/cleanup/chat-files.ts`),
+         * and chat cleanup checks for other references only after the source row is deleted.
+         * Holding the source row until commit orders the two: a purge that already removed it
+         * refuses this fork, and one that has not waits for this commit and sees its references.
          */
         const [source] = await tx
           .select({ id: copilotChats.id, memorySpaceId: copilotChats.memorySpaceId })

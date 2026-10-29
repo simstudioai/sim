@@ -2,7 +2,10 @@ import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
-import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+} from '@/lib/cleanup/chat-backend-cleanup-event'
 import {
   EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
   OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
@@ -51,6 +54,7 @@ const PRUNABLE_OUTBOX_EVENT_TYPES = [
   WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
   MEMORY_CLEANUP_EVENT,
   CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
 ] as const
 
 async function pruneCompletedBatch(eventType: string, cutoff: Date): Promise<number> {

@@ -2,10 +2,10 @@ import { dbFor } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
-import { enqueueChatBackendCleanup } from '@/lib/cleanup/chat-backend-cleanup'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { enqueueChatInlineImageCleanup } from '@/lib/cleanup/chat-backend-cleanup'
 import {
+  CHAT_FILE_COLLECT_CHUNK_SIZE,
   type ChatFileRef,
   type ChatFileReferenceScope,
   type ChatScopedContext,
@@ -22,25 +22,55 @@ const logger = createLogger('ChatCleanup')
 const cleanupDb = dbFor('cleanup')
 
 const COPILOT_CLEANUP_BATCH_SIZE = 1000
-/** Bounds how many keys or chat ids one query names. */
-const CHAT_FILE_COLLECT_CHUNK_SIZE = 500
+
+/**
+ * The keys among `keys` that some chat of `scope` names in its messages' `fileAttachments`, in one
+ * scan of the scope's messages. The keys travel as one JSON parameter, so their number never
+ * meets the bind limit. A scope with no chat left is not scanned.
+ */
+async function keysReferencedInScope(
+  scope: ChatFileReferenceScope,
+  keys: readonly string[]
+): Promise<string[]> {
+  const inScope =
+    scope.kind === 'organization'
+      ? eq(copilotChats.organizationId, scope.id)
+      : eq(copilotChats.workspaceId, scope.id)
+  const [anyChat] = await cleanupDb
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(inScope)
+    .limit(1)
+  if (!anyChat) return []
+  const attachments = sql`${copilotMessages.content} -> 'fileAttachments'`
+  const rows = await cleanupDb.execute<{ key: string }>(sql`
+    SELECT DISTINCT attachment ->> 'key' AS key
+    FROM ${copilotMessages}
+    JOIN ${copilotChats} ON ${copilotChats.id} = ${copilotMessages.chatId}
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE WHEN jsonb_typeof(${attachments}) = 'array' THEN ${attachments} ELSE '[]'::jsonb END
+    ) AS attachment
+    WHERE ${inScope}
+      AND jsonb_typeof(attachment -> 'key') = 'string'
+      AND attachment ->> 'key' IN (SELECT jsonb_array_elements_text(${JSON.stringify(keys)}::jsonb))
+  `)
+  return rows.map((row) => row.key)
+}
 
 /**
  * The files among `files` that may be deleted: those no remaining chat of their scope still
- * references ({@link chatFileReferenceScope}). A fork keeps naming its source's key wherever it
- * did not copy the file, so a key still in another chat's `fileAttachments` outlives the chats
- * being purged, and a key whose scope is unknown is kept rather than risked. Runs after the caller
- * deleted those chats' rows, so any match is another chat: a fork, or a chat that is only
- * soft-deleted and may be restored.
+ * references ({@link ChatFileRef}), checked with one query per scope. A key whose scope is unknown
+ * is kept rather than risked. Runs after the caller deleted those chats' rows, so any match is
+ * another chat: a fork, or a chat that is only soft-deleted and may be restored.
  */
 export async function deletableChatFiles(files: readonly ChatFileRef[]): Promise<ChatFileRef[]> {
   const keysByScope = new Map<string, { scope: ChatFileReferenceScope; keys: string[] }>()
-  const kept = new Set<string>()
+  const unknown = new Set<string>()
   for (const file of files) {
     const scope = chatFileReferenceScope(file)
-    if (scope === null) continue
-    if (scope === undefined) {
-      kept.add(file.key)
+    if (scope === 'unshared') continue
+    if (scope === 'unknown') {
+      unknown.add(file.key)
       continue
     }
     const scopeKey = `${scope.kind}:${scope.id}`
@@ -48,45 +78,14 @@ export async function deletableChatFiles(files: readonly ChatFileRef[]): Promise
     if (group) group.keys.push(file.key)
     else keysByScope.set(scopeKey, { scope, keys: [file.key] })
   }
-  if (kept.size > 0) {
-    logger.warn(`Keeping ${kept.size} chat files whose reference scope is unknown`, {
-      keys: [...kept],
+  if (unknown.size > 0) {
+    logger.warn(`Keeping ${unknown.size} chat files whose reference scope is unknown`, {
+      keys: [...unknown],
     })
   }
+  const kept = new Set(unknown)
   for (const { scope, keys } of keysByScope.values()) {
-    const inScope =
-      scope.kind === 'organization'
-        ? eq(copilotChats.organizationId, scope.id)
-        : eq(copilotChats.workspaceId, scope.id)
-    for (const chunk of chunkArray(keys, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
-      const wanted = new Set(chunk)
-      const rows = await cleanupDb
-        .select({ fileAttachments: sql<unknown>`${copilotMessages.content} -> 'fileAttachments'` })
-        .from(copilotMessages)
-        .innerJoin(copilotChats, eq(copilotChats.id, copilotMessages.chatId))
-        .where(
-          and(
-            inScope,
-            or(
-              ...chunk.map(
-                (key) =>
-                  sql`${copilotMessages.content} @> ${JSON.stringify({ fileAttachments: [{ key }] })}::jsonb`
-              )
-            )
-          )
-        )
-      for (const { fileAttachments } of rows) {
-        if (!Array.isArray(fileAttachments)) continue
-        for (const attachment of fileAttachments) {
-          if (
-            isRecordLike(attachment) &&
-            typeof attachment.key === 'string' &&
-            wanted.has(attachment.key)
-          )
-            kept.add(attachment.key)
-        }
-      }
-    }
+    for (const key of await keysReferencedInScope(scope, [...new Set(keys)])) kept.add(key)
   }
   return files.filter((file) => !kept.has(file.key))
 }
@@ -223,12 +222,7 @@ export async function prepareChatCleanup(
         logger.info(
           `[${label}] Copilot backend: ${copilotResult.deleted} deleted, ${copilotResult.failed} failed`
         )
-        // Inline images have no row or key list to delete by; the outbox sweeps each chat's prefix.
-        await enqueueChatBackendCleanup(
-          cleanupDb,
-          { chatIds: confirmedChatIds, files: [] },
-          { copilotBackend: false }
-        )
+        await enqueueChatInlineImageCleanup(cleanupDb, confirmedChatIds)
       }
 
       // Delete storage files with correct context per file

@@ -13,7 +13,10 @@ import {
 } from '@/lib/billing/enterprise-owner-claim-events'
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
-import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+} from '@/lib/cleanup/chat-backend-cleanup-event'
 import type { LazyOutboxHandlerGroup } from '@/lib/core/outbox/service'
 import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
 import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
@@ -193,7 +196,7 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
     },
   },
   {
-    events: [CHAT_BACKEND_CLEANUP_EVENT],
+    events: [CHAT_BACKEND_CLEANUP_EVENT, CHAT_INLINE_IMAGE_CLEANUP_EVENT],
     load: async () => {
       const { chatBackendCleanupOutboxHandlers } = await import(
         '@/lib/cleanup/chat-backend-cleanup-outbox'

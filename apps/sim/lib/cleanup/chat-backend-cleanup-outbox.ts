@@ -2,8 +2,14 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { describeError, toError } from '@sim/utils/errors'
 import { inArray } from 'drizzle-orm'
-import { chatBackendCleanupPayloadSchema } from '@/lib/cleanup/chat-backend-cleanup'
-import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  chatBackendCleanupPayloadSchema,
+  chatInlineImageCleanupPayloadSchema,
+} from '@/lib/cleanup/chat-backend-cleanup'
+import {
+  CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+} from '@/lib/cleanup/chat-backend-cleanup-event'
 import { cleanupCopilotBackend, deletableChatFiles } from '@/lib/cleanup/chat-cleanup'
 import { env } from '@/lib/core/config/env'
 import {
@@ -13,80 +19,57 @@ import {
   type OutboxHandlerRegistry,
 } from '@/lib/core/outbox/service'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import {
-  INLINE_CHAT_IMAGE_PREFIX,
-  inlineImageRequestIdSchema,
-} from '@/lib/mothership/chat/inline-image-reference'
+import { inlineChatImagePrefix } from '@/lib/mothership/chat/inline-image-key'
 import { outboxDeadlineNear, sweepStoragePrefix } from '@/lib/uploads/core/prefix-sweep'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
-const FILE_DELETE_CONCURRENCY = 10
+/** Most object deletes, or chat prefix sweeps, one handler run has in flight at once. */
+const STORAGE_CONCURRENCY = 10
+
+/** The ids among `chatIds` that still have a `copilot_chats` row. */
+async function survivingChatIds(chatIds: readonly string[]): Promise<Set<string>> {
+  if (chatIds.length === 0) return new Set()
+  const rows = await db
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(inArray(copilotChats.id, [...chatIds]))
+  return new Set(rows.map(({ id }) => id))
+}
 
 /**
- * Deletes every inline image under each deleted chat's `chat-images/<chatId>/` prefix, from the
- * `from`th chat on. `swept` is how many leading chats are done: all of them unless the deadline
- * neared (`continue`) or a listing stopped advancing (`stalled`).
+ * Sweeps `chatId`'s inline image prefix until it is empty, the deadline nears (`continue`), or a
+ * listing stops advancing (`stalled`).
  */
-async function sweepInlineImages(
-  chatIds: readonly string[],
-  deleted: ReadonlySet<string>,
-  from: number,
+async function sweepChatImages(
+  chatId: string,
   context: OutboxEventContext
-): Promise<{ swept: number; outcome: 'done' | 'continue' | 'stalled' }> {
-  for (let index = from; index < chatIds.length; index++) {
-    const chatId = chatIds[index]
-    // A chat id outside the image key grammar never had an image stored under it.
-    if (!deleted.has(chatId) || !inlineImageRequestIdSchema.safeParse(chatId).success) continue
-    for (;;) {
-      context.signal.throwIfAborted()
-      const outcome = await sweepStoragePrefix(
-        `${INLINE_CHAT_IMAGE_PREFIX}${chatId}/`,
-        'mothership',
-        context
-      )
-      if (outcome === 'done') break
-      if (outcome === 'stalled' || outboxDeadlineNear(context)) return { swept: index, outcome }
-    }
-    if (outboxDeadlineNear(context)) return { swept: index + 1, outcome: 'continue' }
+): Promise<'done' | 'continue' | 'stalled'> {
+  const prefix = inlineChatImagePrefix(chatId)
+  for (;;) {
+    context.signal.throwIfAborted()
+    if (outboxDeadlineNear(context)) return 'continue'
+    const outcome = await sweepStoragePrefix(prefix, 'mothership', context)
+    if (outcome !== 'continue') return outcome
   }
-  return { swept: chatIds.length, outcome: 'done' }
 }
 
 export const chatBackendCleanupOutboxHandlers = {
   /**
-   * Purges the inline images, copilot backend data and stored files of chats whose rows are gone.
-   * A chat whose row survived (its delete was spared, rolled back, or never happened) keeps all
-   * three. Inline images go by the chat's prefix rather than by key, so one a turn published after
-   * the delete read the transcript goes too; the sweep checkpoints how many chats it finished and
-   * continues in a later run once its deadline nears. Any failure throws so the outbox retries it:
-   * a failed backend call, a failed object delete, or chat ids queued for the backend reaching a
-   * processor without `COPILOT_API_KEY`. An object already gone counts as deleted, so a retry
-   * repeats only what is left. A stored file another chat of its scope still references, as a
-   * fork's uncopied attachment does, is kept ({@link deletableChatFiles}).
+   * Purges the copilot backend data and stored files of chats whose rows are gone; a surviving
+   * chat keeps both, and a file another chat of its scope still references is kept
+   * ({@link deletableChatFiles}). Any failure throws so the outbox retries; an object already gone
+   * counts as deleted.
    */
   [CHAT_BACKEND_CLEANUP_EVENT]: async (rawPayload, context) => {
-    const { chatIds, files, copilotBackend, imagesSwept } =
-      chatBackendCleanupPayloadSchema.parse(rawPayload)
+    const { chatIds, files } = chatBackendCleanupPayloadSchema.parse(rawPayload)
     context.signal.throwIfAborted()
-    const named = [...new Set([...chatIds, ...files.map((file) => file.chatId)])]
-    const surviving = await db
-      .select({ id: copilotChats.id })
-      .from(copilotChats)
-      .where(inArray(copilotChats.id, named))
-    const survivingIds = new Set(surviving.map(({ id }) => id))
+    const survivingIds = await survivingChatIds([
+      ...new Set([...chatIds, ...files.map((file) => file.chatId)]),
+    ])
     const deletedChatIds = chatIds.filter((id) => !survivingIds.has(id))
     const deletedFiles = files.filter((file) => !survivingIds.has(file.chatId))
 
-    if (imagesSwept < chatIds.length) {
-      const sweep = await sweepInlineImages(chatIds, new Set(deletedChatIds), imagesSwept, context)
-      if (sweep.swept > imagesSwept) await context.checkpointPayload({ imagesSwept: sweep.swept })
-      if (sweep.outcome === 'continue')
-        return continueOutboxHandler('Continuing chat inline image cleanup')
-      if (sweep.outcome === 'stalled')
-        return deferOutboxHandler('Chat inline image cleanup removed nothing from its listing')
-    }
-
-    if (copilotBackend && deletedChatIds.length > 0) {
+    if (deletedChatIds.length > 0) {
       context.signal.throwIfAborted()
       if (!env.COPILOT_API_KEY) throw new Error('Copilot cleanup is not configured')
       const result = await cleanupCopilotBackend(
@@ -99,7 +82,7 @@ export const chatBackendCleanupOutboxHandlers = {
     if (deletedFiles.length === 0) return
     const failures = await mapWithConcurrency(
       await deletableChatFiles(deletedFiles),
-      FILE_DELETE_CONCURRENCY,
+      STORAGE_CONCURRENCY,
       async ({ key, context: storageContext }) => {
         context.signal.throwIfAborted()
         try {
@@ -111,5 +94,27 @@ export const chatBackendCleanupOutboxHandlers = {
     )
     const failure = failures.find((error) => error !== undefined)
     if (failure) throw failure
+  },
+
+  /**
+   * Deletes everything under the `chat-images/<chatId>/` prefix of each chat whose row is gone, so
+   * an image a turn published after the delete read the transcript goes too. Sweeps several chats
+   * at once, checkpoints how many leading chats are finished, and continues in a later run once
+   * the deadline nears.
+   */
+  [CHAT_INLINE_IMAGE_CLEANUP_EVENT]: async (rawPayload, context) => {
+    const { chatIds, swept } = chatInlineImageCleanupPayloadSchema.parse(rawPayload)
+    context.signal.throwIfAborted()
+    const pending = chatIds.slice(swept)
+    const survivingIds = await survivingChatIds(pending)
+    const outcomes = await mapWithConcurrency(pending, STORAGE_CONCURRENCY, (chatId) =>
+      survivingIds.has(chatId) ? Promise.resolve('done' as const) : sweepChatImages(chatId, context)
+    )
+    const unfinished = outcomes.findIndex((outcome) => outcome !== 'done')
+    if (unfinished === -1) return
+    if (unfinished > 0) await context.checkpointPayload({ swept: swept + unfinished })
+    if (outcomes.includes('continue'))
+      return continueOutboxHandler('Continuing chat inline image cleanup')
+    return deferOutboxHandler('Chat inline image cleanup removed nothing from its listing')
   },
 } satisfies OutboxHandlerRegistry

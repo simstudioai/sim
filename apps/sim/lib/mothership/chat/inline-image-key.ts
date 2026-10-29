@@ -8,12 +8,17 @@ import {
 import { collectMarkdownImageSources } from '@/lib/mothership/chat/markdown-images'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 
+/** The `chat-images/<chatId>/` prefix every inline image a chat published is stored under. */
+export function inlineChatImagePrefix(chatId: string): string {
+  inlineImageRequestIdSchema.parse(chatId)
+  return `${INLINE_CHAT_IMAGE_PREFIX}${chatId}/`
+}
+
 /** Stable per-message source identity makes replay independent of sandbox lifetime. */
 export function inlineChatImageKey(chatId: string, requestId: string, reference: string): string {
-  inlineImageRequestIdSchema.parse(chatId)
   inlineImageRequestIdSchema.parse(requestId)
   const digest = createHash('sha256').update(normalizeInlineFileReference(reference)).digest('hex')
-  return `${INLINE_CHAT_IMAGE_PREFIX}${chatId}/${requestId}/${digest}.webp`
+  return `${inlineChatImagePrefix(chatId)}${requestId}/${digest}.webp`
 }
 
 /**
