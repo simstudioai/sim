@@ -11,8 +11,8 @@
  * graceful behaviour at that ceiling — it is OOM-killed, which reaches the user
  * as an opaque agent failure rather than a diagnosable one.
  *
- * Both numbers are at E2B's Professional maximum (8 vCPU / 8192 MB per build,
- * 1 vCPU / 512 MB minimum). Sizing is per-second billed against allocated
+ * Memory is at E2B's Professional maximum (8192 MB per build) and CPU is half of
+ * its 8 vCPU maximum; the minimum is 1 vCPU / 512 MB. Sizing is per-second billed against allocated
  * resources rather than used ones, so this costs roughly 3x the previous E2B
  * default per sandbox-second. On the compute-bound phases that is close to
  * neutral — the work finishes proportionally sooner — but Babysit deliberately
