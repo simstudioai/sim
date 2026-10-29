@@ -46,11 +46,9 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import {
-  isDeletedAccountIdentity,
-  userHasDeletedAccountIdentity,
-} from '@/lib/users/deleted-identity'
-import { userHasGmailAliasAccount } from '@/lib/users/gmail-alias'
+import { isDeletedAccountIdentity } from '@/lib/users/deleted-identity'
+import { identityHadFreeAllowance } from '@/lib/users/free-allowance'
+import { acquireGmailInboxLock, laterGmailAliasesWithAllowance } from '@/lib/users/gmail-alias'
 
 const logger = createLogger('UsageManagement')
 
@@ -192,22 +190,6 @@ function calculateOrgUsageLimit(
  */
 const usersCreatedInAuthRequest = new WeakMap<object, string>()
 
-/**
- * Whether a new user's identity already had the free allowance: its email or a
- * linked sign-in (with `includeSignIns`) belonged to a recently deleted account,
- * or another account already holds its Gmail inbox.
- */
-async function identityHadFreeAllowance(
-  userId: string,
-  { includeSignIns }: { includeSignIns: boolean },
-  executor: DbOrTx = db
-): Promise<boolean> {
-  return (
-    (await userHasDeletedAccountIdentity(userId, { includeSignIns }, executor)) ||
-    (await userHasGmailAliasAccount(userId, executor))
-  )
-}
-
 function isUserCreatedInAuthRequest(
   userId: string,
   authRequest: object | null | undefined
@@ -219,8 +201,9 @@ function isUserCreatedInAuthRequest(
  * Handle new user setup when they join the platform.
  * Creates the userStats record with the free allowance, which is zero when the
  * user's email or an already-linked social sign-in belongs to an account
- * deleted within the retention window, or when another account holds its Gmail
- * inbox. Every user Better Auth creates comes through here, including SCIM- and
+ * deleted within the retention window, or when an earlier account holds its
+ * Gmail inbox; it decides under that inbox's lock (see `lib/users/gmail-alias`).
+ * Every user Better Auth creates comes through here, including SCIM- and
  * SSO-provisioned users, so their email is always checked at creation.
  *
  * @param authRequest Better Auth's endpoint context for the signup request, when there is one
@@ -228,18 +211,28 @@ function isUserCreatedInAuthRequest(
 export async function handleNewUser(userId: string, authRequest?: object | null): Promise<void> {
   if (authRequest) usersCreatedInAuthRequest.set(authRequest, userId)
   try {
-    const freeTierEligible = !(await identityHadFreeAllowance(userId, { includeSignIns: true }))
-    if (!freeTierEligible) {
-      logger.info('Withholding the free allowance from an identity that already had it', {
+    await db.transaction(async (tx) => {
+      await acquireGmailInboxLock(tx, userId)
+      const freeTierEligible = !(await identityHadFreeAllowance(
         userId,
+        { includeSignIns: true },
+        tx
+      ))
+      if (!freeTierEligible) {
+        logger.info('Withholding the free allowance from an identity that already had it', {
+          userId,
+        })
+      }
+      await tx.insert(userStats).values({
+        id: generateId(),
+        userId: userId,
+        currentUsageLimit: getFreeTierAllowance(freeTierEligible).toString(),
+        freeTierEligible,
+        usageLimitUpdatedAt: new Date(),
       })
-    }
-    await db.insert(userStats).values({
-      id: generateId(),
-      userId: userId,
-      currentUsageLimit: getFreeTierAllowance(freeTierEligible).toString(),
-      freeTierEligible,
-      usageLimitUpdatedAt: new Date(),
+      for (const aliasId of await laterGmailAliasesWithAllowance(userId, tx)) {
+        await forfeitFreeTierAllowance(tx, aliasId)
+      }
     })
 
     logger.info('User stats record created for new user', { userId })
@@ -305,10 +298,10 @@ export async function ensureUserStatsExists(
 
 /**
  * Creates a user's `user_stats` row with the free allowance when none exists, on `executor`
- * (the caller's transaction, or `db`). Only a row this call creates gets the deleted-identity
- * check signup makes: the email always, and the linked sign-ins only when `includeSignIns` is
- * set. An existing row costs only the conflicting insert. A failed check leaves the allowance in
- * place and never fails the caller or aborts its transaction.
+ * (the caller's transaction, or `db`). Only a row this call creates gets the check signup makes:
+ * the email always, and the linked sign-ins only when `includeSignIns` is set. An existing row
+ * costs only the conflicting insert. A failed check leaves the allowance in place and never fails
+ * the caller or aborts its transaction.
  *
  * @returns whether this call created the row
  */
