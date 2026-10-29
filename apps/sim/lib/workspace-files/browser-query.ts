@@ -17,20 +17,20 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
-import {
-  EXTENSION_TO_MIME,
-  MIME_TYPE_MAPPING,
-  resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file'
-import { SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
-import {
-  FILE_BROWSER_MIME_LABELS,
-  FILE_BROWSER_SIZE_BOUNDARIES,
-  type FileBrowserCreator,
-  type FileBrowserFilters,
-  type FileBrowserItem,
-  type FileBrowserSort,
+import type {
+  FileBrowserCreator,
+  FileBrowserFilters,
+  FileBrowserItem,
+  FileBrowserSort,
 } from '@/lib/workspace-files/browser'
+import {
+  declaredMimeSql,
+  effectiveMimeSql,
+  fileExtensionSql,
+  fileKindSql,
+  fileSizeBucketSql,
+  fileTypeLabelSql,
+} from '@/lib/workspace-files/file-type-sql'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
@@ -58,19 +58,6 @@ type BrowserRow = {
   creator_image: string | null
   creator_deleted: boolean
 }
-
-const EFFECTIVE_EXTENSION_MIMES = Object.fromEntries(
-  Object.keys(EXTENSION_TO_MIME).map((extension) => [
-    extension,
-    resolveEffectiveMimeType(null, `file.${extension}`),
-  ])
-)
-const AUDIO_MIMES = Object.keys(MIME_TYPE_MAPPING).filter(
-  (mime) => MIME_TYPE_MAPPING[mime] === 'audio'
-)
-const VIDEO_MIMES = Object.keys(MIME_TYPE_MAPPING).filter(
-  (mime) => MIME_TYPE_MAPPING[mime] === 'video'
-)
 
 const BROWSER_SORTS: Record<FileBrowserSort, KeysetKey<BrowserRow>> = {
   name: textKey<BrowserRow>(sql`name collate "C"`, (row) => row.name),
@@ -122,7 +109,7 @@ export async function queryFileBrowserItems(
     owned_files as (
       select id, original_name as name, folder_id as parent_id, size_bytes as size,
         content_type, user_id, uploaded_at, updated_at,
-        case when strpos(original_name, '.') > 0 then lower(regexp_replace(original_name, '^.*[.]', '')) else '' end as extension
+        ${fileExtensionSql(sql`original_name`)} as extension
       from ${workspaceFiles} where ${fileOwnerCondition(owner)} and ${activeFiles}
     ),
     descendants as (
@@ -137,15 +124,12 @@ export async function queryFileBrowserItems(
       join owned_files files on files.parent_id = tree.id group by tree.root_id
     ),
     effective_files as (
-      select *, case when lower(btrim(split_part(content_type, ';', 1))) not in ('', 'application/octet-stream', 'binary/octet-stream')
-        then lower(btrim(split_part(content_type, ';', 1))) else coalesce(${JSON.stringify(EFFECTIVE_EXTENSION_MIMES)}::jsonb ->> extension, 'application/octet-stream') end as mime
+      select *, ${effectiveMimeSql(declaredMimeSql(sql`content_type`), sql`extension`)} as mime
       from owned_files
     ),
     items as (
       select id, 'file'::text as kind, name, parent_id, size,
-        coalesce(${JSON.stringify(FILE_BROWSER_MIME_LABELS)}::jsonb ->> mime,
-          case when mime like 'audio/%' then 'Audio' when mime like 'video/%' then 'Video'
-            when mime like 'image/%' then 'Image' when extension <> '' then upper(extension) else coalesce(content_type, 'File') end) as type,
+        ${fileTypeLabelSql(sql`mime`, sql`extension`, sql`content_type`)} as type,
         user_id, trunc(extract(epoch from uploaded_at) * 1000) as created_ms,
         trunc(extract(epoch from updated_at) * 1000) as updated_ms, extension, mime
       from effective_files
@@ -191,26 +175,10 @@ export async function queryFileBrowserItems(
       input.folderId === null ? sql`parent_id is null` : sql`parent_id = ${input.folderId}`
     )
   if (input.search) clauses.push(sql`name ilike ${`%${escapeLikePattern(input.search)}%`}`)
-  const typeClauses = (input.types ?? []).map((type) => {
-    if (type === 'document')
-      return sql`extension in (${sql.join(
-        SUPPORTED_DOCUMENT_EXTENSIONS.map((extension) => sql`${extension}`),
-        sql`, `
-      )})`
-    if (type === 'image') return sql`mime like 'image/%'`
-    const mimes = type === 'audio' ? AUDIO_MIMES : VIDEO_MIMES
-    return sql`lower(mime) in (${sql.join(
-      mimes.map((mime) => sql`${mime}`),
-      sql`, `
-    )})`
-  })
-  const sizeClauses = (input.sizes ?? []).map((size) =>
-    size === 'small'
-      ? sql`size < ${FILE_BROWSER_SIZE_BOUNDARIES.small}`
-      : size === 'medium'
-        ? sql`size >= ${FILE_BROWSER_SIZE_BOUNDARIES.small} and size <= ${FILE_BROWSER_SIZE_BOUNDARIES.medium}`
-        : sql`size > ${FILE_BROWSER_SIZE_BOUNDARIES.medium}`
+  const typeClauses = (input.types ?? []).map((type) =>
+    fileKindSql(type, sql`mime`, sql`extension`)
   )
+  const sizeClauses = (input.sizes ?? []).map((size) => fileSizeBucketSql(size, sql`size`))
   const fileFilters: SQL[] = []
   if (typeClauses.length) fileFilters.push(sql`(${sql.join(typeClauses, sql` or `)})`)
   if (sizeClauses.length) fileFilters.push(sql`(${sql.join(sizeClauses, sql` or `)})`)

@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
+import type { MentionMenuData } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-store'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
 import { mentionIcon } from './mention-icon'
 import type { MentionItem } from './types'
 
@@ -14,11 +15,16 @@ import type { MentionItem } from './types'
  * per-resource React Query hooks (never the chat-coupled `useAvailableResources` aggregator). All
  * queries stay disabled until `enabled` flips true — the host activates it on the first `@` trigger —
  * so a markdown field that never opens the menu fetches nothing.
+ *
+ * Files are the one family not listed whole: the menu offers the most recently updated, and once
+ * `fileQuery` (the text after the `@`) settles, the files whose names match it anywhere.
  */
+const NO_MENTION_ITEMS: MentionItem[] = []
+
 export function useMarkdownMentions(
   workspaceId: string | undefined,
-  options: { enabled: boolean }
-): MentionItem[] {
+  options: { enabled: boolean; fileQuery?: string }
+): MentionMenuData {
   const active = options.enabled && Boolean(workspaceId)
   // When inactive, `ws` is undefined and `wsStr` is '' so every query stays disabled until the first
   // `@`: the hooks that expose an `enabled` option get it explicitly; the rest (which take no options)
@@ -26,7 +32,13 @@ export function useMarkdownMentions(
   const ws = active ? workspaceId : undefined
   const wsStr = ws ?? ''
 
-  const files = useWorkspaceFiles(wsStr, 'active', { enabled: active })
+  const {
+    files,
+    matchedQuery,
+    isPending: filesPending,
+  } = useWorkspaceFilePickerOptions(wsStr, options.fileQuery ?? '', {
+    enabled: active,
+  })
   const folders = useWorkspaceFileFolders(wsStr, 'active')
   const tables = useTablesList(ws, 'active')
   const knowledgeBases = useKnowledgeBasesQuery(ws, { enabled: active })
@@ -45,17 +57,18 @@ export function useMarkdownMentions(
     }))
   }, [active])
 
-  return useMemo(() => {
-    if (!active) return []
+  const items = useMemo(() => {
+    if (!active) return NO_MENTION_ITEMS
     const items: MentionItem[] = []
 
-    for (const file of files.data ?? [])
+    for (const file of files ?? [])
       items.push({
         kind: 'file',
         id: file.id,
         label: file.name,
         group: 'Files',
         icon: mentionIcon('file', file.id, file.name),
+        ...(matchedQuery ? { matchedQuery } : {}),
       })
     for (const folder of folders.data ?? [])
       items.push({
@@ -102,7 +115,8 @@ export function useMarkdownMentions(
     return items
   }, [
     active,
-    files.data,
+    files,
+    matchedQuery,
     folders.data,
     tables.data,
     knowledgeBases.data,
@@ -110,4 +124,7 @@ export function useMarkdownMentions(
     skills.data,
     integrationItems,
   ])
+  /** Files still answering an older query (or none yet) keep the menu from reading as empty. */
+  const pending = active && filesPending
+  return useMemo(() => ({ items, filesPending: pending }), [items, pending])
 }

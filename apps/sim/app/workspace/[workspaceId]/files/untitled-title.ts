@@ -2,7 +2,7 @@ import { truncate } from '@sim/utils/string'
 
 /**
  * The name a freshly-created markdown file is given in `handleCreateFile`: `untitled.md`, or
- * `untitled (n).md` when that is taken. A file keeps this "unnamed" status until it is renamed —
+ * `untitled (n).md` when that is taken (the server numbers it). A file keeps this "unnamed" status until it is renamed —
  * while unnamed, typing a leading heading names the file (one direction only; the reverse
  * name→heading seed was removed as unsafe on the shared editor). See {@link isUntitledName}.
  */
@@ -42,7 +42,7 @@ export function deriveMarkdownFileName(headingText: string): string | null {
 
 /**
  * Makes `name` unique among `existingNames` by appending ` (n)` before the `.md` extension — the same
- * scheme `handleCreateFile` uses for the default untitled name.
+ * scheme the server numbers a newly created file's name with.
  */
 export function uniqueMarkdownName(name: string, existingNames: ReadonlySet<string>): string {
   if (!existingNames.has(name)) return name
@@ -54,4 +54,33 @@ export function uniqueMarkdownName(name: string, existingNames: ReadonlySet<stri
     candidate = `${withoutExt} (${counter}).md`
   }
   return candidate
+}
+
+/** How many taken names a heading-derived rename steps past before giving up. */
+const MAX_UNIQUE_NAME_ATTEMPTS = 20
+
+/**
+ * Renames to `name`, or its first free numbered variant: starts from the variant `knownNames`
+ * leaves free and, when the server reports that one taken too (`isTaken` — a sibling the caller's
+ * read did not reach), steps to the next. Resolves the name it settled on, or `null` after
+ * {@link MAX_UNIQUE_NAME_ATTEMPTS} taken names; any other failure rejects.
+ */
+export async function renameToUniqueMarkdownName(
+  name: string,
+  knownNames: ReadonlySet<string>,
+  rename: (candidate: string) => Promise<unknown>,
+  isTaken: (error: unknown) => boolean
+): Promise<string | null> {
+  const taken = new Set(knownNames)
+  for (let attempt = 0; attempt < MAX_UNIQUE_NAME_ATTEMPTS; attempt++) {
+    const candidate = uniqueMarkdownName(name, taken)
+    try {
+      await rename(candidate)
+      return candidate
+    } catch (error) {
+      if (!isTaken(error)) throw error
+      taken.add(candidate)
+    }
+  }
+  return null
 }

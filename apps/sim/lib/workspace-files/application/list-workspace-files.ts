@@ -17,14 +17,18 @@ import { getWorkspaceShares, getWorkspaceSharesForResources } from '@/lib/public
 import {
   aggregateWorkspaceFileFolderUsage,
   findListedWorkspaceFiles,
+  findWorkspaceFileFoldersMatching,
   listWorkspaceFiles,
   loadActiveWorkspaceContext,
   lookupActiveWorkspaceFiles,
   queryWorkspaceFiles,
+  searchWorkspaceFileRecords,
   type WorkspaceFileRecord,
+  type WorkspaceFileSortBy,
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import type { FileBrowserSize, FileBrowserType } from '@/lib/workspace-files/browser'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 
 export interface ListAllWorkspaceFilesInput {
@@ -48,7 +52,13 @@ export interface QueryWorkspaceFilePageInput {
   /** Exact file name. */
   name?: string
   search?: string
-  sortBy: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
+  /** Files of any of these kinds. */
+  kinds?: readonly FileBrowserType[]
+  /** Files in any of these size buckets. */
+  sizeBuckets?: readonly FileBrowserSize[]
+  /** Files uploaded by any of these users. */
+  uploadedBy?: readonly string[]
+  sortBy: WorkspaceFileSortBy
   sortOrder: 'asc' | 'desc'
   limit: number
   after?: CursorKey[]
@@ -168,14 +178,15 @@ export const lookupWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
 
 export interface GetWorkspaceFileFolderStatsInput {
   workspaceId: string
-  /** The folder whose child folders to report, `null` for the workspace root. */
-  parentId: string | null
+  /** The folders whose child folders to report, `null` for the workspace root. */
+  parentIds: readonly (string | null)[]
 }
 
 /**
- * For each direct child folder of `parentId`, the live files and bytes in its whole subtree.
- * One grouped aggregate over the subtrees' folder ids, rolled up against the active folder
- * tree; root files are never read. A `parentId` naming no active folder reports no children.
+ * For each direct child folder of every parent in `parentIds`, the live files and bytes in its
+ * whole subtree. One grouped aggregate over the subtrees' folder ids, rolled up against the
+ * active folder tree; root files are never read. A parent naming no active folder reports no
+ * children.
  */
 export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.list,
@@ -183,14 +194,12 @@ export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase(
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
     const folderIndex = await loadFileFolderIndex(context.workspaceId)
-    if (input.parentId !== null && !folderIndex.rowById.has(input.parentId)) {
-      return { folders: [] }
-    }
+    const parents = new Set(input.parentIds)
     const rows = [...folderIndex.rowById.values()]
     // One child index for every subtree: `resolveFolderScope` would rebuild it per child.
     const childrenByParent = indexFolderChildren(rows)
     const subtrees = rows
-      .filter((row) => (row.parentId ?? null) === input.parentId)
+      .filter((row) => parents.has(row.parentId ?? null))
       .map((row) => ({
         folderId: row.id,
         ids: [row.id, ...collectDescendantFolderIdsFrom(childrenByParent, row.id)],
@@ -211,6 +220,61 @@ export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase(
         )
       ),
     }
+  },
+})
+
+export interface SearchWorkspaceFilesInput {
+  workspaceId: string
+  query: string
+  /** The folder searched, `null` for the root; absent, the whole workspace. */
+  folderId?: string | null
+  /** Whether `folderId`'s subfolders are searched too. */
+  recursive: boolean
+  limit: number
+}
+
+/**
+ * Live files a palette-style query finds, best match first (see `searchWorkspaceFileRecords`):
+ * by name — exactly, by prefix, by substring, then fuzzily — and then by the folders they sit
+ * under, so a query naming a folder finds the files anywhere beneath it. Each file carries its
+ * public share state. A folder id naming no active folder of this workspace finds nothing.
+ */
+export const searchWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.list,
+  resolveContext: ({ input }: { input: SearchWorkspaceFilesInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ input, context }) {
+    const [folderIndex, matchedFolders] = await Promise.all([
+      loadFileFolderIndex(context.workspaceId),
+      findWorkspaceFileFoldersMatching(context.workspaceId, input.query),
+    ])
+    let folderId: string | null | string[] | undefined
+    if (input.folderId === null) {
+      folderId = input.recursive ? undefined : null
+    } else if (input.folderId !== undefined) {
+      if (!folderIndex.rowById.has(input.folderId)) return { files: [] }
+      folderId = input.recursive
+        ? resolveFolderScope(folderIndex, { kind: 'folder', folderId: input.folderId }, true)
+        : input.folderId
+    }
+    const folders = [...folderIndex.rowById.values()]
+    const childrenByParent = indexFolderChildren(folders)
+    const pathFolderIds = new Set<string>()
+    for (const matched of matchedFolders) {
+      if (!folderIndex.rowById.has(matched)) continue
+      pathFolderIds.add(matched)
+      for (const id of collectDescendantFolderIdsFrom(childrenByParent, matched)) {
+        pathFolderIds.add(id)
+      }
+    }
+    const files = await searchWorkspaceFileRecords(context.workspaceId, {
+      query: input.query,
+      folderId,
+      pathFolderIds: [...pathFolderIds],
+      limit: input.limit,
+      folders,
+    })
+    return { files: await withShares(context.workspaceId, files) }
   },
 })
 
@@ -258,6 +322,9 @@ async function readWorkspaceFilePage(
     fileIds: input.fileId === undefined ? undefined : [input.fileId],
     name: input.name,
     search: input.search,
+    kinds: input.kinds,
+    sizeBuckets: input.sizeBuckets,
+    uploadedBy: input.uploadedBy,
     sortBy: input.sortBy,
     sortOrder: input.sortOrder,
     limit: input.limit,

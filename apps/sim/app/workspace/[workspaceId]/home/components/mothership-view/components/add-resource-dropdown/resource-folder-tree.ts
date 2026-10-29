@@ -1,5 +1,14 @@
 export type AvailableItem = { id: string; name: string; [key: string]: unknown }
 
+/**
+ * Whether `item` is one of the server's matches for `query` (lowercased and trimmed): a file
+ * search ranks by name, word, fuzzy, and folder path, so its matches stay listed for the query
+ * they answer instead of being re-filtered by substring. See `matchedQuery` on file items.
+ */
+export function isServerMatchFor(item: AvailableItem, query: string): boolean {
+  return typeof item.matchedQuery === 'string' && item.matchedQuery.toLowerCase() === query
+}
+
 export type ResourceTreeNode =
   | { kind: 'item'; id: string; item: AvailableItem }
   | { kind: 'folder'; id: string; name: string; children: ResourceTreeNode[] }

@@ -17,7 +17,7 @@ import Link from 'next/link'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import { ReleaseWorkflows } from '@/app/workspace/[workspaceId]/changelog/components/release-workflows/release-workflows'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { useAddressedWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 
 interface ReleaseEntryProps {
   workspaceId: string
@@ -34,7 +34,7 @@ export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: R
   const saveFailedRef = useRef(false)
   const [editingBody, setEditingBody] = useState(false)
   const [savingBody, setSavingBody] = useState(false)
-  const file = useAddressedWorkspaceFileRecord(workspaceId, release.fileId)
+  const file = useWorkspaceFileRecord(workspaceId, release.fileId)
 
   return (
     <article className='grid @min-[760px]/changelog:grid-cols-[132px_minmax(0,1fr)] grid-cols-1 gap-x-10 gap-y-3 border-[var(--border)] border-t pt-12 first:border-t-0 first:pt-0'>
@@ -95,9 +95,9 @@ export function ReleaseEntry({ workspaceId, release, canEdit, onEditDetails }: R
             ))}
         </div>
 
-        {file.error ? (
+        {file.error || file.data === null ? (
           <p role='alert' className='text-[var(--text-error)] text-small'>
-            {file.error.message}
+            {file.error?.message ?? 'File not found'}
           </p>
         ) : file.data ? (
           <div

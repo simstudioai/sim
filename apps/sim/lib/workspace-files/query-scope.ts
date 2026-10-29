@@ -1,7 +1,16 @@
 import { workspaceFiles } from '@sim/db/schema'
-import { eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
+import type { FileBrowserSize, FileBrowserType } from '@/lib/workspace-files/browser'
+import {
+  declaredMimeSql,
+  effectiveMimeSql,
+  fileExtensionSql,
+  fileKindSql,
+  fileSizeBucketSql,
+  fileTypeLabelSql,
+} from '@/lib/workspace-files/file-type-sql'
 import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
 
 /** Durable files available to workspace resource pickers, reference mappings, and fork copies. */
@@ -67,3 +76,37 @@ export function workspaceFileFolderScopeCondition(
     ...(scope.includeRootItems ? [null] : []),
   ])
 }
+
+const workspaceFileExtension = fileExtensionSql(workspaceFiles.originalName)
+
+/** The file's effective MIME type: its normalized stored type, else its extension's. */
+const workspaceFileEffectiveMime = effectiveMimeSql(
+  declaredMimeSql(workspaceFiles.contentType),
+  workspaceFileExtension
+)
+
+/** The files of any of `kinds` (see `FILE_BROWSER_TYPES`), or none when `kinds` is absent or empty. */
+export function workspaceFileKindCondition(
+  kinds: readonly FileBrowserType[] | undefined
+): SQL | undefined {
+  if (!kinds || kinds.length === 0) return undefined
+  return or(
+    ...kinds.map((kind) => fileKindSql(kind, workspaceFileEffectiveMime, workspaceFileExtension))
+  )
+}
+
+/** The files in any of `buckets` (see `FILE_BROWSER_SIZE_BOUNDARIES`), or none when absent or empty. */
+export function workspaceFileSizeCondition(
+  buckets: readonly FileBrowserSize[] | undefined
+): SQL | undefined {
+  if (!buckets || buckets.length === 0) return undefined
+  const size = sql`coalesce(${workspaceFiles.sizeBytes}, 0)`
+  return or(...buckets.map((bucket) => fileSizeBucketSql(bucket, size)))
+}
+
+/** The file's Type column label (`fileBrowserTypeLabel`), what the list's Type sort orders by. */
+export const workspaceFileTypeLabelExpression: SQL<string> = fileTypeLabelSql(
+  workspaceFileEffectiveMime,
+  workspaceFileExtension,
+  workspaceFiles.contentType
+)

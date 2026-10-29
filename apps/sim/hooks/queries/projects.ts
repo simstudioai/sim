@@ -4,7 +4,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { getProjectFileContract } from '@/lib/api/contracts/project-files'
 import { listProjectsContract } from '@/lib/api/contracts/projects'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 
 const PROJECT_LIST_STALE_TIME = 30_000
 const PROJECT_FILE_STALE_TIME = 30_000

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Avatar,
   Button,
+  Chip,
   ChipCombobox,
   ChipConfirmModal,
   Columns2,
@@ -22,9 +23,11 @@ import {
 import { Check, Download, Link, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
@@ -37,21 +40,18 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
   formatFileSize,
-  getFileExtension,
   getMimeTypeFromExtension,
   isArchiveFileName,
-  isAudioFileType,
-  isVideoFileType,
-  resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file'
-import { isSupportedExtension } from '@/lib/uploads/utils/validation'
+import {
+  fileBrowserTypeLabel,
+  isFileBrowserSize,
+  isFileBrowserType,
+} from '@/lib/workspace-files/browser'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
-import type {
-  MoveOptionNode,
-  SortableResource,
-} from '@/app/workspace/[workspaceId]/components/folders'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import {
   breadcrumbFolderChain,
   buildDescendantIndex,
@@ -67,7 +67,6 @@ import {
   parseFolderedRowId,
   parseMoveOptionValue,
   scopeFolderedItems,
-  sortResources,
   splitFolderedRowIds,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
@@ -118,8 +117,10 @@ import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/compone
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
+import { mergeFileListEntries } from '@/app/workspace/[workspaceId]/files/list-entries'
 import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
 import {
+  filesBrowserListParams,
   filesFilterParsers,
   filesFilterUrlKeys,
   filesListPreferenceConfig,
@@ -131,12 +132,14 @@ import {
   DEFAULT_UNTITLED_NAME,
   deriveMarkdownFileName,
   isUntitledName,
+  renameToUniqueMarkdownName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
+import { usePinnedWorkspaceFiles } from '@/hooks/queries/pinned-workspace-files'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
@@ -148,11 +151,17 @@ import {
   type WorkspaceFileFolderApi,
 } from '@/hooks/queries/workspace-file-folders'
 import {
+  getWorkspaceFileRecordQueryOptions,
+  getWorkspaceFileSearchQueryOptions,
+  isWorkspaceFileNameTaken,
   useCreateWorkspaceFile,
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
   useUploadWorkspaceFile,
-  useWorkspaceFiles,
+  useWorkspaceFileFolderSizes,
+  useWorkspaceFileList,
+  useWorkspaceFileRecord,
+  workspaceFileRecordState,
 } from '@/hooks/queries/workspace-files'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -167,11 +176,6 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
   | { kind: 'file'; id: string; file: WorkspaceFileRecord }
   | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
-
-/** One row of the merged folder+file list, before it becomes a `ResourceRow`. */
-type FileListEntry =
-  | { kind: 'folder'; folder: WorkspaceFileFolderApi }
-  | { kind: 'file'; file: WorkspaceFileRecord }
 
 const logger = createLogger('Files')
 
@@ -189,8 +193,8 @@ const FOLDER_ICON = <Folder className='size-[14px]' />
 const FOLDER_TYPE_LABEL = 'Folder' as const
 
 /**
- * Debounce window for `search` URL writes and filtering; the input itself stays
- * instant. Intentionally shorter than the shared `SEARCH_DEBOUNCE_MS` (300).
+ * Debounce window for `search` URL writes and the server search they drive; the input
+ * itself stays instant. Intentionally shorter than the shared `SEARCH_DEBOUNCE_MS` (300).
  */
 const FILES_SEARCH_DEBOUNCE_MS = 200 as const
 
@@ -210,47 +214,30 @@ const COLUMNS: ResourceColumn[] = [
  */
 const SEARCH_COLUMNS: ResourceColumn[] = [...COLUMNS, FOLDER_LOCATION_COLUMN]
 
-const MIME_TYPE_LABELS: Record<string, string> = {
-  'application/pdf': 'PDF',
-  'application/zip': 'ZIP',
-  'application/msword': 'Word',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
-  'application/vnd.ms-excel': 'Excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
-  'application/vnd.ms-powerpoint': 'PowerPoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
-  'application/json': 'JSON',
-  'application/x-yaml': 'YAML',
-  'text/csv': 'CSV',
-  'text/plain': 'Text',
-  'text/html': 'HTML',
-  'text/x-sim-page': 'Page',
-  'text/markdown': 'Markdown',
-}
-
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
+
+/**
+ * Each file record's Type label, computed once: cached records are immutable, so a label keyed
+ * by the record holds until the record itself is replaced.
+ */
+const TYPE_LABELS = new WeakMap<WorkspaceFileRecord, string>()
+
+function typeLabelOf(file: WorkspaceFileRecord): string {
+  let label = TYPE_LABELS.get(file)
+  if (label === undefined) {
+    label = fileBrowserTypeLabel(file.type, file.name)
+    TYPE_LABELS.set(file, label)
+  }
+  return label
+}
 const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
 const EMPTY_FIND_MATCH_IDS: readonly string[] = Object.freeze([])
 
+/** How many similarly named files a derived title is made unique against. */
+const TITLE_SIBLING_LIMIT = 50
+
 const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
-
-function formatFileType(storedType: string | null, filename: string): string {
-  const mimeType = resolveEffectiveMimeType(storedType, filename)
-
-  if (MIME_TYPE_LABELS[mimeType]) {
-    return MIME_TYPE_LABELS[mimeType]
-  }
-
-  if (mimeType.startsWith('audio/')) return 'Audio'
-  if (mimeType.startsWith('video/')) return 'Video'
-  if (mimeType.startsWith('image/')) return 'Image'
-
-  const ext = getFileExtension(filename)
-  if (ext) return ext.toUpperCase()
-
-  return storedType ?? 'File'
-}
 
 function getDroppedFiles(dataTransfer: DataTransfer): File[] {
   if (dataTransfer.items.length === 0) return Array.from(dataTransfer.files)
@@ -287,6 +274,7 @@ function FilesContent() {
 
   const params = useParams()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
     useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
@@ -313,12 +301,6 @@ function FilesContent() {
     }
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
-  const {
-    data: files = EMPTY_WORKSPACE_FILES,
-    isLoading,
-    isPlaceholderData,
-    error,
-  } = useWorkspaceFiles(workspaceId)
   const {
     data: folders = EMPTY_WORKSPACE_FILE_FOLDERS,
     isSuccess: foldersLoaded,
@@ -362,24 +344,7 @@ function FilesContent() {
     closeMenu: closeListContextMenu,
   } = useContextMenu()
 
-  if (error) {
-    logger.error('Failed to load files:', error)
-  }
-
   const justCreatedFileIdRef = useRef<string | null>(null)
-  const filesRef = useRef(files)
-  filesRef.current = files
-  /**
-   * Indexed once. The drag hook resolves each dragged row's placement inside `dragover`, which
-   * fires continuously — a linear scan there is O(selection x resources) per event.
-   */
-  const fileById = useMemo(() => {
-    const byId = new Map<string, WorkspaceFileRecord>()
-    for (const file of files) byId.set(file.id, file)
-    return byId
-  }, [files])
-  const fileByIdRef = useRef(fileById)
-  fileByIdRef.current = fileById
 
   const [uploadProgress, setUploadProgress] = useState({
     completed: 0,
@@ -409,8 +374,8 @@ function FilesContent() {
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
-   * write is debounced. The in-memory filter below still reads a debounced value
-   * so it doesn't recompute on every keystroke.
+   * write is debounced. The list query below reads a debounced value so it does
+   * not search on every keystroke.
    */
   const setSearchTerm = useDebouncedSearchSetter(
     (value, options) => setFileFilters({ search: value }, options),
@@ -463,8 +428,8 @@ function FilesContent() {
   const applyListPreference = useCallback(
     (preference: ResourceListPreference) => {
       void setFileFilters({
-        type: [...preference.filters.type],
-        size: [...preference.filters.size],
+        type: preference.filters.type.filter(isFileBrowserType),
+        size: preference.filters.size.filter(isFileBrowserSize),
         uploadedBy: [...preference.filters.uploadedBy],
       })
       applyUrlSort(preference.sort.column, preference.sort.direction)
@@ -499,16 +464,78 @@ function FilesContent() {
     [setListFilter]
   )
 
+  /**
+   * A query stops scoping the list to the open folder — see {@link scopeFolderedItems}. A
+   * matching folder anywhere in the workspace is a result in its own right, since opening it
+   * is often what the user was looking for.
+   */
+  const isSearching = isSearchingResources(debouncedSearchTerm)
+  const isFilteringFiles =
+    typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
+  /** The open file, from the list it was clicked in when that is cached, else its own record. */
+  const selectedFileRecord = useWorkspaceFileRecord(workspaceId, fileIdFromRoute ?? '', {
+    enabled: fileIdFromRoute !== null,
+  })
+  const selectedFile = fileIdFromRoute ? selectedFileRecord.data : null
+  const routedFile = fileIdFromRoute ? workspaceFileRecordState(selectedFileRecord) : 'none'
+  /** A route naming no live file falls back to the list, which is then what is shown. */
+  const isRoutedFileMissing = routedFile === 'missing'
+  /** A remembered sort or filter is applied before the list is read, so it is read once. */
+  const isListOpen = (fileIdFromRoute === null || isRoutedFileMissing) && isListPreferenceReady
+
+  /**
+   * The open folder's files (or, while searching, matches from every folder), a server-sorted,
+   * server-filtered page at a time; scrolling to the end of the table loads the next.
+   */
+  const fileList = useWorkspaceFileList(
+    workspaceId,
+    filesBrowserListParams({
+      folderId: currentFolderId,
+      search: debouncedSearchTerm,
+      sort: sortColumn,
+      dir: sortDirection,
+      type: typeFilter,
+      size: sizeFilter,
+      uploadedBy: uploadedByFilter,
+    }),
+    { enabled: isListOpen }
+  )
+  const { isLoading, isPlaceholderData, error } = fileList
+  if (error) {
+    logger.error('Failed to load files:', error)
+  }
+  const pagedFiles = fileList.data?.files ?? EMPTY_WORKSPACE_FILES
+
+  /**
+   * A folder's pinned files lead it whether or not a page has reached them, so they are looked
+   * up by id. A search or filter narrows the list to its own results, which pin among themselves.
+   */
+  const pinsLeadFolder = !isSearching && !isFilteringFiles
+  const pinnedInFolder = usePinnedWorkspaceFiles(workspaceId, currentFolderId, {
+    enabled: isListOpen && pinsLeadFolder,
+  })
+  const pinnedFolderFiles = pinsLeadFolder ? pinnedInFolder.files : EMPTY_WORKSPACE_FILES
+
+  /**
+   * Every file the list has loaded, indexed once. The drag hook resolves each dragged row's
+   * placement inside `dragover`, which fires continuously — a linear scan there is
+   * O(selection x resources) per event. Rows only ever act on files the list has shown.
+   */
+  const fileById = useMemo(() => {
+    const byId = new Map<string, WorkspaceFileRecord>()
+    for (const file of pinnedFolderFiles) byId.set(file.id, file)
+    for (const file of pagedFiles) byId.set(file.id, file)
+    return byId
+  }, [pinnedFolderFiles, pagedFiles])
+  const fileByIdRef = useRef(fileById)
+  fileByIdRef.current = fileById
+
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
-    if (fileIdFromRoute) {
-      const file = files.find((f) => f.id === fileIdFromRoute)
-      if (file && isPreviewable(file)) return 'preview'
-      return 'editor'
-    }
+    if (fileIdFromRoute) return selectedFile && isPreviewable(selectedFile) ? 'preview' : 'editor'
     return 'preview'
   })
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -541,10 +568,6 @@ function FilesContent() {
       updateFolder.mutateAsync({ workspaceId, folderId, updates: { name } }),
   })
 
-  const selectedFile = useMemo(
-    () => (fileIdFromRoute ? files.find((f) => f.id === fileIdFromRoute) : null),
-    [fileIdFromRoute, files]
-  )
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
 
@@ -556,94 +579,64 @@ function FilesContent() {
    * folder siblings, and renames. A no-op once the file has a real name.
    */
   const handleDeriveTitleFromHeading = useCallback(
-    (fileId: string, headingText: string) => {
-      const currentFile = filesRef.current.find((f) => f.id === fileId)
-      if (!currentFile || !isUntitledName(currentFile.name)) return
-      const derived = deriveMarkdownFileName(headingText)
-      if (!derived) return
-      const siblingNames = new Set(
-        filesRef.current
-          .filter(
-            (f) =>
-              (f.folderId ?? null) === (currentFile.folderId ?? null) && f.id !== currentFile.id
-          )
-          .map((f) => f.name)
-      )
-      const name = uniqueMarkdownName(derived, siblingNames)
-      if (name === currentFile.name) return
-      renameFile
-        .mutateAsync({ workspaceId, fileId: currentFile.id, name })
-        .catch((err) => logger.error('Failed to auto-name file from heading:', err))
+    async (fileId: string, headingText: string) => {
+      try {
+        const currentFile = await queryClient.fetchQuery(
+          getWorkspaceFileRecordQueryOptions(queryClient, workspaceId, fileId)
+        )
+        if (!currentFile || !isUntitledName(currentFile.name)) return
+        const derived = deriveMarkdownFileName(headingText)
+        if (!derived) return
+        /** The folder's files whose names could collide: every `<title>…` the search can name. */
+        const similar = await queryClient.fetchQuery({
+          ...getWorkspaceFileSearchQueryOptions(workspaceId, {
+            q: derived.replace(/\.md$/i, ''),
+            folderId: currentFile.folderId ?? null,
+            recursive: false,
+            limit: TITLE_SIBLING_LIMIT,
+          }),
+          staleTime: 0,
+        })
+        const siblingNames = new Set(
+          similar.filter((file) => file.id !== currentFile.id).map((file) => file.name)
+        )
+        if (uniqueMarkdownName(derived, siblingNames) === currentFile.name) return
+        /** The search reaches at most its limit of siblings; the server catches any it missed. */
+        await renameToUniqueMarkdownName(
+          derived,
+          siblingNames,
+          (name) =>
+            renameFile.mutateAsync({ workspaceId, fileId: currentFile.id, name, quiet: true }),
+          isWorkspaceFileNameTaken
+        )
+      } catch (err) {
+        logger.error('Failed to auto-name file from heading:', err)
+      }
     },
-    [workspaceId]
+    [queryClient, workspaceId]
   )
 
-  const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
-  const shareModal = shareFile ? (
-    <ShareModal
-      open
-      onOpenChange={(open) =>
-        !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
-      }
-      workspaceId={workspaceId}
-      fileId={shareFile.id}
-      fileName={shareFile.name}
-      initialShare={shareFile.share ?? null}
-    />
-  ) : null
+  /** Opens for a deep link too, once the id resolves to a live file. */
+  const { data: shareFile } = useWorkspaceFileRecord(workspaceId, shareFileId ?? '', {
+    enabled: Boolean(shareFileId),
+  })
+  const shareModal =
+    shareFileId && shareFile ? (
+      <ShareModal
+        open
+        onOpenChange={(open) =>
+          !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
+        }
+        workspaceId={workspaceId}
+        fileId={shareFile.id}
+        fileName={shareFile.name}
+        initialShare={shareFile.share ?? null}
+      />
+    ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const folderByIdRef = useRef(folderById)
   folderByIdRef.current = folderById
-
-  const folderSizeMap = useMemo(() => {
-    const directSize = new Map<string, number>()
-    for (const file of files) {
-      if (file.folderId) {
-        directSize.set(file.folderId, (directSize.get(file.folderId) ?? 0) + file.size)
-      }
-    }
-    /**
-     * Children indexed once rather than re-scanning `folders` per node — the roll-up visits
-     * every folder, so the filter made this quadratic.
-     */
-    const childrenByParent = new Map<string, WorkspaceFileFolderApi[]>()
-    for (const folder of folders) {
-      if (!folder.parentId) continue
-      const siblings = childrenByParent.get(folder.parentId)
-      if (siblings) siblings.push(folder)
-      else childrenByParent.set(folder.parentId, [folder])
-    }
-
-    const totalSize = new Map<string, number>()
-    /**
-     * `visiting` terminates a parent/child cycle. The optimistic folder-move write can produce
-     * one in cache, and without the guard this recurses until the stack blows and takes the
-     * whole page down — the same guard the shared folder helpers carry.
-     */
-    const visiting = new Set<string>()
-    const getTotal = (folderId: string): number => {
-      const cached = totalSize.get(folderId)
-      if (cached !== undefined) return cached
-      if (visiting.has(folderId)) return 0
-      visiting.add(folderId)
-      const size =
-        (directSize.get(folderId) ?? 0) +
-        (childrenByParent.get(folderId) ?? []).reduce((sum, child) => sum + getTotal(child.id), 0)
-      visiting.delete(folderId)
-      totalSize.set(folderId, size)
-      return size
-    }
-    for (const folder of folders) getTotal(folder.id)
-    return totalSize
-  }, [files, folders])
-
-  /**
-   * A query stops scoping the list to the open folder — see {@link scopeFolderedItems}. A
-   * matching folder anywhere in the workspace is a result in its own right, since opening it
-   * is often what the user was looking for.
-   */
-  const isSearching = isSearchingResources(debouncedSearchTerm)
 
   const visibleFolders = useMemo(
     () =>
@@ -656,65 +649,32 @@ function FilesContent() {
     [folders, currentFolderId, debouncedSearchTerm]
   )
 
-  const filteredFiles = useMemo(() => {
-    let result = scopeFolderedItems(files, {
-      currentFolderId,
-      search: debouncedSearchTerm,
-      getParentId: (f) => f.folderId ?? null,
-      getSearchText: (f) => [f.name],
-    })
-
-    if (typeFilter.length > 0) {
-      result = result.filter((f) => {
-        const ext = getFileExtension(f.name)
-        // Matching the raw stored type would hide every file the browser uploaded as
-        // `application/octet-stream` from the audio/video/image filters.
-        const type = resolveEffectiveMimeType(f.type, f.name)
-        if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
-        if (typeFilter.includes('audio') && isAudioFileType(type)) return true
-        if (typeFilter.includes('video') && isVideoFileType(type)) return true
-        if (typeFilter.includes('image') && type.startsWith('image/')) return true
-        return false
-      })
-    }
-
-    if (sizeFilter.length > 0) {
-      result = result.filter((f) => {
-        if (sizeFilter.includes('small') && f.size < 1_048_576) return true
-        if (sizeFilter.includes('medium') && f.size >= 1_048_576 && f.size <= 10_485_760)
-          return true
-        if (sizeFilter.includes('large') && f.size > 10_485_760) return true
-        return false
-      })
-    }
-
-    if (uploadedByFilter.length > 0) {
-      result = result.filter((f) => uploadedByFilter.includes(f.uploadedBy))
-    }
-
-    return result
-  }, [files, currentFolderId, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter])
+  /** Each shown folder's whole-subtree size, rolled up on the server per parent folder. */
+  const folderSizeParents = isSearching
+    ? visibleFolders.map((folder) => folder.parentId ?? null)
+    : [currentFolderId]
+  const folderSizes = useWorkspaceFileFolderSizes(workspaceId, folderSizeParents, {
+    enabled: isListOpen,
+  })
 
   /**
-   * Folders and files sort as ONE list — a folder never outranks a file it ties with, so a
-   * pinned file reaches the top of the list rather than the top of the file section.
-   *
-   * Decorate-sort: each row's key + pinned flag is computed ONCE (O(N)) so the comparator
-   * never re-runs Date parsing, `formatFileType`, or member lookups per comparison. Every
-   * Files column has a folder equivalent (folders carry a size roll-up and sort as type
-   * "Folder"), so no entry needs a null key here.
+   * Folders interleave with the server-ordered files as ONE list — a folder never outranks a
+   * file it ties with, so a pinned file reaches the top of the list rather than the top of the
+   * file section. See {@link mergeFileListEntries} for how a folder is placed among pages that
+   * have not all loaded.
    */
-  const sortedEntries = useMemo(() => {
-    const entries: SortableResource<FileListEntry>[] = []
-
-    for (const folder of visibleFolders) {
-      entries.push({
-        item: { kind: 'folder', folder },
-        pinned: pinnedFolderIds.has(folder.id),
-        name: folder.name,
-        key:
+  const sortedEntries = useMemo(
+    () =>
+      mergeFileListEntries<WorkspaceFileFolderApi, WorkspaceFileRecord>({
+        folders: visibleFolders,
+        files: pagedFiles,
+        pinnedFiles: pinnedFolderFiles,
+        hasMore: fileList.hasNextPage,
+        pinnedFolderIds,
+        pinnedFileIds,
+        folderKey: (folder) =>
           sortColumn === 'size'
-            ? (folderSizeMap.get(folder.id) ?? 0)
+            ? (folderSizes.get(folder.id)?.sizeBytes ?? 0)
             : sortColumn === 'type'
               ? FOLDER_TYPE_LABEL
               : sortColumn === 'created'
@@ -724,19 +684,11 @@ function FilesContent() {
                   : sortColumn === 'owner'
                     ? (membersById.get(folder.userId)?.name ?? null)
                     : folder.name,
-      })
-    }
-
-    for (const file of filteredFiles) {
-      entries.push({
-        item: { kind: 'file', file },
-        pinned: pinnedFileIds.has(file.id),
-        name: file.name,
-        key:
+        fileKey: (file) =>
           sortColumn === 'size'
             ? file.size
             : sortColumn === 'type'
-              ? formatFileType(file.type, file.name)
+              ? typeLabelOf(file)
               : sortColumn === 'created'
                 ? new Date(file.uploadedAt).getTime()
                 : sortColumn === 'updated'
@@ -744,27 +696,38 @@ function FilesContent() {
                   : sortColumn === 'owner'
                     ? (membersById.get(file.uploadedBy)?.name ?? null)
                     : file.name,
-      })
-    }
+        direction: sortDirection,
+      }),
+    [
+      visibleFolders,
+      pagedFiles,
+      pinnedFolderFiles,
+      fileList.hasNextPage,
+      pinnedFolderIds,
+      pinnedFileIds,
+      folderSizes,
+      membersById,
+      sortColumn,
+      sortDirection,
+    ]
+  )
 
-    return sortResources(entries, sortDirection)
-  }, [
-    visibleFolders,
-    filteredFiles,
-    sortColumn,
-    sortDirection,
-    membersById,
-    folderSizeMap,
-    pinnedFolderIds,
-    pinnedFileIds,
-  ])
+  /**
+   * Each file's row, built once per record and pin state: loading another page appends rows
+   * without rebuilding the ones already on screen. Reset when what every row reads changes.
+   */
+  const fileRowCache = useMemo(
+    () => new WeakMap<WorkspaceFileRecord, { pinned: boolean; row: ResourceRow }>(),
+    [membersById, folderById, isSearching]
+  )
 
   const baseRows: ResourceRow[] = useMemo(
     () =>
-      sortedEntries.map(({ item, pinned }): ResourceRow => {
+      sortedEntries.map((item): ResourceRow => {
+        const { pinned } = item
         if (item.kind === 'folder') {
           const { folder } = item
-          const totalSize = folderSizeMap.get(folder.id) ?? 0
+          const totalSize = folderSizes.get(folder.id)?.sizeBytes ?? 0
           return {
             id: folderRowId(folder.id),
             cells: {
@@ -801,8 +764,10 @@ function FilesContent() {
         }
 
         const { file } = item
+        const cached = fileRowCache.get(file)
+        if (cached && cached.pinned === pinned) return cached.row
         const Icon = getDocumentIcon(file.type || '', file.name)
-        return {
+        const row: ResourceRow = {
           id: file.id,
           cells: {
             name: {
@@ -815,7 +780,7 @@ function FilesContent() {
             },
             type: {
               icon: <Icon className='size-[14px]' />,
-              label: formatFileType(file.type, file.name),
+              label: typeLabelOf(file),
             },
             created: timeCell(file.uploadedAt),
             owner: ownerCell(file.uploadedBy, membersById),
@@ -825,8 +790,10 @@ function FilesContent() {
               : EMPTY_LOCATION_CELL,
           },
         }
+        fileRowCache.set(file, { pinned, row })
+        return row
       }),
-    [sortedEntries, membersById, folderSizeMap, folderById, isSearching]
+    [sortedEntries, membersById, folderSizes, folderById, isSearching, fileRowCache]
   )
 
   const rows: ResourceRow[] = useMemo(() => {
@@ -852,9 +819,10 @@ function FilesContent() {
     })
   }, [baseRows, listRename.editingId, listRename.editValue, listRename.isSaving])
 
-  // Find (Cmd/Ctrl+F): the shared find bar over the visible list, stepping
-  // through rows whose name matches. The list is client-side, so matching is
-  // synchronous — no debounce or loading states.
+  // Find (Cmd/Ctrl+F): the shared find bar over the loaded rows, stepping
+  // through rows whose name matches. It searches what is on screen, so matching
+  // is synchronous — no debounce or loading states; the search box searches the
+  // whole workspace.
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
   const [findIndex, setFindIndex] = useState(0)
@@ -1225,12 +1193,11 @@ function FilesContent() {
       folderIds: selectedFolderIds,
       name: selectionLabel(
         selectedFileIds.length + selectedFolderIds.length,
-        files.find((file) => file.id === selectedFileIds[0])?.name ??
-          folders.find((folder) => folder.id === selectedFolderIds[0])?.name
+        fileById.get(selectedFileIds[0])?.name ?? folderById.get(selectedFolderIds[0])?.name
       ),
     })
     setShowDeleteConfirm(true)
-  }, [selectedFileIds, selectedFolderIds, files, folders])
+  }, [selectedFileIds, selectedFolderIds, fileById, folderById])
 
   const [isDownloadingArchive, setIsDownloadingArchive] = useState(false)
   // Ref as well as state: two clicks in the same tick would both pass a state check,
@@ -1256,7 +1223,10 @@ function FilesContent() {
   )
 
   const handleBulkDownload = useCallback(async () => {
-    const selectedFiles = files.filter((file) => selectedFileIds.includes(file.id))
+    const selectedFiles = selectedFileIds.flatMap((fileId) => {
+      const file = fileById.get(fileId)
+      return file ? [file] : []
+    })
     if (selectedFiles.length === 1 && selectedFolderIds.length === 0) {
       handleDownload(selectedFiles[0])
       return
@@ -1269,7 +1239,7 @@ function FilesContent() {
       file_count: selectedFileIds.length + selectedFolderIds.length,
     })
     await downloadArchive({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
-  }, [selectedFileIds, selectedFolderIds, files, handleDownload, downloadArchive, workspaceId])
+  }, [selectedFileIds, selectedFolderIds, fileById, handleDownload, downloadArchive, workspaceId])
 
   const fileDetailBreadcrumbs = useMemo((): BreadcrumbItem[] => {
     if (!selectedFile) return []
@@ -1340,15 +1310,11 @@ function FilesContent() {
     setCreatingFile(true)
 
     try {
-      const existingNames = new Set(
-        filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
-      )
-      const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
-
       const mimeType = getMimeTypeFromExtension('md')
+      /** The server numbers the name (`untitled (1).md`, …) when the folder already has it. */
       const result = await createWorkspaceFile.mutateAsync({
         workspaceId,
-        name,
+        name: DEFAULT_UNTITLED_NAME,
         contentType: mimeType,
         folderId: currentFolderId ?? undefined,
       })
@@ -1406,7 +1372,7 @@ function FilesContent() {
       const item =
         parsed.kind === 'folder'
           ? folders.find((folder) => folder.id === parsed.id)
-          : filesRef.current.find((file) => file.id === parsed.id)
+          : fileByIdRef.current.get(parsed.id)
       if (!item) return
       contextMenuItemRef.current =
         parsed.kind === 'folder'
@@ -1553,14 +1519,15 @@ function FilesContent() {
   /**
    * Tracks the route target whose preview mode has been applied. Starts at
    * null (the list view) rather than the initial route id because on a hard
-   * load the files list may not have arrived when the mode initializer ran —
+   * load the file's record may not have arrived when the mode initializer ran —
    * a deep-linked previewable file would otherwise be locked into the code
    * editor. The effect therefore defers until the routed file is resolvable:
-   * either its record exists, or the files query has settled (so a missing
-   * id decides 'editor' instead of waiting forever).
+   * either its record exists, or its read has failed (so a missing id decides
+   * 'editor' instead of waiting forever).
    */
   const appliedModeFileIdRef = useRef<string | null>(null)
-  const routedFileResolved = selectedFile != null || !isLoading
+  const routedFileResolved =
+    routedFile === 'found' || routedFile === 'missing' || routedFile === 'failed'
   useEffect(() => {
     if (fileIdFromRoute === appliedModeFileIdRef.current) return
     const isJustCreated =
@@ -1965,9 +1932,6 @@ function FilesContent() {
     [activeSort, setListSort, clearListSort]
   )
 
-  const hasActiveFilters =
-    typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
-
   const filterContent = useMemo(() => {
     const typeDisplayLabel =
       typeFilter.length === 0
@@ -2053,7 +2017,7 @@ function FilesContent() {
             />
           </ResourceFilterSection>
         )}
-        {hasActiveFilters && (
+        {isFilteringFiles && (
           <Button
             variant='ghost'
             onClick={clearFileFilters}
@@ -2070,7 +2034,7 @@ function FilesContent() {
     uploadedByFilter,
     memberOptions,
     membersById,
-    hasActiveFilters,
+    isFilteringFiles,
     setTypeFilter,
     setSizeFilter,
     setUploadedByFilter,
@@ -2143,12 +2107,31 @@ function FilesContent() {
 
   if (!isListPreferenceReady) return <FilesLoading />
 
-  if (fileIdFromRoute && !selectedFile && isLoading) {
+  if (fileIdFromRoute && !selectedFile && selectedFileRecord.isPending) {
     return (
       <Resource>
         <Resource.Header icon={FILES_HEADER.rootIcon} breadcrumbs={loadingBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
+        </div>
+      </Resource>
+    )
+  }
+
+  if (routedFile === 'failed') {
+    return (
+      <Resource>
+        <Resource.Header icon={FILES_HEADER.rootIcon} breadcrumbs={loadingBreadcrumbs} />
+        <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
+          <EmptyState
+            title='Could not load this file'
+            description={getErrorMessage(selectedFileRecord.error, 'Try again in a moment.')}
+            action={
+              <Chip variant='border' onClick={() => void selectedFileRecord.refetch()}>
+                Try again
+              </Chip>
+            }
+          />
         </div>
       </Resource>
     )
@@ -2248,6 +2231,12 @@ function FilesContent() {
           columns={isSearching ? SEARCH_COLUMNS : COLUMNS}
           rows={displayRows}
           apiRef={tableApiRef}
+          virtualized
+          onLoadMore={fileList.loadMore}
+          hasMore={fileList.hasNextPage}
+          isLoadingMore={fileList.isFetchingNextPage}
+          isFetching={fileList.isFetching}
+          loadMoreFailed={fileList.isFetchNextPageError}
           emptyState={
             listState === 'empty' ? (
               <FilesEmptyState

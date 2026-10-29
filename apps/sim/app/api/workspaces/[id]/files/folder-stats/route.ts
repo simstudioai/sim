@@ -20,7 +20,12 @@ export const GET = defineInternalJsonRoute({
   operation: fileOperations.list,
   rateLimit: internalRateLimits.user({ bucketName: 'workspace-files.read' }),
   errorPolicy: internalFileErrorPolicies.default,
-  mapInput: ({ params, query }) => ({ workspaceId: params.id, parentId: query.parentId }),
+  mapInput: ({ params, query }) => ({
+    workspaceId: params.id,
+    parentIds: query.parentIds
+      ? query.parentIds.map((parentId) => (parentId === 'root' ? null : parentId))
+      : [query.parentId],
+  }),
   useCase: getWorkspaceFileFolderStats,
   present: ({ folders }) => ({ success: true as const, folders }),
 })

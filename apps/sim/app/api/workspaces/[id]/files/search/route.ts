@@ -5,7 +5,7 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { internalFileErrorPolicies, internalFilePresenters } from '@/lib/workspace-files/api'
-import { listWorkspaceFileCollection } from '@/lib/workspace-files/application/list-workspace-files'
+import { searchWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export const dynamic = 'force-dynamic'
@@ -14,8 +14,9 @@ export const dynamic = 'force-dynamic'
 const SEARCH_TYPE_AHEAD_LIMIT = { maxTokens: 120, refillRate: 120, refillIntervalMs: 60_000 }
 
 /**
- * GET /api/workspaces/[id]/files/search — live files whose name contains `q`, by name, each
- * carrying its `folderPath`; within `folderId` (and, by default, its subfolders) when given.
+ * GET /api/workspaces/[id]/files/search — live files `q` finds, best match first: by name
+ * (exact, prefix, substring, then fuzzy), then by the folders they sit under; each carries its
+ * `folderPath`. Within `folderId` (and, by default, its subfolders) when given.
  */
 export const GET = defineInternalJsonRoute({
   contract: searchWorkspaceFilesContract,
@@ -28,16 +29,11 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     workspaceId: params.id,
-    scope: 'active' as const,
-    page: {
-      search: query.q,
-      folderId: query.folderId,
-      recursive: query.recursive,
-      sortBy: 'name' as const,
-      sortOrder: 'asc' as const,
-      limit: query.limit,
-    },
+    query: query.q,
+    folderId: query.folderId,
+    recursive: query.recursive,
+    limit: query.limit,
   }),
-  useCase: listWorkspaceFileCollection,
+  useCase: searchWorkspaceFiles,
   present: internalFilePresenters.successFiles,
 })

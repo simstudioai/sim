@@ -36,6 +36,22 @@ describe('GET /api/workspaces/[id]/files/folder-stats', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(stats.mock.calls[0][0].input).toEqual({ workspaceId: WORKSPACE_ID, parentId: null })
+    expect(stats.mock.calls[0][0].input).toEqual({ workspaceId: WORKSPACE_ID, parentIds: [null] })
+  })
+
+  it('reads several parents at once, the root spelled `root`, in place of parentId', async () => {
+    const response = await GET(
+      createMockRequest({
+        method: 'GET',
+        url: `/api/workspaces/${WORKSPACE_ID}/files/folder-stats?parentId=folder-9&parentIds=folder-2,root`,
+      }),
+      createRouteContext({ id: WORKSPACE_ID })
+    )
+
+    expect(response.status).toBe(200)
+    expect(stats.mock.calls[0][0].input).toEqual({
+      workspaceId: WORKSPACE_ID,
+      parentIds: ['folder-2', null],
+    })
   })
 })

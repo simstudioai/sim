@@ -5,6 +5,7 @@ import {
   folderIdSchema,
   inlineFileRefQuerySchema,
   isCanonicalBase64,
+  queryListSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -12,6 +13,7 @@ import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { V2_SEARCH_MAX_LENGTH, v2LimitSchema } from '@/lib/api/contracts/v2/shared'
 import { LIST_SORT_ORDERS } from '@/lib/api/list-query'
+import { FILE_BROWSER_SIZES, FILE_BROWSER_TYPES } from '@/lib/workspace-files/browser'
 
 /**
  * Client-reachable listing scopes. `all` is deliberately excluded: it drops the
@@ -29,8 +31,18 @@ export const workspaceFileParamsSchema = workspaceFilesParamsSchema.extend({
   fileId: z.string({ error: 'File ID is required' }).min(1, 'File ID is required'),
 })
 
-/** The fields a paged list sorts by: the v2 list's, which the shared keyset implements. */
-const WORKSPACE_FILE_SORT_FIELDS = ['name', 'size', 'uploadedAt', 'updatedAt'] as const
+/**
+ * The fields a paged list sorts by: the v2 list's, plus the browser's Type (the label its Type
+ * column shows) and Owner (the uploader's member name, a non-member uploader last).
+ */
+const WORKSPACE_FILE_SORT_FIELDS = [
+  'name',
+  'size',
+  'uploadedAt',
+  'updatedAt',
+  'type',
+  'owner',
+] as const
 
 const MAX_WORKSPACE_FILE_PAGE_SIZE = 500
 
@@ -48,6 +60,11 @@ const workspaceFileFolderFilterSchema = z
  */
 export const WORKSPACE_FILE_PAGE_PARAMS = [
   'folderId',
+  'recursive',
+  'q',
+  'types',
+  'sizes',
+  'uploadedBy',
   'sortBy',
   'sortOrder',
   'limit',
@@ -56,8 +73,26 @@ export const WORKSPACE_FILE_PAGE_PARAMS = [
 
 export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
-  /** The folder to list directly (not its subfolders); `root` for root files. Omit for every folder. */
+  /** The folder to list; `root` for root files. Omit for every folder. */
   folderId: workspaceFileFolderFilterSchema.optional(),
+  /** Whether `folderId`'s subfolders are listed too. Ignored without `folderId`. */
+  recursive: booleanQueryFlagSchema.optional(),
+  /** Case-insensitive substring of the file name. */
+  q: z
+    .string()
+    .trim()
+    .min(1, 'q cannot be empty')
+    .max(V2_SEARCH_MAX_LENGTH, 'q is too long')
+    .optional(),
+  /** File kinds, comma-separated: a file matching any of them is listed. */
+  types: queryListSchema(z.enum(FILE_BROWSER_TYPES), { canonical: true }).optional(),
+  /** Size buckets, comma-separated: a file in any of them is listed. */
+  sizes: queryListSchema(z.enum(FILE_BROWSER_SIZES), { canonical: true }).optional(),
+  /** Uploader user ids, comma-separated. */
+  uploadedBy: queryListSchema(z.string().max(255, 'uploadedBy entry is too long'), {
+    max: 100,
+    canonical: true,
+  }).optional(),
   sortBy: z.enum(WORKSPACE_FILE_SORT_FIELDS).optional(),
   sortOrder: z.enum(LIST_SORT_ORDERS).optional(),
   limit: z.coerce
@@ -69,6 +104,8 @@ export const listWorkspaceFilesQuerySchema = z.object({
   /** The previous page's `nextCursor`, sent back with the same scope, folder, and sort. */
   cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
 })
+
+export type ListWorkspaceFilesQuery = z.output<typeof listWorkspaceFilesQuerySchema>
 
 /**
  * Binary stream of an image embedded in a workspace markdown document, scoped to the
@@ -219,8 +256,6 @@ const listWorkspaceFilesResponseSchema = workspaceFilesResponseSchema.extend({
   nextCursor: z.string().nullable().optional(),
 })
 
-export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
-
 export const extractWorkspaceFileResponseSchema = workspaceFileSuccessSchema.extend({
   folderName: z.string(),
   extractedCount: z.number().int().nonnegative(),
@@ -252,8 +287,10 @@ const searchWorkspaceFilesQuerySchema = z.object({
 })
 
 /**
- * GET — case-insensitive file-name search within a workspace, optionally within one folder:
- * live files whose name contains `q`, by name, each carrying `folderPath`.
+ * GET — palette-style file search within a workspace, optionally within one folder: live files
+ * `q` finds, best match first — name equal to it, starting with it, containing it or all its
+ * words (case-insensitive), its initials or a fuzzy match — then files under a folder whose name
+ * matches it. Each carries `folderPath`.
  */
 export const searchWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
@@ -263,12 +300,19 @@ export const searchWorkspaceFilesContract = defineRouteContract({
   response: { mode: 'json', schema: workspaceFilesResponseSchema },
 })
 
-const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
+/** The most entries each of a lookup's `ids`, `keys`, and `references` may carry. */
+export const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
+
+/** The longest id, key, or reference a lookup accepts. */
+export const MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH = 1024
 
 const lookupEntriesSchema = (field: string) =>
   z
     .array(
-      z.string().min(1, `${field} entries cannot be empty`).max(1024, `${field} entry is too long`)
+      z
+        .string()
+        .min(1, `${field} entries cannot be empty`)
+        .max(MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH, `${field} entry is too long`)
     )
     .max(
       MAX_WORKSPACE_FILE_LOOKUP_ENTRIES,
@@ -306,13 +350,24 @@ export const lookupWorkspaceFilesContract = defineRouteContract({
   response: { mode: 'json', schema: lookupWorkspaceFilesResponseSchema },
 })
 
+/** The most parents one folder-stats request may name. */
+export const MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS = 100
+
 const workspaceFileFolderStatsQuerySchema = z.object({
   /** The folder whose child folders to report: `root` (default) or a folder id. */
   parentId: workspaceFileFolderFilterSchema.prefault('root'),
+  /**
+   * Several folders whose child folders to report at once (`root` or folder ids), for a view
+   * whose folders sit under different parents; replaces `parentId` when sent.
+   */
+  parentIds: queryListSchema(z.union([z.literal('root'), folderIdSchema]), {
+    max: MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS,
+    canonical: true,
+  }).optional(),
 })
 
 const workspaceFileFolderStatsResponseSchema = workspaceFileSuccessSchema.extend({
-  /** One entry per direct child folder of `parentId`, totals covering its whole subtree. */
+  /** One entry per direct child folder of each parent, totals covering its whole subtree. */
   folders: z.array(
     z.object({
       folderId: z.string(),

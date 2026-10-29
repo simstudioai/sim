@@ -35,6 +35,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
 import {
   buildResourceFolderTree,
+  isServerMatchFor,
   type ResourceTreeNode,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import { resourceFromItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-from-item'
@@ -306,6 +307,9 @@ export function ResourceMenuSections({
 interface ResourceMenuSearchProps {
   groups: AvailableItemsByType[]
   isHydrating?: boolean
+  /** The query, owned by the caller so its inventory can search files with it. */
+  search: string
+  onSearchChange: (search: string) => void
   children: ReactNode
   onSelect: (resource: MothershipResource) => void
 }
@@ -313,10 +317,11 @@ interface ResourceMenuSearchProps {
 function ResourceMenuSearch({
   groups: available,
   isHydrating,
+  search,
+  onSearchChange: setSearch,
   children,
   onSelect: select,
 }: ResourceMenuSearchProps) {
-  const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -325,6 +330,7 @@ function ResourceMenuSearch({
       items
         .filter(
           (item) =>
+            isServerMatchFor(item, q) ||
             item.name.toLowerCase().includes(q) ||
             (typeof item.workspaceName === 'string' && item.workspaceName.toLowerCase().includes(q))
         )
@@ -417,9 +423,11 @@ function WorkspaceResourceMenuContent({
   onSelect,
   subContentClassName,
 }: WorkspaceResourceMenuContentProps) {
+  const [search, setSearch] = useState('')
   const { groups, structureFolders, isHydrating } = useAvailableResources(workspaceId, {
     enabled,
     excludeTypes,
+    fileSearch: search,
   })
   const sections = useResourceTreeSections({ groups, structureFolders, selectFolders })
   const select = (resource: MothershipResource) =>
@@ -441,7 +449,13 @@ function WorkspaceResourceMenuContent({
     </>
   )
   return searchable ? (
-    <ResourceMenuSearch groups={groups} isHydrating={isHydrating} onSelect={select}>
+    <ResourceMenuSearch
+      groups={groups}
+      isHydrating={isHydrating}
+      search={search}
+      onSearchChange={setSearch}
+      onSelect={select}
+    >
       {menu}
     </ResourceMenuSearch>
   ) : (
@@ -528,6 +542,7 @@ export function AddResourceDropdown({
     [excludeTypes]
   )
   const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
+  const [organizationSearch, setOrganizationSearch] = useState('')
   const receiveInventory = useCallback((workspaceId: string, inventory: AvailableResources) => {
     setInventories((current) =>
       current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
@@ -545,6 +560,7 @@ export function AddResourceDropdown({
   const hasNativeResourceSurface = isBrowserAgentAvailable() || isTerminalAvailable()
   const closeMenu = useCallback(() => {
     setOpen(false)
+    setOrganizationSearch('')
     return onClose?.() ?? Promise.resolve()
   }, [onClose])
 
@@ -585,6 +601,7 @@ export function AddResourceDropdown({
           <OrganizationResourceInventory
             key={workspace.id}
             workspaceId={workspace.id}
+            fileSearch={organizationSearch}
             onChange={receiveInventory}
           />
         ))}
@@ -623,6 +640,8 @@ export function AddResourceDropdown({
               ...nativeGroups,
             ]}
             isHydrating={organizationInventory.isHydrating}
+            search={organizationSearch}
+            onSearchChange={setOrganizationSearch}
             onSelect={select}
           >
             {workspaces.map((workspace) => (

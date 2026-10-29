@@ -109,6 +109,17 @@ describe('/api/workspaces/[id]/files', () => {
       })
     })
 
+    it('reads an empty set filter as no filter, keeping the whole-scope listing', async () => {
+      collection.mockResolvedValueOnce({ files: [FILE], nextKeys: null })
+      const response = await list('?scope=active&types=&sizes=&uploadedBy=')
+
+      expect(response.status).toBe(200)
+      expect(collection.mock.calls[0][0].input).toEqual({
+        workspaceId: WORKSPACE_ID,
+        scope: 'active',
+      })
+    })
+
     it('resumes from its own cursor and refuses it under another folder', async () => {
       collection.mockResolvedValue({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
 
@@ -125,6 +136,37 @@ describe('/api/workspaces/[id]/files', () => {
 
       const moved = await list(`?folderId=folder-2&sortBy=name&limit=1&cursor=${first.nextCursor}`)
       expect(moved.status).toBe(400)
+      expect(collection).toHaveBeenCalledTimes(2)
+    })
+
+    it('binds its cursor to the search and set filters, whatever order the sets are spelled in', async () => {
+      collection.mockResolvedValue({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
+      const filtered =
+        '?sortBy=name&limit=1&q=notes&types=image,document&sizes=small&uploadedBy=u1,u2'
+
+      const first = await (await list(filtered)).json()
+      expect(collection.mock.calls[0][0].input.page).toMatchObject({
+        search: 'notes',
+        kinds: ['document', 'image'],
+        sizeBuckets: ['small'],
+        uploadedBy: ['u1', 'u2'],
+      })
+
+      const respelled = await list(
+        `?sortBy=name&limit=1&q=notes&types=document,image,image&sizes=small&uploadedBy=u2,u1&cursor=${first.nextCursor}`
+      )
+      expect(respelled.status).toBe(200)
+
+      for (const changed of [
+        'q=other&types=image,document&sizes=small&uploadedBy=u1,u2',
+        'q=notes&types=image&sizes=small&uploadedBy=u1,u2',
+        'q=notes&types=image,document&sizes=large&uploadedBy=u1,u2',
+        'q=notes&types=image,document&sizes=small&uploadedBy=u1',
+        'q=notes&types=image,document&sizes=small&uploadedBy=u1,u2&folderId=root&recursive=true',
+      ]) {
+        const refiltered = await list(`?sortBy=name&limit=1&${changed}&cursor=${first.nextCursor}`)
+        expect(refiltered.status).toBe(400)
+      }
       expect(collection).toHaveBeenCalledTimes(2)
     })
   })
