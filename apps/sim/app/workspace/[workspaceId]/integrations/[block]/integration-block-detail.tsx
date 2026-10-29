@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
@@ -67,13 +67,32 @@ interface IntegrationBlockDetailProps {
 /**
  * Integration detail page, shown only when the viewer's integration policy
  * permits the integration. A direct link to a restricted one renders an
- * access-required state instead of the connect actions.
+ * access-required state instead of the connect actions, and the check fails
+ * closed until the deployment allowlist has loaded.
  */
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
-  const { isLoading, isBlockPermitted, isBlockRequestable } = usePermissionConfig()
+  const {
+    isBlockPermitted,
+    isBlockRequestable,
+    isIntegrationAvailabilityReady,
+    integrationAvailabilityError,
+    refetchIntegrationAvailability,
+  } = usePermissionConfig()
   const accessRequests = useWorkspaceAccessRequestFeatures()
 
-  if (isLoading) return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
+  if (integrationAvailabilityError) {
+    return (
+      <IntegrationAccessNotice
+        workspaceId={workspaceId}
+        title='Unable to check access'
+        description={integrationAvailabilityError.message}
+        action={<Chip onClick={() => void refetchIntegrationAvailability()}>Try again</Chip>}
+      />
+    )
+  }
+  if (!isIntegrationAvailabilityReady) {
+    return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
+  }
   if (isBlockPermitted(integration.type)) {
     return <IntegrationBlockDetailContent integration={integration} workspaceId={workspaceId} />
   }
@@ -81,30 +100,49 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const requestable = accessRequests.data?.enabled === true && isBlockRequestable(integration.type)
 
   return (
+    <IntegrationAccessNotice
+      workspaceId={workspaceId}
+      title='Access required'
+      description={
+        requestable
+          ? 'Ask an administrator for access.'
+          : 'Your organization restricts this integration.'
+      }
+      action={
+        requestable ? (
+          <RequestAccessAction
+            scope={{ kind: 'workspace', workspaceId }}
+            target={{ kind: 'integration', id: integration.type }}
+            label={integration.name}
+            variant='primary'
+          />
+        ) : undefined
+      }
+    />
+  )
+}
+
+interface IntegrationAccessNoticeProps {
+  workspaceId: string
+  title: string
+  description: string
+  action?: ReactNode
+}
+
+function IntegrationAccessNotice({
+  workspaceId,
+  title,
+  description,
+  action,
+}: IntegrationAccessNoticeProps) {
+  return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className={PAGE_HEADER_BAR}>
         <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
           Integrations
         </ChipLink>
       </div>
-      <EmptyState
-        title='Access required'
-        description={
-          requestable
-            ? 'Ask an administrator for access.'
-            : 'Your organization restricts this integration.'
-        }
-        action={
-          requestable ? (
-            <RequestAccessAction
-              scope={{ kind: 'workspace', workspaceId }}
-              target={{ kind: 'integration', id: integration.type }}
-              label={integration.name}
-              variant='primary'
-            />
-          ) : undefined
-        }
-      />
+      <EmptyState title={title} description={description} action={action} />
     </div>
   )
 }

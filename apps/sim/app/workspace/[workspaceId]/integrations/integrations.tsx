@@ -152,8 +152,10 @@ function IntegrationsContent() {
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability, isBlockPermitted } = usePermissionConfig()
 
-  const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =
-    useQueryStates(integrationsParsers, integrationsUrlKeys)
+  const [{ category: urlCategory, search: urlSearchTerm }, setIntegrationFilters] = useQueryStates(
+    integrationsParsers,
+    integrationsUrlKeys
+  )
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
@@ -234,6 +236,16 @@ function IntegrationsContent() {
     ...(permittedFeatured.length > 0 ? [FEATURED_LABEL] : []),
     ...permittedCategorySections.map((section) => section.label),
   ]
+
+  /**
+   * A category the viewer's integration policy leaves empty is not offered, so a
+   * link or a policy change that points at one falls back to All. Connected stays
+   * selected while credentials load so the page does not flash All first.
+   */
+  const selectedCategory =
+    categoryOptions.includes(urlCategory) || (urlCategory === CONNECTED_LABEL && credentialsLoading)
+      ? urlCategory
+      : ALL_CATEGORY
 
   const isAllCategorySelected = selectedCategory === ALL_CATEGORY
   const isFeaturedSelected = selectedCategory === FEATURED_LABEL
