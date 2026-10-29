@@ -11,7 +11,7 @@ import { explainCaptured, type PlanNode } from '@sim/db/testing/explain'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { eq, like, sql } from 'drizzle-orm'
+import { eq, inArray, like, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   type AuditLogFilterParams,
@@ -21,6 +21,7 @@ import {
 
 const organizationId = generateId()
 const memberId = generateId()
+const departedId = generateId()
 const workspaceId = generateId()
 const idPrefix = `audit_plan_${generateId()}_`
 const workspaceIndex = 'audit_log_workspace_created_at_id_idx'
@@ -82,27 +83,31 @@ const NARROWED_CASES: [string, AuditLogFilterParams][] = [
 describe('organization audit-log listing plans in PostgreSQL', () => {
   beforeAll(async () => {
     assertDisposableTestDatabaseUrl(process.env.DATABASE_URL ?? '')
-    await db.insert(user).values({
-      id: memberId,
-      name: 'Audit plan fixture',
-      email: `${memberId}@audit-plan.test`,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+    await db.insert(user).values(
+      [memberId, departedId].map((id) => ({
+        id,
+        name: 'Audit plan fixture',
+        email: `${id}@audit-plan.test`,
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))
+    )
     await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Audit plan fixture',
       ownerId: memberId,
       billedAccountUserId: memberId,
     })
-    // A workspace with a long history, and workspace-less rows of many other organizations, so
-    // collecting the scope and sorting it costs far more than a keyset scan that stops at a page.
+    // A workspace with a long history written mostly by a departed member, and workspace-less
+    // rows of many other organizations, so collecting the scope and sorting it costs far more than
+    // a keyset scan that stops at a page, even one that passes over departed rows to fill it.
     await db.execute(sql`
       INSERT INTO ${auditLog} (id, workspace_id, actor_id, action, resource_type, resource_id,
         metadata, created_at)
       SELECT ${idPrefix} || n, CASE WHEN n % 4 = 1 THEN ${workspaceId} END,
-        CASE WHEN n % 2 = 0 THEN ${memberId} END, 'organization.updated',
+        CASE WHEN n % 20 = 1 OR n % 2 = 0 THEN ${memberId} WHEN n % 4 = 1 THEN ${departedId} END,
+        'organization.updated',
         CASE WHEN n % 997 = 0 THEN 'organization' ELSE 'workflow' END,
         CASE WHEN n % 997 = 0 THEN ${organizationId} ELSE 'resource-' || n END,
         jsonb_build_object('organizationId',
@@ -115,7 +120,7 @@ describe('organization audit-log listing plans in PostgreSQL', () => {
   afterAll(async () => {
     await db.delete(auditLog).where(like(auditLog.id, `${idPrefix}%`))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
-    await db.delete(user).where(eq(user.id, memberId))
+    await db.delete(user).where(inArray(user.id, [memberId, departedId]))
   })
 
   it.each(KEYSET_CASES)(
