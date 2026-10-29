@@ -232,7 +232,8 @@ describe('listDashboardOrganizations', () => {
         metadata: { invoiceAmountCents: 10_000, seats: 1 },
       },
     ])
-    queueTableRows(usageLog, [{ organizationId: 'org-1', cost: '2.5', workflowRuns: 3 }])
+    queueTableRows(usageLog, [{ entityId: 'org-1', cost: '2.5' }])
+    queueTableRows(usageLog, [{ entityId: 'org-1', workflowRuns: 3 }])
 
     const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
 
@@ -273,7 +274,8 @@ describe('listDashboardOrganizations', () => {
         },
       },
     ])
-    queueTableRows(usageLog, [{ organizationId: 'org-1', cost: '2.5', workflowRuns: 3 }])
+    queueTableRows(usageLog, [{ entityId: 'org-1', cost: '2.5' }])
+    queueTableRows(usageLog, [{ entityId: 'org-1', workflowRuns: 3 }])
     queueTableRows(member, [{ organizationId: 'org-1', cost: '1.5' }])
 
     const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
