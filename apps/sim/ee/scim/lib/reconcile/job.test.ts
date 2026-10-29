@@ -67,10 +67,9 @@ function grantLease() {
   dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 }
 
-/** Queues the two connection reads one batch makes: the lease check, then the fresh settings. */
-function stageBatch(token: string, settings?: Record<string, unknown>) {
+/** Queues the lease check before a batch. */
+function stageBatch(token: string) {
   queueTableRows(scimConnection, [{ token }])
-  queueTableRows(scimConnection, settings ? [{ settings }] : [])
 }
 
 const setCalls = () =>
@@ -188,7 +187,7 @@ describe('reconcileConnection', () => {
   it('prunes the request log before the pass and releases the lease when a batch throws', async () => {
     grantLease()
     mocks.listScimUserIds.mockResolvedValueOnce(page(['su-1']))
-    stageBatch('run-1', {})
+    stageBatch('run-1')
     mocks.reconcileBatch.mockRejectedValueOnce(new Error('projection failed'))
 
     await expect(reconcileConnection(connection)).rejects.toThrow('projection failed')
@@ -228,7 +227,7 @@ describe('runScimReconcileSweep', () => {
 
     grantLease()
     mocks.listScimUserIds.mockResolvedValueOnce(page(['su-1', 'su-2'])).mockResolvedValueOnce([])
-    stageBatch('run-1', {})
+    stageBatch('run-1')
     mocks.reconcileBatch.mockResolvedValueOnce(delta(1, 0, 0))
 
     grantLease()

@@ -5,6 +5,7 @@ description: Sync organization members and group-based access from your identity
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
 import { Tab, Tabs } from '@/components/ui/tabs'
 
 Directory provisioning uses SCIM 2.0, a standard protocol for syncing accounts, to create, update, and deactivate organization members from your identity provider. Map directory groups to workspace access, permission groups, or the organization admin role.
@@ -17,18 +18,35 @@ Configure [SSO](/platform/enterprise/sso) separately for authentication. SCIM ca
 - [Verify every email domain](/platform/enterprise/verified-domains) you will provision. Sim refuses account creation or an email change to an unverified domain.
 - On self-hosted deployments, enable SSO to reach **Single sign-on → Provisioning**, and enable SCIM. The enterprise master pair enables both; individual setup uses `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED`, `SCIM_ENABLED`, and `NEXT_PUBLIC_SCIM_ENABLED`. See [Self-hosted SSO setup](/platform/enterprise/sso#self-hosted-setup) and [Deployment and upgrades](#deployment-and-upgrades).
 
+## Plan membership and access
+
+If your organization already uses SAML or OIDC, keep that sign-in configuration. SCIM adds directory synchronization alongside it. Configure these four controls separately:
+
+| Control | What it decides |
+| --- | --- |
+| SSO | How a person authenticates. Use the same account email in SSO and provisioning. |
+| SCIM user provisioning | Whether the person is an organization member and whether their account is active. |
+| Workspace mapping | Which workspace the person can access, at Read, Write, or Admin level. |
+| Permission-group mapping | Which models, integrations, and actions the person can use in the permission group's selected workspaces. It does not grant workspace access. |
+
+Create the workspaces and [permission groups](/platform/enterprise/access-control#create-and-configure-a-group) in Sim before mapping directory groups. For example, map a pushed `Finance` group to **Finance workspace → Write** and to a dedicated **Finance policy** permission group scoped to that workspace. These can be two mappings on the same directory group.
+
+Configure a restrictive organization default permission group for people who retain workspace access after leaving a mapped policy group. Sim selects one governing policy per person and workspace; it does not intersect every policy attached to their directory groups. Review [policy selection and conflicts](/platform/enterprise/access-control#general) before rolling out overlapping groups.
+
 ## What it does
 
 | Directory request | Sim behavior |
 | --- | --- |
 | Provision a person | Creates or links an account and adds new organization members as Members. Workspace access requires a mapping or existing grant. |
-| Update name or email | Updates the account. An email change ends its sessions. |
+| Update name or email | Updates the account. An email change ends its sessions and OAuth grants. |
 | Deactivate a person | Suspends sign-in and personal API keys, and blocks scheduled runs or triggers acting as that person. Ownership, credentials, grants, and workspace history are retained. Shared workspace keys keep working. |
 | Reactivate a person | Lifts the suspension. Current group memberships and mappings govern directory access. |
-| Send SCIM `DELETE` | Removes organization membership, ends sessions, deletes personal API keys, and reassigns owned resources. The Sim account survives. |
+| Send SCIM `DELETE` | Removes organization membership, ends sessions and OAuth grants, deletes personal API keys, and reassigns owned resources. The Sim account survives. |
 | Add or remove group membership | Applies or withdraws the group's mapped access. |
 
 Deactivation itself does not withdraw grants. Group or mapping changes can still withdraw access and reassign ownership while someone is suspended. A deactivated member keeps their seat until removed from the organization.
+
+Deactivation stops the person's active Chat runs. Reactivation permits new runs; it does not resume runs stopped during suspension.
 
 Deactivation deletes the member's sessions and stops personal API-key authentication when it completes. Organization security-version invalidation reaches cached browser sessions on other application instances within up to 60 seconds.
 
@@ -124,7 +142,7 @@ Select **Test Connection**, enable group management if you will map groups, then
 
 Under **Provisioning → Group mappings**, map each synced group to one or more targets:
 
-- A **Permission group**, which governs models, integrations, and capabilities.
+- A **Permission group**, which governs models, integrations, and capabilities in its selected workspaces. Create and configure it in Sim first; this mapping does not grant workspace access.
 - A **Workspace**, with **Read**, **Write**, or **Admin** access.
 - The **Organization admin** role.
 
@@ -134,9 +152,15 @@ When multiple groups grant the same workspace at different levels, the strongest
   Mapping a permission group permanently switches it to explicit membership: it applies only to its members, and an empty mapped group applies to nobody. A group that previously applied to everyone in its workspaces stops doing so when mapped. Use permission groups created for directory membership rather than existing organization-wide groups.
 </Callout>
 
-Under **Provisioning rules → Manage rules**, **Match permission groups by name** maps new or renamed directory groups to existing non-default permission groups with an exact, case-sensitive name match. Sim does not create permission groups. A rename updates automatic mappings and preserves manually added ones.
+Under **Provisioning rules → Manage rules**, **Match permission groups by name** maps new or renamed directory groups to existing non-default permission groups with an exact, case-sensitive name match. Sim does not create permission groups. These mappings are labeled **Automatic**. A rename updates automatic mappings and preserves manually added ones.
 
 For groups already synced before enabling name matching, select **Reconcile now** or wait for scheduled reconciliation.
+
+Turning off name matching stops future automatic matching; it does not remove existing mappings. Before removing a mapping whose target still has the same name, turn off **Match permission groups by name** or change the names so they no longer match. Otherwise a later group push or reconciliation can recreate it. A manually added mapping keeps its target when the directory group is renamed.
+
+A person can belong to only one explicit permission group for a given workspace. A conflicting policy assignment can be skipped even when the directory group itself synchronizes successfully. **Group mappings** shows how many directory members are not assigned to each mapped policy. Open **Permission groups**, resolve the overlapping membership or workspace scope, then select **Reconcile now**. Confirm the warning clears and the person's effective restrictions are correct.
+
+<Image src="/static/enterprise/scim-group-mappings.png" alt="Directory group mappings with an automatic permission-group match, workspace access, and a warning for an unassigned policy membership" width={769} height={314} variant="detail" />
 </Step>
 </Steps>
 
@@ -144,7 +168,11 @@ For groups already synced before enabling name matching, select **Reconcile now*
 
 Sim tracks grants made through directory mappings. Removing a member from a group or removing its mapping withdraws the tracked access.
 
+Other directory mappings and independent access can still keep the person in a workspace. Removing a permission-group membership changes their governing policy; it does not remove workspace access. Sim then uses another applicable workspace policy, the organization default, or no permission-group restrictions if neither exists. An empty mapped group applies to nobody and never turns into an all-members policy. Verify both workspace access and the fallback policy when testing a removal.
+
 **Lock managed membership** is enabled by default on a new connection. It makes the directory authoritative for provisioned members: Sim refuses manual invitations, workspace grants, workspace role changes, and organization role changes for them. Manual access already held when a mapping begins covering it becomes directory-managed and is withdrawn with that mapping. Administrators can still remove access in an emergency.
+
+The lock does not prevent editing permission-group membership directly in Sim. A manual removal can be restored by reconciliation, and a manual addition to an overlapping policy can block a directory assignment. Manage mapped policy membership through the directory and check **Group mappings** for unassigned members after resolving conflicts.
 
 With locking off, prior manual workspace access is preserved. If a member had manual Read access and a directory mapping raises it to Admin, removing the mapping restores Read. A role manually raised above the directory's level also remains. [Older grants have a baseline limitation](#deployment-and-upgrades).
 
@@ -162,11 +190,15 @@ Connection switches, rules, tokens, and mappings save immediately. **Provisionin
 
 **Provisioning → Activity** shows recent authenticated requests, their status, and failure details. A wrong, expired, or revoked token cannot be associated with a connection, so its authentication error appears only in the provider's logs.
 
-**Reconcile now** reapplies group mappings and changed connection rules. For scheduled reconciliation, call `GET /api/cron/scim-reconcile` with the configured `CRON_SECRET`. Helm and production Docker Compose include an hourly schedule when their cron service is configured and running. This endpoint runs directly; it does not require Trigger.dev. See [Background schedules](/platform/enterprise/self-hosted#schedule-the-background-jobs).
+**Reconcile now** reapplies stored group memberships, mappings, and changed connection rules. It does not fetch changes from Okta or Entra. If a directory change has not reached Sim, inspect the provider's provisioning job and retry or repush there first.
+
+For scheduled reconciliation, call `GET /api/cron/scim-reconcile` with the configured `CRON_SECRET`. Helm and production Docker Compose include an hourly schedule when their cron service is configured and running. This endpoint runs directly; it does not require Trigger.dev. See [Background schedules](/platform/enterprise/self-hosted#schedule-the-background-jobs).
 
 ## Disable provisioning
 
 Turning the connection off stops synchronization; it does not reverse suspension or prior access changes. Deactivated members stay deactivated. To restore an account without the directory, remove it from the organization and invite it again.
+
+While the connection is disabled, **Lock managed membership** and **Disable just-in-time provisioning** no longer apply. Manual membership changes and the SSO provider's first-sign-in setting govern those operations again. Review them before disabling the connection; disabling synchronization is not an offboarding action.
 
 ## Deployment and upgrades
 

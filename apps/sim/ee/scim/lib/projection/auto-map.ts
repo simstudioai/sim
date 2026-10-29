@@ -65,7 +65,7 @@ export async function autoMapPermissionGroupByName(
       )
     )
     .limit(1)
-  if (existing) return 'already-mapped'
+  if (existing) return removed.length > 0 ? 'mapped' : 'already-mapped'
 
   /** The unique index is the arbiter when an administrator maps the same pair concurrently. */
   const inserted = await tx
@@ -80,7 +80,7 @@ export async function autoMapPermissionGroupByName(
     })
     .onConflictDoNothing()
     .returning({ id: scimGroupMapping.id })
-  return inserted.length > 0 ? 'mapped' : 'already-mapped'
+  return inserted.length > 0 || removed.length > 0 ? 'mapped' : 'already-mapped'
 }
 
 /**

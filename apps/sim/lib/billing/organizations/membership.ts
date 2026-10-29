@@ -24,6 +24,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import {
   invalidateMembershipCache,
   invalidateSecurityPolicyVersionCache,
@@ -1487,6 +1488,7 @@ export async function removeUserFromOrganization(
           ...(spareSessionToken ? { spareSessionToken } : {}),
           ...(spareSessionId ? { spareSessionId } : {}),
         })
+        if (revokePersonalApiKeys) await revokeUserOAuthGrants(userId, tx)
 
         if (workspaceIds.length === 0) {
           return {

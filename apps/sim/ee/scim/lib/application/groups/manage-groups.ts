@@ -214,7 +214,6 @@ export const createScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: memberIds,
-        settings: context.connection.settings,
       })
       if (mapped === 'mapped') {
         await settleMappedPermissionGroupsExplicit(tx, {
@@ -305,7 +304,6 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: [...touched],
-        settings: context.connection.settings,
       })
       if (adopted) {
         await settleMappedPermissionGroupsExplicit(tx, {
@@ -439,7 +437,6 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: [...touched],
-        settings: context.connection.settings,
       })
       if (adopted) {
         await settleMappedPermissionGroupsExplicit(tx, {
@@ -493,7 +490,6 @@ export const deleteScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: memberIds,
-        settings: context.connection.settings,
       })
       return {
         groupId: current.id,

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
@@ -562,7 +563,7 @@ async function run() {
   )
 
   await check(
-    'An address change ends sessions and OAuth grants issued under the old one',
+    'Address changes and directory removal retire OAuth grants instead of restoring them after suspension',
     async () => {
       const carolEmail = `carol@${primary.domain}`
       const created = await scim(token, '/Users', {
@@ -616,6 +617,28 @@ async function run() {
         assert.equal(
           (await sql`select id from oauth_token_family where user_id = ${userId}`).length,
           0
+        )
+        assert.equal(
+          (await sql`select id from oauth_access_token where user_id = ${userId}`).length,
+          0
+        )
+
+        const rawToken = generateShortId(32)
+        const bearer = `sim_oat_${rawToken}`
+        await sql`insert into oauth_token_family (id, client_id, user_id, created_at, expires_at)
+        values (${generateId()}, ${clientId}, ${userId}, now(), now() + interval '1 day')`
+        await sql`insert into oauth_access_token (id, token, client_id, user_id, scopes, created_at, expires_at)
+        values (${generateId()}, ${createHash('sha256').update(rawToken).digest('hex')},
+          ${clientId}, ${userId}, ${['api:read']}, now(), now() + interval '1 hour')`
+        await request('/api/v2/workspaces', { token: bearer })
+        await patch(token, `/Users/${carolId}`, [{ op: 'replace', path: 'active', value: false }])
+        await request('/api/v2/workspaces', { token: bearer, expected: 401 })
+        await scim(token, `/Users/${carolId}`, { method: 'DELETE', expected: 204 })
+        await request('/api/v2/workspaces', { token: bearer, expected: 401 })
+        assert.equal(
+          (await sql`select id from oauth_token_family where user_id = ${userId}`).length,
+          0,
+          'Directory removal must retire refresh families as well as sessions'
         )
         assert.equal(
           (await sql`select id from oauth_access_token where user_id = ${userId}`).length,
@@ -712,6 +735,257 @@ async function run() {
         )
       ).body
       assert.equal(resources(list)[0]?.id, groupId)
+    }
+  )
+
+  await check(
+    'Renaming an automatically matched group withdraws its old policy even when the new target is already mapped',
+    async () => {
+      await admin(primary, '', {
+        method: 'PUT',
+        body: { settings: { autoMapPermissionGroupsByName: true } },
+      })
+      try {
+        for (const method of ['PATCH', 'PUT'] as const) {
+          const oldPolicyId = generateId()
+          const newPolicyId = generateId()
+          const oldName = `SCIM E2E ${method} Old policy`
+          const newName = `SCIM E2E ${method} New policy`
+          await sql`insert into permission_group (id, organization_id, name, created_by)
+          values (${oldPolicyId}, ${primary.orgId}, ${oldName}, ${primary.ownerId}),
+            (${newPolicyId}, ${primary.orgId}, ${newName}, ${primary.ownerId})`
+          const created = await scim(token, '/Groups', {
+            method: 'POST',
+            expected: 201,
+            body: {
+              schemas: [GROUP_SCHEMA],
+              displayName: oldName,
+              members: [{ value: aliceId }],
+            },
+          })
+          const renamedGroupId = string(created.body.id)
+          try {
+            await admin(primary, '/mappings', {
+              method: 'POST',
+              expected: 201,
+              body: {
+                groupId: renamedGroupId,
+                targetKind: 'permission_group',
+                permissionGroupId: newPolicyId,
+              },
+            })
+            assert.equal(
+              (
+                await sql`select id from permission_group_member where user_id = ${aliceUserId}
+                and permission_group_id in (${oldPolicyId}, ${newPolicyId})`
+              ).length,
+              2
+            )
+            if (method === 'PATCH') {
+              await patch(
+                token,
+                `/Groups/${renamedGroupId}`,
+                [{ op: 'replace', path: 'displayName', value: newName }],
+                204
+              )
+            } else {
+              await scim(token, `/Groups/${renamedGroupId}`, {
+                method,
+                body: {
+                  schemas: [GROUP_SCHEMA],
+                  displayName: newName,
+                  members: [{ value: aliceId }],
+                },
+              })
+            }
+            assert.equal(
+              (
+                await sql`select id from permission_group_member where permission_group_id = ${oldPolicyId}`
+              ).length,
+              0,
+              `${method} rename must immediately withdraw the old automatically matched policy`
+            )
+            assert.equal(
+              (
+                await sql`select id from scim_projection_grant where scim_user_id = ${aliceId}
+                and target_kind = 'permission_group' and target_id = ${oldPolicyId}`
+              ).length,
+              0
+            )
+            assert.equal(
+              (
+                await sql`select id from permission_group_member where permission_group_id = ${newPolicyId}`
+              ).length,
+              1
+            )
+          } finally {
+            await scim(token, `/Groups/${renamedGroupId}`, { method: 'DELETE', expected: 204 })
+            await sql`delete from permission_group where id in (${oldPolicyId}, ${newPolicyId})`
+          }
+        }
+      } finally {
+        await admin(primary, '', {
+          method: 'PUT',
+          body: { settings: { autoMapPermissionGroupsByName: false } },
+        })
+      }
+    }
+  )
+
+  await check(
+    'Mapping status exposes unapplied policy memberships and clears after conflict recovery',
+    async () => {
+      const firstPolicyId = generateId()
+      const secondPolicyId = generateId()
+      const conflictGroupIds: string[] = []
+      await sql`insert into permission_group (id, organization_id, name, membership_mode, created_by)
+      values (${firstPolicyId}, ${primary.orgId}, 'SCIM E2E first policy', 'explicit', ${primary.ownerId}),
+        (${secondPolicyId}, ${primary.orgId}, 'SCIM E2E second policy', 'explicit', ${primary.ownerId})`
+      for (const policyId of [firstPolicyId, secondPolicyId]) {
+        await sql`insert into permission_group_workspace (id, permission_group_id, workspace_id, organization_id)
+        values (${generateId()}, ${policyId}, ${primary.workspaceId}, ${primary.orgId})`
+      }
+      try {
+        for (const [index, policyId] of [firstPolicyId, secondPolicyId].entries()) {
+          const created = await scim(token, '/Groups', {
+            method: 'POST',
+            expected: 201,
+            body: {
+              schemas: [GROUP_SCHEMA],
+              displayName: `SCIM E2E conflict ${index}`,
+              members: [{ value: aliceId }],
+            },
+          })
+          const directoryGroupId = string(created.body.id)
+          conflictGroupIds.push(directoryGroupId)
+          await admin(primary, '/mappings', {
+            method: 'POST',
+            expected: 201,
+            body: {
+              groupId: directoryGroupId,
+              targetKind: 'permission_group',
+              permissionGroupId: policyId,
+            },
+          })
+        }
+        const mappings = (await admin(primary, '/mappings')).body.groups
+        assert(Array.isArray(mappings))
+        const conflicted = record(
+          mappings.find((value) => record(value).id === conflictGroupIds[1])
+        )
+        assert(Array.isArray(conflicted.mappings))
+        const pending = record(conflicted.mappings[0])
+        assert.equal(pending.source, 'manual')
+        assert.equal(
+          pending.unassignedMemberCount,
+          1,
+          'A saved mapping must expose the skipped member'
+        )
+        assert.equal(
+          (
+            await sql`select id from permission_group_member where permission_group_id = ${secondPolicyId}`
+          ).length,
+          0
+        )
+        await patch(
+          token,
+          `/Groups/${conflictGroupIds[0]}`,
+          [{ op: 'remove', path: `members[value eq "${aliceId}"]` }],
+          204
+        )
+        await admin(primary, '/reconcile', { method: 'POST' })
+        const recovered = (await admin(primary, '/mappings')).body.groups
+        assert(Array.isArray(recovered))
+        const recoveredGroup = record(
+          recovered.find((value) => record(value).id === conflictGroupIds[1])
+        )
+        assert(Array.isArray(recoveredGroup.mappings))
+        assert.equal(record(recoveredGroup.mappings[0]).unassignedMemberCount, 0)
+        assert.equal(
+          (
+            await sql`select id from permission_group_member where permission_group_id = ${secondPolicyId}`
+          ).length,
+          1
+        )
+      } finally {
+        for (const directoryGroupId of conflictGroupIds) {
+          await scim(token, `/Groups/${directoryGroupId}`, { method: 'DELETE', expected: 204 })
+        }
+        await sql`delete from permission_group where id in (${firstPolicyId}, ${secondPolicyId})`
+      }
+    }
+  )
+
+  await check(
+    'Group removal honors membership locking enabled while the request waits for the organization lock',
+    async () => {
+      await sql`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
+      values (${generateId()}, ${aliceUserId}, 'workspace', ${primary.workspaceId}, 'read')`
+      const created = await scim(token, '/Groups', {
+        method: 'POST',
+        expected: 201,
+        body: {
+          schemas: [GROUP_SCHEMA],
+          displayName: 'SCIM E2E concurrent lock',
+          members: [{ value: aliceId }],
+        },
+      })
+      const lockedGroupId = string(created.body.id)
+      try {
+        await admin(primary, '/mappings', {
+          method: 'POST',
+          expected: 201,
+          body: {
+            groupId: lockedGroupId,
+            targetKind: 'workspace',
+            workspaceId: primary.workspaceId,
+            permissionType: 'read',
+          },
+        })
+        let removal: Promise<unknown> | undefined
+        try {
+          await sql.begin(async (tx) => {
+            const [holder] = await tx`select pg_backend_pid() as pid,
+              pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${primary.orgId}`}, 0))`
+            removal = patch(
+              token,
+              `/Groups/${lockedGroupId}`,
+              [{ op: 'remove', path: `members[value eq "${aliceId}"]` }],
+              204
+            )
+            void removal.catch(() => {})
+            const deadline = performance.now() + 4000
+            for (;;) {
+              const waiting = await sql`select pid from pg_stat_activity
+                where wait_event = 'advisory' and ${holder.pid} = any(pg_blocking_pids(pid))`
+              if (waiting.length > 0) break
+              assert(
+                performance.now() < deadline,
+                'The group request must reach the organization lock'
+              )
+              await sleep(10)
+            }
+            await tx`update scim_connection
+              set settings = settings || '{"lockManualMembership":true}'::jsonb
+              where organization_id = ${primary.orgId}`
+          })
+        } finally {
+          await removal
+        }
+        assert.equal(
+          await permission(aliceUserId, primary.workspaceId),
+          undefined,
+          'A committed membership lock must govern the subsequent directory withdrawal'
+        )
+      } finally {
+        await scim(token, `/Groups/${lockedGroupId}`, { method: 'DELETE', expected: 204 })
+        await admin(primary, '', {
+          method: 'PUT',
+          body: { settings: { lockManualMembership: false } },
+        })
+        await sql`delete from permissions where user_id = ${aliceUserId}
+          and entity_type = 'workspace' and entity_id = ${primary.workspaceId}`
+      }
     }
   )
 
