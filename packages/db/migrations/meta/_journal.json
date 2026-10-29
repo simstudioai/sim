@@ -3116,6 +3116,13 @@
       "when": 1793264123768,
       "tag": "0445_assistant_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 446,
+      "version": "7",
+      "when": 1793297772375,
+      "tag": "0446_usage_log_workspace_created_at_cost_idx",
+      "breakpoints": true
     }
   ]
 }
