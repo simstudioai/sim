@@ -4,11 +4,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import {
-  type AuditLogListScope,
-  buildOrgScopeCondition,
-  queryAuditLogs,
-} from '@/lib/audit-logs/query'
+import { buildOrgScopeCondition, type OrgScopeParams, queryAuditLogs } from '@/lib/audit-logs/query'
 
 const organizationId = generateId()
 const otherOrganizationId = generateId()
@@ -68,7 +64,7 @@ const fixtureIds = rows.map((row) => row.id)
 const auditLogTimestamp = sql`date_trunc('milliseconds', ${auditLog.createdAt})`
 
 /** The listing's contract as one predicate: every row in scope, newest first. */
-async function referenceOrder(scope: AuditLogListScope, filters: SQL<unknown>[]) {
+async function referenceOrder(scope: OrgScopeParams, filters: SQL<unknown>[]) {
   const matching = await db
     .select({ id: auditLog.id })
     .from(auditLog)
@@ -78,7 +74,7 @@ async function referenceOrder(scope: AuditLogListScope, filters: SQL<unknown>[])
 }
 
 async function paginate(
-  scope: AuditLogListScope,
+  scope: OrgScopeParams,
   filters: SQL<unknown>[],
   limit: number,
   maxBytes?: number
@@ -86,7 +82,12 @@ async function paginate(
   const seen: string[] = []
   let cursor: string | undefined
   for (let page = 0; page <= rows.length; page++) {
-    const result = await queryAuditLogs(scope, filters, limit, cursor, maxBytes)
+    const result = await queryAuditLogs(
+      [buildOrgScopeCondition(scope), ...filters],
+      limit,
+      cursor,
+      maxBytes
+    )
     expect(result.truncated ?? false).toBe(false)
     seen.push(...result.data.map((row) => row.id))
     if (!result.nextCursor) return seen
@@ -146,7 +147,7 @@ describe('queryAuditLogs scope against real Postgres', () => {
   ])(
     'pages through exactly the single-predicate result (%o)',
     async ({ includeDeparted, action }) => {
-      const scope: AuditLogListScope = {
+      const scope: OrgScopeParams = {
         organizationId,
         orgWorkspaceIds: [workspaceA, workspaceB, workspaceA],
         orgMemberIds: [memberId],
@@ -164,7 +165,7 @@ describe('queryAuditLogs scope against real Postgres', () => {
   )
 
   it('reads only organization-level rows when the organization has no workspaces', async () => {
-    const scope: AuditLogListScope = {
+    const scope: OrgScopeParams = {
       organizationId,
       orgWorkspaceIds: [],
       orgMemberIds: [],
@@ -185,7 +186,7 @@ describe('queryAuditLogs scope against real Postgres', () => {
   })
 
   it('narrows to one workspace when the filter names it', async () => {
-    const scope: AuditLogListScope = {
+    const scope: OrgScopeParams = {
       organizationId,
       orgWorkspaceIds: [workspaceA, workspaceB],
       orgMemberIds: [memberId],
