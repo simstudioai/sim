@@ -113,9 +113,11 @@ export function AssistantAccountIntegrations({
               description={
                 accounts.length
                   ? accounts.map((account) => account.displayName).join(', ')
-                  : ready
-                    ? 'No account connected'
-                    : 'Connections are paused'
+                  : source && !policies
+                    ? undefined
+                    : ready
+                      ? 'No account connected'
+                      : 'Connections unavailable'
               }
               trailing={
                 <div className='flex flex-wrap items-center justify-end gap-2'>
