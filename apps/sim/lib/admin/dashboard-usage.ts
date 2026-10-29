@@ -11,13 +11,14 @@ import type { BillingEntity } from '@/lib/billing/core/usage-log'
  * over its current usage period.
  *
  * Each read is one statement whose `UNION ALL` arms each cover one entity, so every arm
- * is a bounded index-only scan; one `BitmapOr` over all of them would fetch every matched
- * row from the heap instead:
+ * is a scan bounded by one entity's period on `usage_log_billing_entity_period_cost_idx`
+ * (stamped periods) or `usage_log_billing_entity_created_at_cost_idx` (reporting periods).
+ * One `BitmapOr` over all of them would fetch every matched row from the heap instead.
  *
- * - spend reads `usage_log_billing_entity_period_cost_idx` (stamped periods) or
- *   `usage_log_billing_entity_created_at_cost_idx` (reporting periods);
- * - workflow runs read `usage_log_billing_entity_workflow_runs_idx`, the only index
- *   carrying `execution_id`, which is why they are a separate statement.
+ * Spend is index-only. Workflow runs are a separate statement because no index carries
+ * `execution_id`: they fetch each matched workflow row from the heap, and keeping them
+ * apart leaves the spend scans index-only. An index for them would cost every workflow ledger
+ * insert an extra write to speed up a staff-only page.
  *
  * They stay on the primary, where the hot billing sums keep those index pages cached. On
  * the replica the same scans read from disk, and a statement held past the standby's

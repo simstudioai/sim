@@ -6107,27 +6107,6 @@ export const usageLog = pgTable(
         table.cost
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
-    /**
-     * Counts an entity's workflow runs in a period (distinct `execution_id` among its
-     * `source = 'workflow'` rows) index-only, per entity or per entity and user. The two
-     * cost indexes above leave `execution_id` out so the hot period sums stay narrow;
-     * without this index the count fetched every matched row from the heap.
-     *
-     * The stamps lead as in the period cost index, so a stamped period is bounded by all
-     * four leading columns. A reporting period matches on `created_at` instead and scans
-     * the entity's workflow entries, still without touching the heap.
-     */
-    billingEntityWorkflowRunsIdx: index('usage_log_billing_entity_workflow_runs_idx')
-      .on(
-        table.billingEntityType,
-        table.billingEntityId,
-        table.billingPeriodStart,
-        table.billingPeriodEnd,
-        table.userId,
-        table.createdAt,
-        table.executionId
-      )
-      .where(sql`${table.source} = 'workflow' AND ${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(
