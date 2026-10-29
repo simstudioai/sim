@@ -5,6 +5,7 @@ import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import {
+  distinctFiles,
   getWorkspaceFileLookupQueryOptions,
   getWorkspaceFileSearchQueryOptions,
 } from '@/hooks/queries/workspace-files'
@@ -96,13 +97,12 @@ function fileRefCandidates(ref: WorkspaceResourceRef): string[] {
 
 /**
  * The reads that together hold every file a chip's candidates can match under
- * {@link resolveWorkspaceResourceRef}'s rules: each candidate as an exact id, as a reference (an
- * exact VFS path resolves first), and — for a candidate that could be a bare name — every file
- * whose name contains it, so a name shared by two files is still seen as ambiguous.
+ * {@link resolveWorkspaceResourceRef}'s rules: each candidate as a reference (an exact id
+ * resolves first, then an exact VFS path), and — for a candidate that could be a bare name —
+ * every file whose name contains it, so a name shared by two files is still seen as ambiguous.
  */
 function fileRefReads(queryClient: QueryClient, workspaceId: string, ref: WorkspaceResourceRef) {
   return fileRefCandidates(ref).flatMap((candidate) => [
-    getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, 'id', candidate),
     getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, 'reference', candidate),
     ...(candidate.includes('/') || candidate.length > V2_SEARCH_MAX_LENGTH
       ? []
@@ -113,17 +113,6 @@ function fileRefReads(queryClient: QueryClient, workspaceId: string, ref: Worksp
           }),
         ]),
   ])
-}
-
-/** The distinct files several reads returned: one file found by two reads is still one file. */
-function distinctFiles(
-  reads: readonly (WorkspaceFileRecord | WorkspaceFileRecord[] | null)[]
-): WorkspaceFileRecord[] {
-  const files = new Map<string, WorkspaceFileRecord>()
-  for (const data of reads) {
-    for (const file of Array.isArray(data) ? data : data ? [data] : []) files.set(file.id, file)
-  }
-  return [...files.values()]
 }
 
 /**

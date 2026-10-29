@@ -124,4 +124,20 @@ describe('fetchWorkspaceResourceRef', () => {
       )
     ).toHaveLength(1)
   })
+
+  it('asks for each candidate once, as a reference, which already answers an exact id', async () => {
+    serveWorkspace([file({ id: 'wf_a', name: 'notes.md' })])
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(
+      fetchWorkspaceResourceRef(client, 'ws-1', ref({ id: 'wf_a' }))
+    ).resolves.toMatchObject({ id: 'wf_a' })
+    const lookups = apiClientRequestMockFns.mockRequestJson.mock.calls.filter(
+      ([contract]) => contract === lookupWorkspaceFilesContract
+    )
+    expect(lookups).toHaveLength(1)
+    const body = (lookups[0][1] as { body: Record<string, unknown> }).body
+    expect(body.ids ?? []).toEqual([])
+    expect(body.references).toEqual(expect.arrayContaining(['wf_a']))
+  })
 })
