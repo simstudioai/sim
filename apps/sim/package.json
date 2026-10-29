@@ -249,7 +249,7 @@
     "posthog-node": "5.28.9",
     "pptxgenjs": "4.0.1",
     "prismjs": "^1.30.0",
-    "re2js": "2.8.6",
+    "re2js": "2.8.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.90.0",
