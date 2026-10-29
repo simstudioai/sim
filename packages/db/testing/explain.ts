@@ -6,6 +6,8 @@ export interface PlanNode {
   'Index Name'?: string
   /** The scan's index search condition, as PostgreSQL prints it. */
   'Index Cond'?: string
+  /** An index scan's direction; `Backward` reads the index in descending key order. */
+  'Scan Direction'?: 'Forward' | 'Backward' | 'NoMovement'
   Plans?: PlanNode[]
 }
 
