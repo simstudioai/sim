@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import type { RoomType } from '@sim/realtime-protocol/rooms'
 import { sleep } from '@sim/utils/helpers'
 import type { Socket } from 'socket.io-client'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 const logger = createLogger('WorkspaceInvalidationRoom')
@@ -17,6 +18,12 @@ const JOIN_RETRY_BASE_MS = 1000
  * uploading files one by one) otherwise refetches every viewer's list once per broadcast.
  */
 export const INVALIDATION_COALESCE_MS = 1000
+/**
+ * The longest a delivery waits for its refetches. A fetch has no timeout of its own, so one that
+ * hangs would otherwise hold the room's deliveries forever; past this, the next delivery's
+ * invalidation cancels and restarts it.
+ */
+export const DELIVERY_SETTLE_CAP_MS = 30_000
 
 interface JoinErrorPayload {
   workspaceId: string
@@ -26,8 +33,8 @@ interface JoinErrorPayload {
 }
 
 /**
- * Runs when the room's resources changed. A returned promise is awaited before the next delivery,
- * so a refetch still in flight is neither cancelled nor overlapped by the next one.
+ * Runs when the room's resources changed. A returned promise is awaited, up to
+ * {@link DELIVERY_SETTLE_CAP_MS}, before the next delivery starts.
  */
 type RoomChangedCallback = () => unknown
 
@@ -85,9 +92,11 @@ function createSharedRoomSubscription(
     try {
       do {
         changedSinceDelivery = false
-        await Promise.allSettled(
+        const settled = Promise.allSettled(
           [...callbacks.values()].map(async (group) => group.values().next().value?.())
         )
+        // `allSettled` never rejects, so the only rejection here is the cap expiring.
+        await withinDeadline(() => settled, Date.now() + DELIVERY_SETTLE_CAP_MS).catch(() => {})
         await sleep(INVALIDATION_COALESCE_MS)
       } while (changedSinceDelivery && !disposed)
     } finally {
