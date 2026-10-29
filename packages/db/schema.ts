@@ -2928,10 +2928,17 @@ export const workspaceFiles = pgTable(
      * Served the pre-project backfill walk, which paged live workspace files by
      * `(workspace_id, id)` and compared its cursor row-wise to seek with this index.
      *
-     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, so its last designed reader is gone once older dispatchers drain; confirm no other plan still picks it.
+     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, and `workspace_files_workspace_active_uploaded_idx` (same predicate, leading `workspace_id`) serves every workspace-scoped read this index serves while id lookups have the primary key; retire it once its idx_scan stops growing after that index deploys.
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
+    /** Serves a workspace's live file list and uploadedAt keyset pages in upload order. */
+    workspaceActiveUploadedIdx: index('workspace_files_workspace_active_uploaded_idx')
+      .on(table.workspaceId, table.uploadedAt, table.id)
       .concurrently()
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`

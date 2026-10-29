@@ -544,7 +544,6 @@
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/index.ts#EditConnectorModal",
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/search-params.ts#KB_SORT_COLUMNS",
   "apps/sim/app/workspace/[workspaceId]/knowledge/search-params.ts#KNOWLEDGE_SORT_COLUMNS",
-  "apps/sim/app/workspace/[workspaceId]/lib/seed-workspace-files.ts#WORKSPACE_FILE_SEED_MAX",
   "apps/sim/app/workspace/[workspaceId]/logs/components/dashboard/components/index.ts#WorkflowExecutionItem",
   "apps/sim/app/workspace/[workspaceId]/logs/components/dashboard/components/workflows-list/index.ts#WorkflowExecutionItem",
   "apps/sim/app/workspace/[workspaceId]/logs/components/dashboard/components/workflows-list/workflows-list.tsx#WorkflowExecutionItem",

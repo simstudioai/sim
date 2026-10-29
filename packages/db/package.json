@@ -33,6 +33,10 @@
       "types": "./sso-primary-provider.ts",
       "default": "./sso-primary-provider.ts"
     },
+    "./testing/explain": {
+      "types": "./testing/explain.ts",
+      "default": "./testing/explain.ts"
+    },
     "./testing/test-infrastructure": {
       "types": "./testing/test-infrastructure.ts",
       "default": "./testing/test-infrastructure.ts"
