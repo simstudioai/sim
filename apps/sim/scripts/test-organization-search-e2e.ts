@@ -90,17 +90,23 @@ async function verifyLegacyDraft(
   const draftKey = `${prefix}${destination === 'assistant' ? 'search-assistant' : 'home'}`
   const attachment = {
     id: 'legacy-upload',
-    key: 'legacy-note.png',
-    filename: 'legacy-note.png',
-    media_type: 'image/png',
+    key: `copilot/${userId}/legacy-note.txt`,
+    filename: 'legacy-note.txt',
+    media_type: 'text/plain',
     size: 68,
-    path: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jFmcAAAAASUVORK5CYII=',
+    path: `/api/files/serve/copilot/${userId}/legacy-note.txt`,
   }
   const expectedDraft = {
     text: existingDraft ? 'A newer destination draft' : 'An unsent question from before the move',
     fileAttachments: [
       existingDraft
-        ? { ...attachment, id: 'new-upload', key: 'new-note.png', filename: 'new-note.png' }
+        ? {
+            ...attachment,
+            id: 'new-upload',
+            key: `copilot/${userId}/new-note.txt`,
+            filename: 'new-note.txt',
+            path: `/api/files/serve/copilot/${userId}/new-note.txt`,
+          }
         : attachment,
     ],
   }
@@ -231,6 +237,9 @@ try {
       await expect(searchInput).toHaveValue('Launch notes')
       await page.getByRole('radio', { name: 'Assistant', exact: true }).click()
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
+      await expect(page).toHaveURL(
+        (url) => url.pathname === `${root}/search` && url.searchParams.get('mode') === 'assistant'
+      )
       await page.reload()
       await expect(page.getByRole('radio', { name: 'Assistant', exact: true })).toBeChecked()
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
