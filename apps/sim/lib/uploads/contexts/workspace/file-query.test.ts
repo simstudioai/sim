@@ -134,10 +134,3 @@ describe('queryWorkspaceFiles', () => {
     ).rejects.toMatchObject({ code: 'validation' })
   })
 })
-
-/**
- * `listWorkspaceFiles` materializes a whole scope, so what it reads per row is
- * multiplied by the size of the workspace. These assertions pin the two ways that
- * stays bounded: the projection, and the optional row cap its one budgeted caller
- * (the workspace layout's server seed) uses to detect an oversized workspace.
- */

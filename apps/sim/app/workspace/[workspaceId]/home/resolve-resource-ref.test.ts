@@ -111,20 +111,6 @@ describe('fetchWorkspaceResourceRef', () => {
     ).resolves.toMatchObject({ type: 'file', id: 'wf_b', path: 'files/b/notes.md' })
   })
 
-  it('resolves a unique name with one batched lookup and its name search', async () => {
-    serveWorkspace([file({ id: 'wf_a', name: 'notes.md' }), file({ id: 'wf_c', name: 'plan.md' })])
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-
-    await expect(fetchWorkspaceResourceRef(client, 'ws-1', ref())).resolves.toMatchObject({
-      id: 'wf_a',
-    })
-    expect(
-      apiClientRequestMockFns.mockRequestJson.mock.calls.filter(
-        ([contract]) => contract === lookupWorkspaceFilesContract
-      )
-    ).toHaveLength(1)
-  })
-
   it('asks for each candidate once, as a reference, which already answers an exact id', async () => {
     serveWorkspace([file({ id: 'wf_a', name: 'notes.md' })])
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

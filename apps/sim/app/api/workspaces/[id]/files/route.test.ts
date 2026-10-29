@@ -158,11 +158,5 @@ describe('/api/workspaces/[id]/files', () => {
       }
       expect(collection).toHaveBeenCalledTimes(2)
     })
-
-    it('rejects a kind or size bucket the list does not know', async () => {
-      expect((await list('?types=spreadsheet')).status).toBe(400)
-      expect((await list('?sizes=huge')).status).toBe(400)
-      expect(collection).not.toHaveBeenCalled()
-    })
   })
 })

@@ -282,35 +282,23 @@ describe('useWorkspaceFileContent stale storage key', () => {
     // is what would spin.
     expect(refetchQueries).toHaveBeenCalledTimes(1)
     /** Only the reads that can hold this file's key: its record and the lookups that found it. */
-    const [filter] = refetchQueries.mock.calls[0] as unknown as [
-      {
-        predicate: (query: {
-          queryHash: string
-          queryKey: unknown[]
-          state: { data: unknown }
-        }) => boolean
-      },
-    ]
-    const query = (queryKey: readonly unknown[], data: unknown = null) => ({
-      queryKey: [...queryKey],
-      queryHash: JSON.stringify(queryKey),
-      state: { data },
-    })
-    expect(filter.predicate(query(workspaceFilesKeys.record('ws-1', 'file-1')))).toBe(true)
+    const record = workspaceFilesKeys.record('ws-1', 'file-1')
+    const lookup = workspaceFilesKeys.lookup('ws-1', 'reference', 'doc.md')
+    queryClient.setQueryData(record, fileRecord('file-1'))
+    queryClient.setQueryData(lookup, fileRecord('file-1'))
+    queryClient.setQueryData(workspaceFilesKeys.lookup('ws-1', 'id', 'other'), fileRecord('other'))
+    queryClient.setQueryData(workspaceFilesKeys.record('ws-1', 'other'), fileRecord('other'))
+    queryClient.setQueryData(workspaceFilesKeys.search('ws-1', { q: 'doc', limit: 20 }), [
+      fileRecord('file-1'),
+    ])
+    const [filter] = refetchQueries.mock.calls[0]
     expect(
-      filter.predicate(
-        query(workspaceFilesKeys.lookup('ws-1', 'reference', 'doc.md'), fileRecord('file-1'))
-      )
-    ).toBe(true)
-    expect(
-      filter.predicate(query(workspaceFilesKeys.lookup('ws-1', 'id', 'other'), fileRecord('other')))
-    ).toBe(false)
-    expect(filter.predicate(query(workspaceFilesKeys.record('ws-1', 'other')))).toBe(false)
-    expect(
-      filter.predicate(
-        query(workspaceFilesKeys.search('ws-1', { q: 'doc', limit: 20 }), [fileRecord('file-1')])
-      )
-    ).toBe(false)
+      queryClient
+        .getQueryCache()
+        .findAll({ ...filter, type: 'all' })
+        .map((query) => query.queryKey)
+    ).toEqual(expect.arrayContaining([record, lookup]))
+    expect(queryClient.getQueryCache().findAll({ ...filter, type: 'all' })).toHaveLength(2)
     unmount()
   })
 })
@@ -709,33 +697,38 @@ describe('invalidateWorkspaceFileBrowsers', () => {
   it('settles only once the mounted list and search reads have refetched', async () => {
     let listCalls = 0
     let searchCalls = 0
-    const refetch = createDeferred<void>()
+    const listRefetch = createDeferred<void>()
+    const searchRefetch = createDeferred<void>()
     mockRequestJson.mockImplementation(async (contract) => {
       if (contract === listWorkspaceFilesContract) {
-        if (++listCalls > 1) await refetch.promise
+        if (++listCalls > 1) await listRefetch.promise
         return { success: true, files: [fileRecord('a')], nextCursor: null }
       }
       if (contract === searchWorkspaceFilesContract) {
-        searchCalls++
+        if (++searchCalls > 1) await searchRefetch.promise
         return { success: true, files: [fileRecord('a')] }
       }
       return { success: true, folders: [] }
     })
     const params = workspaceFileListParams({ folderId: null, sortBy: 'name', sortOrder: 'asc' })
-    const hook = mountHook(() => useWorkspaceFileList('ws-1', params))
+    const hook = mountHook(() => ({
+      list: useWorkspaceFileList('ws-1', params),
+      search: useWorkspaceFileSearch('ws-1', { q: 'a', limit: 20 }),
+    }))
     try {
-      await vi.waitFor(() => expect(hook.result().data).toBeDefined())
+      await vi.waitFor(() => expect(hook.result().list.data).toBeDefined())
+      await vi.waitFor(() => expect(hook.result().search.data).toBeDefined())
       let done = false
       const invalidation = invalidateWorkspaceFileBrowsers(hook.client, 'ws-1').then(() => {
         done = true
       })
-      await vi.waitFor(() => expect(listCalls).toBe(2))
+      await vi.waitFor(() => expect([listCalls, searchCalls]).toEqual([2, 2]))
+      listRefetch.resolve()
       await flushMacrotask()
       expect(done).toBe(false)
-      refetch.resolve()
+      searchRefetch.resolve()
       await invalidation
       expect(done).toBe(true)
-      expect(searchCalls).toBe(0)
     } finally {
       hook.unmount()
     }
@@ -853,6 +846,31 @@ describe('useWorkspaceImageDimensionsAdapter', () => {
       })
       await vi.waitFor(() => expect(hook.result()).not.toBe(cold))
       expect(hook.result().getImageDimensions(src)).toEqual({ width: 40, height: 30 })
+    } finally {
+      hook.unmount()
+    }
+  })
+})
+
+describe('useWorkspaceFileSearch placeholder', () => {
+  it("keeps the last matches while a new query loads, but never another workspace's", async () => {
+    const pending = createDeferred<unknown>()
+    mockRequestJson.mockImplementation(async (_contract, input) => {
+      const { q } = (input as { query: { q: string } }).query
+      if (q === 'first') return { success: true, files: [fileRecord('first')] }
+      return pending.promise
+    })
+    let workspaceId = 'ws-1'
+    let q = 'first'
+    const hook = mountHook(() => useWorkspaceFileSearch(workspaceId, { q, limit: 20 }))
+    try {
+      await vi.waitFor(() => expect(hook.result().data?.[0]?.id).toBe('first'))
+      q = 'second'
+      hook.rerender()
+      expect(hook.result().data?.[0]?.id).toBe('first')
+      workspaceId = 'ws-2'
+      hook.rerender()
+      expect(hook.result().data).toBeUndefined()
     } finally {
       hook.unmount()
     }

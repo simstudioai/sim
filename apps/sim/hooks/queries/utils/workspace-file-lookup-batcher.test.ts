@@ -1,6 +1,10 @@
 import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  MAX_WORKSPACE_FILE_LOOKUP_ENTRIES,
+  MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH,
+} from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { createWorkspaceFileLookupBatcher } from '@/hooks/queries/utils/workspace-file-lookup-batcher'
 
@@ -77,7 +81,11 @@ describe('createWorkspaceFileLookupBatcher', () => {
   })
 
   it('splits a kind past the per-request cap across requests, resolving every value', async () => {
-    const files = Array.from({ length: 150 }, (_, index) => record(`wf_${index}`))
+    const remainder = MAX_WORKSPACE_FILE_LOOKUP_ENTRIES / 2
+    const files = Array.from(
+      { length: MAX_WORKSPACE_FILE_LOOKUP_ENTRIES + remainder },
+      (_, index) => record(`wf_${index}`)
+    )
     const fetchLookup = serve(files)
     const batcher = createWorkspaceFileLookupBatcher(fetchLookup)
 
@@ -85,7 +93,10 @@ describe('createWorkspaceFileLookupBatcher', () => {
     await vi.runAllTimersAsync()
 
     expect(await results).toEqual(files)
-    expect(fetchLookup.mock.calls.map(([, body]) => body.ids?.length)).toEqual([100, 50])
+    expect(fetchLookup.mock.calls.map(([, body]) => body.ids?.length)).toEqual([
+      MAX_WORKSPACE_FILE_LOOKUP_ENTRIES,
+      remainder,
+    ])
   })
 
   it('drops a lookup aborted before its batch is sent, and rejects one aborted after alone', async () => {
@@ -120,7 +131,7 @@ describe('createWorkspaceFileLookupBatcher', () => {
     const batcher = createWorkspaceFileLookupBatcher(fetchLookup)
 
     const results = Promise.all([
-      batcher.load('ws-1', 'key', 'x'.repeat(1025)),
+      batcher.load('ws-1', 'key', 'x'.repeat(MAX_WORKSPACE_FILE_LOOKUP_VALUE_LENGTH + 1)),
       batcher.load('ws-1', 'reference', ''),
       batcher.load('ws-1', 'id', a.id),
     ])

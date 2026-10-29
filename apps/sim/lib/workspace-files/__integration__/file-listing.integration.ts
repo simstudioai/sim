@@ -647,15 +647,6 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       }
     )
 
-    it('labels each file as its Type column does', async () => {
-      const rows = await db.execute<{ id: string; label: string }>(sql`
-        SELECT id, ${workspaceFileTypeLabelExpression} AS label FROM ${workspaceFiles}
-        WHERE workspace_id = ${sortWorkspaceId}`)
-      expect(new Map(rows.map((row) => [row.id, row.label]))).toEqual(
-        new Map(seeded.map((file) => [file.id, file.label]))
-      )
-    })
-
     /**
      * Neither key is indexed, so a page sorts its scope — but only its scope: the folder
      * predicate must still seek the folder index rather than reading every live file.
@@ -700,15 +691,21 @@ describe('bounded workspace file reads in PostgreSQL', () => {
     /**
      * Every extension the MIME table knows, stored three ways: declaring nothing (so the
      * extension decides), declaring the generic type (likewise), and declaring its own type (so
-     * the declared type decides). The SQL must agree with the JS rules for each.
+     * the declared type decides) — plus names the table does not know, with and without an
+     * extension. The SQL must agree with the JS rules for each.
      */
     it('labels and classifies a file of every known extension as the JS rules do', async () => {
-      const cases = Object.keys(EXTENSION_TO_MIME).flatMap((extension) =>
-        ['', 'application/octet-stream', EXTENSION_TO_MIME[extension]].map((contentType) => ({
-          name: `file.${extension}`,
-          contentType,
-        }))
-      )
+      const cases = [
+        ...Object.keys(EXTENSION_TO_MIME).flatMap((extension) =>
+          ['', 'application/octet-stream', EXTENSION_TO_MIME[extension]].map((contentType) => ({
+            name: `file.${extension}`,
+            contentType,
+          }))
+        ),
+        { name: 'noext', contentType: 'application/x-custom' },
+        { name: 'file.foo', contentType: 'application/octet-stream' },
+        { name: 'file.foo', contentType: '' },
+      ]
       const ids = new Map<string, { name: string; contentType: string }>()
       for (const [index, fixture] of cases.entries()) {
         const file = await insertFile({

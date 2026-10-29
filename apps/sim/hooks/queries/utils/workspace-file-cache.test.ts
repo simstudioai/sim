@@ -132,7 +132,7 @@ describe('updateCachedWorkspaceFile', () => {
 })
 
 describe('cached file seeds', () => {
-  it('finds the freshest copy across reads, by one scan for a batch', () => {
+  it('finds the freshest copy across live reads, never one from an archived list', () => {
     const client = new QueryClient()
     client.setQueryData(liveKey, pages([file('a', { name: 'old.md' })]), { updatedAt: 1 })
     client.setQueryData(workspaceFilesKeys.record('ws-1', 'a'), file('a', { name: 'new.md' }), {
