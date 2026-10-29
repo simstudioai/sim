@@ -2936,7 +2936,7 @@ export const workspaceFiles = pgTable(
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
-    /** Serves a workspace's live file list and uploadedAt keyset pages in upload order. */
+    /** Serves a workspace's live file list, and its bounded SSR seed, in upload order. */
     workspaceActiveUploadedIdx: index('workspace_files_workspace_active_uploaded_idx')
       .on(table.workspaceId, table.uploadedAt, table.id)
       .concurrently()

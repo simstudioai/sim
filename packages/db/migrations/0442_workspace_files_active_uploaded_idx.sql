@@ -1,7 +1,7 @@
 -- A workspace's live file list, in upload order. No index served the list's filter in that
 -- order, so the planner matched every workspace's live files, filtered to one workspace on the
--- heap and sorted them, on disk for a large workspace; a bounded read (the SSR seed, an
--- uploadedAt keyset page) paid for the whole workspace.
+-- heap and sorted them, on disk for a large workspace; a bounded read (the SSR seed) paid for
+-- the whole workspace.
 --
 -- The predicate is the one the other live workspace-file indexes share, which the list's filter
 -- implies. The list's owner conditions (project_id and organization_id IS NULL) stay heap checks
