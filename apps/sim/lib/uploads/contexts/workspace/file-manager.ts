@@ -1794,7 +1794,8 @@ async function hydrateWorkspaceFilePaths(
 }
 
 /**
- * List all files for a workspace
+ * List all files for a workspace, oldest upload first; `id` orders files uploaded at the same
+ * instant, so the order is stable across reads.
  */
 export async function listWorkspaceFiles(
   workspaceId: string,
@@ -1806,7 +1807,7 @@ export async function listWorkspaceFiles(
       .select(workspaceFileListColumns)
       .from(workspaceFiles)
       .where(workspaceFileScopeCondition(workspaceId, scope))
-      .orderBy(workspaceFiles.uploadedAt)
+      .orderBy(workspaceFiles.uploadedAt, workspaceFiles.id)
     const files = await (limit === undefined ? query : query.limit(limit))
 
     return await hydrateWorkspaceFilePaths(files, workspaceId, options)
