@@ -154,6 +154,7 @@ import {
 import {
   contentWritableWorkspaceFileContextCondition,
   workspaceFileFolderIdCondition,
+  workspaceFileFolderKey,
   workspaceFileFolderScopeCondition,
 } from '@/lib/workspace-files/query-scope'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -2343,6 +2344,70 @@ async function listWorkspaceFileReferenceCandidates(
     )
     .orderBy(workspaceFiles.uploadedAt, workspaceFiles.id)
   return hydrateWorkspaceFilePaths(rows, workspaceId)
+}
+
+/**
+ * The live workspace files stored under any of `keys`, read through
+ * `workspace_files_key_active_unique`. Chat uploads and owned files are never matched, and a key
+ * belonging to another workspace matches nothing.
+ */
+export async function findActiveWorkspaceFilesByKeys(
+  workspaceId: string,
+  keys: readonly string[]
+): Promise<WorkspaceFileRecord[]> {
+  if (keys.length === 0) return []
+  const rows = await db
+    .select(workspaceFileListColumns)
+    .from(workspaceFiles)
+    .where(
+      and(
+        workspaceFileScopeCondition(workspaceId, 'active'),
+        inArray(workspaceFiles.key, [...keys])
+      )
+    )
+    .orderBy(workspaceFiles.uploadedAt, workspaceFiles.id)
+  return hydrateWorkspaceFilePaths(rows, workspaceId)
+}
+
+export interface WorkspaceFileFolderUsage {
+  fileCount: number
+  sizeBytes: number
+}
+
+/**
+ * Live file count and stored bytes held directly in each of `folderIds` (not their subfolders),
+ * as one grouped read. Folders holding no live file are absent from the result.
+ *
+ * The predicate is the live workspace-file indexes' own — `workspace_id`, `context`, and
+ * `deleted_at` — with no `project_id`/`organization_id` terms, which
+ * `workspace_files_owner_check` already rules out once `workspace_id` is set. The folder key
+ * seeks `workspace_files_workspace_folder_uploaded_idx`; `size_bytes` is read from the heap,
+ * which an occasional rollup can afford and which keeps size changes out of that index.
+ */
+export async function aggregateWorkspaceFileFolderUsage(
+  workspaceId: string,
+  folderIds: readonly string[]
+): Promise<Map<string, WorkspaceFileFolderUsage>> {
+  if (folderIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      folderId: workspaceFileFolderKey,
+      fileCount: sql<number>`count(*)::int`.mapWith(Number),
+      sizeBytes: sql<number>`coalesce(sum(${workspaceFiles.sizeBytes}), 0)::bigint`.mapWith(Number),
+    })
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'workspace'),
+        isNull(workspaceFiles.deletedAt),
+        workspaceFileFolderIdCondition(folderIds)
+      )
+    )
+    .groupBy(workspaceFileFolderKey)
+  return new Map(
+    rows.map((row) => [row.folderId, { fileCount: row.fileCount, sizeBytes: row.sizeBytes }])
+  )
 }
 
 async function loadWorkspaceFileContext(

@@ -28,7 +28,7 @@ vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspac
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { POST } from '@/app/api/workspaces/[id]/files/route'
+import { GET, POST } from '@/app/api/workspaces/[id]/files/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const USER = { id: 'user-1', name: 'Test User', email: 'test@sim.ai' }
@@ -62,7 +62,6 @@ describe('/api/workspaces/[id]/files', () => {
     authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
     mocks.admitCreate.mockResolvedValue(undefined)
     mocks.createFile.mockResolvedValue({ file: FILE })
-    workspaceFilesListMockFns.mockListAllWorkspaceFiles.mockResolvedValue({ files: [FILE] })
   })
 
   it('authorizes the asserted workspace before buffering the create body', async () => {
@@ -86,5 +85,47 @@ describe('/api/workspaces/[id]/files', () => {
     expect(response.status).toBe(400)
     expect(mocks.admitCreate).toHaveBeenCalled()
     expect(mocks.createFile).not.toHaveBeenCalled()
+  })
+
+  describe('GET', () => {
+    const list = (query: string) =>
+      GET(
+        createMockRequest({ method: 'GET', url: `/api/workspaces/${WORKSPACE_ID}/files${query}` }),
+        context
+      )
+    const collection = workspaceFilesListMockFns.mockListWorkspaceFileCollection
+
+    it('keeps the unpaged response, without a cursor, when no paging param is sent', async () => {
+      collection.mockResolvedValueOnce({ files: [FILE], nextKeys: null })
+
+      const response = await list('?scope=active')
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body).toEqual({ success: true, files: [expect.objectContaining({ id: FILE.id })] })
+      expect(collection.mock.calls[0][0].input).toEqual({
+        workspaceId: WORKSPACE_ID,
+        scope: 'active',
+      })
+    })
+
+    it('resumes from its own cursor and refuses it under another folder', async () => {
+      collection.mockResolvedValue({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
+
+      const first = await (await list('?folderId=root&sortBy=name&limit=1')).json()
+      expect(collection.mock.calls[0][0].input.page).toMatchObject({
+        folderId: null,
+        after: undefined,
+      })
+      expect(first.nextCursor).toEqual(expect.any(String))
+
+      const resumed = await list(`?folderId=root&sortBy=name&limit=1&cursor=${first.nextCursor}`)
+      expect(resumed.status).toBe(200)
+      expect(collection.mock.calls[1][0].input.page.after).toEqual(['notes.md', FILE.id])
+
+      const moved = await list(`?folderId=folder-2&sortBy=name&limit=1&cursor=${first.nextCursor}`)
+      expect(moved.status).toBe(400)
+      expect(collection).toHaveBeenCalledTimes(2)
+    })
   })
 })
