@@ -30,20 +30,26 @@ export function PageContext({ snapshot, onRemove }: PageContextProps) {
 
   return (
     <section
-      className='ph-no-capture flex min-w-0 items-center gap-1'
+      className='ph-no-capture relative min-w-0 max-w-[min(220px,100%)]'
       aria-label='Page attached to next message'
     >
       <Chip
         variant='border'
         leftIcon={Globe}
-        className='min-w-0 flex-1'
-        aria-label={`Review page context: ${title}`}
+        className='max-w-full'
+        rightAdornment={<span className='w-4' />}
+        aria-label={`Review page context: ${title}${snapshot.truncated ? ' (partial capture)' : ''}`}
         onClick={() => setOpen(true)}
       >
-        {snapshot.kind === 'selection' ? `Selection · ${title}` : title}
+        {`${snapshot.kind === 'selection' ? `Selection · ${title}` : title}${snapshot.truncated ? ' · Partial' : ''}`}
       </Chip>
-      {snapshot.truncated && <span className='text-[var(--text-muted)] text-caption'>Partial</span>}
-      <Button variant='ghost' size='icon' onClick={onRemove} aria-label='Remove page context'>
+      <Button
+        className='absolute top-0 right-0'
+        variant='ghost'
+        size='icon'
+        onClick={onRemove}
+        aria-label='Remove page context'
+      >
         <X className='size-[14px]' />
       </Button>
       <ChipModal open={open} onOpenChange={setOpen} srTitle='Page context' size='sm'>
@@ -65,6 +71,11 @@ export function PageContext({ snapshot, onRemove }: PageContextProps) {
               })}
             </time>
           </div>
+          {snapshot.truncated && (
+            <p className='text-[var(--text-muted)] text-caption'>
+              Partial capture. Some page text is omitted.
+            </p>
+          )}
           <pre
             ref={setPreview}
             {...scrollFadeAttributes(edges)}

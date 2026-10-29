@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { once } from 'node:events'
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
@@ -118,6 +118,13 @@ async function seed() {
     await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${deniedId}, ${deniedId}, 'Inaccessible QA workspace', ${otherUserId}, ${otherUserId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${otherUserId}, 'workspace', ${deniedId}, 'admin')`
     await tx`insert into copilot_chats (id, user_id, workspace_id, type, title) values (${historyId}, ${owner}, ${alphaId}, 'mothership', 'Extension QA history')`
+    const previousQuestion = {
+      id: generateId(),
+      role: 'user',
+      content: 'QA previous question.',
+      timestamp: new Date().toISOString(),
+    }
+    await tx`insert into copilot_messages (id, chat_id, message_id, role, content, seq) values (${generateId()}, ${historyId}, ${previousQuestion.id}, 'user', ${tx.json(previousQuestion)}, 0)`
     const content = `QA history response. <source>{"id":"qa:evidence"}</source>\n\n<workspace_resource>{"type":"workflow","id":"${workflowId}","title":"Extension QA workflow"}</workspace_resource>`
     const message = {
       id: historyMessageId,
@@ -160,15 +167,14 @@ async function seed() {
 
 try {
   await mkdir(dirname(report), { recursive: true })
-  const build = spawnSync(process.execPath, ['scripts/build.ts'], {
+  const extensionPath = resolve(temporary, 'extension')
+  const build = spawnSync(process.execPath, ['scripts/build.ts', `--outdir=${extensionPath}`], {
     cwd: extensionRoot,
     env: { ...process.env, SIM_EXTENSION_ORIGIN: base.origin, SIM_EXTENSION_DEV: '1' },
     encoding: 'utf8',
     timeout: 120_000,
   })
   assert.equal(build.status, 0, build.stderr)
-  const extensionPath = resolve(temporary, 'extension')
-  await cp(resolve(extensionRoot, 'dist'), extensionPath, { recursive: true })
   const manifest = JSON.parse(await readFile(resolve(extensionPath, 'manifest.json'), 'utf8'))
   const fixtureOrigin = `http://localhost:${fixtureAddress.port}`
   // Only the synthetic page is pregranted; native permission prompts are a separate acceptance check.
@@ -241,37 +247,38 @@ try {
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
     ).toBeVisible()
     await frame().getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
-    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible({
+      timeout: 120_000,
+    })
   })
   const source = await context.newPage()
   await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
+  await shell.evaluate((origin) => {
+    let receipts = 0
+    document.body.dataset.captureReceipts = '0'
+    window.addEventListener('message', (event: MessageEvent<unknown>) => {
+      if (
+        event.origin !== origin ||
+        event.source !== document.querySelector('iframe')?.contentWindow ||
+        typeof event.data !== 'object' ||
+        event.data === null ||
+        !('type' in event.data) ||
+        event.data.type !== 'context-received'
+      )
+        return
+      document.body.dataset.captureReceipts = String(++receipts)
+    })
+  }, base.origin)
   const capture = async () => {
     await source.bringToFront()
-    await shell.getByRole('button', { name: 'Attach page', exact: true }).evaluate(
-      (button) =>
-        new Promise<void>((resolve, reject) => {
-          const timeout = window.setTimeout(() => {
-            window.removeEventListener('message', receive)
-            reject(new Error('The app did not acknowledge the page attachment'))
-          }, 30_000)
-          function receive(event: MessageEvent<unknown>) {
-            if (
-              event.source !== document.querySelector('iframe')?.contentWindow ||
-              typeof event.data !== 'object' ||
-              event.data === null ||
-              !('type' in event.data) ||
-              event.data.type !== 'context-received'
-            )
-              return
-            window.clearTimeout(timeout)
-            window.removeEventListener('message', receive)
-            resolve()
-          }
-          window.addEventListener('message', receive)
-          const trigger = button as HTMLButtonElement
-          trigger.click()
-        })
-    )
+    const before = Number(await shell.locator('body').getAttribute('data-capture-receipts'))
+    await frame()
+      .getByRole('button', { name: 'Add resources', exact: true })
+      .evaluate((button) => (button as HTMLButtonElement).click())
+    await frame()
+      .getByRole('menuitem', { name: 'Current page', exact: true })
+      .evaluate((button) => (button as HTMLElement).click())
+    await expect(shell.locator('body')).toHaveAttribute('data-capture-receipts', String(before + 1))
   }
   const attachments = () => frame().getByRole('region', { name: 'Page attached to next message' })
   await check(
@@ -279,6 +286,9 @@ try {
     async () => {
       await capture()
       await expect(attachments()).toHaveCount(1)
+      await expect(frame().getByRole('button', { name: 'Send message', exact: true })).toBeEnabled({
+        timeout: 5_000,
+      })
       await attachments()
         .first()
         .getByRole('button', { name: /^Review page context:/ })
@@ -357,14 +367,22 @@ try {
             .toBe(true)
           await screenshot(`${theme}-${width}-attached`)
           if (theme === 'light' && width === 320) {
-            await shell
-              .getByRole('button', { name: 'Extension options', exact: true })
-              .dispatchEvent('pointerdown', { button: 0, ctrlKey: false, pointerType: 'mouse' })
+            await frame()
+              .getByRole('button', { name: 'Add resources', exact: true })
+              .evaluate((button) => (button as HTMLButtonElement).click())
+            await screenshot('capture-menu')
+            await frame()
+              .getByRole('menuitem', { name: 'Site access', exact: true })
+              .evaluate((button) => (button as HTMLElement).click())
+            const access = shell.getByRole('dialog', { name: 'Site access', exact: true })
             await expect(
-              shell.getByRole('menuitem', { name: 'Remove access to localhost', exact: true })
+              access.getByRole('button', { name: 'Remove access to localhost', exact: true })
             ).toBeVisible()
+            await expect(
+              frame().getByRole('menuitem', { name: 'Site access', exact: true })
+            ).toHaveCount(0)
             await screenshot('site-options')
-            await shell.keyboard.press('Escape')
+            await access.getByRole('button', { name: 'Close', exact: true }).click()
           }
           await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
         }
@@ -391,6 +409,53 @@ try {
     await expect(attachments()).toHaveCount(0)
     await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
   })
+  await check(
+    'Page chips protect draft history and support page-only Enter at the HTTP boundary',
+    async () => {
+      const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
+      await capture()
+      await editor.press('ArrowUp')
+      await expect(editor).toHaveValue('', { timeout: 5_000 })
+      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+      await editor.press('ArrowUp')
+      await expect(editor).toHaveValue('QA previous question.')
+      await editor.fill('')
+      await capture()
+      const endpoint = `${base.origin}/api/mothership/chat`
+      await browserContext.route(endpoint, (route) =>
+        route.fulfill({
+          status: 403,
+          json: { error: 'QA intentionally declines admission after observing the request.' },
+        })
+      )
+      try {
+        const request = browserContext.waitForEvent('request', {
+          predicate: (entry) => entry.url() === endpoint && entry.method() === 'POST',
+          timeout: 10_000,
+        })
+        await editor.press('Enter')
+        const payload = toRecord((await request).postDataJSON())
+        assert.equal(typeof payload.message, 'string')
+        assert.equal(String(payload.message).trim(), '@Page')
+        const contexts = Array.isArray(payload.contexts) ? payload.contexts : []
+        const pageContext = contexts.map(toRecord).find((entry) => entry.kind === 'browser_page')
+        assert(
+          String(toRecord(pageContext?.snapshot).text).includes('QA_PRIVATE_PAGE_MARKER'),
+          'Page-only submission lost its snapshot'
+        )
+        await expect(attachments()).toHaveCount(0)
+        await expect(
+          frame().getByText('QA intentionally declines admission after observing the request.', {
+            exact: false,
+          })
+        ).toBeVisible()
+      } finally {
+        await browserContext.unroute(endpoint)
+      }
+      await navigate(`${base.origin}/extension/${alphaId}?chat=${historyId}`)
+      await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
+    }
+  )
   await check('Sources and resource actions preserve their real destinations', async () => {
     await frame().getByRole('button', { name: '1 source', exact: true }).click()
     await frame().getByRole('button', { name: 'View all sources' }).click()
@@ -433,7 +498,7 @@ try {
     assert(!recorded.includes('QA evidence'), 'Portaled citation content entered session replay')
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(dialog).toHaveCount(0)
-    assert.equal(new URL(frame().url()).searchParams.get('source-message'), null)
+    await expect.poll(() => new URL(frame().url()).searchParams.get('source-message')).toBeNull()
     await navigate(
       `${base.origin}/extension/${alphaId}?chat=${historyId}&source-message=live-assistant:${historyRequestId}&source-request=${historyRequestId}`
     )

@@ -11,10 +11,11 @@ and workspace authorization. A conversation can continue in the full app.
 
 The user signs in in a normal Sim tab, chooses a workspace, opens or creates a
 conversation, and explicitly attaches the current page or highlighted text.
-Pending snapshots sit beside the composer as compact removable attachments. Opening one
+The composer’s + menu offers Current page and Selected text. Pending snapshots sit
+inside the composer as compact removable chips alongside file attachments. Opening one
 shows the captured text, source, capture time, and conversation-retention disclosure.
 Partial captures remain labeled in the attachment row. Site access lives in the
-extension options menu; successful delivery adds no persistent status banner.
+composer’s Site access action, which opens an extension-owned dialog; successful delivery adds no persistent status banner.
 They are immutable: navigating to another page cannot silently change an attached
 source. Removing an attachment, changing workspace, or starting a new conversation
 clears pending page context. Several explicitly attached pages can support comparison.

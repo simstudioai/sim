@@ -1,15 +1,15 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ChipModal,
   ChipModalHeader,
   cn,
-  scrollFadeAttributes,
-  scrollFadeClass,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   toast,
-  useScrollEdges,
 } from '@sim/emcn'
+import { Globe, Highlighter, Settings } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useQueryState, useQueryStates } from 'nuqs'
@@ -51,12 +51,42 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
     setCaptureChatId(selectedChatId)
     setComposerKey(generateId())
   }
-  const { snapshots, captureError, clearSnapshots, removeSnapshot } = usePageContext(
-    origins,
-    composerKey
+  const { snapshots, captureError, clearSnapshots, removeSnapshot, connected, requestAction } =
+    usePageContext(origins, composerKey)
+  const composerAttachments = useMemo(
+    () =>
+      snapshots.length > 0
+        ? snapshots.map((snapshot) => (
+            <PageContext
+              key={snapshot.id}
+              snapshot={snapshot}
+              onRemove={() => removeSnapshot(snapshot.id)}
+            />
+          ))
+        : undefined,
+    [snapshots, removeSnapshot]
   )
-  const capturesRef = useRef<HTMLDivElement>(null)
-  const captureEdges = useScrollEdges(capturesRef)
+  const composerResourceActions = useMemo(
+    () =>
+      connected ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => requestAction('capture-page')}>
+            <Globe className='size-[14px]' />
+            Current page
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => requestAction('capture-selection')}>
+            <Highlighter className='size-[14px]' />
+            Selected text
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => requestAction('site-access')}>
+            <Settings className='size-[14px]' />
+            Site access
+          </DropdownMenuItem>
+        </>
+      ) : undefined,
+    [connected, requestAction]
+  )
   const chat = useChat(workspaceId, selectedChatId ?? undefined, {
     apiPath: '/api/mothership/chat',
     stopPath: '/api/mothership/chat/stop',
@@ -191,25 +221,8 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
         onWorkspaceResourceSelect={(resource) => void openResource(resource)}
         composerKey={composerKey}
         draftScopeKey={`extension:${userId}:${workspaceId}:${selectedChatId ?? 'new'}`}
-        composerAttachments={
-          <div
-            ref={capturesRef}
-            {...scrollFadeAttributes(captureEdges)}
-            className={cn(
-              'max-h-[25vh] space-y-2 overflow-y-auto px-px',
-              snapshots.length > 0 && 'pt-px pb-2',
-              scrollFadeClass
-            )}
-          >
-            {snapshots.map((snapshot) => (
-              <PageContext
-                key={snapshot.id}
-                snapshot={snapshot}
-                onRemove={() => removeSnapshot(snapshot.id)}
-              />
-            ))}
-          </div>
-        }
+        composerAttachments={composerAttachments}
+        composerResourceActions={composerResourceActions}
         layout='copilot-view'
         className={cn(
           'h-auto min-h-0',

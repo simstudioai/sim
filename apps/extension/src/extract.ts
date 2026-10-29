@@ -36,7 +36,9 @@ export function extractPageText(
   let visited = 0
   let ancestor = root.nodeType === Node.ELEMENT_NODE ? (root as Element) : root.parentElement
   while (ancestor) {
-    if (++visited > 15_000 || performance.now() - startedAt > 150)
+    if (performance.now() - startedAt > 150)
+      throw new Error('Reading this page took too long. Select a smaller section.')
+    if (++visited > 15_000)
       throw new Error(
         'This selection is too deeply nested to capture safely. Select a smaller section.'
       )
@@ -81,7 +83,7 @@ export function extractPageText(
         text = text.slice(0, remaining)
         truncated = true
       }
-      while (text && bytes + encoder.encode(text).byteLength + 1 > maxBytes - 10_000) {
+      while (text && bytes + encoder.encode(JSON.stringify(text)).byteLength > maxBytes - 10_000) {
         text = text.slice(0, Math.max(0, text.length - 1_000))
         truncated = true
       }
@@ -91,7 +93,7 @@ export function extractPageText(
       }
       parts.push(text)
       characters += text.length + 1
-      bytes += encoder.encode(text).byteLength + 1
+      bytes += encoder.encode(JSON.stringify(text)).byteLength
       if (truncated) break
     } else if (node.firstChild) {
       pending.push(node.firstChild)

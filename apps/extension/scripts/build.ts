@@ -1,3 +1,4 @@
+import { createPublicKey } from 'node:crypto'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,11 +23,26 @@ if (
   )
 }
 const key = process.env.SIM_EXTENSION_KEY
-if (key && (!/^[A-Za-z0-9+/]+={0,2}$/.test(key) || key.length > 4_096))
-  throw new Error('SIM_EXTENSION_KEY must be a base64 public key.')
+if (key) {
+  try {
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(key) || key.length > 4_096)
+      throw new Error('Invalid encoding')
+    const parsed = createPublicKey({ key: Buffer.from(key, 'base64'), format: 'der', type: 'spki' })
+    if (
+      parsed.asymmetricKeyType !== 'rsa' ||
+      parsed.export({ format: 'der', type: 'spki' }).toString('base64') !== key
+    )
+      throw new Error('Invalid public key')
+  } catch {
+    throw new Error('SIM_EXTENSION_KEY must be a base64 RSA public key in SPKI format.')
+  }
+}
 
-const dist = resolve(root, 'dist')
-await rm(dist, { recursive: true, force: true })
+const outputArgument = process.argv.find((argument) => argument.startsWith('--outdir='))
+const outputDirectory = outputArgument?.slice('--outdir='.length)
+if (outputArgument && !outputDirectory) throw new Error('--outdir requires a directory.')
+const dist = resolve(root, outputDirectory ?? 'dist')
+if (!outputArgument) await rm(dist, { recursive: true, force: true })
 await mkdir(dist, { recursive: true })
 await build({
   absWorkingDir: root,

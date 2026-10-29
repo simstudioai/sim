@@ -99,6 +99,7 @@ const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 
 interface PlusMenuDropdownProps {
+  actions?: React.ReactNode
   workspaceId: string
   organizationId?: string
   /**
@@ -123,6 +124,7 @@ export const PlusMenuDropdown = React.memo(
   React.forwardRef<PlusMenuHandle, PlusMenuDropdownProps>(function PlusMenuDropdown(
     {
       workspaceId,
+      actions,
       organizationId,
       warm,
       onResourceSelect,
@@ -477,6 +479,7 @@ export const PlusMenuDropdown = React.memo(
                 onSelect={handleSelect}
                 subContentClassName={RESOURCE_MENU_WIDTH_CLASS}
               />
+              {actions}
             </div>
             {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
                   menu Collection, or FocusScope restores focus to the content root. */}

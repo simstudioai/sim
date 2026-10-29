@@ -42,10 +42,19 @@ export type PageSnapshot = z.infer<typeof pageSnapshotSchema>
 
 const envelope = { channel: z.literal('sim-extension'), version: z.literal(1) }
 
+const extensionActionSchema = z.enum(['capture-page', 'capture-selection', 'site-access'])
+export type ExtensionAction = z.infer<typeof extensionActionSchema>
+
 export const appToExtensionMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('theme'), theme: z.enum(['light', 'dark']) }),
   z.strictObject({ ...envelope, type: z.literal('ready'), sessionId: z.uuid() }),
   z.strictObject({ ...envelope, type: z.literal('unavailable'), sessionId: z.uuid() }),
+  z.strictObject({
+    ...envelope,
+    type: z.literal('action'),
+    sessionId: z.uuid(),
+    action: extensionActionSchema,
+  }),
   z.strictObject({
     ...envelope,
     type: z.literal('context-received'),
@@ -55,10 +64,13 @@ export const appToExtensionMessageSchema = z.discriminatedUnion('type', [
 ])
 export type AppToExtensionMessage = z.infer<typeof appToExtensionMessageSchema>
 
-export const extensionToAppMessageSchema = z.strictObject({
-  ...envelope,
-  type: z.literal('context'),
-  sessionId: z.uuid(),
-  snapshot: pageSnapshotSchema,
-})
+export const extensionToAppMessageSchema = z.discriminatedUnion('type', [
+  z.strictObject({ ...envelope, type: z.literal('connected'), sessionId: z.uuid() }),
+  z.strictObject({
+    ...envelope,
+    type: z.literal('context'),
+    sessionId: z.uuid(),
+    snapshot: pageSnapshotSchema,
+  }),
+])
 export type ExtensionToAppMessage = z.infer<typeof extensionToAppMessageSchema>

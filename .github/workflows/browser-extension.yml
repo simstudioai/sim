@@ -15,6 +15,7 @@ on:
       - 'apps/sim/lib/api/contracts/mothership-chat-context.ts'
       - 'apps/sim/proxy.ts'
       - 'apps/sim/next.config.ts'
+      - 'apps/sim/package.json'
       - 'packages/emcn/**'
       - 'bun.lock'
   workflow_dispatch:

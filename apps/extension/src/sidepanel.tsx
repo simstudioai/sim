@@ -4,15 +4,7 @@ import {
   type ExtensionToAppMessage,
   type PageSnapshot,
 } from '@sim/browser-extension-protocol'
-import {
-  Button,
-  Chip,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@sim/emcn'
-import { Globe, MoreHorizontal } from '@sim/emcn/icons'
+import { Chip, ChipModal, ChipModalBody, ChipModalHeader } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { createRoot } from 'react-dom/client'
 import { captureActivePage } from '@/capture'
@@ -32,7 +24,7 @@ function SidePanel({ origin }: SidePanelProps) {
   const captureGenerationRef = useRef(0)
   const intentCutoffRef = useRef(0)
   const busyRef = useRef(false)
-  const [busy, setBusy] = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
   const [status, setStatus] = useState('')
   const [site, setSite] = useState<{ origin: string; allowed: boolean } | null>(null)
 
@@ -58,6 +50,7 @@ function SidePanel({ origin }: SidePanelProps) {
 
   function invalidateSession() {
     intentCutoffRef.current = Date.now()
+    setAccessOpen(false)
     if (pendingRef.current || busyRef.current)
       setStatus('The conversation changed before delivery. Attach the page again.')
     captureGenerationRef.current++
@@ -65,7 +58,6 @@ function SidePanel({ origin }: SidePanelProps) {
     deliveredRef.current = null
     sessionRef.current = null
     busyRef.current = false
-    setBusy(false)
   }
 
   async function capture(
@@ -78,7 +70,6 @@ function SidePanel({ origin }: SidePanelProps) {
       return
     }
     busyRef.current = true
-    setBusy(true)
     const generation = ++captureGenerationRef.current
     setStatus('Reading the page…')
     try {
@@ -98,7 +89,6 @@ function SidePanel({ origin }: SidePanelProps) {
     } finally {
       if (generation === captureGenerationRef.current) {
         busyRef.current = false
-        setBusy(false)
       }
     }
   }
@@ -187,9 +177,20 @@ function SidePanel({ origin }: SidePanelProps) {
       } else if (parsed.data.type === 'ready') {
         if (sessionRef.current && sessionRef.current !== parsed.data.sessionId) invalidateSession()
         sessionRef.current = parsed.data.sessionId
+        const connected: ExtensionToAppMessage = {
+          channel: 'sim-extension',
+          version: 1,
+          type: 'connected',
+          sessionId: parsed.data.sessionId,
+        }
+        frameRef.current?.contentWindow?.postMessage(connected, SIM_ORIGIN)
         deliver()
       } else if (parsed.data.sessionId !== sessionRef.current) {
         return
+      } else if (parsed.data.type === 'action') {
+        if (!navigator.userActivation.isActive) return
+        if (parsed.data.action === 'site-access') setAccessOpen(true)
+        else void capture(parsed.data.action === 'capture-page' ? 'page' : 'selection')
       } else if (parsed.data.type === 'unavailable') {
         invalidateSession()
       } else if (pendingRef.current?.id === parsed.data.snapshotId) {
@@ -249,44 +250,14 @@ function SidePanel({ origin }: SidePanelProps) {
 
   return (
     <main className='flex h-dvh flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
-      <div className='shrink-0 border-[var(--border)] border-b px-3 py-2'>
-        <div className='flex items-center gap-2'>
-          <Chip leftIcon={Globe} disabled={busy} onClick={() => void capture('page')}>
-            Attach page
-          </Chip>
-          <Chip disabled={busy} onClick={() => void capture('selection')}>
-            Selection
-          </Chip>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                className='ml-auto'
-                variant='ghost'
-                size='icon'
-                aria-label='Extension options'
-              >
-                <MoreHorizontal className='size-[14px]' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              {site ? (
-                <DropdownMenuItem onSelect={() => void toggleSite()}>
-                  {site.allowed ? 'Remove access to' : 'Allow access to'}{' '}
-                  {new URL(site.origin).hostname}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem disabled>No site access to manage</DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <p
-          className={status ? 'mt-2 text-[var(--text-secondary)] text-caption' : 'sr-only'}
-          role='status'
-        >
-          {status}
-        </p>
-      </div>
+      <p
+        className={
+          status ? 'shrink-0 px-3 py-2 text-[var(--text-secondary)] text-caption' : 'sr-only'
+        }
+        role='status'
+      >
+        {status}
+      </p>
       <iframe
         allow={`clipboard-write ${origin}`}
         ref={frameRef}
@@ -296,6 +267,21 @@ function SidePanel({ origin }: SidePanelProps) {
         referrerPolicy='no-referrer'
         sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads'
       />
+      <ChipModal open={accessOpen} onOpenChange={setAccessOpen} srTitle='Site access' size='sm'>
+        <ChipModalHeader onClose={() => setAccessOpen(false)}>Site access</ChipModalHeader>
+        <ChipModalBody>
+          {site ? (
+            <Chip onClick={() => void toggleSite()}>
+              {site.allowed ? 'Remove access to' : 'Allow access to'}{' '}
+              {new URL(site.origin).hostname}
+            </Chip>
+          ) : (
+            <p className='text-[var(--text-muted)] text-small'>
+              Open a web page and click the Sim toolbar icon to manage access.
+            </p>
+          )}
+        </ChipModalBody>
+      </ChipModal>
     </main>
   )
 }

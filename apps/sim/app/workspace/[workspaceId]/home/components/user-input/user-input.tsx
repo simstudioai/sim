@@ -56,6 +56,8 @@ export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/ty
 const logger = createLogger('UserInput')
 
 interface UserInputProps {
+  attachments?: React.ReactNode
+  resourceActions?: React.ReactNode
   requestMode?: 'agent' | 'plan'
   onPlanChange?: () => void
   defaultValue?: string
@@ -91,6 +93,8 @@ export interface UserInputHandle {
  */
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
+    attachments,
+    resourceActions,
     requestMode = 'agent',
     onPlanChange,
     defaultValue = '',
@@ -307,7 +311,11 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     prevSelectedContextsRef.current = curr
   }, [editor.contexts])
 
-  const canSubmit = (editor.value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
+  const hasAdditionalAttachments = Boolean(attachments)
+  const canSubmit =
+    (editor.value.trim().length > 0 || hasFiles || hasAdditionalAttachments) &&
+    !isSending &&
+    !hasUploadingFiles
 
   /**
    * Sync the editor when the `defaultValue` prop changes post-mount — e.g.
@@ -552,6 +560,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (filesRef.current.attachedFiles.some((f) => f.uploading)) return
     const hasSubmitPayload =
       editorRef.current.getValue().trim().length > 0 ||
+      hasAdditionalAttachments ||
       filesRef.current.attachedFiles.some((file) => !file.uploading && file.key)
     if (!hasSubmitPayload) {
       if (isSendingRef.current) {
@@ -560,18 +569,18 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       return
     }
     handleSubmit()
-  }, [handleSubmit])
+  }, [handleSubmit, hasAdditionalAttachments])
 
   /**
    * ArrowUp-on-empty policy: recall the queued tail message for editing. Only
    * claims the key when there are no attachments and a queue handler exists.
    */
   const handleArrowUpOnEmpty = useCallback((): boolean => {
-    if (filesRef.current.attachedFiles.length > 0) return false
+    if (hasAdditionalAttachments || filesRef.current.attachedFiles.length > 0) return false
     const onEditQueuedTail = onEditQueuedTailRef.current
     if (!onEditQueuedTail) return false
     return onEditQueuedTail()
-  }, [])
+  }, [hasAdditionalAttachments])
 
   const handlePlusClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -607,17 +616,19 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <AttachedFilesList
         attachedFiles={files.attachedFiles}
+        additionalAttachments={attachments}
         onFileClick={handleFileClick}
         onRemoveFile={handleRemoveFile}
       />
 
       <PromptEditor
         editor={editor}
+        resourceActions={resourceActions}
         aria-label='Message'
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        onNavigateHistory={history.navigate}
+        onNavigateHistory={hasAdditionalAttachments ? undefined : history.navigate}
         className={cn(
           'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
           isInitialView && 'min-h-[56px] max-md:min-h-0'

@@ -85,6 +85,7 @@ interface MothershipChatProps {
   workspaceId?: string
   composer?: ReactNode
   composerAttachments?: ReactNode
+  composerResourceActions?: ReactNode
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
@@ -387,6 +388,7 @@ export function MothershipChat({
   workspaceId,
   composer,
   composerAttachments,
+  composerResourceActions,
   messages: messagesProp,
   isSending,
   isReconnecting = false,
@@ -1034,13 +1036,14 @@ export function MothershipChat({
               onEdit={handleEditQueued}
               onCancelEdit={onCancelQueueEdit}
             />
-            {composerAttachments}
             {!isLoading &&
               (composer ?? (
                 <UserInput
                   key={composerKey ?? draftScopeKey}
                   ref={userInputRef}
                   onSubmit={onSubmit}
+                  attachments={composerAttachments}
+                  resourceActions={composerResourceActions}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
                   isInitialView={false}

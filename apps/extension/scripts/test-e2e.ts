@@ -1,9 +1,11 @@
 import { spawnSync } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { generateKeyPairSync } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type BrowserContext, chromium, type Frame, type Page } from '@playwright/test'
+import { type BrowserContext, chromium, expect, type Frame, type Page } from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -83,15 +85,32 @@ async function check(name: string, run: () => Promise<void>) {
 }
 
 try {
+  await check('The build rejects private key material before creating output', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const rejectedOutput = resolve(temporary, 'rejected-key')
+    const result = spawnSync(process.execPath, ['scripts/build.ts', `--outdir=${rejectedOutput}`], {
+      cwd: root,
+      env: {
+        ...process.env,
+        SIM_EXTENSION_KEY: privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
+      },
+      encoding: 'utf8',
+    })
+    assert(result.status !== 0, 'The build accepted private key material')
+    assert(
+      result.stderr.includes('RSA public key in SPKI format'),
+      'The build failed for an unrelated reason'
+    )
+    assert(!existsSync(rejectedOutput), 'Invalid key material reached build output')
+  })
   const origin = `http://127.0.0.1:${fixture.port}`
   const pageOrigin = `http://localhost:${fixture.port}`
-  const built = spawnSync(process.execPath, ['scripts/build.ts'], {
+  const built = spawnSync(process.execPath, ['scripts/build.ts', `--outdir=${extensionPath}`], {
     cwd: root,
     env: { ...process.env, SIM_EXTENSION_ORIGIN: origin, SIM_EXTENSION_DEV: '1' },
     encoding: 'utf8',
   })
   assert(built.status === 0, `Extension build failed: ${built.stderr}`)
-  await cp(resolve(root, 'dist'), extensionPath, { recursive: true })
   const manifest = JSON.parse(await readFile(resolve(extensionPath, 'manifest.json'), 'utf8'))
   // The test package pregrants its disposable fixture site, equivalent to an accepted site prompt.
   manifest.host_permissions.push(`${pageOrigin}/*`)
@@ -109,7 +128,7 @@ try {
   await signIn.close()
   const panel: Page = await context.newPage()
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`)
-  await panel.getByRole('button', { name: 'Attach page', exact: true }).waitFor()
+  await panel.getByTitle('Sim chat').waitFor()
   const frame: Frame = panel.frames()[1] ?? (await panel.waitForEvent('frameattached'))
   const app = panel.frames().find((candidate) => candidate.url().startsWith(origin)) ?? frame
   assert(app, 'Hosted frame did not load')
@@ -123,18 +142,38 @@ try {
   const page = await context.newPage()
   await page.goto(`${pageOrigin}/ticket?access_token=URL_SECRET#secret`)
   await page.bringToFront()
-  const capture = (name = 'Attach page') =>
-    panel
-      .getByRole('button', { name, exact: true })
-      .evaluate((button) => (button as HTMLButtonElement).click())
+  let receiverReady = false
+  const capture = async (name = 'Attach page') => {
+    if (!receiverReady) {
+      const intent = await pendingIntent()
+      await worker.evaluate(async (intent) => {
+        await chrome.storage.session.set({ [`captureIntent:${intent.windowId}:initial`]: intent })
+      }, intent)
+      return
+    }
+    await app.evaluate(
+      ({ sessionId, action, origin }) => {
+        parent.postMessage(
+          { channel: 'sim-extension', version: 1, type: 'action', sessionId, action },
+          origin
+        )
+      },
+      {
+        sessionId: receiverSessionId,
+        action: name === 'Selection' ? 'capture-selection' : 'capture-page',
+        origin: `chrome-extension://${extensionId}`,
+      }
+    )
+  }
   const snapshots = async () =>
     pageSnapshotSchema.array().parse(JSON.parse(await app.locator('#received').innerText()))
   let receiverSessionId = generateId()
   await app.evaluate((sessionId) => {
     document.body.dataset.sessionId = sessionId
   }, receiverSessionId)
-  const ready = () =>
-    app.evaluate(
+  const ready = () => {
+    receiverReady = true
+    return app.evaluate(
       ({ targetOrigin, sessionId }) => {
         document.body.dataset.sessionId = sessionId
         parent.postMessage(
@@ -144,6 +183,7 @@ try {
       },
       { targetOrigin: `chrome-extension://${extensionId}`, sessionId: receiverSessionId }
     )
+  }
   const pendingIntent = () =>
     worker.evaluate(async () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -210,8 +250,6 @@ try {
     await page.evaluate(() => {
       document.body.textContent = 'SECOND_CAPTURE_SENTINEL'
     })
-    await capture()
-    await panel.getByRole('status').filter({ hasText: 'previous capture' }).waitFor()
     await ready()
     await panel.waitForFunction(() => document.querySelector('[role="status"]')?.textContent === '')
     assert(
@@ -475,6 +513,104 @@ try {
     assert((await snapshots()).length === 5, 'Unvalidated selection ancestors were traversed')
     await page.reload()
   })
+  await check('Unicode and escaped text fit within the complete snapshot budget', async () => {
+    await page.goto(`${pageOrigin}/${'a'.repeat(4_000)}`)
+    await page.evaluate(() => {
+      document.title = '"'.repeat(512)
+      document.body.textContent = '界'.repeat(45_000) + '"'.repeat(5_000)
+    })
+    const before = (await snapshots()).length
+    await capture()
+    await app.waitForFunction(
+      (count) =>
+        JSON.parse(document.getElementById('received')?.textContent ?? '[]').length === count,
+      before + 1
+    )
+    const snapshot = pageSnapshotSchema.parse((await snapshots()).at(-1))
+    assert(snapshot.truncated, 'Oversized serialized text was not marked partial')
+    assert(
+      snapshot.text.startsWith('界') && snapshot.text.includes('"'),
+      'Capture lost the expected page content'
+    )
+  })
+  await check(
+    'Composer capture requests require a current user gesture and conversation',
+    async () => {
+      const before = (await snapshots()).length
+      await panel.evaluate(() => {
+        let queries = 0
+        let actions = 0
+        const originalQuery = chrome.tabs.query.bind(chrome.tabs)
+        chrome.tabs.query = ((
+          query: chrome.tabs.QueryInfo,
+          callback?: (tabs: chrome.tabs.Tab[]) => void
+        ) => {
+          queries++
+          return callback ? originalQuery(query, callback) : originalQuery(query)
+        }) as typeof chrome.tabs.query
+        window.addEventListener('message', (event: MessageEvent<unknown>) => {
+          if (
+            event.source !== document.querySelector('iframe')?.contentWindow ||
+            typeof event.data !== 'object' ||
+            event.data === null ||
+            !('type' in event.data) ||
+            event.data.type !== 'action'
+          )
+            return
+          document.body.dataset.actionQueries = String(queries)
+          document.body.dataset.observedActions = String(++actions)
+        })
+      })
+      const parentCdp = await panel.context().newCDPSession(panel)
+      const cdp = await panel.context().newCDPSession(app)
+      await expect
+        .poll(
+          async () => {
+            const result = await parentCdp.send('Runtime.evaluate', {
+              expression: 'navigator.userActivation.isActive',
+              userGesture: false,
+            })
+            return result.result.value
+          },
+          { timeout: 10_000 }
+        )
+        .toBe(false)
+      const action = {
+        channel: 'sim-extension',
+        version: 1,
+        type: 'action',
+        sessionId: receiverSessionId,
+        action: 'capture-page',
+      }
+      await cdp.send('Runtime.evaluate', {
+        expression: `parent.postMessage(${JSON.stringify(action)}, ${JSON.stringify(`chrome-extension://${extensionId}`)})`,
+        userGesture: false,
+      })
+      await expect(panel.locator('body')).toHaveAttribute('data-observed-actions', '1')
+      await expect(panel.locator('body')).toHaveAttribute('data-action-queries', '0')
+      assert((await snapshots()).length === before, 'Captured without a user gesture')
+      await app.evaluate(({ action, targetOrigin }) => parent.postMessage(action, targetOrigin), {
+        action: { ...action, sessionId: generateId() },
+        targetOrigin: `chrome-extension://${extensionId}`,
+      })
+      await expect(panel.locator('body')).toHaveAttribute('data-observed-actions', '2')
+      await expect(panel.locator('body')).toHaveAttribute('data-action-queries', '0')
+      assert((await snapshots()).length === before, 'Captured for an obsolete conversation')
+      await capture()
+      await app.waitForFunction(
+        (count) =>
+          JSON.parse(document.getElementById('received')?.textContent ?? '[]').length === count,
+        before + 1
+      )
+      await expect(panel.locator('body')).toHaveAttribute('data-observed-actions', '3')
+      assert(
+        Number(await panel.locator('body').getAttribute('data-action-queries')) > 0,
+        'Allowed capture did not reach the browser API'
+      )
+      await cdp.detach()
+      await parentCdp.detach()
+    }
+  )
   await mkdir(dirname(output), { recursive: true })
   await panel.screenshot({ path: output.replace(/\.json$/, '.png'), fullPage: true })
 } catch (error) {

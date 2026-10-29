@@ -33,7 +33,7 @@ export default async function ExtensionLayout({ children }: ExtensionLayoutProps
     )
   const [modelSelectorEnabled, planModeEnabled] = await Promise.all([
     isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(session.user.id),
+    isPlanModeEnabled(session.user.id).catch(() => false),
   ])
   return (
     <>
