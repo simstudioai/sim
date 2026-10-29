@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { enqueueChatBackendCleanup } from '@/lib/cleanup/chat-backend-cleanup'
 import {
   type ChatFileRef,
   type ChatScopedContext,
@@ -156,7 +157,7 @@ export async function cleanupCopilotBackend(
 
 /**
  * Full chat cleanup: collect file refs, then (after DB deletion by caller)
- * call copilot backend and delete storage files.
+ * call copilot backend, delete storage files, and queue the chats' inline image sweep.
  *
  * Usage:
  *   const cleanup = await prepareChatCleanup(chatIds, label)
@@ -206,6 +207,12 @@ export async function prepareChatCleanup(
         const copilotResult = await cleanupCopilotBackend(confirmedChatIds, label)
         logger.info(
           `[${label}] Copilot backend: ${copilotResult.deleted} deleted, ${copilotResult.failed} failed`
+        )
+        // Inline images have no row or key list to delete by; the outbox sweeps each chat's prefix.
+        await enqueueChatBackendCleanup(
+          cleanupDb,
+          { chatIds: confirmedChatIds, files: [] },
+          { copilotBackend: false }
         )
       }
 

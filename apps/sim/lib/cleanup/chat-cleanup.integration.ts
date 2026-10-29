@@ -6,7 +6,6 @@ import { compareStrings } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { collectChatFiles } from '@/lib/cleanup/chat-files'
-import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 
 function attachment(key: string) {
   return { id: generateId(), key, filename: 'x.png', media_type: 'image/png', size: 1 }
@@ -51,7 +50,7 @@ describe('chat cleanup file collection in PostgreSQL', () => {
     return chat.id
   }
 
-  it('collects attachment and inline image keys from every row, never from tool payloads', async () => {
+  it('collects attachment keys from every row, never from tool payloads or inline images', async () => {
     const chatId = await seedChat(
       [
         {
@@ -110,12 +109,6 @@ describe('chat cleanup file collection in PostgreSQL', () => {
           chatId,
           organizationId: 'org-1',
         },
-        {
-          key: inlineChatImageKey(chatId, 'req-1', 'files/chart.png'),
-          context: 'mothership',
-          chatId,
-        },
-        { key: inlineChatImageKey(chatId, 'req-1', '/tmp/out.png'), context: 'mothership', chatId },
         { key: 'copilot/1234/legacy.png', context: 'copilot', chatId },
         { key: 'copilot/5/other.png', context: 'copilot', chatId: otherChatId },
         { key: 'copilot/9/removed.png', context: 'copilot', chatId },

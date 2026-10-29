@@ -81,6 +81,7 @@ import { chatBackendCleanupOutboxHandlers } from '@/lib/cleanup/chat-backend-cle
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { deleteCopilotChat } from '@/lib/mothership/chat/deletion'
+import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 
 setUploadDirServer(storageRoot)
@@ -432,6 +433,58 @@ describe('cleanup of the chats a removal cascades away', () => {
     expect(delivered.purged).toEqual(new Set([ownChat.chatId, chatOnRemovedUsersWorkflow]))
     expect(await objectExists(ownChat.keys.upload)).toBe(false)
     expect(await objectExists(ownChat.keys.attachment)).toBe(false)
+  })
+
+  /**
+   * Inline images have no row, and the hook reads the transcript before Better Auth deletes the
+   * user, so an image a turn publishes in between was never collected by key.
+   */
+  it('purges inline images a removed user’s chat published after the cleanup read it', async () => {
+    const removedId = await seedUser()
+    const bystanderId = await seedUser()
+    const workspaceId = await seedWorkspace(bystanderId, [removedId])
+    const chatId = await seedChat(removedId, workspaceId)
+    const bystandersChat = await seedChat(bystanderId, workspaceId)
+    const read = inlineChatImageKey(chatId, 'req-1', 'files/chart.png')
+    await db.insert(copilotMessages).values({
+      chatId,
+      messageId: generateId(),
+      role: 'assistant',
+      content: { role: 'assistant', requestId: 'req-1', content: '![chart](files/chart.png)' },
+    })
+    await putObject(read)
+    const bystanders = inlineChatImageKey(bystandersChat, 'req-1', 'files/chart.png')
+    await putObject(bystanders)
+
+    await enqueueAdminRemovedChatCleanup({ id: removedId })
+    const late = [
+      inlineChatImageKey(chatId, 'req-2', 'files/later.png'),
+      inlineChatImageKey(chatId, 'req-2', 'files/another.png'),
+    ]
+    for (const key of late) await putObject(key)
+    await db.delete(user).where(eq(user.id, removedId))
+
+    const delivered = await deliverCleanups()
+    expect(new Set(delivered.outcomes)).toEqual(new Set(['completed']))
+    for (const key of [read, ...late]) expect(await objectExists(key)).toBe(false)
+    expect(await objectExists(bystanders)).toBe(true)
+  })
+
+  it('still deletes the inline image keys an event queued before prefix sweeps names', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const chatId = await seedChat(ownerId, workspaceId)
+    const key = inlineChatImageKey(chatId, 'req-1', 'files/chart.png')
+    await putObject(key)
+    await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+    await db.insert(outboxEvent).values({
+      id: generateId(),
+      eventType: CHAT_BACKEND_CLEANUP_EVENT,
+      payload: { chatIds: [], files: [{ key, context: 'mothership', chatId }] },
+    })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
+    expect(await objectExists(key)).toBe(false)
   })
 
   it('purges nothing for a direct user delete that never happened', async () => {

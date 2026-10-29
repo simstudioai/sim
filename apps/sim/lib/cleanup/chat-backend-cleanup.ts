@@ -34,13 +34,17 @@ export const chatBackendCleanupPayloadSchema = z
   .object({
     chatIds: z.array(chatIdSchema).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE).default([]),
     files: z.array(chatFileSchema).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE).default([]),
+    /** Whether `chatIds` also reach the copilot backend; an event without it means they do. */
+    copilotBackend: z.boolean().default(true),
+    /** How many leading `chatIds` already had their inline image prefix swept; a checkpoint. */
+    imagesSwept: z.number().int().min(0).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE).default(0),
   })
   .strict()
   .refine((payload) => payload.chatIds.length > 0 || payload.files.length > 0, {
     message: 'A chat cleanup names at least one chat or stored file',
   })
 
-type ChatBackendCleanupPayload = z.infer<typeof chatBackendCleanupPayloadSchema>
+type ChatBackendCleanupPayload = z.input<typeof chatBackendCleanupPayloadSchema>
 
 /** What a chat deletion leaves outside Sim's rows: the chats' copilot backend data and stored files. */
 export interface ChatCleanupTargets {
@@ -51,27 +55,31 @@ export interface ChatCleanupTargets {
 
 /**
  * Queues the purge of what the given chats leave outside Sim's rows once a delete cascades them
- * away: one bounded event per {@link CHAT_BACKEND_CLEANUP_BATCH_SIZE} chats for the copilot backend,
- * and one per as many stored files. Call it in the deleting transaction so the cleanup commits or
- * rolls back with the delete; the handler purges only chats whose rows are gone, so a chat the
- * delete ends up sparing keeps its data. A delete with no transaction to join queues it first,
- * with an `availableAt` past the moment the delete commits.
+ * away: one bounded event per {@link CHAT_BACKEND_CLEANUP_BATCH_SIZE} chats, which sweeps each
+ * chat's inline image prefix and purges its copilot backend data, and one per as many stored
+ * files. Call it in the deleting transaction so the cleanup commits or rolls back with the delete;
+ * the handler purges only chats whose rows are gone, so a chat the delete ends up sparing keeps its
+ * data. A delete with no transaction to join queues it first, with an `availableAt` past the
+ * moment the delete commits.
  *
- * Without `COPILOT_API_KEY` this Sim never reached a copilot backend, so no chat ids are queued for
- * it; the stored files are queued either way.
+ * Without `COPILOT_API_KEY` this Sim never reached a copilot backend, so the chats are queued for
+ * their image sweep only; `copilotBackend: false` does the same for a caller that already purged
+ * the backend itself.
  */
 export async function enqueueChatBackendCleanup(
   executor: Pick<typeof db, 'insert'>,
   targets: ChatCleanupTargets,
-  options: { availableAt?: Date } = {}
+  options: { availableAt?: Date; copilotBackend?: boolean } = {}
 ): Promise<void> {
-  const chatIds = env.COPILOT_API_KEY ? [...new Set(targets.chatIds)] : []
+  const chatIds = [...new Set(targets.chatIds)]
+  const copilotBackend = (options.copilotBackend ?? true) && Boolean(env.COPILOT_API_KEY)
   const filesByKey = new Map<string, ChatFileRef>()
   for (const file of targets.files) if (!filesByKey.has(file.key)) filesByKey.set(file.key, file)
   const payloads: ChatBackendCleanupPayload[] = [
     ...chunkArray(chatIds, CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
       chatIds: batch,
       files: [],
+      copilotBackend,
     })),
     ...chunkArray([...filesByKey.values()], CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
       chatIds: [],
@@ -84,7 +92,9 @@ export async function enqueueChatBackendCleanup(
     })),
   ]
   for (const events of chunkArray(payloads, MAX_BULK_ENQUEUE_EVENTS)) {
-    await enqueueOutboxEvents(executor, CHAT_BACKEND_CLEANUP_EVENT, events, options)
+    await enqueueOutboxEvents(executor, CHAT_BACKEND_CLEANUP_EVENT, events, {
+      availableAt: options.availableAt,
+    })
   }
 }
 
@@ -104,9 +114,11 @@ export async function readAccountRemovalChats(params: {
 /**
  * Queues the cleanup of every chat an account removal cascades away, inside its transaction:
  * the chat ids are re-read there, after the account row is locked, and the files of any chat
- * created since {@link readAccountRemovalChats} ran are read in the transaction. A key a turn adds
- * to an already-read chat between that read and the removal's run stops is not collected here;
- * when it names one of the account's uploads, the account storage sweep still reclaims it.
+ * created since {@link readAccountRemovalChats} ran are read in the transaction. Every chat's inline
+ * images go with its prefix sweep, however late they were written. An attachment a turn adds to
+ * an already-read chat between that read and the removal's run stops is not collected here; when
+ * it names one of the account's uploads, the account storage sweep still reclaims it, and
+ * otherwise it stays behind.
  */
 export async function enqueueAccountRemovalChatCleanupInTx(
   tx: DbTransaction,

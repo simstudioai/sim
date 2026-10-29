@@ -2,13 +2,8 @@ import { dbFor } from '@sim/db'
 import { copilotMessages, workspaceFiles } from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
-import { and, inArray, isNull } from 'drizzle-orm'
+import { and, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import {
-  inlineChatImageKey,
-  inlineChatImageReferences,
-} from '@/lib/mothership/chat/inline-image-key'
-import { detoastedMessageContent, textMessageContent } from '@/lib/mothership/chat/text-transcript'
 import type { StorageContext } from '@/lib/uploads'
 import { tryInferContextFromKey } from '@/lib/uploads/utils/file'
 
@@ -48,41 +43,14 @@ function organizationAttachmentOwner(key: string): string | undefined {
 }
 
 /**
- * The chat images an assistant message published under its request id, keyed by chat id,
- * so they are purged with the chat. A row this cannot read as such a message has none.
- */
-function inlineChatImageKeys(chatId: string, content: Record<string, unknown>): string[] {
-  if (content.role !== 'assistant' || typeof content.requestId !== 'string') return []
-  const published = inlineChatImageReferences({
-    role: 'assistant',
-    requestId: content.requestId,
-    content: typeof content.content === 'string' ? content.content : '',
-    contentBlocks: Array.isArray(content.contentBlocks)
-      ? content.contentBlocks.flatMap((block) =>
-          isRecordLike(block) && block.type === 'text' && typeof block.content === 'string'
-            ? [{ type: 'text' as const, content: block.content }]
-            : []
-        )
-      : undefined,
-  })
-  if (!published) return []
-  const keys: string[] = []
-  for (const reference of published.references) {
-    try {
-      keys.push(inlineChatImageKey(chatId, published.requestId, reference))
-    } catch {
-      // A chat or request id outside the key grammar never had an image stored under it.
-    }
-  }
-  return keys
-}
-
-/**
- * Collect all file storage keys for the given chat IDs from three sources:
+ * Collect all file storage keys for the given chat IDs from two sources:
  * 1. workspaceFiles rows with chatId FK (chat-scoped contexts only)
  * 2. fileAttachments[].key inside each copilot_messages.content: copilot keys, and
  *    organization attachments under their own context (see {@link ChatFileRef.organizationId})
- * 3. the chat-scoped inline images each assistant message published
+ *
+ * Inline chat images are not collected: they live under the chat's own
+ * `chat-images/<chatId>/` prefix with no row naming them, and a turn can publish one after this
+ * read, so the chat cleanup handler deletes that whole prefix once the chat's row is gone.
  *
  * A workspace attachment is owned by its `workspace_files` row (source 1, or the workspace
  * file lifecycle), never by the message: a fork carries the same attachment when its copy
@@ -123,11 +91,10 @@ export async function collectChatFiles(
       // deletion path collecting blob keys, so attachments on any row count.
       executor
         .select({
-          content: textMessageContent(['role', 'requestId', 'content', 'fileAttachments']),
+          fileAttachments: sql<unknown>`${copilotMessages.content} -> 'fileAttachments'`,
           chatId: copilotMessages.chatId,
         })
         .from(copilotMessages)
-        .crossJoinLateral(detoastedMessageContent)
         .where(inArray(copilotMessages.chatId, chunk)),
     ])
 
@@ -139,15 +106,7 @@ export async function collectChatFiles(
     }
 
     for (const row of messageRows) {
-      const msg = row.content
-      if (!msg || typeof msg !== 'object') continue
-      for (const key of inlineChatImageKeys(row.chatId, msg as Record<string, unknown>)) {
-        if (!seen.has(key)) {
-          seen.add(key)
-          files.push({ key, context: 'mothership', chatId: row.chatId })
-        }
-      }
-      const attachments = (msg as Record<string, unknown>).fileAttachments
+      const attachments = row.fileAttachments
       if (!Array.isArray(attachments)) continue
       for (const attachment of attachments) {
         if (isRecordLike(attachment) && typeof attachment.key === 'string' && attachment.key) {

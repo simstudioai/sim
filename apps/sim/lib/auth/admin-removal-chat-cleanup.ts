@@ -19,9 +19,12 @@ const ADMIN_REMOVAL_CLEANUP_DELAY_MS = 60 * 60_000
  * queued now, before the delete, and delayed past it. The handler purges only chats whose rows
  * are gone, so a delete that fails or is refused purges nothing. A failed read or enqueue throws,
  * which aborts the removal rather than erasing chats whose cleanup nothing recorded. Better Auth's
- * delete runs outside any transaction this hook can join, so a chat or attachment written between
- * this read and that delete is not covered; account deletion, which owns its transaction, re-reads
- * under the account lock instead.
+ * delete runs outside any transaction this hook can join, so what is written between this read
+ * and that delete is covered only in part: a chat created in that window is not purged at all, and
+ * an attachment (a `workspace_files` row or message key) added to a chat already read stays in
+ * storage, while that chat's inline images still go, because the handler sweeps each read chat's
+ * whole image prefix. Account deletion, which owns its transaction, re-reads under the account
+ * lock instead.
  */
 export async function enqueueAdminRemovedChatCleanup(user: { id: string }): Promise<void> {
   const targets = await readAccountRemovalChats({

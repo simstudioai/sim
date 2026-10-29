@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads', () => uploadsMock)
 
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
-import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 
 const chatId = '3f0c2a52-8a43-4d4b-9b5f-0b3c7a1e2d10'
 
@@ -26,7 +25,7 @@ async function purge(
   queueTableRows(workspaceFiles, [])
   queueTableRows(
     copilotMessages,
-    messages.map((content) => ({ chatId, content }))
+    messages.map((content) => ({ chatId, fileAttachments: content.fileAttachments ?? null }))
   )
   const cleanup = await prepareChatCleanup([chatId], 'test')
   queueTableRows(copilotChats, [])
@@ -89,24 +88,5 @@ describe('chat purge storage', () => {
       },
     ])
     expect(deleted).toEqual({ copilot: ['copilot/1234/kept.png'] })
-  })
-
-  it('deletes the inline images an assistant message published', async () => {
-    const deleted = await purge([
-      {
-        role: 'assistant',
-        requestId: 'req-1',
-        content: 'Here: ![chart](files/chart.png) and `![code](files/no.png)`',
-        contentBlocks: [{ type: 'text', content: '![other](/tmp/out.png)' }],
-      },
-      { role: 'user', requestId: 'req-2', content: '![u](files/u.png)' },
-      { role: 'assistant', content: '![x](files/x.png)' },
-    ])
-    expect(deleted).toEqual({
-      mothership: [
-        inlineChatImageKey(chatId, 'req-1', 'files/chart.png'),
-        inlineChatImageKey(chatId, 'req-1', '/tmp/out.png'),
-      ],
-    })
   })
 })

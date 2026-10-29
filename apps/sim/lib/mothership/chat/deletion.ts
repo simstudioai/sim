@@ -46,8 +46,9 @@ export async function softDeleteMothershipChat(params: {
 
 /**
  * Permanently deletes a copilot chat and stops its live runs in the same transaction, which also
- * queues the purge of what lives outside Sim's rows: the copilot backend's chat data and the
- * chat's stored files. Their keys are read under the chat row's lock, so no message or file
+ * queues the purge of what lives outside Sim's rows: the copilot backend's chat data, the chat's
+ * stored files, and its inline images (swept by prefix when the purge runs, so one published after
+ * this read goes too). The file keys are read under the chat row's lock, so no message or file
  * naming the chat can commit between that read and the delete that cascades them away, and the
  * purge is recorded exactly when the delete commits. Null when the chat was not the user's.
  */
