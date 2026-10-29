@@ -1553,6 +1553,18 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    # Kills chat workbenches the sandbox provider paused once they went idle. The
+    # provider keeps paused sandboxes indefinitely, so this bounds how long a
+    # workbench outlives its last use. A no-op without a session-capable provider.
+    cleanupSessionSandboxes:
+      enabled: true
+      name: cleanup-session-sandboxes
+      schedule: "*/5 * * * *"
+      path: "/api/cron/cleanup-session-sandboxes"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     # Processes the transactional outbox (deployment side-effects retry / dead-letter)
     # and reaps stale workspace-fork background-work rows. Both are safety nets behind
     # the immediate post-commit processing, so frequent runs keep retries timely.

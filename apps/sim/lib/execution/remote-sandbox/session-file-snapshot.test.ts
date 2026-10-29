@@ -35,6 +35,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   ) => execute(signal),
 }))
 
+import { SESSION_SANDBOX_IDLE_MS } from '@/lib/execution/remote-sandbox/session'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import { fileReadFailure } from '@/lib/mothership/agent-cli/engines/file-view'
 
@@ -104,7 +105,6 @@ it('bounds the remote copy itself, not just the eventual response stream', async
   expect(mocks.read).not.toHaveBeenCalled()
 })
 it('asks the reconnect for the idle lease, which can outlast the runtime cap', async () => {
-  const IDLE_MS = 20 * 60_000
   const capAtMs = Date.now() + 60_000
   let leaseEndAtMs = capAtMs
   const machine = await mocks.find()
@@ -124,7 +124,7 @@ it('asks the reconnect for the idle lease, which can outlast the runtime cap', a
     maxBytes: 100,
   })
   await snapshot.dispose()
-  expect(leaseEndAtMs).toBeGreaterThanOrEqual(Date.now() + IDLE_MS - 1000)
+  expect(leaseEndAtMs).toBeGreaterThanOrEqual(Date.now() + SESSION_SANDBOX_IDLE_MS - 1000)
 })
 it('never creates a replacement machine for a missing read', async () => {
   mocks.find.mockResolvedValue(null)

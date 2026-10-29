@@ -4,7 +4,7 @@ import {
   FUNCTION_SANDBOX_CPU_COUNT,
   FUNCTION_SANDBOX_MEMORY_GB,
 } from '@/lib/execution/remote-sandbox/function-resources'
-import type { SandboxProviderId } from '@/lib/execution/remote-sandbox/types'
+import type { SandboxKind, SandboxProviderId } from '@/lib/execution/remote-sandbox/types'
 
 const E2B_CPU_USD_PER_VCPU_SECOND = 0.000014
 const E2B_MEMORY_USD_PER_GIB_SECOND = 0.0000045
@@ -37,15 +37,22 @@ export interface PricedSandboxUsage {
   billedCost: number
 }
 
-const PRICING_BY_PROVIDER: Record<
-  SandboxProviderId,
-  Pick<SandboxPricing, 'resources' | 'rates'>
-> = {
+interface ProviderPricing extends Pick<SandboxPricing, 'resources' | 'rates'> {
+  /** Kinds whose image is provisioned differently from the Function profile. */
+  resourcesByKind?: Partial<Record<SandboxKind, SandboxPricing['resources']>>
+}
+
+const PRICING_BY_PROVIDER: Record<SandboxProviderId, ProviderPricing> = {
   e2b: {
     resources: {
       vcpu: FUNCTION_SANDBOX_CPU_COUNT,
       memoryGiB: FUNCTION_SANDBOX_MEMORY_GB,
       diskGiB: 0,
+    },
+    resourcesByKind: {
+      // The Mothership template is built without explicit resources, so E2B runs it on its
+      // default 2 vCPU and 1 GiB.
+      mothership: { vcpu: 2, memoryGiB: 1, diskGiB: 0 },
     },
     rates: {
       cpuUsdPerVcpuSecond: E2B_CPU_USD_PER_VCPU_SECOND,
@@ -69,16 +76,18 @@ const PRICING_BY_PROVIDER: Record<
 
 export function createSandboxPricing(
   provider: SandboxProviderId,
+  kind: SandboxKind,
   multiplier = getCostMultiplier()
 ): SandboxPricing {
   if (!Number.isFinite(multiplier) || multiplier < 0) {
     throw new Error('Sandbox pricing multiplier must be a finite nonnegative number')
   }
   const pricing = PRICING_BY_PROVIDER[provider]
+  const resources = pricing.resourcesByKind?.[kind] ?? pricing.resources
   return {
     provider,
     multiplier,
-    resources: { ...pricing.resources },
+    resources: { ...resources },
     rates: { ...pricing.rates },
   }
 }

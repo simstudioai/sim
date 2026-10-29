@@ -50,6 +50,7 @@ import {
   observeSandboxExecution,
   observeSandboxSessionInputs,
 } from '@/lib/execution/remote-sandbox/observer'
+import { SESSION_SANDBOX_IDLE_MS } from '@/lib/execution/remote-sandbox/session'
 import {
   initializeSessionFileProvenance,
   recordSessionFileInput,
@@ -797,7 +798,7 @@ describe('session sandbox lease', () => {
       })
 
       expect(result.sandboxSession).toBe('reused')
-      expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + 20 * 60_000)
+      expect(grantedUntilMs).toBeGreaterThanOrEqual(Date.now() + SESSION_SANDBOX_IDLE_MS)
       expect(calls.extendLifetime).toHaveLength(0)
     } finally {
       clock.mockRestore()

@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto'
-import type { Sandbox as E2BSandbox, Template as E2BTemplate } from '@e2b/code-interpreter'
+import type {
+  Sandbox as E2BSandbox,
+  Template as E2BTemplate,
+  SandboxInfo,
+  SandboxPaginator,
+} from '@e2b/code-interpreter'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
@@ -65,6 +70,7 @@ import {
 } from '@/lib/execution/remote-sandbox/spec'
 import type {
   CreateSandboxOptions,
+  PausedSessionSandbox,
   RunCommandOptions,
   SandboxCodeResult,
   SandboxCommandResult,
@@ -306,6 +312,12 @@ function templateFor(kind: SandboxKind, imageRef?: string): string {
 const E2B_SESSION_METADATA_KEY = 'simSessionKey'
 const E2B_SESSION_OWNERSHIP_KEY = 'simSessionOwnership'
 const E2B_SESSION_OWNERSHIP_VERSION = 'tracked-v1'
+
+async function listAllSandboxes(paginator: SandboxPaginator): Promise<SandboxInfo[]> {
+  const sandboxes = await paginator.nextItems()
+  while (paginator.hasNext) sandboxes.push(...(await paginator.nextItems()))
+  return sandboxes
+}
 
 async function stopSessionCommand(
   sandbox: E2BSandbox,
@@ -1095,6 +1107,9 @@ export const e2bProvider: SandboxProvider = {
               [E2B_SESSION_METADATA_KEY]: options.sessionKey,
               [E2B_SESSION_OWNERSHIP_KEY]: E2B_SESSION_OWNERSHIP_VERSION,
             },
+            // An idle workbench pauses instead of dying. Only a locked reconnect may resume it,
+            // which is what lets the retention sweep kill it safely.
+            lifecycle: { onTimeout: 'pause' as const, autoResume: false },
           }
         : {}),
     }
@@ -1122,12 +1137,12 @@ export const e2bProvider: SandboxProvider = {
     const apiKey = env.E2B_API_KEY
     if (!apiKey) throw new Error('E2B_API_KEY is required when E2B is enabled')
     const { Sandbox } = await import('@e2b/code-interpreter')
-    const paginator = Sandbox.list({
-      apiKey,
-      query: { metadata: { [E2B_SESSION_METADATA_KEY]: key }, state: ['running', 'paused'] },
-    })
-    const candidates = await paginator.nextItems()
-    while (paginator.hasNext) candidates.push(...(await paginator.nextItems()))
+    const candidates = await listAllSandboxes(
+      Sandbox.list({
+        apiKey,
+        query: { metadata: { [E2B_SESSION_METADATA_KEY]: key }, state: ['running', 'paused'] },
+      })
+    )
     if (candidates.length === 0) return null
     candidates.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())
     const candidate = candidates[0]
@@ -1171,5 +1186,45 @@ export const e2bProvider: SandboxProvider = {
       key,
       options.lifetimeMs === undefined ? undefined : requestedAtMs + timeoutMs
     )
+  },
+
+  async listPausedSessionSandboxes(): Promise<PausedSessionSandbox[]> {
+    const apiKey = env.E2B_API_KEY
+    if (!apiKey) return []
+    const { Sandbox } = await import('@e2b/code-interpreter')
+    const paused = await listAllSandboxes(Sandbox.list({ apiKey, query: { state: ['paused'] } }))
+    return paused.flatMap((info) => {
+      const sessionKey = info.metadata[E2B_SESSION_METADATA_KEY]
+      // A paused sandbox reports the moment it paused as its end.
+      return sessionKey
+        ? [{ sandboxId: info.sandboxId, sessionKey, pausedAtMs: info.endAt.getTime() }]
+        : []
+    })
+  },
+
+  async killPausedSessionSandbox(
+    sandbox: PausedSessionSandbox,
+    pausedBeforeMs: number
+  ): Promise<boolean> {
+    const apiKey = env.E2B_API_KEY
+    if (!apiKey) throw new Error('E2B_API_KEY is required when E2B is enabled')
+    const { Sandbox, NotFoundError } = await import('@e2b/code-interpreter')
+    const requestOptions = { apiKey, requestTimeoutMs: 5_000 }
+    // The list can trail a resume, so only the sandbox's own info decides.
+    const info = await Sandbox.getInfo(sandbox.sandboxId, requestOptions).catch(
+      (error: unknown) => {
+        if (error instanceof NotFoundError) return null
+        throw error
+      }
+    )
+    if (
+      !info ||
+      info.state !== 'paused' ||
+      info.metadata[E2B_SESSION_METADATA_KEY] !== sandbox.sessionKey ||
+      info.endAt.getTime() > pausedBeforeMs
+    ) {
+      return false
+    }
+    return Sandbox.kill(sandbox.sandboxId, requestOptions)
   },
 }

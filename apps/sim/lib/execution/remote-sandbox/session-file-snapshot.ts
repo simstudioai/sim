@@ -130,9 +130,10 @@ export async function openSessionFileSnapshot(
   try {
     return await withSandboxSessionLock(sessionKey, signal, async (accessSignal) => {
       const provider = resolveProvider()
-      // The reconnect grants the idle lease itself, so it can reset a workbench near its runtime cap.
+      // The reconnect grants the lease itself, so it can reset a workbench near its runtime cap. The
+      // caller streams the snapshot after this returns, so the lease covers the whole snapshot budget.
       const sandbox = await provider.findSessionSandbox?.(sessionKey, {
-        lifetimeMs: SESSION_SANDBOX_IDLE_MS,
+        lifetimeMs: SESSION_SANDBOX_IDLE_MS + SNAPSHOT_TIMEOUT_MS,
       })
       accessSignal.throwIfAborted()
       if (!sandbox)

@@ -105,8 +105,9 @@ interface SandboxLease {
  *
  * A session lease never binds the abort signal to teardown — cancelling one
  * execution must not destroy state the next turn builds on — and is never
- * metered, because session sandboxes are server-owned rather than billed to
- * workspace compute. Providers without session support degrade to one-shot.
+ * metered as workspace compute: the Mothership tool bills each call's execution
+ * time, while the idle time between calls is server-owned. Providers without
+ * session support degrade to one-shot.
  */
 async function leaseSandbox(
   kind: SandboxKind,
