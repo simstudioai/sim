@@ -59,10 +59,15 @@ export function useAssistantActionReview(
 export function useDecideAssistantAction(organizationId: string, chatId: string) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ toolCallId, ...body }: AssistantActionDecisionBody & { toolCallId: string }) =>
+    mutationFn: ({
+      toolCallId,
+      signal,
+      ...body
+    }: AssistantActionDecisionBody & { toolCallId: string; signal?: AbortSignal }) =>
       requestJson(decideAssistantActionContract, {
         params: { id: organizationId, chatId, toolCallId },
         body,
+        signal,
       }),
     onSettled: () =>
       client.invalidateQueries({ queryKey: assistantActionKeys.review(organizationId, chatId) }),

@@ -1,16 +1,16 @@
 'use client'
 
-import { Chip, toast } from '@sim/emcn'
+import { toast } from '@sim/emcn'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
-import { liveSearchProviderForCredential } from '@/lib/sim-search/live/provider-catalog'
 import {
   LIVE_SEARCH_SOURCE_TYPES,
   liveSearchMcpConnector,
+  liveSearchMemberAccountProvider,
 } from '@/lib/sim-search/live/source-catalog'
-import { AccountPermissionsLink } from '@/app/o/[organizationId]/integrations/account-permissions-link'
+import { AccountActionsMenu } from '@/app/o/[organizationId]/integrations/account-actions-menu'
 import { AssistantAccountIntegrations } from '@/app/o/[organizationId]/integrations/assistant-account-integrations'
-import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
 import { assistantAccountOptions } from '@/app/o/[organizationId]/integrations/utils'
 import { GenericSecretSourceRow } from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -34,12 +34,12 @@ interface LiveMemberIntegrationsProps {
 
 /** Personal OAuth apps and administrator-managed GitLab have distinct connection states. */
 export function LiveMemberIntegrations({ organizationId, search }: LiveMemberIntegrationsProps) {
-  const inventory = useOrganizationAccounts(organizationId)
-  const policies = useSearchIntegrations(organizationId)
-  const secrets = useOrganizationSecretSource(organizationId)
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
   const onError = (error: Error) => toast.error(error.message)
+  const inventory = useOrganizationAccounts(organizationId)
+  const policies = useSearchIntegrations(organizationId)
+  const secrets = useOrganizationSecretSource(organizationId)
   if (inventory.error)
     return (
       <SettingsQueryErrorState
@@ -55,6 +55,12 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
   const data = inventory.data
   const loadedPolicies = policies.isSuccess ? policies.data : undefined
   const approvals = new Map(loadedPolicies?.map((policy) => [policy.connectorType, policy]))
+  const permissionAccountIds = (data.viewerAccounts ?? [])
+    .filter((account) => {
+      const provider = findCredentialGroupProviderFromProviderId(account.providerId)
+      return provider !== null && data.assistantProviders.includes(provider)
+    })
+    .map((account) => account.credentialId)
   const group = data.credentialGroup
   const mcpProviders = new Map(
     group?.mcpServers.map((server) => [server.id, server.managedConnectorId])
@@ -63,12 +69,14 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
     (data.viewerMcpAccounts ?? []).filter(
       (account) => mcpProviders.get(account.mcpServerId) === provider
     )
-  const accountsForProvider = (provider: string) =>
-    liveSearchMcpConnector(provider)
-      ? mcpAccounts(provider)
-      : (data.viewerAccounts ?? []).filter(
-          (account) => liveSearchProviderForCredential(account.providerId) === provider
-        )
+  const accountsForProvider = (provider: string) => {
+    if (liveSearchMcpConnector(provider)) return mcpAccounts(provider)
+    const memberProvider =
+      provider === 'slack' ? 'slack' : liveSearchMemberAccountProvider(provider)
+    return (data.viewerAccounts ?? []).filter(
+      (account) => findCredentialGroupProviderFromProviderId(account.providerId) === memberProvider
+    )
+  }
   const available = LIVE_SEARCH_SOURCE_TYPES.filter(
     ([provider]) =>
       (approvals.get(provider)?.available !== false || accountsForProvider(provider).length > 0) &&
@@ -76,11 +84,7 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
       ((provider !== 'hubspot' && provider !== 'zoom') ||
         data.availableMcpConnectors.includes(provider) ||
         mcpAccounts(provider).length > 0) &&
-      (approvals.get(provider)?.approved ||
-        data.viewerAccounts?.some(
-          (account) => liveSearchProviderForCredential(account.providerId) === provider
-        ) ||
-        mcpAccounts(provider).length)
+      (approvals.get(provider)?.approved || accountsForProvider(provider).length > 0)
   )
   const query = search.trim().toLowerCase()
   const visible = available.filter(([provider, meta]) =>
@@ -90,7 +94,6 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
       .toLowerCase()
       .includes(query)
   )
-  const pending = connect.isPending || reconnect.isPending
   const secretSource = secrets.data?.source
   const showSecrets = secretSource && 'generic secrets'.includes(query)
   return (
@@ -140,32 +143,54 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
                 }
               />
             )
-          const option = group?.options.find(
-            (option) =>
-              liveSearchProviderForCredential(option.provider) === provider &&
-              option.status === 'active'
-          )
-          const server = liveSearchMcpConnector(provider)
-            ? group?.mcpServers.find(
+          const memberProvider =
+            provider === 'slack' ? 'slack' : liveSearchMemberAccountProvider(provider)
+          const accounts = accountsForProvider(provider)
+          const options =
+            group?.options.filter(
+              (option) =>
+                option.provider === memberProvider &&
+                option.status === 'active' &&
+                option.configurationStatus === 'ready' &&
+                (provider !== 'slack' ||
+                  (option.provider === 'slack' && hasSlackSearchUserScopes(option.requiredScopes)))
+            ) ?? []
+          const servers = liveSearchMcpConnector(provider)
+            ? (group?.mcpServers.filter(
                 (server) => server.managedConnectorId === provider && server.enabled
+              ) ?? [])
+            : []
+          const option = options.find(
+            (option) =>
+              !accounts.some((account) => 'optionId' in account && account.optionId === option.id)
+          )
+          const server = servers.find(
+            (server) =>
+              !accounts.some(
+                (account) => 'mcpServerId' in account && account.mcpServerId === server.id
               )
-            : undefined
+          )
           const connectionTarget = server
             ? { mcpServerId: server.id }
             : option
               ? { optionId: option.id }
               : undefined
-          const accounts = accountsForProvider(provider)
           const ready =
             approval?.available !== false &&
             group?.status === 'active' &&
-            Boolean(option || server) &&
+            (options.length > 0 || servers.length > 0) &&
             approved &&
-            (!option || option.configurationStatus === 'ready') &&
-            (provider !== 'slack' ||
-              (option?.provider === 'slack' && hasSlackSearchUserScopes(option.requiredScopes))) &&
             ((provider !== 'hubspot' && provider !== 'zoom') ||
               data.availableMcpConnectors.includes(provider))
+          const reconnectAccountIds = ready
+            ? accounts
+                .filter((account) =>
+                  'optionId' in account
+                    ? options.some((option) => option.id === account.optionId)
+                    : servers.some((server) => server.id === account.mcpServerId)
+                )
+                .map((account) => account.credentialId)
+            : []
           const scope =
             approval?.policy?.accessMode === 'service_account'
               ? 'Selected resources you can access'
@@ -202,54 +227,28 @@ export function LiveMemberIntegrations({ organizationId, search }: LiveMemberInt
               title={name}
               description={description}
               trailing={
-                <div className='flex flex-wrap items-center justify-end gap-2'>
-                  {!liveSearchMcpConnector(provider) && (
-                    <AccountPermissionsLink organizationId={organizationId} accounts={accounts} />
-                  )}
-                  <DisconnectAccountMenu
-                    organizationId={organizationId}
-                    integrationName={name}
-                    accounts={accounts}
-                  />
-                  {accounts
-                    .filter((account) => account.status === 'needs_reauth')
-                    .map((account) => (
-                      <Chip
-                        key={account.credentialId}
-                        disabled={pending || !ready}
-                        onClick={() => reconnect.mutate(account.credentialId, { onError })}
-                      >
-                        Reconnect{accounts.length > 1 ? ` ${account.displayName}` : ''}
-                      </Chip>
-                    ))}
-                  {approved && (option || server) && (
-                    <Chip
-                      variant={accounts.length ? undefined : 'primary'}
-                      disabled={pending || !ready}
-                      onClick={() => {
-                        if (!connectionTarget) return
-                        connect.mutate(
-                          {
-                            organizationId,
-                            ...connectionTarget,
-                          },
-                          { onError }
-                        )
-                      }}
-                    >
-                      {pending &&
-                      connect.variables?.organizationId === organizationId &&
-                      (('optionId' in connect.variables &&
-                        connect.variables.optionId === option?.id) ||
-                        ('mcpServerId' in connect.variables &&
-                          connect.variables.mcpServerId === server?.id))
-                        ? 'Connecting'
-                        : accounts.length
-                          ? 'Add account'
-                          : 'Connect'}
-                    </Chip>
-                  )}
-                </div>
+                <AccountActionsMenu
+                  organizationId={organizationId}
+                  integrationName={name}
+                  accounts={accounts}
+                  onConnect={
+                    approved && connectionTarget
+                      ? () => connect.mutate({ organizationId, ...connectionTarget }, { onError })
+                      : undefined
+                  }
+                  onReconnect={(credentialId) => reconnect.mutate(credentialId, { onError })}
+                  connectionPending={connect.isPending || reconnect.isPending}
+                  connecting={
+                    connect.isPending &&
+                    (('optionId' in connect.variables &&
+                      connect.variables.optionId === option?.id) ||
+                      ('mcpServerId' in connect.variables &&
+                        connect.variables.mcpServerId === server?.id))
+                  }
+                  connectionReady={ready}
+                  reconnectAccountIds={reconnectAccountIds}
+                  permissionAccountIds={permissionAccountIds}
+                />
               }
             />
           )

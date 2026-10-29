@@ -1,5 +1,5 @@
 export {
-  AssistantActionReviewPanel,
+  AssistantActionReviewMessage,
   AssistantActionReviewProvider,
   AssistantActionReviewStatus,
 } from './review'

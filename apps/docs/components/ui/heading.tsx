@@ -38,7 +38,13 @@ export function Heading({ as, className, ...props }: HeadingProps) {
   }
 
   return (
-    <As className={cn('group flex scroll-m-28 flex-row items-center gap-2', className)} {...props}>
+    <As
+      className={cn(
+        'group flex scroll-mt-[calc(var(--fd-docs-row-3,0px)+1rem)] flex-row items-center gap-2',
+        className
+      )}
+      {...props}
+    >
       <a href={`#${props.id}`} className='peer' onClick={copyHeadingLink}>
         {props.children}
       </a>

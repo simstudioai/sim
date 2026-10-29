@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipSelect, toast } from '@sim/emcn'
+import { ChipSelect, toast } from '@sim/emcn'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
@@ -8,8 +8,7 @@ import {
   getCredentialGroupProviderId,
   getCredentialGroupProviderService,
 } from '@/lib/credential-groups/providers'
-import { AccountPermissionsLink } from '@/app/o/[organizationId]/integrations/account-permissions-link'
-import { DisconnectAccountMenu } from '@/app/o/[organizationId]/integrations/disconnect-account-menu'
+import { AccountActionsMenu } from '@/app/o/[organizationId]/integrations/account-actions-menu'
 import { assistantAccountOptions } from '@/app/o/[organizationId]/integrations/utils'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
@@ -36,9 +35,9 @@ export function AssistantAccountIntegrations({
   policies,
   admin = false,
 }: AssistantAccountIntegrationsProps) {
-  const ensure = useEnsureOrganizationAccounts()
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()
+  const ensure = useEnsureOrganizationAccounts()
   const onError = (error: Error) => toast.error(error.message)
   const group = data.credentialGroup
   const { providers, visible } = assistantAccountOptions(data, search)
@@ -83,10 +82,6 @@ export function AssistantAccountIntegrations({
         ) : undefined
       }
     >
-      <p className='mb-3 text-[var(--text-muted)] text-small'>
-        Connect your own account to use these apps in Assistant. Write actions ask for review by
-        default.
-      </p>
       <div className='flex flex-col gap-3'>
         {visible.map((option) => {
           const service = getCredentialGroupProviderService(option.provider)
@@ -120,33 +115,30 @@ export function AssistantAccountIntegrations({
                       : 'Connections unavailable'
               }
               trailing={
-                <div className='flex flex-wrap items-center justify-end gap-2'>
-                  <AccountPermissionsLink organizationId={organizationId} accounts={accounts} />
-                  <DisconnectAccountMenu
-                    organizationId={organizationId}
-                    integrationName={service.name}
-                    accounts={accounts}
-                  />
-                  {accounts
-                    .filter((account) => account.status === 'needs_reauth')
-                    .map((account) => (
-                      <Chip
-                        key={account.credentialId}
-                        disabled={!ready || reconnect.isPending}
-                        onClick={() => reconnect.mutate(account.credentialId, { onError })}
-                      >
-                        Reconnect{accounts.length > 1 ? ` ${account.displayName}` : ''}
-                      </Chip>
-                    ))}
-                  <Chip
-                    disabled={!ready || connect.isPending}
-                    onClick={() =>
-                      connect.mutate({ organizationId, optionId: option.id }, { onError })
-                    }
-                  >
-                    {accounts.length ? 'Add account' : 'Connect'}
-                  </Chip>
-                </div>
+                <AccountActionsMenu
+                  organizationId={organizationId}
+                  integrationName={service.name}
+                  accounts={accounts}
+                  onConnect={
+                    accounts.length === 0
+                      ? () => connect.mutate({ organizationId, optionId: option.id }, { onError })
+                      : undefined
+                  }
+                  onReconnect={(credentialId) => reconnect.mutate(credentialId, { onError })}
+                  connectionPending={connect.isPending || reconnect.isPending}
+                  connecting={
+                    connect.isPending &&
+                    'optionId' in connect.variables &&
+                    connect.variables.optionId === option.id
+                  }
+                  connectionReady={ready}
+                  reconnectAccountIds={ready ? accounts.map((account) => account.credentialId) : []}
+                  permissionAccountIds={
+                    data.assistantProviders.includes(option.provider)
+                      ? accounts.map((account) => account.credentialId)
+                      : []
+                  }
+                />
               }
             />
           )

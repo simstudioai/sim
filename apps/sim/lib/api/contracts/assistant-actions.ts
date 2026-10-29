@@ -90,6 +90,8 @@ export const listAssistantActionsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
+      runId: z.uuid().nullable(),
+      streamId: z.string().min(1).nullable(),
       actions: z
         .array(
           z.object({
@@ -104,6 +106,7 @@ export const listAssistantActionsContract = defineRouteContract({
                 credentialId: z.string().max(128),
                 displayName: z.string().max(512),
                 providerId: z.string().max(128),
+                active: z.boolean(),
               })
               .nullable(),
             fields: z
