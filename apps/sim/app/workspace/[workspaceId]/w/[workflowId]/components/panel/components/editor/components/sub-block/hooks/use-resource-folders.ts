@@ -77,7 +77,8 @@ export function useResourceFolders(
   useWorkspaceInvalidationRoom(
     isFileResource ? (workspaceId ?? '') : '',
     ROOM_TYPES.WORKSPACE_FILES,
-    () => (workspaceId ? invalidateWorkspaceFileBrowsers(queryClient, workspaceId) : undefined),
+    () =>
+      workspaceId ? invalidateWorkspaceFileBrowsers(queryClient, workspaceId) : Promise.resolve(),
     WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
   )
 

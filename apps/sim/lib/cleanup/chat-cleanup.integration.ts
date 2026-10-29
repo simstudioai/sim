@@ -1,57 +1,78 @@
 /** Exercises chat cleanup's storage-key collection against real PostgreSQL message rows. */
 import { db, dbFor } from '@sim/db'
-import { copilotChats, copilotMessages, user } from '@sim/db/schema'
+import {
+  copilotChats,
+  copilotMessages,
+  organization,
+  user,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { collectChatFiles } from '@/lib/cleanup/chat-files'
-import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
+import { deletableChatFiles } from '@/lib/cleanup/chat-cleanup'
+import { type ChatFileRef, collectChatFiles } from '@/lib/cleanup/chat-files'
 
 function attachment(key: string) {
   return { id: generateId(), key, filename: 'x.png', media_type: 'image/png', size: 1 }
 }
 
+const userId = generateId()
+const organizationId = generateId()
+
+beforeAll(async () => {
+  const now = new Date()
+  await db.insert(user).values({
+    id: userId,
+    name: 'Chat cleanup fixture',
+    email: `${userId}@fixture.test`,
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
+  })
+  await db.insert(organization).values({
+    id: organizationId,
+    name: 'Chat cleanup fixture',
+    slug: organizationId,
+    createdAt: now,
+    updatedAt: now,
+  })
+})
+
+afterAll(async () => {
+  await db.delete(copilotChats).where(eq(copilotChats.userId, userId))
+  await db.delete(organization).where(eq(organization.id, organizationId))
+  await db.delete(user).where(eq(user.id, userId))
+  await Promise.all([db.$client.end(), dbFor('cleanup').$client.end()])
+})
+
+async function seedChat(
+  contents: unknown[],
+  deletedSeqs: number[] = [],
+  organizationId?: string
+): Promise<string> {
+  const [chat] = await db
+    .insert(copilotChats)
+    .values({ userId, type: 'mothership', organizationId })
+    .returning({ id: copilotChats.id })
+  await db.insert(copilotMessages).values(
+    contents.map((content, seq) => ({
+      chatId: chat.id,
+      messageId: generateId(),
+      role: 'user',
+      seq,
+      content,
+      ...(deletedSeqs.includes(seq) ? { deletedAt: new Date() } : {}),
+    }))
+  )
+  return chat.id
+}
+
 describe('chat cleanup file collection in PostgreSQL', () => {
-  const userId = generateId()
-
-  beforeAll(async () => {
-    const now = new Date()
-    await db.insert(user).values({
-      id: userId,
-      name: 'Chat cleanup fixture',
-      email: `${userId}@fixture.test`,
-      emailVerified: true,
-      createdAt: now,
-      updatedAt: now,
-    })
-  })
-
-  afterAll(async () => {
-    await db.delete(copilotChats).where(eq(copilotChats.userId, userId))
-    await db.delete(user).where(eq(user.id, userId))
-    await Promise.all([db.$client.end(), dbFor('cleanup').$client.end()])
-  })
-
-  async function seedChat(contents: unknown[], deletedSeqs: number[] = []): Promise<string> {
-    const [chat] = await db
-      .insert(copilotChats)
-      .values({ userId, type: 'mothership' })
-      .returning({ id: copilotChats.id })
-    await db.insert(copilotMessages).values(
-      contents.map((content, seq) => ({
-        chatId: chat.id,
-        messageId: generateId(),
-        role: 'user',
-        seq,
-        content,
-        ...(deletedSeqs.includes(seq) ? { deletedAt: new Date() } : {}),
-      }))
-    )
-    return chat.id
-  }
-
-  it('collects attachment and inline image keys from every row, never from tool payloads', async () => {
+  it('collects attachment keys from every row, never from tool payloads or inline images', async () => {
     const chatId = await seedChat(
       [
         {
@@ -64,6 +85,7 @@ describe('chat cleanup file collection in PostgreSQL', () => {
             'not an attachment',
             null,
             { key: '' },
+            { key: 42 },
           ],
         },
         {
@@ -108,18 +130,101 @@ describe('chat cleanup file collection in PostgreSQL', () => {
           key: 'assistant/org-1/user-1/u1/shared.png',
           context: 'mothership',
           chatId,
-          organizationId: 'org-1',
+          scope: { kind: 'organization', id: 'org-1' },
         },
-        {
-          key: inlineChatImageKey(chatId, 'req-1', 'files/chart.png'),
-          context: 'mothership',
-          chatId,
-        },
-        { key: inlineChatImageKey(chatId, 'req-1', '/tmp/out.png'), context: 'mothership', chatId },
-        { key: 'copilot/1234/legacy.png', context: 'copilot', chatId },
-        { key: 'copilot/5/other.png', context: 'copilot', chatId: otherChatId },
-        { key: 'copilot/9/removed.png', context: 'copilot', chatId },
+        { key: 'copilot/1234/legacy.png', context: 'copilot', chatId, scope: null },
+        { key: 'copilot/5/other.png', context: 'copilot', chatId: otherChatId, scope: null },
+        { key: 'copilot/9/removed.png', context: 'copilot', chatId, scope: null },
       ].sort((a, b) => compareStrings(a.key, b.key))
     )
+  })
+})
+
+describe('deletable chat files against PostgreSQL message rows', () => {
+  const ref = (key: string, scope: ChatFileRef['scope']): ChatFileRef => ({
+    key,
+    context: 'copilot',
+    chatId: generateId(),
+    ...(scope === undefined ? {} : { scope }),
+  })
+
+  it('keeps a key another chat of its scope still attaches, and deletes the rest', async () => {
+    const shared = `assistant/${organizationId}/${userId}/u1/shared.png`
+    const own = `assistant/${organizationId}/${userId}/u2/own.png`
+    const elsewhere = `copilot/${generateId()}/elsewhere.png`
+    const source = await seedChat(
+      [{ role: 'user', content: 'look', fileAttachments: [attachment(shared), attachment(own)] }],
+      [],
+      organizationId
+    )
+    await seedChat(
+      [{ role: 'user', content: 'fork', fileAttachments: [attachment(shared), 'x', { key: 7 }] }],
+      [],
+      organizationId
+    )
+    // Attached only by a chat outside the scope, which cannot be a fork of the deleted one.
+    await seedChat([{ role: 'user', content: 'other', fileAttachments: [attachment(elsewhere)] }])
+    const files = await collectChatFiles([source])
+    await db.delete(copilotChats).where(eq(copilotChats.id, source))
+
+    const deletable = await deletableChatFiles([
+      ...files,
+      ref(elsewhere, { kind: 'organization', id: organizationId }),
+    ])
+
+    expect(deletable.map((file) => file.key).sort(compareStrings)).toEqual(
+      [elsewhere, own].sort(compareStrings)
+    )
+  })
+
+  it("scopes a chat's file row by the row's own workspace, not the chat's organization", async () => {
+    const workspaceId = generateId()
+    await insertWorkspaceFixture(db, {
+      id: workspaceId,
+      name: 'Chat cleanup fixture',
+      ownerId: userId,
+      billedAccountUserId: userId,
+    })
+    try {
+      const chatId = await seedChat([{ role: 'user', content: 'look' }], [], organizationId)
+      const key = `workspace/${workspaceId}/${generateId()}/linked.png`
+      await db.insert(workspaceFiles).values({
+        id: generateId(),
+        key,
+        userId,
+        workspaceId,
+        context: 'mothership',
+        chatId,
+        originalName: 'linked.png',
+        contentType: 'image/png',
+        sizeBytes: 1,
+      })
+
+      const files = await collectChatFiles([chatId])
+
+      expect(files.find((file) => file.key === key)?.scope).toEqual({
+        kind: 'workspace',
+        id: workspaceId,
+      })
+    } finally {
+      await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
+    }
+  })
+
+  it('places a legacy ref by its key, keeping one it cannot place', async () => {
+    const referenced = `assistant/${organizationId}/${userId}/u1/kept.png`
+    const unreferenced = `assistant/${organizationId}/${userId}/u2/gone.png`
+    const unplaceable = `copilot/${generateId()}/legacy.png`
+    await seedChat(
+      [{ role: 'user', content: 'fork', fileAttachments: [attachment(referenced)] }],
+      [],
+      organizationId
+    )
+
+    const deletable = await deletableChatFiles(
+      [referenced, unreferenced, unplaceable].map((key) => ref(key, undefined))
+    )
+
+    expect(deletable.map((file) => file.key)).toEqual([unreferenced])
   })
 })

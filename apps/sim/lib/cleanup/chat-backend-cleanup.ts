@@ -3,7 +3,10 @@ import { copilotChats, workflow, workspace } from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
 import { eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
-import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+} from '@/lib/cleanup/chat-backend-cleanup-event'
 import {
   type ChatFileRef,
   type ChatScopedContext,
@@ -26,9 +29,25 @@ const chatFileSchema = z
       ...ChatScopedContext[],
     ]),
     chatId: chatIdSchema,
+    scope: z
+      .discriminatedUnion('kind', [
+        z.object({ kind: z.literal('organization'), id: chatIdSchema }).strict(),
+        z.object({ kind: z.literal('workspace'), id: chatIdSchema }).strict(),
+      ])
+      .nullable()
+      .optional(),
+    /**
+     * Legacy: an organization attachment's scope on events queued before refs carried `scope`.
+     * Remove once those events have drained.
+     */
     organizationId: chatIdSchema.optional(),
   })
   .strict()
+  .transform(({ organizationId, ...file }): ChatFileRef => {
+    if (file.scope === undefined && organizationId)
+      return { ...file, scope: { kind: 'organization', id: organizationId } }
+    return file
+  })
 
 export const chatBackendCleanupPayloadSchema = z
   .object({
@@ -40,7 +59,17 @@ export const chatBackendCleanupPayloadSchema = z
     message: 'A chat cleanup names at least one chat or stored file',
   })
 
-type ChatBackendCleanupPayload = z.infer<typeof chatBackendCleanupPayloadSchema>
+type ChatBackendCleanupPayload = z.input<typeof chatBackendCleanupPayloadSchema>
+
+export const chatInlineImageCleanupPayloadSchema = z
+  .object({
+    chatIds: z.array(chatIdSchema).min(1).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE),
+    /** A checkpoint: how many leading `chatIds` already had their prefix swept. */
+    swept: z.number().int().min(0).max(CHAT_BACKEND_CLEANUP_BATCH_SIZE).default(0),
+  })
+  .strict()
+
+type ChatInlineImageCleanupPayload = z.input<typeof chatInlineImageCleanupPayloadSchema>
 
 /** What a chat deletion leaves outside Sim's rows: the chats' copilot backend data and stored files. */
 export interface ChatCleanupTargets {
@@ -50,42 +79,57 @@ export interface ChatCleanupTargets {
 }
 
 /**
+ * Queues the sweep of each chat's `chat-images/<chatId>/` prefix, one event per
+ * {@link CHAT_BACKEND_CLEANUP_BATCH_SIZE} chats. Inline images have no row naming them, and a turn
+ * can publish one after any read of the transcript, so they go by prefix once the chat's row is
+ * gone; the handler skips a chat whose row survived.
+ */
+export async function enqueueChatInlineImageCleanup(
+  executor: Pick<typeof db, 'insert'>,
+  chatIds: readonly string[],
+  options: { availableAt?: Date } = {}
+): Promise<void> {
+  const payloads: ChatInlineImageCleanupPayload[] = chunkArray(
+    [...new Set(chatIds)],
+    CHAT_BACKEND_CLEANUP_BATCH_SIZE
+  ).map((batch) => ({ chatIds: batch }))
+  for (const events of chunkArray(payloads, MAX_BULK_ENQUEUE_EVENTS)) {
+    await enqueueOutboxEvents(executor, CHAT_INLINE_IMAGE_CLEANUP_EVENT, events, options)
+  }
+}
+
+/**
  * Queues the purge of what the given chats leave outside Sim's rows once a delete cascades them
  * away: one bounded event per {@link CHAT_BACKEND_CLEANUP_BATCH_SIZE} chats for the copilot backend,
- * and one per as many stored files. Call it in the deleting transaction so the cleanup commits or
- * rolls back with the delete; the handler purges only chats whose rows are gone, so a chat the
- * delete ends up sparing keeps its data. A delete with no transaction to join queues it first,
- * with an `availableAt` past the moment the delete commits.
+ * one per as many stored files, and the chats' inline image sweep
+ * ({@link enqueueChatInlineImageCleanup}). Call it in the deleting transaction so the cleanup
+ * commits or rolls back with the delete; the handlers purge only chats whose rows are gone, so a
+ * chat the delete ends up sparing keeps its data. A delete with no transaction to join queues it
+ * first, with an `availableAt` past the moment the delete commits.
  *
  * Without `COPILOT_API_KEY` this Sim never reached a copilot backend, so no chat ids are queued for
- * it; the stored files are queued either way.
+ * it; the stored files and inline images are queued either way.
  */
 export async function enqueueChatBackendCleanup(
   executor: Pick<typeof db, 'insert'>,
   targets: ChatCleanupTargets,
   options: { availableAt?: Date } = {}
 ): Promise<void> {
-  const chatIds = env.COPILOT_API_KEY ? [...new Set(targets.chatIds)] : []
+  const backendChatIds = env.COPILOT_API_KEY ? [...new Set(targets.chatIds)] : []
   const filesByKey = new Map<string, ChatFileRef>()
   for (const file of targets.files) if (!filesByKey.has(file.key)) filesByKey.set(file.key, file)
   const payloads: ChatBackendCleanupPayload[] = [
-    ...chunkArray(chatIds, CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
+    ...chunkArray(backendChatIds, CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
       chatIds: batch,
-      files: [],
     })),
     ...chunkArray([...filesByKey.values()], CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
-      chatIds: [],
-      files: batch.map(({ key, context, chatId, organizationId }) => ({
-        key,
-        context,
-        chatId,
-        ...(organizationId ? { organizationId } : {}),
-      })),
+      files: batch,
     })),
   ]
   for (const events of chunkArray(payloads, MAX_BULK_ENQUEUE_EVENTS)) {
     await enqueueOutboxEvents(executor, CHAT_BACKEND_CLEANUP_EVENT, events, options)
   }
+  await enqueueChatInlineImageCleanup(executor, targets.chatIds, options)
 }
 
 /**
@@ -104,9 +148,11 @@ export async function readAccountRemovalChats(params: {
 /**
  * Queues the cleanup of every chat an account removal cascades away, inside its transaction:
  * the chat ids are re-read there, after the account row is locked, and the files of any chat
- * created since {@link readAccountRemovalChats} ran are read in the transaction. A key a turn adds
- * to an already-read chat between that read and the removal's run stops is not collected here;
- * when it names one of the account's uploads, the account storage sweep still reclaims it.
+ * created since {@link readAccountRemovalChats} ran are read in the transaction. Every chat's inline
+ * images go with its prefix sweep, however late they were written. An attachment a turn adds to
+ * an already-read chat between that read and the removal's run stops is not collected here; when
+ * it names one of the account's uploads, the account storage sweep still reclaims it, and
+ * otherwise it stays behind.
  */
 export async function enqueueAccountRemovalChatCleanupInTx(
   tx: DbTransaction,

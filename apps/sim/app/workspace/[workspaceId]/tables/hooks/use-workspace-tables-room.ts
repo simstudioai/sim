@@ -16,8 +16,10 @@ import { tableKeys } from '@/hooks/queries/utils/table-keys'
  */
 export function useWorkspaceTablesRoom(workspaceId: string): void {
   const queryClient = useQueryClient()
-  useWorkspaceInvalidationRoom(workspaceId, ROOM_TYPES.WORKSPACE_TABLES, () => {
-    queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-    queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
-  })
+  useWorkspaceInvalidationRoom(workspaceId, ROOM_TYPES.WORKSPACE_TABLES, () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') }),
+    ])
+  )
 }

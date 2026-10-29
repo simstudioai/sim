@@ -76,11 +76,16 @@ const { backend, storageRoot } = await vi.hoisted(async () => {
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { enqueueAdminRemovedChatCleanup } from '@/lib/auth/admin-removal-chat-cleanup'
-import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
+import {
+  CHAT_BACKEND_CLEANUP_EVENT,
+  CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+} from '@/lib/cleanup/chat-backend-cleanup-event'
 import { chatBackendCleanupOutboxHandlers } from '@/lib/cleanup/chat-backend-cleanup-outbox'
+import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { deleteCopilotChat } from '@/lib/mothership/chat/deletion'
+import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 
 setUploadDirServer(storageRoot)
@@ -202,7 +207,7 @@ async function seedChatWithFiles(userId: string, workspaceId: string) {
 
 const queuedBySuite = () =>
   and(
-    eq(outboxEvent.eventType, CHAT_BACKEND_CLEANUP_EVENT),
+    inArray(outboxEvent.eventType, [CHAT_BACKEND_CLEANUP_EVENT, CHAT_INLINE_IMAGE_CLEANUP_EVENT]),
     sql`${outboxEvent.createdAt} >= ${suiteStartedAt}::timestamp`
   )
 
@@ -303,13 +308,244 @@ describe('cleanup of a permanently deleted chat', () => {
 
     expect(await existingChats([chatId])).toEqual(new Set())
     const delivered = await deliverCleanups()
-    expect(delivered.outcomes).toEqual(['completed', 'completed'])
+    expect(delivered.outcomes).toEqual(['completed', 'completed', 'completed'])
     expect(delivered.purged).toEqual(new Set([chatId]))
     expect(await objectExists(keys.upload)).toBe(false)
     expect(await objectExists(keys.attachment)).toBe(false)
     expect(await objectExists(bystander.keys.upload)).toBe(true)
     expect(await objectExists(bystander.keys.attachment)).toBe(true)
     expect(backend.rejected).toBe(0)
+  })
+
+  /**
+   * A fork whose copy of an upload failed keeps naming the source's key in its messages, while
+   * the upload's `workspace_files` row cascades away with the source chat.
+   */
+  it('keeps a deleted chat’s upload that a fork in its workspace still references', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const uploadIn = async (chatId: string) => {
+      const key = `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-shot.png`
+      await db.insert(workspaceFiles).values({
+        id: generateId(),
+        key,
+        userId: ownerId,
+        workspaceId,
+        context: 'mothership',
+        chatId,
+        originalName: 'shot.png',
+        contentType: 'image/png',
+        sizeBytes: 1,
+      })
+      await putObject(key)
+      return key
+    }
+    const forkedSource = await seedChat(ownerId, workspaceId)
+    const sharedKey = await uploadIn(forkedSource)
+    const fork = await seedChat(ownerId, workspaceId)
+    await db.insert(copilotMessages).values({
+      chatId: fork,
+      messageId: generateId(),
+      role: 'user',
+      content: {
+        role: 'user',
+        content: 'see attached',
+        fileAttachments: [{ key: sharedKey, filename: 'shot.png' }],
+      },
+    })
+    const unforkedSource = await seedChat(ownerId, workspaceId)
+    const ownKey = await uploadIn(unforkedSource)
+
+    await deleteCopilotChat({ chatId: forkedSource, userId: ownerId })
+    await deleteCopilotChat({ chatId: unforkedSource, userId: ownerId })
+
+    expect(new Set((await deliverCleanups()).outcomes)).toEqual(new Set(['completed']))
+    expect(await objectExists(sharedKey)).toBe(true)
+    expect(await objectExists(ownKey)).toBe(false)
+  })
+
+  it('deletes a forked upload once the last chat attaching it is deleted', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const source = await seedChat(ownerId, workspaceId)
+    const key = `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-shot.png`
+    await db.insert(workspaceFiles).values({
+      id: generateId(),
+      key,
+      userId: ownerId,
+      workspaceId,
+      context: 'mothership',
+      chatId: source,
+      originalName: 'shot.png',
+      contentType: 'image/png',
+      sizeBytes: 1,
+    })
+    await putObject(key)
+    const fork = await seedChat(ownerId, workspaceId)
+    await db.insert(copilotMessages).values({
+      chatId: fork,
+      messageId: generateId(),
+      role: 'user',
+      content: { role: 'user', content: 'see attached', fileAttachments: [{ key }] },
+    })
+
+    await deleteCopilotChat({ chatId: source, userId: ownerId })
+    await deliverCleanups()
+    expect(await objectExists(key)).toBe(true)
+
+    await deleteCopilotChat({ chatId: fork, userId: ownerId })
+    await deliverCleanups()
+    expect(await objectExists(key)).toBe(false)
+  })
+
+  it('never deletes an attached workspace upload whose row is live or only soft-deleted', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const chatId = await seedChat(ownerId, workspaceId)
+    const upload = (name: string) =>
+      `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-${name}`
+    const live = upload('live.png')
+    const restorable = upload('restorable.png')
+    await db.insert(workspaceFiles).values(
+      [live, restorable].map((key) => ({
+        id: generateId(),
+        key,
+        userId: ownerId,
+        workspaceId,
+        context: 'workspace',
+        originalName: 'file.png',
+        contentType: 'image/png',
+        sizeBytes: 1,
+        ...(key === restorable ? { deletedAt: new Date() } : {}),
+      }))
+    )
+    for (const key of [live, restorable]) await putObject(key)
+    await db.insert(copilotMessages).values({
+      chatId,
+      messageId: generateId(),
+      role: 'user',
+      content: {
+        role: 'user',
+        content: 'x',
+        fileAttachments: [{ key: live }, { key: restorable }],
+      },
+    })
+
+    await deleteCopilotChat({ chatId, userId: ownerId })
+    await deliverCleanups()
+
+    expect(await objectExists(live)).toBe(true)
+    expect(await objectExists(restorable)).toBe(true)
+  })
+
+  it('places a legacy upload ref by its workspace key, keeping one a remaining chat attaches', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const deletedChat = await seedChat(ownerId, workspaceId)
+    const remainingChat = await seedChat(ownerId, workspaceId)
+    const referenced = `workspace/${workspaceId}/1700000000000-abcd1234-kept.png`
+    const unreferenced = `workspace/${workspaceId}/1700000000000-abcd1234-gone.png`
+    for (const key of [referenced, unreferenced]) await putObject(key)
+    await db.insert(copilotMessages).values({
+      chatId: remainingChat,
+      messageId: generateId(),
+      role: 'user',
+      content: { role: 'user', content: 'x', fileAttachments: [{ key: referenced }] },
+    })
+    await db.delete(copilotChats).where(eq(copilotChats.id, deletedChat))
+    await db.insert(outboxEvent).values({
+      id: generateId(),
+      eventType: CHAT_BACKEND_CLEANUP_EVENT,
+      payload: {
+        chatIds: [],
+        files: [referenced, unreferenced].map((key) => ({
+          key,
+          context: 'mothership',
+          chatId: deletedChat,
+        })),
+      },
+    })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
+    expect(await objectExists(referenced)).toBe(true)
+    expect(await objectExists(unreferenced)).toBe(false)
+  })
+
+  it('accepts the payloads queued before refs carried their scope', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const deletedChat = await seedChat(ownerId, workspaceId)
+    const organizationAttachment = `copilot/${generateId()}/org-attachment.png`
+    await putObject(organizationAttachment)
+    await db.delete(copilotChats).where(eq(copilotChats.id, deletedChat))
+    const organizationId = generateId()
+    await db.insert(outboxEvent).values([
+      {
+        id: generateId(),
+        eventType: CHAT_BACKEND_CLEANUP_EVENT,
+        payload: { chatIds: [deletedChat], files: [] },
+      },
+      {
+        id: generateId(),
+        eventType: CHAT_BACKEND_CLEANUP_EVENT,
+        payload: {
+          chatIds: [],
+          files: [
+            {
+              key: organizationAttachment,
+              context: 'copilot',
+              chatId: deletedChat,
+              organizationId,
+            },
+          ],
+        },
+      },
+    ])
+
+    const delivered = await deliverCleanups()
+    expect(delivered.outcomes).toEqual(['completed', 'completed'])
+    expect(delivered.purged).toEqual(new Set([deletedChat]))
+    // Its legacy `organizationId` places it, and no chat of that organization still names it.
+    expect(await objectExists(organizationAttachment)).toBe(false)
+  })
+
+  it('sweeps the inline images of the chats whose rows are gone, never a surviving chat’s', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const gone = await seedChat(ownerId, workspaceId)
+    const survivor = await seedChat(ownerId, workspaceId)
+    const goneImages = [
+      inlineChatImageKey(gone, 'req-1', 'files/a.png'),
+      inlineChatImageKey(gone, 'req-2', 'files/b.png'),
+    ]
+    const survivorImage = inlineChatImageKey(survivor, 'req-1', 'files/a.png')
+    for (const key of [...goneImages, survivorImage]) await putObject(key)
+    await db.delete(copilotChats).where(eq(copilotChats.id, gone))
+    await db.insert(outboxEvent).values({
+      id: generateId(),
+      eventType: CHAT_INLINE_IMAGE_CLEANUP_EVENT,
+      payload: { chatIds: [gone, survivor] },
+    })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
+    for (const key of goneImages) expect(await objectExists(key)).toBe(false)
+    expect(await objectExists(survivorImage)).toBe(true)
+  })
+
+  it('queues the inline image sweep of the chats a cleanup job purges', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const chatId = await seedChat(ownerId, workspaceId)
+    const image = inlineChatImageKey(chatId, 'req-1', 'files/a.png')
+    await putObject(image)
+
+    const cleanup = await prepareChatCleanup([chatId], 'test')
+    await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+    await cleanup.execute()
+
+    expect(backend.purged).toEqual([[chatId]])
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
+    expect(await objectExists(image)).toBe(false)
   })
 
   it('records no cleanup when the delete rolls back', async () => {
@@ -337,14 +573,14 @@ describe('cleanup of a permanently deleted chat', () => {
     await rm(join(storageRoot, keys.upload))
     await mkdir(join(storageRoot, keys.upload, 'blocker'), { recursive: true })
 
-    expect((await deliverCleanups()).outcomes).toEqual(['pending', 'pending'])
+    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'pending', 'pending'])
     expect(await objectExists(keys.attachment)).toBe(false)
 
     backend.unavailable = false
     await rm(join(storageRoot, keys.upload), { recursive: true })
     await putObject(keys.upload)
     const retried = await deliverCleanups()
-    expect(retried.outcomes).toEqual(['completed', 'completed'])
+    expect(retried.outcomes).toEqual(['completed', 'completed', 'completed'])
     expect(retried.purged).toEqual(new Set([chatId]))
     expect(await objectExists(keys.upload)).toBe(false)
   })
@@ -356,7 +592,7 @@ describe('cleanup of a permanently deleted chat', () => {
     await deleteCopilotChat({ chatId, userId: ownerId })
     Object.assign(env, { COPILOT_API_KEY: undefined })
 
-    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'pending'])
+    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'completed', 'pending'])
     expect(backend.purged).toEqual([])
     expect(await objectExists(keys.upload)).toBe(false)
     expect(await objectExists(keys.attachment)).toBe(false)
@@ -368,7 +604,7 @@ describe('cleanup of a permanently deleted chat', () => {
 
     Object.assign(env, { COPILOT_API_KEY: backend.apiKey })
     const retried = await deliverCleanups()
-    expect(retried.outcomes).toEqual(['completed', 'completed'])
+    expect(retried.outcomes).toEqual(['completed', 'completed', 'completed'])
     expect(retried.purged).toEqual(new Set([chatId]))
   })
 })
@@ -432,6 +668,58 @@ describe('cleanup of the chats a removal cascades away', () => {
     expect(delivered.purged).toEqual(new Set([ownChat.chatId, chatOnRemovedUsersWorkflow]))
     expect(await objectExists(ownChat.keys.upload)).toBe(false)
     expect(await objectExists(ownChat.keys.attachment)).toBe(false)
+  })
+
+  /**
+   * Inline images have no row, and the hook reads the transcript before Better Auth deletes the
+   * user, so an image a turn publishes in between was never collected by key.
+   */
+  it('purges inline images a removed user’s chat published after the cleanup read it', async () => {
+    const removedId = await seedUser()
+    const bystanderId = await seedUser()
+    const workspaceId = await seedWorkspace(bystanderId, [removedId])
+    const chatId = await seedChat(removedId, workspaceId)
+    const bystandersChat = await seedChat(bystanderId, workspaceId)
+    const read = inlineChatImageKey(chatId, 'req-1', 'files/chart.png')
+    await db.insert(copilotMessages).values({
+      chatId,
+      messageId: generateId(),
+      role: 'assistant',
+      content: { role: 'assistant', requestId: 'req-1', content: '![chart](files/chart.png)' },
+    })
+    await putObject(read)
+    const bystanders = inlineChatImageKey(bystandersChat, 'req-1', 'files/chart.png')
+    await putObject(bystanders)
+
+    await enqueueAdminRemovedChatCleanup({ id: removedId })
+    const late = [
+      inlineChatImageKey(chatId, 'req-2', 'files/later.png'),
+      inlineChatImageKey(chatId, 'req-2', 'files/another.png'),
+    ]
+    for (const key of late) await putObject(key)
+    await db.delete(user).where(eq(user.id, removedId))
+
+    const delivered = await deliverCleanups()
+    expect(new Set(delivered.outcomes)).toEqual(new Set(['completed']))
+    for (const key of [read, ...late]) expect(await objectExists(key)).toBe(false)
+    expect(await objectExists(bystanders)).toBe(true)
+  })
+
+  it('still deletes the inline image keys an event queued before prefix sweeps names', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const chatId = await seedChat(ownerId, workspaceId)
+    const key = inlineChatImageKey(chatId, 'req-1', 'files/chart.png')
+    await putObject(key)
+    await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+    await db.insert(outboxEvent).values({
+      id: generateId(),
+      eventType: CHAT_BACKEND_CLEANUP_EVENT,
+      payload: { chatIds: [], files: [{ key, context: 'mothership', chatId }] },
+    })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
+    expect(await objectExists(key)).toBe(false)
   })
 
   it('purges nothing for a direct user delete that never happened', async () => {
