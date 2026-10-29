@@ -462,14 +462,17 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
   }
 
   const allContexts = isAssistant
-    ? params.workspaceContext
-      ? [
-          {
-            type: params.organizationId ? 'search_integrations' : 'connected_accounts',
-            content: params.workspaceContext,
-          },
-        ]
-      : []
+    ? [
+        ...(contexts ?? []).filter((context) => context.type === 'browser_page'),
+        ...(params.workspaceContext
+          ? [
+              {
+                type: params.organizationId ? 'search_integrations' : 'connected_accounts',
+                content: params.workspaceContext,
+              },
+            ]
+          : []),
+      ]
     : [
         ...(contexts ?? []),
         ...uploadContexts,

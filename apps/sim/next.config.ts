@@ -438,7 +438,7 @@ const nextConfig: NextConfig = {
       // Middleware handles: /, /login, /signup, /workspace/*
       // Exclude chat routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat|login|signup|$).*)',
+        source: '/((?!workspace|chat|extension(?:/|$)|login|signup|$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -452,7 +452,7 @@ const nextConfig: NextConfig = {
       },
       {
         // File routes preserve their representation CSP in withRouteHandler.
-        source: `/((?!workspace|chat|login|signup|${FILE_DELIVERY_CSP_PATH_PATTERN.slice(1)}$|$).*)`,
+        source: `/((?!workspace|chat|extension(?:/|$)|login|signup|${FILE_DELIVERY_CSP_PATH_PATTERN.slice(1)}$|$).*)`,
         headers: [{ key: 'Content-Security-Policy', value: getMainCSPPolicy() }],
       },
     ]

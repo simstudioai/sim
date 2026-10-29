@@ -60,11 +60,12 @@ interface UserInputProps {
   onPlanChange?: () => void
   defaultValue?: string
   draftScopeKey?: string
+  /** Returning false synchronously preserves the draft when a surface rejects submission. */
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
-  ) => void
+  ) => unknown
   isSending: boolean
   onStopGeneration: () => void
   isInitialView?: boolean
@@ -217,7 +218,19 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)
   const pendingDraftRef = useRef<{ key: string; payload: DraftPayload } | null>(null)
+  const persistedDraftScopeRef = useRef(draftScopeKey)
   useEffect(() => {
+    const previousKey = persistedDraftScopeRef.current
+    if (previousKey !== draftScopeKey) {
+      if (draftSaveTimerRef.current !== null) {
+        window.clearTimeout(draftSaveTimerRef.current)
+        draftSaveTimerRef.current = null
+      }
+      if (previousKey && draftScopeKey)
+        useMothershipDraftsStore.getState().migrateDraft(previousKey, draftScopeKey)
+      pendingDraftRef.current = null
+      persistedDraftScopeRef.current = draftScopeKey
+    }
     if (isFirstSaveRef.current) {
       isFirstSaveRef.current = false
       return
@@ -248,7 +261,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       pendingDraftRef.current = null
       draftSaveTimerRef.current = null
     }, 200)
-  }, [editor.value, files.attachedFiles, editor.contexts])
+  }, [draftScopeKey, editor.value, files.attachedFiles, editor.contexts])
 
   useEffect(
     () => () => {
@@ -268,6 +281,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     const curr = editor.contexts
     const contextId = (ctx: ChatContext): string => {
       switch (ctx.kind) {
+        case 'browser_page':
+          return `browser_page:${ctx.snapshot.id}`
         case 'workflow':
         case 'current_workflow':
           return `${ctx.kind}:${ctx.workflowId}`
@@ -519,11 +534,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     // so the message reads as clean `/skill-name` (skills travel via contexts
     // regardless). Only the submitted copy is converted; the live input is not.
     const activeContexts = currentEditor.getActiveContexts()
-    onSubmit(
+    const accepted = onSubmit(
       currentEditor.getPlainValue(),
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
       activeContexts.length > 0 ? activeContexts : undefined
     )
+    if (accepted === false) return
     clearComposer()
   }, [onSubmit, clearComposer])
 

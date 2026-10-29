@@ -84,15 +84,17 @@ interface MothershipChatProps {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   workspaceId?: string
   composer?: ReactNode
+  composerAttachments?: ReactNode
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
   isLoading?: boolean
+  /** Returning false synchronously preserves the composer draft. */
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
-  ) => void
+  ) => unknown
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
@@ -113,6 +115,8 @@ interface MothershipChatProps {
   onViewSources?: (messageId: string, requestId?: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
+  /** Keeps the live composer mounted when a pending conversation receives its durable ID. */
+  composerKey?: string
   layout?: 'mothership-view' | 'copilot-view'
   reserveResourceHeader?: boolean
   initialScrollBlocked?: boolean
@@ -382,6 +386,7 @@ export function MothershipChat({
   SearchConnectionComponent,
   workspaceId,
   composer,
+  composerAttachments,
   messages: messagesProp,
   isSending,
   isReconnecting = false,
@@ -402,6 +407,7 @@ export function MothershipChat({
   onViewSources,
   onWorkspaceResourceSelect,
   draftScopeKey,
+  composerKey,
   layout = 'mothership-view',
   reserveResourceHeader = true,
   initialScrollBlocked = false,
@@ -1028,10 +1034,11 @@ export function MothershipChat({
               onEdit={handleEditQueued}
               onCancelEdit={onCancelQueueEdit}
             />
+            {composerAttachments}
             {!isLoading &&
               (composer ?? (
                 <UserInput
-                  key={draftScopeKey}
+                  key={composerKey ?? draftScopeKey}
                   ref={userInputRef}
                   onSubmit={onSubmit}
                   isSending={isStreamActive}

@@ -95,6 +95,11 @@ export function useSpeechToText({
   organizationId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
+  const documentPolicy =
+    typeof document === 'undefined'
+      ? undefined
+      : (document as Document & { featurePolicy?: { allowsFeature: (feature: string) => boolean } })
+          .featurePolicy
   /**
    * Gate the capability request on the browser APIs streaming needs, so clients
    * that could not use STT anyway never issue it.
@@ -103,7 +108,8 @@ export function useSpeechToText({
     typeof window !== 'undefined' &&
     typeof AudioContext !== 'undefined' &&
     typeof WebSocket !== 'undefined' &&
-    typeof navigator?.mediaDevices?.getUserMedia === 'function'
+    typeof navigator?.mediaDevices?.getUserMedia === 'function' &&
+    (documentPolicy?.allowsFeature('microphone') ?? true)
 
   const { data: sttAvailable } = useVoiceSettings({ enabled: browserSupportsAudioCapture })
   const isSupported = browserSupportsAudioCapture && sttAvailable === true

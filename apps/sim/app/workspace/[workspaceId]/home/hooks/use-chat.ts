@@ -655,6 +655,8 @@ export function shouldQueueOutgoingMessage(
 }
 
 export interface UseChatOptions {
+  /** Lets an embedded surface keep its own URL when a new chat is admitted. */
+  onChatIdResolved?: (chatId: string) => void
   /** Intent for new turns; persisted chat intent remains authoritative on reload. */
   requestMode?: ChatRequestMode
   /** Build the admitted conversation URL from the owning surface's current view state. */
@@ -761,6 +763,8 @@ export function useChat(
   const [isReconnecting, setIsReconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
+  const onChatIdResolvedRef = useRef(options?.onChatIdResolved)
+  onChatIdResolvedRef.current = options?.onChatIdResolved
   const [queuedHandoffRecoveryEpoch, setQueuedHandoffRecoveryEpoch] = useState(0)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const internalActiveResourceState = useState<string | null>(
@@ -1369,16 +1373,20 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(
-          null,
-          '',
-          getChatUrlRef.current?.(chatId) ??
-            chatUrl(
-              organizationId ? { organizationId } : workspaceId!,
-              chatId,
-              requestModeRef.current
-            )
-        )
+        if (onChatIdResolvedRef.current) {
+          onChatIdResolvedRef.current(chatId)
+        } else {
+          window.history.replaceState(
+            null,
+            '',
+            getChatUrlRef.current?.(chatId) ??
+              chatUrl(
+                organizationId ? { organizationId } : workspaceId!,
+                chatId,
+                requestModeRef.current
+              )
+          )
+        }
       }
       if (options?.invalidateList) {
         queryClient.invalidateQueries<readonly unknown[]>({
