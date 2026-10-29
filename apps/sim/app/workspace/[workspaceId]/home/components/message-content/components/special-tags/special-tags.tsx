@@ -112,9 +112,8 @@ import {
 } from '@/hooks/queries/environment'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
-import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFileLookup } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileAtPath, useWorkspaceFileLookup } from '@/hooks/queries/workspace-files'
 import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -1997,14 +1996,13 @@ function WorkspaceResourceDisplayContent({
   const idLookup = useWorkspaceFileLookup(workspaceId, 'id', isFile ? data.id : undefined)
   const fileById = idLookup.data
   /** Only when the id names no file (or there is none): a path is the chip's fallback identity. */
-  const { data: pathMatch } = useWorkspaceFileLookup(
+  const { file: fileFromPath } = useWorkspaceFileAtPath(
     workspaceId,
-    'reference',
     isFile ? data.path : undefined,
-    { enabled: !data.id || fileById === null || idLookup.isError }
+    {
+      enabled: !data.id || fileById === null || idLookup.isError,
+    }
   )
-  /** The reference lookup also answers by bare name; only an exact path match identifies the file. */
-  const fileFromPath = findWorkspaceFileByPath(pathMatch ? [pathMatch] : undefined, data.path)
 
   const resource = useMemo<WorkspaceResourceRef>(() => {
     const title =

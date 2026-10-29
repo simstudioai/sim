@@ -30,7 +30,6 @@ import {
   type SelectorKey,
 } from '@/lib/selectors/manifest'
 import type { SelectorOption, SelectorScope } from '@/lib/selectors/types'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractStorageKey } from '@/lib/uploads/utils/file'
 import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resources'
 import type {
@@ -45,11 +44,10 @@ import {
 } from '@/hooks/queries/oauth/credentials'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
-import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
 import {
-  useWorkspaceFileList,
+  distinctFiles,
   useWorkspaceFileLookups,
-  useWorkspaceFileSearch,
+  useWorkspaceFilePickerOptions,
 } from '@/hooks/queries/workspace-files'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -347,6 +345,29 @@ export function useWorkflowSearchTableDetails(
   })
 }
 
+/**
+ * What to look a stored file value up by. It is an id, a storage key, a serve path, or a name: a
+ * reference lookup answers an id (its first rule), a path, and a name; a storage key — every one
+ * has a `/` — and a serve path also need the key lookup, which a plain name or id never would.
+ */
+export function workflowSearchFileLookups(rawValues: readonly string[]): {
+  references: string[]
+  keyValues: string[]
+} {
+  const references = new Set<string>()
+  const keyValues = new Set<string>()
+  for (const rawValue of rawValues) {
+    const key = extractStorageKey(rawValue)
+    if (key !== rawValue) {
+      keyValues.add(key)
+      continue
+    }
+    references.add(rawValue)
+    if (rawValue.includes('/')) keyValues.add(rawValue)
+  }
+  return { references: [...references], keyValues: [...keyValues] }
+}
+
 export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], workspaceId?: string) {
   const fileMatches = useMemo(
     () =>
@@ -356,28 +377,21 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
       ),
     [matches]
   )
-  /** A stored file value is an id, a storage key, a serve path, or a name: each is looked up as each. */
-  const rawValues = useMemo(
-    () => [...new Set(fileMatches.map((match) => match.rawValue))],
+  const { references, keyValues } = useMemo(
+    () => workflowSearchFileLookups(fileMatches.map((match) => match.rawValue)),
     [fileMatches]
   )
-  const storageKeys = useMemo(
-    () => [...new Set(rawValues.map((value) => extractStorageKey(value)))],
-    [rawValues]
-  )
-  const enabled = rawValues.length > 0
-  const byId = useWorkspaceFileLookups(workspaceId ?? '', 'id', rawValues, { enabled })
-  const byKey = useWorkspaceFileLookups(workspaceId ?? '', 'key', storageKeys, { enabled })
-  const byReference = useWorkspaceFileLookups(workspaceId ?? '', 'reference', rawValues, {
+  const enabled = fileMatches.length > 0
+  const byKey = useWorkspaceFileLookups(workspaceId ?? '', 'key', keyValues, { enabled })
+  const byReference = useWorkspaceFileLookups(workspaceId ?? '', 'reference', references, {
     enabled,
   })
-  const settled = !byId.isPending && !byKey.isPending && !byReference.isPending
+  const settled = !byKey.isPending && !byReference.isPending
 
   return useMemo(
     () =>
       fileMatches.map((match) => {
         const file =
-          byId.byValue.get(match.rawValue) ??
           byKey.byValue.get(extractStorageKey(match.rawValue)) ??
           byReference.byValue.get(match.rawValue)
         return {
@@ -392,7 +406,7 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
             : undefined,
         }
       }),
-    [fileMatches, byId.byValue, byKey.byValue, byReference.byValue, settled]
+    [fileMatches, byKey.byValue, byReference.byValue, settled]
   )
 }
 
@@ -669,14 +683,8 @@ export function useWorkflowSearchTableReplacementOptions(
   })
 }
 
-/** The files a replacement can be chosen from before anything is typed: the most recently updated. */
-const RECENT_REPLACEMENT_FILES = workspaceFileListParams({
-  sortBy: 'updatedAt',
-  sortOrder: 'desc',
-  limit: 100,
-})
-
-const REPLACEMENT_FILE_SEARCH_LIMIT = 50
+/** How many of the most recently updated files a replacement can be chosen from untyped. */
+const RECENT_REPLACEMENT_FILE_LIMIT = 100
 
 /** The storage key a chosen file replacement value carries, if it is one. */
 function replacementFileKey(value: string): string | undefined {
@@ -703,12 +711,10 @@ export function useWorkflowSearchFileReplacementOptions(
     [matches]
   )
   const enabled = Boolean(workspaceId && fileGroups.length > 0)
-  const recentFiles = useWorkspaceFileList(workspaceId ?? '', RECENT_REPLACEMENT_FILES, { enabled })
-  const matchingFiles = useWorkspaceFileSearch(
-    workspaceId ?? '',
-    { q: options.query, limit: REPLACEMENT_FILE_SEARCH_LIMIT },
-    { enabled }
-  )
+  const { files: offered } = useWorkspaceFilePickerOptions(workspaceId ?? '', options.query, {
+    limit: RECENT_REPLACEMENT_FILE_LIMIT,
+    enabled,
+  })
   const chosenKeys = useMemo(
     () =>
       options.chosen.flatMap((value) => {
@@ -718,16 +724,13 @@ export function useWorkflowSearchFileReplacementOptions(
     [options.chosen]
   )
   const chosenFiles = useWorkspaceFileLookups(workspaceId ?? '', 'key', chosenKeys, { enabled })
-  const offered = options.query.trim() ? matchingFiles.data : recentFiles.data?.pages[0]?.files
 
   return useMemo(() => {
-    const files = new Map<string, WorkspaceFileRecord>()
-    for (const file of chosenFiles.byValue.values()) files.set(file.id, file)
-    for (const file of offered ?? []) files.set(file.id, file)
+    const files = distinctFiles([...chosenFiles.byValue.values(), offered])
     return [
       {
         data: fileGroups.flatMap((match) =>
-          [...files.values()].map(
+          files.map(
             (file): WorkflowSearchReplacementOption => ({
               kind: 'file',
               value: JSON.stringify({

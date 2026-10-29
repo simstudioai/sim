@@ -14,6 +14,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { formatFileSize, getExtensionFromMimeType } from '@/lib/uploads/utils/file'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { containsReference } from '@/lib/workflows/sanitization/references'
@@ -33,12 +34,13 @@ import {
   workspaceFilesKeys,
 } from '@/hooks/queries/utils/workspace-file-keys'
 import {
+  distinctFiles,
   useCloudStorageConfigured,
   useUploadWorkspaceFile,
   useWorkspaceFileList,
   useWorkspaceFileSelectionCandidates,
 } from '@/hooks/queries/workspace-files'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { getProviderAttachmentMaxBytes } from '@/providers/attachments'
 import { getProviderFromModel } from '@/providers/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -48,6 +50,8 @@ const logger = createLogger('FileUpload')
 
 /** How many files the picker lists per page. */
 const PICKER_PAGE_SIZE = 100
+
+const EMPTY_PICKER_FILES: WorkspaceFileRecord[] = []
 
 interface FileUploadProps {
   blockId: string
@@ -428,7 +432,7 @@ export function FileUpload({
    * single concrete folder scope is applied by the server (descending when the scope does);
    * any other scope is applied to the page here, which keeps it correct but sparser.
    */
-  const pickerQuery = useDebounce(inputValue.trim(), SEARCH_DEBOUNCE_MS)
+  const pickerQuery = useSearchFilterValue(inputValue, SEARCH_DEBOUNCE_MS).trim()
   const scopeFolderId =
     hasConcreteFolderScope && folderScopePaths.length === 1
       ? folderScopePaths[0] === ROOT_FOLDER_PATH
@@ -447,36 +451,34 @@ export function FileUpload({
     })
   )
   const loadingWorkspaceFiles = pickerList.isLoading
-  const loadMorePickerFiles = () => {
-    if (!pickerList.isFetching && pickerList.hasNextPage) void pickerList.fetchNextPage()
-  }
-  const pickerFiles = useMemo(
-    () => pickerList.data?.pages.flatMap((page) => page.files) ?? [],
-    [pickerList.data]
+  const pickerFiles = pickerList.data?.files ?? EMPTY_PICKER_FILES
+  /** Whether a file sits inside the block's folder scope, as the scope's settings define it. */
+  const isInFolderScope = useCallback(
+    (folderPath: string | null | undefined) =>
+      folderScopePaths.some((folderScopePath) =>
+        isFileInFolderScope(folderPath, folderScopePath, {
+          includeSubfolders: folderScopeIncludesSubfolders,
+        })
+      ),
+    [folderScopeIncludesSubfolders, folderScopePaths]
   )
   const scopedWorkspaceFiles = useMemo(
     () =>
       hasConcreteFolderScope
-        ? pickerFiles.filter((workspaceFile) =>
-            folderScopePaths.some((folderScopePath) =>
-              isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
-                includeSubfolders: folderScopeIncludesSubfolders,
-              })
-            )
-          )
+        ? pickerFiles.filter((workspaceFile) => isInFolderScope(workspaceFile.folderPath))
         : pickerFiles,
-    [folderScopeIncludesSubfolders, folderScopePaths, hasConcreteFolderScope, pickerFiles]
+    [hasConcreteFolderScope, isInFolderScope, pickerFiles]
   )
+  /** Re-reads the picker's files when its menu opens, if they have aged past fresh. */
+  const refreshPickerOnOpen = (open: boolean) => {
+    if (open && pickerList.isStale) void pickerList.refetch()
+  }
 
   /** The selected files, resolved on their own: they need not be on the page the picker shows. */
   const selections = useWorkspaceFileSelectionCandidates(isPreview ? '' : workspaceId, filesArray)
   /** Distinct by id: the same file on the page and among the candidates is one file. */
   const workspaceFiles = useMemo(
-    () => [
-      ...new Map(
-        [...selections.candidates, ...pickerFiles].map((file) => [file.id, file])
-      ).values(),
-    ],
+    () => distinctFiles([selections.candidates, pickerFiles]),
     [selections.candidates, pickerFiles]
   )
 
@@ -498,14 +500,7 @@ export function FileUpload({
 
     const nextFiles = filesArray.filter((file) => {
       const workspaceFile = findSelectedWorkspaceFile(file, selections.candidates)
-      return (
-        !workspaceFile ||
-        folderScopePaths.some((folderScopePath) =>
-          isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
-            includeSubfolders: folderScopeIncludesSubfolders,
-          })
-        )
-      )
+      return !workspaceFile || isInFolderScope(workspaceFile.folderPath)
     })
     if (nextFiles.length === filesArray.length) return
 
@@ -514,9 +509,8 @@ export function FileUpload({
     commitValue,
     filesArray,
     folderScope,
-    folderScopeIncludesSubfolders,
-    folderScopePaths,
     hasConcreteFolderScope,
+    isInFolderScope,
     isPreview,
     multiple,
     selections.candidates,
@@ -1004,12 +998,10 @@ export function FileUpload({
           options={comboboxOptions}
           value={inputValue}
           onChange={handleComboboxChange}
-          onOpenChange={(open) => {
-            if (open) void pickerList.refetch()
-          }}
+          onOpenChange={refreshPickerOnOpen}
           hasMore={pickerList.hasNextPage}
           isLoadingMore={pickerList.isFetchingNextPage}
-          onLoadMore={loadMorePickerFiles}
+          onLoadMore={pickerList.loadMore}
           placeholder={loadingWorkspaceFiles ? 'Loading files...' : '+ Add More'}
           disabled={disabled || loadingWorkspaceFiles}
           editable={true}
@@ -1026,13 +1018,11 @@ export function FileUpload({
           selectedValue={selectedFileId}
           onInputChange={handleComboboxChange}
           onClear={(e) => handleRemoveFile(filesArray[0], e)}
-          onOpenChange={(open) => {
-            if (open) void pickerList.refetch()
-          }}
+          onOpenChange={refreshPickerOnOpen}
           onSearchChange={setInputValue}
           hasMore={pickerList.hasNextPage}
           isLoadingMore={pickerList.isFetchingNextPage}
-          onLoadMore={loadMorePickerFiles}
+          onLoadMore={pickerList.loadMore}
           disabled={disabled}
           isLoading={loadingWorkspaceFiles}
           truncateMiddle={truncateMiddle}
@@ -1053,12 +1043,10 @@ export function FileUpload({
           options={comboboxOptions}
           value={inputValue}
           onChange={handleComboboxChange}
-          onOpenChange={(open) => {
-            if (open) void pickerList.refetch()
-          }}
+          onOpenChange={refreshPickerOnOpen}
           hasMore={pickerList.hasNextPage}
           isLoadingMore={pickerList.isFetchingNextPage}
-          onLoadMore={loadMorePickerFiles}
+          onLoadMore={pickerList.loadMore}
           placeholder={loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
           disabled={disabled || loadingWorkspaceFiles}
           editable={true}

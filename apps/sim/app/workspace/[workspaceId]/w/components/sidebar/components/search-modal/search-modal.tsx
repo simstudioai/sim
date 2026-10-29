@@ -47,7 +47,6 @@ import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -93,9 +92,7 @@ import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/componen
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
-import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
-import { useWorkspaceFileList, useWorkspaceFileSearch } from '@/hooks/queries/workspace-files'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -125,11 +122,6 @@ const MAX_SEARCH_RESULTS = 50
 
 /** Stable empty default so a pending folder map does not remount the memos below. */
 const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
-
-/** The files the palette offers before anything is typed: the most recently updated anywhere. */
-const RECENT_FILES = workspaceFileListParams({ sortBy: 'updatedAt', sortOrder: 'desc', limit: 50 })
-
-const FILE_SEARCH_LIMIT = MAX_SEARCH_RESULTS
 
 export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
@@ -688,16 +680,10 @@ function SearchModalContent({
    * offers the most recently updated; a query, once typing settles, asks the server for the
    * best matches by name and folder path, which the palette then ranks as it ranks everything.
    */
-  const fileQuery = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
-  const recentFiles = useWorkspaceFileList(workspaceId, RECENT_FILES, {
+  const { files: fetchedFiles } = useWorkspaceFilePickerOptions(workspaceId, search, {
+    limit: MAX_SEARCH_RESULTS,
     enabled: !permissionConfig.hideFilesTab,
   })
-  const matchingFiles = useWorkspaceFileSearch(
-    workspaceId,
-    { q: fileQuery, limit: FILE_SEARCH_LIMIT },
-    { enabled: !permissionConfig.hideFilesTab }
-  )
-  const fetchedFiles = fileQuery ? matchingFiles.data : recentFiles.data?.pages[0]?.files
   const files = useMemo(
     () =>
       permissionConfig.hideFilesTab

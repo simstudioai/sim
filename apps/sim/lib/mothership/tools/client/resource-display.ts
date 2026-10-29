@@ -19,7 +19,7 @@ import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import {
   findCachedWorkspaceFile,
-  isWorkspaceFileMetadataKey,
+  isWorkspaceFileRecordKey,
 } from '@/hooks/queries/utils/workspace-file-cache'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
@@ -119,7 +119,7 @@ export function resolveResourceDisplayName(
 export function isResourceNameQuery(key: QueryKey, workspaceId?: string): boolean {
   if (key[0] === workspaceKeys.all[0]) return key[1] === 'list' || key[1] === 'adminList'
   if (key[0] === workspaceFilesKeys.all[0]) {
-    return isWorkspaceFileMetadataKey(key, workspaceId ?? String(key[2]))
+    return isWorkspaceFileRecordKey(key, workspaceId)
   }
   return (
     [

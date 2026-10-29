@@ -2,7 +2,6 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import {
   byResourceMenuOrder,
@@ -18,12 +17,10 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useTablesList } from '@/hooks/queries/tables'
-import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
 import { useWorkflowTests } from '@/hooks/queries/workflow-tests'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
-import { useWorkspaceFileList, useWorkspaceFileSearch } from '@/hooks/queries/workspace-files'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
 
 /**
  * Placeholder id for the Browser launcher row. It never names a resource: the
@@ -97,10 +94,8 @@ const NO_RESOURCE_GROUPS: AvailableItemsByType[] = []
 
 const LOG_DROPDOWN_LIMIT = 50
 
-/** The files a menu offers before anything is typed: the most recently updated anywhere. */
-const RECENT_FILES = workspaceFileListParams({ sortBy: 'updatedAt', sortOrder: 'desc', limit: 100 })
-
-const FILE_SEARCH_LIMIT = 50
+/** How many of the most recently updated files a menu offers before anything is typed. */
+const RECENT_FILE_LIMIT = 100
 
 const LOG_DROPDOWN_FILTERS = {
   timeRange: 'All time' as const,
@@ -147,21 +142,11 @@ export function useAvailableResources(
   const { data: tests, isPending: testsPending } = useWorkflowTests(workspaceId, {
     enabled: enabled && testsEnabled && !excludeTypes?.includes('test'),
   })
-  const fileSearch = options?.fileSearch?.trim() ?? ''
-  const settledFileSearch = useDebounce(fileSearch, SEARCH_DEBOUNCE_MS)
-  const recentFiles = useWorkspaceFileList(workspaceId, RECENT_FILES, {
-    enabled: enabled && Boolean(workspaceId),
-  })
-  const matchingFiles = useWorkspaceFileSearch(
+  const { files, isPending: filesPending } = useWorkspaceFilePickerOptions(
     workspaceId,
-    { q: settledFileSearch, limit: FILE_SEARCH_LIMIT },
-    { enabled: enabled && Boolean(workspaceId) }
+    options?.fileSearch ?? '',
+    { limit: RECENT_FILE_LIMIT, enabled }
   )
-  const files = settledFileSearch ? matchingFiles.data : recentFiles.data?.pages[0]?.files
-  /** A typed query is still resolving until its search settles: an empty menu is not "no match" yet. */
-  const filesPending =
-    recentFiles.isPending ||
-    (fileSearch.length > 0 && (fileSearch !== settledFileSearch || matchingFiles.isFetching))
   const { data: knowledgeBases, isPending: knowledgeBasesPending } = useKnowledgeBasesQuery(
     workspaceId,
     { enabled: enabled && Boolean(workspaceId) }

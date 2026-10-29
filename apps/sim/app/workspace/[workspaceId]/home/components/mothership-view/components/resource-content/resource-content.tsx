@@ -70,12 +70,11 @@ import { useLogByExecutionId, useLogDetail } from '@/hooks/queries/logs'
 import { useProjectFile } from '@/hooks/queries/projects'
 import { exportTable } from '@/hooks/queries/tables'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
-import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflowTest } from '@/hooks/queries/workflow-tests'
 import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
-import { useWorkspaceFileLookup, useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileAtPath, useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 import {
   createProjectFileContentSource,
   createWorkspaceFileContentSource,
@@ -734,17 +733,10 @@ const fileLogger = createLogger('EmbeddedFileActions')
  */
 function useEmbeddedWorkspaceFile(workspaceId: string, fileId: string, filePath?: string) {
   const record = useWorkspaceFileRecord(workspaceId, fileId)
-  const pathLookup = useWorkspaceFileLookup(workspaceId, 'reference', filePath, {
-    enabled: record.data === null,
-  })
-  /** The reference lookup also answers by bare name; only an exact path match is this file. */
-  const fileAtPath = findWorkspaceFileByPath(
-    pathLookup.data ? [pathLookup.data] : undefined,
-    filePath
-  )
+  const atPath = useWorkspaceFileAtPath(workspaceId, filePath, { enabled: record.data === null })
   return {
-    file: record.data ?? fileAtPath,
-    isResolving: record.isFetching || pathLookup.isFetching,
+    file: record.data ?? atPath.file,
+    isResolving: record.isFetching || atPath.isFetching,
   }
 }
 

@@ -14,7 +14,6 @@ import { useMemo } from 'react'
 import { DropdownMenuItem } from '@sim/emcn'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   buildFlyoutEntries,
   FOLDERED_RESOURCE_HEADERS,
@@ -23,6 +22,7 @@ import {
 import { CollapsedResourceFlyout } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/collapsed-sidebar-menu'
 import { useFolders } from '@/hooks/queries/folders'
 import { usePinnedIds } from '@/hooks/queries/pinned-items'
+import { usePinnedWorkspaceFiles } from '@/hooks/queries/pinned-workspace-files'
 import { useTablesList } from '@/hooks/queries/tables'
 import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
 import {
@@ -30,9 +30,9 @@ import {
   type WorkspaceFileFolderApi,
 } from '@/hooks/queries/workspace-file-folders'
 import {
+  distinctFiles,
   useWorkspaceFileFolderSizes,
   useWorkspaceFileList,
-  useWorkspaceFileLookups,
 } from '@/hooks/queries/workspace-files'
 
 const TABLE_META = FOLDERED_RESOURCE_HEADERS.table
@@ -121,39 +121,27 @@ function FilesFlyoutLevel({
     })
   )
   const folderStats = useWorkspaceFileFolderSizes(workspaceId, [folderId])
-  const pinnedFileIds = usePinnedIds(workspaceId, 'file')
+  const pinned = usePinnedWorkspaceFiles(workspaceId, folderId)
   const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
-  const pinnedFileIdList = useMemo(() => [...pinnedFileIds], [pinnedFileIds])
-  const pinnedFiles = useWorkspaceFileLookups(workspaceId, 'id', pinnedFileIdList)
 
   const entries = useMemo(() => {
-    const files = new Map<string, WorkspaceFileRecord>()
-    for (const fileId of pinnedFileIdList) {
-      const file = pinnedFiles.byValue.get(fileId)
-      if (file && (file.folderId ?? null) === folderId) files.set(file.id, file)
-    }
-    for (const file of fileList.data?.pages[0]?.files ?? []) files.set(file.id, file)
+    const files = distinctFiles([pinned.files, fileList.data?.files])
     return buildFlyoutEntries({
       folders: folders
         .filter((folder) => (folder.parentId ?? null) === folderId)
         .map((folder) => ({ ...folder, parentId: null })),
-      items: [...files.values()].map((file) => ({ ...file, folderId: null })),
+      items: files.map((file) => ({ ...file, folderId: null })),
       pinnedFolderIds,
-      pinnedItemIds: pinnedFileIds,
+      pinnedItemIds: pinned.pinnedFileIds,
       hrefForItem: (file) => `/workspace/${workspaceId}/${FILE_META.listSegment}/${file.id}`,
     })
-  }, [
-    fileList.data,
-    folders,
-    folderId,
-    pinnedFiles.byValue,
-    pinnedFileIdList,
-    pinnedFolderIds,
-    pinnedFileIds,
-    workspaceId,
-  ])
+  }, [fileList.data, folders, folderId, pinned, pinnedFolderIds, workspaceId])
 
-  const hasSubfolders = (id: string) => folders.some((folder) => folder.parentId === id)
+  /** The folders that have subfolders, indexed once for the per-folder emptiness check. */
+  const parentsWithSubfolders = useMemo(
+    () => new Set(folders.map((folder) => folder.parentId)),
+    [folders]
+  )
 
   return (
     <CollapsedResourceFlyout
@@ -162,7 +150,7 @@ function FilesFlyoutLevel({
       isLoading={isResolving(fileList) || !foldersResolved}
       emptyLabel={folderId ? 'No files in this folder' : 'No files yet'}
       lazyFolders={{
-        isEmpty: (id) => !hasSubfolders(id) && folderStats.get(id)?.fileCount === 0,
+        isEmpty: (id) => !parentsWithSubfolders.has(id) && folderStats.get(id)?.fileCount === 0,
         render: (id) => (
           <FilesFlyoutLevel
             workspaceId={workspaceId}

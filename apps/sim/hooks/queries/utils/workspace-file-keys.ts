@@ -82,14 +82,17 @@ export function workspaceFileListParams(input: {
   limit?: number
 }): WorkspaceFileListParams {
   const q = input.q?.trim()
+  const types = canonicalSet(input.types)
+  const sizes = canonicalSet(input.sizes)
+  const uploadedBy = canonicalSet(input.uploadedBy)
   return {
     scope: input.scope ?? 'active',
     ...(input.folderId === undefined ? {} : { folderId: input.folderId }),
     ...(input.folderId !== undefined && input.recursive ? { recursive: true } : {}),
     ...(q ? { q } : {}),
-    ...(canonicalSet(input.types) ? { types: canonicalSet(input.types) } : {}),
-    ...(canonicalSet(input.sizes) ? { sizes: canonicalSet(input.sizes) } : {}),
-    ...(canonicalSet(input.uploadedBy) ? { uploadedBy: canonicalSet(input.uploadedBy) } : {}),
+    ...(types ? { types } : {}),
+    ...(sizes ? { sizes } : {}),
+    ...(uploadedBy ? { uploadedBy } : {}),
     sortBy: input.sortBy,
     sortOrder: input.sortOrder,
     limit: input.limit ?? WORKSPACE_FILE_LIST_PAGE_SIZE,
@@ -97,20 +100,31 @@ export function workspaceFileListParams(input: {
 }
 
 /**
+ * The folder half of a list or search query: absent for every folder, else the folder (`root`
+ * for `null`) and whether its subfolders count.
+ */
+export function workspaceFileFolderQuery(params: {
+  folderId?: string | null
+  recursive?: boolean
+}): { folderId?: string; recursive?: boolean } {
+  return params.folderId === undefined
+    ? {}
+    : { folderId: params.folderId ?? 'root', recursive: params.recursive }
+}
+
+/**
  * The `GET /api/workspaces/[id]/files` query for one page of a list: a `null` folder is spelled
- * `root`, set filters comma-joined. The client fetch and the server prefetch both send this, so
- * a prefetched page is the page its key names.
+ * `root`, set filters sent as repeated params. The client fetch and the server prefetch both
+ * send this, so a prefetched page is the page its key names.
  */
 export function workspaceFileListQuery(params: WorkspaceFileListParams, cursor: string | null) {
   return {
     scope: params.scope,
-    ...(params.folderId === undefined
-      ? {}
-      : { folderId: params.folderId ?? 'root', recursive: params.recursive }),
+    ...workspaceFileFolderQuery(params),
     q: params.q,
-    types: params.types?.join(','),
-    sizes: params.sizes?.join(','),
-    uploadedBy: params.uploadedBy?.join(','),
+    types: params.types,
+    sizes: params.sizes,
+    uploadedBy: params.uploadedBy,
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
     limit: params.limit,
@@ -140,8 +154,9 @@ export const workspaceFilesKeys = {
   folderStats: () => [...workspaceFilesKeys.all, 'folderStats'] as const,
   workspaceFolderStats: (workspaceId: string) =>
     [...workspaceFilesKeys.folderStats(), workspaceId] as const,
-  folderStat: (workspaceId: string, parentId: string | null) =>
-    [...workspaceFilesKeys.workspaceFolderStats(workspaceId), parentId ?? 'root'] as const,
+  /** The rollup for a set of parents; `parentIds` sorted, de-duplicated, `root` for `null`. */
+  folderStat: (workspaceId: string, parentIds: readonly string[]) =>
+    [...workspaceFilesKeys.workspaceFolderStats(workspaceId), parentIds] as const,
   lookups: () => [...workspaceFilesKeys.all, 'lookup'] as const,
   workspaceLookups: (workspaceId: string) =>
     [...workspaceFilesKeys.lookups(), workspaceId] as const,

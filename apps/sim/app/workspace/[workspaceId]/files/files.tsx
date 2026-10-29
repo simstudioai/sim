@@ -136,6 +136,7 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
+import { usePinnedWorkspaceFiles } from '@/hooks/queries/pinned-workspace-files'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
@@ -155,7 +156,6 @@ import {
   useUploadWorkspaceFile,
   useWorkspaceFileFolderSizes,
   useWorkspaceFileList,
-  useWorkspaceFileLookups,
   useWorkspaceFileRecord,
 } from '@/hooks/queries/workspace-files'
 import { useContextMenu } from '@/hooks/use-context-menu'
@@ -210,6 +210,21 @@ const COLUMNS: ResourceColumn[] = [
 const SEARCH_COLUMNS: ResourceColumn[] = [...COLUMNS, FOLDER_LOCATION_COLUMN]
 
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
+
+/**
+ * Each file record's Type label, computed once: cached records are immutable, so a label keyed
+ * by the record holds until the record itself is replaced.
+ */
+const TYPE_LABELS = new WeakMap<WorkspaceFileRecord, string>()
+
+function typeLabelOf(file: WorkspaceFileRecord): string {
+  let label = TYPE_LABELS.get(file)
+  if (label === undefined) {
+    label = fileBrowserTypeLabel(file.type, file.name)
+    TYPE_LABELS.set(file, label)
+  }
+  return label
+}
 const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
 const EMPTY_FIND_MATCH_IDS: readonly string[] = Object.freeze([])
 
@@ -484,30 +499,17 @@ function FilesContent() {
   if (error) {
     logger.error('Failed to load files:', error)
   }
-  const pagedFiles = useMemo(
-    () => fileList.data?.pages.flatMap((page) => page.files) ?? EMPTY_WORKSPACE_FILES,
-    [fileList.data]
-  )
+  const pagedFiles = fileList.data?.files ?? EMPTY_WORKSPACE_FILES
 
   /**
    * A folder's pinned files lead it whether or not a page has reached them, so they are looked
    * up by id. A search or filter narrows the list to its own results, which pin among themselves.
    */
   const pinsLeadFolder = !isSearching && !isFilteringFiles
-  const pinnedFileIdList = useMemo(() => [...pinnedFileIds], [pinnedFileIds])
-  const pinnedFileLookups = useWorkspaceFileLookups(workspaceId, 'id', pinnedFileIdList, {
+  const pinnedInFolder = usePinnedWorkspaceFiles(workspaceId, currentFolderId, {
     enabled: isListOpen && pinsLeadFolder,
   })
-  const pinnedFolderFiles = useMemo(
-    () =>
-      pinsLeadFolder
-        ? pinnedFileIdList.flatMap((fileId) => {
-            const file = pinnedFileLookups.byValue.get(fileId)
-            return file && (file.folderId ?? null) === currentFolderId ? [file] : []
-          })
-        : EMPTY_WORKSPACE_FILES,
-    [pinsLeadFolder, pinnedFileIdList, pinnedFileLookups.byValue, currentFolderId]
-  )
+  const pinnedFolderFiles = pinsLeadFolder ? pinnedInFolder.files : EMPTY_WORKSPACE_FILES
 
   /**
    * Every file the list has loaded, indexed once. The drag hook resolves each dragged row's
@@ -523,23 +525,12 @@ function FilesContent() {
   const fileByIdRef = useRef(fileById)
   fileByIdRef.current = fileById
 
-  const loadMoreFilesRef = useRef(fileList)
-  loadMoreFilesRef.current = fileList
-  const loadMoreFiles = useCallback(() => {
-    const { isFetching, hasNextPage, fetchNextPage } = loadMoreFilesRef.current
-    if (!isFetching && hasNextPage) void fetchNextPage()
-  }, [])
-
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
-    if (fileIdFromRoute) {
-      const file = selectedFile
-      if (file && isPreviewable(file)) return 'preview'
-      return 'editor'
-    }
+    if (fileIdFromRoute) return selectedFile && isPreviewable(selectedFile) ? 'preview' : 'editor'
     return 'preview'
   })
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -672,12 +663,8 @@ function FilesContent() {
         files: pagedFiles,
         pinnedFiles: pinnedFolderFiles,
         hasMore: fileList.hasNextPage,
-        isFolderPinned: (folder) => pinnedFolderIds.has(folder.id),
-        isFilePinned: (file) => pinnedFileIds.has(file.id),
-        folderId: (folder) => folder.id,
-        fileId: (file) => file.id,
-        folderName: (folder) => folder.name,
-        fileName: (file) => file.name,
+        pinnedFolderIds,
+        pinnedFileIds,
         folderKey: (folder) =>
           sortColumn === 'size'
             ? (folderSizes.get(folder.id)?.sizeBytes ?? 0)
@@ -694,7 +681,7 @@ function FilesContent() {
           sortColumn === 'size'
             ? file.size
             : sortColumn === 'type'
-              ? fileBrowserTypeLabel(file.type, file.name)
+              ? typeLabelOf(file)
               : sortColumn === 'created'
                 ? new Date(file.uploadedAt).getTime()
                 : sortColumn === 'updated'
@@ -716,6 +703,15 @@ function FilesContent() {
       sortColumn,
       sortDirection,
     ]
+  )
+
+  /**
+   * Each file's row, built once per record and pin state: loading another page appends rows
+   * without rebuilding the ones already on screen. Reset when what every row reads changes.
+   */
+  const fileRowCache = useMemo(
+    () => new WeakMap<WorkspaceFileRecord, { pinned: boolean; row: ResourceRow }>(),
+    [membersById, folderById, isSearching]
   )
 
   const baseRows: ResourceRow[] = useMemo(
@@ -761,8 +757,10 @@ function FilesContent() {
         }
 
         const { file } = item
+        const cached = fileRowCache.get(file)
+        if (cached && cached.pinned === pinned) return cached.row
         const Icon = getDocumentIcon(file.type || '', file.name)
-        return {
+        const row: ResourceRow = {
           id: file.id,
           cells: {
             name: {
@@ -775,7 +773,7 @@ function FilesContent() {
             },
             type: {
               icon: <Icon className='size-[14px]' />,
-              label: fileBrowserTypeLabel(file.type, file.name),
+              label: typeLabelOf(file),
             },
             created: timeCell(file.uploadedAt),
             owner: ownerCell(file.uploadedBy, membersById),
@@ -785,8 +783,10 @@ function FilesContent() {
               : EMPTY_LOCATION_CELL,
           },
         }
+        fileRowCache.set(file, { pinned, row })
+        return row
       }),
-    [sortedEntries, membersById, folderSizes, folderById, isSearching]
+    [sortedEntries, membersById, folderSizes, folderById, isSearching, fileRowCache]
   )
 
   const rows: ResourceRow[] = useMemo(() => {
@@ -2205,7 +2205,7 @@ function FilesContent() {
           rows={displayRows}
           apiRef={tableApiRef}
           virtualized
-          onLoadMore={loadMoreFiles}
+          onLoadMore={fileList.loadMore}
           hasMore={fileList.hasNextPage}
           isLoadingMore={fileList.isFetching}
           emptyState={

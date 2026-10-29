@@ -32,7 +32,7 @@ export {
   renderMoveOptions,
 } from './move-options'
 export type { SortableResource } from './resource-sort'
-export { sortResources } from './resource-sort'
+export { compareSortableResources, sortResources } from './resource-sort'
 export { folderNavParsers, folderNavUrlKeys } from './search-params'
 export { useDragTeardown } from './use-drag-teardown'
 export type { FolderAncestors, UseFolderAncestorsOptions } from './use-folder-ancestors'

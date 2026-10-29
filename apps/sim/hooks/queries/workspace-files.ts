@@ -2,10 +2,14 @@ import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import {
+  hashKey,
+  type InfiniteData,
   keepPreviousData,
   type QueryClient,
+  type QueryKey,
   useInfiniteQuery,
   useIsFetching,
   useMutation,
@@ -37,12 +41,19 @@ import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { extractStorageKey } from '@/lib/uploads/utils/file'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { WorkspaceFileSelection } from '@/lib/workspace-files/selection'
 import type { UserFile } from '@/executor/types'
+import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import {
+  type CachedWorkspaceFile,
+  EVERY_WORKSPACE_FILE_READ,
   findCachedWorkspaceFile,
+  indexCachedWorkspaceFiles,
+  invalidateWorkspaceFileListings,
   invalidateWorkspaceFileReads,
+  type PatchableWorkspaceFileRead,
   restoreWorkspaceFileReads,
   snapshotWorkspaceFileReads,
   updateCachedWorkspaceFile,
@@ -58,11 +69,14 @@ import {
   type WorkspaceFileListParams,
   type WorkspaceFileLookupKind,
   type WorkspaceFileSearchParams,
+  workspaceFileFolderQuery,
+  workspaceFileListParams,
   workspaceFileListQuery,
   workspaceFilesKeys,
 } from '@/hooks/queries/utils/workspace-file-keys'
 import { createWorkspaceFileLookupBatcher } from '@/hooks/queries/utils/workspace-file-lookup-batcher'
 import { type ImageDimensionsSource, useFileContentSource } from '@/hooks/use-file-content-source'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 
 const logger = createLogger('WorkspaceFilesQuery')
 
@@ -108,9 +122,22 @@ function isSameListPlace(previous: unknown, next: WorkspaceFileListParams): bool
   )
 }
 
+/** A list's loaded pages, plus their files in page order. */
+type WorkspaceFileListData = InfiniteData<WorkspaceFileListPage, string | null> & {
+  files: WorkspaceFileRecord[]
+}
+
+/** Module-level so the selected `files` keep their identity while the pages do. */
+function selectListFiles(
+  data: InfiniteData<WorkspaceFileListPage, string | null>
+): WorkspaceFileListData {
+  return { ...data, files: data.pages.flatMap((page) => page.files) }
+}
+
 /**
- * One server-sorted, server-filtered file list, a page at a time (`fetchNextPage` loads the
- * next). Build `params` with `workspaceFileListParams`.
+ * One server-sorted, server-filtered file list, a page at a time: `data.files` holds every
+ * loaded file, and `loadMore` fetches the next page unless one is already on its way or the list
+ * is refetching. Build `params` with `workspaceFileListParams`.
  *
  * A re-sort, a re-filter, or a new search keeps showing the previous rows until the new first
  * page lands, as long as the list still shows the same place. Moving to another folder never
@@ -121,14 +148,24 @@ export function useWorkspaceFileList(
   params: WorkspaceFileListParams,
   options?: { enabled?: boolean }
 ) {
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     ...getWorkspaceFileListQueryOptions(workspaceId, params),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    select: selectListFiles,
     placeholderData: (previous, previousQuery) => {
       const key = previousQuery?.queryKey
       return key?.[2] === workspaceId && isSameListPlace(key[3], params) ? previous : undefined
     },
   })
+  /** Read when called, not at render, so a caller only re-renders for what it reads itself. */
+  const queryRef = useRef(query)
+  queryRef.current = query
+  const loadMore = useCallback(() => {
+    const { isFetching, hasNextPage, fetchNextPage } = queryRef.current
+    if (!isFetching && hasNextPage) void fetchNextPage()
+  }, [])
+  // Adds a property to the hook's own result object; reads none of its tracked fields.
+  return Object.assign(query, { loadMore })
 }
 
 async function fetchWorkspaceFileSearch(
@@ -138,13 +175,7 @@ async function fetchWorkspaceFileSearch(
 ): Promise<WorkspaceFileRecord[]> {
   const data = await requestJson(searchWorkspaceFilesContract, {
     params: { id: workspaceId },
-    query: {
-      q: params.q,
-      ...(params.folderId === undefined
-        ? {}
-        : { folderId: params.folderId ?? 'root', recursive: params.recursive }),
-      limit: params.limit,
-    },
+    query: { q: params.q, ...workspaceFileFolderQuery(params), limit: params.limit },
     signal,
   })
   return data.files
@@ -187,12 +218,12 @@ export interface WorkspaceFileFolderStat {
 
 async function fetchWorkspaceFileFolderStats(
   workspaceId: string,
-  parentId: string | null,
+  parentIds: readonly string[],
   signal?: AbortSignal
 ): Promise<Map<string, WorkspaceFileFolderStat>> {
   const data = await requestJson(workspaceFileFolderStatsContract, {
     params: { id: workspaceId },
-    query: { parentId: parentId ?? 'root' },
+    query: { parentIds: [...parentIds] },
     signal,
   })
   return new Map(
@@ -200,40 +231,31 @@ async function fetchWorkspaceFileFolderStats(
   )
 }
 
-function combineFolderSizes(
-  results: { data: Map<string, WorkspaceFileFolderStat> | undefined }[]
-): ReadonlyMap<string, WorkspaceFileFolderStat> {
-  if (results.length === 1) return results[0].data ?? NO_FOLDER_STATS
-  const merged = new Map<string, WorkspaceFileFolderStat>()
-  for (const result of results) {
-    for (const [folderId, stat] of result.data ?? []) merged.set(folderId, stat)
-  }
-  return merged
-}
-
 const NO_FOLDER_STATS: ReadonlyMap<string, WorkspaceFileFolderStat> = new Map()
 
 /**
  * The live file count and bytes under each child folder of every parent in `parentIds` (`null`
  * for the root) — each folder's whole subtree rolled up, what a folder row shows as its size —
- * merged into one map by folder id. Several parents because search results span folders.
+ * in one map by folder id, read in one request. Several parents because search results span
+ * folders; while a new set of parents loads, the last set's sizes stay.
  */
 export function useWorkspaceFileFolderSizes(
   workspaceId: string,
   parentIds: readonly (string | null)[],
   options?: { enabled?: boolean }
 ): ReadonlyMap<string, WorkspaceFileFolderStat> {
-  const enabled = Boolean(workspaceId) && (options?.enabled ?? true)
-  return useQueries({
-    queries: parentIds.map((parentId) => ({
-      queryKey: workspaceFilesKeys.folderStat(workspaceId, parentId),
-      queryFn: ({ signal }: { signal?: AbortSignal }) =>
-        fetchWorkspaceFileFolderStats(workspaceId, parentId, signal),
-      enabled,
-      staleTime: WORKSPACE_FILE_FOLDER_STATS_STALE_TIME,
-    })),
-    combine: combineFolderSizes,
+  const parents = useMemo(
+    () => [...new Set(parentIds.map((parentId) => parentId ?? 'root'))].sort(),
+    [parentIds]
+  )
+  const { data } = useQuery({
+    queryKey: workspaceFilesKeys.folderStat(workspaceId, parents),
+    queryFn: ({ signal }) => fetchWorkspaceFileFolderStats(workspaceId, parents, signal),
+    enabled: Boolean(workspaceId) && parents.length > 0 && (options?.enabled ?? true),
+    staleTime: WORKSPACE_FILE_FOLDER_STATS_STALE_TIME,
+    placeholderData: keepPreviousData,
   })
+  return data ?? NO_FOLDER_STATS
 }
 
 const workspaceFileLookups = createWorkspaceFileLookupBatcher((workspaceId, body) =>
@@ -249,14 +271,18 @@ export function getWorkspaceFileLookupQueryOptions(
   queryClient: QueryClient,
   workspaceId: string,
   kind: WorkspaceFileLookupKind,
-  value: string
+  value: string,
+  /** One scan of the cache shared by a batch of lookups of `kind`, for its seeds. */
+  cachedIndex?: () => ReadonlyMap<string, CachedWorkspaceFile>
 ) {
   const cached =
-    kind === 'id'
-      ? () => findCachedWorkspaceFile(queryClient, workspaceId, (file) => file.id === value)
-      : kind === 'key'
-        ? () => findCachedWorkspaceFile(queryClient, workspaceId, (file) => file.key === value)
-        : undefined
+    kind === 'reference'
+      ? undefined
+      : once(() =>
+          cachedIndex
+            ? cachedIndex().get(value)
+            : findCachedWorkspaceFile(queryClient, workspaceId, (file) => file[kind] === value)
+        )
   return {
     queryKey: workspaceFilesKeys.lookup(workspaceId, kind, value),
     queryFn: ({ signal }: { signal?: AbortSignal }) =>
@@ -264,6 +290,15 @@ export function getWorkspaceFileLookupQueryOptions(
     staleTime: WORKSPACE_FILE_LOOKUP_STALE_TIME,
     initialData: cached ? () => cached()?.file : undefined,
     initialDataUpdatedAt: cached ? () => cached()?.updatedAt : undefined,
+  }
+}
+
+/** `compute`, run on the first call only: a seed read by both `initialData` and its age. */
+function once<T>(compute: () => T): () => T {
+  let result: { value: T } | undefined
+  return () => {
+    result ??= { value: compute() }
+    return result.value
   }
 }
 
@@ -319,9 +354,13 @@ export function useWorkspaceFileLookups(
       combineLookups(values, results),
     [values]
   )
+  const cachedIndex =
+    kind === 'reference'
+      ? undefined
+      : once(() => indexCachedWorkspaceFiles(queryClient, workspaceId, kind))
   return useQueries({
     queries: values.map((value) => ({
-      ...getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, kind, value),
+      ...getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, kind, value, cachedIndex),
       enabled,
     })),
     combine,
@@ -373,16 +412,9 @@ export function useWorkspaceFileSelectionCandidates(
     })),
     combine: combineSearches,
   })
-  /** Distinct by id: a file two reads found is one candidate, or a unique name reads as shared. */
+  /** Distinct: a file two reads found is one candidate, or a unique name reads as shared. */
   const candidates = useMemo(
-    () => [
-      ...new Map(
-        [...byId.byValue.values(), ...byKey.byValue.values(), ...byName.files].map((file) => [
-          file.id,
-          file,
-        ])
-      ).values(),
-    ],
+    () => distinctFiles([...byId.byValue.values(), ...byKey.byValue.values(), byName.files]),
     [byId.byValue, byKey.byValue, byName.files]
   )
   return {
@@ -397,6 +429,92 @@ function combineSearches(
   return {
     files: results.flatMap((result) => result.data ?? []),
     isPending: results.some((result) => result.isPending),
+  }
+}
+
+/**
+ * The distinct files across several reads — single records, `null` misses, and file arrays —
+ * by id, first occurrence's position, last occurrence's copy: one file two reads found is one.
+ */
+export function distinctFiles(
+  reads: readonly (WorkspaceFileRecord | readonly WorkspaceFileRecord[] | null | undefined)[]
+): WorkspaceFileRecord[] {
+  const files = new Map<string, WorkspaceFileRecord>()
+  for (const read of reads) {
+    if (!read) continue
+    for (const file of Array.isArray(read) ? read : [read]) files.set(file.id, file)
+  }
+  return [...files.values()]
+}
+
+/** How many files a picker offers: its recent list, and its matches (the search's maximum). */
+const WORKSPACE_FILE_PICKER_LIMIT = 50
+
+const RECENT_PICKER_FILES = new Map<number, WorkspaceFileListParams>()
+
+/** The most recently updated live files anywhere, `limit` of them, as one shared list. */
+function recentPickerFiles(limit: number): WorkspaceFileListParams {
+  let params = RECENT_PICKER_FILES.get(limit)
+  if (!params) {
+    params = workspaceFileListParams({ sortBy: 'updatedAt', sortOrder: 'desc', limit })
+    RECENT_PICKER_FILES.set(limit, params)
+  }
+  return params
+}
+
+export interface WorkspaceFilePickerOptions {
+  /** The files to offer: the best matches for the settled query, else the most recent. */
+  files: WorkspaceFileRecord[] | undefined
+  /** The query `files` answers, trimmed; empty while browsing recent files. */
+  settledQuery: string
+  /** True until `files` answers what was typed: a menu still empty here is not "no match" yet. */
+  isPending: boolean
+}
+
+/**
+ * What a file picker or mention menu offers, without the workspace's whole list: with nothing
+ * typed, the `limit` most recently updated files; once `query` settles (debounced), the server's
+ * best matches for it by name and folder path, at most {@link WORKSPACE_FILE_PICKER_LIMIT}.
+ */
+export function useWorkspaceFilePickerOptions(
+  workspaceId: string,
+  query: string,
+  options?: { limit?: number; enabled?: boolean }
+): WorkspaceFilePickerOptions {
+  const enabled = Boolean(workspaceId) && (options?.enabled ?? true)
+  const typed = query.trim()
+  const settledQuery = useSearchFilterValue(query, SEARCH_DEBOUNCE_MS).trim()
+  const recent = useWorkspaceFileList(
+    workspaceId,
+    recentPickerFiles(options?.limit ?? WORKSPACE_FILE_PICKER_LIMIT),
+    { enabled }
+  )
+  const matching = useWorkspaceFileSearch(
+    workspaceId,
+    { q: settledQuery, limit: WORKSPACE_FILE_PICKER_LIMIT },
+    { enabled }
+  )
+  return {
+    files: settledQuery ? matching.data : recent.data?.pages[0]?.files,
+    settledQuery,
+    isPending:
+      recent.isPending || (typed.length > 0 && (typed !== settledQuery || matching.isFetching)),
+  }
+}
+
+/**
+ * The live file at a canonical VFS path (`files/docs/a.md`), or `undefined`. The reference
+ * lookup also answers by bare name, so only a file whose path is exactly `path` counts.
+ */
+export function useWorkspaceFileAtPath(
+  workspaceId: string,
+  path: string | undefined,
+  options?: { enabled?: boolean }
+): { file: WorkspaceFileRecord | undefined; isFetching: boolean } {
+  const lookup = useWorkspaceFileLookup(workspaceId, 'reference', path, options)
+  return {
+    file: findWorkspaceFileByPath(lookup.data ? [lookup.data] : undefined, path),
+    isFetching: lookup.isFetching,
   }
 }
 
@@ -428,8 +546,9 @@ export function getWorkspaceFileRecordQueryOptions(
   workspaceId: string,
   fileId: string
 ) {
-  const cached = () =>
+  const cached = once(() =>
     findCachedWorkspaceFile(queryClient, workspaceId, (file) => file.id === fileId)
+  )
   return {
     queryKey: workspaceFilesKeys.record(workspaceId, fileId),
     queryFn: ({ signal }: { signal?: AbortSignal }) =>
@@ -458,20 +577,17 @@ export function useWorkspaceFileRecord(
 }
 
 /**
- * Back the file content source's image-dimension capability with workspace file metadata. Each
- * embedded image is resolved by the storage key or file id its `src` carries — from any cached
- * read of the file, else one batched lookup — so a stored image reserves its box before it
- * downloads without the workspace's whole file list. The adapter takes a new identity whenever
- * a lookup of this workspace lands, which re-runs the node views' dimension reads: on a cold
- * direct file-view load the first read misses and the second, once the lookup resolves, hits.
+ * Back the file content source's image-dimension capability with workspace file metadata: each
+ * embedded image resolves by the storage key or file id its `src` carries — from any cached read
+ * of the file, else one batched lookup — so it reserves its box before it downloads. The adapter
+ * takes a new identity when a lookup it asked for lands, re-running the node views' reads (on a
+ * cold load the first read misses; the one after the lookup resolves hits).
  *
- * Persists the browser's measured dimensions when they're absent or disagree with what's stored —
- * an overwrite, so a stale value (left over after a content swap, or a non-EXIF-corrected one)
- * self-corrects rather than sticking. The write is fire-and-forget and de-duped (an exact-match
- * cache check plus mismatch-only reporting from the caller), so it never storms, never blocks
- * render, and never touches the collaborative document. `options.enabled` turns it off for
- * callers that supply their own content source (the public share page, whose `workspaceId` is
- * a share token that would 404).
+ * Persists the browser's measured dimensions when absent or different from what's stored — an
+ * overwrite, so a stale value self-corrects. The write is fire-and-forget and de-duped, never
+ * blocks render, and never touches the collaborative document. `options.enabled` turns it off
+ * for callers with their own content source (the public share page, whose `workspaceId` is a
+ * share token).
  */
 export function useWorkspaceImageDimensionsAdapter(
   workspaceId: string,
@@ -479,21 +595,28 @@ export function useWorkspaceImageDimensionsAdapter(
 ): ImageDimensionsSource {
   const queryClient = useQueryClient()
   const enabled = Boolean(workspaceId) && (options?.enabled ?? true)
+  /**
+   * A count of the lookups this adapter asked for that have landed. A counter rather than
+   * `useIsFetching`: a lookup's fetching-to-settled flip can land between two renders, which
+   * would leave the reads that missed it never re-run.
+   */
   const versionRef = useRef(0)
+  /** The lookups this adapter warmed, by query hash; only their landing re-runs the reads. */
+  const requestedRef = useRef<Set<string> | null>(null)
+  requestedRef.current ??= new Set()
   const subscribe = useCallback(
     (onChange: () => void) =>
       queryClient.getQueryCache().subscribe((event) => {
         if (
           event.type === 'updated' &&
           event.action.type === 'success' &&
-          event.query.queryKey[1] === 'lookup' &&
-          event.query.queryKey[2] === workspaceId
+          requestedRef.current?.delete(event.query.queryHash)
         ) {
           versionRef.current += 1
           onChange()
         }
       }),
-    [queryClient, workspaceId]
+    [queryClient]
   )
   const version = useSyncExternalStore(
     subscribe,
@@ -513,6 +636,7 @@ export function useWorkspaceImageDimensionsAdapter(
       if (resolved !== undefined) return resolved ?? undefined
       const cached = lookup.initialData?.()
       if (cached) return cached
+      requestedRef.current?.add(hashKey(lookup.queryKey))
       queueMicrotask(() => void queryClient.prefetchQuery(lookup))
       return undefined
     }
@@ -532,10 +656,13 @@ export function useWorkspaceImageDimensionsAdapter(
         if (!record || (record.width === dimensions.width && record.height === dimensions.height))
           return
         // Populate every cached read so this and sibling views reserve space immediately.
-        updateCachedWorkspaceFile(queryClient, workspaceId, record.id, (entry) => ({
-          ...entry,
-          ...dimensions,
-        }))
+        updateCachedWorkspaceFile(
+          queryClient,
+          workspaceId,
+          record.id,
+          (entry) => ({ ...entry, ...dimensions }),
+          EVERY_WORKSPACE_FILE_READ
+        )
         void requestJson(updateWorkspaceFileDimensionsContract, {
           params: { id: workspaceId, fileId: record.id },
           // Send the key we measured against; the server rejects the write if the row's content (key) has
@@ -576,20 +703,31 @@ class StaleStorageKeyError extends Error {
   }
 }
 
-/** The mounted metadata reads of a workspace — whichever one handed the reader its storage key. */
-function activeWorkspaceFileReads(workspaceId: string) {
-  return { ...workspaceFileMetadataFilter(workspaceId), type: 'active' as const }
+/**
+ * The reads that can have handed a content reader `fileId`'s storage key: its record (which a
+ * list row seeds) and the lookups that resolved to it.
+ */
+function fileAddressFilter(workspaceId: string, fileId: string) {
+  const record = hashKey(workspaceFilesKeys.record(workspaceId, fileId))
+  const lookups = workspaceFilesKeys.workspaceLookups(workspaceId)
+  return {
+    predicate: (query: { queryHash: string; queryKey: QueryKey; state: { data: unknown } }) =>
+      query.queryHash === record ||
+      (lookups.every((segment, index) => query.queryKey[index] === segment) &&
+        isRecordLike(query.state.data) &&
+        query.state.data.id === fileId),
+  }
 }
 
 /**
- * Re-resolve a workspace's file records after a read found its storage key superseded.
+ * Re-resolve a file's address after a read found its storage key superseded.
  *
- * The key a content read addresses comes from a cached record — the file's own, or the list,
- * search, or lookup the reader opened it from — and nothing invalidates those when a write rotates
- * the key: the collaborative relay projects an open document back to markdown every few seconds,
- * entirely server-side, so an open tab's key can be replaced many times over without a single
- * client-visible event. Recovering on the 404 makes the rotation cost one refetch of the mounted
- * reads instead of stranding the reader on a dead key until a full reload.
+ * The key a content read addresses comes from a cached record — the file's own, seeded from the
+ * list the reader opened it from, or a lookup that resolved to it — and nothing invalidates those
+ * when a write rotates the key: the collaborative relay projects an open document back to
+ * markdown every few seconds, entirely server-side, so an open tab's key can be replaced many
+ * times over without a single client-visible event. Recovering on the 404 makes the rotation
+ * cost a refetch of the file's own mounted reads instead of stranding the reader on a dead key.
  *
  * Re-reads the RECORD, never the failed query: the refetched record either hands back a new key —
  * which re-keys the read onto a fresh cache entry that fetches once — or the same one, in which case
@@ -601,11 +739,11 @@ function activeWorkspaceFileReads(workspaceId: string) {
  * on the dead key showing a failure until something unrelated (a window focus, another consumer)
  * happens to re-resolve the record.
  */
-function useStaleKeyRecovery(workspaceId: string): (error: unknown) => void {
+function useStaleKeyRecovery(workspaceId: string, fileId: string): (error: unknown) => void {
   const queryClient = useQueryClient()
   return useCallback(
     (error: unknown) => {
-      if (!workspaceId || !(error instanceof StaleStorageKeyError)) return
+      if (!workspaceId || !fileId || !(error instanceof StaleStorageKeyError)) return
       // Off this fetch's own cycle (one microtask): a refetch asked for from inside a `queryFn` — where
       // this catch sits — is dropped by react-query, silently. This is what turned "one extra request"
       // into "no recovery at all".
@@ -613,10 +751,13 @@ function useStaleKeyRecovery(workspaceId: string): (error: unknown) => void {
       // `cancelRefetch` because a re-resolution has to OBSERVE the rotation: a record read already in
       // flight was started before it, so it can only hand back the key we already know is dead.
       void Promise.resolve().then(() =>
-        queryClient.refetchQueries(activeWorkspaceFileReads(workspaceId), { cancelRefetch: true })
+        queryClient.refetchQueries(
+          { ...fileAddressFilter(workspaceId, fileId), type: 'active' },
+          { cancelRefetch: true }
+        )
       )
     },
-    [queryClient, workspaceId]
+    [queryClient, workspaceId, fileId]
   )
 }
 
@@ -664,7 +805,7 @@ export function useWorkspaceFileContent(
   }
 ): WorkspaceFileContentResult {
   const source = useFileContentSource()
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
   const query = useQuery({
     queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
     queryFn: async ({ signal }) => {
@@ -683,7 +824,7 @@ export function useWorkspaceFileContent(
   })
   return {
     data: query.data,
-    ...useStaleKeyRecoveryState(workspaceId, query.isLoading, query.error),
+    ...useStaleKeyRecoveryState(workspaceId, fileId, query.isLoading, query.error),
   }
 }
 
@@ -710,10 +851,11 @@ export interface WorkspaceFileContentResult {
  */
 function useStaleKeyRecoveryState(
   workspaceId: string,
+  fileId: string,
   isLoading: boolean,
   error: unknown
 ): { isLoading: boolean; error: Error | null } {
-  const resolvingRecord = useIsFetching(workspaceFileMetadataFilter(workspaceId))
+  const resolvingRecord = useIsFetching(fileAddressFilter(workspaceId, fileId))
   const recovering = error instanceof StaleStorageKeyError && resolvingRecord > 0
   return {
     isLoading: isLoading || recovering,
@@ -778,7 +920,7 @@ export function useWorkspaceFileBinary(
   options?: { enabled?: boolean; version?: string | number }
 ) {
   const source = useFileContentSource()
-  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId, fileId)
   return useQuery({
     queryKey:
       options?.version != null
@@ -969,12 +1111,28 @@ export function useUpdateWorkspaceFileContent() {
         body,
       })
     },
+    /**
+     * The saved record is the response: written through to the file's record and every read that
+     * holds it in place, since a content write moves no file between folders or out of a search.
+     * Lists are refetched — a size or update-time sort may move it — and so are folder sizes.
+     */
+    onSuccess: (data, { workspaceId, fileId }) => {
+      updateCachedWorkspaceFile(
+        queryClient,
+        workspaceId,
+        fileId,
+        () => data.file,
+        EVERY_WORKSPACE_FILE_READ
+      )
+      void invalidateWorkspaceFileListings(queryClient, workspaceId, { folderStats: true })
+      void queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+    },
     /** A lost response may follow a committed write; reconcile bytes and versions even after transport errors. */
-    onSettled: (_data, _error, variables) => {
+    onSettled: (_data, error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
-      void invalidateAfterFileWrite(queryClient, variables.workspaceId)
+      if (error) void invalidateAfterFileWrite(queryClient, variables.workspaceId)
     },
     onError: (error) => {
       logger.error('Failed to update file content:', error)
@@ -1023,6 +1181,17 @@ interface RenameFileParams {
   name: string
 }
 
+/** What a rename rewrites in place: the reads that address the file by identity. */
+const RENAME_PATCHED_READS: readonly PatchableWorkspaceFileRead[] = ['identityLookup', 'record']
+
+/** What a delete drops the file from: every live read but its own record. */
+const DELETE_PATCHED_READS: readonly PatchableWorkspaceFileRead[] = [
+  'list',
+  'search',
+  'identityLookup',
+  'referenceLookup',
+]
+
 export function useRenameWorkspaceFile() {
   const queryClient = useQueryClient()
 
@@ -1032,19 +1201,41 @@ export function useRenameWorkspaceFile() {
         params: { id: workspaceId, fileId },
         body: { name },
       }),
+    /**
+     * The new name shows at once wherever the file is addressed by identity — its record, its
+     * id and key lookups. Lists, searches, and name references are not rewritten: the new name
+     * can move the file in a name-sorted list or out of a search, so they are refetched once the
+     * rename lands, and the returned promise settles after the mounted ones have.
+     */
     onMutate: async ({ workspaceId, fileId, name }) => {
       await queryClient.cancelQueries(workspaceFileMetadataFilter(workspaceId))
-      const previous = snapshotWorkspaceFileReads(queryClient, workspaceId)
-      updateCachedWorkspaceFile(queryClient, workspaceId, fileId, (file) => ({ ...file, name }))
+      const previous = snapshotWorkspaceFileReads(queryClient, workspaceId, RENAME_PATCHED_READS)
+      updateCachedWorkspaceFile(
+        queryClient,
+        workspaceId,
+        fileId,
+        (file) => ({ ...file, name }),
+        RENAME_PATCHED_READS
+      )
       return { previous }
+    },
+    onSuccess: (data, { workspaceId, fileId }) => {
+      updateCachedWorkspaceFile(
+        queryClient,
+        workspaceId,
+        fileId,
+        () => data.file,
+        RENAME_PATCHED_READS
+      )
     },
     onError: (error, _variables, context) => {
       if (context) restoreWorkspaceFileReads(queryClient, context.previous)
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: (_data, _error, variables) => {
-      void invalidateWorkspaceFileReads(queryClient, variables.workspaceId)
-    },
+    onSettled: (_data, error, { workspaceId }) =>
+      error
+        ? invalidateWorkspaceFileReads(queryClient, workspaceId)
+        : invalidateWorkspaceFileListings(queryClient, workspaceId),
   })
 }
 
@@ -1066,8 +1257,8 @@ export function useDeleteWorkspaceFile() {
       }),
     onMutate: async ({ workspaceId, fileId }) => {
       await queryClient.cancelQueries(workspaceFileMetadataFilter(workspaceId))
-      const previous = snapshotWorkspaceFileReads(queryClient, workspaceId)
-      updateCachedWorkspaceFile(queryClient, workspaceId, fileId, () => null)
+      const previous = snapshotWorkspaceFileReads(queryClient, workspaceId, DELETE_PATCHED_READS)
+      updateCachedWorkspaceFile(queryClient, workspaceId, fileId, () => null, DELETE_PATCHED_READS)
       return { previous }
     },
     onError: (error, _variables, context) => {

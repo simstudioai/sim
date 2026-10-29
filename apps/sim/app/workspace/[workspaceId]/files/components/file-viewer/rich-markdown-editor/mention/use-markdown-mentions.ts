@@ -1,21 +1,13 @@
 import { useMemo } from 'react'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
-import { workspaceFileListParams } from '@/hooks/queries/utils/workspace-file-keys'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
-import { useWorkspaceFileList, useWorkspaceFileSearch } from '@/hooks/queries/workspace-files'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
 import { mentionIcon } from './mention-icon'
 import type { MentionItem } from './types'
-
-/** The files the menu offers before anything is typed: the most recently updated anywhere. */
-const RECENT_FILES = workspaceFileListParams({ sortBy: 'updatedAt', sortOrder: 'desc', limit: 50 })
-
-const FILE_SEARCH_LIMIT = 50
 
 /**
  * Aggregates the workspace-scoped entities the `@` menu can reference, composing the canonical
@@ -37,14 +29,9 @@ export function useMarkdownMentions(
   const ws = active ? workspaceId : undefined
   const wsStr = ws ?? ''
 
-  const fileQuery = useDebounce(options.fileQuery?.trim() ?? '', SEARCH_DEBOUNCE_MS)
-  const recentFiles = useWorkspaceFileList(wsStr, RECENT_FILES, { enabled: active })
-  const matchingFiles = useWorkspaceFileSearch(
-    wsStr,
-    { q: fileQuery, limit: FILE_SEARCH_LIMIT },
-    { enabled: active }
-  )
-  const files = fileQuery ? matchingFiles.data : recentFiles.data?.pages[0]?.files
+  const { files } = useWorkspaceFilePickerOptions(wsStr, options.fileQuery ?? '', {
+    enabled: active,
+  })
   const folders = useWorkspaceFileFolders(wsStr, 'active')
   const tables = useTablesList(ws, 'active')
   const knowledgeBases = useKnowledgeBasesQuery(ws, { enabled: active })
