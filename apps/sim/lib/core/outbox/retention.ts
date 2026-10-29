@@ -68,10 +68,21 @@ const PRUNABLE_OUTBOX_EVENT_TYPES = [
 export const OUTBOX_PRUNE_PASS_MAX_MS = 60 * 60_000
 
 /**
+ * `created_at::text` under PostgreSQL's ISO date style, to the microsecond. A stored value that is
+ * not a real calendar time fails the round trip here instead of the batch's `::timestamp` cast.
+ */
+const postgresTimestampSchema = z.string().refine((value) => {
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?$/.test(value)) return false
+  const seconds = value.slice(0, 19).replace(' ', 'T')
+  const parsed = new Date(`${seconds}Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(seconds)
+})
+
+/**
  * Where a type's pass resumes: the creation time, as PostgreSQL prints it so no microseconds are
  * lost, and id of the last row the previous batch deleted.
  */
-const resumePointSchema = z.object({ createdAt: z.string(), id: z.string() })
+const resumePointSchema = z.object({ createdAt: postgresTimestampSchema, id: z.string() })
 const pruneCursorSchema = resumePointSchema.extend({ passStartedAt: z.number() })
 
 type ResumePoint = z.infer<typeof resumePointSchema>

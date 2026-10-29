@@ -260,6 +260,20 @@ describe('completed outbox retention in PostgreSQL', () => {
         },
         0,
       ],
+      [
+        'the cursor names no real creation time',
+        async (client: Redis) => {
+          await client.set(
+            `outbox-prune-cursor:v1:${RECOVER}`,
+            JSON.stringify({
+              createdAt: '2026-02-30 00:00:00',
+              id: 'row:1',
+              passStartedAt: Date.now(),
+            })
+          )
+        },
+        0,
+      ],
     ])('starts again from the oldest row when %s', async (_, corrupt, laterMs) => {
       const client = resumeThroughRedis()
       await seedFullBatchPlusOne(RECOVER)
