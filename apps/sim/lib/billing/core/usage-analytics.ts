@@ -87,9 +87,10 @@ export function buildUsageAnalyticsScope(
    * entity predicates above are — so a workspace belonging to another organization
    * narrows to nothing rather than disclosing anything.
    *
-   * `workspace_id` is not in `usage_log_billing_entity_created_at_cost_idx`, so a
-   * narrowed read heap-fetches per row in the window. That is the cost the Workspaces
-   * tab already pays to rank its list, and it is only ever paid inside a drill-down.
+   * A narrowed read over a `created_at` window is index-only on
+   * `usage_log_workspace_created_at_cost_idx`, which carries the entity and every
+   * column the series and the member, source and workflow rankings read, so it scans
+   * the workspace's rows in the window rather than the organization's.
    */
   workspaceId?: string
 ): SQL[] {

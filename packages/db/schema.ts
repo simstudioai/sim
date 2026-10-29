@@ -6115,9 +6115,27 @@ export const usageLog = pgTable(
         (${table.billingEntityType} IS NOT NULL AND ${table.billingEntityId} IS NOT NULL AND ${table.billingPeriodStart} IS NOT NULL AND ${table.billingPeriodEnd} IS NOT NULL AND ${table.billingPeriodStart} < ${table.billingPeriodEnd})
       )`
     ),
-    workspaceCreatedAtIdx: index('usage_log_workspace_created_at_idx').on(
+    /**
+     * Serves the Workspaces drill-down index-only: every analytics read narrowed to
+     * one workspace (entity + `workspace_id` + a `created_at` window) reads its
+     * totals, series, and member, source and workflow rankings from here, and skips
+     * the workspace's rows billed to another entity without a heap fetch.
+     *
+     * `workspace_id` and `created_at` lead so the scan is bounded by the
+     * workspace's rows in the window rather than its organization's, and so the
+     * reads that name only the workspace keep their order: the `workspace_id`
+     * foreign key's `ON DELETE SET NULL`, and the ledger list filtered to a
+     * workspace. The entity and everything after it are payload.
+     */
+    workspaceCreatedAtCostIdx: index('usage_log_workspace_created_at_cost_idx').on(
       table.workspaceId,
-      table.createdAt
+      table.createdAt,
+      table.billingEntityType,
+      table.billingEntityId,
+      table.userId,
+      table.source,
+      table.cost,
+      table.workflowId
     ),
     executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
   })
