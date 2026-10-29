@@ -1,21 +1,25 @@
-import { MAX_WORKSPACE_FILE_LOOKUP_ENTRIES } from '@/lib/api/contracts/workspace-files'
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
+import {
+  type FolderPathFilter,
+  loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
+} from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import {
   collectDescendantFolderIdsFrom,
   indexFolderChildren,
   resolveFolderScope,
 } from '@/lib/folders/subtree'
+import { attachShares } from '@/lib/public-shares/attach'
 import { getWorkspaceShares, getWorkspaceSharesForResources } from '@/lib/public-shares/manager'
 import {
   aggregateWorkspaceFileFolderUsage,
-  findActiveWorkspaceFilesByKeys,
   findListedWorkspaceFiles,
   listWorkspaceFiles,
   loadActiveWorkspaceContext,
+  lookupActiveWorkspaceFiles,
   queryWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
@@ -71,10 +75,24 @@ async function resolveListWorkspaceFileContext(workspaceId: string) {
   return workspace
 }
 
+/**
+ * The active file folder tree, capped the way the workflow, table, and knowledge lists cap
+ * theirs. A truncated index would not fail — it would silently lose folders, so a real folder
+ * outside the read rows would resolve to nothing and its page would come back empty. The cap
+ * turns that into the same 413 the sibling lists answer.
+ */
+function loadFileFolderIndex(workspaceId: string) {
+  return loadActiveFolderPathIndex(workspaceId, 'file', undefined, {
+    maxRows: MAX_FOLDERS_PER_WORKSPACE,
+  })
+}
+
 async function listAllWithShares(workspaceId: string, scope: ListAllWorkspaceFilesInput['scope']) {
-  const files = await listWorkspaceFiles(workspaceId, { scope })
-  const shares = await getWorkspaceShares('file', workspaceId)
-  return { files: files.map((file) => ({ ...file, share: shares.get(file.id) ?? null })) }
+  const [files, shares] = await Promise.all([
+    listWorkspaceFiles(workspaceId, { scope }),
+    getWorkspaceShares('file', workspaceId),
+  ])
+  return { files: attachShares(files, shares) }
 }
 
 /** Attaches public share state to a bounded set of files, reading only their shares. */
@@ -84,7 +102,7 @@ async function withShares(workspaceId: string, files: WorkspaceFileRecord[]) {
     workspaceId,
     files.map((file) => file.id)
   )
-  return files.map((file) => ({ ...file, share: shares.get(file.id) ?? null }))
+  return attachShares(files, shares)
 }
 
 export const listAllWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
@@ -125,46 +143,24 @@ export interface LookupWorkspaceFilesInput {
  * a VFS path, or a bare name) in one call, under list authorization. Each resolved file
  * appears once in `files`; `references` reports, per reference in request order, the id it
  * resolved to or `null`. Ids and keys of another workspace's files, deleted files, chat uploads,
- * and owned files are simply absent.
+ * and owned files are simply absent. The route's contract caps each list.
  */
 export const lookupWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.list,
   resolveContext: ({ input }: { input: LookupWorkspaceFilesInput }) =>
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
-    const ids = [...new Set(input.ids ?? [])]
-    const keys = [...new Set(input.keys ?? [])]
     const references = [...new Set(input.references ?? [])]
-    for (const list of [ids, keys, references]) {
-      if (list.length > MAX_WORKSPACE_FILE_LOOKUP_ENTRIES) {
-        throw new OrchestrationError(
-          'validation',
-          `A lookup accepts at most ${MAX_WORKSPACE_FILE_LOOKUP_ENTRIES} ids, keys, or references each`
-        )
-      }
-    }
-    const [byId, byKey, byReference] = await Promise.all([
-      ids.length === 0
-        ? []
-        : queryWorkspaceFiles(context.workspaceId, {
-            scope: 'active',
-            fileIds: ids,
-            sortBy: 'name',
-            sortOrder: 'asc',
-            limit: ids.length,
-          }).then((page) => page.files),
-      findActiveWorkspaceFilesByKeys(context.workspaceId, keys),
-      findListedWorkspaceFiles(context.workspaceId, references),
-    ])
-    const files = new Map<string, WorkspaceFileRecord>()
-    for (const file of [...byId, ...byKey, ...byReference.values()]) {
-      if (file && !files.has(file.id)) files.set(file.id, file)
-    }
+    const found = await lookupActiveWorkspaceFiles(context.workspaceId, {
+      ids: [...new Set(input.ids ?? [])],
+      keys: [...new Set(input.keys ?? [])],
+      references,
+    })
     return {
-      files: await withShares(context.workspaceId, [...files.values()]),
+      files: await withShares(context.workspaceId, found.files),
       references: references.map((reference) => ({
         reference,
-        fileId: byReference.get(reference)?.id ?? null,
+        fileId: found.references.get(reference)?.id ?? null,
       })),
     }
   },
@@ -186,38 +182,34 @@ export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase(
   resolveContext: ({ input }: { input: GetWorkspaceFileFolderStatsInput }) =>
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file', undefined, {
-      maxRows: MAX_FOLDERS_PER_WORKSPACE,
-    })
-    const rows = [...folderIndex.rowById.values()]
+    const folderIndex = await loadFileFolderIndex(context.workspaceId)
     if (input.parentId !== null && !folderIndex.rowById.has(input.parentId)) {
       return { folders: [] }
     }
+    const rows = [...folderIndex.rowById.values()]
+    /** One child index for every subtree: `resolveFolderScope` would rebuild it per child. */
     const childrenByParent = indexFolderChildren(rows)
-    const children = rows
+    const subtrees = rows
       .filter((row) => (row.parentId ?? null) === input.parentId)
-      .map((row) => row.id)
-    const subtrees = new Map(
-      children.map((childId) => [
-        childId,
-        [childId, ...collectDescendantFolderIdsFrom(childrenByParent, childId)],
-      ])
+      .map((row) => ({
+        folderId: row.id,
+        ids: [row.id, ...collectDescendantFolderIdsFrom(childrenByParent, row.id)],
+      }))
+    const usage = await aggregateWorkspaceFileFolderUsage(
+      context.workspaceId,
+      subtrees.flatMap((subtree) => subtree.ids)
     )
-    const usage = await aggregateWorkspaceFileFolderUsage(context.workspaceId, [
-      ...new Set([...subtrees.values()].flat()),
-    ])
     return {
-      folders: children.map((folderId) => {
-        let fileCount = 0
-        let sizeBytes = 0
-        for (const id of subtrees.get(folderId) ?? []) {
-          const held = usage.get(id)
-          if (!held) continue
-          fileCount += held.fileCount
-          sizeBytes += held.sizeBytes
-        }
-        return { folderId, fileCount, sizeBytes }
-      }),
+      folders: subtrees.map(({ folderId, ids }) =>
+        ids.reduce(
+          (total, id) => ({
+            folderId,
+            fileCount: total.fileCount + (usage.get(id)?.fileCount ?? 0),
+            sizeBytes: total.sizeBytes + (usage.get(id)?.sizeBytes ?? 0),
+          }),
+          { folderId, fileCount: 0, sizeBytes: 0 }
+        )
+      ),
     }
   },
 })
@@ -239,32 +231,24 @@ async function readWorkspaceFilePage(
       'Specify only one of folderPath, folderScope, or folderId'
     )
   }
-  /**
-   * Capped the way the workflow, table, and knowledge lists cap theirs. A
-   * truncated index does not fail — it silently loses paths, and the only
-   * consumer here is the `folderPath` filter, so a real folder outside the
-   * read rows would resolve to nothing and the caller would get an empty page
-   * for a folder that has files in it. The cap turns that into the same 413
-   * the sibling lists answer.
-   */
+  // The folder tree, when a filter needs it, also hydrates the page's folder paths.
+  let folderIndex: Awaited<ReturnType<typeof loadFileFolderIndex>> | undefined
   let folderId: string | null | string[] | undefined
-  if (input.folderPath !== undefined) {
-    const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', undefined, {
-      maxRows: MAX_FOLDERS_PER_WORKSPACE,
-    })
-    const folderFilter = resolveFolderPathFilter(folderIndex, input.folderPath)
-    if (folderFilter.kind === 'noMatch') return { files: [], nextKeys: null }
-    folderId = resolveFolderScope(folderIndex, folderFilter, input.recursive)
-  } else if (input.folderId !== undefined) {
-    if (input.folderId === null || !input.recursive) {
-      folderId = input.recursive ? undefined : input.folderId
-    } else {
-      const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', undefined, {
-        maxRows: MAX_FOLDERS_PER_WORKSPACE,
-      })
-      if (!folderIndex.rowById.has(input.folderId)) return { files: [], nextKeys: null }
-      folderId = resolveFolderScope(folderIndex, { kind: 'folder', folderId: input.folderId }, true)
+  if (input.folderPath !== undefined || input.folderId !== undefined) {
+    folderIndex = await loadFileFolderIndex(workspaceId)
+    const folderFilter: FolderPathFilter =
+      input.folderPath !== undefined
+        ? resolveFolderPathFilter(folderIndex, input.folderPath)
+        : { kind: 'folder', folderId: input.folderId ?? null }
+    // A subtree is the active tree's; a folder outside it has none, so its recursive page is empty.
+    const outsideTree =
+      folderFilter.kind === 'folder' &&
+      folderFilter.folderId !== null &&
+      !folderIndex.rowById.has(folderFilter.folderId)
+    if (folderFilter.kind === 'noMatch' || (outsideTree && input.recursive)) {
+      return { files: [], nextKeys: null }
     }
+    folderId = resolveFolderScope(folderIndex, folderFilter, input.recursive)
   }
 
   const { files, nextKeys } = await queryWorkspaceFiles(workspaceId, {
@@ -278,6 +262,11 @@ async function readWorkspaceFilePage(
     sortOrder: input.sortOrder,
     limit: input.limit,
     after: input.after,
+    // The active tree covers every folder a live file sits in; an archived page reads the whole tree.
+    folders:
+      folderIndex && (input.scope ?? 'active') === 'active'
+        ? [...folderIndex.rowById.values()]
+        : undefined,
   })
   return { files, nextKeys }
 }

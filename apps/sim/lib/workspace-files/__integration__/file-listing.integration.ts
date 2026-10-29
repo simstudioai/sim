@@ -464,15 +464,6 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         { reference: 'files/Foreign/report.txt', fileId: null },
       ])
     })
-
-    it('refuses more than the per-list cap', async () => {
-      await expect(
-        lookupWorkspaceFiles.execute({
-          principal: session(alice),
-          input: { workspaceId, ids: Array.from({ length: 101 }, (_, n) => `wf_${n}`) },
-        })
-      ).rejects.toMatchObject({ code: 'validation' })
-    })
   })
 
   describe('folder stats', () => {

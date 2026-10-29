@@ -1,4 +1,5 @@
 import { listWorkspaceFilesContract } from '@/lib/api/contracts/workspace-files'
+import { attachShares } from '@/lib/public-shares/attach'
 import { getWorkspaceShares } from '@/lib/public-shares/manager'
 import {
   listWorkspaceFiles,
@@ -39,6 +40,5 @@ export async function listWorkspaceFilesWithShares(
   ])
   if (maxRows !== undefined && files.length > maxRows) return null
 
-  const withShares = files.map((file) => ({ ...file, share: shares.get(file.id) ?? null }))
-  return listWorkspaceFilesContract.response.schema.shape.files.parse(withShares)
+  return listWorkspaceFilesContract.response.schema.shape.files.parse(attachShares(files, shares))
 }

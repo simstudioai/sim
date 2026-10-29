@@ -1,5 +1,6 @@
 import {
   createWorkspaceFileContract,
+  DEFAULT_WORKSPACE_FILE_PAGE_SIZE,
   listWorkspaceFilesContract,
   WORKSPACE_FILE_PAGE_PARAMS,
 } from '@/lib/api/contracts/workspace-files'
@@ -24,8 +25,6 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
-const DEFAULT_WORKSPACE_FILE_PAGE_SIZE = 100
-
 export const dynamic = 'force-dynamic'
 
 /** Every param that changes which files, in which order, a page walk returns. */
@@ -35,7 +34,7 @@ function fileCursorFilters(
 ) {
   return cursorScopeKey(cursorRoute(listWorkspaceFilesContract, { id: workspaceId }), {
     scope: query.scope,
-    folderId: query.folderId === null ? 'root' : query.folderId,
+    folderId: query.folderId,
   })
 }
 
@@ -47,6 +46,8 @@ export const GET = defineInternalJsonRoute({
   contract: listWorkspaceFilesContract,
   auth: internalSessionAuth,
   operation: fileOperations.list,
+  // One policy per route: paged requests share the unpaged list's exemption until the builder
+  // can choose a policy per request.
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal file-list behavior' }),
   errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, query }) => {

@@ -10,7 +10,7 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { V2_SEARCH_MAX_LENGTH } from '@/lib/api/contracts/v2/shared'
+import { V2_SEARCH_MAX_LENGTH, v2LimitSchema } from '@/lib/api/contracts/v2/shared'
 import { LIST_SORT_ORDERS } from '@/lib/api/list-query'
 
 /**
@@ -34,6 +34,9 @@ const WORKSPACE_FILE_SORT_FIELDS = ['name', 'size', 'uploadedAt', 'updatedAt'] a
 
 /** The largest page `GET /api/workspaces/[id]/files` serves when paging. */
 const MAX_WORKSPACE_FILE_PAGE_SIZE = 500
+
+/** The page size a paged list request that omits `limit` gets. */
+export const DEFAULT_WORKSPACE_FILE_PAGE_SIZE = 100
 
 /** A folder filter in the browser's addressing: `root` for the workspace root, else a folder id. */
 const workspaceFileFolderFilterSchema = z
@@ -209,8 +212,12 @@ const workspaceFileSuccessSchema = z.object({
   success: z.boolean(),
 })
 
-const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
+/** The body every file-list read answers with. */
+const workspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
   files: z.array(workspaceFileRecordSchema),
+})
+
+const listWorkspaceFilesResponseSchema = workspaceFilesResponseSchema.extend({
   /** Present only on a paged request: the next page's cursor, `null` on the last page. */
   nextCursor: z.string().nullable().optional(),
 })
@@ -234,41 +241,33 @@ export const listWorkspaceFilesContract = defineRouteContract({
   },
 })
 
-const MAX_WORKSPACE_FILE_SEARCH_RESULTS = 50
-
 const searchWorkspaceFilesQuerySchema = z.object({
+  /**
+   * A term of one or two characters holds no trigram, so it cannot use the name index and
+   * scans the workspace's live files; three or more probe `workspace_files_workspace_name_trgm_idx`.
+   */
   q: z.string().trim().min(1, 'q cannot be empty').max(V2_SEARCH_MAX_LENGTH, 'q is too long'),
   /** Confine the search to this folder (`root` for the workspace root). Omit to search everywhere. */
   folderId: workspaceFileFolderFilterSchema.optional(),
   /** Whether the folder's subfolders are searched too. Ignored without `folderId`. */
   recursive: booleanQueryFlagSchema.default(true),
-  limit: z.coerce
-    .number({ error: 'limit must be a number' })
-    .int('limit must be a whole number')
-    .min(1, 'limit must be at least 1')
-    .max(
-      MAX_WORKSPACE_FILE_SEARCH_RESULTS,
-      `limit cannot exceed ${MAX_WORKSPACE_FILE_SEARCH_RESULTS}`
-    )
-    .default(20),
+  limit: v2LimitSchema({ max: 50, fallback: 20, description: 'Maximum files to return.' }),
 })
 
-const searchWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
-  /** Live files whose name contains `q` (case-insensitive), by name; each carries `folderPath`. */
-  files: z.array(workspaceFileRecordSchema),
-})
-
-/** GET — case-insensitive file-name search within a workspace, optionally within one folder. */
+/**
+ * GET — case-insensitive file-name search within a workspace, optionally within one folder:
+ * live files whose name contains `q`, by name, each carrying `folderPath`.
+ */
 export const searchWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files/search',
   params: workspaceFilesParamsSchema,
   query: searchWorkspaceFilesQuerySchema,
-  response: { mode: 'json', schema: searchWorkspaceFilesResponseSchema },
+  response: { mode: 'json', schema: workspaceFilesResponseSchema },
 })
 
 /** The most entries each of a lookup's `ids`, `keys`, and `references` may carry. */
-export const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
+const MAX_WORKSPACE_FILE_LOOKUP_ENTRIES = 100
 
 const lookupEntriesSchema = (field: string) =>
   z
@@ -296,9 +295,8 @@ const lookupWorkspaceFilesBodySchema = z
     { message: 'Provide at least one id, key, or reference' }
   )
 
-const lookupWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
-  /** Every live file any id, key, or reference resolved to, once each. Misses are absent. */
-  files: z.array(workspaceFileRecordSchema),
+/** `files` holds every live file any id, key, or reference resolved to, once each. */
+const lookupWorkspaceFilesResponseSchema = workspaceFilesResponseSchema.extend({
   /** Per requested reference, in request order (deduplicated): the file it resolved to, or `null`. */
   references: z.array(z.object({ reference: z.string(), fileId: z.string().nullable() })),
 })

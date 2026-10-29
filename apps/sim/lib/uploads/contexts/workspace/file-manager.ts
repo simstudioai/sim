@@ -30,7 +30,6 @@ import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import {
   type CursorKey,
-  classifyTimestampCursor,
   encodeKeyset,
   INVALID_CURSOR_MESSAGE,
   type KeysetKey,
@@ -39,11 +38,10 @@ import {
   type ListSortOrder,
   listOrderBy,
   numberKey,
-  preciseTimestampKey,
   preciseTimestampText,
+  resumableTimestampKey,
   searchFilter,
   textKey,
-  timestampKey,
 } from '@/lib/api/list-query'
 import {
   lockWorkspaceStorageForMutationInTx,
@@ -1823,38 +1821,26 @@ export async function listWorkspaceFiles(
   }
 }
 
-/**
- * A page row: the listing columns plus each timestamp key's full-precision cursor text (see
- * {@link preciseTimestampText}), so the keyset orders and compares on the raw column.
- */
-const workspaceFilePageColumns = {
-  ...workspaceFileListColumns,
-  uploadedAtCursor: preciseTimestampText(workspaceFiles.uploadedAt),
-  updatedAtCursor: preciseTimestampText(workspaceFiles.updatedAt),
+/** The column each timestamp sort orders on. */
+const TIMESTAMP_SORT_COLUMNS = {
+  uploadedAt: workspaceFiles.uploadedAt,
+  updatedAt: workspaceFiles.updatedAt,
 } as const
 
-type WorkspaceFilePageRow = WorkspaceFileListRow & {
-  uploadedAtCursor: string
-  updatedAtCursor: string
+/**
+ * A page row: the listing columns plus, under a timestamp sort, that column's full-precision
+ * cursor text (see {@link resumableTimestampKey}); other sorts select an empty placeholder.
+ */
+function workspaceFilePageColumns(sortBy: V2FileSortBy) {
+  const column =
+    sortBy === 'uploadedAt' || sortBy === 'updatedAt' ? TIMESTAMP_SORT_COLUMNS[sortBy] : null
+  return {
+    ...workspaceFileListColumns,
+    timestampCursor: column ? preciseTimestampText(column) : sql<string>`''`,
+  }
 }
 
-/**
- * A timestamp sort key on the raw column, so an index on `(…, <column>, id)` serves both the
- * order and the cursor seek. A cursor minted before that carries a millisecond date (see
- * {@link classifyTimestampCursor}) and was read under millisecond-truncated ordering; resuming
- * it under the raw ordering would skip or repeat rows sharing that millisecond, so it keeps the
- * truncated key it was minted under, as does every cursor its walk mints.
- */
-function fileTimestampKey(
-  column: typeof workspaceFiles.uploadedAt | typeof workspaceFiles.updatedAt,
-  read: (row: WorkspaceFilePageRow) => Date,
-  readCursor: (row: WorkspaceFilePageRow) => string,
-  after: CursorKey[] | undefined
-): KeysetKey<WorkspaceFilePageRow> {
-  return after !== undefined && classifyTimestampCursor(after[0]) === 'date'
-    ? timestampKey(column, read)
-    : preciseTimestampKey(column, readCursor)
-}
+type WorkspaceFilePageRow = WorkspaceFileListRow & { timestampCursor: string }
 
 /**
  * The keyset behind {@link queryFileRecords}' sortable fields. The `Record` makes it total over
@@ -1862,7 +1848,8 @@ function fileTimestampKey(
  *
  * Every key column is `NOT NULL`, and `id` closes each keyset so a page boundary inside a run of
  * equal names/sizes/timestamps is still stable. The name key bounds its scan so a later page
- * seeks the `(owner, folder, original_name)` index instead of filtering down from its top.
+ * seeks the `(owner, folder, original_name)` index instead of filtering down from its top; the
+ * timestamp keys order on the raw column for the upload-order indexes (see `schema.ts`).
  */
 function workspaceFileSortKeys(
   sortBy: V2FileSortBy,
@@ -1880,17 +1867,17 @@ function workspaceFileSortKeys(
         (row) => getWorkspaceFileSize(row)
       ),
     uploadedAt: () =>
-      fileTimestampKey(
+      resumableTimestampKey(
         workspaceFiles.uploadedAt,
         (row) => row.uploadedAt,
-        (row) => row.uploadedAtCursor,
+        (row) => row.timestampCursor,
         after
       ),
     updatedAt: () =>
-      fileTimestampKey(
+      resumableTimestampKey(
         workspaceFiles.updatedAt,
         (row) => row.updatedAt,
-        (row) => row.updatedAtCursor,
+        (row) => row.timestampCursor,
         after
       ),
   }
@@ -1922,19 +1909,18 @@ export interface QueryWorkspaceFilesOptions {
   limit: number
   /** Keyset values from a cursor, in the sort's key order. */
   after?: CursorKey[]
+  /**
+   * Folder rows to resolve the page's folder paths from, for a caller that already read the
+   * tree; they must cover every folder a returned file can sit in. Omitted, the owner's whole
+   * folder tree is read when the page holds a foldered file.
+   */
+  folders?: readonly Pick<WorkspaceFileFolderRecord, 'id' | 'name' | 'parentId'>[]
 }
 
 export interface QueryWorkspaceFilesResult {
   files: WorkspaceFileRecord[]
   /** Keyset values to resume from, or `null` when this page is the last one. */
   nextKeys: CursorKey[] | null
-}
-
-/** The folder predicate for {@link QueryWorkspaceFilesOptions.folderId}'s three shapes. */
-function workspaceFileFolderCondition(
-  folderId: string | null | readonly string[] | undefined
-): SQL | undefined {
-  return folderId === undefined ? undefined : workspaceFileFolderIdCondition(folderId)
 }
 
 /**
@@ -2003,7 +1989,7 @@ export async function queryFileRecords<const O extends EditableFileOwner>(
       : scope === 'archived'
         ? isNotNull(workspaceFiles.deletedAt)
         : isNull(workspaceFiles.deletedAt),
-    workspaceFileFolderCondition(folderId),
+    folderId === undefined ? undefined : workspaceFileFolderIdCondition(folderId),
     workspaceFileFolderScopeCondition(folderScope),
     name === undefined ? undefined : eq(workspaceFiles.originalName, name),
     searchFilter(workspaceFiles.originalName, search),
@@ -2011,7 +1997,7 @@ export async function queryFileRecords<const O extends EditableFileOwner>(
   ]
 
   const rows: WorkspaceFilePageRow[] = await client
-    .select(workspaceFilePageColumns)
+    .select(workspaceFilePageColumns(sortBy))
     .from(workspaceFiles)
     .where(and(...conditions))
     .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
@@ -2019,10 +2005,10 @@ export async function queryFileRecords<const O extends EditableFileOwner>(
 
   const hasMore = rows.length > limit
   const page = rows.slice(0, limit)
-  const folders = page.some((file) => file.folderId)
-    ? await listFileFolders(owner, { scope: 'all' }, client)
-    : []
-  const paths = buildWorkspaceFileFolderPathMap(folders)
+  const folders = !page.some((file) => file.folderId)
+    ? []
+    : (options.folders ?? (await listFileFolders(owner, { scope: 'all' }, client)))
+  const paths = buildWorkspaceFileFolderPathMap([...folders])
   const files = page.map((file) => mapFileRecord(file, owner, paths))
   const last = page.at(-1)
 
@@ -2298,36 +2284,51 @@ export async function findListedWorkspaceFiles(
   workspaceId: string,
   fileReferences: readonly string[]
 ): Promise<Map<string, WorkspaceFileRecord | null>> {
+  if (fileReferences.length === 0) return new Map()
+  const candidates = await listWorkspaceFileCandidates(
+    workspaceId,
+    referenceCandidates(fileReferences)
+  )
+  return resolveListedReferences(candidates, fileReferences)
+}
+
+/** The ids and display-name keys {@link findWorkspaceFileRecord} can match `references` by. */
+function referenceCandidates(references: readonly string[]) {
   const ids = new Set<string>()
   const leafNames = new Set<string>()
-  for (const reference of fileReferences) {
+  for (const reference of references) {
     const segments = normalizeWorkspaceFileReferenceSegments(reference)
     ids.add(reference)
     ids.add(segments.join('/'))
     const leaf = segments.at(-1)
     if (leaf !== undefined) leafNames.add(normalizeDisplaySegment(leaf))
   }
-  const candidates =
-    fileReferences.length === 0
-      ? []
-      : await listWorkspaceFileReferenceCandidates(workspaceId, [...ids], [...leafNames])
+  return { ids: [...ids], leafNames: [...leafNames] }
+}
+
+function resolveListedReferences(
+  candidates: WorkspaceFileRecord[],
+  references: readonly string[]
+): Map<string, WorkspaceFileRecord | null> {
   return new Map(
-    fileReferences.map((reference) => [reference, findWorkspaceFileRecord(candidates, reference)])
+    references.map((reference) => [reference, findWorkspaceFileRecord(candidates, reference)])
   )
 }
 
 /**
- * The live workspace files {@link findWorkspaceFileRecord} can match for a set of references:
- * those whose id is one of `ids`, or whose name displays as one of `leafNames`. Each of its
- * rules requires one of the two, so it picks the same file from these rows as from the whole
- * workspace — read through `workspace_files_workspace_display_name_idx` instead of every file
- * the workspace has.
+ * The live workspace files whose id is one of `ids`, whose storage key is one of `keys`, or
+ * whose name displays as one of `leafNames`, oldest upload first, with folder paths.
+ *
+ * {@link findWorkspaceFileRecord}'s rules each require an id or a display-name match, so it picks
+ * the same file from these rows as from the whole workspace, and extra rows matched by `keys`
+ * change nothing. Read through the primary key, `workspace_files_key_active_unique`, and
+ * `workspace_files_workspace_display_name_idx` instead of every file the workspace has.
  */
-async function listWorkspaceFileReferenceCandidates(
+async function listWorkspaceFileCandidates(
   workspaceId: string,
-  ids: string[],
-  leafNames: string[]
+  match: { ids: readonly string[]; keys?: readonly string[]; leafNames: readonly string[] }
 ): Promise<WorkspaceFileRecord[]> {
+  const keys = match.keys ?? []
   const rows = await db
     .select(workspaceFileListColumns)
     .from(workspaceFiles)
@@ -2335,10 +2336,11 @@ async function listWorkspaceFileReferenceCandidates(
       and(
         workspaceFileScopeCondition(workspaceId, 'active'),
         or(
-          inArray(workspaceFiles.id, ids),
-          leafNames.length === 0
+          match.ids.length === 0 ? undefined : inArray(workspaceFiles.id, [...match.ids]),
+          keys.length === 0 ? undefined : inArray(workspaceFiles.key, [...keys]),
+          match.leafNames.length === 0
             ? undefined
-            : inArray(displaySegmentKey(workspaceFiles.originalName), leafNames)
+            : inArray(displaySegmentKey(workspaceFiles.originalName), [...match.leafNames])
         )
       )
     )
@@ -2347,26 +2349,34 @@ async function listWorkspaceFileReferenceCandidates(
 }
 
 /**
- * The live workspace files stored under any of `keys`, read through
- * `workspace_files_key_active_unique`. Chat uploads and owned files are never matched, and a key
- * belonging to another workspace matches nothing.
+ * Live workspace files by id, by storage key, and by reference (resolved as
+ * {@link findListedWorkspaceFiles} resolves it), from one read and one folder-path hydration.
+ * `files` holds each match once, oldest upload first. Another workspace's ids and keys, deleted
+ * files, chat uploads, and owned files never match.
  */
-export async function findActiveWorkspaceFilesByKeys(
+export async function lookupActiveWorkspaceFiles(
   workspaceId: string,
-  keys: readonly string[]
-): Promise<WorkspaceFileRecord[]> {
-  if (keys.length === 0) return []
-  const rows = await db
-    .select(workspaceFileListColumns)
-    .from(workspaceFiles)
-    .where(
-      and(
-        workspaceFileScopeCondition(workspaceId, 'active'),
-        inArray(workspaceFiles.key, [...keys])
-      )
-    )
-    .orderBy(workspaceFiles.uploadedAt, workspaceFiles.id)
-  return hydrateWorkspaceFilePaths(rows, workspaceId)
+  lookup: { ids: readonly string[]; keys: readonly string[]; references: readonly string[] }
+): Promise<{ files: WorkspaceFileRecord[]; references: Map<string, WorkspaceFileRecord | null> }> {
+  if (lookup.ids.length + lookup.keys.length + lookup.references.length === 0) {
+    return { files: [], references: new Map() }
+  }
+  const byReference = referenceCandidates(lookup.references)
+  const candidates = await listWorkspaceFileCandidates(workspaceId, {
+    ids: [...lookup.ids, ...byReference.ids],
+    keys: lookup.keys,
+    leafNames: byReference.leafNames,
+  })
+  const references = resolveListedReferences(candidates, lookup.references)
+  const ids = new Set(lookup.ids)
+  const keys = new Set(lookup.keys)
+  const resolved = new Set([...references.values()].map((file) => file?.id))
+  return {
+    files: candidates.filter(
+      (file) => ids.has(file.id) || keys.has(file.key) || resolved.has(file.id)
+    ),
+    references,
+  }
 }
 
 export interface WorkspaceFileFolderUsage {
@@ -2378,11 +2388,9 @@ export interface WorkspaceFileFolderUsage {
  * Live file count and stored bytes held directly in each of `folderIds` (not their subfolders),
  * as one grouped read. Folders holding no live file are absent from the result.
  *
- * The predicate is the live workspace-file indexes' own — `workspace_id`, `context`, and
- * `deleted_at` — with no `project_id`/`organization_id` terms, which
- * `workspace_files_owner_check` already rules out once `workspace_id` is set. The folder key
- * seeks `workspace_files_workspace_folder_uploaded_idx`; `size_bytes` is read from the heap,
- * which an occasional rollup can afford and which keeps size changes out of that index.
+ * The predicate is the live workspace-file indexes' own, with no `project_id`/`organization_id`
+ * terms (`workspace_files_owner_check` rules both out once `workspace_id` is set), so the folder
+ * key seeks `workspace_files_workspace_folder_uploaded_idx`; see its note in `schema.ts`.
  */
 export async function aggregateWorkspaceFileFolderUsage(
   workspaceId: string,
