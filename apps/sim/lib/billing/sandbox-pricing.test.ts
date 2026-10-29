@@ -28,6 +28,18 @@ describe('sandbox pricing', () => {
     expect(priceSandboxUsage(pricing, 3_600_000, 3_600_000).rawCost).toBeCloseTo(0.117, 8)
   })
 
+  it.each([
+    ['e2b', 0.3312],
+    ['daytona', 0.33228],
+  ] as const)(
+    'prices one hour of the Pi sandbox on %s at its build resources',
+    (provider, expected) => {
+      const pricing = createSandboxPricing(provider, 'pi', 1)
+
+      expect(priceSandboxUsage(pricing, 3_600_000, 3_600_000).rawCost).toBeCloseTo(expected, 8)
+    }
+  )
+
   it('applies the multiplier once and rounds the final cost to eight decimals', () => {
     const pricing = createSandboxPricing('e2b', 'code', 1.75)
 

@@ -4,6 +4,11 @@ import {
   FUNCTION_SANDBOX_CPU_COUNT,
   FUNCTION_SANDBOX_MEMORY_GB,
 } from '@/lib/execution/remote-sandbox/function-resources'
+import {
+  PI_DAYTONA_DISK_GB,
+  PI_SANDBOX_CPU_COUNT,
+  PI_SANDBOX_MEMORY_GB,
+} from '@/lib/execution/remote-sandbox/pi-resources'
 import type { SandboxKind, SandboxProviderId } from '@/lib/execution/remote-sandbox/types'
 
 const E2B_CPU_USD_PER_VCPU_SECOND = 0.000014
@@ -53,6 +58,7 @@ const PRICING_BY_PROVIDER: Record<SandboxProviderId, ProviderPricing> = {
       // The Mothership template is built without explicit resources, so E2B runs it on its
       // default 2 vCPU and 1 GiB.
       mothership: { vcpu: 2, memoryGiB: 1, diskGiB: 0 },
+      pi: { vcpu: PI_SANDBOX_CPU_COUNT, memoryGiB: PI_SANDBOX_MEMORY_GB, diskGiB: 0 },
     },
     rates: {
       cpuUsdPerVcpuSecond: E2B_CPU_USD_PER_VCPU_SECOND,
@@ -65,6 +71,13 @@ const PRICING_BY_PROVIDER: Record<SandboxProviderId, ProviderPricing> = {
       vcpu: FUNCTION_SANDBOX_CPU_COUNT,
       memoryGiB: FUNCTION_SANDBOX_MEMORY_GB,
       diskGiB: FUNCTION_DAYTONA_DISK_GB,
+    },
+    resourcesByKind: {
+      pi: {
+        vcpu: PI_SANDBOX_CPU_COUNT,
+        memoryGiB: PI_SANDBOX_MEMORY_GB,
+        diskGiB: PI_DAYTONA_DISK_GB,
+      },
     },
     rates: {
       cpuUsdPerVcpuSecond: DAYTONA_CPU_USD_PER_VCPU_SECOND,
