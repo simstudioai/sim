@@ -81,6 +81,10 @@ services:
       dockerfile: docker/db.Dockerfile
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      # Seals account tokens stored before sealing was on; a no-op until ENCRYPTION_KEY is
+      # 64 hex characters. ENCRYPT_ACCOUNT_TOKENS=false opts out here and on the app.
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - ENCRYPT_ACCOUNT_TOKENS=${ENCRYPT_ACCOUNT_TOKENS:-}
     depends_on:
       db:
         condition: service_healthy

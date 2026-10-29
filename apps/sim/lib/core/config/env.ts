@@ -144,7 +144,7 @@ export const env = createEnv({
     TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
-    ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Seal OAuth access/refresh tokens on write (read by @sim/db); takes effect only with a 64-hex ENCRYPTION_KEY. Enable only once every app, worker, and background-task deployment runs a release that reads sealed tokens
+    ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Opt-out: OAuth access/refresh tokens are sealed on write (read by @sim/db) and backfilled by migrate whenever ENCRYPTION_KEY is 64 hex characters; false or 0 writes plaintext. Sealed tokens need v0.9.33+ on every process that reads them
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
     INTERNAL_JWT_SECRET:                   z.string().min(32).optional(),          // Dedicated signing key for internal JWTs (falls back to INTERNAL_API_SECRET); separating limits blast radius if one leaks
 

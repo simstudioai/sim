@@ -227,6 +227,8 @@ PROFILE=gpu  # or cpu
 docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d --build
 ```
 
+Never roll back below v0.9.33 once account tokens are sealed: those releases cannot read them, and every connected account would have to be reconnected. See [Account token sealing](/platform/self-hosting/security#account-token-sealing).
+
 **Rollback after an incompatible schema change** requires restoring the pre-upgrade database backup. This loses writes made since the snapshot. Stop all writers before restoring:
 
 1. Stop traffic and all processes that can write to the database, including the app, realtime service, scheduled jobs, and any background workers.
@@ -270,6 +272,10 @@ Migrations are Drizzle SQL files plus registered script (data) migrations, appli
 
 Migrations are **forward-only**. Take the backup described in the upgrade procedure before applying them; there are no down-migrations.
 
+<Callout type="warn">
+  Upgrading from a release older than v0.9.33 with a rolling deploy leaves old pods running next to new ones for a while. Old pods cannot read sealed account tokens, so integrations can fail on them until the rollout finishes. The `migrate` backfill waits an hour after such an upgrade before it seals stored tokens, but tokens the new pods write are sealed straight away. To avoid that window, upgrade to v0.9.33 first, stop the old pods before starting the new ones, or set `ENCRYPT_ACCOUNT_TOKENS=false` for the upgrade and remove it once every pod runs the new release.
+</Callout>
+
 Migrations apply in sequence, so skipping several releases at once generally works mechanically. It is riskier — those combinations get less testing, and you take several releases' worth of behavior changes in one step. Upgrade in smaller increments where you can.
 
 ### How concurrent replicas are handled
@@ -289,6 +295,7 @@ These control the migrator and are set on the `migrations` container, not the ap
 | Variable | Purpose |
 |---|---|
 | `MIGRATION_DATABASE_URL` | A **direct, non-pooled** database connection URL (DSN). Falls back to `DATABASE_URL`. Setting it also arms the backend-pid check that aborts the run if the session — and with it the advisory lock — is silently recycled mid-migration; with only `DATABASE_URL` set, that check is skipped |
+| `ENCRYPTION_KEY`, `ENCRYPT_ACCOUNT_TOKENS` | Let the migrator seal account tokens stored before [account token sealing](/platform/self-hosting/security#account-token-sealing) was on. The Helm init container reads both from the app Secret, and the Compose `migrations` services pass the `.env` values. Without a usable key the step stays pending and does nothing |
 
 <Callout type="warn">
   Set `MIGRATION_DATABASE_URL` if anything sits between Sim and Postgres. Session advisory locks and session-level `SET`s do not survive PgBouncer transaction pooling — the lock silently does not hold, and consecutive statements can land on different backends. Point it at the database directly, bypassing the pooler.
@@ -299,7 +306,7 @@ Supply the migration URL separately from the app URL:
 
 | Deployment | How to pass `MIGRATION_DATABASE_URL` |
 |---|---|
-| Helm | The init container reads only the database Secret. Include the key in a Secret supplied through `postgresql.auth.existingSecret` or `externalDatabase.existingSecret`; `app.env` does not reach it. The chart-managed database Secret carries only the password, and there is no dedicated values key for the migration URL |
+| Helm | The init container reads the database Secret, plus only `ENCRYPTION_KEY` and `ENCRYPT_ACCOUNT_TOKENS` from the app Secret. Include the key in a Secret supplied through `postgresql.auth.existingSecret` or `externalDatabase.existingSecret`; `app.env` does not reach it. The chart-managed database Secret carries only the password, and there is no dedicated values key for the migration URL |
 | Compose | Add the variable to the `migrations` service's explicit `environment:` list. Setting it in `.env` alone does not pass it to that service |
 | Separate migration run | Run the migration image yourself with a direct DSN before upgrading |
 

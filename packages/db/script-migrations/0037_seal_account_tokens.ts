@@ -1,7 +1,15 @@
 import { account } from '@sim/db/schema'
-import { openText, readEncryptionKey, sealedTextContext, sealText } from '@sim/db/sealed-text'
+import { type ScriptMigration, ScriptMigrationDeferred } from '@sim/db/script-migrations/types'
+import {
+  accountTokenSealingDisabledReason,
+  openText,
+  readEncryptionKey,
+  sealedTextContext,
+  sealText,
+} from '@sim/db/sealed-text'
 import { createLogger } from '@sim/logger'
 import { sealedKeyId, sealingKeyId } from '@sim/security/encryption'
+import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import type { Sql } from 'postgres'
 
@@ -18,7 +26,7 @@ interface AccountTokenSealingOptions {
   /** Counts the rows that would change without writing any. */
   dryRun?: boolean
   batchSize?: number
-  /** Pause between batches, which keeps the backfill off the write path's latency. */
+  /** Pause after each batch that rewrote rows, which keeps the backfill off the write path's latency. */
   pauseMs?: number
 }
 
@@ -129,8 +137,64 @@ export async function sealAccountTokens(
     }
 
     logger.info('Account token batch processed', { mode, dryRun, afterId, ...result })
-    if (pauseMs > 0) await sleep(pauseMs)
+    if (pauseMs > 0 && changes.length > 0 && !dryRun) await sleep(pauseMs)
   }
 
   return result
+}
+
+/** Recorded by the migrate step of v0.9.33, the first release whose processes read sealed tokens. */
+const SEALED_READER_RELEASE_MIGRATION = '0036_archive_legacy_scheduled_jobs'
+
+/**
+ * How long after an upgrade from a release older than v0.9.33 the backfill waits, so a rolling
+ * deploy has replaced every process that cannot read sealed tokens before all of them are sealed.
+ */
+const SEALED_READER_ROLLOUT_GRACE = '1 hour'
+
+/**
+ * The lock and statement timeouts a batch sets on itself; either leaves the rest for the next run.
+ * An operator's cancel (`user_cancel`) is not one of them, so it fails the run visibly.
+ */
+const BATCH_TIMEOUTS = new Set(['lock_timeout', 'statement_timeout'])
+
+/**
+ * Seals the account tokens stored before this deployment sealed its writes, during `migrate`.
+ * Defers, leaving itself unrecorded, while writes would still store plaintext (sealing opted out,
+ * or no usable `ENCRYPTION_KEY` on the migrations container), so it runs once an operator enables
+ * sealing. Also defers within the rollout grace after an upgrade from a release that cannot read
+ * sealed tokens, and when a batch times out on a lock: an unfinished pass resumes on the next run,
+ * which is safer than failing the deploy over a backfill that reads never need.
+ */
+export const sealAccountTokensMigration: ScriptMigration = {
+  name: '0037_seal_account_tokens',
+  async up(sql) {
+    const disabledReason = accountTokenSealingDisabledReason()
+    if (disabledReason) {
+      throw new ScriptMigrationDeferred(`account token writes are unsealed: ${disabledReason}`)
+    }
+    const [marker] = await sql<{ recent: boolean }[]>`
+      SELECT applied_at > now() - ${SEALED_READER_ROLLOUT_GRACE}::interval AS recent
+      FROM script_migrations WHERE name = ${SEALED_READER_RELEASE_MIGRATION}
+    `
+    if (marker?.recent) {
+      throw new ScriptMigrationDeferred(
+        `v0.9.33, the first release that reads sealed tokens, migrated this database less than ${SEALED_READER_ROLLOUT_GRACE} ago`
+      )
+    }
+    try {
+      const result = await sealAccountTokens(sql, {
+        mode: 'seal',
+        expectedKeyId: sealingKeyId(readEncryptionKey()),
+      })
+      if (result.foreignKey > 0) {
+        logger.warn('Account tokens sealed under another key were left as they are', result)
+      }
+      logger.info('Account token backfill finished', result)
+    } catch (error) {
+      const reason = getPostgresCancellationReason(error)
+      if (!reason || !BATCH_TIMEOUTS.has(reason)) throw error
+      throw new ScriptMigrationDeferred(`an account token batch hit its ${reason}`)
+    }
+  },
 }

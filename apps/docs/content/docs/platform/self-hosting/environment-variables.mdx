@@ -16,14 +16,14 @@ Production Compose derives `DATABASE_URL` and `BETTER_AUTH_URL` on its service d
 | `DATABASE_URL` | PostgreSQL connection string |
 | `BETTER_AUTH_SECRET` | Auth secret, at least 32 characters: `openssl rand -hex 32`. **Must be identical on the app and realtime services** |
 | `BETTER_AUTH_URL` | Your app URL — must be the real public origin, not `localhost` |
-| `ENCRYPTION_KEY` | Encryption key, exactly 64 hex characters (32 bytes): `openssl rand -hex 32` |
+| `ENCRYPTION_KEY` | Encryption key, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. A key in any other format leaves [account token sealing](/platform/self-hosting/security#account-token-sealing) off |
 | `INTERNAL_API_SECRET` | Internal API secret, at least 32 characters: `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | Public app URL |
 
 `openssl rand -hex 32` prints 64 hex characters. Encryption keys require that format. The app skips its env schema validation; individual consumers can reject invalid values when first used. Realtime validates `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` at boot and rejects values shorter than 32 characters.
 
 <Callout type="error">
-  Retain `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` across upgrades and restores. There is no supported in-place key rotation procedure; losing a key makes values encrypted with it unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
+  Retain `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` across upgrades and restores. There is no supported in-place key rotation procedure; losing a key makes values encrypted with it unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, connected-account OAuth tokens, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
 </Callout>
 
 ## Feature prerequisites and coordination [#strongly-recommended]
@@ -39,6 +39,7 @@ Production Compose derives `DATABASE_URL` and `BETTER_AUTH_URL` on its service d
 | `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
 | `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Defaults to the public base URL. The Trigger.dev worker ignores it and uses the public app URL. |
 | `SIM_MCP_URL` | Public URL of the [Sim MCP server](/mcp/overview) when you serve it on its own host, e.g. `https://mcp.example.com/mcp`. Point that host at the app; Sim serves only the MCP endpoint and its OAuth metadata there, and stops serving `/api/mcp` on the app host so clients use one URL. Optional — defaults to `<NEXT_PUBLIC_APP_URL>/api/mcp` |
+| `ENCRYPT_ACCOUNT_TOKENS` | Set to `false` to stop sealing connected-account OAuth tokens on write and during `migrate`. Sealing is on by default with a 64-hex `ENCRYPTION_KEY`; see [Account token sealing](/platform/self-hosting/security#account-token-sealing) |
 | `DATABASE_REPLICA_URL` | Read-replica connection string for log listing, audit logs, and dashboard aggregations. Falls back to the primary when unset |
 
 ## AI providers

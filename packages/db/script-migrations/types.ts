@@ -20,6 +20,11 @@ import type { Sql } from 'postgres'
  *   script from the registry in the same PR instead.
  * - **Owns its transactions.** The runner deliberately does not wrap `up` in
  *   one: backfills commit per batch and cannot be rolled back wholesale.
+ * - **May defer.** A migration that needs a configuration the deployment may
+ *   not have yet throws {@link ScriptMigrationDeferred}: nothing is recorded,
+ *   later migrations still run, and the runner tries it again on every run
+ *   until it applies. No later migration may depend on the work of one that
+ *   can defer.
  */
 export interface ScriptMigration {
   /** Unique stable identifier recorded in `script_migrations`; never rename after release. */
@@ -34,4 +39,12 @@ export interface ScriptMigration {
    * blocking lock acquisitions wait instead of aborting with `55P03`.
    */
   up(sql: Sql): Promise<void>
+}
+
+/** Thrown by `up` to leave a migration unrecorded, without failing the run, until a later run. */
+export class ScriptMigrationDeferred extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'ScriptMigrationDeferred'
+  }
 }

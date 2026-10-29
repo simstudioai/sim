@@ -28,7 +28,6 @@ function emptyAccountTable() {
 describe('runSealAccountTokens', () => {
   beforeEach(() => {
     vi.stubEnv('ENCRYPTION_KEY', ENCRYPTION_KEY)
-    vi.stubEnv('ENCRYPT_ACCOUNT_TOKENS', 'true')
     databaseMockFns.mockResolveDbUrl.mockReturnValue('postgresql://fixture/sim')
     mockPostgres.mockReset()
     mockPostgres.mockImplementation(emptyAccountTable)
@@ -48,12 +47,18 @@ describe('runSealAccountTokens', () => {
     expect(mockPostgres).not.toHaveBeenCalled()
   })
 
-  it('refuses to seal while this worker writes plaintext tokens, before connecting', async () => {
+  it('seals by default once the worker holds a usable key', async () => {
+    await expect(
+      runSealAccountTokens({ mode: 'seal', dryRun: false, expectedKeyId: WORKER_KEY_ID })
+    ).resolves.toEqual({ keyId: WORKER_KEY_ID, scanned: 0, pending: 0, updated: 0, foreignKey: 0 })
+  })
+
+  it('refuses to seal while this worker opts out of sealing, before connecting', async () => {
     vi.stubEnv('ENCRYPT_ACCOUNT_TOKENS', 'false')
 
     await expect(
       runSealAccountTokens({ mode: 'seal', dryRun: false, expectedKeyId: WORKER_KEY_ID })
-    ).rejects.toThrow('ENCRYPT_ACCOUNT_TOKENS is not enabled')
+    ).rejects.toThrow('Refusing to seal: ENCRYPT_ACCOUNT_TOKENS is false')
     expect(mockPostgres).not.toHaveBeenCalled()
   })
 
