@@ -131,9 +131,9 @@ import {
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
-  routeWindowScans,
-  windowCount,
-  windowCounts,
+  routeWindowTallies,
+  windowTallies,
+  windowTally,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import {
   MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
@@ -278,9 +278,7 @@ function arrange(
         : []
     )
     if (!options.contentIncomplete) {
-      windowCounts.push(
-        windowCount({ owned: options.existingDocument ? 2 : 1, listed: 1, soft: 0, hard: 0 })
-      )
+      windowTallies.push(windowTally({ owned: options.existingDocument ? 2 : 1, listed: 1 }))
     }
     if (!options.finishedPass || !options.contentIncomplete)
       queueTableRows(schemaMock.document, [{ count: 1 }])
@@ -367,7 +365,7 @@ describe('member engine with a dedicated content credential', () => {
   beforeEach(() => {
     resetEnvFlagsMock()
     resetDbChainMock()
-    routeWindowScans()
+    routeWindowTallies()
   })
 
   it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
@@ -855,7 +853,7 @@ describe('member engine with a dedicated content credential', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    routeWindowScans()
+    routeWindowTallies()
     const retry = arrange({
       members: true,
       memberContent: true,
