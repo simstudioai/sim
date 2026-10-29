@@ -238,7 +238,15 @@ try {
       const approvalResponse = await approval
       assert.equal(approvalResponse.status(), 200, await approvalResponse.text())
       await expect(modal.getByRole('textbox', { name: 'Summary', exact: true })).toHaveCount(1)
+      const cancellation = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PATCH' &&
+          response.url().endsWith(`/actions/${secondCallId}`),
+        { timeout: 180_000 }
+      )
       await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
+      const cancellationResponse = await cancellation
+      assert.equal(cancellationResponse.status(), 200, await cancellationResponse.text())
       await expect(modal.getByText('No actions are waiting for review.')).toBeVisible()
       const rows =
         await sql`select tool_call_id, permission_decision, args, approved_args, execution_started_at from copilot_async_tool_calls where run_id = ${runId} order by persist_seq`
