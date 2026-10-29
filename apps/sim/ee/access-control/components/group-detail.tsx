@@ -1588,7 +1588,9 @@ export function GroupDetail({
                   <div className='flex items-center justify-between gap-3'>
                     <span className='text-[var(--text-muted)] text-small'>
                       {members.length === 0
-                        ? 'Applies to all members of its workspaces. Add members to restrict it to specific people.'
+                        ? group.membershipMode === 'inherit'
+                          ? 'Applies to all members of its workspaces. Add members to restrict it to specific people.'
+                          : 'No members assigned.'
                         : `Restricted to ${members.length} member${members.length === 1 ? '' : 's'}`}
                     </span>
                     <Chip

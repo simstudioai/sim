@@ -916,6 +916,98 @@ async function run() {
     }
   )
 
+  for (const method of ['POST', 'PUT', 'PATCH'] as const) {
+    for (const enabled of [true, false]) {
+      await check(
+        `Group ${method} honors name matching changed to ${enabled} while waiting for the organization lock`,
+        async () => {
+          const policyId = generateId()
+          const name = `SCIM E2E ${method} concurrent ${enabled}`
+          let directoryGroupId: string | undefined
+          await sql`insert into permission_group (id, organization_id, name, created_by)
+          values (${policyId}, ${primary.orgId}, ${name}, ${primary.ownerId})`
+          try {
+            await admin(primary, '', {
+              method: 'PUT',
+              body: { settings: { autoMapPermissionGroupsByName: !enabled } },
+            })
+            if (method !== 'POST') {
+              const created = await scim(token, '/Groups', {
+                method: 'POST',
+                expected: 201,
+                body: {
+                  schemas: [GROUP_SCHEMA],
+                  displayName: `${name} before`,
+                  members: [{ value: aliceId }],
+                },
+              })
+              directoryGroupId = string(created.body.id)
+            }
+            let writing: Promise<unknown> | undefined
+            try {
+              await sql.begin(async (tx) => {
+                const [holder] = await tx`select pg_backend_pid() as pid,
+                pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${primary.orgId}`}, 0))`
+                writing =
+                  method === 'PATCH'
+                    ? patch(
+                        token,
+                        `/Groups/${directoryGroupId}`,
+                        [{ op: 'replace', path: 'displayName', value: name }],
+                        204
+                      )
+                    : scim(token, method === 'POST' ? '/Groups' : `/Groups/${directoryGroupId}`, {
+                        method,
+                        expected: method === 'POST' ? 201 : 200,
+                        body: {
+                          schemas: [GROUP_SCHEMA],
+                          displayName: name,
+                          members: [{ value: aliceId }],
+                        },
+                      }).then((result) => {
+                        directoryGroupId = string(result.body.id)
+                      })
+                void writing.catch(() => {})
+                const deadline = performance.now() + 4000
+                for (;;) {
+                  const waiting = await sql`select pid from pg_stat_activity
+                  where wait_event = 'advisory' and ${holder.pid} = any(pg_blocking_pids(pid))`
+                  if (waiting.length > 0) break
+                  assert(
+                    performance.now() < deadline,
+                    'The group write must reach the organization lock'
+                  )
+                  await sleep(10)
+                }
+                await tx`update scim_connection
+                set settings = settings || ${tx.json({ autoMapPermissionGroupsByName: enabled })}::jsonb
+                where organization_id = ${primary.orgId}`
+              })
+            } finally {
+              await writing
+            }
+            assert(directoryGroupId, 'The group write must return its identifier')
+            const mappings = await sql`select id from scim_group_mapping
+            where group_id = ${directoryGroupId} and permission_group_id = ${policyId}`
+            assert.equal(
+              mappings.length,
+              enabled ? 1 : 0,
+              'The committed name-matching setting must govern the group write'
+            )
+          } finally {
+            if (directoryGroupId)
+              await scim(token, `/Groups/${directoryGroupId}`, { method: 'DELETE', expected: 204 })
+            await sql`delete from permission_group where id = ${policyId}`
+            await admin(primary, '', {
+              method: 'PUT',
+              body: { settings: { autoMapPermissionGroupsByName: false } },
+            })
+          }
+        }
+      )
+    }
+  }
+
   await check(
     'Group removal honors membership locking enabled while the request waits for the organization lock',
     async () => {

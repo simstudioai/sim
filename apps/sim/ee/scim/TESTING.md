@@ -74,6 +74,8 @@ timeout.
   by conflict recovery and reconciliation.
 - A concurrent membership-lock change while a group removal waits on the
   organization lock; withdrawal uses the committed setting.
+- Concurrent name-matching changes while POST, PUT, and PATCH wait on the
+  organization lock; mapping uses the committed setting in both toggle directions.
 - Managed-membership enforcement through the actual batch invitation and
   workspace permission APIs, including successful edits to unmanaged members.
 - Session revocation on deactivation and permanent OAuth grant revocation on
@@ -125,9 +127,10 @@ the admission operation and Enterprise entitlement reads through PostgreSQL.
 
 The real PostgreSQL/Redis suite
 `lib/mothership/request/application/removal-stops-runs.integration.ts` verifies
-that deactivation writes durable Stops for admitted Chat runs, reactivation cannot
-revive those runs, an existing account first provisioned inactive is stopped,
-and a rolled-back suspension emits no durable or delivered Stop.
+that deactivation writes durable Stops for admitted Chat runs, including concurrent
+interactive and headless admission. Reactivation cannot revive those runs or a
+headless run admitted during suspension. An existing account first provisioned
+inactive is stopped, and a rolled-back suspension emits no durable or delivered Stop.
 
 ## Verification dates and limits
 

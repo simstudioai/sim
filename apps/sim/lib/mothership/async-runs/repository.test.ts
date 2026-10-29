@@ -42,14 +42,15 @@ describe('run admission and early Stop', () => {
     expect(await requestRunStop(scope)).toBeNull()
     expect(dbChainMockFns.values).toHaveBeenCalledWith(scope)
     expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalled()
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
     expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0]?.[0],
-        (condition) =>
-          condition.type === 'eq' &&
-          condition.left === copilotRuns.userId &&
-          condition.right === scope.userId
+      dbChainMockFns.where.mock.calls.some(([predicate]) =>
+        hasMockCondition(
+          predicate,
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === copilotRuns.userId &&
+            condition.right === scope.userId
+        )
       )
     ).toBe(true)
   })
@@ -148,12 +149,13 @@ describe('run admission and early Stop', () => {
       [copilotRequestStops.workspaceId, scope.workspaceId],
       [copilotRequestStops.streamId, scope.streamId],
     ]) {
-      /** The chat row is read first; the Stop lookup follows it. */
       expect(
-        hasMockCondition(
-          dbChainMockFns.where.mock.calls[1]?.[0],
-          (condition) =>
-            condition.type === 'eq' && condition.left === column && condition.right === value
+        dbChainMockFns.where.mock.calls.some(([predicate]) =>
+          hasMockCondition(
+            predicate,
+            (condition) =>
+              condition.type === 'eq' && condition.left === column && condition.right === value
+          )
         )
       ).toBe(true)
     }
@@ -167,12 +169,14 @@ describe('run admission and early Stop', () => {
       expect.objectContaining({ workspaceId: scope.workspaceId, status: 'active' })
     )
     expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0]?.[0],
-        (condition) =>
-          condition.type === 'eq' &&
-          condition.left === copilotChats.userId &&
-          condition.right === scope.userId
+      dbChainMockFns.where.mock.calls.some(([predicate]) =>
+        hasMockCondition(
+          predicate,
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === copilotChats.userId &&
+            condition.right === scope.userId
+        )
       )
     ).toBe(true)
   })

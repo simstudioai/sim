@@ -805,6 +805,128 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     expect(await runControl(freshRun)).toEqual(LIVE)
   })
 
+  it.each(['interactive', 'headless'] as const)(
+    'stops a concurrent %s admission when directory suspension races its insert',
+    async (kind) => {
+      const ownerId = await seedUser()
+      const { organizationId, workspaceId } = await seedOrganization(ownerId)
+      const directory = await seedDirectory(organizationId, { workspaceId })
+      const suspended = await seedDirectoryMember(directory.connectionId, organizationId)
+      await directory.setGroupMembers([suspended.scimUserId])
+      const chatId = await seedChat(suspended.userId, workspaceId)
+      const setActive = (active: boolean) =>
+        patchScimUser.execute({
+          principal: directory.principal,
+          input: {
+            scimUserId: suspended.scimUserId,
+            operations: [{ op: 'replace', path: 'active', value: active }],
+          },
+        })
+      const admit = async () => {
+        if (kind === 'headless') {
+          return (await admitHeadlessRun(suspended.userId, chatId, workspaceId)).seeded
+        }
+        const streamId = generateId()
+        const runId = generateId()
+        testStreams.add(streamId)
+        const sendClaim = { normalizedKey: `run-removal:${generateId()}`, claimToken: generateId() }
+        await db
+          .insert(idempotencyKey)
+          .values({ key: sendClaim.normalizedKey, result: { claimToken: sendClaim.claimToken } })
+        expect(await acquirePendingChatStream(chatId, streamId, 0)).toBe(true)
+        const lease = getLocalChatStreamLease(chatId, streamId)
+        if (!lease) throw new Error('The admission needs its chat lease')
+        const content = 'Summarize the quarter'
+        try {
+          await admitChatTurn.execute({
+            principal: createSessionPrincipal({
+              userId: suspended.userId,
+              sessionId: generateId(),
+            }),
+            input: {
+              chatId,
+              runId,
+              executionId: generateId(),
+              requestId: generateId(),
+              message: { id: streamId, content },
+              recovery: {
+                kind: 'interactive_stream',
+                goRoute: '/api/mothership',
+                clientToolPickupExpected: false,
+                request: {
+                  userId: suspended.userId,
+                  chatId,
+                  messageId: streamId,
+                  workspaceId,
+                  message: content,
+                },
+              },
+              lease,
+              sendClaim,
+              notifyWorkspaceStatus: false,
+            },
+          })
+        } finally {
+          await releasePendingChatStream(chatId, streamId, lease)
+        }
+        return { userId: suspended.userId, chatId, streamId, runId, workspaceId }
+      }
+
+      const pending = await whileHolding(chatId, async (holder) => {
+        const admission = admit()
+        const admitting = await lockWaiterBehind(holder)
+        let settled = false
+        const suspension = setActive(false)
+          .then(() => setActive(true))
+          .finally(() => {
+            settled = true
+          })
+        void suspension.catch(() => {})
+        await expect
+          .poll(async () => {
+            const waiting = await db.execute(sql`
+            SELECT pid FROM pg_stat_activity WHERE datname = current_database()
+              AND ${admitting}::int = ANY(pg_blocking_pids(pid))
+          `)
+            return settled || waiting.length > 0
+          })
+          .toBe(true)
+        return { admission, suspension }
+      })
+      const [run] = await Promise.all([pending.admission, pending.suspension])
+
+      expect(await hasStop(run)).toBe(true)
+      expect(await runControl(run)).toEqual(STOPPED)
+    }
+  )
+
+  it('keeps a headless run admitted during suspension stopped after reactivation', async () => {
+    const ownerId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const directory = await seedDirectory(organizationId, { workspaceId })
+    const suspended = await seedDirectoryMember(directory.connectionId, organizationId)
+    await directory.setGroupMembers([suspended.scimUserId])
+    const setActive = (active: boolean) =>
+      patchScimUser.execute({
+        principal: directory.principal,
+        input: {
+          scimUserId: suspended.scimUserId,
+          operations: [{ op: 'replace', path: 'active', value: active }],
+        },
+      })
+    await setActive(false)
+    const { run, seeded } = await admitHeadlessRun(
+      suspended.userId,
+      await seedChat(suspended.userId, workspaceId),
+      workspaceId
+    )
+    await setActive(true)
+
+    expect(run.status).toBe('cancelled')
+    expect(await toolAdmissionClosedAt(seeded)).not.toBeNull()
+    expect(await runControl(seeded)).toEqual(STOPPED)
+  })
+
   it('stops an existing member’s runs when first provisioned inactive', async () => {
     const ownerId = await seedUser()
     const { organizationId, workspaceId } = await seedOrganization(ownerId)

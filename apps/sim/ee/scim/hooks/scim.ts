@@ -140,7 +140,7 @@ export function useUpsertScimGroupMapping() {
       requestJson(upsertScimGroupMappingContract, { params: { id: organizationId }, body }),
     onSettled: (_data, _error, { organizationId }) => {
       queryClient.invalidateQueries({ queryKey: scimKeys.mappings(organizationId) })
-      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.list(organizationId) })
+      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
     },
   })
 }
@@ -157,7 +157,7 @@ export function useDeleteScimGroupMapping() {
       requestJson(deleteScimGroupMappingContract, { params: { id: organizationId, mappingId } }),
     onSettled: (_data, _error, { organizationId }) => {
       queryClient.invalidateQueries({ queryKey: scimKeys.mappings(organizationId) })
-      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.list(organizationId) })
+      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
     },
   })
 }
@@ -170,7 +170,7 @@ export function useReconcileScimConnection() {
     onSettled: (_data, _error, organizationId) => {
       queryClient.invalidateQueries({ queryKey: scimKeys.connection(organizationId) })
       queryClient.invalidateQueries({ queryKey: scimKeys.mappings(organizationId) })
-      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.list(organizationId) })
+      queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
     },
   })
 }
