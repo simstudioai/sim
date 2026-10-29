@@ -187,10 +187,11 @@ export async function collectChatFiles(
       chatId: string,
       fileWorkspaceId?: string | null
     ): ChatFileReferenceScope | null => {
+      // A file row's own workspace owns it, whatever the chat it was attached in belongs to.
+      if (fileWorkspaceId) return { kind: 'workspace', id: fileWorkspaceId }
       const chat = chatScopes.get(chatId)
       if (chat?.organizationId) return { kind: 'organization', id: chat.organizationId }
-      const workspaceId = fileWorkspaceId ?? chat?.workspaceId
-      return workspaceId ? { kind: 'workspace', id: workspaceId } : null
+      return chat?.workspaceId ? { kind: 'workspace', id: chat.workspaceId } : null
     }
 
     for (const f of linkedFiles) {

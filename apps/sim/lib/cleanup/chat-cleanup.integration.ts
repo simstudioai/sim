@@ -1,6 +1,14 @@
 /** Exercises chat cleanup's storage-key collection against real PostgreSQL message rows. */
 import { db, dbFor } from '@sim/db'
-import { copilotChats, copilotMessages, organization, user } from '@sim/db/schema'
+import {
+  copilotChats,
+  copilotMessages,
+  organization,
+  user,
+  workspace,
+  workspaceFiles,
+} from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
@@ -167,6 +175,40 @@ describe('deletable chat files against PostgreSQL message rows', () => {
     expect(deletable.map((file) => file.key).sort(compareStrings)).toEqual(
       [elsewhere, own].sort(compareStrings)
     )
+  })
+
+  it("scopes a chat's file row by the row's own workspace, not the chat's organization", async () => {
+    const workspaceId = generateId()
+    await insertWorkspaceFixture(db, {
+      id: workspaceId,
+      name: 'Chat cleanup fixture',
+      ownerId: userId,
+      billedAccountUserId: userId,
+    })
+    try {
+      const chatId = await seedChat([{ role: 'user', content: 'look' }], [], organizationId)
+      const key = `workspace/${workspaceId}/${generateId()}/linked.png`
+      await db.insert(workspaceFiles).values({
+        id: generateId(),
+        key,
+        userId,
+        workspaceId,
+        context: 'mothership',
+        chatId,
+        originalName: 'linked.png',
+        contentType: 'image/png',
+        sizeBytes: 1,
+      })
+
+      const files = await collectChatFiles([chatId])
+
+      expect(files.find((file) => file.key === key)?.scope).toEqual({
+        kind: 'workspace',
+        id: workspaceId,
+      })
+    } finally {
+      await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
+    }
   })
 
   it('places a legacy ref by its key, keeping one it cannot place', async () => {
