@@ -1,7 +1,10 @@
 {
   "startingCommit": "01b236388a1fe4d9e609266d5acf265bef1b92c6",
+  "compatibilityCommit": "a0f47b1e87b0a26d9071cad1ce592666b7e7de07",
+  "originalEvidenceCommit": "3bd99767ac5a4c2ea86c060120e62b063c84c474",
+  "originalEvidenceSha256": "98e626c34a19bfba17240f79853a77af457887f58954ccd307e8665406aa71df",
   "origin": "https://docs.sim.ai",
-  "scope": "Snapshot before replacement; headings use baseline Fumadocs heading transform on the MDX AST. Explicit JSX IDs are separate.",
+  "scope": "Compatibility inventory independently read from compatibilityCommit before replacement. Original inventory is retained at originalEvidenceCommit. Headings use the baseline Fumadocs transform on the MDX AST; explicit JSX IDs are separate. Assets include tracked files only.",
   "summary": {
     "authoredPages": 495,
     "operations": 308,
@@ -176862,8 +176865,8 @@
     {
       "source": "search/ask-questions.mdx",
       "url": "/search/ask-questions",
-      "sha256": "136e5d9e5a0e23e6b1394c9c8cf68c6396f17fa035609186ac239cf1a0cab3f9",
-      "bytes": 9999,
+      "sha256": "f6c253e0650657d7358bf0a4847551498d0c9c2fdfb1f7dcdd469f55eedf943d",
+      "bytes": 10131,
       "frontmatter": {
         "title": "Ask questions",
         "description": "Get answers from your connected apps, check the sources, and ask follow-up questions."
@@ -176980,14 +176983,14 @@
           "name": "Image",
           "attributes": {
             "src": "/static/search/assistant-action-review.png",
-            "alt": "Assistant action review showing the connected Jira account, exact site and project, editable issue summary and description, and Allow or Cancel controls",
+            "alt": "Inline Assistant action review showing the connected Jira account, exact site and project, editable issue summary and description, and Allow or Cancel controls",
             "width": {
-              "expression": "1440"
+              "expression": "705"
             },
             "height": {
-              "expression": "1000"
+              "expression": "489"
             },
-            "variant": "result"
+            "variant": "detail"
           },
           "line": 128
         }
@@ -177045,22 +177048,22 @@
         {
           "type": "Image",
           "src": "/static/search/assistant-action-review.png",
-          "alt": "Assistant action review showing the connected Jira account, exact site and project, editable issue summary and description, and Allow or Cancel controls",
+          "alt": "Inline Assistant action review showing the connected Jira account, exact site and project, editable issue summary and description, and Allow or Cancel controls",
           "width": {
-            "expression": "1440"
+            "expression": "705"
           },
           "height": {
-            "expression": "1000"
+            "expression": "489"
           },
-          "variant": "result"
+          "variant": "detail"
         }
       ]
     },
     {
       "source": "search/coda.mdx",
       "url": "/search/coda",
-      "sha256": "5543ee654e80aa8fa3e7c4795ce9a609f5fbd92c24c9536c84ab1a5579385942",
-      "bytes": 3877,
+      "sha256": "d95a521abbec71bd58e381ab217d5cab1d9928cc8f356a047721553ac366801d",
+      "bytes": 3885,
       "frontmatter": {
         "title": "Coda",
         "description": "Search Coda pages and table rows with your personal MCP connection"
@@ -177108,8 +177111,8 @@
     {
       "source": "search/confluence.mdx",
       "url": "/search/confluence",
-      "sha256": "ba1bb39fd45430781de04d10e535aa410f9b1fe4e9b938b7c4768de8fc1c5187",
-      "bytes": 5095,
+      "sha256": "2d246685ab8666a2eef205c0834975f10fbe7985cde8caf3099c291ebdd79536",
+      "bytes": 5103,
       "frontmatter": {
         "title": "Confluence",
         "description": "Search Confluence Cloud pages and blog posts with your current access"
@@ -177182,8 +177185,8 @@
     {
       "source": "search/connect-your-account.mdx",
       "url": "/search/connect-your-account",
-      "sha256": "3d1ee741cddd853d9ef12ab810cdaf7ae5275abc87107a1199ad693e055d5727",
-      "bytes": 5789,
+      "sha256": "c74f654e41e451a4c0299ea696672e6606606e234b15cb6e0649ef6e669a3f3a",
+      "bytes": 5967,
       "frontmatter": {
         "title": "Connect your account",
         "description": "Authorize your provider accounts and manage their Search connections"
@@ -177236,16 +177239,15 @@
         {
           "name": "Image",
           "attributes": {
-            "src": "/static/search/connect-confluence.webp",
-            "alt": "Confluence in Integrations with the Connect button before an account has been authorized",
+            "src": "/static/search/connect-account-menu.png",
+            "alt": "The Confluence menu in Integrations with Connect available before an account has been authorized",
             "width": {
-              "expression": "1340"
+              "expression": "1440"
             },
             "height": {
-              "expression": "180"
+              "expression": "1000"
             },
-            "variant": "detail",
-            "background": "architecture"
+            "variant": "overview"
           },
           "line": 13
         },
@@ -177260,9 +177262,9 @@
             "height": {
               "expression": "1000"
             },
-            "variant": "result"
+            "variant": "overview"
           },
-          "line": 58
+          "line": 57
         }
       ],
       "expressions": [],
@@ -177275,16 +177277,15 @@
       "media": [
         {
           "type": "Image",
-          "src": "/static/search/connect-confluence.webp",
-          "alt": "Confluence in Integrations with the Connect button before an account has been authorized",
+          "src": "/static/search/connect-account-menu.png",
+          "alt": "The Confluence menu in Integrations with Connect available before an account has been authorized",
           "width": {
-            "expression": "1340"
+            "expression": "1440"
           },
           "height": {
-            "expression": "180"
+            "expression": "1000"
           },
-          "variant": "detail",
-          "background": "architecture"
+          "variant": "overview"
         },
         {
           "type": "Image",
@@ -177296,7 +177297,7 @@
           "height": {
             "expression": "1000"
           },
-          "variant": "result"
+          "variant": "overview"
         }
       ]
     },
@@ -177428,8 +177429,8 @@
     {
       "source": "search/fireflies.mdx",
       "url": "/search/fireflies",
-      "sha256": "1472fa77b34cbc831dcdd88e7bbfb419c4d1c92b36789da26f82db61fc94dac1",
-      "bytes": 2368,
+      "sha256": "a3588e6dbe47c05da4d0120e2cf33e6a380e062a6e968d59c5c6047c61162045",
+      "bytes": 2376,
       "frontmatter": {
         "title": "Fireflies",
         "description": "Search meeting titles and spoken transcripts with your Fireflies account"
@@ -177640,8 +177641,8 @@
     {
       "source": "search/gmail.mdx",
       "url": "/search/gmail",
-      "sha256": "0913d3b8fb7f623fb49f0c10117693da8a2313576c1efe57053b5cd9e1a23f6c",
-      "bytes": 5689,
+      "sha256": "ba09f76f982606bd93f350c78ea927d7ae8880775982b6fb9f19d76dfaa1c378",
+      "bytes": 5697,
       "frontmatter": {
         "title": "Gmail",
         "description": "Search your mailbox and read authorized conversation context"
@@ -177784,8 +177785,8 @@
     {
       "source": "search/google-drive.mdx",
       "url": "/search/google-drive",
-      "sha256": "763385cfe217c31749fff4fede0a16d0657856c5c448d782c69205b0fbf464ca",
-      "bytes": 8067,
+      "sha256": "603870c3e9fabf79b1dbba6a444d3fd9f8ee3bf5b0cfb003da39719285de00f9",
+      "bytes": 8075,
       "frontmatter": {
         "title": "Google Drive",
         "description": "Find Drive files and read supported content with your current access"
@@ -177884,8 +177885,8 @@
     {
       "source": "search/google-meet.mdx",
       "url": "/search/google-meet",
-      "sha256": "4b161d48e6ad3a7bc06c0a4d313defebe2490149fdffea541e27fda418a51e2a",
-      "bytes": 4235,
+      "sha256": "f900a1bb35803b8e8bbcc0f78752eb947795f9283196578b75282184f1b7c995",
+      "bytes": 4254,
       "frontmatter": {
         "title": "Google Meet",
         "description": "Find recent transcripts and generated-note links from Meet conferences"
@@ -177949,8 +177950,8 @@
     {
       "source": "search/granola.mdx",
       "url": "/search/granola",
-      "sha256": "bc3cf6df4266bbe41d7b7b201bf2ca60e4acfc977af355abb80b4883d8d9ca9b",
-      "bytes": 2796,
+      "sha256": "d782b0d72743f8c74cc1b2c890d1368ed34c384a8ec37533d1331ce2144d127a",
+      "bytes": 2804,
       "frontmatter": {
         "title": "Granola",
         "description": "Find meeting notes and read available transcripts from Granola"
@@ -177992,8 +177993,8 @@
     {
       "source": "search/hubspot.mdx",
       "url": "/search/hubspot",
-      "sha256": "e4cdf95f4b6b1f555971fb6658c684c6ee854252f6287d1ef4c2722e353d5335",
-      "bytes": 2439,
+      "sha256": "9da605a871668e09770cda2d5c99fc1bcb31596f5ced70597cc9c9d4844c4046",
+      "bytes": 2447,
       "frontmatter": {
         "title": "HubSpot",
         "description": "Find CRM records with your current HubSpot permissions"
@@ -178171,8 +178172,8 @@
     {
       "source": "search/jira.mdx",
       "url": "/search/jira",
-      "sha256": "9d83837801c213763c6a68fc05ab5d6bad0c5c870a285dedf605ec856ac586f8",
-      "bytes": 3271,
+      "sha256": "63eb2ddefde693ca9de58caea13c2e52395e1ac7fb1d4e214be935fdb9d656c3",
+      "bytes": 3279,
       "frontmatter": {
         "title": "Jira",
         "description": "Search Jira Cloud issues using your own account"
@@ -178421,8 +178422,8 @@
     {
       "source": "search/quickstart.mdx",
       "url": "/search/quickstart",
-      "sha256": "dc66de2663640e4a4f0c5dbb6c0c80593d6fec41446bfc0070fa15272f39b9ad",
-      "bytes": 2893,
+      "sha256": "773a442ee2414a6282668b313a7be488d33d9c5076818cdee0592e5b7cba8719",
+      "bytes": 2915,
       "frontmatter": {
         "title": "Get started",
         "description": "Connect an app, find a document, and turn it into a useful answer."
@@ -178473,8 +178474,8 @@
     {
       "source": "search/slack.mdx",
       "url": "/search/slack",
-      "sha256": "d0e7bd225215bd80166a07dd59a6cf9a2fbc795a33eebe584cd6a28dad889daf",
-      "bytes": 4693,
+      "sha256": "c5d0ed9f4592258eee3a35e473202e6317f1d38d25f47c01fa623e9eb24e3ef5",
+      "bytes": 4725,
       "frontmatter": {
         "title": "Slack",
         "description": "Search your Slack messages and ask Sim questions from Slack"
@@ -178621,8 +178622,8 @@
     {
       "source": "search/zoom.mdx",
       "url": "/search/zoom",
-      "sha256": "dd660adf5fa64b90f6b73e47496a75799240064d2813915cc777d6c5bb990efc",
-      "bytes": 5301,
+      "sha256": "f25b1ec6caa30cb10451f21af815ceac636c1022242510fcc51c63468fc5f404",
+      "bytes": 5309,
       "frontmatter": {
         "title": "Zoom",
         "description": "Find past meetings and read available transcripts, notes, and summaries"
@@ -232451,11 +232452,6 @@
   },
   "assets": [
     {
-      "path": ".DS_Store",
-      "bytes": 6148,
-      "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
-    },
-    {
       "path": "favicon/android-chrome-192x192.png",
       "bytes": 5550,
       "sha256": "2b4375399554a1eb110afdd4c1bb6577f1589190b3a9bbd83e2ad91bf0053d29"
@@ -233147,13 +233143,13 @@
     },
     {
       "path": "static/search/assistant-action-review.png",
-      "bytes": 76490,
-      "sha256": "a02fd3ba3690787ea7a02a82431bb57ac524665f71043814d62158ae773ab4a7"
+      "bytes": 25461,
+      "sha256": "a024fcc90f80eb82ecdd2e5cf9464f07cfaae6a73214a93333de4b3f2686630b"
     },
     {
       "path": "static/search/assistant-tool-permissions.png",
-      "bytes": 81380,
-      "sha256": "a34cd8bc142f1abec9ccc497f96ffb54bbcb6cc299de0b971229d9355fc78245"
+      "bytes": 73507,
+      "sha256": "c8899c29ce679138d6f3174f02512ee84c6142c396aada0ef095aea1de12c81c"
     },
     {
       "path": "static/search/atlas-readiness-brief.webp",
@@ -233184,6 +233180,11 @@
       "path": "static/search/confluence-personal-setup.png",
       "bytes": 47286,
       "sha256": "88d0a3be505095ea80146f52cd922dc695f50ac8aead717ae0078b622a0643a4"
+    },
+    {
+      "path": "static/search/connect-account-menu.png",
+      "bytes": 82707,
+      "sha256": "e2b2ff1b2ac10ca3293c1d869ba11fea3e7a7ad9e175188f513cd046b9bda829"
     },
     {
       "path": "static/search/connect-account.png",
@@ -233386,6 +233387,19 @@
       "sha256": "15f8f06a3e7b514630ad1c7f16ddc771747da40bcf3c42c6695895155eefeb48"
     }
   ],
+  "operationAnchorContract": {
+    "evidence": "Original installed fumadocs-openapi 10.8.1 ui/operation/index.js; virtual page toc was empty",
+    "ids": [
+      "authorization",
+      "parameters-path",
+      "parameters-query",
+      "parameters-header",
+      "parameters-cookie",
+      "request-body",
+      "response-body",
+      "callbacks"
+    ]
+  },
   "redirects": [
     {
       "source": "/academy",
@@ -234632,18 +234646,5 @@
       "destination": "/:path*",
       "permanent": true
     }
-  ],
-  "operationAnchorContract": {
-    "evidence": "Original installed fumadocs-openapi 10.8.1 ui/operation/index.js; virtual page toc was empty",
-    "ids": [
-      "authorization",
-      "parameters-path",
-      "parameters-query",
-      "parameters-header",
-      "parameters-cookie",
-      "request-body",
-      "response-body",
-      "callbacks"
-    ]
-  }
+  ]
 }

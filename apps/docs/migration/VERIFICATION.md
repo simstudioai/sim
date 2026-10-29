@@ -4,12 +4,14 @@ The replacement was implemented from staging commit `01b236388a1fe4d9e609266d5ac
 
 Before opening the draft PR, the branch was rebased onto staging `d444d58541`. The intervening changes were confined to platform workflow editing and a resource-sizing comment. The affected workflow-editing suite passed all 45 tests, and all 26 workspace type checks passed again after the rebase. A post-commit regeneration also verified that the migration report stays byte-identical to its formatted committed version.
 
+The follow-up review rebased onto staging `a0f47b1e87`, preserving its 14 updated Search pages, two replaced screenshots and one added screenshot. The compatibility inventory was reconstructed independently from that commit's Git archive using the original Fumadocs AST transform. `baseline.json` records the compatibility commit and retains the original inventory's commit and SHA-256 digest; the initial evidence remains available in commit `3bd99767ac`. The heading conflict preserves the new shared sticky-offset token, which already implements staging's anchor-positioning fix.
+
 ## Preserved corpus
 
 - 495 authored MDX documents and 308 generated operations across seven specifications and 201 paths.
 - 803 catalog entries: 802 readable pages and the existing redirect-only root entry.
 - No lost routes, heading anchors, or changed code-fence hashes against the frozen baseline. All 2,147 internal content links validate.
-- All 186 original media files are byte-identical. The baseline's remaining asset is an ignored `.DS_Store` operating-system file.
+- All 187 tracked public assets match the current staging compatibility inventory. This includes staging's screenshot updates; untracked `.DS_Store` files are excluded.
 - The 92 changed MDX files contain only 124 component-import replacements. AST comparison found no other content changes. Workflow graph, configuration, and output fixtures are retained.
 - Existing agent manifest `.mdx` paths and deliberate exclusions remain unchanged. Product-owned OpenAPI, CLI, integration, streaming, and manifest generators remain authoritative.
 
@@ -25,7 +27,7 @@ The full machine-readable accounting is in [report.json](report.json), with the 
 | Root tests | 634 script tests and all 20 workspace tasks passed; 38,745 application tests passed | `bun run test` with Node 24 |
 | Block registry | Canonical IDs, metadata coverage, replacements, and selector coercion passed | Base-sensitive check against staging |
 | Migration preservation | Zero lost routes/anchors or changed code-fence hashes | [Migration report](report.json) |
-| Complete corpus over HTTP | 2,995 passed | [Corpus report](verification/corpus.json) |
+| Complete corpus over HTTP | 2,996 passed | [Corpus report](verification/corpus.json) |
 | HTTP and real MCP client | 15 passed | [Interface report](verification/interfaces.json) |
 | Content negotiation | 7 passed | [Negotiation report](verification/negotiation.json) |
 | Native header merger | 16 passed | [Header report](verification/headers.json) |
