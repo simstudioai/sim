@@ -308,7 +308,7 @@ export const lookupWorkspaceFilesContract = defineRouteContract({
 
 const workspaceFileFolderStatsQuerySchema = z.object({
   /** The folder whose child folders to report: `root` (default) or a folder id. */
-  parentId: workspaceFileFolderFilterSchema.default('root'),
+  parentId: workspaceFileFolderFilterSchema.prefault('root'),
 })
 
 const workspaceFileFolderStatsResponseSchema = workspaceFileSuccessSchema.extend({

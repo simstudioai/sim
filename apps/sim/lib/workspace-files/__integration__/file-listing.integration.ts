@@ -277,17 +277,21 @@ describe('bounded workspace file reads in PostgreSQL', () => {
     )
 
     it('finishes a walk begun under millisecond-truncated ordering without skipping or repeating', async () => {
-      const legacy = await db.execute<{ id: string; uploaded_at: Date }>(sql`
-        SELECT id, uploaded_at FROM ${workspaceFiles}
+      // The millisecond cursor a legacy page minted, spelled in SQL: a raw `timestamp` read back
+      // through the driver is parsed as local time.
+      const legacy = await db.execute<{ id: string; cursor: string }>(sql`
+        SELECT id, to_char(uploaded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS cursor
+        FROM ${workspaceFiles}
         WHERE workspace_id = ${workspaceId} AND context = 'workspace' AND deleted_at IS NULL
         ORDER BY date_trunc('milliseconds', uploaded_at), id`)
       const legacyOrder = legacy.map((row) => row.id)
-      const firstPage = legacy.slice(0, 2)
-      const last = firstPage[1]
-      const resumed = await walk('uploadedAt', 'asc', [
-        new Date(last.uploaded_at).toISOString(),
-        last.id,
-      ])
+      // End the legacy page on wf_a, first of the four rows sharing one millisecond, so the walk
+      // resumes inside the tie, where raw and truncated ordering disagree.
+      const cut = legacy.findIndex((row) => row.id.startsWith('wf_a_')) + 1
+      const firstPage = legacy.slice(0, cut)
+      const last = firstPage[firstPage.length - 1]
+      expect(legacy[cut].cursor).toBe(last.cursor)
+      const resumed = await walk('uploadedAt', 'asc', [last.cursor, last.id])
       expect([...firstPage.map((row) => row.id), ...resumed]).toEqual(legacyOrder)
     })
   })
