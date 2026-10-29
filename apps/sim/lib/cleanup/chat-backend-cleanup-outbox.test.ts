@@ -105,4 +105,20 @@ describe('chat inline image cleanup', () => {
     expect(result).not.toMatchObject({ consumeAttempt: false })
     expect(context.checkpointPayload).not.toHaveBeenCalled()
   })
+
+  it('spends an attempt when the lowest unfinished chat stalls, though a later one continues', async () => {
+    queueTableRows(copilotChats, [])
+    mockSweepStoragePrefix.mockImplementation(async (prefix: string) => {
+      if (prefix === prefixOf(chatIds[0])) return 'stalled'
+      deadline.near = true
+      return 'continue'
+    })
+    const context = outboxContext()
+
+    const result = await sweepImages({ chatIds: chatIds.slice(0, 2) }, context)
+
+    expect(result).toMatchObject({ outcome: 'deferred' })
+    expect(result).not.toMatchObject({ consumeAttempt: false })
+    expect(context.checkpointPayload).not.toHaveBeenCalled()
+  })
 })

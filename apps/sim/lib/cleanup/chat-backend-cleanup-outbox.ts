@@ -123,7 +123,9 @@ export const chatBackendCleanupOutboxHandlers = {
     const unfinished = outcomes.findIndex((outcome) => outcome !== 'done')
     if (unfinished === -1) return
     if (unfinished > 0) await context.checkpointPayload({ swept: swept + unfinished })
-    if (outcomes.includes('continue'))
+    // A free rerun only after durable progress, or while the lowest unfinished chat itself advances;
+    // a stalled one behind a continuing chat would otherwise rerun without end.
+    if (unfinished > 0 || outcomes[unfinished] === 'continue')
       return continueOutboxHandler('Continuing chat inline image cleanup')
     return deferOutboxHandler('Chat inline image cleanup removed nothing from its listing')
   },
