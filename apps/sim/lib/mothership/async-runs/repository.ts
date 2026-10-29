@@ -9,6 +9,7 @@ import {
   copilotOrganizationRequestStops,
   copilotRequestStops,
   copilotRuns,
+  user,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
@@ -154,7 +155,7 @@ export interface CreateRunSegmentInput {
 
 type RunAdmissionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-/** Serializes Stop and admission, including when no run row exists to lock yet. */
+/** Serializes account suspension, Stop and admission, even before a run row exists. */
 export async function withRunAdmissionLock<T>(
   userId: string,
   streamId: string,
@@ -162,6 +163,8 @@ export async function withRunAdmissionLock<T>(
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
+    /** Lock the account before any chat/run writes; suspension updates it before scanning runs. */
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('share')
     const key = JSON.stringify(['copilot-run-admission', userId, streamId])
     await acquireAdvisoryXactLock(tx, 'copilot_run_admission', key)
     return action(tx)
@@ -462,8 +465,10 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       workspaceId: copilotChats.workspaceId,
       organizationId: copilotChats.organizationId,
       deletedAt: copilotChats.deletedAt,
+      suspendedAt: user.suspendedAt,
     })
     .from(copilotChats)
+    .innerJoin(user, eq(user.id, copilotChats.userId))
     .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
     .for('share')
   const inheritsOwner = !input.workspaceId && !input.organizationId
@@ -475,7 +480,10 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
     .from(table)
     .where(predicate)
     .limit(1)
-  const closedAt = stop?.stoppedAt ?? chat?.deletedAt
+  const closedAt = stop?.stoppedAt ?? chat?.deletedAt ?? chat?.suspendedAt
+  if (chat?.suspendedAt && !stop) {
+    await recordRunStopTx(tx, { ...input, workspaceId, organizationId }, false)
+  }
   const [run] = await tx
     .insert(copilotRuns)
     .values({

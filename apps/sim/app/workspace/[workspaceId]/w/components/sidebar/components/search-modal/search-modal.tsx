@@ -92,7 +92,7 @@ import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/componen
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -189,9 +189,6 @@ function SearchModalContent({
   const { data: fetchedTables = [] } = useTablesList(workspaceId, 'active', {
     enabled: !permissionConfig.hideTablesTab,
   })
-  const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId, 'active', {
-    enabled: !permissionConfig.hideFilesTab,
-  })
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
     enabled: !permissionConfig.hideKnowledgeBaseTab,
   })
@@ -221,21 +218,6 @@ function SearchModalContent({
             folderPath: getFolderPathNames(tableFolderMap, t.folderId),
           })),
     [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
-  )
-
-  const files = useMemo(
-    () =>
-      permissionConfig.hideFilesTab
-        ? []
-        : fetchedFiles.map((f) => ({
-            id: f.id,
-            name: f.name,
-            href: `/workspace/${workspaceId}/files/${f.id}`,
-            folderPath: f.folderPath
-              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
-              : undefined,
-          })),
-    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
   )
 
   const knowledgeBases = useMemo(
@@ -692,6 +674,30 @@ function SearchModalContent({
   const [askMode, setAskMode] = useState(false)
   const searchRef = useRef(search)
   searchRef.current = search
+
+  /**
+   * Files are not listed whole — a workspace can hold far more than the palette ranks. Browsing
+   * offers the most recently updated; a query, once typing settles, asks the server for the
+   * best matches by name and folder path, which the palette then ranks as it ranks everything.
+   */
+  const { files: fetchedFiles } = useWorkspaceFilePickerOptions(workspaceId, search, {
+    limit: MAX_SEARCH_RESULTS,
+    enabled: !permissionConfig.hideFilesTab,
+  })
+  const files = useMemo(
+    () =>
+      permissionConfig.hideFilesTab
+        ? []
+        : (fetchedFiles ?? []).map((f) => ({
+            id: f.id,
+            name: f.name,
+            href: `/workspace/${workspaceId}/files/${f.id}`,
+            folderPath: f.folderPath
+              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
+              : undefined,
+          })),
+    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
+  )
 
   /**
    * Focus once the dialog is actually visible: under atomic browser-panel

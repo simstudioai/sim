@@ -53,6 +53,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
   const githubStartSessions: string[] = []
   const githubInventorySessions: string[] = []
   let nativeCredentialVisible = false
+  let githubInventoryHold: Promise<void> | undefined
   let installed = false
   let holdSlackStart = false
   let canceledSlackRequests = 0
@@ -304,7 +305,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
     }
     if (path === '/api/organization-credentials/oauth') {
       githubInventorySessions.push(session)
-      await sleep(500)
+      await githubInventoryHold
       json({
         credentials: nativeCredentialVisible
           ? [
@@ -545,12 +546,21 @@ test('source authorization returns to its desktop screen and refreshes live', as
         await expect(page.getByLabel('GitHub error')).toContainText('not available')
         await expect(page.getByLabel('GitHub credential')).toHaveText('')
         nativeCredentialVisible = true
-        await page.getByRole('button', { name: 'Connect GitHub' }).click()
-        await expect.poll(async () => (await opened()).length).toBe(6)
-        await external.goto((await opened())[5])
-        await external.getByRole('link', { name: 'Authorize GitHub' }).click()
-        await expect.poll(() => githubInventorySessions.length).toBe(2)
-        await expect(page.getByLabel('GitHub pending')).toHaveText('true')
+        let releaseGithubInventory = () => {}
+        githubInventoryHold = new Promise<void>((resolve) => {
+          releaseGithubInventory = resolve
+        })
+        try {
+          await page.getByRole('button', { name: 'Connect GitHub' }).click()
+          await expect.poll(async () => (await opened()).length).toBe(6)
+          await external.goto((await opened())[5])
+          await external.getByRole('link', { name: 'Authorize GitHub' }).click()
+          await expect.poll(() => githubInventorySessions.length).toBe(2)
+          await expect(page.getByLabel('GitHub pending')).toHaveText('true')
+        } finally {
+          githubInventoryHold = undefined
+          releaseGithubInventory()
+        }
         await expect(page.getByLabel('GitHub credential')).toHaveText('fixture-github-credential')
         expect(githubStartSessions).toEqual(['browser-fixture', 'browser-fixture'])
         expect(githubInventorySessions).toEqual(['desktop-fixture', 'desktop-fixture'])

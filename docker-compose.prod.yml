@@ -110,6 +110,10 @@ services:
     working_dir: /app/packages/db
     environment:
       - 'DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?is required. For a new install set it in .env to the output of: openssl rand -hex 24. An install created before it was required uses the password postgres - set POSTGRES_PASSWORD=postgres to keep its data.}@db:5432/${POSTGRES_DB:-simstudio}'
+      # Seals account tokens stored before sealing was on; a no-op until ENCRYPTION_KEY is
+      # 64 hex characters. ENCRYPT_ACCOUNT_TOKENS=false opts out here and on the app.
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - ENCRYPT_ACCOUNT_TOKENS=${ENCRYPT_ACCOUNT_TOKENS:-}
     depends_on:
       db:
         condition: service_healthy

@@ -45,6 +45,19 @@ interface CollapsedResourceFlyoutProps {
    */
   isLoading?: boolean
   emptyLabel: string
+  /**
+   * Fills each folder's submenu itself, on open, instead of from `entries`' nested children —
+   * for a resource whose folders are listed a page at a time. `isEmpty` decides which folders
+   * are inert, since their children are not in `entries` to count.
+   */
+  lazyFolders?: LazyFolderContent
+  /** A row after the entries, e.g. a link to the rest of a list the flyout shows only part of. */
+  footer?: React.ReactNode
+}
+
+interface LazyFolderContent {
+  render: (folderId: string) => React.ReactNode
+  isEmpty: (folderId: string) => boolean
 }
 
 /**
@@ -59,6 +72,8 @@ export function CollapsedResourceFlyout({
   currentItemId,
   isLoading = false,
   emptyLabel,
+  lazyFolders,
+  footer,
 }: CollapsedResourceFlyoutProps) {
   if (isLoading) {
     return (
@@ -71,7 +86,16 @@ export function CollapsedResourceFlyout({
   if (entries.length === 0) {
     return <DropdownMenuItem disabled>{emptyLabel}</DropdownMenuItem>
   }
-  return <CollapsedFlyoutRows entries={entries} currentItemId={currentItemId} />
+  return (
+    <>
+      <CollapsedFlyoutRows
+        entries={entries}
+        currentItemId={currentItemId}
+        lazyFolders={lazyFolders}
+      />
+      {footer}
+    </>
+  )
 }
 
 /**
@@ -88,7 +112,8 @@ function PinnedGlyph() {
 function CollapsedFlyoutRows({
   entries,
   currentItemId,
-}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'currentItemId'>) {
+  lazyFolders,
+}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'currentItemId' | 'lazyFolders'>) {
   return (
     <>
       {entries.map((entry) => {
@@ -103,7 +128,8 @@ function CollapsedFlyoutRows({
           )
         }
 
-        if (entry.children.length === 0) {
+        const isEmpty = lazyFolders ? lazyFolders.isEmpty(entry.id) : entry.children.length === 0
+        if (isEmpty) {
           return (
             <DropdownMenuItem key={entry.id} disabled>
               <OverflowText label={entry.name} />
@@ -119,7 +145,11 @@ function CollapsedFlyoutRows({
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
-              <CollapsedFlyoutRows entries={entry.children} currentItemId={currentItemId} />
+              {lazyFolders ? (
+                lazyFolders.render(entry.id)
+              ) : (
+                <CollapsedFlyoutRows entries={entry.children} currentItemId={currentItemId} />
+              )}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )

@@ -1,9 +1,27 @@
-import { createParser, parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
+import { FILE_BROWSER_SIZES, FILE_BROWSER_TYPES } from '@/lib/workspace-files/browser'
+import {
+  type WorkspaceFileListParams,
+  type WorkspaceFileListSortBy,
+  workspaceFileListParams,
+} from '@/hooks/queries/utils/workspace-file-keys'
 import type { ResourceListPreferenceConfig } from '@/stores/resource-list-preferences'
 
-/** Sortable list columns, matching the `Resource.Options` sort menu. */
+/** Sortable list columns, matching the `Resource.Options` sort menu; the server pages by each. */
 export const FILE_SORT_COLUMNS = ['name', 'size', 'type', 'created', 'owner', 'updated'] as const
+
+type FileSortColumn = (typeof FILE_SORT_COLUMNS)[number]
+
+/** The server field each sort column pages by. */
+const FILE_SORT_FIELDS: Record<FileSortColumn, WorkspaceFileListSortBy> = {
+  name: 'name',
+  size: 'size',
+  type: 'type',
+  created: 'uploadedAt',
+  owner: 'owner',
+  updated: 'updatedAt',
+}
 
 /**
  * Parser for the `new` flag. Preserves the prior `?new=1` wire format on
@@ -67,8 +85,8 @@ export const filesUrlKeys = {
  */
 export const filesFilterParsers = {
   search: parseAsString.withDefault(''),
-  type: parseAsArrayOf(parseAsString).withDefault([]),
-  size: parseAsArrayOf(parseAsString).withDefault([]),
+  type: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_TYPES)).withDefault([]),
+  size: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_SIZES)).withDefault([]),
   uploadedBy: parseAsArrayOf(parseAsString).withDefault([]),
 } as const
 
@@ -89,6 +107,7 @@ export const filesListPreferenceConfig = {
   module: 'files',
   sortColumns: FILE_SORT_COLUMNS,
   filterKeys: ['type', 'size', 'uploadedBy'],
+  filterValues: { type: FILE_BROWSER_TYPES, size: FILE_BROWSER_SIZES },
   preferenceUrlKeys: filesFilterUrlKeyMap,
   defaultPreference: {
     sort: filesSortParams.default,
@@ -103,3 +122,29 @@ export const filesFilterUrlKeys = {
   clearOnDefault: true,
   urlKeys: filesFilterUrlKeyMap,
 } as const
+
+/**
+ * The paged list the Files browser shows for its URL state: the open folder's direct children,
+ * or — while a search is typed — matches from every folder, sorted and filtered on the server.
+ * Shared by the browser and its server prefetch, so the seeded first page is the page the
+ * browser reads.
+ */
+export function filesBrowserListParams(state: {
+  folderId: string | null
+  search: string
+  sort: FileSortColumn
+  dir: 'asc' | 'desc'
+  type: readonly (typeof FILE_BROWSER_TYPES)[number][]
+  size: readonly (typeof FILE_BROWSER_SIZES)[number][]
+  uploadedBy: readonly string[]
+}): WorkspaceFileListParams {
+  const searching = state.search.trim().length > 0
+  return workspaceFileListParams({
+    ...(searching ? { q: state.search } : { folderId: state.folderId }),
+    types: state.type,
+    sizes: state.size,
+    uploadedBy: state.uploadedBy,
+    sortBy: FILE_SORT_FIELDS[state.sort],
+    sortOrder: state.dir,
+  })
+}

@@ -59,6 +59,12 @@ vi.mock('@/lib/users/deleted-identity', () => ({
   userHasDeletedAccountIdentity: mockUserHasDeletedAccountIdentity,
 }))
 
+vi.mock('@/lib/users/gmail-alias', () => ({
+  acquireGmailInboxLock: vi.fn(async () => {}),
+  laterGmailAliasesWithAllowance: vi.fn(async () => []),
+  userHasGmailAliasAccount: vi.fn(async () => false),
+}))
+
 import {
   ensureUserStatsExists,
   getUserUsageLimit,

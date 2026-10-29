@@ -1,6 +1,6 @@
 export { readRowDragPayload, writeRowDragPayload } from './drag-payload'
 export type { BuildFlyoutEntriesParams, FlyoutEntry } from './flyout-entries'
-export { buildFlyoutEntries } from './flyout-entries'
+export { buildFlyoutEntries, flyoutLevelFolders } from './flyout-entries'
 export type { BreadcrumbFolder, FolderBreadcrumbItemsOptions } from './folder-breadcrumbs'
 export { breadcrumbFolderChain, folderBreadcrumbItems } from './folder-breadcrumbs'
 export { FolderContextMenu } from './folder-context-menu'
@@ -32,7 +32,7 @@ export {
   renderMoveOptions,
 } from './move-options'
 export type { SortableResource } from './resource-sort'
-export { sortResources } from './resource-sort'
+export { compareSortableResources, sortResources } from './resource-sort'
 export { folderNavParsers, folderNavUrlKeys } from './search-params'
 export { useDragTeardown } from './use-drag-teardown'
 export type { FolderAncestors, UseFolderAncestorsOptions } from './use-folder-ancestors'

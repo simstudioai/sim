@@ -57,6 +57,32 @@ spec:
               cd /app/packages/db
               export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
               bun run db:migrate
+          {{- /*
+            The account token backfill script migration seals with the app's key and honors its
+            ENCRYPT_ACCOUNT_TOKENS opt-out. Each resolves as it does on the app container: the last
+            matching entry of the app's inline overrides (envDefaults, existingSecret inlining,
+            extraEnvVars), else the app Secret. Without a usable key the step stays pending.
+          */}}
+          env:
+            {{- $appOverrides := include "sim.appEnvOverrides" . | fromYamlArray }}
+            {{- range $key := list "ENCRYPTION_KEY" "ENCRYPT_ACCOUNT_TOKENS" }}
+            {{- $override := dict }}
+            {{- range $appOverrides }}
+            {{- if eq (toString .name) $key }}
+            {{- $override = . }}
+            {{- end }}
+            {{- end }}
+            {{- if $override }}
+            - {{ toYaml $override | nindent 14 | trim }}
+            {{- else }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sim.appSecretName" $ }}
+                  key: {{ $key }}
+                  optional: {{ eq $key "ENCRYPT_ACCOUNT_TOKENS" }}
+            {{- end }}
+            {{- end }}
           envFrom:
             {{- if .Values.postgresql.enabled }}
             - secretRef:
@@ -91,42 +117,6 @@ spec:
               value: {{ include "sim.ollamaUrl" . | quote }}
             - name: PII_URL
               value: {{ include "sim.piiUrl" . | quote }}
-            {{- /*
-              Skip envDefaults keys that the user has explicitly overridden in app.env
-              with a non-empty value. K8s `env` takes precedence over `envFrom`, so an
-              inline default would otherwise mask the user's Secret-bound value.
-              Also skip envDefaults entirely in existingSecret mode: the pre-existing
-              Secret is the source of truth, and inlining localhost URL defaults would
-              silently shadow keys (NEXT_PUBLIC_APP_URL, BETTER_AUTH_URL, etc.) the
-              user stored in their Secret but left empty in app.env.
-            */}}
-            {{- $appEnv := .Values.app.env | default dict }}
-            {{- $useExistingSecret := and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
-            {{- if not $useExistingSecret }}
-            {{- range $key, $value := .Values.app.envDefaults | default dict }}
-            {{- $override := index $appEnv $key }}
-            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
-            {{- end }}
-            {{- end }}
-            {{- /*
-              In existingSecret mode the chart-managed Secret is not rendered, so
-              non-empty values in app.env would otherwise go nowhere — inline them
-              here so the user's overrides actually reach the pod. Skipped in ESO
-              mode (ESO is the source of truth; inlining would mask the synced value)
-              and in inline mode (values flow through the chart-managed Secret).
-            */}}
-            {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
-            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" "PII_URL" }}
-            {{- range $key, $value := $appEnv }}
-            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not (has $key $chartComputed)) }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
-            {{- end }}
-            {{- end }}
             {{- if .Values.telemetry.enabled }}
             {{- $nodeEnv := default (default "production" (index (.Values.app.envDefaults | default dict) "NODE_ENV")) (index (.Values.app.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
@@ -139,9 +129,8 @@ spec:
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "service.name=sim-app,service.version={{ .Chart.AppVersion }},deployment.environment={{ $nodeEnv }}"
             {{- end }}
-            {{- with .Values.extraEnvVars }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- /* Operator overrides last, so they win over the defaults above and over envFrom. */}}
+            {{- include "sim.appEnvOverrides" . | trim | nindent 12 }}
           envFrom:
             # Bundled Redis URL. Listed FIRST so any operator-supplied REDIS_URL
             # in a later source overrides it — see templates/configmap-redis.yaml.

@@ -37,9 +37,9 @@ export function encodeVfsSegment(segment: string): string {
   return encodeURIComponent(normalized)
 }
 
-function decodeVfsSegment(segment: string): string {
+function decodeVfsSegment(segment: string, options?: { literalOnBadEncoding?: boolean }): string {
   try {
-    const decoded = decodeURIComponent(segment)
+    const decoded = decodeLiteralOnBadEncoding(segment, options?.literalOnBadEncoding)
     const normalized = normalizeDisplaySegment(decoded)
     if (!normalized || normalized === '.' || normalized === '..') {
       throw new VfsPathError('VFS path segment cannot be empty or a dot segment')
@@ -48,6 +48,15 @@ function decodeVfsSegment(segment: string): string {
   } catch (error) {
     if (error instanceof VfsPathError) throw error
     throw new VfsPathError(`Invalid encoded VFS path segment: ${segment}`)
+  }
+}
+
+function decodeLiteralOnBadEncoding(segment: string, literal: boolean | undefined): string {
+  try {
+    return decodeURIComponent(segment)
+  } catch (error) {
+    if (literal) return segment
+    throw error
   }
 }
 
@@ -70,5 +79,18 @@ export function encodeVfsPathSegments(segments: string[]): string {
 export function decodeVfsPathSegments(path: string): string[] {
   const trimmed = path.trim().replace(/^\/+|\/+$/g, '')
   if (!trimmed) return []
-  return trimmed.split('/').map(decodeVfsSegment)
+  return trimmed.split('/').map((segment) => decodeVfsSegment(segment))
+}
+
+/**
+ * {@link decodeVfsPathSegments} for a file reference, which may be a bare name rather than an
+ * encoded path: a segment that is not valid percent-encoding (`100%_done.txt`) is read
+ * literally. Empty and dot segments still throw.
+ */
+export function decodeVfsReferenceSegments(path: string): string[] {
+  const trimmed = path.trim().replace(/^\/+|\/+$/g, '')
+  if (!trimmed) return []
+  return trimmed
+    .split('/')
+    .map((segment) => decodeVfsSegment(segment, { literalOnBadEncoding: true }))
 }

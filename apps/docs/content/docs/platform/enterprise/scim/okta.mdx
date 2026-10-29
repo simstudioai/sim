@@ -11,12 +11,14 @@ Connect an Okta SCIM 2.0 integration to create, update, and deactivate Sim organ
 
 ## Before you start
 
-- Use an Enterprise organization in Sim and an organization owner or admin account.
+- On Sim Cloud, use an Enterprise organization. Use an organization owner or admin account to configure provisioning.
 - [Verify each provisioned email domain](/platform/enterprise/verified-domains).
 - Use an Okta administrator with access to application provisioning.
 - Make the Sim deployment reachable by Okta over HTTPS. Self-hosted deployments must meet the [SCIM rollout requirements](/platform/enterprise/scim#deployment-and-upgrades).
 
 Start with a test account and a dedicated group. Provisioned members use a seat and receive workspace access through mappings or existing grants.
+
+Keep an existing SAML or OIDC sign-in integration when adding provisioning. If provisioning uses a separate Okta app, assign the intended users to both apps and map the same account email. App assignment, pushed group membership, workspace access, and permission policy are separate controls; see [Plan membership and access](/platform/enterprise/scim#plan-membership-and-access).
 
 ## Choose an integration
 
@@ -31,7 +33,7 @@ SCIM support depends on how the Okta app was created:
 See [Okta's custom-app SCIM instructions](https://help.okta.com/en-us/Content/Topics/apps/apps_app_integration_wizard_scim.htm). If the provisioning option is missing, confirm that the feature is enabled for your Okta organization.
 
 <Callout type="warn">
-  The Header Auth Test App walkthrough below is for evaluation. [Okta support limits SCIM Test Apps to development and testing](https://support.okta.com/help/s/article/What-are-SCIM-20-Test-Apps?language=en_US), although its developer guide also describes private template integrations. For production, confirm a supported integration route for your Okta organization using the corresponding official instructions. This guide does not establish a published or certified Sim OIN integration.
+  [Okta limits SCIM Test Apps to development and testing](https://support.okta.com/help/s/article/What-are-SCIM-20-Test-Apps?language=en_US). Use a supported custom app for production; the Header Auth Test App walkthrough and screenshots below are for evaluation. This guide does not establish a published or certified Sim OIN integration.
 </Callout>
 
 ### Connect a supported custom app
@@ -40,7 +42,7 @@ See [Okta's custom-app SCIM instructions](https://help.okta.com/en-us/Content/To
 2. In the supported Okta app, enable SCIM. For a Classic SAML or SWA app, open **General → App Settings → Edit**, set **Provisioning** to **SCIM**, and save.
 3. Open **Provisioning → Integration** and configure **SCIM connector base URL** with Sim's Base URL. Set **Unique identifier field for users** to `userName`.
 4. Enable the supported push actions needed for your deployment: **Push New Users**, **Push Profile Updates**, and **Push Groups** for group-based access.
-5. Configure **HTTP Header** authentication to send `Authorization: Bearer <your-sim-token>`. Use the chosen integration's documented credential fields; they differ from the Test App's **API Token** field below.
+5. Select **HTTP Header** authentication. In the Classic custom app's **Authorization** field, enter `Bearer <your-sim-token>`. This is a Sim-issued token, not an Okta API token. Other creation experiences may label the credential field differently.
 6. Test and save the connection. Under **Provisioning → To App**, enable user creation, attribute updates, and deactivation. Leave password synchronization disabled.
 
 Use an application username and primary email in a domain verified by Sim. If Okta usernames differ from email addresses, review the attribute mappings before assigning members. Then complete the lifecycle and group checks below.
@@ -106,10 +108,13 @@ Okta sends deactivation, not SCIM user `DELETE`. Sim suspends access while retai
 
 Use separate groups for app assignment and Group Push; Okta does not support using the same group for both. Assign accounts to the app first.
 
+For example, use `Sim users` to assign the app and `Finance` as the pushed group. Create a dedicated permission group in Sim with the restrictions and workspace scope Finance members need. A pushed directory group does not create that policy or its workspaces.
+
 1. Under **Push Groups → Find groups by name**, select the group.
 2. Leave **Push group memberships immediately** enabled. For a new downstream group, save with **Create Group** selected.
-3. In Sim, open **Single sign-on → Provisioning → Group mappings** and map the synced group to a workspace, permission group, or organization admin role. Workspace access requires a workspace mapping. Name matching can map existing permission groups automatically.
-4. Confirm a test member gains workspace access. Remove it from the pushed group while keeping its app assignment, and confirm the directory grant is withdrawn. Add it back and verify access returns without another account being created.
+3. In Sim, open **Single sign-on → Provisioning → Group mappings**. Add a **Workspace** mapping at the intended level and a **Permission group** mapping to the policy created above. A permission-group mapping alone does not grant workspace access. You can also map the organization admin role when that is intended.
+4. To match policies automatically, enable **Provisioning rules → Manage rules → Match permission groups by name**. The pushed name must exactly match an existing non-default Sim permission group, including case. Select **Reconcile now** for groups already synced. Workspace access still needs its own mapping or existing grant.
+5. Confirm a test member gains workspace access and the expected policy restrictions. Remove it from the pushed group while keeping its app assignment, then verify both directory-grant withdrawal and the [fallback policy](/platform/enterprise/scim#how-access-is-withdrawn) on any workspace it can still access. Add it back and verify access returns without another account being created.
 
 <Image src="/static/enterprise/okta/group-push.png" alt="Header Auth Test App Group Push selecting an engineering group and Create Group for the downstream group" width={1001} height={927} className="mx-auto h-auto w-full max-w-xl" />
 
@@ -128,6 +133,8 @@ Test credentials, save, and confirm a successful provisioning request before rev
 | Credential test fails | For Header Auth, include `Bearer `. Check the complete HTTPS URL, token expiry, provisioning switch, and network reachability. |
 | User creation fails | Verify the email domain, available seats, and whether the account belongs to another Sim organization. |
 | Member has no workspace access | Push the group and add a workspace mapping. App assignment creates organization membership. |
+| Member has access but the expected policy does not apply | Check **Group mappings** for unassigned members. Resolve overlapping membership or workspace scope under **Permission groups**, then select **Reconcile now**. For name matching, also check the exact group name. |
+| A removed mapping returns | Turn off name matching or use different names before removing a same-name mapping. See [mapping behavior](/platform/enterprise/scim#map-directory-groups). |
 | Name or membership updates do not arrive | Check app assignment, provisioning actions, attribute mappings, and Group Push status. |
 | A pushed group is missing members | Confirm those accounts are active and successfully assigned to the app. After activation, repush the group; see [Okta Group Push troubleshooting](https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-group-push-troubleshoot.htm). |
 | A deactivated member still uses a seat | Deactivation suspends access; remove organization membership to complete that offboarding step. |

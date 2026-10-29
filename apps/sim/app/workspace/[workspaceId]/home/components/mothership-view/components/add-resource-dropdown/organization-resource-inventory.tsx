@@ -9,15 +9,19 @@ import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/
 export function OrganizationResourceInventory({
   workspaceId,
   excludeTypes,
+  fileSearch,
   onChange,
 }: {
   workspaceId: string
   excludeTypes?: readonly MothershipResourceType[]
+  /** The picker's query, which the workspace's files are searched by. */
+  fileSearch?: string
   onChange: (workspaceId: string, inventory: AvailableResources) => void
 }) {
   const inventory = useAvailableResources(workspaceId, {
     includeFolderMentions: true,
     excludeTypes,
+    fileSearch,
   })
   useEffect(() => {
     onChange(workspaceId, inventory)

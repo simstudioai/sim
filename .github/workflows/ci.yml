@@ -273,21 +273,21 @@ jobs:
         id: deploy
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ (steps.target.outputs.environment == 'prod' && secrets.TRIGGER_ACCESS_TOKEN_PROD) || (steps.target.outputs.environment == 'staging' && secrets.TRIGGER_ACCESS_TOKEN_STAGING) || secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ steps.target.outputs.environment }}
           TRIGGER_BRANCH: ${{ steps.target.outputs.preview_branch }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_PROJECT_ID and a Trigger.dev access token (TRIGGER_ACCESS_TOKEN_${TRIGGER_ENV^^} or TRIGGER_ACCESS_TOKEN) repo secrets must be set" >&2
             exit 1
           fi
           TARGET_ARGS=(--env "$TRIGGER_ENV")
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.16 deploy "${TARGET_ARGS[@]}" --skip-promotion
+          bunx trigger.dev@4.7.6 deploy "${TARGET_ARGS[@]}" --skip-promotion
 
       - name: Validate deployment version output
         env:
@@ -618,7 +618,7 @@ jobs:
       - name: Promote Trigger.dev version
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ (needs.trigger-upload.outputs.environment == 'prod' && secrets.TRIGGER_ACCESS_TOKEN_PROD) || (needs.trigger-upload.outputs.environment == 'staging' && secrets.TRIGGER_ACCESS_TOKEN_STAGING) || secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ needs.trigger-upload.outputs.environment }}
           TRIGGER_BRANCH: ${{ needs.trigger-upload.outputs.preview_branch }}
@@ -626,7 +626,7 @@ jobs:
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_PROJECT_ID and a Trigger.dev access token (TRIGGER_ACCESS_TOKEN_${TRIGGER_ENV^^} or TRIGGER_ACCESS_TOKEN) repo secrets must be set" >&2
             exit 1
           fi
           if [ -z "$VERSION" ]; then
@@ -638,7 +638,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.5.16 promote "$VERSION" "${TARGET_ARGS[@]}"
+          bunx trigger.dev@4.7.6 promote "$VERSION" "${TARGET_ARGS[@]}"
 
   # Production only, once the new app serves traffic: submit the library and comparison URLs this
   # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.

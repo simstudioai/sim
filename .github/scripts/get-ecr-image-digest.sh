@@ -9,7 +9,7 @@ if [ -n "$ALLOW_MISSING" ] && [ "$ALLOW_MISSING" != '--allow-missing' ]; then
   exit 1
 fi
 export AWS_PAGER=''
-aws ecr batch-get-image --repository-name "$REPOSITORY" --image-ids imageTag="$TAG" --output json |
+aws --cli-connect-timeout 10 --cli-read-timeout 20 ecr batch-get-image --repository-name "$REPOSITORY" --image-ids imageTag="$TAG" --output json |
   ALLOW_MISSING="$ALLOW_MISSING" python3 -c '
 import json, os, re, sys
 response = json.load(sys.stdin)

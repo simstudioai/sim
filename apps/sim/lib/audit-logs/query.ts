@@ -146,13 +146,15 @@ function buildCursorCondition(cursor: string): SQL<unknown> | null {
   const cursorDate = new Date(cursorData.createdAt)
   const cursorTimestamp = sql`date_trunc('milliseconds', ${auditLog.createdAt})`
 
-  return or(
-    lt(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
-    and(
-      eq(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
-      lt(auditLog.id, cursorData.id)
-    )
-  )!
+  return (
+    or(
+      lt(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
+      and(
+        eq(cursorTimestamp, sql.param(cursorDate, auditLog.createdAt)),
+        lt(auditLog.id, cursorData.id)
+      )
+    ) ?? null
+  )
 }
 
 interface CursorPaginatedResult {

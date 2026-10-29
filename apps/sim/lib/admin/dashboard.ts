@@ -78,7 +78,7 @@ import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transac
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
-import { userHasDeletedAccountIdentity } from '@/lib/users/deleted-identity'
+import { identityHadFreeAllowance } from '@/lib/users/free-allowance'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
@@ -1503,7 +1503,7 @@ export async function grantDashboardUserBalance(
    * the same email check as every other row creation. Looked up before the
    * transaction so it never holds a second pooled connection inside it.
    */
-  const freeTierEligibleIfCreated = !(await userHasDeletedAccountIdentity(userId, {
+  const freeTierEligibleIfCreated = !(await identityHadFreeAllowance(userId, {
     includeSignIns: false,
   }))
   const outcome = await db.transaction(async (tx) => {

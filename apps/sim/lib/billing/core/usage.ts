@@ -46,10 +46,9 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import {
-  isDeletedAccountIdentity,
-  userHasDeletedAccountIdentity,
-} from '@/lib/users/deleted-identity'
+import { isDeletedAccountIdentity } from '@/lib/users/deleted-identity'
+import { identityHadFreeAllowance } from '@/lib/users/free-allowance'
+import { acquireGmailInboxLock, laterGmailAliasesWithAllowance } from '@/lib/users/gmail-alias'
 
 const logger = createLogger('UsageManagement')
 
@@ -202,29 +201,38 @@ function isUserCreatedInAuthRequest(
  * Handle new user setup when they join the platform.
  * Creates the userStats record with the free allowance, which is zero when the
  * user's email or an already-linked social sign-in belongs to an account
- * deleted within the retention window. Every user Better Auth creates comes
- * through here, including SCIM- and SSO-provisioned users, so their email is
- * always checked at creation.
+ * deleted within the retention window, or when an earlier account holds its
+ * Gmail inbox; it decides under that inbox's lock (see `lib/users/gmail-alias`).
+ * Every user Better Auth creates comes through here, including SCIM- and
+ * SSO-provisioned users, so their email is always checked at creation.
  *
  * @param authRequest Better Auth's endpoint context for the signup request, when there is one
  */
 export async function handleNewUser(userId: string, authRequest?: object | null): Promise<void> {
   if (authRequest) usersCreatedInAuthRequest.set(authRequest, userId)
   try {
-    const freeTierEligible = !(await userHasDeletedAccountIdentity(userId, {
-      includeSignIns: true,
-    }))
-    if (!freeTierEligible) {
-      logger.info('Withholding the free allowance from a returning deleted-account identity', {
+    await db.transaction(async (tx) => {
+      await acquireGmailInboxLock(tx, userId)
+      const freeTierEligible = !(await identityHadFreeAllowance(
         userId,
+        { includeSignIns: true },
+        tx
+      ))
+      if (!freeTierEligible) {
+        logger.info('Withholding the free allowance from an identity that already had it', {
+          userId,
+        })
+      }
+      await tx.insert(userStats).values({
+        id: generateId(),
+        userId: userId,
+        currentUsageLimit: getFreeTierAllowance(freeTierEligible).toString(),
+        freeTierEligible,
+        usageLimitUpdatedAt: new Date(),
       })
-    }
-    await db.insert(userStats).values({
-      id: generateId(),
-      userId: userId,
-      currentUsageLimit: getFreeTierAllowance(freeTierEligible).toString(),
-      freeTierEligible,
-      usageLimitUpdatedAt: new Date(),
+      for (const aliasId of await laterGmailAliasesWithAllowance(userId, tx)) {
+        await forfeitFreeTierAllowance(tx, aliasId)
+      }
     })
 
     logger.info('User stats record created for new user', { userId })
@@ -290,10 +298,10 @@ export async function ensureUserStatsExists(
 
 /**
  * Creates a user's `user_stats` row with the free allowance when none exists, on `executor`
- * (the caller's transaction, or `db`). Only a row this call creates gets the deleted-identity
- * check signup makes: the email always, and the linked sign-ins only when `includeSignIns` is
- * set. An existing row costs only the conflicting insert. A failed check leaves the allowance in
- * place and never fails the caller or aborts its transaction.
+ * (the caller's transaction, or `db`). Only a row this call creates gets the check signup makes:
+ * the email always, and the linked sign-ins only when `includeSignIns` is set. An existing row
+ * costs only the conflicting insert. A failed check leaves the allowance in place and never fails
+ * the caller or aborts its transaction.
  *
  * @returns whether this call created the row
  */
@@ -315,7 +323,7 @@ export async function createUserStatsIfMissing(
   if (created.length === 0) return false
 
   try {
-    if (await userHasDeletedAccountIdentity(userId, { includeSignIns }, executor)) {
+    if (await identityHadFreeAllowance(userId, { includeSignIns }, executor)) {
       await forfeitFreeTierAllowance(executor, userId)
     }
   } catch (error) {
@@ -704,18 +712,18 @@ export async function checkUsageStatus(userId: string): Promise<{
 }
 
 /**
- * Withholds the free allowance from a new account found to reuse the sign-in
- * identity of a recently deleted one after its stats row was created. The flag
- * and the limit it implies commit together (a transaction on `db`, a savepoint
- * inside a caller's transaction), so a failed re-derivation can never leave the
- * account flagged but still holding the free limit; repeating the call is harmless.
+ * Withholds the free allowance from a new account found, after its stats row was
+ * created, to reuse an identity that already had it. The flag and the limit it
+ * implies commit together (a transaction on `db`, a savepoint inside a caller's
+ * transaction), so a failed re-derivation can never leave the account flagged
+ * but still holding the free limit; repeating the call is harmless.
  */
 async function forfeitFreeTierAllowance(executor: DbOrTx, userId: string): Promise<void> {
   await executor.transaction(async (tx) => {
     await tx.update(userStats).set({ freeTierEligible: false }).where(eq(userStats.userId, userId))
     await syncUsageLimitsFromSubscription(userId, tx)
   })
-  logger.info('Withheld the free allowance from a returning deleted-account identity', { userId })
+  logger.info('Withheld the free allowance from an identity that already had it', { userId })
 }
 
 /**

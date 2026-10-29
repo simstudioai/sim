@@ -108,6 +108,11 @@ app:
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
+    # A 64-hex ENCRYPTION_KEY also seals stored OAuth account tokens, and the migrations init
+    # container seals the ones stored before. To opt out, set ENCRYPT_ACCOUNT_TOKENS to "false"
+    # or "0" wherever the app reads its env: here (inline or existingSecret mode), as a key in the
+    # pre-created Secret, mapped in externalSecrets.remoteRefs.app (External Secrets mode), or in
+    # app.envDefaults / extraEnvVars. The init container resolves it the same way as the app.
     INTERNAL_API_SECRET: ""  # REQUIRED - set via --set flag or external secret manager, used for internal service-to-service authentication
 
     # Optional: Scheduled Jobs Authentication
@@ -2004,6 +2009,9 @@ externalSecrets:
       CRON_SECRET: ""
       # Path to API_ENCRYPTION_KEY in external store (optional)
       API_ENCRYPTION_KEY: ""
+      # Path to ENCRYPT_ACCOUNT_TOKENS in external store (optional; "false" or "0" opts out of
+      # account token sealing)
+      ENCRYPT_ACCOUNT_TOKENS: ""
       # Path to MSHIP_SYSPROMPT_OVERRIDE in external store (optional)
       MSHIP_SYSPROMPT_OVERRIDE: ""
       # Path to REDIS_URL in external store (optional)

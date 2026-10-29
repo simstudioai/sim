@@ -4,9 +4,11 @@ import { toRecord } from '@sim/utils/object'
 import { type SQL, sql } from 'drizzle-orm'
 import { type AnyPgColumn, customType } from 'drizzle-orm/pg-core'
 
-const logger = createLogger('SealedText')
-/** Operators read the key id from this report, so it logs at any configured level. */
+/** Operators read the key id and the sealing state from this report, so it logs at any configured level. */
 const reportLogger = createLogger('AccountTokenSealing', { enabled: true, logLevel: 'INFO' })
+
+const OPTED_OUT_REASON = 'ENCRYPT_ACCOUNT_TOKENS is false'
+const UNUSABLE_KEY_REASON = 'ENCRYPTION_KEY is not a 64-character hex key'
 
 let reportedUnusableKey = false
 let reportedSealing = false
@@ -23,41 +25,51 @@ export function readEncryptionKey(): Buffer {
   return key
 }
 
-function isWriteSealingRequested(): boolean {
-  const flag = process.env.ENCRYPT_ACCOUNT_TOKENS?.toLowerCase()
-  return flag === 'true' || flag === '1'
+function isWriteSealingOptedOut(): boolean {
+  const flag = process.env.ENCRYPT_ACCOUNT_TOKENS?.trim().toLowerCase()
+  return flag === 'false' || flag === '0'
+}
+
+/**
+ * Why this process writes account tokens unsealed, or null when it seals them. Sealing is on
+ * whenever `ENCRYPTION_KEY` is a usable 64-character hex key, unless `ENCRYPT_ACCOUNT_TOKENS` opts
+ * out with `false` or `0`.
+ */
+export function accountTokenSealingDisabledReason(): string | null {
+  if (isWriteSealingOptedOut()) return OPTED_OUT_REASON
+  return readEncryptionKeyOrNull() ? null : UNUSABLE_KEY_REASON
+}
+
+function reportUnusableKey(): void {
+  if (reportedUnusableKey) return
+  reportedUnusableKey = true
+  reportLogger.warn(`Account token sealing: disabled (${UNUSABLE_KEY_REASON})`, { keyId: null })
 }
 
 /**
  * The key writes are sealed with, or null to write plaintext. Reads open sealed values regardless,
- * so every process can read both forms before any process writes the sealed one. Sealing requested
- * without a usable key writes plaintext, which every process can still read, and reports the
- * misconfiguration once instead of failing every token write.
+ * so every process can read both forms. A key that cannot seal writes plaintext, which every
+ * process can still read, and reports the misconfiguration once instead of failing every token
+ * write.
  */
 function writeSealingKey(): Buffer | null {
-  if (!isWriteSealingRequested()) return null
+  if (isWriteSealingOptedOut()) return null
   const key = readEncryptionKeyOrNull()
-  if (!key && !reportedUnusableKey) {
-    reportedUnusableKey = true
-    logger.error(
-      'ENCRYPT_ACCOUNT_TOKENS is set but ENCRYPTION_KEY is not a 64-character hex key; account tokens are written unsealed'
-    )
-  }
+  if (!key) reportUnusableKey()
   return key
 }
 
-/** Whether this process seals account tokens it writes: the flag is on and the key is usable. */
-export function isAccountTokenWriteSealingEnabled(): boolean {
-  return writeSealingKey() !== null
-}
-
-/** Logs once per process whether writes seal account tokens, and the key id (never the key). */
+/** Logs once per process whether writes seal account tokens, why not, and the key id (never the key). */
 export function reportAccountTokenSealing(): void {
   if (reportedSealing) return
   reportedSealing = true
-  const writeKey = writeSealingKey()
-  const key = writeKey ?? readEncryptionKeyOrNull()
-  reportLogger.info(`Account token sealing: ${writeKey ? 'enabled' : 'disabled'}`, {
+  const reason = accountTokenSealingDisabledReason()
+  if (reason === UNUSABLE_KEY_REASON) {
+    reportUnusableKey()
+    return
+  }
+  const key = readEncryptionKeyOrNull()
+  reportLogger.info(`Account token sealing: ${reason ? `disabled (${reason})` : 'enabled'}`, {
     keyId: key ? sealingKeyId(key) : null,
   })
 }

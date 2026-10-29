@@ -216,9 +216,12 @@ interface ResourceTableProps {
   apiRef?: RefObject<ResourceTableHandle | null>
   /**
    * Window the row list with `@tanstack/react-virtual`, keeping only the visible
-   * slice in the DOM. Opt-in because it removes off-screen rows — consumers that
-   * depend on every row being mounted (e.g. drag-and-drop drop targets) must stay
-   * on the full-DOM path. Enable it only for unbounded, accumulating lists (logs).
+   * slice in the DOM. Opt-in because it removes off-screen rows — a consumer that
+   * reaches rows through the DOM rather than its own row ids must stay on the
+   * full-DOM path. Row drag-and-drop works windowed: a drop target is only ever a
+   * row under the pointer, and the drag's teardown never depends on its source row
+   * staying mounted (`useDragTeardown`). Enable it only for unbounded, accumulating
+   * lists (logs, files).
    */
   virtualized?: boolean
   selectable?: SelectableConfig
@@ -228,7 +231,19 @@ interface ResourceTableProps {
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
   onLoadMore?: () => void
   hasMore?: boolean
+  /** The next page is loading: shows the spinner under the rows. */
   isLoadingMore?: boolean
+  /**
+   * Any request for the list is in flight, a background refetch included. Paging waits while it
+   * runs and asks again once it settles, so a sentinel reached mid-refetch is not left idle.
+   * Defaults to `isLoadingMore`.
+   */
+  isFetching?: boolean
+  /**
+   * The last next-page load failed. Paging then waits for the sentinel to leave view and come
+   * back before asking again, rather than retrying a failing request in a loop.
+   */
+  loadMoreFailed?: boolean
   pagination?: PaginationConfig
   /**
    * Sanctioned overlay slot. Rendered absolutely against the table region
@@ -283,12 +298,23 @@ const ResourceTable = memo(function ResourceTable({
   onLoadMore,
   hasMore,
   isLoadingMore,
+  isFetching = isLoadingMore,
+  loadMoreFailed = false,
   pagination,
   overlay,
   emptyState,
 }: ResourceTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const loadMoreRef = useLoadMoreSentinel({ onLoadMore, enabled: Boolean(hasMore) })
+  /**
+   * Re-armed whenever a load settles: an observer only reports a change in intersection, so a
+   * sentinel still on screen after the rows it revealed (or a request it was refused during)
+   * would otherwise never ask again.
+   */
+  const loadMoreRef = useLoadMoreSentinel({
+    onLoadMore,
+    enabled: Boolean(hasMore) && !isFetching,
+    waitForReentry: loadMoreFailed,
+  })
 
   const showEmptyState = rows.length === 0 && Boolean(emptyState)
 

@@ -25,7 +25,6 @@ import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/rea
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
@@ -58,6 +57,10 @@ import {
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
+import {
+  fetchWorkspaceResourceRef,
+  readCachedWorkspaceResourceRef,
+} from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import type {
   ChatMessage,
   ChatMessageAttachment,
@@ -68,7 +71,6 @@ import type {
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { getWorkspaceFilesQueryOptions, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
@@ -176,7 +178,6 @@ const LAYOUT_STYLES = {
 } as const
 
 const EMPTY_BLOCKS: ContentBlock[] = []
-const EMPTY_WORKSPACE_FILES: readonly WorkspaceFileRecord[] = []
 
 interface UserMessageRowProps {
   content: string
@@ -426,14 +427,8 @@ export function MothershipChat({
       workspaceId
         ? prepareCopyableMarkdown(
             content,
-            queryClient.getQueryData<readonly WorkspaceFileRecord[]>(
-              workspaceFilesKeys.list(workspaceId)
-            ) ?? EMPTY_WORKSPACE_FILES,
-            () =>
-              queryClient.fetchQuery({
-                ...getWorkspaceFilesQueryOptions(workspaceId),
-                staleTime: 0,
-              })
+            (ref) => readCachedWorkspaceResourceRef(queryClient, workspaceId, ref),
+            (ref) => fetchWorkspaceResourceRef(queryClient, workspaceId, ref, { fresh: true })
           )
         : toCopyableMarkdown(content),
     [queryClient, workspaceId]

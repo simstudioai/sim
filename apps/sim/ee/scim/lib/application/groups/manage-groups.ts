@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
-import { scimGroup } from '@sim/db/schema'
+import { type ScimConnectionSettings, scimConnection, scimGroup } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
@@ -57,11 +57,26 @@ import {
  */
 async function withGroupWrite<T extends { stoppedRuns: StoppedRun[] }>(
   context: ScimUseCaseContext,
-  work: (tx: DbTransaction) => Promise<T>
+  work: (tx: DbTransaction, settings: ScimConnectionSettings) => Promise<T>
 ): Promise<Omit<T, 'stoppedRuns'>> {
   const { stoppedRuns, ...result } = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, context.organizationId)
-    return work(tx)
+    const [connection] = await tx
+      .select({ status: scimConnection.status, settings: scimConnection.settings })
+      .from(scimConnection)
+      .where(
+        and(
+          eq(scimConnection.id, context.connection.id),
+          eq(scimConnection.organizationId, context.organizationId)
+        )
+      )
+      .limit(1)
+    if (!connection || connection.status !== 'active') {
+      throw new ScimError(401, undefined, 'Invalid SCIM token', {
+        'WWW-Authenticate': 'Bearer realm="SCIM"',
+      })
+    }
+    return work(tx, connection.settings)
   })
   deliverRunStops(stoppedRuns)
   return result
@@ -185,7 +200,7 @@ export const createScimGroup = defineAuthorizedScimUseCase({
     context,
   }: ScimUseCaseArgs<CreateScimGroupInput>): Promise<ScimGroupWriteResult> {
     const { group } = input
-    return withGroupWrite(context, async (tx) => {
+    return withGroupWrite(context, async (tx, settings) => {
       await assertDisplayNameAvailable(tx, {
         connectionId: context.connection.id,
         displayName: group.displayName,
@@ -202,7 +217,7 @@ export const createScimGroup = defineAuthorizedScimUseCase({
       }
       await assertMemberCount(tx, created.id)
 
-      const mapped = context.connection.settings.autoMapPermissionGroupsByName
+      const mapped = settings.autoMapPermissionGroupsByName
         ? await autoMapPermissionGroupByName(tx, {
             organizationId: context.organizationId,
             scimGroupId: created.id,
@@ -214,7 +229,6 @@ export const createScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: memberIds,
-        settings: context.connection.settings,
       })
       if (mapped === 'mapped') {
         await settleMappedPermissionGroupsExplicit(tx, {
@@ -254,7 +268,7 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
     input,
     context,
   }: ScimUseCaseArgs<ReplaceScimGroupInput>): Promise<ScimGroupWriteResult> {
-    return withGroupWrite(context, async (tx) => {
+    return withGroupWrite(context, async (tx, settings) => {
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 
@@ -278,7 +292,7 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         })
       }
       let adopted = false
-      if (renamed && context.connection.settings.autoMapPermissionGroupsByName) {
+      if (renamed && settings.autoMapPermissionGroupsByName) {
         const mapped = await autoMapPermissionGroupByName(tx, {
           organizationId: context.organizationId,
           scimGroupId: current.id,
@@ -305,7 +319,6 @@ export const replaceScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: [...touched],
-        settings: context.connection.settings,
       })
       if (adopted) {
         await settleMappedPermissionGroupsExplicit(tx, {
@@ -360,7 +373,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
   }: ScimUseCaseArgs<PatchScimGroupInput>): Promise<PatchScimGroupResult> {
     const patch = parseGroupPatch(input.operations)
 
-    return withGroupWrite(context, async (tx) => {
+    return withGroupWrite(context, async (tx, settings) => {
       const current = await findScimGroupById(tx, context.connection.id, input.groupId)
       if (!current) throw notFound('SCIM Group not found')
 
@@ -404,11 +417,7 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
             ...(externalIdChanged ? { externalId: patch.externalId } : {}),
           })
         }
-        if (
-          renamed &&
-          patch.displayName &&
-          context.connection.settings.autoMapPermissionGroupsByName
-        ) {
+        if (renamed && patch.displayName && settings.autoMapPermissionGroupsByName) {
           const mapped = await autoMapPermissionGroupByName(tx, {
             organizationId: context.organizationId,
             scimGroupId: current.id,
@@ -439,7 +448,6 @@ export const patchScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: [...touched],
-        settings: context.connection.settings,
       })
       if (adopted) {
         await settleMappedPermissionGroupsExplicit(tx, {
@@ -493,7 +501,6 @@ export const deleteScimGroup = defineAuthorizedScimUseCase({
         connectionId: context.connection.id,
         organizationId: context.organizationId,
         scimUserIds: memberIds,
-        settings: context.connection.settings,
       })
       return {
         groupId: current.id,

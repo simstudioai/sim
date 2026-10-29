@@ -36,7 +36,7 @@ import {
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
-import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
 import type {
   ChatRequestMode,
@@ -47,7 +47,6 @@ import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
@@ -180,11 +179,7 @@ function OrganizationHomeContent({
           toast.error('This resource is outside this organization.')
           return
         }
-        const files =
-          ref.type === 'file'
-            ? await queryClient.fetchQuery(getWorkspaceFilesQueryOptions(ref.workspaceId))
-            : []
-        const resource = resolveWorkspaceResourceRef(ref, files)
+        const resource = await fetchWorkspaceResourceRef(queryClient, ref.workspaceId, ref)
         if (!resource) {
           toast.error(`Couldn't find "${ref.title}" in its workspace`)
           return

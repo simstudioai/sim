@@ -35,7 +35,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { EmbeddedProjectFile, ResourceActions, ResourceContent, ResourceTabs } from './components'
 
@@ -196,14 +196,12 @@ export const MothershipView = memo(
 
     // A large CSV renders read-only (streamed) with no editor, so it must not offer the
     // edit/split/preview toggle. Its size lives on the file record, not the resource tab.
-    const { data: files, isLoading: filesLoading } = useWorkspaceFiles(
+    const { data: activeFileRecord, isLoading: activeFileLoading } = useWorkspaceFileRecord(
       activeWorkspaceId ?? '',
-      'active',
-      {
-        enabled: Boolean(activeWorkspaceId) && active?.type === 'file',
-      }
+      active?.type === 'file' ? active.id : '',
+      { enabled: active?.type === 'file' }
     )
-    const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
+    const activeFile = active?.type === 'file' ? (activeFileRecord ?? undefined) : undefined
     const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
     const isActiveFilePreviewable =
@@ -219,8 +217,8 @@ export const MothershipView = memo(
       !isMarkdownFile(activeFile ?? { type: '', name: active.title }) &&
       // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
-      // other rich types (html, svg, …) on the file list loading.
-      !(isActiveCsv && filesLoading) &&
+      // other rich types (html, svg, …) on the record loading.
+      !(isActiveCsv && activeFileLoading) &&
       !(activeFile && isCsvStreamOnly(activeFile)) &&
       // A Sim page is locked to its rendered view (the pdf model — the raw
       // source is not a mode this surface offers), so no toggle either.

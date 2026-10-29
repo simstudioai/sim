@@ -2428,9 +2428,6 @@
   "apps/sim/lib/workspace-files/page-document.server.test.ts": {
     "TS2345": 4
   },
-  "apps/sim/lib/workspace-files/queries.test.ts": {
-    "TS2488": 1
-  },
   "apps/sim/lib/workspace-files/search/admission.test.ts": {
     "TS2550": 1
   },

@@ -165,7 +165,7 @@ describe('provisionScimUser', () => {
     mocks.assertEmailAvailable.mockResolvedValue(undefined)
     mocks.consumeTombstone.mockResolvedValue(undefined)
     mocks.syncIdentity.mockResolvedValue(false)
-    mocks.suspend.mockResolvedValue(undefined)
+    mocks.suspend.mockResolvedValue({ suspended: true, sessionsRevoked: 0, stoppedRuns: [] })
     mocks.unsuspend.mockResolvedValue(undefined)
     mocks.isInstanceMode.mockReturnValue(false)
     mocks.getInstanceOrganizationId.mockResolvedValue(null)

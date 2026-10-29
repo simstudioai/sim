@@ -3067,6 +3067,48 @@
       "when": 1793085618242,
       "tag": "0438_drop_redundant_job_log_schedule_index",
       "breakpoints": true
+    },
+    {
+      "idx": 439,
+      "version": "7",
+      "when": 1793215243284,
+      "tag": "0439_gmail_mailbox_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 440,
+      "version": "7",
+      "when": 1793220094350,
+      "tag": "0440_drop_redundant_indexes_vacuum_tuning",
+      "breakpoints": true
+    },
+    {
+      "idx": 441,
+      "version": "7",
+      "when": 1793220118650,
+      "tag": "0441_usage_log_billing_entity_period_cost_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 442,
+      "version": "7",
+      "when": 1793238399274,
+      "tag": "0442_workspace_files_active_uploaded_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 443,
+      "version": "7",
+      "when": 1793242393900,
+      "tag": "0443_workspace_file_folder_upload_and_name_search_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 444,
+      "version": "7",
+      "when": 1793255701005,
+      "tag": "0444_audit_log_org_level_created_at_id_idx",
+      "breakpoints": true
     }
   ]
 }
