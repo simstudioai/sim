@@ -49,6 +49,16 @@ describe('organization mention inventory', () => {
       { type: 'integration', items: [{ id: 'gmail_v2', name: 'gmail_v2' }] },
     ])
   })
+  it('offers no integration while a workspace policy has not arrived', () => {
+    const result = mergeOrganizationResourceInventories(
+      [
+        { id: 'sales', name: 'Sales' },
+        { id: 'finance', name: 'Finance' },
+      ],
+      { sales: inventory }
+    )
+    expect(result.groups.find((group) => group.type === 'integration')?.items ?? []).toEqual([])
+  })
   it('keeps mention confirmation pending until every accessible workspace settles', () => {
     expect(
       mergeOrganizationResourceInventories([{ id: 'sales', name: 'Sales' }], {}).isHydrating

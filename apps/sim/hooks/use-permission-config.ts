@@ -4,29 +4,18 @@ import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import {
-  isDeploymentGatedIntegrationType,
-  resolveIntegrationAvailabilityStateForVisibility,
-} from '@/lib/integrations/availability'
-import {
-  isBlockTypeAccessControlExempt,
-  isBlockTypePermittedByAllowlist,
-} from '@/lib/permission-groups/block-access'
+import { resolveIntegrationAccess } from '@/lib/integrations/access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
-import {
-  intersectAccessControlAllowlists,
-  resolveAccessControlBlockType,
-} from '@/lib/permission-groups/integration-allowlist'
 import { createModelAccessGate } from '@/lib/permission-groups/model-access'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
-import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
+import {
+  type IntegrationAccessPolicyState,
+  useIntegrationAccessPolicy,
+} from '@/hooks/use-integration-access'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
@@ -37,15 +26,12 @@ export interface PermissionConfigResult {
   isInPermissionGroup: boolean
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
-  isBlockAllowed: (blockType: string) => boolean
   /**
-   * Whether the integration policy (permission group allowlist intersected with
-   * the deployment's `ALLOWED_INTEGRATIONS`) permits a block, regardless of
-   * whether this deployment has the block's OAuth client configured. Surfaces
-   * that show an unconfigured integration as unavailable, rather than hiding
-   * it, filter by this instead of {@link isBlockAllowed}.
+   * Whether a block's integration access is `available`. Fails open while the
+   * policies load, as the workflow toolbar and tool pickers always have; a
+   * surface listing integrations reads `useIntegrationAccess` instead.
    */
-  isBlockPermitted: (blockType: string) => boolean
+  isBlockAllowed: (blockType: string) => boolean
   /** Presentation-only hint; request creation revalidates the deployed public catalog. */
   isBlockRequestable: (blockType: string) => boolean
   /**
@@ -63,14 +49,12 @@ export interface PermissionConfigResult {
   isIntegrationAvailabilityFetching: boolean
   isIntegrationAvailabilityReady: boolean
   integrationAvailabilityError: Error | null
-  refetchIntegrationAvailability: ReturnType<typeof useIntegrationAvailability>['refetch']
+  refetchIntegrationAvailability: IntegrationAccessPolicyState['refetchAvailability']
 }
 
 export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
-  const blockOverlayVersion = useCustomBlockOverlayVersion()
-  const hostContext = useOptionalWorkspaceHostContext()
 
   const {
     data: permissionData,
@@ -80,15 +64,17 @@ export function usePermissionConfig(): PermissionConfigResult {
     refetch: refetchPermissionConfig,
   } = useUserPermissionConfig(workspaceId)
   const {
-    data: envAllowlistData,
-    isLoading: isEnvAllowlistLoading,
-    isFetching: isIntegrationAvailabilityFetching,
-    isSuccess: isIntegrationAvailabilityReady,
-    error: integrationAvailabilityError,
-    refetch: refetchIntegrationAvailability,
-  } = useIntegrationAvailability()
+    policy,
+    isReady: isIntegrationAccessReady,
+    oauthServiceAvailability,
+    isAvailabilityLoading: isIntegrationAvailabilityLoading,
+    isAvailabilityFetching: isIntegrationAvailabilityFetching,
+    isAvailabilityReady: isIntegrationAvailabilityReady,
+    availabilityError: integrationAvailabilityError,
+    refetchAvailability: refetchIntegrationAvailability,
+  } = useIntegrationAccessPolicy(workspaceId)
 
-  const isLoading = isPermissionLoading || isEnvAllowlistLoading
+  const isLoading = isPermissionLoading || isIntegrationAvailabilityLoading
 
   const config = useMemo(() => {
     if (!permissionData?.config) {
@@ -100,108 +86,26 @@ export function usePermissionConfig(): PermissionConfigResult {
   const isInPermissionGroup = !!permissionData?.permissionGroupId
 
   /**
-   * Both sides of the membership test are judged as the current block, so a
-   * policy naming a retired id — `ALLOWED_INTEGRATIONS=slack` — still permits
-   * the successor the editor offers.
-   *
-   * Each policy is canonicalized *before* the two are intersected, not after: a
-   * group naming `slack` and an env allowlist naming `slack_v2` intersect to
-   * nothing textually, hiding an integration both policies allow. This is the
-   * same helper the server gates use — `mergeEnvAllowlist` for the config the
-   * catalog reads, `allowedIntegrationTypes` for the block and selector gates —
-   * so what this hook shows and what the server permits cannot disagree.
+   * The effective allowlist (group ∩ deployment) in the resolved vocabulary, so
+   * a policy naming a retired id still permits its successor. Server gates
+   * intersect with the same helper, so what this hook shows and what the server
+   * permits cannot disagree.
    */
-  const allowedAccessControlTypes = useMemo(
-    () =>
-      intersectAccessControlAllowlists(
-        config.allowedIntegrations,
-        envAllowlistData?.allowedIntegrations ?? null
-      ),
-    [config.allowedIntegrations, envAllowlistData]
-  )
-
   const mergedAllowedIntegrations = useMemo(
-    () => (allowedAccessControlTypes === null ? null : [...allowedAccessControlTypes]),
-    [allowedAccessControlTypes]
+    () => (policy.allowlist === null ? null : [...policy.allowlist]),
+    [policy.allowlist]
   )
 
-  const integrationAvailability = useMemo(() => {
-    const visibility = overlayVisibility()
-    return new Map(
-      (envAllowlistData?.integrationAvailability ?? []).map((availability) => [
-        availability.type.toLowerCase(),
-        {
-          ...availability,
-          state: resolveIntegrationAvailabilityStateForVisibility(availability, visibility),
-        },
-      ])
-    )
-  }, [envAllowlistData?.integrationAvailability, blockOverlayVersion])
-
-  const oauthServiceAvailability = useMemo(
-    () =>
-      new Map(
-        (envAllowlistData?.oauthServiceAvailability ?? []).map(({ providerId, available }) => [
-          providerId.toLowerCase(),
-          available,
-        ])
-      ),
-    [envAllowlistData?.oauthServiceAvailability]
+  const isBlockAllowed = useMemo(
+    () => (blockType: string) => resolveIntegrationAccess(blockType, policy) === 'available',
+    [policy]
   )
 
-  const isBlockPermitted = useMemo(
+  const isBlockRequestable = useMemo(
     () => (blockType: string) =>
-      isBlockTypePermittedByAllowlist(allowedAccessControlTypes, blockType),
-    [allowedAccessControlTypes]
+      isIntegrationAccessReady && resolveIntegrationAccess(blockType, policy) === 'requestable',
+    [isIntegrationAccessReady, policy]
   )
-
-  const isBlockAllowed = useMemo(() => {
-    return (blockType: string) => {
-      const normalizedBlockType = blockType.toLowerCase()
-      if (normalizedBlockType === 'credential_group' && !hostContext?.features?.credentialGroups) {
-        return false
-      }
-      const availability = integrationAvailability.get(normalizedBlockType)
-      if (
-        isDeploymentGatedIntegrationType(normalizedBlockType) &&
-        availability &&
-        (availability.state === 'unavailable' || availability.state === 'misconfigured')
-      ) {
-        return false
-      }
-      return isBlockPermitted(blockType)
-    }
-  }, [hostContext?.features?.credentialGroups, integrationAvailability, isBlockPermitted])
-
-  const isBlockRequestable = useMemo(() => {
-    const deploymentAllowlist = intersectAccessControlAllowlists(
-      null,
-      envAllowlistData?.allowedIntegrations ?? null
-    )
-    return (blockType: string): boolean => {
-      if (isLoading || !isIntegrationAvailabilityReady || isBlockAllowed(blockType)) return false
-      if (isBlockTypeAccessControlExempt(blockType)) return false
-      if (blockType === 'credential_group' && !hostContext?.features?.credentialGroups) return false
-      const availability = integrationAvailability.get(blockType.toLowerCase())
-      if (
-        isDeploymentGatedIntegrationType(blockType) &&
-        availability &&
-        (availability.state === 'unavailable' || availability.state === 'misconfigured')
-      )
-        return false
-      return (
-        deploymentAllowlist === null ||
-        deploymentAllowlist.has(resolveAccessControlBlockType(blockType))
-      )
-    }
-  }, [
-    envAllowlistData,
-    isLoading,
-    isIntegrationAvailabilityReady,
-    isBlockAllowed,
-    hostContext?.features?.credentialGroups,
-    integrationAvailability,
-  ])
 
   const isModelUsable = useMemo(
     () =>
@@ -256,15 +160,14 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
-      isBlockPermitted,
       isBlockRequestable,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
-      integrationAvailability,
+      integrationAvailability: policy.availability,
       oauthServiceAvailability,
-      isIntegrationAvailabilityLoading: isEnvAllowlistLoading,
+      isIntegrationAvailabilityLoading,
       isIntegrationAvailabilityFetching,
       isIntegrationAvailabilityReady,
       integrationAvailabilityError,
@@ -280,15 +183,14 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
-      isBlockPermitted,
       isBlockRequestable,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
-      integrationAvailability,
+      policy.availability,
       oauthServiceAvailability,
-      isEnvAllowlistLoading,
+      isIntegrationAvailabilityLoading,
       isIntegrationAvailabilityFetching,
       isIntegrationAvailabilityReady,
       integrationAvailabilityError,

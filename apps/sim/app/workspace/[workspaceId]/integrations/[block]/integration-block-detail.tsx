@@ -14,6 +14,7 @@ import {
   resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
+import { isIntegrationPermitted } from '@/lib/integrations/access'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
@@ -47,6 +48,7 @@ import {
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { RequestAccessAction } from '@/ee/access-requests/components/request-access-action'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -65,41 +67,33 @@ interface IntegrationBlockDetailProps {
 }
 
 /**
- * Integration detail page, shown only when the viewer's integration policy
- * permits the integration. A direct link to a restricted one renders an
- * access-required state instead of the connect actions, and the check fails
- * closed until both the permission group and the deployment allowlist have
- * loaded.
+ * Integration detail page, shown only when the viewer's access policy permits
+ * the integration (an unconfigured one included, which the page presents as
+ * unavailable). A direct link to a restricted one renders an access-required
+ * state instead of the connect actions, and nothing renders until the policy
+ * has loaded.
  */
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
-  const {
-    isBlockPermitted,
-    isBlockRequestable,
-    isPermissionReady,
-    isIntegrationAvailabilityReady,
-    integrationAvailabilityError,
-    refetchIntegrationAvailability,
-  } = usePermissionConfig()
+  const { getAccess, availabilityError, refetchAvailability } = useIntegrationAccess(workspaceId)
   const accessRequests = useWorkspaceAccessRequestFeatures()
+  const access = getAccess(integration.type)
 
-  if (integrationAvailabilityError) {
+  if (availabilityError) {
     return (
       <IntegrationAccessNotice
         workspaceId={workspaceId}
         title='Unable to check access'
-        description={integrationAvailabilityError.message}
-        action={<Chip onClick={() => void refetchIntegrationAvailability()}>Try again</Chip>}
+        description={availabilityError.message}
+        action={<Chip onClick={() => void refetchAvailability()}>Try again</Chip>}
       />
     )
   }
-  if (!isPermissionReady || !isIntegrationAvailabilityReady) {
-    return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
-  }
-  if (isBlockPermitted(integration.type)) {
+  if (access === undefined) return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
+  if (isIntegrationPermitted(access)) {
     return <IntegrationBlockDetailContent integration={integration} workspaceId={workspaceId} />
   }
 
-  const requestable = accessRequests.data?.enabled === true && isBlockRequestable(integration.type)
+  const requestable = access === 'requestable' && accessRequests.data?.enabled === true
 
   return (
     <IntegrationAccessNotice

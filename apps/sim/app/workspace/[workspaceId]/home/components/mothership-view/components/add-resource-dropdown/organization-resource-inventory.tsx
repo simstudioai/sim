@@ -37,10 +37,12 @@ export function mergeOrganizationResourceInventories(
   const byType = new Map<string, AvailableResources['groups'][number]>()
   const structureFolders: AvailableResources['structureFolders'] = { table: [], knowledgebase: [] }
   let isHydrating = false
+  let isAnyInventoryMissing = false
   for (const workspace of workspaces) {
     const inventory = inventories[workspace.id]
     if (!inventory) {
       isHydrating = true
+      isAnyInventoryMissing = true
       continue
     }
     isHydrating ||= inventory.isHydrating
@@ -52,7 +54,8 @@ export function mergeOrganizationResourceInventories(
     for (const group of inventory.groups) {
       if (group.type === 'browser' || group.type === 'terminal') continue
       // Integrations are not workspace-owned, but a permission group can target
-      // individual workspaces, so one is offered only where every workspace permits it.
+      // individual workspaces, so one is offered only where every workspace permits it,
+      // and a workspace whose inventory has not arrived permits nothing yet.
       const integrations = group.type === 'integration' ? byType.get(group.type) : undefined
       if (integrations) {
         const permittedHere = new Set(group.items.map((item) => item.id))
@@ -70,5 +73,7 @@ export function mergeOrganizationResourceInventories(
     structureFolders.table.push(...inventory.structureFolders.table.map(owned))
     structureFolders.knowledgebase.push(...inventory.structureFolders.knowledgebase.map(owned))
   }
+  const integrations = byType.get('integration')
+  if (integrations && isAnyInventoryMissing) integrations.items = []
   return { groups, structureFolders, isHydrating }
 }

@@ -36,6 +36,7 @@ vi.mock('@/lib/permission-groups/operation-access', () => ({
 import type { GetAllowedIntegrationsResponse } from '@/lib/api/contracts/common'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { integrationAvailabilityKeys } from '@/hooks/queries/utils/integration-availability-keys'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { type PermissionConfigResult, usePermissionConfig } from '@/hooks/use-permission-config'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
@@ -52,9 +53,11 @@ describe('usePermissionConfig deployment readiness', () => {
   let root: Root
   let queryClient: QueryClient
   let current: PermissionConfigResult
+  let access: ReturnType<typeof useIntegrationAccess>
 
   function Probe() {
     current = usePermissionConfig()
+    access = useIntegrationAccess('workspace-1')
     return null
   }
 
@@ -89,6 +92,7 @@ describe('usePermissionConfig deployment readiness', () => {
     mockUseUserPermissionConfig.mockReturnValue({
       data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: [] } },
       isLoading: false,
+      isSuccess: true,
     })
     queryClient.setQueryData(integrationAvailabilityKeys.environments(), {
       ...AVAILABILITY,
@@ -101,25 +105,23 @@ describe('usePermissionConfig deployment readiness', () => {
     expect(current!.isBlockRequestable('credential_group')).toBe(false)
   })
 
-  it('judges policy permission independently of deployment OAuth readiness', () => {
+  it('withholds an access verdict until the permission group loads, while the legacy gate fails open', () => {
     mockUseUserPermissionConfig.mockReturnValue({
-      data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['airtable'] } },
-      isLoading: false,
+      data: undefined,
+      isLoading: true,
+      isSuccess: false,
     })
-    queryClient.setQueryData(integrationAvailabilityKeys.environments(), {
-      ...AVAILABILITY,
-      integrationAvailability: [{ type: 'airtable', state: 'unavailable', oauthAvailable: false }],
-    })
+    queryClient.setQueryData(integrationAvailabilityKeys.environments(), AVAILABILITY)
     render()
-    expect(current.isBlockAllowed('airtable')).toBe(false)
-    expect(current.isBlockPermitted('airtable')).toBe(true)
-    expect(current.isBlockPermitted('slack')).toBe(false)
+    expect(access.getAccess('slack_v2')).toBeUndefined()
+    expect(current.isBlockAllowed('slack_v2')).toBe(true)
   })
 
   it('does not offer a request before deployment availability resolves', () => {
     mockUseUserPermissionConfig.mockReturnValue({
       data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: [] } },
       isLoading: false,
+      isSuccess: true,
     })
     mockRequestJson.mockReturnValue(new Promise(() => {}))
     render()

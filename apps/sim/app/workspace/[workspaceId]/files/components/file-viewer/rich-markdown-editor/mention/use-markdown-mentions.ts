@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { isIntegrationUsable } from '@/lib/integrations/access'
 import type { MentionMenuData } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-store'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
@@ -7,6 +8,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { mentionIcon } from './mention-icon'
 import type { MentionItem } from './types'
 
@@ -44,18 +46,21 @@ export function useMarkdownMentions(
   const knowledgeBases = useKnowledgeBasesQuery(ws, { enabled: active })
   const workflows = useWorkflows(ws)
   const skills = useSkills(wsStr)
+  const { getAccess: getIntegrationAccess } = useIntegrationAccess(workspaceId, { enabled: active })
 
-  // The integration registry is static — materialize it once rather than on every resource refetch.
+  // Rebuilt only when the access policy changes, never on a resource refetch.
   const integrationItems = useMemo<MentionItem[]>(() => {
     if (!active) return []
-    return listIntegrations().map((integration) => ({
-      kind: 'integration',
-      id: integration.blockType,
-      label: integration.name,
-      group: 'Integrations',
-      icon: mentionIcon('integration', integration.blockType),
-    }))
-  }, [active])
+    return listIntegrations()
+      .filter((integration) => isIntegrationUsable(getIntegrationAccess(integration.blockType)))
+      .map((integration) => ({
+        kind: 'integration',
+        id: integration.blockType,
+        label: integration.name,
+        group: 'Integrations',
+        icon: mentionIcon('integration', integration.blockType),
+      }))
+  }, [active, getIntegrationAccess])
 
   const items = useMemo(() => {
     if (!active) return NO_MENTION_ITEMS

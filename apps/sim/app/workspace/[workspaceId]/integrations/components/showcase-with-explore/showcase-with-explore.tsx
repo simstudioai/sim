@@ -4,9 +4,10 @@ import { Chip } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { isIntegrationUsable } from '@/lib/integrations/access'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 
 interface ShowcaseWithExploreProps {
   /**
@@ -27,15 +28,13 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
   const params = useParams()
   const router = useRouter()
   const { chatEnabled } = useDeploymentShape()
-  const { isBlockPermitted, isIntegrationAvailabilityReady } = usePermissionConfig()
   const workspaceId = (params?.workspaceId as string) || ''
+  const { getAccess } = useIntegrationAccess(workspaceId)
 
   return (
     <div className='relative'>
       <IntegrationsShowcase
-        isBlockPermitted={(blockType) =>
-          isIntegrationAvailabilityReady && isBlockPermitted(blockType)
-        }
+        isTileVisible={(blockType) => isIntegrationUsable(getAccess(blockType))}
       />
       {chatEnabled && (
         <Chip

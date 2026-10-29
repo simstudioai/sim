@@ -21,6 +21,7 @@ import {
   type Integration,
   resolveCredentialDisplay,
 } from '@/lib/integrations'
+import { isIntegrationPermitted } from '@/lib/integrations/access'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -45,7 +46,7 @@ import {
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
@@ -169,14 +170,12 @@ function IntegrationsContent() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const {
-    integrationAvailability,
-    isBlockPermitted,
-    isBlockRequestable,
-    isIntegrationAvailabilityReady,
-    isIntegrationAvailabilityFetching,
-    integrationAvailabilityError,
-    refetchIntegrationAvailability,
-  } = usePermissionConfig()
+    getAccess,
+    isReady: isAccessReady,
+    isAvailabilityFetching,
+    availabilityError,
+    refetchAvailability,
+  } = useIntegrationAccess(workspaceId)
   const accessRequestsEnabled = useWorkspaceAccessRequestFeatures().data?.enabled === true
   const [requestedIntegration, setRequestedIntegration] = useState<Integration | null>(null)
 
@@ -210,10 +209,22 @@ function IntegrationsContent() {
     [credentials]
   )
 
+  /**
+   * A credential is listed while one integration it authenticates is usable
+   * here; one tied to no catalog integration is not governed by the allowlist.
+   * Nothing is listed until the access policy has loaded.
+   */
   const connectedItems = useMemo<ConnectedDisplayItem[]>(() => {
+    if (!isAccessReady) return []
     return oauthCredentials.flatMap((credential) => {
       const display = resolveCredentialDisplay(credential)
       if (!display.service || !display.icon) return []
+      const isUsable =
+        display.coveredIntegrations.length === 0 ||
+        display.coveredIntegrations.some((integration) =>
+          isIntegrationPermitted(getAccess(integration.type))
+        )
+      if (!isUsable) return []
       return [
         {
           credential,
@@ -233,20 +244,19 @@ function IntegrationsContent() {
         },
       ]
     })
-  }, [oauthCredentials])
+  }, [oauthCredentials, isAccessReady, getAccess])
 
   /**
-   * The catalog lists what the viewer's integration policy permits, plus — when
-   * access requests are on — what it restricts but lets them request, which
-   * renders as a locked row. It lists nothing until the deployment allowlist has
-   * loaded, so a pending or failed availability request never shows an
-   * integration the deployment's `ALLOWED_INTEGRATIONS` excludes.
+   * Usable and unconfigured integrations are listed, the latter as unavailable;
+   * a requestable one is listed as a locked row while access requests are on.
+   * Nothing is listed until the access policy has loaded.
    */
-  const isListed = useMemo(
-    () => (blockType: string) =>
-      isIntegrationAvailabilityReady &&
-      (isBlockPermitted(blockType) || (accessRequestsEnabled && isBlockRequestable(blockType))),
-    [isIntegrationAvailabilityReady, isBlockPermitted, accessRequestsEnabled, isBlockRequestable]
+  const isListed = useCallback(
+    (blockType: string) => {
+      const access = getAccess(blockType)
+      return isIntegrationPermitted(access) || (access === 'requestable' && accessRequestsEnabled)
+    },
+    [getAccess, accessRequestsEnabled]
   )
 
   const listedFeatured = useMemo(
@@ -282,10 +292,11 @@ function IntegrationsContent() {
   /**
    * A category the viewer's integration policy leaves empty is not offered, so a
    * link or a policy change that points at one falls back to All. Connected stays
-   * selected while credentials load so the page does not flash All first.
+   * selected while its rows load so the page does not flash All first.
    */
   const selectedCategory =
-    categoryOptions.includes(urlCategory) || (urlCategory === CONNECTED_LABEL && credentialsLoading)
+    categoryOptions.includes(urlCategory) ||
+    (urlCategory === CONNECTED_LABEL && (credentialsLoading || !isAccessReady))
       ? urlCategory
       : ALL_CATEGORY
 
@@ -363,7 +374,7 @@ function IntegrationsContent() {
   ])
 
   const showNoResults =
-    isIntegrationAvailabilityReady &&
+    isAccessReady &&
     Boolean(urlSearchTerm.trim() || !isAllCategorySelected) &&
     filteredCategorySections.length === 0 &&
     visibleConnectedItems.length === 0
@@ -432,13 +443,13 @@ function IntegrationsContent() {
               </IntegrationSection>
             )}
 
-            {integrationAvailabilityError && (
+            {availabilityError && (
               <SettingsQueryErrorState
                 variant='inline'
-                error={integrationAvailabilityError}
+                error={availabilityError}
                 fallback='Unable to load integrations'
-                isRetrying={isIntegrationAvailabilityFetching}
-                onRetry={() => void refetchIntegrationAvailability()}
+                isRetrying={isAvailabilityFetching}
+                onRetry={() => void refetchAvailability()}
               />
             )}
 
@@ -447,9 +458,7 @@ function IntegrationsContent() {
                 {section.integrations.map((integration) => {
                   const Icon = blockTypeToIconMap[integration.type]
                   if (!Icon) return null
-                  const availability = integrationAvailability.get(integration.type.toLowerCase())
-                  const deploymentUnavailable =
-                    availability?.state === 'unavailable' || availability?.state === 'misconfigured'
+                  const access = getAccess(integration.type)
                   return (
                     <IntegrationItem
                       key={integration.type}
@@ -459,11 +468,11 @@ function IntegrationsContent() {
                       name={integration.name}
                       description={integration.description}
                       icon={Icon}
-                      unavailable={integration.authType === 'oauth' && deploymentUnavailable}
+                      unavailable={access === 'unconfigured'}
                       onRequestAccess={
-                        isBlockPermitted(integration.type)
-                          ? undefined
-                          : () => setRequestedIntegration(integration)
+                        access === 'requestable'
+                          ? () => setRequestedIntegration(integration)
+                          : undefined
                       }
                     />
                   )

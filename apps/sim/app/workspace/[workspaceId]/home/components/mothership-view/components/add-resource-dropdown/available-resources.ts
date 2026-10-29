@@ -1,8 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
-import { isBlockTypePermittedByAllowlist } from '@/lib/permission-groups/block-access'
-import { intersectAccessControlAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { isIntegrationUsable } from '@/lib/integrations/access'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import {
@@ -12,14 +11,9 @@ import {
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import {
-  type IntegrationDescriptor,
-  listIntegrationsByPopularity,
-} from '@/blocks/integration-matcher'
-import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
+import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
 import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
-import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
@@ -28,6 +22,7 @@ import { useWorkflowTests } from '@/hooks/queries/workflow-tests'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 
 /**
  * Placeholder id for the Browser launcher row. It never names a resource: the
@@ -100,7 +95,6 @@ interface UseAvailableResourcesOptions {
 
 /** Stable identity for the disabled result, so downstream memos never bust. */
 const NO_RESOURCE_GROUPS: AvailableItemsByType[] = []
-const NO_INTEGRATIONS: readonly IntegrationDescriptor[] = []
 
 const LOG_DROPDOWN_LIMIT = 50
 
@@ -187,28 +181,22 @@ export function useAvailableResources(
     enabled: enabled && Boolean(workspaceId),
   })
   const integrationsIncluded = !excludeTypes?.includes('integration')
-  const { data: permissionConfig, isPending: permissionConfigPending } = useUserPermissionConfig(
-    enabled && integrationsIncluded && workspaceId ? workspaceId : undefined
-  )
-  const { data: integrationAvailability, isPending: integrationAvailabilityPending } =
-    useIntegrationAvailability()
+  const integrationAccess = useIntegrationAccess(workspaceId, {
+    enabled: enabled && integrationsIncluded,
+  })
+  const { getAccess: getIntegrationAccess } = integrationAccess
 
   /**
-   * Integrations this workspace's policy permits: the viewer's permission group
-   * intersected with the deployment allowlist. Fails closed — nothing is offered
-   * until both have loaded — because the server drops a mention of an
-   * integration either policy disallows.
+   * Only integrations the workspace can use now: the server drops a mention of
+   * one its policy restricts or whose OAuth this deployment has not configured.
    */
-  const permittedIntegrations = useMemo(() => {
-    if (!permissionConfig || !integrationAvailability) return NO_INTEGRATIONS
-    const allowlist = intersectAccessControlAllowlists(
-      permissionConfig.config?.allowedIntegrations ?? null,
-      integrationAvailability.allowedIntegrations
-    )
-    return listIntegrationsByPopularity().filter((integration) =>
-      isBlockTypePermittedByAllowlist(allowlist, integration.blockType)
-    )
-  }, [permissionConfig, integrationAvailability])
+  const usableIntegrations = useMemo(
+    () =>
+      listIntegrationsByPopularity().filter((integration) =>
+        isIntegrationUsable(getIntegrationAccess(integration.blockType))
+      ),
+    [getIntegrationAccess]
+  )
   const { data: logsData, isPending: logsPending } = useLogsList(
     workspaceId,
     LOG_DROPDOWN_FILTERS,
@@ -240,7 +228,7 @@ export function useAvailableResources(
       fileFoldersPending ||
       tasksPending ||
       logsPending ||
-      (integrationsIncluded && (permissionConfigPending || integrationAvailabilityPending)))
+      (integrationsIncluded && integrationAccess.isPending))
 
   const groups = useMemo(() => {
     if (!enabled) return NO_RESOURCE_GROUPS
@@ -311,7 +299,7 @@ export function useAvailableResources(
       },
       {
         type: 'integration' as const,
-        items: permittedIntegrations.map((integration) => ({
+        items: usableIntegrations.map((integration) => ({
           id: integration.blockType,
           name: integration.name,
           iconComponent: integration.icon,
@@ -387,7 +375,7 @@ export function useAvailableResources(
     knowledgeBases,
     tasks,
     logs,
-    permittedIntegrations,
+    usableIntegrations,
     excludeTypes,
     dashboardsEnabled,
     testsEnabled,

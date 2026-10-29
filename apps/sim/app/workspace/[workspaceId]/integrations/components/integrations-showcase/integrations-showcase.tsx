@@ -85,7 +85,7 @@ export function IntegrationTile({ blockType, icon: Icon, framed = false }: Integ
 
 interface IntegrationsShowcaseProps {
   /** Tiles whose block type fails this check are left out of the grid. */
-  isBlockPermitted: (blockType: string) => boolean
+  isTileVisible: (blockType: string) => boolean
 }
 
 /**
@@ -93,7 +93,7 @@ interface IntegrationsShowcaseProps {
  * with a curated set of brand tiles. The bottom-right notch leaves room for an
  * "Explore in chat" CTA rendered by `ShowcaseWithExplore`.
  */
-export function IntegrationsShowcase({ isBlockPermitted }: IntegrationsShowcaseProps) {
+export function IntegrationsShowcase({ isTileVisible }: IntegrationsShowcaseProps) {
   return (
     <div aria-hidden className='relative h-[144px] w-full overflow-hidden rounded-xl'>
       <div
@@ -115,7 +115,7 @@ export function IntegrationsShowcase({ isBlockPermitted }: IntegrationsShowcaseP
         <div className='absolute inset-0 grid translate-x-[0.5px] translate-y-[0.5px] grid-cols-[repeat(auto-fill,48px)] grid-rows-[repeat(auto-fill,48px)]'>
           {SHOWCASE_TILES.map((tile) => {
             const block = getBlock(tile.id)
-            if (!block || !isBlockPermitted(tile.id)) return null
+            if (!block || !isTileVisible(tile.id)) return null
             return (
               <div
                 key={tile.id}
