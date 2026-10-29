@@ -704,6 +704,10 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         { name: 'clip.bin', contentType: 'video/ogg' },
         { name: 'song.bin', contentType: 'Audio/X-Unlisted; rate=44100' },
         { name: 'clip.vid', contentType: 'video/x-unlisted' },
+        { name: 'file.constructor', contentType: '' },
+        { name: 'file.__proto__', contentType: 'application/octet-stream' },
+        { name: 'noext', contentType: 'constructor' },
+        { name: 'noext', contentType: 'toString' },
         { name: 'file.foo', contentType: 'application/octet-stream' },
         { name: 'file.foo', contentType: '' },
       ]

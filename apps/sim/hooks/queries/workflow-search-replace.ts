@@ -712,10 +712,15 @@ export function useWorkflowSearchFileReplacementOptions(
     [matches]
   )
   const enabled = Boolean(workspaceId && fileGroups.length > 0)
-  const { files: offered } = useWorkspaceFilePickerOptions(workspaceId ?? '', options.query, {
-    limit: RECENT_REPLACEMENT_FILE_LIMIT,
-    enabled,
-  })
+  /** Never a previous query's matches: a choice offered must answer what is typed now. */
+  const { currentFiles: offered } = useWorkspaceFilePickerOptions(
+    workspaceId ?? '',
+    options.query,
+    {
+      limit: RECENT_REPLACEMENT_FILE_LIMIT,
+      enabled,
+    }
+  )
   const chosenKeys = useMemo(
     () =>
       options.chosen.flatMap((value) => {

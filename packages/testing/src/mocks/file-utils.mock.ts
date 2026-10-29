@@ -377,7 +377,8 @@ function extractStorageKey(filePath: string): string {
 function storageKeyOfStoredValue(value: string): string | undefined {
   if (!isInternalFileUrl(value)) return value
   try {
-    return extractStorageKey(value)
+    // The key is the path alone: a URL's query and fragment are no part of it.
+    return extractStorageKey(value.split(/[?#]/, 1)[0])
   } catch {
     return undefined
   }

@@ -413,7 +413,9 @@ function identifiesFormat(declared: string | undefined): declared is string {
  * Get MIME type from file extension (fallback if not provided)
  */
 export function getMimeTypeFromExtension(extension: string): string {
-  return EXTENSION_TO_MIME[extension.toLowerCase()] || GENERIC_MIME_TYPE
+  const key = extension.toLowerCase()
+  // Own keys only: an extension such as `constructor` must not read an `Object.prototype` member.
+  return (Object.hasOwn(EXTENSION_TO_MIME, key) && EXTENSION_TO_MIME[key]) || GENERIC_MIME_TYPE
 }
 
 /**
@@ -435,7 +437,9 @@ export function resolveEffectiveMimeType(
   if (identifiesFormat(declared)) return declared
 
   const extension = getFileExtension(filename)
-  return DUAL_CONTAINER_MIME[extension] ?? getMimeTypeFromExtension(extension)
+  return Object.hasOwn(DUAL_CONTAINER_MIME, extension)
+    ? DUAL_CONTAINER_MIME[extension]
+    : getMimeTypeFromExtension(extension)
 }
 
 const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
@@ -694,7 +698,8 @@ export function extractStorageKey(filePath: string): string {
 export function storageKeyOfStoredValue(value: string): string | undefined {
   if (!isInternalFileUrl(value)) return value
   try {
-    return extractStorageKey(value)
+    // The key is the path alone: a URL's query and fragment are no part of it.
+    return extractStorageKey(value.split(/[?#]/, 1)[0])
   } catch {
     return undefined
   }

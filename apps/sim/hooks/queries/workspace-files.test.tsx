@@ -850,6 +850,7 @@ describe('useWorkspaceFilePickerOptions', () => {
       await vi.waitFor(() => expect(hook.result().files?.map((file) => file.id)).toEqual(['match']))
       expect(hook.result().matchedQuery).toBe('mat')
       expect(hook.result().isPending).toBe(false)
+      expect(hook.result().currentFiles?.map((file) => file.id)).toEqual(['match'])
     } finally {
       hook.unmount()
     }
@@ -873,6 +874,8 @@ describe('useWorkspaceFilePickerOptions', () => {
       await vi.waitFor(() => expect(mockRequestJson).toHaveBeenCalledTimes(3))
       expect(hook.result().files?.map((file) => file.id)).toEqual(['match'])
       expect(hook.result().matchedQuery).toBe('')
+      /** What is offered as-is never holds the previous query's matches. */
+      expect(hook.result().currentFiles).toBeUndefined()
     } finally {
       hook.unmount()
     }

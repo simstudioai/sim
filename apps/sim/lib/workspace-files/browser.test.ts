@@ -31,3 +31,12 @@ describe('fileBrowserKinds', () => {
     expect(fileBrowserKinds('application/octet-stream', 'notes.md').has('document')).toBe(true)
   })
 })
+
+describe('table lookups by name', () => {
+  it('never reads an Object.prototype member as a label or a MIME type', () => {
+    expect(fileBrowserTypeLabel('constructor', 'noext')).toBe('constructor')
+    expect(fileBrowserTypeLabel('toString', 'noext')).toBe('toString')
+    expect(fileBrowserMimeType('', 'file.constructor')).toBe(fileBrowserMimeType('', 'file.zzz'))
+    expect(fileBrowserTypeLabel('', 'file.__proto__')).toBe('__PROTO__')
+  })
+})

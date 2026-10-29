@@ -98,8 +98,8 @@ export function fileBrowserKinds(storedType: string, filename: string): Set<File
  */
 export function fileBrowserTypeLabel(storedType: string, filename: string): string {
   const mimeType = fileBrowserMimeType(storedType, filename)
-  const label = FILE_BROWSER_MIME_LABELS[mimeType]
-  if (label) return label
+  // Own keys only, as the SQL twin's `jsonb ->>` reads them: `constructor` is no label.
+  if (Object.hasOwn(FILE_BROWSER_MIME_LABELS, mimeType)) return FILE_BROWSER_MIME_LABELS[mimeType]
   if (mimeType.startsWith('audio/')) return 'Audio'
   if (mimeType.startsWith('video/')) return 'Video'
   if (mimeType.startsWith('image/')) return 'Image'

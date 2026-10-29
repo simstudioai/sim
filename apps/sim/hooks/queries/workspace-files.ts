@@ -499,6 +499,13 @@ export interface WorkspaceFilePickerOptions {
    * `files` are the recent files, or a previous query's matches held while the next loads.
    */
   matchedQuery: string
+  /**
+   * `files` only while they answer exactly what is typed now: the recent files with nothing
+   * typed, the server's matches once they are in for the current query — never a previous
+   * query's matches, nor the recent files while a query settles. For a caller that offers the
+   * files as they are rather than filtering them.
+   */
+  currentFiles: WorkspaceFileRecord[] | undefined
   /** True until `files` answers what was typed: a menu still empty here is not "no match" yet. */
   isPending: boolean
 }
@@ -526,9 +533,13 @@ export function useWorkspaceFilePickerOptions(
     { q: settledQuery, limit: WORKSPACE_FILE_PICKER_LIMIT },
     { enabled }
   )
+  const files = settledQuery ? matching.data : recent.data?.pages[0]?.files
+  const matchedQuery =
+    settledQuery && matching.data && !matching.isPlaceholderData ? settledQuery : ''
   return {
-    files: settledQuery ? matching.data : recent.data?.pages[0]?.files,
-    matchedQuery: settledQuery && matching.data && !matching.isPlaceholderData ? settledQuery : '',
+    files,
+    matchedQuery,
+    currentFiles: !typed || matchedQuery === typed ? files : undefined,
     isPending: settledQuery
       ? typed !== settledQuery || matching.isFetching
       : recent.isPending || typed.length > 0,

@@ -196,6 +196,15 @@ describe('storageKeyOfStoredValue', () => {
     )
   })
 
+  it("drops a serve URL's fragment as well as its query", () => {
+    expect(storageKeyOfStoredValue('/api/files/serve/workspace%2Fws-1%2Fa.png#page=2')).toBe(
+      'workspace/ws-1/a.png'
+    )
+    expect(
+      storageKeyOfStoredValue('/api/files/serve/workspace%2Fws-1%2Fa.png?context=workspace#x')
+    ).toBe('workspace/ws-1/a.png')
+  })
+
   it('keeps any other value whole, `?` and `#` included', () => {
     expect(storageKeyOfStoredValue('workspace/ws-1/what?.md')).toBe('workspace/ws-1/what?.md')
     expect(storageKeyOfStoredValue('notes #1?.md')).toBe('notes #1?.md')
