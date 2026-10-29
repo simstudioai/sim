@@ -30,7 +30,7 @@ import {
   type SelectorKey,
 } from '@/lib/selectors/manifest'
 import type { SelectorOption, SelectorScope } from '@/lib/selectors/types'
-import { tryExtractStorageKey } from '@/lib/uploads/utils/file'
+import { isInternalFileUrl, storageKeyOfStoredValue } from '@/lib/uploads/utils/file'
 import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resources'
 import type {
   WorkflowSearchMatch,
@@ -346,9 +346,10 @@ export function useWorkflowSearchTableDetails(
 }
 
 /**
- * What to look a stored file value up by. It is an id, a storage key, a serve path, or a name: a
- * reference lookup answers an id (its first rule), a path, and a name; a storage key — every one
- * has a `/` — and a serve path also need the key lookup, which a plain name or id never would.
+ * What to look a stored file value up by. It is an id, a storage key, a serve URL, or a name or
+ * path: a serve URL is looked up by the key it carries (nothing, when its encoding is malformed);
+ * anything else by reference, which answers an id (its first rule), a path, and a name — and also
+ * by key when it has a `/`, as every storage key does. Only a serve URL reads `?` as a query.
  */
 export function workflowSearchFileLookups(rawValues: readonly string[]): {
   references: string[]
@@ -357,11 +358,9 @@ export function workflowSearchFileLookups(rawValues: readonly string[]): {
   const references = new Set<string>()
   const keyValues = new Set<string>()
   for (const rawValue of rawValues) {
-    const key = tryExtractStorageKey(rawValue)
-    // A serve path with malformed percent-encoding names nothing a lookup can find.
-    if (key === undefined) continue
-    if (key !== rawValue) {
-      keyValues.add(key)
+    if (isInternalFileUrl(rawValue)) {
+      const key = storageKeyOfStoredValue(rawValue)
+      if (key) keyValues.add(key)
       continue
     }
     references.add(rawValue)
@@ -394,7 +393,7 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
     () =>
       fileMatches.map((match) => {
         const file =
-          byKey.byValue.get(tryExtractStorageKey(match.rawValue) ?? '') ??
+          byKey.byValue.get(storageKeyOfStoredValue(match.rawValue) ?? '') ??
           byReference.byValue.get(match.rawValue)
         return {
           data: settled

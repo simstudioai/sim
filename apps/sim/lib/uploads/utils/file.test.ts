@@ -10,6 +10,7 @@ import {
   resolveEffectiveMimeType,
   resolveFileType,
   resolveTrustedFileContext,
+  storageKeyOfStoredValue,
 } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('FileUtilsTest')
@@ -182,5 +183,25 @@ describe('observedMediaType', () => {
   it('reads a stored file as its own base media type', () => {
     expect(observedMediaType('text/plain; charset=utf-8', 'notes.txt')).toBe('text/plain')
     expect(observedMediaType('IMAGE/PNG', 'photo.png')).toBe('image/png')
+  })
+})
+
+describe('storageKeyOfStoredValue', () => {
+  it('reads a serve URL as the key it carries, its query dropped', () => {
+    expect(
+      storageKeyOfStoredValue('/api/files/serve/workspace%2Fws-1%2Fa.png?context=workspace')
+    ).toBe('workspace/ws-1/a.png')
+    expect(storageKeyOfStoredValue('https://sim.ai/api/files/serve/s3/workspace%2Fb.md')).toBe(
+      'workspace/b.md'
+    )
+  })
+
+  it('keeps any other value whole, `?` and `#` included', () => {
+    expect(storageKeyOfStoredValue('workspace/ws-1/what?.md')).toBe('workspace/ws-1/what?.md')
+    expect(storageKeyOfStoredValue('notes #1?.md')).toBe('notes #1?.md')
+  })
+
+  it('names nothing for a serve URL whose encoding is malformed, instead of throwing', () => {
+    expect(storageKeyOfStoredValue('/api/files/serve/workspace%E0%A4%A.png')).toBeUndefined()
   })
 })

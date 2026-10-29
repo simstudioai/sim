@@ -1,5 +1,6 @@
 import { getFileExtension, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { normalizeMimeType } from '@/lib/uploads/utils/mime'
+import { isSupportedExtension } from '@/lib/uploads/utils/validation'
 
 export const FILE_BROWSER_SORTS = ['name', 'size', 'type', 'created', 'owner', 'updated'] as const
 export type FileBrowserSort = (typeof FILE_BROWSER_SORTS)[number]
@@ -73,6 +74,21 @@ export interface FileBrowserFilters {
  */
 export function fileBrowserMimeType(storedType: string, filename: string): string {
   return resolveEffectiveMimeType(normalizeMimeType(storedType), filename)
+}
+
+/**
+ * The kinds a file is, for the browsers' Type filter: `document` by its extension, and a media
+ * kind by its MIME type's family — any `image/*`, `audio/*`, or `video/*`, as its Type label reads
+ * it. The SQL twin is `fileKindSql`.
+ */
+export function fileBrowserKinds(storedType: string, filename: string): Set<FileBrowserType> {
+  const mimeType = fileBrowserMimeType(storedType, filename)
+  const kinds = new Set<FileBrowserType>()
+  if (isSupportedExtension(getFileExtension(filename))) kinds.add('document')
+  for (const kind of ['image', 'audio', 'video'] as const) {
+    if (mimeType.startsWith(`${kind}/`)) kinds.add(kind)
+  }
+  return kinds
 }
 
 /**

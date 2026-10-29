@@ -2,7 +2,6 @@ import { type SQL, type SQLWrapper, sql } from 'drizzle-orm'
 import {
   EXTENSION_TO_MIME,
   GENERIC_MIME_TYPES,
-  MIME_TYPE_MAPPING,
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file'
 import { SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
@@ -30,10 +29,6 @@ const EFFECTIVE_EXTENSION_MIMES = JSON.stringify(
 )
 const LABELS = JSON.stringify(FILE_BROWSER_MIME_LABELS)
 const GENERIC_MIME = resolveEffectiveMimeType(null, 'file')
-
-function mimesOfKind(kind: 'audio' | 'video'): string[] {
-  return Object.keys(MIME_TYPE_MAPPING).filter((mime) => MIME_TYPE_MAPPING[mime] === kind)
-}
 
 function list(values: readonly string[]): SQL {
   return sql.join(
@@ -69,11 +64,10 @@ export function fileTypeLabelSql(mime: SQL, extension: SQL, contentType: SQLWrap
       else coalesce(${contentType}, 'File') end)`
 }
 
-/** Whether a file of effective MIME type `mime` is of `kind`. */
+/** Whether a file of effective MIME type `mime` is of `kind` (see `fileBrowserKinds`). */
 export function fileKindSql(kind: FileBrowserType, mime: SQL, extension: SQL): SQL {
   if (kind === 'document') return sql`${extension} in (${list(SUPPORTED_DOCUMENT_EXTENSIONS)})`
-  if (kind === 'image') return sql`${mime} like 'image/%'`
-  return sql`lower(${mime}) in (${list(mimesOfKind(kind))})`
+  return sql`${mime} like ${`${kind}/%`}`
 }
 
 export function fileSizeBucketSql(bucket: FileBrowserSize, size: SQL): SQL {

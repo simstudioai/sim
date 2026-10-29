@@ -94,4 +94,11 @@ describe('workflowSearchFileLookups', () => {
       }
     )
   })
+
+  it('looks a name or path holding `?` or `#` up by reference, never as a serve URL', () => {
+    expect(workflowSearchFileLookups(['what?.md', 'docs/q&a #1?.md'])).toEqual({
+      references: ['what?.md', 'docs/q&a #1?.md'],
+      keyValues: ['docs/q&a #1?.md'],
+    })
+  })
 })

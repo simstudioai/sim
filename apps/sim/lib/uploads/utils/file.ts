@@ -687,12 +687,14 @@ export function extractStorageKey(filePath: string): string {
 }
 
 /**
- * {@link extractStorageKey} for a path read back from storage or a document, which may be
- * malformed: `undefined` when its percent-encoding cannot be decoded, rather than throwing.
+ * The storage key a stored file value names: a serve URL's key (see {@link isInternalFileUrl}),
+ * else the value itself — a name or path may hold `?` or `#`, which only a URL reads as its query.
+ * `undefined` for a serve URL whose percent-encoding cannot be decoded, rather than throwing.
  */
-export function tryExtractStorageKey(filePath: string): string | undefined {
+export function storageKeyOfStoredValue(value: string): string | undefined {
+  if (!isInternalFileUrl(value)) return value
   try {
-    return extractStorageKey(filePath)
+    return extractStorageKey(value)
   } catch {
     return undefined
   }

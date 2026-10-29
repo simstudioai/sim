@@ -41,7 +41,7 @@ import { FileTextSizeError, readFileText } from '@/lib/uploads/client/text-conte
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef, storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
-import { tryExtractStorageKey } from '@/lib/uploads/utils/file'
+import { storageKeyOfStoredValue } from '@/lib/uploads/utils/file'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { WorkspaceFileSelection } from '@/lib/workspace-files/selection'
 import type { UserFile } from '@/executor/types'
@@ -421,7 +421,7 @@ export function useWorkspaceFileSelectionCandidates(
       else if (selection.key) keys.add(selection.key)
       else if (selection.path) {
         // A persisted path with malformed percent-encoding names no file; it stays unresolved.
-        const key = tryExtractStorageKey(selection.path)
+        const key = storageKeyOfStoredValue(selection.path)
         if (key) keys.add(key)
       } else if (selection.name.trim()) names.add(selection.name.trim())
     }

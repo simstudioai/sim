@@ -374,9 +374,10 @@ function extractStorageKey(filePath: string): string {
   return pathWithoutQuery
 }
 
-function tryExtractStorageKey(filePath: string): string | undefined {
+function storageKeyOfStoredValue(value: string): string | undefined {
+  if (!isInternalFileUrl(value)) return value
   try {
-    return extractStorageKey(filePath)
+    return extractStorageKey(value)
   } catch {
     return undefined
   }
@@ -578,7 +579,7 @@ export const fileUtilsMockFns = {
     }
   ),
   mockExtractStorageKey: vi.fn(extractStorageKey),
-  mockTryExtractStorageKey: vi.fn(tryExtractStorageKey),
+  mockStorageKeyOfStoredValue: vi.fn(storageKeyOfStoredValue),
   mockIsInternalFileUrl: vi.fn(isInternalFileUrl),
   mockInferContextFromKey: vi.fn(inferContextFromKey),
   mockTryInferContextFromKey: vi.fn(tryInferContextFromKey),
@@ -741,7 +742,7 @@ export const fileUtilsMock = {
   formatFileSize: fileUtilsMockFns.mockFormatFileSize,
   validateKnowledgeBaseFile: fileUtilsMockFns.mockValidateKnowledgeBaseFile,
   extractStorageKey: fileUtilsMockFns.mockExtractStorageKey,
-  tryExtractStorageKey: fileUtilsMockFns.mockTryExtractStorageKey,
+  storageKeyOfStoredValue: fileUtilsMockFns.mockStorageKeyOfStoredValue,
   isInternalFileUrl: fileUtilsMockFns.mockIsInternalFileUrl,
   inferContextFromKey: fileUtilsMockFns.mockInferContextFromKey,
   tryInferContextFromKey: fileUtilsMockFns.mockTryInferContextFromKey,

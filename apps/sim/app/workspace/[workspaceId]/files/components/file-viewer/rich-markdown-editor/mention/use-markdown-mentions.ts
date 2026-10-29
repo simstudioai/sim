@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { MentionMenuData } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-store'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useSkills } from '@/hooks/queries/skills'
@@ -18,10 +19,12 @@ import type { MentionItem } from './types'
  * Files are the one family not listed whole: the menu offers the most recently updated, and once
  * `fileQuery` (the text after the `@`) settles, the files whose names match it anywhere.
  */
+const NO_MENTION_ITEMS: MentionItem[] = []
+
 export function useMarkdownMentions(
   workspaceId: string | undefined,
   options: { enabled: boolean; fileQuery?: string }
-): MentionItem[] {
+): MentionMenuData {
   const active = options.enabled && Boolean(workspaceId)
   // When inactive, `ws` is undefined and `wsStr` is '' so every query stays disabled until the first
   // `@`: the hooks that expose an `enabled` option get it explicitly; the rest (which take no options)
@@ -29,7 +32,11 @@ export function useMarkdownMentions(
   const ws = active ? workspaceId : undefined
   const wsStr = ws ?? ''
 
-  const { files, matchedQuery } = useWorkspaceFilePickerOptions(wsStr, options.fileQuery ?? '', {
+  const {
+    files,
+    matchedQuery,
+    isPending: filesPending,
+  } = useWorkspaceFilePickerOptions(wsStr, options.fileQuery ?? '', {
     enabled: active,
   })
   const folders = useWorkspaceFileFolders(wsStr, 'active')
@@ -50,8 +57,8 @@ export function useMarkdownMentions(
     }))
   }, [active])
 
-  return useMemo(() => {
-    if (!active) return []
+  const items = useMemo(() => {
+    if (!active) return NO_MENTION_ITEMS
     const items: MentionItem[] = []
 
     for (const file of files ?? [])
@@ -117,4 +124,7 @@ export function useMarkdownMentions(
     skills.data,
     integrationItems,
   ])
+  /** Files still answering an older query (or none yet) keep the menu from reading as empty. */
+  const pending = active && filesPending
+  return useMemo(() => ({ items, filesPending: pending }), [items, pending])
 }

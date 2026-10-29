@@ -13,15 +13,14 @@ import { inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CursorKey } from '@/lib/api/list-query'
 import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace/file-manager'
-import { EXTENSION_TO_MIME, getFileExtension, MIME_TYPE_MAPPING } from '@/lib/uploads/utils/file'
-import { isSupportedExtension } from '@/lib/uploads/utils/validation'
+import { EXTENSION_TO_MIME } from '@/lib/uploads/utils/file'
 import {
   getWorkspaceFileFolderStats,
   listWorkspaceFileCollection,
   lookupWorkspaceFiles,
   searchWorkspaceFiles,
 } from '@/lib/workspace-files/application/list-workspace-files'
-import { fileBrowserMimeType, fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
+import { fileBrowserKinds, fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
 import {
   workspaceFileKindCondition,
   workspaceFileTypeLabelExpression,
@@ -702,6 +701,9 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         { name: 'file.txt', contentType: ' Text/Markdown ; charset=utf-8' },
         { name: 'file.mp3', contentType: 'AUDIO/MPEG' },
         { name: 'file.dat', contentType: 'Application/Octet-Stream; x=1' },
+        { name: 'clip.bin', contentType: 'video/ogg' },
+        { name: 'song.bin', contentType: 'Audio/X-Unlisted; rate=44100' },
+        { name: 'clip.vid', contentType: 'video/x-unlisted' },
         { name: 'file.foo', contentType: 'application/octet-stream' },
         { name: 'file.foo', contentType: '' },
       ]
@@ -726,14 +728,14 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       for (const row of rows) {
         const fixture = ids.get(String(row.id))
         if (!fixture) throw new Error('Unexpected row')
-        const mime = fileBrowserMimeType(fixture.contentType, fixture.name)
+        const kinds = fileBrowserKinds(fixture.contentType, fixture.name)
         expect({ id: row.id, label: row.label, ...pick(row) }).toEqual({
           id: row.id,
           label: fileBrowserTypeLabel(fixture.contentType, fixture.name),
-          document: isSupportedExtension(getFileExtension(fixture.name)),
-          image: mime.startsWith('image/'),
-          audio: MIME_TYPE_MAPPING[mime.toLowerCase()] === 'audio',
-          video: MIME_TYPE_MAPPING[mime.toLowerCase()] === 'video',
+          document: kinds.has('document'),
+          image: kinds.has('image'),
+          audio: kinds.has('audio'),
+          video: kinds.has('video'),
         })
       }
     })

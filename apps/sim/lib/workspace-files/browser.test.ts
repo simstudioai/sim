@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { fileBrowserMimeType, fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
+import {
+  fileBrowserKinds,
+  fileBrowserMimeType,
+  fileBrowserTypeLabel,
+} from '@/lib/workspace-files/browser'
 
 describe('fileBrowserTypeLabel', () => {
   it('reads a stored type with parameters or mixed case as its bare media type', () => {
@@ -13,5 +17,17 @@ describe('fileBrowserTypeLabel', () => {
     expect(fileBrowserMimeType('Application/Octet-Stream; x=1', 'song.mp3')).toBe(
       fileBrowserMimeType('', 'song.mp3')
     )
+  })
+})
+
+describe('fileBrowserKinds', () => {
+  it('counts any audio/* or video/* type as Audio or Video, as its Type label does', () => {
+    expect([...fileBrowserKinds('video/x-unlisted', 'clip.bin')]).toEqual(['video'])
+    expect(fileBrowserTypeLabel('video/x-unlisted', 'clip.bin')).toBe('Video')
+    expect([...fileBrowserKinds('Audio/X-Unlisted; rate=44100', 'song.bin')]).toEqual(['audio'])
+  })
+
+  it('reads a document by its extension, whatever its stored type', () => {
+    expect(fileBrowserKinds('application/octet-stream', 'notes.md').has('document')).toBe(true)
   })
 })

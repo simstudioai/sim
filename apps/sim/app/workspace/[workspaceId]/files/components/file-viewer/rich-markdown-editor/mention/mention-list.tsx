@@ -5,7 +5,7 @@ import {
   type SuggestionKeyDownHandler,
   useSuggestionKeyboard,
 } from '../menus/use-suggestion-keyboard'
-import type { MentionStore } from './mention-store'
+import type { MentionMenuData, MentionStore } from './mention-store'
 import type { MentionItem } from './types'
 
 /**
@@ -14,6 +14,15 @@ import type { MentionItem } from './types'
  */
 export function mentionItemMatches(item: MentionItem, query: string): boolean {
   return item.matchedQuery?.toLowerCase() === query || item.label.toLowerCase().includes(query)
+}
+
+/**
+ * What the menu says with nothing to list: still loading while it has no data yet or its file
+ * search is settling — the other families alone can fill it, so an empty match is not yet
+ * "no results" until the files answering the query have landed.
+ */
+export function mentionEmptyLabel(menu: MentionMenuData): string {
+  return menu.items.length === 0 || menu.filesPending ? 'Loading…' : 'No results'
 }
 
 export type MentionListHandle = SuggestionKeyDownHandler
@@ -58,7 +67,8 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
   { query, command, store, editor },
   ref
 ) {
-  const rawItems = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+  const menu = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+  const rawItems = menu.items
   const containerRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -109,7 +119,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
       command={command}
       ariaLabel='Mentions'
       idPrefix='mention'
-      emptyLabel={rawItems.length === 0 ? 'Loading…' : 'No results'}
+      emptyLabel={mentionEmptyLabel(menu)}
       itemKey={(item) => `${item.kind}:${item.id}`}
       renderItem={(item) => {
         const Icon = item.icon

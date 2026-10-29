@@ -22,7 +22,7 @@ export function useEditorMentions(
 ): void {
   const [active, setActive] = useState(false)
   const [query, setQuery] = useState('')
-  const items = useMarkdownMentions(workspaceId, { enabled: active, fileQuery: query })
+  const menu = useMarkdownMentions(workspaceId, { enabled: active, fileQuery: query })
   const navigable = options?.navigable ?? false
   const disableTagging = options?.disableTagging ?? false
 
@@ -40,6 +40,6 @@ export function useEditorMentions(
   }, [editor, workspaceId, navigable, disableTagging])
 
   useEffect(() => {
-    editor?.storage.mentionMenu.store.set(items)
-  }, [editor, items])
+    editor?.storage.mentionMenu.store.set(menu)
+  }, [editor, menu])
 }
