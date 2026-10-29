@@ -1,14 +1,8 @@
 'use client'
 
-import {
-  ChipTag,
-  chipFieldSurfaceClass,
-  chipFieldTextClass,
-  cn,
-  FieldDivider,
-  Label,
-} from '@sim/emcn'
+import { ChipTag, chipFieldSurfaceClass, chipFieldTextClass, FieldDivider, Label } from '@sim/emcn'
 import { formatDisplayText } from '@sim/workflow-renderer/formatted-text'
+import { cn } from '@/components/docs/classnames'
 import { DocsBlockTile } from '@/components/workflow-preview/docs-block-tile'
 
 type FieldKind = 'select' | 'input' | 'textarea' | 'code' | 'slider' | 'toggle'
@@ -101,8 +95,10 @@ function FieldControl({ field }: { field: InspectorField }) {
     )
   }
   return (
-    <div className={cn(chipFieldSurfaceClass, 'flex h-[30px] items-center px-2')}>
-      <span className={cn(chipFieldTextClass, 'min-w-0 truncate')}>{content}</span>
+    <div className={cn(chipFieldSurfaceClass, 'flex min-h-[30px] items-center px-2 py-1')}>
+      <span className={cn(chipFieldTextClass, 'min-w-0 whitespace-pre-wrap break-words')}>
+        {content}
+      </span>
     </div>
   )
 }
@@ -139,7 +135,7 @@ export function BlockInspector({
   return (
     <div
       className={cn(
-        'bg-[var(--surface-1)] [--brand-secondary:#0067a3] dark:[--brand-secondary:#33b4ff]',
+        'bg-[var(--docs-reading)]',
         embedded
           ? 'flex min-h-0 w-full flex-1 flex-col overflow-y-auto'
           : 'not-prose my-6 w-full max-w-[380px] overflow-hidden rounded-xl border border-[var(--border)]'

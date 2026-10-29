@@ -1,6 +1,6 @@
 # Sim documentation
 
-The documentation site uses Next.js and Fumadocs. Read the [editorial guide](EDITORIAL_GUIDE.md) before changing copy or page organization. The [copy audit](COPY_AUDIT.md) records the complete page inventory, accuracy corrections, and validation.
+The documentation site uses Next.js, a build-time MDX content catalog, and the shared Sim docs component library. Read the [editorial guide](EDITORIAL_GUIDE.md) before changing copy or page organization. The [architecture and authoring guide](migration/content.md) explains content ownership, reusable components, assets, and generated references. The [copy audit](COPY_AUDIT.md) records the complete page inventory, accuracy corrections, and validation.
 
 ## Develop
 
@@ -18,9 +18,11 @@ Open `http://localhost:3001`. Build the site with `bun run build` and run the bu
 - API operation pages: generated `openapi*.json`, owned by `apps/sim/lib/api/contracts/v2/**` and `scripts/openapi/generator.ts`.
 - CLI reference pages: generated from the command tree by `scripts/generate-cli-docs.ts`.
 - Interactive workflow examples: `components/workflow-preview/**`.
-- Local media: `public/static/**`. Product captures use the shared `Image` component and branded backgrounds.
+- Local media: `public/static/**`. Product captures use the shared `Image` component.
 
 Use the owner and generation commands listed in the editorial guide. Do not hand-edit generated reference pages. The build also generates `llms-full.txt` from the current content.
+
+The [machine access guide](MACHINE_ACCESS.md) documents Markdown, JSON, MCP, search indexing, and their verification commands. The local `/design-system` gallery demonstrates the shared docs components and interaction states.
 
 ## Validate
 

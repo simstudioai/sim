@@ -1,4 +1,3 @@
-export { BlockPreview } from '@/components/workflow-preview/block-preview'
 export {
   API_FETCH_WORKFLOW,
   BUILD_AGENT_WORKFLOW,
@@ -39,10 +38,9 @@ export {
   WEBHOOK_TRIGGER_WORKFLOW,
   WORKFLOW_CALL_WORKFLOW,
 } from '@/components/workflow-preview/examples'
-export { OutputBundle } from '@/components/workflow-preview/output-bundle'
 export type {
   PreviewBlock,
   PreviewTool,
   PreviewWorkflow,
 } from '@/components/workflow-preview/workflow-data'
-export { WorkflowPreview } from '@/components/workflow-preview/workflow-preview'
+export { BlockPreview, OutputBundle, WorkflowPreview } from './lazy-previews'

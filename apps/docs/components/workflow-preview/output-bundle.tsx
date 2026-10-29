@@ -1,25 +1,20 @@
 'use client'
 
-import { ChipTag } from '@sim/emcn'
-import { ChevronDown, Clipboard, Download, Search } from '@sim/emcn/icons'
+import { ChevronRight, Download } from '@sim/emcn/icons'
+import { cn } from '@/components/docs/classnames'
+import { DocsButton } from '@/components/docs/primitives'
+import { CopyButton } from '@/components/ui/copy-button'
 import { DocsBlockTile } from '@/components/workflow-preview/docs-block-tile'
-import { cn } from '@/lib/utils'
 
 type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'
-
 interface OutputNode {
   key: string
   type?: ValueType
-  /** Primitive value shown beneath the key when expanded. */
   value?: string
-  /** Nested fields for object/array nodes. */
   children?: OutputNode[]
-  /** Collapse the node (chevron points right, nothing rendered beneath). */
   expanded?: boolean
-  /** Emphasize this row as the one being read by the tag below. */
   highlight?: boolean
 }
-
 interface LogRow {
   name: string
   type?: string
@@ -27,59 +22,49 @@ interface LogRow {
   duration?: string
   selected?: boolean
 }
-
-interface OutputBundleProps {
-  /** The block's name (unique within the workflow), e.g. "classify". */
+export interface OutputBundleProps {
   blockName: string
   blockType?: string
   blockColor?: string
-  /** Duration shown on the selected log row. */
   duration?: string
-  /** Override the Logs column; defaults to Start + this block (selected). */
   logs?: LogRow[]
   values: OutputNode[]
 }
+interface TreeNodeProps {
+  node: OutputNode
+}
 
-function TreeNode({ node, depth = 0 }: { node: OutputNode; depth?: number }) {
-  const type = node.type ?? 'string'
-  const expanded = node.expanded ?? Boolean(node.children || node.value !== undefined)
+function TreeNode({ node }: TreeNodeProps) {
+  const hasValue = Boolean(node.children?.length) || node.value !== undefined
   return (
-    <div className='flex min-w-0 flex-col'>
-      <div className='flex min-h-[26px] items-center gap-2 rounded-[6px] px-1'>
-        <span
-          className={cn(
-            'text-[var(--text-primary)] text-small',
-            node.highlight && 'underline decoration-[var(--brand-secondary)] underline-offset-4'
-          )}
-        >
-          {node.key}
-        </span>
-        <ChipTag>{type}</ChipTag>
-        <ChevronDown
-          className='size-[14px] flex-shrink-0 text-[var(--text-muted)]'
-          style={expanded ? undefined : { transform: 'rotate(-90deg)' }}
-        />
+    <details
+      open={node.expanded ?? hasValue}
+      className='min-w-0 py-1 [&[open]>summary>svg]:rotate-90'
+    >
+      <summary
+        className={cn(
+          'flex min-h-7 cursor-pointer list-none items-center gap-2 rounded-md px-1 text-docs-control hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] [&::-webkit-details-marker]:hidden',
+          node.highlight && 'text-[var(--docs-link)]'
+        )}
+      >
+        <ChevronRight className='size-4 shrink-0 text-[var(--docs-muted)] transition-transform motion-reduce:transition-none' />
+        <span className='break-all font-mono'>{node.key}</span>
+        <span className='font-mono text-[var(--docs-muted)]'>{node.type ?? 'string'}</span>
+      </summary>
+      <div className='min-w-0 py-1 pl-6'>
+        {node.children?.map((child) => (
+          <TreeNode key={child.key} node={child} />
+        ))}
+        {node.value !== undefined && (
+          <div className='whitespace-pre-wrap break-words text-docs-table'>{node.value}</div>
+        )}
+        {!hasValue && <span className='text-[var(--docs-muted)] text-docs-caption'>No value</span>}
       </div>
-      {expanded && (node.children || node.value !== undefined) && (
-        <div className='mt-0.5 ml-[5px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[10px]'>
-          {node.children
-            ? node.children.map((child) => (
-                <TreeNode key={child.key} node={child} depth={depth + 1} />
-              ))
-            : node.value !== undefined && (
-                <div className='py-0.5 text-[var(--text-secondary)] text-small'>{node.value}</div>
-              )}
-        </div>
-      )}
-    </div>
+    </details>
   )
 }
 
-/**
- * A miniature of the app's run inspector — the Logs list beside the Output
- * panel's typed tree — teaching what a block's output is: named, typed values
- * remembered under the block's name, read with a `<blockName.key>` tag.
- */
+/** Interactive typed output fixture. Copy and download preserve every nested source value. */
 export function OutputBundle({
   blockName,
   blockType = 'agent',
@@ -88,51 +73,60 @@ export function OutputBundle({
   logs,
   values,
 }: OutputBundleProps) {
-  const logRows: LogRow[] = logs ?? [
+  const rows = logs ?? [
     { name: 'Start', type: 'start_trigger', color: '#2FB3FF', duration: '9ms' },
     { name: blockName, type: blockType, color: blockColor, duration, selected: true },
   ]
-
+  const serialized = JSON.stringify({ blockName, values }, null, 2)
+  function download() {
+    const url = URL.createObjectURL(new Blob([serialized], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${blockName.replace(/[^a-zA-Z0-9_-]/g, '-')}-output.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
   return (
-    <div className='not-prose my-6 flex w-full max-w-[640px] flex-col gap-3'>
-      <div className='flex overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-1)]'>
-        <div className='flex w-[210px] flex-shrink-0 flex-col border-[var(--border)] border-r px-2 py-2'>
-          <div className='px-2 pb-2 text-[var(--text-muted)] text-caption'>Logs</div>
-          {logRows.map((row) => {
-            return (
-              <div
+    <div className='not-prose my-7 min-w-0 overflow-hidden rounded-lg border border-[var(--docs-border)] bg-[var(--docs-canvas)]'>
+      <div className='flex min-w-0 flex-col sm:flex-row'>
+        <div className='shrink-0 border-[var(--docs-border)] border-b p-2 sm:w-[178px] sm:border-r sm:border-b-0'>
+          <div className='px-2 pb-2 text-[var(--docs-muted)] text-docs-caption'>Logs</div>
+          <ul className='space-y-0.5'>
+            {rows.map((row) => (
+              <li
                 key={row.name}
-                className='flex h-[30px] items-center gap-2 rounded-[6px] px-2'
-                style={row.selected ? { background: 'var(--surface-active)' } : undefined}
-              >
-                <DocsBlockTile type={row.type ?? ''} color={row.color ?? 'var(--border)'} />
-                <span className='truncate text-[var(--text-primary)] text-small'>{row.name}</span>
-                {row.duration && (
-                  <span className='ml-auto text-[var(--text-muted)] text-caption'>
-                    {row.duration}
-                  </span>
+                className={cn(
+                  'flex min-h-[30px] items-center gap-2 rounded-md px-2 text-docs-control',
+                  row.selected && 'bg-[var(--docs-selected)]'
                 )}
-              </div>
-            )
-          })}
-        </div>
-
-        <div className='flex min-w-0 flex-1 flex-col px-3 py-2'>
-          <div className='flex items-center gap-3 pb-2'>
-            <span className='text-[var(--text-primary)] text-small'>Output</span>
-            <span className='text-[var(--text-muted)] text-small'>Input</span>
-            <span className='ml-auto flex items-center gap-2 text-[var(--text-subtle)]'>
-              <Search className='size-[12px]' />
-              <Clipboard className='size-[12px]' />
-              <Download className='size-[12px]' />
-              <ChevronDown className='size-[12px]' />
-            </span>
-          </div>
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            {values.map((node) => (
-              <TreeNode key={node.key} node={node} />
+              >
+                <DocsBlockTile type={row.type ?? ''} color={row.color ?? 'var(--docs-border)'} />
+                <span className='min-w-0 flex-1 break-words'>{row.name}</span>
+                <span className='shrink-0 text-[var(--docs-muted)] text-docs-caption'>
+                  {row.duration}
+                </span>
+              </li>
             ))}
+          </ul>
+        </div>
+        <div className='min-w-0 flex-1 px-4 py-2'>
+          <div className='flex min-h-8 items-center justify-between gap-2'>
+            <span className='text-docs-control'>Output</span>
+            <div className='flex items-center gap-1'>
+              <CopyButton text={serialized} label='Copy full output' />
+              <DocsButton
+                iconOnly
+                onClick={download}
+                aria-label='Download full output'
+                title='Download full output'
+              >
+                <Download className='size-4 text-[var(--docs-muted)]' />
+              </DocsButton>
+            </div>
           </div>
+          {values.map((node) => (
+            <TreeNode key={node.key} node={node} />
+          ))}
         </div>
       </div>
     </div>

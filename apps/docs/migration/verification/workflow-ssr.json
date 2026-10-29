@@ -1,0 +1,15 @@
+{
+  "path": "/workflows",
+  "status": 200,
+  "nodes": [
+    {
+      "id": "start",
+      "text": "StartStartStart the workflow with Customer message"
+    },
+    {
+      "id": "agent",
+      "text": "AgentAgentPrompt claude-sonnet-5-5 with Classify <start.input> into sales, support, or billing and low or high urgency.On error"
+    }
+  ],
+  "passed": true
+}

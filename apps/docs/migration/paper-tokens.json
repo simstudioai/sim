@@ -1,0 +1,944 @@
+{
+  "source": "https://app.paper.design/file/01M4HT6VGW45G238N4V86KKMG7/p-A-0",
+  "tokenHash": "ebe83397",
+  "inspectedOn": "2026-10-29",
+  "tokens": [
+    {
+      "name": "--neutral-white",
+      "type": "color",
+      "value": "rgb(255 255 255)",
+      "description": "Figma: primitive/neutral/white; mode Default."
+    },
+    {
+      "name": "--neutral-pearl",
+      "type": "color",
+      "value": "#FAFAFA",
+      "description": "Figma: primitive/neutral/pearl; mode Default."
+    },
+    {
+      "name": "--neutral-silver",
+      "type": "color",
+      "value": "#F5F5F5",
+      "description": "Figma: primitive/neutral/silver; mode Default."
+    },
+    {
+      "name": "--neutral-gray",
+      "type": "color",
+      "value": "#6E6E6E",
+      "description": "Figma: primitive/neutral/gray; mode Default."
+    },
+    {
+      "name": "--neutral-graphite",
+      "type": "color",
+      "value": "#1D1D1D",
+      "description": "Figma: primitive/neutral/graphite; mode Default."
+    },
+    {
+      "name": "--neutral-black",
+      "type": "color",
+      "value": "rgb(0 0 0)",
+      "description": "Figma: primitive/neutral/black; mode Default."
+    },
+    {
+      "name": "--black-4",
+      "type": "color",
+      "value": "rgb(0 0 0 / 4%)",
+      "description": "Figma: primitive/black/4; mode Default."
+    },
+    {
+      "name": "--black-6",
+      "type": "color",
+      "value": "rgb(0 0 0 / 6%)",
+      "description": "Figma: primitive/black/6; mode Default."
+    },
+    {
+      "name": "--black-8",
+      "type": "color",
+      "value": "rgb(0 0 0 / 8%)",
+      "description": "Figma: primitive/black/8; mode Default."
+    },
+    {
+      "name": "--black-12",
+      "type": "color",
+      "value": "rgb(0 0 0 / 12%)",
+      "description": "Figma: primitive/black/12; mode Default."
+    },
+    {
+      "name": "--white-0",
+      "type": "color",
+      "value": "rgb(255 255 255 / 0%)",
+      "description": "Figma: primitive/white/0; mode Default."
+    },
+    {
+      "name": "--white-30",
+      "type": "color",
+      "value": "rgb(255 255 255 / 30%)",
+      "description": "Figma: primitive/white/30; mode Default."
+    },
+    {
+      "name": "--white-70",
+      "type": "color",
+      "value": "rgb(255 255 255 / 70%)",
+      "description": "Figma: primitive/white/70; mode Default."
+    },
+    {
+      "name": "--white-85",
+      "type": "color",
+      "value": "rgb(255 255 255 / 85%)",
+      "description": "Figma: primitive/white/85; mode Default."
+    },
+    {
+      "name": "--color-surface-muted",
+      "type": "color",
+      "value": "var(--ink-4)",
+      "description": "Figma: color/surface/muted; mode Default."
+    },
+    {
+      "name": "--color-glass-fallback",
+      "type": "color",
+      "value": "var(--neutral-pearl)",
+      "description": "Figma: color/glass/fallback; mode Default."
+    },
+    {
+      "name": "--color-glass-highlight",
+      "type": "color",
+      "value": "var(--white-70)",
+      "description": "Figma: color/glass/highlight; mode Default."
+    },
+    {
+      "name": "--black-72",
+      "type": "color",
+      "value": "rgb(0 0 0 / 72%)",
+      "description": "Figma: primitive/black/72; mode Default."
+    },
+    {
+      "name": "--white-10",
+      "type": "color",
+      "value": "rgb(255 255 255 / 10%)",
+      "description": "Figma: primitive/white/10; mode Default."
+    },
+    {
+      "name": "--white-20",
+      "type": "color",
+      "value": "rgb(255 255 255 / 20%)",
+      "description": "Figma: primitive/white/20; mode Default."
+    },
+    {
+      "name": "--color-button-label",
+      "type": "color",
+      "value": "var(--neutral-white)",
+      "description": "Figma: color/button/label; mode Default."
+    },
+    {
+      "name": "--neutral-ink",
+      "type": "color",
+      "value": "rgb(10 10 10)",
+      "description": "Figma: neutral/ink; mode Default."
+    },
+    {
+      "name": "--neutral-warm",
+      "type": "color",
+      "value": "rgb(249 248 246)",
+      "description": "Figma: neutral/warm; mode Default."
+    },
+    {
+      "name": "--ink-hover",
+      "type": "color",
+      "value": "rgb(9 9 9)",
+      "description": "Figma: ink/hover; mode Default."
+    },
+    {
+      "name": "--white-90",
+      "type": "color",
+      "value": "rgb(229 229 229)",
+      "description": "Figma: white/90; mode Default."
+    },
+    {
+      "name": "--black-22",
+      "type": "color",
+      "value": "rgb(0 0 0 / 22%)",
+      "description": "Figma: black/22; mode Default."
+    },
+    {
+      "name": "--ink-4",
+      "type": "color",
+      "value": "rgb(10 10 10 / 4%)",
+      "description": "Figma: ink/4; mode Default."
+    },
+    {
+      "name": "--ink-6",
+      "type": "color",
+      "value": "rgb(10 10 10 / 6%)",
+      "description": "Figma: ink/6; mode Default."
+    },
+    {
+      "name": "--ink-8",
+      "type": "color",
+      "value": "rgb(10 10 10 / 8%)",
+      "description": "Figma: ink/8; mode Default."
+    },
+    {
+      "name": "--ink-15",
+      "type": "color",
+      "value": "rgb(10 10 10 / 15%)",
+      "description": "Figma: ink/15; mode Default."
+    },
+    {
+      "name": "--ink-20",
+      "type": "color",
+      "value": "rgb(10 10 10 / 20%)",
+      "description": "Figma: ink/20; mode Default."
+    },
+    {
+      "name": "--ink-30",
+      "type": "color",
+      "value": "rgb(10 10 10 / 30%)",
+      "description": "Figma: ink/30; mode Default."
+    },
+    {
+      "name": "--ink-80",
+      "type": "color",
+      "value": "rgb(10 10 10 / 80%)",
+      "description": "Figma: ink/80; mode Default."
+    },
+    {
+      "name": "--color-button-label-hover",
+      "type": "color",
+      "value": "var(--white-90)",
+      "description": "Figma: color/button/label/hover; mode Default."
+    },
+    {
+      "name": "--ink-60",
+      "type": "color",
+      "value": "rgb(10 10 10 / 60%)",
+      "description": "Figma: ink/60; mode Default."
+    },
+    {
+      "name": "--color-nav-link-muted",
+      "type": "color",
+      "value": "var(--ink-60)",
+      "description": "Neighboring navigation links while one link is hovered or keyboard-focused. CSS --color-nav-link-muted: var(--ink-60). Figma: color/nav/link/muted; mode Default."
+    },
+    {
+      "name": "--color-nav-dropdown",
+      "type": "color",
+      "value": "var(--color-glass-floating)",
+      "description": "Landing dropdowns inherit the same neutral floating glass as App menus."
+    },
+    {
+      "name": "--color-nav-backdrop",
+      "type": "color",
+      "value": "rgb(232 232 232 / 40%)",
+      "description": "Figma: color/nav/backdrop; mode Default."
+    },
+    {
+      "name": "--color-nav-background",
+      "type": "color",
+      "value": "var(--neutral-white)",
+      "description": "Figma: color/nav/background; mode Default."
+    },
+    {
+      "name": "--white-80",
+      "type": "color",
+      "value": "rgb(255 255 255 / 80%)",
+      "description": "Figma: primitive/white/80; mode Default."
+    },
+    {
+      "name": "--color-background",
+      "type": "color",
+      "value": "var(--neutral-white)",
+      "description": "Shared Landing and App canvas: neutral white (#FFFFFF)."
+    },
+    {
+      "name": "--color-surface",
+      "type": "color",
+      "value": "var(--neutral-white)",
+      "description": "Measured from https://devin.ai/ on 2026-10-06. #FFFFFF. Figma: color/surface; mode Default."
+    },
+    {
+      "name": "--color-surface-inverse",
+      "type": "color",
+      "value": "var(--neutral-black)",
+      "description": "Measured from https://devin.ai/ on 2026-10-06. #000000. Figma: color/surface/inverse; mode Default."
+    },
+    {
+      "name": "--color-text-primary",
+      "type": "color",
+      "value": "var(--neutral-ink)",
+      "description": "Shared Landing and App primary text: neutral ink (#0A0A0A). Used for identity, headings and content."
+    },
+    {
+      "name": "--color-text-secondary",
+      "type": "color",
+      "value": "var(--ink-60)",
+      "description": "Shared neutral ink at 60% for secondary copy, quiet controls and chart series."
+    },
+    {
+      "name": "--color-text-inverse",
+      "type": "color",
+      "value": "var(--neutral-silver)",
+      "description": "Measured from https://devin.ai/ on 2026-10-06. #FFFFFF. Figma: color/text/inverse; mode Default."
+    },
+    {
+      "name": "--color-accent",
+      "type": "color",
+      "value": "var(--blue)",
+      "description": "Measured from https://devin.ai/ on 2026-10-06. #317CFF. Figma: color/accent; mode Default."
+    },
+    {
+      "name": "--color-border",
+      "type": "color",
+      "value": "var(--black-12)",
+      "description": "Shared strong boundary: neutral black at 12%."
+    },
+    {
+      "name": "--color-border-subtle",
+      "type": "color",
+      "value": "var(--black-6)",
+      "description": "Measured from https://devin.ai/ on 2026-10-06. #000000 at 6% opacity. Figma: color/border/subtle; mode Default."
+    },
+    {
+      "name": "--color-glass",
+      "type": "color",
+      "value": "var(--white-80)",
+      "description": "Shared Landing and App shell glass: neutral white at 80%. Blur belongs to layered chrome; reading surfaces stay clearer."
+    },
+    {
+      "name": "--color-nav-glass",
+      "type": "color",
+      "value": "var(--white-80)",
+      "description": "Neutral white at 80%, shared with shell glass. No blue or pearl tint."
+    },
+    {
+      "name": "--color-button-primary",
+      "type": "color",
+      "value": "var(--neutral-ink)",
+      "description": "Figma: color/button/primary; mode Default."
+    },
+    {
+      "name": "--color-button-primary-hover",
+      "type": "color",
+      "value": "var(--ink-hover)",
+      "description": "Figma: color/button/primary/hover; mode Default."
+    },
+    {
+      "name": "--color-button-secondary",
+      "type": "color",
+      "value": "var(--ink-4)",
+      "description": "Figma: color/button/secondary; mode Default."
+    },
+    {
+      "name": "--color-button-secondary-hover",
+      "type": "color",
+      "value": "var(--ink-8)",
+      "description": "Figma: color/button/secondary/hover; mode Default."
+    },
+    {
+      "name": "--color-app-canvas",
+      "type": "color",
+      "value": "var(--color-background)",
+      "description": "White working canvas. Use glass selectively for layered controls and floating surfaces."
+    },
+    {
+      "name": "--color-app-text-primary",
+      "type": "color",
+      "value": "var(--ink-80)",
+      "description": "Soft graphite for primary app text. Shared neutral ink at 80%; preserves strong reading contrast without pure black."
+    },
+    {
+      "name": "--color-app-text-secondary",
+      "type": "color",
+      "value": "var(--color-text-secondary)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-text-muted",
+      "type": "color",
+      "value": "var(--color-nav-link-muted)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-glass",
+      "type": "color",
+      "value": "var(--color-glass)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-overlay",
+      "type": "color",
+      "value": "var(--color-glass-floating)",
+      "description": "App menus and popovers inherit shared floating glass."
+    },
+    {
+      "name": "--color-app-reading",
+      "type": "color",
+      "value": "rgb(255 255 255 / 96%)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-border",
+      "type": "color",
+      "value": "var(--color-border-subtle)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-hover",
+      "type": "color",
+      "value": "var(--color-icon-background-hover)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-selected",
+      "type": "color",
+      "value": "var(--black-8)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-pressed",
+      "type": "color",
+      "value": "var(--black-12)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-accent",
+      "type": "color",
+      "value": "var(--color-accent)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-error",
+      "type": "color",
+      "value": "#C83232",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-app-success",
+      "type": "color",
+      "value": "var(--color-accent)",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--color-glass-floating",
+      "type": "color",
+      "value": "rgb(255 255 255 / 88%)",
+      "description": "Shared neutral white glass for floating menus across Landing and App. 20px blur; retain the solid fallback when backdrop blur is unavailable."
+    },
+    {
+      "name": "--ink-50",
+      "type": "color",
+      "value": "rgb(10 10 10 / 50%)",
+      "description": "Neutral medium gray for data series; never used for small body text."
+    },
+    {
+      "name": "--color-docs-green",
+      "type": "color",
+      "value": "#15803D",
+      "description": "Docs semantic green ink from Sim platform badge tokens; scope to method, status and syntax labels."
+    },
+    {
+      "name": "--color-docs-green-soft",
+      "type": "color",
+      "value": "rgb(187 247 208 / 35%)",
+      "description": "Compact green badge fill from Sim platform. Keep page and glass surfaces neutral."
+    },
+    {
+      "name": "--color-docs-purple",
+      "type": "color",
+      "value": "#7C3AED",
+      "description": "Docs semantic purple ink from Sim platform badge tokens; scope to method, status and syntax labels."
+    },
+    {
+      "name": "--color-docs-purple-soft",
+      "type": "color",
+      "value": "rgb(233 213 255 / 35%)",
+      "description": "Compact purple badge fill from Sim platform. Keep page and glass surfaces neutral."
+    },
+    {
+      "name": "--color-docs-orange",
+      "type": "color",
+      "value": "#C2410C",
+      "description": "Docs semantic orange ink from Sim platform badge tokens; scope to method, status and syntax labels."
+    },
+    {
+      "name": "--color-docs-orange-soft",
+      "type": "color",
+      "value": "rgb(254 215 170 / 35%)",
+      "description": "Compact orange badge fill from Sim platform. Keep page and glass surfaces neutral."
+    },
+    {
+      "name": "--color-docs-red",
+      "type": "color",
+      "value": "#C83232",
+      "description": "Reuse Paper platform error ink."
+    },
+    {
+      "name": "--color-docs-red-soft",
+      "type": "color",
+      "value": "rgb(254 202 202 / 35%)",
+      "description": "Compact red badge fill from Sim platform. Keep page and glass surfaces neutral."
+    },
+    {
+      "name": "--color-docs-blue",
+      "type": "color",
+      "value": "var(--color-accent)",
+      "description": "Reuse Sim link and action blue."
+    },
+    {
+      "name": "--color-docs-blue-soft",
+      "type": "color",
+      "value": "rgb(191 219 254 / 35%)",
+      "description": "Compact blue badge fill from Sim platform. Keep page and glass surfaces neutral."
+    },
+    {
+      "name": "--color-docs-gray",
+      "type": "color",
+      "value": "var(--color-app-text-secondary)",
+      "description": "Docs semantic gray ink from Sim platform badge tokens; scope to method, status and syntax labels."
+    },
+    {
+      "name": "--color-docs-gray-soft",
+      "type": "color",
+      "value": "var(--color-surface-muted)",
+      "description": "Compact gray badge fill from Sim platform. Keep page and glass surfaces neutral."
+    },
+    {
+      "name": "--color-docs-dark-canvas",
+      "type": "color",
+      "value": "#1B1B1B",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-reading",
+      "type": "color",
+      "value": "#1F1F1F",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-text",
+      "type": "color",
+      "value": "#E6E6E6",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-muted",
+      "type": "color",
+      "value": "#CCCCCC",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-border",
+      "type": "color",
+      "value": "#444444",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-hover",
+      "type": "color",
+      "value": "#262626",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-selected",
+      "type": "color",
+      "value": "#2C2C2C",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-blue",
+      "type": "color",
+      "value": "#93C5FD",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-green",
+      "type": "color",
+      "value": "#86EFAC",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-purple",
+      "type": "color",
+      "value": "#D8B4FE",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-orange",
+      "type": "color",
+      "value": "#FDBA74",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-docs-dark-red",
+      "type": "color",
+      "value": "#FCA5A5",
+      "description": "Dark docs specimen: shared Sim platform .dark token value from globals.css."
+    },
+    {
+      "name": "--color-surface-reading",
+      "type": "color",
+      "value": "var(--color-app-reading)",
+      "description": "Landing reading surfaces use the established 96% white app material."
+    },
+    {
+      "name": "--font-sans",
+      "type": "fontFamily",
+      "value": "\"Geist\"",
+      "description": "Source: Sim Figma variable font/sans; all modes use Geist."
+    },
+    {
+      "name": "--font-mono",
+      "type": "fontFamily",
+      "value": "\"Geist Mono\"",
+      "description": "Figma: font/mono; mode Desktop."
+    },
+    {
+      "name": "--type-nav-size",
+      "type": "fontSize",
+      "value": "13px",
+      "description": "Figma: type/nav/size; mode Desktop."
+    },
+    {
+      "name": "--type-nav-size-mobile",
+      "type": "fontSize",
+      "value": "13px",
+      "description": "Figma: type/nav/size; mode Mobile."
+    },
+    {
+      "name": "--type-nav-size-tablet",
+      "type": "fontSize",
+      "value": "13px",
+      "description": "Figma: type/nav/size; mode Tablet."
+    },
+    {
+      "name": "--text-docs-title",
+      "type": "fontSize",
+      "value": "32px"
+    },
+    {
+      "name": "--text-docs-body",
+      "type": "fontSize",
+      "value": "var(--type-body-size)"
+    },
+    {
+      "name": "--type-nav-leading",
+      "type": "lineHeight",
+      "value": "19.5px",
+      "description": "Figma: type/nav/leading; mode Desktop."
+    },
+    {
+      "name": "--type-nav-leading-mobile",
+      "type": "lineHeight",
+      "value": "19.5px",
+      "description": "Figma: type/nav/leading; mode Mobile."
+    },
+    {
+      "name": "--type-nav-leading-tablet",
+      "type": "lineHeight",
+      "value": "19.5px",
+      "description": "Figma: type/nav/leading; mode Tablet."
+    },
+    {
+      "name": "--leading-docs-title",
+      "type": "lineHeight",
+      "value": "40px"
+    },
+    {
+      "name": "--leading-docs-body",
+      "type": "lineHeight",
+      "value": "var(--type-body-leading)"
+    },
+    {
+      "name": "--container-docs-toc",
+      "type": "container",
+      "value": "208px"
+    },
+    {
+      "name": "--container-docs-sidebar",
+      "type": "container",
+      "value": "216px"
+    },
+    {
+      "name": "--container-docs-article",
+      "type": "container",
+      "value": "680px"
+    },
+    {
+      "name": "--container-docs-shell",
+      "type": "container",
+      "value": "1280px"
+    },
+    {
+      "name": "--spacing-app-unit",
+      "type": "spacing",
+      "value": "4px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--spacing-app-control-md",
+      "type": "spacing",
+      "value": "32px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--spacing-app-control-sm",
+      "type": "spacing",
+      "value": "28px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--spacing-app-chip",
+      "type": "spacing",
+      "value": "30px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--spacing-app-icon",
+      "type": "spacing",
+      "value": "16px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--spacing-app-activity-row",
+      "type": "spacing",
+      "value": "44px",
+      "description": "Compact stacked activity, email, meeting and inbox rows. Shared 4px vertical and 8px horizontal padding."
+    },
+    {
+      "name": "--spacing-app-dashboard-row",
+      "type": "spacing",
+      "value": "56px",
+      "description": "Roomier dashboard rows. Inbox remains the compact 44px rhythm."
+    },
+    {
+      "name": "--spacing-app-gutter-mobile",
+      "type": "spacing",
+      "value": "16px",
+      "description": "Page gutters below 768px; shared module row inset remains 8px."
+    },
+    {
+      "name": "--spacing-app-gutter-compact",
+      "type": "spacing",
+      "value": "24px",
+      "description": "Page gutters from 768px to 1279px; default collapsed sidebar."
+    },
+    {
+      "name": "--spacing-app-gutter-desktop",
+      "type": "spacing",
+      "value": "48px",
+      "description": "Minimum content gutters at 1280px and above; center capped content in remaining space."
+    },
+    {
+      "name": "--spacing-app-touch-target",
+      "type": "spacing",
+      "value": "44px",
+      "description": "Touch hit area. Icon glyphs remain 16px and the same stroke weight."
+    },
+    {
+      "name": "--spacing-docs-gutter",
+      "type": "spacing",
+      "value": "48px"
+    },
+    {
+      "name": "--radius-app-sm",
+      "type": "radius",
+      "value": "6px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--radius-app-md",
+      "type": "radius",
+      "value": "8px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--radius-app-menu",
+      "type": "radius",
+      "value": "10px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--radius-app-dialog",
+      "type": "radius",
+      "value": "16px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    },
+    {
+      "name": "--radius-app-composer",
+      "type": "radius",
+      "value": "20px",
+      "description": "App redesign proposal v0.1; shared landing aliases where applicable. No code implementation yet."
+    }
+  ],
+  "shellStyles": {
+    "1TU6-0": {
+      "display": "flex",
+      "alignItems": "center",
+      "width": "1280px",
+      "height": "56px",
+      "flexShrink": "0",
+      "alignSelf": "center",
+      "paddingInline": "16px",
+      "gap": "40px",
+      "backdropFilter": "blur(20px)",
+      "backgroundColor": "var(--color-nav-glass)"
+    },
+    "1TUN-0": {
+      "display": "flex",
+      "width": "1280px",
+      "alignSelf": "center",
+      "alignItems": "start",
+      "paddingTop": "40px",
+      "paddingBottom": "64px",
+      "gap": "48px",
+      "paddingInline": "16px"
+    },
+    "1TUP-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "216px",
+      "flexShrink": "0",
+      "gap": "20px"
+    },
+    "1TXC-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "680px",
+      "flexShrink": "0",
+      "gap": "28px"
+    },
+    "1TXE-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "208px",
+      "paddingLeft": "8px",
+      "gap": "16px",
+      "flexShrink": "0"
+    },
+    "1U6J-0": {
+      "fontSize": "14px",
+      "lineHeight": "22px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "fontFamily": "var(--font-sans)",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 400,
+      "color": "var(--color-app-text-primary)"
+    },
+    "1U6N-0": {
+      "fontSize": "14px",
+      "lineHeight": "22px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "fontFamily": "var(--font-sans)",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 400,
+      "color": "var(--color-app-text-primary)"
+    },
+    "1U6R-0": {
+      "fontSize": "14px",
+      "lineHeight": "22px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "fontFamily": "var(--font-sans)",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 400,
+      "color": "var(--color-app-text-primary)"
+    },
+    "1U6V-0": {
+      "fontSize": "14px",
+      "lineHeight": "22px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "fontFamily": "var(--font-sans)",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 400,
+      "color": "var(--color-app-text-primary)"
+    },
+    "1ZW6-0": {
+      "fontFamily": "var(--font-sans)",
+      "fontSize": "14px",
+      "lineHeight": "22px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 400,
+      "color": "var(--color-app-text-primary)"
+    },
+    "1U1C-0": {
+      "fontFamily": "var(--font-sans)",
+      "fontSize": "32px",
+      "lineHeight": "40px",
+      "letterSpacing": "-0.02em",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 500,
+      "color": "#000000"
+    },
+    "1U1H-0": {
+      "fontFamily": "var(--font-sans)",
+      "fontSize": "24px",
+      "lineHeight": "32px",
+      "letterSpacing": "-0.02em",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 500,
+      "color": "#000000"
+    },
+    "1U1M-0": {
+      "fontFamily": "var(--font-sans)",
+      "fontSize": "18px",
+      "lineHeight": "28px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 500,
+      "color": "#000000"
+    },
+    "1U1R-0": {
+      "fontFamily": "var(--font-sans)",
+      "fontSize": "16px",
+      "lineHeight": "26px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 400,
+      "color": "#000000"
+    },
+    "1U1W-0": {
+      "fontFamily": "var(--font-sans)",
+      "fontSize": "14px",
+      "lineHeight": "22px",
+      "flexGrow": "1",
+      "flexBasis": "0%",
+      "whiteSpace": "pre-wrap",
+      "fontWeight": 400,
+      "color": "#000000"
+    },
+    "1U1Z-0": {
+      "display": "flex",
+      "alignItems": "center",
+      "paddingBottom": "16px",
+      "gap": "24px",
+      "borderBottomWidth": "1px",
+      "borderBottomStyle": "solid",
+      "borderBottomColor": "var(--color-border-subtle)"
+    },
+    "1U24-0": {
+      "display": "flex",
+      "alignItems": "center",
+      "paddingBottom": "16px",
+      "gap": "24px",
+      "borderBottomWidth": "1px",
+      "borderBottomStyle": "solid",
+      "borderBottomColor": "var(--color-border-subtle)"
+    },
+    "1U29-0": {
+      "display": "flex",
+      "alignItems": "center",
+      "paddingBottom": "16px",
+      "gap": "24px"
+    }
+  }
+}

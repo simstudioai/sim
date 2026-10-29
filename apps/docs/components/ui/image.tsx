@@ -1,5 +1,7 @@
-import { cn, Lightbox } from '@sim/emcn'
+import { omit } from '@sim/utils/object'
 import NextImage, { type ImageProps as NextImageProps } from 'next/image'
+import { cn } from '@/components/docs/classnames'
+import { MediaViewer } from '@/components/ui/media-viewer'
 import screenshotAssets from '@/lib/screenshot-assets.json'
 
 interface ImageProps extends Omit<NextImageProps, 'className'> {
@@ -11,68 +13,44 @@ interface ImageProps extends Omit<NextImageProps, 'className'> {
 }
 
 export function Image({
-  className = 'w-full',
+  className,
   enableLightbox = true,
   variant = 'detail',
-  background = variant === 'overview' ? 'san-francisco' : 'architecture',
   caption,
   alt = '',
   src,
   ...props
 }: ImageProps) {
-  const lightboxSrc = typeof src === 'string' ? src : 'default' in src ? src.default.src : src.src
+  const original = typeof src === 'string' ? src : 'default' in src ? src.default.src : src.src
   const optimizedAssets: Record<string, string> = screenshotAssets
-  const imageSrc = optimizedAssets[lightboxSrc] ?? src
+  const imageSrc = optimizedAssets[original] ?? src
   const image = (
     <span
       className={cn(
-        'relative block overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)]',
-        variant === 'overview' && 'px-[7%] pt-[6%]',
-        variant === 'detail' && 'p-[5%]',
-        variant === 'result' && 'px-[5%] pt-[5%]'
+        'relative block overflow-hidden rounded-2xl bg-[var(--docs-surface)] p-5',
+        variant === 'detail' && 'p-4'
       )}
     >
       <NextImage
-        src={`/static/introduction/${background}.webp`}
-        alt=''
-        aria-hidden
-        fill
-        sizes='(max-width: 768px) 100vw, 800px'
-        className='pointer-events-none object-cover object-[center_32%]'
-      />
-      <NextImage
-        {...props}
-        className={cn(
-          'relative block h-auto w-full border border-[var(--border)] shadow-[var(--shadow-overlay)]',
-          variant === 'detail' ? 'rounded-md' : 'rounded-t-lg border-b-0'
-        )}
-        alt={alt}
+        {...omit(props, ['background'])}
         src={imageSrc}
+        alt={alt}
+        sizes='(max-width: 767px) calc(100vw - 40px), (max-width: 1023px) calc(100vw - 88px), 680px'
+        className='relative block h-auto w-full rounded-lg border border-[var(--docs-border)]'
       />
     </span>
   )
-
   return (
-    <figure className={cn('not-prose my-6', className)}>
+    <figure className={cn('not-prose my-7 min-w-0', className)}>
       {enableLightbox ? (
-        <Lightbox
-          src={lightboxSrc}
-          alt={alt}
-          backgroundSrc={`/static/introduction/${background}.webp`}
-        >
-          <button
-            type='button'
-            aria-label={`Open ${alt || 'image'} in media viewer`}
-            className='block w-full cursor-zoom-in rounded-lg text-left focus-visible:outline-2 focus-visible:outline-[var(--text-primary)] focus-visible:outline-offset-4'
-          >
-            {image}
-          </button>
-        </Lightbox>
+        <MediaViewer src={original} alt={alt} caption={caption}>
+          {image}
+        </MediaViewer>
       ) : (
         image
       )}
       {caption && (
-        <figcaption className='mt-3 text-pretty text-[var(--text-muted)] text-sm leading-relaxed'>
+        <figcaption className='mt-3 text-[var(--docs-muted)] text-docs-caption'>
           {caption}
         </figcaption>
       )}

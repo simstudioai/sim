@@ -4,8 +4,8 @@ description: Pinning versions, running migrations safely, and rolling back
 ---
 
 import { Tab, Tabs } from '@/components/ui/tabs'
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Callout } from '@/components/ui/callout'
+import { Step, Steps } from '@/components/ui/steps'
 
 Choose and pin a release, back up the database, and rehearse the migration before upgrading. Schema migrations are forward-only, so some rollbacks require a database restore and lose writes made after the backup.
 

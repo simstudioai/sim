@@ -192,17 +192,7 @@ function buildTheme(name: string, type: 'light' | 'dark', c: TokenColors): Theme
 const simShikiLight = buildTheme('sim-light', 'light', LIGHT)
 const simShikiDark = buildTheme('sim-dark', 'dark', DARK)
 
-/**
- * The Shiki configuration shared by both highlighting pipelines — the MDX one in
- * `source.config.ts` and fumadocs-openapi's separate instance in the docs page. They must
- * agree or the API reference renders in a different palette from the rest of the site, so the
- * options object is defined once here rather than written out at each call site.
- *
- * `defaultColor: false` is fumadocs' own default and has to be restated, because supplying
- * `themes` replaces that default block wholesale. It is what emits the paired
- * `--shiki-light` / `--shiki-dark` custom properties that let the theme toggle recolor code
- * without re-highlighting.
- */
+/** Shared syntax palette for build-time MDX and generated API examples. */
 export const simShikiOptions = {
   themes: { light: simShikiLight, dark: simShikiDark },
   defaultColor: false,

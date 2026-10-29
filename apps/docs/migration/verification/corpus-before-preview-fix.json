@@ -1,0 +1,155 @@
+{
+  "startedAt": "2026-10-29T22:23:06.799Z",
+  "completedAt": "2026-10-29T22:23:18.331Z",
+  "origin": "http://localhost:3002",
+  "canonicalOrigin": "https://docs.sim.ai",
+  "catalogHash": "6f8808b62801bc9099dfdf11f095101a88ffe662370d4b320cbc3af60e5de587",
+  "concurrency": 4,
+  "maxBodyBytes": 33554432,
+  "catalogPages": 803,
+  "readablePages": 802,
+  "redirectOnlyPages": ["/"],
+  "assets": 186,
+  "excludedOsArtifacts": [".DS_Store"],
+  "checks": 2995,
+  "passed": 2980,
+  "failed": 15,
+  "results": [
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/agent",
+      "status": "failed",
+      "durationMs": 22,
+      "responseStatus": 200,
+      "bytes": 590339,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/api",
+      "status": "failed",
+      "durationMs": 20,
+      "responseStatus": 200,
+      "bytes": 411696,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/credential",
+      "status": "failed",
+      "durationMs": 19,
+      "responseStatus": 200,
+      "bytes": 470308,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/evaluator",
+      "status": "failed",
+      "durationMs": 16,
+      "responseStatus": 200,
+      "bytes": 408194,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/condition",
+      "status": "failed",
+      "durationMs": 20,
+      "responseStatus": 200,
+      "bytes": 419159,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/function",
+      "status": "failed",
+      "durationMs": 20,
+      "responseStatus": 200,
+      "bytes": 674669,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/human-in-the-loop",
+      "status": "failed",
+      "durationMs": 18,
+      "responseStatus": 200,
+      "bytes": 490033,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/guardrails",
+      "status": "failed",
+      "durationMs": 19,
+      "responseStatus": 200,
+      "bytes": 445913,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/response",
+      "status": "failed",
+      "durationMs": 22,
+      "responseStatus": 200,
+      "bytes": 412337,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/router",
+      "status": "failed",
+      "durationMs": 21,
+      "responseStatus": 200,
+      "bytes": 417809,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/variables",
+      "status": "failed",
+      "durationMs": 20,
+      "responseStatus": 200,
+      "bytes": 399516,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/webhook",
+      "status": "failed",
+      "durationMs": 22,
+      "responseStatus": 200,
+      "bytes": 414905,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/wait",
+      "status": "failed",
+      "durationMs": 23,
+      "responseStatus": 200,
+      "bytes": 396876,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/blocks/workflow",
+      "status": "failed",
+      "durationMs": 21,
+      "responseStatus": 200,
+      "bytes": 405367,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    },
+    {
+      "name": "HTML identity, anchors, media and operation reference",
+      "path": "/workflows/how-it-runs",
+      "status": "failed",
+      "durationMs": 37,
+      "responseStatus": 200,
+      "bytes": 422546,
+      "error": "Duplicate article IDs: react-flow__node-desc-1, react-flow__edge-desc-1"
+    }
+  ],
+  "resultScope": "Failure entries only; totals describe the complete original run."
+}
