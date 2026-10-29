@@ -85,4 +85,34 @@ describe('mergeFileListEntries', () => {
       })
     ).toEqual(['pinned20', 'Fpin', 'far90', 'F5', 'a10'])
   })
+
+  it('places a folder tying on the column by name, and rows without a value last either way', () => {
+    const owned = (id: string, owner: string | null): Row & { owner: string | null } => ({
+      ...file(id, 0),
+      owner,
+    })
+    const order = (direction: 'asc' | 'desc', files: (Row & { owner: string | null })[]) =>
+      mergeFileListEntries<Row & { owner: string | null }, Row & { owner: string | null }>({
+        folders: [owned('b-folder', 'Ann'), owned('z-folder', null)],
+        files,
+        pinnedFiles: [],
+        hasMore: false,
+        isFolderPinned: () => false,
+        isFilePinned: () => false,
+        folderId: (row) => row.id,
+        fileId: (row) => row.id,
+        folderName: (row) => row.name,
+        fileName: (row) => row.name,
+        folderKey: (row) => row.owner,
+        fileKey: (row) => row.owner,
+        direction,
+      }).map((entry) => (entry.kind === 'folder' ? entry.folder.id : entry.file.id))
+
+    expect(
+      order('asc', [owned('a-file', 'Ann'), owned('c-file', 'Ann'), owned('y-file', null)])
+    ).toEqual(['a-file', 'b-folder', 'c-file', 'y-file', 'z-folder'])
+    expect(
+      order('desc', [owned('c-file', 'Ben'), owned('a-file', 'Ann'), owned('y-file', null)])
+    ).toEqual(['c-file', 'a-file', 'b-folder', 'y-file', 'z-folder'])
+  })
 })

@@ -2,7 +2,13 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileKind, WorkspaceFileSizeBucket } from '@/lib/workspace-files/list-filters'
 
 export type WorkspaceFileListScope = 'active' | 'archived'
-export type WorkspaceFileListSortBy = 'name' | 'size' | 'uploadedAt' | 'updatedAt'
+export type WorkspaceFileListSortBy =
+  | 'name'
+  | 'size'
+  | 'uploadedAt'
+  | 'updatedAt'
+  | 'type'
+  | 'owner'
 export type WorkspaceFileListSortOrder = 'asc' | 'desc'
 
 /** The default page size of a workspace file list: one round trip for nearly every folder. */

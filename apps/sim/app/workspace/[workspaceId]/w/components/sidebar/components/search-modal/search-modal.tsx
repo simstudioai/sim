@@ -685,7 +685,8 @@ function SearchModalContent({
 
   /**
    * Files are not listed whole — a workspace can hold far more than the palette ranks. Browsing
-   * offers the most recently updated; a query, once typing settles, searches every file by name.
+   * offers the most recently updated; a query, once typing settles, asks the server for the
+   * best matches by name and folder path, which the palette then ranks as it ranks everything.
    */
   const fileQuery = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
   const recentFiles = useWorkspaceFileList(workspaceId, RECENT_FILES, {

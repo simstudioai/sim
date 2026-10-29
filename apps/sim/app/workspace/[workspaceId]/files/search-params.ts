@@ -11,12 +11,8 @@ import {
 } from '@/hooks/queries/utils/workspace-file-keys'
 import type { ResourceListPreferenceConfig } from '@/stores/resource-list-preferences'
 
-/**
- * Sortable list columns, matching the `Resource.Options` sort menu: the ones the server pages
- * the list by. Type and owner are not among them — a sort the server cannot apply could only
- * order the rows already loaded, which reads as the whole folder's order and is not.
- */
-export const FILE_SORT_COLUMNS = ['name', 'size', 'created', 'updated'] as const
+/** Sortable list columns, matching the `Resource.Options` sort menu; the server pages by each. */
+export const FILE_SORT_COLUMNS = ['name', 'size', 'type', 'created', 'owner', 'updated'] as const
 
 type FileSortColumn = (typeof FILE_SORT_COLUMNS)[number]
 
@@ -24,7 +20,9 @@ type FileSortColumn = (typeof FILE_SORT_COLUMNS)[number]
 const FILE_SORT_FIELDS: Record<FileSortColumn, WorkspaceFileListSortBy> = {
   name: 'name',
   size: 'size',
+  type: 'type',
   created: 'uploadedAt',
+  owner: 'owner',
   updated: 'updatedAt',
 }
 

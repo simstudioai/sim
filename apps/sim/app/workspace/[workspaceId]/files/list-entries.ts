@@ -27,8 +27,9 @@ interface MergeFileListEntriesInput<Folder, File> {
   folderName: (folder: Folder) => string
   fileName: (file: File) => string
   /** Each row's value for the active sort column, comparable across folders and files. */
-  folderKey: (folder: Folder) => string | number
-  fileKey: (file: File) => string | number
+  /** `null` for a row the column has no value for (a file without a member owner): last either way. */
+  folderKey: (folder: Folder) => string | number | null
+  fileKey: (file: File) => string | number | null
   direction: 'asc' | 'desc'
 }
 
@@ -46,8 +47,9 @@ function compareKeys(a: string | number, b: string | number): number {
  * loaded file is withheld while more pages remain, since the file it belongs in front of may be
  * on one of them; it appears once a page reaches past it, so loading more only ever appends.
  *
- * Pinned rows are ordered among themselves by the same column, as `sortResources` orders a
- * fully loaded list.
+ * A folder tying with a file on the column goes by name A→Z, and a row without a value goes
+ * last in either direction — the rules `sortResources` orders a fully loaded list by, which also
+ * orders the pinned rows among themselves.
  */
 export function mergeFileListEntries<Folder, File>(
   input: MergeFileListEntriesInput<Folder, File>
@@ -83,18 +85,29 @@ export function mergeFileListEntries<Folder, File>(
 
   const entries = sortResources(pinned, direction).map((entry) => entry.item)
   const folders = sortResources(unpinnedFolders, direction)
-  const precedes = (folderKey: string | number, fileKey: string | number) => {
-    const cmp = compareKeys(folderKey, fileKey)
-    return direction === 'asc' ? cmp <= 0 : cmp >= 0
+  /** Whether `folder` sorts at or before a file whose key is `fileKey` and name is `fileName`. */
+  const precedes = (
+    folder: SortableResource<FileListEntry<Folder, File>>,
+    fileKey: string | number | null,
+    fileName: string
+  ) => {
+    if (folder.key === null || fileKey === null) {
+      if (folder.key !== fileKey) return fileKey === null
+      return folder.name.localeCompare(fileName) <= 0
+    }
+    const cmp = compareKeys(folder.key, fileKey)
+    if (cmp !== 0) return direction === 'asc' ? cmp < 0 : cmp > 0
+    return folder.name.localeCompare(fileName) <= 0
   }
 
   let nextFolder = 0
   for (const file of input.files) {
     if (pinnedFileIds.has(input.fileId(file))) continue
     const key = input.fileKey(file)
+    const name = input.fileName(file)
     while (nextFolder < folders.length) {
       const folder = folders[nextFolder]
-      if (folder.key === null || !precedes(folder.key, key)) break
+      if (!precedes(folder, key, name)) break
       entries.push(folder.item)
       nextFolder++
     }

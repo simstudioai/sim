@@ -38,13 +38,12 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
   formatFileSize,
-  getFileExtension,
   getMimeTypeFromExtension,
   isArchiveFileName,
-  resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file'
 import { isWorkspaceFileKind, isWorkspaceFileSizeBucket } from '@/lib/workspace-files/list-filters'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { workspaceFileTypeLabel } from '@/lib/workspace-files/type-label'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
@@ -182,7 +181,7 @@ const FILES_HEADER = FOLDERED_RESOURCE_HEADERS.file
 
 const FOLDER_ICON = <Folder className='size-[14px]' />
 
-/** Folders' value in the `type` column. */
+/** Folders' value in the `type` column — also their sort key when that column is active. */
 const FOLDER_TYPE_LABEL = 'Folder' as const
 
 /**
@@ -207,24 +206,6 @@ const COLUMNS: ResourceColumn[] = [
  */
 const SEARCH_COLUMNS: ResourceColumn[] = [...COLUMNS, FOLDER_LOCATION_COLUMN]
 
-const MIME_TYPE_LABELS: Record<string, string> = {
-  'application/pdf': 'PDF',
-  'application/zip': 'ZIP',
-  'application/msword': 'Word',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
-  'application/vnd.ms-excel': 'Excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel',
-  'application/vnd.ms-powerpoint': 'PowerPoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
-  'application/json': 'JSON',
-  'application/x-yaml': 'YAML',
-  'text/csv': 'CSV',
-  'text/plain': 'Text',
-  'text/html': 'HTML',
-  'text/x-sim-page': 'Page',
-  'text/markdown': 'Markdown',
-}
-
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
 const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
 const EMPTY_FIND_MATCH_IDS: readonly string[] = Object.freeze([])
@@ -234,23 +215,6 @@ const TITLE_SIBLING_LIMIT = 50
 
 const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
-
-function formatFileType(storedType: string | null, filename: string): string {
-  const mimeType = resolveEffectiveMimeType(storedType, filename)
-
-  if (MIME_TYPE_LABELS[mimeType]) {
-    return MIME_TYPE_LABELS[mimeType]
-  }
-
-  if (mimeType.startsWith('audio/')) return 'Audio'
-  if (mimeType.startsWith('video/')) return 'Video'
-  if (mimeType.startsWith('image/')) return 'Image'
-
-  const ext = getFileExtension(filename)
-  if (ext) return ext.toUpperCase()
-
-  return storedType ?? 'File'
-}
 
 function getDroppedFiles(dataTransfer: DataTransfer): File[] {
   if (dataTransfer.items.length === 0) return Array.from(dataTransfer.files)
@@ -714,19 +678,27 @@ function FilesContent() {
         folderKey: (folder) =>
           sortColumn === 'size'
             ? (folderSizes.get(folder.id)?.sizeBytes ?? 0)
-            : sortColumn === 'created'
-              ? new Date(folder.createdAt).getTime()
-              : sortColumn === 'updated'
-                ? new Date(folder.updatedAt).getTime()
-                : folder.name,
+            : sortColumn === 'type'
+              ? FOLDER_TYPE_LABEL
+              : sortColumn === 'created'
+                ? new Date(folder.createdAt).getTime()
+                : sortColumn === 'updated'
+                  ? new Date(folder.updatedAt).getTime()
+                  : sortColumn === 'owner'
+                    ? (membersById.get(folder.userId)?.name ?? null)
+                    : folder.name,
         fileKey: (file) =>
           sortColumn === 'size'
             ? file.size
-            : sortColumn === 'created'
-              ? new Date(file.uploadedAt).getTime()
-              : sortColumn === 'updated'
-                ? new Date(file.updatedAt).getTime()
-                : file.name,
+            : sortColumn === 'type'
+              ? workspaceFileTypeLabel(file.type, file.name)
+              : sortColumn === 'created'
+                ? new Date(file.uploadedAt).getTime()
+                : sortColumn === 'updated'
+                  ? new Date(file.updatedAt).getTime()
+                  : sortColumn === 'owner'
+                    ? (membersById.get(file.uploadedBy)?.name ?? null)
+                    : file.name,
         direction: sortDirection,
       }),
     [
@@ -737,6 +709,7 @@ function FilesContent() {
       pinnedFolderIds,
       pinnedFileIds,
       folderSizes,
+      membersById,
       sortColumn,
       sortDirection,
     ]
@@ -799,7 +772,7 @@ function FilesContent() {
             },
             type: {
               icon: <Icon className='size-[14px]' />,
-              label: formatFileType(file.type, file.name),
+              label: workspaceFileTypeLabel(file.type, file.name),
             },
             created: timeCell(file.uploadedAt),
             owner: ownerCell(file.uploadedBy, membersById),
@@ -1936,8 +1909,10 @@ function FilesContent() {
       options: [
         { id: 'name', label: 'Name' },
         { id: 'size', label: 'Size' },
+        { id: 'type', label: 'Type' },
         { id: 'created', label: 'Created' },
         { id: 'updated', label: 'Last Updated' },
+        { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
       onSort: setListSort,
