@@ -36,10 +36,11 @@ interface JoinErrorPayload {
 }
 
 /**
- * Runs when the room's resources changed. A returned promise is awaited, up to
- * {@link DELIVERY_SETTLE_CAP_MS}, before the next delivery starts.
+ * Runs when the room's resources changed and returns the invalidations it started. The promise is
+ * awaited, up to {@link DELIVERY_SETTLE_CAP_MS}, before the next delivery starts, so a callback
+ * that drops it lets the next broadcast cancel and restart refetches still in flight.
  */
-type RoomChangedCallback = () => unknown
+type RoomChangedCallback = () => Promise<unknown>
 
 interface SharedRoomSubscription {
   callbacks: Map<string | symbol, Set<RoomChangedCallback>>

@@ -29,7 +29,7 @@ const roots: Root[] = []
 function mount(
   workspaceId: string,
   roomType: RoomType,
-  onChanged: () => unknown = () => {},
+  onChanged: () => Promise<unknown> = async () => {},
   dedupeKey?: string
 ): Root {
   function Probe() {
@@ -119,7 +119,7 @@ describe('useWorkspaceInvalidationRoom', () => {
     })
 
     it('delivers a burst of broadcasts once at once and once after it, not once per broadcast', async () => {
-      const onChanged = vi.fn()
+      const onChanged = vi.fn(async () => {})
       mount('ws-1', 'workspace-files', onChanged)
 
       for (let index = 0; index < 20; index++) broadcast('workspace-files-changed', 'ws-1')
