@@ -687,6 +687,18 @@ export function extractStorageKey(filePath: string): string {
 }
 
 /**
+ * {@link extractStorageKey} for a path read back from storage or a document, which may be
+ * malformed: `undefined` when its percent-encoding cannot be decoded, rather than throwing.
+ */
+export function tryExtractStorageKey(filePath: string): string | undefined {
+  try {
+    return extractStorageKey(filePath)
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Whether a URL targets the internal file-serve endpoint (`/api/files/serve/`).
  *
  * The marker is matched only in the URL's path component, so it cannot be

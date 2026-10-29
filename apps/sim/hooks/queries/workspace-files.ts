@@ -26,6 +26,7 @@ import {
   deleteWorkspaceFileContract,
   listWorkspaceFilesContract,
   lookupWorkspaceFilesContract,
+  MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS,
   readWorkspaceFileContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
@@ -39,8 +40,8 @@ import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
 import { FileTextSizeError, readFileText } from '@/lib/uploads/client/text-content'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
-import { extractStorageKey } from '@/lib/uploads/utils/file'
+import { extractEmbeddedFileRef, storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
+import { tryExtractStorageKey } from '@/lib/uploads/utils/file'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type { WorkspaceFileSelection } from '@/lib/workspace-files/selection'
 import type { UserFile } from '@/executor/types'
@@ -229,18 +230,32 @@ export interface WorkspaceFileFolderStat {
   sizeBytes: number
 }
 
+/**
+ * The rollups for `parentIds`, one request per {@link MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS}
+ * of them (a search can span more parents than one request may name), merged.
+ */
 async function fetchWorkspaceFileFolderStats(
   workspaceId: string,
   parentIds: readonly string[],
   signal?: AbortSignal
 ): Promise<Map<string, WorkspaceFileFolderStat>> {
-  const data = await requestJson(workspaceFileFolderStatsContract, {
-    params: { id: workspaceId },
-    query: { parentIds: [...parentIds] },
-    signal,
-  })
+  const chunks: string[][] = []
+  for (let start = 0; start < parentIds.length; start += MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS) {
+    chunks.push(parentIds.slice(start, start + MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS))
+  }
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      requestJson(workspaceFileFolderStatsContract, {
+        params: { id: workspaceId },
+        query: { parentIds: chunk },
+        signal,
+      })
+    )
+  )
   return new Map(
-    data.folders.map(({ folderId, fileCount, sizeBytes }) => [folderId, { fileCount, sizeBytes }])
+    responses.flatMap((data) =>
+      data.folders.map(({ folderId, fileCount, sizeBytes }) => [folderId, { fileCount, sizeBytes }])
+    )
   )
 }
 
@@ -404,8 +419,11 @@ export function useWorkspaceFileSelectionCandidates(
     for (const selection of selections) {
       if (selection.id) ids.add(selection.id)
       else if (selection.key) keys.add(selection.key)
-      else if (selection.path) keys.add(extractStorageKey(selection.path))
-      else if (selection.name.trim()) names.add(selection.name.trim())
+      else if (selection.path) {
+        // A persisted path with malformed percent-encoding names no file; it stays unresolved.
+        const key = tryExtractStorageKey(selection.path)
+        if (key) keys.add(key)
+      } else if (selection.name.trim()) names.add(selection.name.trim())
     }
     return { ids: [...ids], keys: [...keys], names: [...names] }
   }, [selections])
@@ -475,8 +493,12 @@ function recentPickerFiles(limit: number): WorkspaceFileListParams {
 export interface WorkspaceFilePickerOptions {
   /** The files to offer: the best matches for the settled query, else the most recent. */
   files: WorkspaceFileRecord[] | undefined
-  /** The query `files` answers, trimmed; empty while browsing recent files. */
-  settledQuery: string
+  /**
+   * The query `files` are the server's matches for, trimmed — ranked by name, word, fuzzy, and
+   * folder path, so a caller keeps them rather than re-filtering by substring. Empty while
+   * `files` are the recent files, or a previous query's matches held while the next loads.
+   */
+  matchedQuery: string
   /** True until `files` answers what was typed: a menu still empty here is not "no match" yet. */
   isPending: boolean
 }
@@ -506,7 +528,7 @@ export function useWorkspaceFilePickerOptions(
   )
   return {
     files: settledQuery ? matching.data : recent.data?.pages[0]?.files,
-    settledQuery,
+    matchedQuery: settledQuery && matching.data && !matching.isPlaceholderData ? settledQuery : '',
     isPending: settledQuery
       ? typed !== settledQuery || matching.isFetching
       : recent.isPending || typed.length > 0,
@@ -569,6 +591,20 @@ export function getWorkspaceFileRecordQueryOptions(
     initialDataUpdatedAt: () => cached()?.updatedAt,
     retry: false,
   }
+}
+
+/**
+ * What a {@link useWorkspaceFileRecord} read says about its file: `found` (a record is in hand,
+ * even if a refetch then failed), `missing` (no live file has the id — a 404 reads as `null`),
+ * `failed` (any other error, with no record to show), or still `loading`.
+ */
+export function workspaceFileRecordState(record: {
+  data: WorkspaceFileRecord | null | undefined
+  isError: boolean
+}): 'loading' | 'found' | 'missing' | 'failed' {
+  if (record.data) return 'found'
+  if (record.data === null) return 'missing'
+  return record.isError ? 'failed' : 'loading'
 }
 
 /**
@@ -640,8 +676,9 @@ export function useWorkspaceImageDimensionsAdapter(
     const findRecord = (src: string | undefined): WorkspaceFileRecord | undefined => {
       const ref = enabled && src ? extractEmbeddedFileRef(src) : null
       if (!ref) return undefined
+      // The document's spelling of an id may be percent-encoded; the lookup takes the stored id.
       const [kind, value] =
-        'key' in ref ? (['key', ref.key] as const) : (['id', ref.fileId] as const)
+        'key' in ref ? (['key', ref.key] as const) : (['id', storedFileId(ref.fileId)] as const)
       const lookup = getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, kind, value)
       const resolved = queryClient.getQueryData<WorkspaceFileRecord | null>(lookup.queryKey)
       if (resolved !== undefined) return resolved ?? undefined
@@ -1190,6 +1227,13 @@ interface RenameFileParams {
   workspaceId: string
   fileId: string
   name: string
+  /** Leave a failure to the caller instead of toasting it: a rename the caller retries. */
+  quiet?: boolean
+}
+
+/** Whether a rename failed because a sibling already has the name (the server's 409). */
+export function isWorkspaceFileNameTaken(error: unknown): boolean {
+  return isApiClientError(error) && error.status === 409
 }
 
 /** What a rename rewrites in place: the reads that address the file by identity. */
@@ -1239,9 +1283,9 @@ export function useRenameWorkspaceFile() {
         RENAME_PATCHED_READS
       )
     },
-    onError: (error, _variables, context) => {
+    onError: (error, variables, context) => {
       if (context) restoreWorkspaceFileReads(queryClient, context.previous)
-      toast.error(error.message, { duration: 5000 })
+      if (!variables.quiet) toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, error, { workspaceId }) =>
       error

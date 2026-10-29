@@ -350,6 +350,9 @@ export const lookupWorkspaceFilesContract = defineRouteContract({
   response: { mode: 'json', schema: lookupWorkspaceFilesResponseSchema },
 })
 
+/** The most parents one folder-stats request may name. */
+export const MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS = 100
+
 const workspaceFileFolderStatsQuerySchema = z.object({
   /** The folder whose child folders to report: `root` (default) or a folder id. */
   parentId: workspaceFileFolderFilterSchema.prefault('root'),
@@ -358,7 +361,7 @@ const workspaceFileFolderStatsQuerySchema = z.object({
    * whose folders sit under different parents; replaces `parentId` when sent.
    */
   parentIds: queryListSchema(z.union([z.literal('root'), folderIdSchema]), {
-    max: 100,
+    max: MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS,
     canonical: true,
   }).optional(),
 })

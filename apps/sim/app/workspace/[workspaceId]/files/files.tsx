@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Avatar,
   Button,
+  Chip,
   ChipCombobox,
   ChipConfirmModal,
   Columns2,
@@ -26,6 +27,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
@@ -130,6 +132,7 @@ import {
   DEFAULT_UNTITLED_NAME,
   deriveMarkdownFileName,
   isUntitledName,
+  renameToUniqueMarkdownName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -150,6 +153,7 @@ import {
 import {
   getWorkspaceFileRecordQueryOptions,
   getWorkspaceFileSearchQueryOptions,
+  isWorkspaceFileNameTaken,
   useCreateWorkspaceFile,
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
@@ -157,6 +161,7 @@ import {
   useWorkspaceFileFolderSizes,
   useWorkspaceFileList,
   useWorkspaceFileRecord,
+  workspaceFileRecordState,
 } from '@/hooks/queries/workspace-files'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -472,9 +477,9 @@ function FilesContent() {
     enabled: fileIdFromRoute !== null,
   })
   const selectedFile = fileIdFromRoute ? selectedFileRecord.data : null
+  const routedFile = fileIdFromRoute ? workspaceFileRecordState(selectedFileRecord) : 'none'
   /** A route naming no live file falls back to the list, which is then what is shown. */
-  const isRoutedFileMissing =
-    fileIdFromRoute !== null && (selectedFileRecord.data === null || selectedFileRecord.isError)
+  const isRoutedFileMissing = routedFile === 'missing'
   /** A remembered sort or filter is applied before the list is read, so it is read once. */
   const isListOpen = (fileIdFromRoute === null || isRoutedFileMissing) && isListPreferenceReady
 
@@ -595,9 +600,15 @@ function FilesContent() {
         const siblingNames = new Set(
           similar.filter((file) => file.id !== currentFile.id).map((file) => file.name)
         )
-        const name = uniqueMarkdownName(derived, siblingNames)
-        if (name === currentFile.name) return
-        await renameFile.mutateAsync({ workspaceId, fileId: currentFile.id, name })
+        if (uniqueMarkdownName(derived, siblingNames) === currentFile.name) return
+        /** The search reaches at most its limit of siblings; the server catches any it missed. */
+        await renameToUniqueMarkdownName(
+          derived,
+          siblingNames,
+          (name) =>
+            renameFile.mutateAsync({ workspaceId, fileId: currentFile.id, name, quiet: true }),
+          isWorkspaceFileNameTaken
+        )
       } catch (err) {
         logger.error('Failed to auto-name file from heading:', err)
       }
@@ -1515,7 +1526,8 @@ function FilesContent() {
    * 'editor' instead of waiting forever).
    */
   const appliedModeFileIdRef = useRef<string | null>(null)
-  const routedFileResolved = selectedFile != null || isRoutedFileMissing
+  const routedFileResolved =
+    routedFile === 'found' || routedFile === 'missing' || routedFile === 'failed'
   useEffect(() => {
     if (fileIdFromRoute === appliedModeFileIdRef.current) return
     const isJustCreated =
@@ -2106,6 +2118,25 @@ function FilesContent() {
     )
   }
 
+  if (routedFile === 'failed') {
+    return (
+      <Resource>
+        <Resource.Header icon={FILES_HEADER.rootIcon} breadcrumbs={loadingBreadcrumbs} />
+        <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
+          <EmptyState
+            title='Could not load this file'
+            description={getErrorMessage(selectedFileRecord.error, 'Try again in a moment.')}
+            action={
+              <Chip variant='border' onClick={() => void selectedFileRecord.refetch()}>
+                Try again
+              </Chip>
+            }
+          />
+        </div>
+      </Resource>
+    )
+  }
+
   if (selectedFile) {
     return (
       <>
@@ -2205,6 +2236,7 @@ function FilesContent() {
           hasMore={fileList.hasNextPage}
           isLoadingMore={fileList.isFetchingNextPage}
           isFetching={fileList.isFetching}
+          loadMoreFailed={fileList.isFetchNextPageError}
           emptyState={
             listState === 'empty' ? (
               <FilesEmptyState

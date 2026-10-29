@@ -85,4 +85,13 @@ describe('workflowSearchFileLookups', () => {
       ],
     })
   })
+
+  it('leaves a serve path with malformed percent-encoding unresolved instead of throwing', () => {
+    expect(workflowSearchFileLookups(['/api/files/serve/workspace%2Fws-1%2F%E0%A4%A.png'])).toEqual(
+      {
+        references: [],
+        keyValues: [],
+      }
+    )
+  })
 })

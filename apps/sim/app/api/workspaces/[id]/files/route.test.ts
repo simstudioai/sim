@@ -109,6 +109,17 @@ describe('/api/workspaces/[id]/files', () => {
       })
     })
 
+    it('reads an empty set filter as no filter, keeping the whole-scope listing', async () => {
+      collection.mockResolvedValueOnce({ files: [FILE], nextKeys: null })
+      const response = await list('?scope=active&types=&sizes=&uploadedBy=')
+
+      expect(response.status).toBe(200)
+      expect(collection.mock.calls[0][0].input).toEqual({
+        workspaceId: WORKSPACE_ID,
+        scope: 'active',
+      })
+    })
+
     it('resumes from its own cursor and refuses it under another folder', async () => {
       collection.mockResolvedValue({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
 

@@ -5,7 +5,9 @@ import { useWorkspaceFileLookups } from '@/hooks/queries/workspace-files'
 
 /**
  * The pinned files in one folder (`null` for the root), looked up by id so a folder's pins can
- * lead it before any page of its list has reached them. In pin order.
+ * lead it before any page of its list has reached them. In no particular order: a list orders
+ * its pinned rows among themselves by its active sort, as the Files page always has
+ * (`mergeFileListEntries`, `buildFlyoutEntries`).
  */
 export function usePinnedWorkspaceFiles(
   workspaceId: string,

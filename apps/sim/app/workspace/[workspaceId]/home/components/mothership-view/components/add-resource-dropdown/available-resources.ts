@@ -83,8 +83,10 @@ interface UseAvailableResourcesOptions {
   /**
    * The text the menu is filtering by, as typed. Files are not listed whole — a workspace can
    * hold far more than a menu can show — so without a query the file family holds the most
-   * recently updated files, and with one, the files whose names match it anywhere in the
-   * workspace (searched once the typing settles). Other families are filtered by the caller.
+   * recently updated files, and once the typing settles, the server's ranked matches for it
+   * anywhere in the workspace (by name, word, fuzzy match, or folder path). Those carry the
+   * query as `matchedQuery`, and a caller keeps them as they are (`isServerMatchFor`) while it
+   * filters the other families — and files still answering an older query — by substring.
    */
   fileSearch?: string
 }
@@ -142,11 +144,14 @@ export function useAvailableResources(
   const { data: tests, isPending: testsPending } = useWorkflowTests(workspaceId, {
     enabled: enabled && testsEnabled && !excludeTypes?.includes('test'),
   })
-  const { files, isPending: filesPending } = useWorkspaceFilePickerOptions(
-    workspaceId,
-    options?.fileSearch ?? '',
-    { limit: RECENT_FILE_LIMIT, enabled }
-  )
+  const {
+    files,
+    matchedQuery: fileMatchedQuery,
+    isPending: filesPending,
+  } = useWorkspaceFilePickerOptions(workspaceId, options?.fileSearch ?? '', {
+    limit: RECENT_FILE_LIMIT,
+    enabled,
+  })
   const { data: knowledgeBases, isPending: knowledgeBasesPending } = useKnowledgeBasesQuery(
     workspaceId,
     { enabled: enabled && Boolean(workspaceId) }
@@ -249,7 +254,12 @@ export function useAvailableResources(
       },
       {
         type: 'file' as const,
-        items: (files ?? []).map((f) => ({ id: f.id, name: f.name, folderId: f.folderId ?? null })),
+        items: (files ?? []).map((f) => ({
+          id: f.id,
+          name: f.name,
+          folderId: f.folderId ?? null,
+          ...(fileMatchedQuery ? { matchedQuery: fileMatchedQuery } : {}),
+        })),
       },
       {
         type: 'filefolder' as const,
@@ -339,6 +349,7 @@ export function useAvailableResources(
     fileFolders,
     tables,
     files,
+    fileMatchedQuery,
     dashboardData,
     tests,
     knowledgeBases,

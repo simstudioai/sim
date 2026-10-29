@@ -10,16 +10,28 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
+/** The live observers, so a test can move the sentinel out of view and back. */
+const observers = new Set<OnScreenObserver>()
+
 /** Each observed sentinel, reported as on screen the moment it is observed. */
 class OnScreenObserver {
-  constructor(private readonly report: IntersectionObserverCallback) {}
+  private target: Element | null = null
+  constructor(private readonly report: IntersectionObserverCallback) {
+    observers.add(this)
+  }
   observe(target: Element) {
+    this.target = target
+    this.emit(true)
+  }
+  emit(isIntersecting: boolean) {
     this.report(
-      [{ isIntersecting: true, target } as unknown as IntersectionObserverEntry],
+      [{ isIntersecting, target: this.target } as unknown as IntersectionObserverEntry],
       this as unknown as IntersectionObserver
     )
   }
-  disconnect() {}
+  disconnect() {
+    observers.delete(this)
+  }
   unobserve() {}
   takeRecords() {
     return []
@@ -43,7 +55,12 @@ describe('Resource.Table paging footer', () => {
     act(() => root.unmount())
   })
 
-  function render(props: { isLoadingMore: boolean; isFetching: boolean; onLoadMore: () => void }) {
+  function render(props: {
+    isLoadingMore: boolean
+    isFetching: boolean
+    loadMoreFailed?: boolean
+    onLoadMore: () => void
+  }) {
     act(() => {
       root.render(<Resource.Table columns={columns} rows={rows} hasMore {...props} />)
     })
@@ -68,5 +85,17 @@ describe('Resource.Table paging footer', () => {
 
     render({ isLoadingMore: true, isFetching: true, onLoadMore })
     expect(footer()?.childElementCount).toBe(1)
+  })
+
+  it('does not retry a failed page on its own, only once the bottom is scrolled back to', () => {
+    const onLoadMore = vi.fn()
+    render({ isLoadingMore: true, isFetching: true, onLoadMore })
+    render({ isLoadingMore: false, isFetching: false, loadMoreFailed: true, onLoadMore })
+    expect(onLoadMore).not.toHaveBeenCalled()
+
+    const sentinel = () => [...observers][0]
+    act(() => sentinel().emit(false))
+    act(() => sentinel().emit(true))
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
   })
 })

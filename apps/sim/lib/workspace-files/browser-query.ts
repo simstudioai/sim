@@ -24,6 +24,7 @@ import type {
   FileBrowserSort,
 } from '@/lib/workspace-files/browser'
 import {
+  declaredMimeSql,
   effectiveMimeSql,
   fileExtensionSql,
   fileKindSql,
@@ -123,7 +124,7 @@ export async function queryFileBrowserItems(
       join owned_files files on files.parent_id = tree.id group by tree.root_id
     ),
     effective_files as (
-      select *, ${effectiveMimeSql(sql`lower(btrim(split_part(content_type, ';', 1)))`, sql`extension`)} as mime
+      select *, ${effectiveMimeSql(declaredMimeSql(sql`content_type`), sql`extension`)} as mime
       from owned_files
     ),
     items as (

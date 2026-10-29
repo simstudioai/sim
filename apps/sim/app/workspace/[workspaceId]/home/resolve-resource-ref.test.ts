@@ -111,6 +111,23 @@ describe('fetchWorkspaceResourceRef', () => {
     ).resolves.toMatchObject({ type: 'file', id: 'wf_b', path: 'files/b/notes.md' })
   })
 
+  it('still refuses a name two files share when it is longer than a search query may be', async () => {
+    const long = `${'quarterly report '.repeat(15)}final.md`
+    serveWorkspace([
+      file({ id: 'wf_a', name: long, folderPath: 'a' }),
+      file({ id: 'wf_b', name: long, folderPath: 'b' }),
+    ])
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    await expect(
+      fetchWorkspaceResourceRef(client, 'ws-1', ref({ title: long }))
+    ).resolves.toBeNull()
+    for (const [contract, input] of apiClientRequestMockFns.mockRequestJson.mock.calls) {
+      if (contract !== searchWorkspaceFilesContract) continue
+      expect((input as { query: { q: string } }).query.q.length).toBeLessThanOrEqual(200)
+    }
+  })
+
   it('asks for each candidate once, as a reference, which already answers an exact id', async () => {
     serveWorkspace([file({ id: 'wf_a', name: 'notes.md' })])
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

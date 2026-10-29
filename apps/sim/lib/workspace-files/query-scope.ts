@@ -4,6 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import type { FileBrowserSize, FileBrowserType } from '@/lib/workspace-files/browser'
 import {
+  declaredMimeSql,
   effectiveMimeSql,
   fileExtensionSql,
   fileKindSql,
@@ -78,9 +79,9 @@ export function workspaceFileFolderScopeCondition(
 
 const workspaceFileExtension = fileExtensionSql(workspaceFiles.originalName)
 
-/** The MIME type `resolveEffectiveMimeType` gives the file: the trimmed stored type, else the extension's. */
+/** The file's effective MIME type: its normalized stored type, else its extension's. */
 const workspaceFileEffectiveMime = effectiveMimeSql(
-  sql`btrim(${workspaceFiles.contentType})`,
+  declaredMimeSql(workspaceFiles.contentType),
   workspaceFileExtension
 )
 

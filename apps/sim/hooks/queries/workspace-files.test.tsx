@@ -22,6 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 import {
   listWorkspaceFilesContract,
+  MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS,
   readWorkspaceFileContract,
   renameWorkspaceFileContract,
   searchWorkspaceFilesContract,
@@ -46,6 +47,7 @@ import {
   useWorkspaceFileSearch,
   useWorkspaceImageDimensionsAdapter,
   type WorkspaceFileContentResult,
+  workspaceFileRecordState,
 } from '@/hooks/queries/workspace-files'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
@@ -796,6 +798,38 @@ describe('useWorkspaceFileFolderSizes', () => {
   })
 })
 
+describe('useWorkspaceFileFolderSizes across many parents', () => {
+  it('splits parents past the per-request cap into several requests and merges them', async () => {
+    const queries: string[][] = []
+    mockRequestJson.mockImplementation(async (_contract, input) => {
+      const { parentIds } = (input as { query: { parentIds: string[] } }).query
+      queries.push(parentIds)
+      return {
+        success: true,
+        folders: parentIds.map((parentId) => ({
+          folderId: `child-of-${parentId}`,
+          fileCount: 1,
+          sizeBytes: 1,
+        })),
+      }
+    })
+    const parents = Array.from(
+      { length: MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS + 1 },
+      (_, index) => `p${String(index).padStart(3, '0')}`
+    )
+    const hook = mountHook(() => useWorkspaceFileFolderSizes('ws-1', parents))
+    try {
+      await vi.waitFor(() => expect(hook.result().size).toBe(parents.length))
+      expect(queries.map((chunk) => chunk.length)).toEqual([
+        MAX_WORKSPACE_FILE_FOLDER_STATS_PARENTS,
+        1,
+      ])
+    } finally {
+      hook.unmount()
+    }
+  })
+})
+
 describe('useWorkspaceFilePickerOptions', () => {
   it('offers the most recent files untyped and the server matches once a query settles', async () => {
     mockRequestJson.mockImplementation(async (contract) =>
@@ -814,8 +848,31 @@ describe('useWorkspaceFilePickerOptions', () => {
       /** Typed but not settled: still pending, so an empty menu is not read as "no match". */
       expect(hook.result().isPending).toBe(true)
       await vi.waitFor(() => expect(hook.result().files?.map((file) => file.id)).toEqual(['match']))
-      expect(hook.result().settledQuery).toBe('mat')
+      expect(hook.result().matchedQuery).toBe('mat')
       expect(hook.result().isPending).toBe(false)
+    } finally {
+      hook.unmount()
+    }
+  })
+
+  it('claims no matched query while the last query’s matches stand in for the next', async () => {
+    const next = createDeferred<unknown>()
+    mockRequestJson.mockImplementation(async (contract, input) => {
+      if (contract !== searchWorkspaceFilesContract) {
+        return { success: true, files: [], nextCursor: null }
+      }
+      const { q } = (input as { query: { q: string } }).query
+      return q === 'mat' ? { success: true, files: [fileRecord('match')] } : next.promise
+    })
+    let query = 'mat'
+    const hook = mountHook(() => useWorkspaceFilePickerOptions('ws-1', query))
+    try {
+      await vi.waitFor(() => expect(hook.result().matchedQuery).toBe('mat'))
+      query = 'other'
+      hook.rerender()
+      await vi.waitFor(() => expect(mockRequestJson).toHaveBeenCalledTimes(3))
+      expect(hook.result().files?.map((file) => file.id)).toEqual(['match'])
+      expect(hook.result().matchedQuery).toBe('')
     } finally {
       hook.unmount()
     }
@@ -874,5 +931,39 @@ describe('useWorkspaceFileSearch placeholder', () => {
     } finally {
       hook.unmount()
     }
+  })
+})
+
+describe('useWorkspaceImageDimensionsAdapter encoded ids', () => {
+  it('looks an image up by its stored id when the document percent-encodes it', async () => {
+    const image = fileRecord('wf_img', { width: 40, height: 30 })
+    const bodies: unknown[] = []
+    mockRequestJson.mockImplementation(async (_contract, input) => {
+      bodies.push((input as { body: unknown }).body)
+      return { success: true, files: [image], references: [] }
+    })
+    const src = '/api/files/view/wf%5Fimg'
+    const hook = mountHook(() => useWorkspaceImageDimensionsAdapter('ws-1'))
+    try {
+      expect(hook.result().getImageDimensions(src)).toBeNull()
+      await vi.waitFor(() =>
+        expect(hook.result().getImageDimensions(src)).toEqual({ width: 40, height: 30 })
+      )
+      expect(bodies).toEqual([expect.objectContaining({ ids: ['wf_img'] })])
+    } finally {
+      hook.unmount()
+    }
+  })
+})
+
+describe('workspaceFileRecordState', () => {
+  it('reads only a 404 (a null record) as missing, and any other failure as failed', () => {
+    expect(workspaceFileRecordState({ data: null, isError: false })).toBe('missing')
+    expect(workspaceFileRecordState({ data: undefined, isError: true })).toBe('failed')
+  })
+
+  it('keeps a record in hand found though its refetch failed, and waits on a first read', () => {
+    expect(workspaceFileRecordState({ data: fileRecord('a'), isError: true })).toBe('found')
+    expect(workspaceFileRecordState({ data: undefined, isError: false })).toBe('loading')
   })
 })

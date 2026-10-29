@@ -13,12 +13,7 @@ import { inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CursorKey } from '@/lib/api/list-query'
 import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace/file-manager'
-import {
-  EXTENSION_TO_MIME,
-  getFileExtension,
-  MIME_TYPE_MAPPING,
-  resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file'
+import { EXTENSION_TO_MIME, getFileExtension, MIME_TYPE_MAPPING } from '@/lib/uploads/utils/file'
 import { isSupportedExtension } from '@/lib/uploads/utils/validation'
 import {
   getWorkspaceFileFolderStats,
@@ -26,7 +21,7 @@ import {
   lookupWorkspaceFiles,
   searchWorkspaceFiles,
 } from '@/lib/workspace-files/application/list-workspace-files'
-import { fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
+import { fileBrowserMimeType, fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
 import {
   workspaceFileKindCondition,
   workspaceFileTypeLabelExpression,
@@ -703,6 +698,10 @@ describe('bounded workspace file reads in PostgreSQL', () => {
           }))
         ),
         { name: 'noext', contentType: 'application/x-custom' },
+        { name: 'file.bin', contentType: 'Image/PNG; charset=binary' },
+        { name: 'file.txt', contentType: ' Text/Markdown ; charset=utf-8' },
+        { name: 'file.mp3', contentType: 'AUDIO/MPEG' },
+        { name: 'file.dat', contentType: 'Application/Octet-Stream; x=1' },
         { name: 'file.foo', contentType: 'application/octet-stream' },
         { name: 'file.foo', contentType: '' },
       ]
@@ -727,7 +726,7 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       for (const row of rows) {
         const fixture = ids.get(String(row.id))
         if (!fixture) throw new Error('Unexpected row')
-        const mime = resolveEffectiveMimeType(fixture.contentType, fixture.name)
+        const mime = fileBrowserMimeType(fixture.contentType, fixture.name)
         expect({ id: row.id, label: row.label, ...pick(row) }).toEqual({
           id: row.id,
           label: fileBrowserTypeLabel(fixture.contentType, fixture.name),

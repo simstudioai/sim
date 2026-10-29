@@ -81,6 +81,17 @@ export function resolveWorkspaceResourceRef(
   }
 }
 
+/**
+ * The longest leading part of `name` a search query can carry, never splitting a surrogate pair:
+ * a lone surrogate would match nothing and hide the name's duplicates.
+ */
+function searchablePrefix(name: string): string {
+  if (name.length <= V2_SEARCH_MAX_LENGTH) return name
+  const cut = name.slice(0, V2_SEARCH_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  return (last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut).trimEnd()
+}
+
 /** The most files a chip's name candidate is checked against for ambiguity. */
 const NAME_CANDIDATE_LIMIT = 50
 
@@ -100,15 +111,17 @@ function fileRefCandidates(ref: WorkspaceResourceRef): string[] {
  * {@link resolveWorkspaceResourceRef}'s rules: each candidate as a reference (an exact id
  * resolves first, then an exact VFS path), and — for a candidate that could be a bare name —
  * every file whose name contains it, so a name shared by two files is still seen as ambiguous.
+ * A name longer than a search query may be is searched by its leading part, which every file of
+ * that exact name contains and ranks first.
  */
 function fileRefReads(queryClient: QueryClient, workspaceId: string, ref: WorkspaceResourceRef) {
   return fileRefCandidates(ref).flatMap((candidate) => [
     getWorkspaceFileLookupQueryOptions(queryClient, workspaceId, 'reference', candidate),
-    ...(candidate.includes('/') || candidate.length > V2_SEARCH_MAX_LENGTH
+    ...(candidate.includes('/')
       ? []
       : [
           getWorkspaceFileSearchQueryOptions(workspaceId, {
-            q: candidate,
+            q: searchablePrefix(candidate),
             limit: NAME_CANDIDATE_LIMIT,
           }),
         ]),

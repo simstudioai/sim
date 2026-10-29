@@ -29,7 +29,7 @@ export function useMarkdownMentions(
   const ws = active ? workspaceId : undefined
   const wsStr = ws ?? ''
 
-  const { files } = useWorkspaceFilePickerOptions(wsStr, options.fileQuery ?? '', {
+  const { files, matchedQuery } = useWorkspaceFilePickerOptions(wsStr, options.fileQuery ?? '', {
     enabled: active,
   })
   const folders = useWorkspaceFileFolders(wsStr, 'active')
@@ -61,6 +61,7 @@ export function useMarkdownMentions(
         label: file.name,
         group: 'Files',
         icon: mentionIcon('file', file.id, file.name),
+        ...(matchedQuery ? { matchedQuery } : {}),
       })
     for (const folder of folders.data ?? [])
       items.push({
@@ -108,6 +109,7 @@ export function useMarkdownMentions(
   }, [
     active,
     files,
+    matchedQuery,
     folders.data,
     tables.data,
     knowledgeBases.data,

@@ -239,6 +239,11 @@ interface ResourceTableProps {
    * Defaults to `isLoadingMore`.
    */
   isFetching?: boolean
+  /**
+   * The last next-page load failed. Paging then waits for the sentinel to leave view and come
+   * back before asking again, rather than retrying a failing request in a loop.
+   */
+  loadMoreFailed?: boolean
   pagination?: PaginationConfig
   /**
    * Sanctioned overlay slot. Rendered absolutely against the table region
@@ -294,6 +299,7 @@ const ResourceTable = memo(function ResourceTable({
   hasMore,
   isLoadingMore,
   isFetching = isLoadingMore,
+  loadMoreFailed = false,
   pagination,
   overlay,
   emptyState,
@@ -307,6 +313,7 @@ const ResourceTable = memo(function ResourceTable({
   const loadMoreRef = useLoadMoreSentinel({
     onLoadMore,
     enabled: Boolean(hasMore) && !isFetching,
+    waitForReentry: loadMoreFailed,
   })
 
   const showEmptyState = rows.length === 0 && Boolean(emptyState)

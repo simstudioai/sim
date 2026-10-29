@@ -47,10 +47,14 @@ export function fileExtensionSql(name: SQLWrapper): SQL<string> {
   return sql<string>`(case when strpos(${name}, '.') > 0 then lower(regexp_replace(${name}, '^.*[.]', '')) else '' end)`
 }
 
+/** The stored type as `normalizeMimeType` reads it: lowercased, parameters dropped, trimmed. */
+export function declaredMimeSql(contentType: SQLWrapper): SQL<string> {
+  return sql<string>`lower(btrim(split_part(coalesce(${contentType}, ''), ';', 1)))`
+}
+
 /**
- * The effective MIME type: `declared` when it names a format, else the extension's own. The
- * caller decides how `declared` is normalized — the Files page trims the stored type, as
- * `resolveEffectiveMimeType` does; the Project browser also lowercases it and drops parameters.
+ * The effective MIME type: `declared` (from {@link declaredMimeSql}) when it names a format,
+ * else the extension's own — `resolveEffectiveMimeType` over `normalizeMimeType`'s reading.
  */
 export function effectiveMimeSql(declared: SQL, extension: SQL): SQL<string> {
   return sql<string>`(case when ${declared} not in ('', ${list([...GENERIC_MIME_TYPES])}) then ${declared}

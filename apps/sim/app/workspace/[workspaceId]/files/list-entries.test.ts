@@ -82,6 +82,19 @@ describe('mergeFileListEntries', () => {
     ).toEqual(['pinned20', 'Fpin', 'far90', 'F5', 'a10'])
   })
 
+  it('orders pinned rows by the active sort, whatever order the pins arrive in', () => {
+    const pinnedFiles = [file('p30', 30), file('p10', 10), file('p20', 20)]
+    const order = (pins: Row[]) =>
+      merge({
+        files: [],
+        pinnedFiles: pins,
+        hasMore: true,
+        pinned: pins.map((row) => row.id),
+      })
+    expect(order(pinnedFiles)).toEqual(['p10', 'p20', 'p30'])
+    expect(order([...pinnedFiles].reverse())).toEqual(['p10', 'p20', 'p30'])
+  })
+
   it('places a folder tying on the column by name, and rows without a value last either way', () => {
     const owned = (id: string, owner: string | null): Row & { owner: string | null } => ({
       ...file(id, 0),

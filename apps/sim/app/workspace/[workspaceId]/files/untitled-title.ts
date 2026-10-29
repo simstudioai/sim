@@ -55,3 +55,32 @@ export function uniqueMarkdownName(name: string, existingNames: ReadonlySet<stri
   }
   return candidate
 }
+
+/** How many taken names a heading-derived rename steps past before giving up. */
+const MAX_UNIQUE_NAME_ATTEMPTS = 20
+
+/**
+ * Renames to `name`, or its first free numbered variant: starts from the variant `knownNames`
+ * leaves free and, when the server reports that one taken too (`isTaken` — a sibling the caller's
+ * read did not reach), steps to the next. Resolves the name it settled on, or `null` after
+ * {@link MAX_UNIQUE_NAME_ATTEMPTS} taken names; any other failure rejects.
+ */
+export async function renameToUniqueMarkdownName(
+  name: string,
+  knownNames: ReadonlySet<string>,
+  rename: (candidate: string) => Promise<unknown>,
+  isTaken: (error: unknown) => boolean
+): Promise<string | null> {
+  const taken = new Set(knownNames)
+  for (let attempt = 0; attempt < MAX_UNIQUE_NAME_ATTEMPTS; attempt++) {
+    const candidate = uniqueMarkdownName(name, taken)
+    try {
+      await rename(candidate)
+      return candidate
+    } catch (error) {
+      if (!isTaken(error)) throw error
+      taken.add(candidate)
+    }
+  }
+  return null
+}

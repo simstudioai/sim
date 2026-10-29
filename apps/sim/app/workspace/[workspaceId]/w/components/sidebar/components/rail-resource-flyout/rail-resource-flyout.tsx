@@ -17,6 +17,7 @@ import { useParams } from 'next/navigation'
 import {
   buildFlyoutEntries,
   FOLDERED_RESOURCE_HEADERS,
+  flyoutLevelFolders,
   folderedResourceListHref,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { CollapsedResourceFlyout } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/collapsed-sidebar-menu'
@@ -127,9 +128,7 @@ function FilesFlyoutLevel({
   const entries = useMemo(() => {
     const files = distinctFiles([pinnedFiles, fileList.data?.files])
     return buildFlyoutEntries({
-      folders: folders
-        .filter((folder) => (folder.parentId ?? null) === folderId)
-        .map((folder) => ({ ...folder, parentId: null })),
+      folders: flyoutLevelFolders(folders, folderId),
       items: files.map((file) => ({ ...file, folderId: null })),
       pinnedFolderIds,
       pinnedItemIds: pinnedFileIds,

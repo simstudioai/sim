@@ -8,6 +8,14 @@ import {
 import type { MentionStore } from './mention-store'
 import type { MentionItem } from './types'
 
+/**
+ * Whether `item` belongs under the typed `query` (lowercased, trimmed): its label contains it, or
+ * it is one of the server's ranked matches for exactly that query (`matchedQuery`).
+ */
+export function mentionItemMatches(item: MentionItem, query: string): boolean {
+  return item.matchedQuery?.toLowerCase() === query || item.label.toLowerCase().includes(query)
+}
+
 export type MentionListHandle = SuggestionKeyDownHandler
 
 interface MentionListProps {
@@ -65,7 +73,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(funct
     const byGroup = new Map<string, MentionItem[]>()
     let shown = 0
     for (const item of rawItems) {
-      if (q && !item.label.toLowerCase().includes(q)) continue
+      if (q && !mentionItemMatches(item, q)) continue
       if (q && shown >= MAX_WHEN_FILTERED) break
       const bucket = byGroup.get(item.group)
       if (!q && bucket && bucket.length >= MAX_PER_GROUP) continue

@@ -1,4 +1,5 @@
 import { getFileExtension, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 
 export const FILE_BROWSER_SORTS = ['name', 'size', 'type', 'created', 'owner', 'updated'] as const
 export type FileBrowserSort = (typeof FILE_BROWSER_SORTS)[number]
@@ -66,12 +67,21 @@ export interface FileBrowserFilters {
 }
 
 /**
+ * The MIME type the file browsers classify a file by: its stored type read as
+ * `normalizeMimeType` reads it (lowercased, parameters dropped), else its extension's — the
+ * rule `declaredMimeSql` and `effectiveMimeSql` spell for SQL.
+ */
+export function fileBrowserMimeType(storedType: string, filename: string): string {
+  return resolveEffectiveMimeType(normalizeMimeType(storedType), filename)
+}
+
+/**
  * A file's Type column label: a specific label for its effective MIME type, else its media
  * family (Audio, Video, Image), else its extension uppercased, else the stored type. The SQL
  * twin is `fileTypeLabelSql`, which the browsers' Type sorts order by.
  */
 export function fileBrowserTypeLabel(storedType: string, filename: string): string {
-  const mimeType = resolveEffectiveMimeType(storedType, filename)
+  const mimeType = fileBrowserMimeType(storedType, filename)
   const label = FILE_BROWSER_MIME_LABELS[mimeType]
   if (label) return label
   if (mimeType.startsWith('audio/')) return 'Audio'

@@ -30,7 +30,7 @@ import {
   type SelectorKey,
 } from '@/lib/selectors/manifest'
 import type { SelectorOption, SelectorScope } from '@/lib/selectors/types'
-import { extractStorageKey } from '@/lib/uploads/utils/file'
+import { tryExtractStorageKey } from '@/lib/uploads/utils/file'
 import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resources'
 import type {
   WorkflowSearchMatch,
@@ -357,7 +357,9 @@ export function workflowSearchFileLookups(rawValues: readonly string[]): {
   const references = new Set<string>()
   const keyValues = new Set<string>()
   for (const rawValue of rawValues) {
-    const key = extractStorageKey(rawValue)
+    const key = tryExtractStorageKey(rawValue)
+    // A serve path with malformed percent-encoding names nothing a lookup can find.
+    if (key === undefined) continue
     if (key !== rawValue) {
       keyValues.add(key)
       continue
@@ -392,7 +394,7 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
     () =>
       fileMatches.map((match) => {
         const file =
-          byKey.byValue.get(extractStorageKey(match.rawValue)) ??
+          byKey.byValue.get(tryExtractStorageKey(match.rawValue) ?? '') ??
           byReference.byValue.get(match.rawValue)
         return {
           data: settled

@@ -35,6 +35,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
 import {
   buildResourceFolderTree,
+  isServerMatchFor,
   type ResourceTreeNode,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import { resourceFromItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-from-item'
@@ -329,6 +330,7 @@ function ResourceMenuSearch({
       items
         .filter(
           (item) =>
+            isServerMatchFor(item, q) ||
             item.name.toLowerCase().includes(q) ||
             (typeof item.workspaceName === 'string' && item.workspaceName.toLowerCase().includes(q))
         )
