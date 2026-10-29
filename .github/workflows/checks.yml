@@ -681,6 +681,9 @@ jobs:
           tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
           "$RUNNER_TEMP/actionlint" -color -shellcheck= -pyflakes=
 
+      - name: Generate documentation modules for import audits
+        run: bun run --cwd apps/docs content:generate
+
       # Every zero-argument `check:*` script, run concurrently. The list is derived in
       # scripts/run-audits.ts, which also writes the per-audit timing table to the job
       # summary and annotates failures. Audits needing a base ref stay separate below.

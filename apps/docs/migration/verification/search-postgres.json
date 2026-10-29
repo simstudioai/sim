@@ -3,37 +3,37 @@
     {
       "name": "Real PostgreSQL keyword results work with no embedding key",
       "status": "passed",
-      "durationMs": 15
+      "durationMs": 92
     },
     {
       "name": "Stale index hashes cannot supply search citations",
       "status": "passed",
-      "durationMs": 8
+      "durationMs": 27
     },
     {
       "name": "Foreign origins and nonexistent anchors cannot supply search citations",
       "status": "passed",
-      "durationMs": 14
+      "durationMs": 49
     },
     {
       "name": "Database query failures retain credential-free catalog results",
       "status": "passed",
-      "durationMs": 8
+      "durationMs": 32
     },
     {
       "name": "Fresh index checks succeed and repeated publication preserves row identities without credentials",
       "status": "passed",
-      "durationMs": 11153
+      "durationMs": 21095
     },
     {
       "name": "Freshness checks reject retired pages and publication retires only those rows",
       "status": "passed",
-      "durationMs": 11542
+      "durationMs": 17068
     },
     {
       "name": "A missing embedding key fails publication without deleting old document data",
       "status": "passed",
-      "durationMs": 5570
+      "durationMs": 6725
     }
   ]
 }

@@ -70,6 +70,7 @@ export function Tabs({
   const [selected, setSelected] = useState(first)
   const value = controlledValue ?? selected
   const reveal = useEffectEvent((next: string) => {
+    if (!panelIds.has(next)) return
     setSelected(next)
     onValueChange?.(next)
   })
@@ -89,6 +90,17 @@ export function Tabs({
   useEffect(() => {
     const element = root.current
     if (!element) return
+    function revealPanel(target: HTMLElement) {
+      let panel = target.closest<HTMLElement>('[data-docs-tab-value]')
+      while (panel && element?.contains(panel)) {
+        if (panel.closest('[data-docs-tabs-root]') === element) {
+          const next = panel.dataset.docsTabValue
+          if (next !== undefined) reveal(next)
+          return
+        }
+        panel = panel.parentElement?.closest<HTMLElement>('[data-docs-tab-value]') ?? null
+      }
+    }
     function revealTarget() {
       let target: HTMLElement | null = null
       try {
@@ -97,15 +109,11 @@ export function Tabs({
         return
       }
       if (!target || !element?.contains(target)) return
-      const panel = target.closest<HTMLElement>('[data-docs-tab-value]')
-      const next = panel?.dataset.docsTabValue
-      if (next) reveal(next)
+      revealPanel(target)
     }
     function revealMatch(event: Event) {
       if (!(event.target instanceof HTMLElement)) return
-      const panel = event.target.closest<HTMLElement>('[data-docs-tab-value]')
-      const next = panel?.dataset.docsTabValue
-      if (next) reveal(next)
+      revealPanel(event.target)
     }
     if (persist && groupId) {
       try {
@@ -132,6 +140,7 @@ export function Tabs({
         aria-label={label}
         className={cn('not-prose my-6 min-w-0 scroll-mt-[var(--docs-sticky-offset)]', className)}
         {...props}
+        data-docs-tabs-root=''
       >
         {items && (
           <TabsList aria-label={label}>

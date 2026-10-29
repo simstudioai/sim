@@ -90,7 +90,7 @@ After PostgreSQL reports ready, run from `apps/docs`:
 ```sh
 DOCS_SEARCH_E2E_DATABASE_URL=postgresql://docs_test:docs_test@127.0.0.1:15432/docs_search_test \
 DOCS_SEARCH_E2E_REPORT_PATH=test-results/search-postgres/report.json \
-bun --no-env-file --conditions=react-server scripts/test-search-postgres-e2e.ts
+bun run test:search:postgres:e2e
 ```
 
 Then stop the container using the ID returned by `docker run`; `--rm` removes its temporary data. Successful vector generation and provider ranking still require separate verification with an embedding provider. The local suite makes no paid provider calls.

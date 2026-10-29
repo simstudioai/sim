@@ -29,11 +29,15 @@ The full machine-readable accounting is in [report.json](report.json), with the 
 | HTTP and real MCP client | 15 passed | [Interface report](verification/interfaces.json) |
 | Content negotiation | 7 passed | [Negotiation report](verification/negotiation.json) |
 | Native header merger | 16 passed | [Header report](verification/headers.json) |
-| Browser behavior and responsive layouts | 40 passed | [Browser report](verification/browser.json) |
+| Browser behavior and responsive layouts | 42 passed | [Browser report](verification/browser.json) |
 | Isolated PostgreSQL search and publication | 7 passed | [Database report](verification/search-postgres.json) |
 | Workflow SSR and hydrated inspector | Authored node text in initial HTML; inspector, Escape, focus restoration, and zero browser errors passed | [SSR report](verification/workflow-ssr.json), [interaction report](verification/workflow-inspector.json) |
 
 The corpus suite found duplicate React Flow accessibility IDs on 15 pages and unusable authentication links on all 308 API pages. Both regressions were observed before their fixes and passed afterward. The retained failure-only reports are [duplicate IDs](verification/corpus-before-preview-fix.json) and [authentication links](verification/corpus-before-auth-fix.json).
+
+A subsequent production-browser review reproduced nested API tabs selecting a media type as the outer response status, hiding the response panels. Both fragment navigation and `beforematch` failed before ownership-aware ancestor selection was added; the complete 42-check browser suite passes afterward. The [pre-fix report](verification/nested-tabs-before-fix.json) records both failures.
+
+The first PR CI run exposed two setup differences from the local verification: the PostgreSQL package command omitted Bun's `react-server` condition, and import audits ran before the ignored MDX registry was generated. The package command now matches the documented local invocation, and CI generates documentation modules before auditing imports. The exact PostgreSQL package command passed all seven checks against a fresh disposable database. Normal content builds no longer load the historical migration inventory or rewrite its report; explicit migration verification still passes and reproduces the report byte-for-byte.
 
 ### Performance evidence
 

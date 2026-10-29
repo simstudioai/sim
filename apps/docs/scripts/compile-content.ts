@@ -303,81 +303,80 @@ async function generate() {
     })
     .join('\n')
   const registry = `import type { MDXContent } from 'mdx/types'\nconst loaders: Record<string, () => Promise<{default: MDXContent}>> = {\n${loaders}\n}\nexport function loadPage(id: string) {\n  const load = loaders[id]\n  if (!load) throw new Error(\`Unknown authored document: \${id}\`)\n  return load()\n}\n`
-  const baseline = JSON.parse(
-    await readFile(path.join(DOCS_ROOT, 'migration/baseline.json'), 'utf8')
-  ) as {
-    pages: Array<{
-      url: string
-      source: string
-      headings: Array<{ url: string }>
-      codeFences: Array<{ sha256: string }>
-    }>
-    operations: Array<{ urls: string[] }>
-  }
-  const lostRoutes = [
-    ...baseline.pages.map((page) => page.url),
-    ...baseline.operations.flatMap((operation) => operation.urls),
-  ].filter((url) => !urls.has(url))
-  const lostAnchors = baseline.pages.flatMap((old) => {
-    const current = pages.find((page) => page.url === old.url)
-    return old.headings
-      .filter((heading) => !current?.headings.some((item) => `#${item.id}` === heading.url))
-      .map((heading) => `${old.url}${heading.url}`)
-  })
-  const changedCodeFences = baseline.pages
-    .filter(
-      (page) =>
-        JSON.stringify(page.codeFences.map((fence) => fence.sha256)) !==
-        JSON.stringify(cache.files[page.source]?.codeFences.map((fence) => fence.sha256))
-    )
-    .map((page) => page.source)
-  const report = {
-    source: 'Canonical catalog compared with pre-migration MDX AST and specification inventory',
-    authoredPages: pages.filter((page) => !page.operation).length,
-    operationPages: pages.filter((page) => page.operation).length,
-    totalPages: pages.length,
-    catalogBytes: Buffer.byteLength(serialized),
-    internalLinks,
-    lostRoutes,
-    lostAnchors,
-    changedCodeFences,
-    componentCoverage:
-      'Every JSX component validated against the centrally owned component allowlist',
-    routes: pages.map((page) => ({
-      url: page.url,
-      sourcePath: page.sourcePath,
-      contentHash: page.contentHash,
-      headings: page.headings.map((heading) => heading.id),
-    })),
-  }
-  const reportPath = path.join(DOCS_ROOT, 'migration/report.json')
-  const formattedReport = execFileSync(
-    'bun',
-    [
-      'x',
-      '--no-install',
-      'biome',
-      'format',
-      '--stdin-file-path',
-      reportPath,
-      `--files-max-size=${MAX_CONTENT_BYTES}`,
-    ],
-    {
-      cwd: DOCS_ROOT,
-      encoding: 'utf8',
-      input: JSON.stringify(report),
-      maxBuffer: MAX_CONTENT_BYTES,
+  if (process.argv.includes('--verify-migration')) {
+    const baseline = JSON.parse(
+      await readFile(path.join(DOCS_ROOT, 'migration/baseline.json'), 'utf8')
+    ) as {
+      pages: Array<{
+        url: string
+        source: string
+        headings: Array<{ url: string }>
+        codeFences: Array<{ sha256: string }>
+      }>
+      operations: Array<{ urls: string[] }>
     }
-  )
-  if (!formattedReport.trim()) throw new Error('Migration report formatter returned empty output')
-  await writeFile(reportPath, formattedReport)
-  if (
-    process.argv.includes('--verify-migration') &&
-    (lostRoutes.length || lostAnchors.length || changedCodeFences.length)
-  )
-    throw new Error(
-      `Migration loses ${lostRoutes.length} routes and ${lostAnchors.length} anchors or changes ${changedCodeFences.length} code examples; see migration/report.json`
+    const lostRoutes = [
+      ...baseline.pages.map((page) => page.url),
+      ...baseline.operations.flatMap((operation) => operation.urls),
+    ].filter((url) => !urls.has(url))
+    const lostAnchors = baseline.pages.flatMap((old) => {
+      const current = pages.find((page) => page.url === old.url)
+      return old.headings
+        .filter((heading) => !current?.headings.some((item) => `#${item.id}` === heading.url))
+        .map((heading) => `${old.url}${heading.url}`)
+    })
+    const changedCodeFences = baseline.pages
+      .filter(
+        (page) =>
+          JSON.stringify(page.codeFences.map((fence) => fence.sha256)) !==
+          JSON.stringify(cache.files[page.source]?.codeFences.map((fence) => fence.sha256))
+      )
+      .map((page) => page.source)
+    const report = {
+      source: 'Canonical catalog compared with pre-migration MDX AST and specification inventory',
+      authoredPages: pages.filter((page) => !page.operation).length,
+      operationPages: pages.filter((page) => page.operation).length,
+      totalPages: pages.length,
+      catalogBytes: Buffer.byteLength(serialized),
+      internalLinks,
+      lostRoutes,
+      lostAnchors,
+      changedCodeFences,
+      componentCoverage:
+        'Every JSX component validated against the centrally owned component allowlist',
+      routes: pages.map((page) => ({
+        url: page.url,
+        sourcePath: page.sourcePath,
+        contentHash: page.contentHash,
+        headings: page.headings.map((heading) => heading.id),
+      })),
+    }
+    const reportPath = path.join(DOCS_ROOT, 'migration/report.json')
+    const formattedReport = execFileSync(
+      'bun',
+      [
+        'x',
+        '--no-install',
+        'biome',
+        'format',
+        '--stdin-file-path',
+        reportPath,
+        `--files-max-size=${MAX_CONTENT_BYTES}`,
+      ],
+      {
+        cwd: DOCS_ROOT,
+        encoding: 'utf8',
+        input: JSON.stringify(report),
+        maxBuffer: MAX_CONTENT_BYTES,
+      }
     )
+    if (!formattedReport.trim()) throw new Error('Migration report formatter returned empty output')
+    await writeFile(reportPath, formattedReport)
+    if (lostRoutes.length || lostAnchors.length || changedCodeFences.length)
+      throw new Error(
+        `Migration loses ${lostRoutes.length} routes and ${lostAnchors.length} anchors or changes ${changedCodeFences.length} code examples; see migration/report.json`
+      )
+  }
   await writeFullMarkdown(pages)
   for (const [name, data] of [
     ['registry.ts', registry],

@@ -206,6 +206,41 @@ try {
     }
   }
 
+  for (const reveal of ['fragment', 'beforematch'] as const) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+    try {
+      await check(`Nested response tabs reveal their ancestors through ${reveal}`, async () => {
+        const page = await context.newPage()
+        await open(page, '/api-reference/logs/getLog')
+        const status = page.locator('#response-400')
+        const media = status.getByRole('tabpanel', { includeHidden: true }).first()
+        const statuses = page.getByRole('tablist', { name: 'Response status' })
+        await expect(page.locator('#response-200')).toBeVisible()
+        await expect(status).toBeHidden()
+        const mediaId = await media.getAttribute('id')
+        if (!mediaId) throw new Error('Response media panel has no fragment identifier')
+        if (reveal === 'fragment')
+          await page.evaluate((id) => {
+            window.location.hash = encodeURIComponent(id)
+          }, mediaId)
+        else await media.dispatchEvent('beforematch')
+        await expect(statuses.getByRole('tab', { name: '400', exact: true })).toHaveAttribute(
+          'aria-selected',
+          'true'
+        )
+        await expect(status).toBeVisible()
+        await expect(media).toBeVisible()
+        await expect(page.locator('#response-200')).toBeHidden()
+        await statuses.getByRole('tab', { name: '200', exact: true }).click()
+        await expect(page.locator('#response-200')).toBeVisible()
+        await expect(status).toBeHidden()
+        await page.screenshot({ path: join(directory, `nested-tabs-${reveal}.png`) })
+      })
+    } finally {
+      await context.close()
+    }
+  }
+
   const legacy = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] })
   try {
     await check(
