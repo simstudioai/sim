@@ -5,7 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { revokeUserSessionsTx } from '@/lib/organizations/members/revocation'
 import { stopRunsWithoutWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 
@@ -26,6 +26,8 @@ export type SuspensionSource = 'scim'
 export interface SuspendMemberResult {
   suspended: boolean
   sessionsRevoked: number
+  /** Deliver these durable Stops only after the suspension commits. */
+  stoppedRuns: StoppedRun[]
 }
 
 /**
@@ -37,8 +39,8 @@ export interface SuspendMemberResult {
  * is no server-side path to undo it. A directory deactivation is routine and
  * reversible — someone on leave, or moved between teams — so it must not destroy
  * the work they own. That includes their API keys: the key rows stay, and the
- * authentication paths refuse them while `suspendedAt` is set, so reactivation
- * restores every automation exactly as it was.
+ * authentication paths refuse them while `suspendedAt` is set. Reactivation
+ * permits new runs; already admitted Chat runs are durably stopped.
  */
 export async function suspendMemberTx(
   tx: DbTransaction,
@@ -73,7 +75,8 @@ export async function suspendMemberTx(
     organizationId: params.organizationId,
   })
 
-  return { suspended: Boolean(updated), sessionsRevoked: sessions.revoked }
+  const stoppedRuns = await stopLiveRunsTx(tx, { userId: params.userId })
+  return { suspended: Boolean(updated), sessionsRevoked: sessions.revoked, stoppedRuns }
 }
 
 /** Lifts a suspension, but only one raised by the same source. */

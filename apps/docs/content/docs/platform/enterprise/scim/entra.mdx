@@ -11,7 +11,7 @@ Use a non-gallery enterprise application in Microsoft Entra ID to create, update
 
 ## Before you start
 
-- Use an Enterprise organization in Sim and an organization owner or admin account.
+- On Sim Cloud, use an Enterprise organization. Use an organization owner or admin account to configure provisioning.
 - [Verify each provisioned email domain](/platform/enterprise/verified-domains).
 - Use an Entra administrator who can create enterprise applications and manage provisioning.
 - Make Sim reachable by Entra over HTTPS. Self-hosted deployments must meet the [SCIM rollout requirements](/platform/enterprise/scim#deployment-and-upgrades).
@@ -19,6 +19,8 @@ Use a non-gallery enterprise application in Microsoft Entra ID to create, update
 Automated user provisioning is available with Entra ID Free. Group provisioning and group-based application assignment require P1 or higher. See [Microsoft licensing](https://learn.microsoft.com/en-us/entra/fundamentals/licensing).
 
 Start with dedicated test accounts. Provisioned members use a seat and receive workspace access through mappings or existing grants.
+
+An existing SAML or OIDC sign-in setup can remain in place. Use the same account email for authentication and provisioning, and review app assignments if they use separate enterprise applications. See [Plan membership and access](/platform/enterprise/scim#plan-membership-and-access) for the distinction between sign-in, organization membership, workspace access, and permission policy.
 
 ## Connect Entra to Sim
 
@@ -101,12 +103,13 @@ Sim deactivation suspends access while retaining membership, ownership, and the 
 
 ## Provision groups and verify access
 
-With P1 or higher, create a security group with **Assigned** membership and add test accounts as direct members. Assign it under **Users and groups**. Review **Attribute mapping** and keep group provisioning enabled.
+With P1 or higher, create a security group with **Assigned** membership and add test accounts as direct members. Assign it under **Users and groups**. Review **Attribute mapping** and keep group provisioning enabled. Create the target workspace and a dedicated permission group in Sim, configuring that policy's restrictions and workspace scope before mapping it.
 
 1. Run **Provision on demand** for one group and select up to five test members, or wait for a scheduled cycle. Nested membership is unsupported; see [Microsoft group assignment](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/assign-user-or-group-access-portal).
-2. Once the group appears under **Single sign-on → Provisioning → Group mappings** in Sim, map it to a workspace, permission group, or organization admin role. Start with a workspace mapping and confirm access.
-3. Remove a test member from the group while retaining a separate direct app assignment. After synchronization, confirm the directory workspace grant is withdrawn while the account remains active.
-4. Add the member back and verify access returns.
+2. Once the group appears under **Single sign-on → Provisioning → Group mappings** in Sim, add a **Workspace** mapping and a **Permission group** mapping to the policy created above. Confirm both workspace access and policy restrictions. A permission-group mapping alone does not grant workspace access; an organization-admin mapping is a separate privilege.
+3. For automatic policy matching, enable **Provisioning rules → Manage rules → Match permission groups by name**. Names must match an existing non-default Sim permission group exactly, including case. Select **Reconcile now** for groups already synced. Sim does not create the permission group.
+4. Remove a test member from the group while retaining a separate direct app assignment. After synchronization, confirm the directory workspace grant is withdrawn while the account remains active. Check the [fallback policy](/platform/enterprise/scim#how-access-is-withdrawn) on any workspace the person can still access.
+5. Add the member back and verify access and restrictions return.
 
 Read [How access is withdrawn](/platform/enterprise/scim#how-access-is-withdrawn) before mapping groups that overlap manual access.
 
@@ -133,6 +136,8 @@ Issue a replacement token in Sim while the current one remains active. In Entra'
 | Disablement or deletion has not reached Sim | Inspect the scheduled log, `IsSoftDeleted` mapping to `active`, enabled **Update** actions, and accidental deletion protection. Confirm **Skip out of scope deletions** is disabled. A connection test does not verify lifecycle changes. |
 | Group assignment is unavailable | Check licensing. Free supports individual assignment; group assignment and provisioning require an upgrade. |
 | Member has no workspace access | Provision the directory group and add a Sim workspace mapping. User provisioning adds organization membership. |
+| Member has access but the expected policy does not apply | Check **Group mappings** for unassigned members. Resolve overlapping membership or workspace scope under **Permission groups**, then select **Reconcile now**. For name matching, also check the exact group name. |
+| A removed mapping returns | Turn off name matching or use different names before removing a same-name mapping. See [mapping behavior](/platform/enterprise/scim#map-directory-groups). |
 | A disabled member still uses a seat | Deactivation suspends access; organization removal is separate. |
 
 Use Entra's **Provisioning logs** and Sim's **Provisioning → Activity**. Invalid or revoked tokens appear only in Entra because Sim cannot associate them with a connection.

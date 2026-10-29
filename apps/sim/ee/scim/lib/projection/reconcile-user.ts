@@ -3,7 +3,7 @@ import {
   member,
   permissionGroupMember,
   permissions,
-  type ScimConnectionSettings,
+  scimConnection,
   scimGroupMapping,
   scimGroupMember,
   scimProjectionGrant,
@@ -14,7 +14,10 @@ import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
-import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
+import {
+  acquireOrganizationMutationLock,
+  acquireOrganizationUserMutationLocks,
+} from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
@@ -435,13 +438,20 @@ export async function reconcileUserProjection(
     connectionId: string
     organizationId: string
     scimUserId: string
-    settings: ScimConnectionSettings
   }
 ): Promise<ProjectionDelta> {
+  await acquireOrganizationMutationLock(tx, params.organizationId)
   const [record] = await tx
-    .select({ userId: scimUser.userId })
+    .select({ userId: scimUser.userId, settings: scimConnection.settings })
     .from(scimUser)
-    .where(and(eq(scimUser.id, params.scimUserId), eq(scimUser.connectionId, params.connectionId)))
+    .innerJoin(scimConnection, eq(scimConnection.id, scimUser.connectionId))
+    .where(
+      and(
+        eq(scimUser.id, params.scimUserId),
+        eq(scimUser.connectionId, params.connectionId),
+        eq(scimConnection.organizationId, params.organizationId)
+      )
+    )
     .limit(1)
 
   if (!record) return emptyDelta()
@@ -484,7 +494,7 @@ export async function reconcileUserProjection(
 
   const delta = emptyDelta()
   const accessEndedIn = new Set<string>()
-  const lockManualMembership = params.settings.lockManualMembership === true
+  const lockManualMembership = record.settings.lockManualMembership === true
 
   /** Withdrawals first, so a move between groups frees its workspace slot. */
   for (const grant of plan.withdraw) {
@@ -621,7 +631,6 @@ export async function reconcileUsersProjection(
     connectionId: string
     organizationId: string
     scimUserIds: string[]
-    settings: ScimConnectionSettings
   }
 ): Promise<ProjectionDelta> {
   const total = emptyDelta()
@@ -630,7 +639,6 @@ export async function reconcileUsersProjection(
       connectionId: params.connectionId,
       organizationId: params.organizationId,
       scimUserId,
-      settings: params.settings,
     })
     addChanges(total, delta)
     total.stoppedRuns.push(...delta.stoppedRuns)
@@ -653,7 +661,6 @@ export async function reconcileUsersProjectionInBatches(params: {
   connectionId: string
   organizationId: string
   scimUserIds: string[]
-  settings: ScimConnectionSettings
 }): Promise<ProjectionChanges> {
   const changes: ProjectionChanges = { added: [], removed: [], raised: [] }
   const ids = [...new Set(params.scimUserIds)].sort()
