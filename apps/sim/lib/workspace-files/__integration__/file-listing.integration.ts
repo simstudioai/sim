@@ -418,6 +418,25 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         { reference: 'files/Foreign/report.txt', fileId: null },
       ])
     })
+
+    it('reads a reference that is not valid encoding as a bare name, and never fails the batch', async () => {
+      const done = byName('100%_done.txt')
+      const alpha = byName('alpha.txt', folders.docs)
+      const result = await lookupWorkspaceFiles.execute({
+        principal: session(alice),
+        input: {
+          workspaceId,
+          ids: [alpha.id],
+          references: ['100%_done.txt', 'files/Docs/%E0%A4%A', 'files/Docs/../alpha.txt'],
+        },
+      })
+      expect(result.files.map((file) => file.id).sort()).toEqual([alpha.id, done.id].sort())
+      expect(result.references).toEqual([
+        { reference: '100%_done.txt', fileId: done.id },
+        { reference: 'files/Docs/%E0%A4%A', fileId: null },
+        { reference: 'files/Docs/../alpha.txt', fileId: null },
+      ])
+    })
   })
 
   describe('folder stats', () => {

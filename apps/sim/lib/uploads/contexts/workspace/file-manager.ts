@@ -126,8 +126,10 @@ import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import type { ServableFile } from '@/lib/uploads/utils/file.server'
 import {
   decodeVfsPathSegments,
+  decodeVfsReferenceSegments,
   displaySegmentPattern,
   normalizeDisplaySegment,
+  VfsPathError,
 } from '@/lib/vfs/path'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import {
@@ -2023,15 +2025,15 @@ function normalizeWorkspaceFileReferenceSegments(fileReference: string): string[
   if (withoutDeletedPrefix.startsWith('files/')) {
     const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
-      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/meta.json'.length))
+      return decodeVfsReferenceSegments(withoutPrefix.slice(0, -'/meta.json'.length))
     }
     if (withoutPrefix.endsWith('/content')) {
-      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/content'.length))
+      return decodeVfsReferenceSegments(withoutPrefix.slice(0, -'/content'.length))
     }
-    return decodeVfsPathSegments(withoutPrefix)
+    return decodeVfsReferenceSegments(withoutPrefix)
   }
 
-  return decodeVfsPathSegments(withoutDeletedPrefix)
+  return decodeVfsReferenceSegments(withoutDeletedPrefix)
 }
 
 /**
@@ -2296,8 +2298,9 @@ function referenceCandidates(references: readonly string[]) {
   const ids = new Set<string>()
   const leafNames = new Set<string>()
   for (const reference of references) {
-    const segments = normalizeWorkspaceFileReferenceSegments(reference)
+    const segments = referenceSegmentsOrNull(reference)
     ids.add(reference)
+    if (!segments) continue
     ids.add(segments.join('/'))
     const leaf = segments.at(-1)
     if (leaf !== undefined) leafNames.add(normalizeDisplaySegment(leaf))
@@ -2305,12 +2308,30 @@ function referenceCandidates(references: readonly string[]) {
   return { ids: [...ids], leafNames: [...leafNames] }
 }
 
+/**
+ * A batch reference's segments, or `null` for one that cannot name a file path (an empty or
+ * dot segment). It still matches by exact id; it never fails the rest of the batch.
+ */
+function referenceSegmentsOrNull(reference: string): string[] | null {
+  try {
+    return normalizeWorkspaceFileReferenceSegments(reference)
+  } catch (error) {
+    if (error instanceof VfsPathError) return null
+    throw error
+  }
+}
+
 function resolveListedReferences(
   candidates: WorkspaceFileRecord[],
   references: readonly string[]
 ): Map<string, WorkspaceFileRecord | null> {
   return new Map(
-    references.map((reference) => [reference, findWorkspaceFileRecord(candidates, reference)])
+    references.map((reference) => [
+      reference,
+      referenceSegmentsOrNull(reference) === null
+        ? (candidates.find((file) => file.id === reference) ?? null)
+        : findWorkspaceFileRecord(candidates, reference),
+    ])
   )
 }
 
