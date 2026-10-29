@@ -71,7 +71,8 @@ export function chatFileReferenceScope(
   const workspaceId = extractWorkspaceIdFromStorageKey(file.key)
   if (workspaceId) return { kind: 'workspace', id: workspaceId }
   // A fork copies the source's inline images under its own id, so the chat's own are unshared.
-  if (file.key.startsWith(inlineChatImagePrefix(file.chatId))) return 'unshared'
+  const ownImages = inlineChatImagePrefix(file.chatId)
+  if (ownImages && file.key.startsWith(ownImages)) return 'unshared'
   return 'unknown'
 }
 

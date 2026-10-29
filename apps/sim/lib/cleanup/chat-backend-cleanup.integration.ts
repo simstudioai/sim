@@ -364,15 +364,14 @@ describe('cleanup of a permanently deleted chat', () => {
     expect(await objectExists(ownKey)).toBe(false)
   })
 
-  it('keeps what an event queued before refs carried their scope cannot place', async () => {
+  it('places a legacy upload ref by its workspace key, keeping one a remaining chat attaches', async () => {
     const ownerId = await seedUser()
     const workspaceId = await seedWorkspace(ownerId)
     const deletedChat = await seedChat(ownerId, workspaceId)
     const remainingChat = await seedChat(ownerId, workspaceId)
     const referenced = `workspace/${workspaceId}/1700000000000-abcd1234-kept.png`
     const unreferenced = `workspace/${workspaceId}/1700000000000-abcd1234-gone.png`
-    const unplaceable = `copilot/${generateId()}/legacy.png`
-    for (const key of [referenced, unreferenced, unplaceable]) await putObject(key)
+    for (const key of [referenced, unreferenced]) await putObject(key)
     await db.insert(copilotMessages).values({
       chatId: remainingChat,
       messageId: generateId(),
@@ -392,19 +391,10 @@ describe('cleanup of a permanently deleted chat', () => {
         })),
       },
     })
-    await db.insert(outboxEvent).values({
-      id: generateId(),
-      eventType: CHAT_BACKEND_CLEANUP_EVENT,
-      payload: {
-        chatIds: [],
-        files: [{ key: unplaceable, context: 'copilot', chatId: deletedChat }],
-      },
-    })
 
-    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'completed'])
+    expect((await deliverCleanups()).outcomes).toEqual(['completed'])
     expect(await objectExists(referenced)).toBe(true)
     expect(await objectExists(unreferenced)).toBe(false)
-    expect(await objectExists(unplaceable)).toBe(true)
   })
 
   it('accepts the payloads queued before refs carried their scope', async () => {

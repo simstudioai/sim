@@ -52,15 +52,4 @@ describe('chat purge storage', () => {
     ])
     expect(deleted).toEqual({ copilot: ['copilot/1234/legacy.png'] })
   })
-
-  it('skips an attachment whose key is not a string instead of failing the purge', async () => {
-    const deleted = await purge([
-      {
-        role: 'user',
-        content: 'look',
-        fileAttachments: [{ ...attachment('x'), key: 42 }, attachment('copilot/1234/kept.png')],
-      },
-    ])
-    expect(deleted).toEqual({ copilot: ['copilot/1234/kept.png'] })
-  })
 })

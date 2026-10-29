@@ -43,12 +43,6 @@ describe('useWorkspaceTablesRoom', () => {
     vi.useRealTimers()
   })
 
-  /*
-   * The callback used to fire both invalidations and return nothing, so the room's delivery never
-   * waited: a broadcast arriving while the list refetch was still loading invalidated it again,
-   * which cancels and restarts the in-flight fetch. Under a burst of table writes a slow list never
-   * finished loading.
-   */
   it('does not restart a list refetch still in flight when the next broadcast arrives', async () => {
     const pending: Array<() => void> = []
     const fetchList = vi.fn(
@@ -58,11 +52,11 @@ describe('useWorkspaceTablesRoom', () => {
         })
     )
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData([...tableKeys.lists(), 'ws-1'], [])
+    queryClient.setQueryData(tableKeys.list('ws-1'), [])
 
     function Probe() {
       useQuery({
-        queryKey: [...tableKeys.lists(), 'ws-1'],
+        queryKey: tableKeys.list('ws-1'),
         queryFn: fetchList,
         staleTime: Number.POSITIVE_INFINITY,
       })

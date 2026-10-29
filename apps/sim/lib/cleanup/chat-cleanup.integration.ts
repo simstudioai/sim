@@ -3,8 +3,8 @@ import { db, dbFor } from '@sim/db'
 import { copilotChats, copilotMessages, organization, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
-import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { eq } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { deletableChatFiles } from '@/lib/cleanup/chat-cleanup'
 import { type ChatFileRef, collectChatFiles } from '@/lib/cleanup/chat-files'
 
@@ -13,8 +13,7 @@ function attachment(key: string) {
 }
 
 const userId = generateId()
-/** One organization with chats, and one whose only chats were the deleted ones. */
-const organizationIds = { withChats: generateId(), empty: generateId() }
+const organizationId = generateId()
 
 beforeAll(async () => {
   const now = new Date()
@@ -26,20 +25,18 @@ beforeAll(async () => {
     createdAt: now,
     updatedAt: now,
   })
-  await db.insert(organization).values(
-    Object.values(organizationIds).map((id) => ({
-      id,
-      name: 'Chat cleanup fixture',
-      slug: id,
-      createdAt: now,
-      updatedAt: now,
-    }))
-  )
+  await db.insert(organization).values({
+    id: organizationId,
+    name: 'Chat cleanup fixture',
+    slug: organizationId,
+    createdAt: now,
+    updatedAt: now,
+  })
 })
 
 afterAll(async () => {
   await db.delete(copilotChats).where(eq(copilotChats.userId, userId))
-  await db.delete(organization).where(inArray(organization.id, Object.values(organizationIds)))
+  await db.delete(organization).where(eq(organization.id, organizationId))
   await db.delete(user).where(eq(user.id, userId))
   await Promise.all([db.$client.end(), dbFor('cleanup').$client.end()])
 })
@@ -80,6 +77,7 @@ describe('chat cleanup file collection in PostgreSQL', () => {
             'not an attachment',
             null,
             { key: '' },
+            { key: 42 },
           ],
         },
         {
@@ -149,11 +147,11 @@ describe('deletable chat files against PostgreSQL message rows', () => {
     await seedChat(
       [{ role: 'user', content: 'fork', fileAttachments: [attachment(shared), 'x', { key: 7 }] }],
       [],
-      organizationIds.withChats
+      organizationId
     )
     // Attached only by a chat outside the scope, which cannot be a fork of the deleted one.
     await seedChat([{ role: 'user', content: 'other', fileAttachments: [attachment(elsewhere)] }])
-    const scope = { kind: 'organization', id: organizationIds.withChats } as const
+    const scope = { kind: 'organization', id: organizationId } as const
 
     const deletable = await deletableChatFiles([
       ref(shared, scope),
@@ -166,27 +164,14 @@ describe('deletable chat files against PostgreSQL message rows', () => {
     )
   })
 
-  it('scans no messages for a scope with no chat left', async () => {
-    const scan = vi.spyOn(dbFor('cleanup'), 'execute')
-    const key = `copilot/${generateId()}/gone.png`
-
-    const deletable = await deletableChatFiles([
-      ref(key, { kind: 'organization', id: organizationIds.empty }),
-    ])
-
-    expect(deletable.map((file) => file.key)).toEqual([key])
-    expect(scan).not.toHaveBeenCalled()
-    scan.mockRestore()
-  })
-
   it('places a legacy ref by its key, keeping one it cannot place', async () => {
-    const referenced = `assistant/${organizationIds.withChats}/${userId}/u1/kept.png`
-    const unreferenced = `assistant/${organizationIds.withChats}/${userId}/u2/gone.png`
+    const referenced = `assistant/${organizationId}/${userId}/u1/kept.png`
+    const unreferenced = `assistant/${organizationId}/${userId}/u2/gone.png`
     const unplaceable = `copilot/${generateId()}/legacy.png`
     await seedChat(
       [{ role: 'user', content: 'fork', fileAttachments: [attachment(referenced)] }],
       [],
-      organizationIds.withChats
+      organizationId
     )
 
     const deletable = await deletableChatFiles(

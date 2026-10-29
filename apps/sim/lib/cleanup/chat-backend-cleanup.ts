@@ -36,12 +36,14 @@ const chatFileSchema = z
       ])
       .nullable()
       .optional(),
-    /** Legacy: an organization attachment's scope on events queued before refs carried `scope`. */
+    /**
+     * Legacy: an organization attachment's scope on events queued before refs carried `scope`.
+     * Remove once those events have drained.
+     */
     organizationId: chatIdSchema.optional(),
   })
   .strict()
   .transform(({ organizationId, ...file }): ChatFileRef => {
-    // Legacy: remove with `organizationId` once events queued before `scope` have drained.
     if (file.scope === undefined && organizationId)
       return { ...file, scope: { kind: 'organization', id: organizationId } }
     return file

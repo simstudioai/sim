@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { inArray } from 'drizzle-orm'
 import {
@@ -23,6 +24,8 @@ import { inlineChatImagePrefix } from '@/lib/mothership/chat/inline-image-key'
 import { outboxDeadlineNear, sweepStoragePrefix } from '@/lib/uploads/core/prefix-sweep'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 
+const logger = createLogger('ChatBackendCleanupOutbox')
+
 /** Most object deletes, or chat prefix sweeps, one handler run has in flight at once. */
 const STORAGE_CONCURRENCY = 10
 
@@ -45,6 +48,13 @@ async function sweepChatImages(
   context: OutboxEventContext
 ): Promise<'done' | 'continue' | 'stalled'> {
   const prefix = inlineChatImagePrefix(chatId)
+  if (!prefix) {
+    logger.warn('Skipping an inline image sweep for a chat id no image key can hold', {
+      eventId: context.eventId,
+      chatId,
+    })
+    return 'done'
+  }
   for (;;) {
     context.signal.throwIfAborted()
     if (outboxDeadlineNear(context)) return 'continue'

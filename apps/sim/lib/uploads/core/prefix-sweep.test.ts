@@ -17,7 +17,6 @@ import { sweepStoragePrefix } from '@/lib/uploads/core/prefix-sweep'
 const outbox = { signal: new AbortController().signal }
 const deletedKeys = () => storageServiceMockFns.mockDeleteFile.mock.calls.map(([{ key }]) => key)
 
-/** A provider (Azure Blob, GCS, S3-compatibles) may return a short or empty page that is not the last. */
 describe('sweepStoragePrefix over a provider listing', () => {
   beforeEach(() => {
     setUploadsConfig({ USE_S3_STORAGE: true, S3_CONFIG: { bucket: 'bucket', region: 'r' } })

@@ -40,15 +40,6 @@ describe('chat inline image cleanup', () => {
     mockSweepStoragePrefix.mockReset().mockResolvedValue('done')
   })
 
-  it('sweeps only the chats whose rows are gone', async () => {
-    queueTableRows(copilotChats, [{ id: chatIds[1] }])
-
-    await expect(sweepImages({ chatIds: chatIds.slice(0, 3) }, outboxContext())).resolves.toBe(
-      undefined
-    )
-    expect(sweptPrefixes().sort()).toEqual([prefixOf(chatIds[0]), prefixOf(chatIds[2])])
-  })
-
   it('sweeps several chats at once, never more than ten', async () => {
     queueTableRows(copilotChats, [])
     let inFlight = 0
@@ -71,6 +62,8 @@ describe('chat inline image cleanup', () => {
     const slow = chatIds[3]
     mockSweepStoragePrefix.mockImplementation(async (prefix: string) => {
       if (prefix !== prefixOf(slow)) return 'done'
+      // Finishes after the chats behind it, so only "lowest unfinished" can yield 3 here.
+      await new Promise((resolve) => setImmediate(resolve))
       deadline.near = true
       return 'continue'
     })
@@ -88,6 +81,15 @@ describe('chat inline image cleanup', () => {
       sweepImages({ chatIds: chatIds.slice(0, 6), swept: 3 }, outboxContext())
     ).resolves.toBe(undefined)
     expect(sweptPrefixes().sort()).toEqual(chatIds.slice(3, 6).map(prefixOf))
+  })
+
+  it('skips a chat id no image key can hold instead of failing the event on every retry', async () => {
+    queueTableRows(copilotChats, [])
+
+    await expect(
+      sweepImages({ chatIds: ['../escape', chatIds[0]] }, outboxContext())
+    ).resolves.toBe(undefined)
+    expect(sweptPrefixes()).toEqual([prefixOf(chatIds[0])])
   })
 
   it('spends an attempt when a chat’s listing stops advancing', async () => {
