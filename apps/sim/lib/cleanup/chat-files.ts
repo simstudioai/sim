@@ -1,5 +1,11 @@
 import { dbFor } from '@sim/db'
-import { copilotChats, copilotMessages, workspaceFiles } from '@sim/db/schema'
+import {
+  copilotChats,
+  copilotMessages,
+  workspaceFile,
+  workspaceFiles,
+  workspaceFileVersion,
+} from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { and, inArray, isNull, sql } from 'drizzle-orm'
@@ -87,10 +93,29 @@ function fileAttachmentKeys(value: unknown): string[] {
 }
 
 /**
+ * The keys among `keys` that no workspace file row, legacy file row or file version names, live
+ * or soft-deleted, in one query.
+ */
+async function keysWithoutFileRow(executor: DbOrTx, keys: readonly string[]): Promise<string[]> {
+  if (keys.length === 0) return []
+  const rows = await executor.execute<{ key: string }>(sql`
+    SELECT candidate AS key
+    FROM jsonb_array_elements_text(${JSON.stringify(keys)}::jsonb) AS candidate
+    WHERE NOT EXISTS (SELECT 1 FROM ${workspaceFiles} WHERE ${workspaceFiles.key} = candidate)
+      AND NOT EXISTS (SELECT 1 FROM ${workspaceFile} WHERE ${workspaceFile.key} = candidate)
+      AND NOT EXISTS (
+        SELECT 1 FROM ${workspaceFileVersion} WHERE ${workspaceFileVersion.key} = candidate
+      )
+  `)
+  return rows.map((row) => row.key)
+}
+
+/**
  * Collect all file storage keys for the given chat IDs from two sources:
  * 1. workspaceFiles rows with chatId FK (chat-scoped contexts only)
- * 2. fileAttachments[].key inside each copilot_messages.content: copilot keys, and
- *    organization attachments (`assistant/<orgId>/…`) under their own context
+ * 2. fileAttachments[].key inside each copilot_messages.content: copilot keys, organization
+ *    attachments (`assistant/<orgId>/…`) under their own context, and `workspace/<ws>/…` uploads
+ *    no file row names at all
  *
  * Each ref carries the scope whose chats may still reference it (see {@link ChatFileRef}).
  *
@@ -102,7 +127,10 @@ function fileAttachmentKeys(value: unknown): string[] {
  * file lifecycle), never by the message: a fork carries the same attachment when its copy
  * failed or its file was deleted, and the copilot bucket falls back to the workspace bucket
  * on GCS (and may be configured to it on S3), so deleting such a key as copilot storage
- * could delete a file another chat or the workspace still uses.
+ * could delete a file another chat or the workspace still uses. Only once no row names the key
+ * at all (a soft-deleted row can still be restored) does the message own it: a fork kept the
+ * upload past its source chat, whose row cascaded away, so the last chat attaching it collects
+ * it, and the reference check keeps it while another chat of that workspace still attaches it.
  *
  * Reads through the cleanup pool unless `executor` is given, which a deletion passes to read the
  * keys inside its transaction once it holds the chat rows, so no row naming a key can commit
@@ -177,9 +205,18 @@ export async function collectChatFiles(
       }
     }
 
+    const unownedCandidates = new Map<string, { chatId: string; workspaceId: string }>()
     for (const row of messageRows) {
       for (const key of fileAttachmentKeys(row.fileAttachments)) {
         if (seen.has(key)) continue
+        const uploadWorkspaceId = key.startsWith('workspace/')
+          ? extractWorkspaceIdFromStorageKey(key)
+          : null
+        if (uploadWorkspaceId) {
+          if (!unownedCandidates.has(key))
+            unownedCandidates.set(key, { chatId: row.chatId, workspaceId: uploadWorkspaceId })
+          continue
+        }
         const organizationId = organizationAttachmentOwner(key)
         if (organizationId) {
           seen.add(key)
@@ -194,6 +231,18 @@ export async function collectChatFiles(
           files.push({ key, context: 'copilot', chatId: row.chatId, scope: scopeOf(row.chatId) })
         }
       }
+    }
+
+    for (const key of await keysWithoutFileRow(executor, [...unownedCandidates.keys()])) {
+      const candidate = unownedCandidates.get(key)
+      if (!candidate || seen.has(key)) continue
+      seen.add(key)
+      files.push({
+        key,
+        context: 'mothership',
+        chatId: candidate.chatId,
+        scope: { kind: 'workspace', id: candidate.workspaceId },
+      })
     }
   }
 

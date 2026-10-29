@@ -364,6 +364,80 @@ describe('cleanup of a permanently deleted chat', () => {
     expect(await objectExists(ownKey)).toBe(false)
   })
 
+  it('deletes a forked upload once the last chat attaching it is deleted', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const source = await seedChat(ownerId, workspaceId)
+    const key = `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-shot.png`
+    await db.insert(workspaceFiles).values({
+      id: generateId(),
+      key,
+      userId: ownerId,
+      workspaceId,
+      context: 'mothership',
+      chatId: source,
+      originalName: 'shot.png',
+      contentType: 'image/png',
+      sizeBytes: 1,
+    })
+    await putObject(key)
+    const fork = await seedChat(ownerId, workspaceId)
+    await db.insert(copilotMessages).values({
+      chatId: fork,
+      messageId: generateId(),
+      role: 'user',
+      content: { role: 'user', content: 'see attached', fileAttachments: [{ key }] },
+    })
+
+    await deleteCopilotChat({ chatId: source, userId: ownerId })
+    await deliverCleanups()
+    expect(await objectExists(key)).toBe(true)
+
+    await deleteCopilotChat({ chatId: fork, userId: ownerId })
+    await deliverCleanups()
+    expect(await objectExists(key)).toBe(false)
+  })
+
+  it('never deletes an attached workspace upload whose row is live or only soft-deleted', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const chatId = await seedChat(ownerId, workspaceId)
+    const upload = (name: string) =>
+      `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-${name}`
+    const live = upload('live.png')
+    const restorable = upload('restorable.png')
+    await db.insert(workspaceFiles).values(
+      [live, restorable].map((key) => ({
+        id: generateId(),
+        key,
+        userId: ownerId,
+        workspaceId,
+        context: 'workspace',
+        originalName: 'file.png',
+        contentType: 'image/png',
+        sizeBytes: 1,
+        ...(key === restorable ? { deletedAt: new Date() } : {}),
+      }))
+    )
+    for (const key of [live, restorable]) await putObject(key)
+    await db.insert(copilotMessages).values({
+      chatId,
+      messageId: generateId(),
+      role: 'user',
+      content: {
+        role: 'user',
+        content: 'x',
+        fileAttachments: [{ key: live }, { key: restorable }],
+      },
+    })
+
+    await deleteCopilotChat({ chatId, userId: ownerId })
+    await deliverCleanups()
+
+    expect(await objectExists(live)).toBe(true)
+    expect(await objectExists(restorable)).toBe(true)
+  })
+
   it('places a legacy upload ref by its workspace key, keeping one a remaining chat attaches', async () => {
     const ownerId = await seedUser()
     const workspaceId = await seedWorkspace(ownerId)
