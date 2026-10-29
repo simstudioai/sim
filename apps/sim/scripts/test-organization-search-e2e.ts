@@ -261,8 +261,9 @@ try {
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.query, 'Launch notes')
       await expect(page.getByText('Search found no results.', { exact: true })).toBeVisible()
-      assert.equal(new URL(page.url()).pathname, `${root}/search`)
-      assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch notes')
+      await expect(page).toHaveURL(
+        (url) => url.pathname === `${root}/search` && url.searchParams.get('q') === 'Launch notes'
+      )
       await capture('search-results-desktop')
     }
   )
