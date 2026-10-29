@@ -892,7 +892,7 @@ describe('sunset block types', () => {
   const loopId = '66666666-6666-4666-8666-666666666666'
   const insertedId = '77777777-7777-4777-8777-777777777777'
 
-  function tableBlock(id: string, type: string, name: string) {
+  function tableBlock(id: string, type: string, name: string, parentId?: string) {
     return {
       id,
       type,
@@ -901,9 +901,44 @@ describe('sunset block types', () => {
       enabled: true,
       subBlocks: { tableId: { id: 'tableId', type: 'short-input', value: 'tbl_old' } },
       outputs: {},
-      data: {},
+      data: parentId ? { parentId } : {},
     }
   }
+
+  it('updates a placed legacy child but refuses a new one when a container edit merges children', () => {
+    const workflow = {
+      blocks: {
+        [loopId]: { ...tableBlock(loopId, 'loop', 'Each'), subBlocks: {} },
+        [legacyId]: tableBlock(legacyId, 'table', 'Rows', loopId),
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const { state, skippedItems } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: loopId,
+        params: {
+          nestedNodes: {
+            [legacyId]: { type: 'table', name: 'Rows', inputs: { tableId: 'tbl_new' } },
+            [newId]: { type: 'table', name: 'Fresh rows' },
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks[legacyId].subBlocks.tableId.value).toBe('tbl_new')
+    expect(state.blocks[newId]).toBeUndefined()
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'block_not_allowed',
+        operationType: 'add_nested_node',
+        blockId: newId,
+      }),
+    ])
+  })
 
   it('refuses a new legacy block, top-level or nested, and names its successor', () => {
     const { state, skippedItems } = applyOperationsToWorkflowState(
