@@ -817,6 +817,44 @@ describe('Database Helpers', () => {
       expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
     })
 
+    /**
+     * The hint naming the version Postgres may withhold used to follow the last
+     * materialize miss, by-id reads included, so an execution of an older version
+     * repointed it and the next active reads pulled the full blob again until the
+     * entry expired. `state: null` stands in for the row Postgres returns when it
+     * withholds the blob for the hinted version.
+     */
+    it('keeps withholding the active state after a by-id read of another version', async () => {
+      queueActiveVersion('dv-active', buildDeployedState())
+      await dbHelpers.loadDeployedWorkflowState('wf-hint', 'workspace-1')
+
+      queueTableRows(schemaMock.workflowDeploymentVersion, [
+        { id: 'dv-older', state: buildDeployedState() },
+      ])
+      await dbHelpers.loadWorkflowDeploymentVersionState('wf-hint', 'dv-older', 'workspace-1')
+
+      queueActiveVersion('dv-active', null)
+      const deployed = await dbHelpers.loadDeployedWorkflowState('wf-hint', 'workspace-1')
+
+      expect(deployed.deploymentVersionId).toBe('dv-active')
+      expect(mockSanitizeAgentToolsInBlocks).toHaveBeenCalledTimes(2)
+    })
+
+    it('withholds the active state again after a rollback to a version still cached', async () => {
+      queueActiveVersion('dv-a', buildDeployedState())
+      await dbHelpers.loadDeployedWorkflowState('wf-rollback', 'workspace-1')
+      queueActiveVersion('dv-b', buildDeployedState())
+      await dbHelpers.loadDeployedWorkflowState('wf-rollback', 'workspace-1')
+      queueActiveVersion('dv-a', buildDeployedState())
+      await dbHelpers.loadDeployedWorkflowState('wf-rollback', 'workspace-1')
+
+      queueActiveVersion('dv-a', null)
+      const deployed = await dbHelpers.loadDeployedWorkflowState('wf-rollback', 'workspace-1')
+
+      expect(deployed.deploymentVersionId).toBe('dv-a')
+      expect(mockSanitizeAgentToolsInBlocks).toHaveBeenCalledTimes(2)
+    })
+
     it('invalidateDeployedStateCache(id) forces a rebuild on the next call', async () => {
       queueActiveVersion('dv-inv', buildDeployedState())
       queueActiveVersion('dv-inv', buildDeployedState())

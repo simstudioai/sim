@@ -146,9 +146,12 @@ const deployedStateCache = new LRUCache<
 })
 
 /**
- * The version id each workflow last cached, so the active-version read can ask
- * Postgres to withhold a `state` this process already holds. Only a hint: a
- * stale or evicted entry costs a re-read, never a wrong answer.
+ * The active version id each workflow last resolved to, so the active-version
+ * read can ask Postgres to withhold a `state` this process already holds. Only
+ * {@link loadDeployedWorkflowState} writes it: a by-id read of an older version
+ * (an execution or webhook admitted before a cutover) must not repoint it away
+ * from the active one. Only a hint: a stale or evicted entry costs a re-read,
+ * never a wrong answer.
  */
 const cachedVersionByWorkflow = new LRUCache<string, string>({
   max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
@@ -272,7 +275,6 @@ export async function materializeDeploymentState(
   if (options.cache === false) return deployedState
   /** The cached entry is shared, so each caller gets its own copy. */
   deployedStateCache.set(version.id, { workflowId, state: deployedState })
-  cachedVersionByWorkflow.set(workflowId, version.id)
   return structuredClone(deployedState)
 }
 
@@ -311,20 +313,25 @@ export async function loadDeployedWorkflowState(
       throw new NoActiveDeploymentError(workflowId)
     }
 
+    let deployedState: DeployedWorkflowData
     if (active.id === cachedVersionId && active.state == null) {
       // Served from the cache, or re-read by id if the entry was evicted since the hint.
-      return loadWorkflowDeploymentVersionState(workflowId, active.id, providedWorkspaceId)
-    }
-
-    if (!active.state) {
+      deployedState = await loadWorkflowDeploymentVersionState(
+        workflowId,
+        active.id,
+        providedWorkspaceId
+      )
+    } else if (!active.state) {
       throw new NoActiveDeploymentError(workflowId)
+    } else {
+      deployedState = await materializeDeploymentState(
+        workflowId,
+        active,
+        await resolveWorkspaceId(workflowId, providedWorkspaceId)
+      )
     }
-
-    return materializeDeploymentState(
-      workflowId,
-      active,
-      await resolveWorkspaceId(workflowId, providedWorkspaceId)
-    )
+    cachedVersionByWorkflow.set(workflowId, active.id)
+    return deployedState
   } catch (error) {
     // An undeployed workflow is an outcome each caller handles, not a load failure.
     if (!(error instanceof NoActiveDeploymentError)) {
