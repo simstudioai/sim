@@ -27,6 +27,7 @@ const chatFileSchema = z
     ]),
     chatId: chatIdSchema,
     organizationId: chatIdSchema.optional(),
+    workspaceId: chatIdSchema.nullable().optional(),
   })
   .strict()
 
@@ -83,11 +84,12 @@ export async function enqueueChatBackendCleanup(
     })),
     ...chunkArray([...filesByKey.values()], CHAT_BACKEND_CLEANUP_BATCH_SIZE).map((batch) => ({
       chatIds: [],
-      files: batch.map(({ key, context, chatId, organizationId }) => ({
+      files: batch.map(({ key, context, chatId, organizationId, workspaceId }) => ({
         key,
         context,
         chatId,
         ...(organizationId ? { organizationId } : {}),
+        ...(workspaceId !== undefined ? { workspaceId } : {}),
       })),
     })),
   ]

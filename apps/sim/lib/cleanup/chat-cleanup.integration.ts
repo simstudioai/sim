@@ -109,9 +109,9 @@ describe('chat cleanup file collection in PostgreSQL', () => {
           chatId,
           organizationId: 'org-1',
         },
-        { key: 'copilot/1234/legacy.png', context: 'copilot', chatId },
-        { key: 'copilot/5/other.png', context: 'copilot', chatId: otherChatId },
-        { key: 'copilot/9/removed.png', context: 'copilot', chatId },
+        { key: 'copilot/1234/legacy.png', context: 'copilot', chatId, workspaceId: null },
+        { key: 'copilot/5/other.png', context: 'copilot', chatId: otherChatId, workspaceId: null },
+        { key: 'copilot/9/removed.png', context: 'copilot', chatId, workspaceId: null },
       ].sort((a, b) => compareStrings(a.key, b.key))
     )
   })

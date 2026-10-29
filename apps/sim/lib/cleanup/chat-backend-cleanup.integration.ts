@@ -313,6 +313,96 @@ describe('cleanup of a permanently deleted chat', () => {
     expect(backend.rejected).toBe(0)
   })
 
+  /**
+   * A fork whose copy of an upload failed keeps naming the source's key in its messages, while
+   * the upload's `workspace_files` row cascades away with the source chat.
+   */
+  it('keeps a deleted chat’s upload that a fork in its workspace still references', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const uploadIn = async (chatId: string) => {
+      const key = `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-shot.png`
+      await db.insert(workspaceFiles).values({
+        id: generateId(),
+        key,
+        userId: ownerId,
+        workspaceId,
+        context: 'mothership',
+        chatId,
+        originalName: 'shot.png',
+        contentType: 'image/png',
+        sizeBytes: 1,
+      })
+      await putObject(key)
+      return key
+    }
+    const forkedSource = await seedChat(ownerId, workspaceId)
+    const sharedKey = await uploadIn(forkedSource)
+    const fork = await seedChat(ownerId, workspaceId)
+    await db.insert(copilotMessages).values({
+      chatId: fork,
+      messageId: generateId(),
+      role: 'user',
+      content: {
+        role: 'user',
+        content: 'see attached',
+        fileAttachments: [{ key: sharedKey, filename: 'shot.png' }],
+      },
+    })
+    const unforkedSource = await seedChat(ownerId, workspaceId)
+    const ownKey = await uploadIn(unforkedSource)
+
+    await deleteCopilotChat({ chatId: forkedSource, userId: ownerId })
+    await deleteCopilotChat({ chatId: unforkedSource, userId: ownerId })
+
+    expect(new Set((await deliverCleanups()).outcomes)).toEqual(new Set(['completed']))
+    expect(await objectExists(sharedKey)).toBe(true)
+    expect(await objectExists(ownKey)).toBe(false)
+  })
+
+  it('keeps what an event queued before refs carried their scope cannot place', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const deletedChat = await seedChat(ownerId, workspaceId)
+    const remainingChat = await seedChat(ownerId, workspaceId)
+    const referenced = `workspace/${workspaceId}/1700000000000-abcd1234-kept.png`
+    const unreferenced = `workspace/${workspaceId}/1700000000000-abcd1234-gone.png`
+    const unplaceable = `copilot/${generateId()}/legacy.png`
+    for (const key of [referenced, unreferenced, unplaceable]) await putObject(key)
+    await db.insert(copilotMessages).values({
+      chatId: remainingChat,
+      messageId: generateId(),
+      role: 'user',
+      content: { role: 'user', content: 'x', fileAttachments: [{ key: referenced }] },
+    })
+    await db.delete(copilotChats).where(eq(copilotChats.id, deletedChat))
+    await db.insert(outboxEvent).values({
+      id: generateId(),
+      eventType: CHAT_BACKEND_CLEANUP_EVENT,
+      payload: {
+        chatIds: [],
+        files: [referenced, unreferenced].map((key) => ({
+          key,
+          context: 'mothership',
+          chatId: deletedChat,
+        })),
+      },
+    })
+    await db.insert(outboxEvent).values({
+      id: generateId(),
+      eventType: CHAT_BACKEND_CLEANUP_EVENT,
+      payload: {
+        chatIds: [],
+        files: [{ key: unplaceable, context: 'copilot', chatId: deletedChat }],
+      },
+    })
+
+    expect((await deliverCleanups()).outcomes).toEqual(['completed', 'completed'])
+    expect(await objectExists(referenced)).toBe(true)
+    expect(await objectExists(unreferenced)).toBe(false)
+    expect(await objectExists(unplaceable)).toBe(true)
+  })
+
   it('records no cleanup when the delete rolls back', async () => {
     const ownerId = await seedUser()
     const workspaceId = await seedWorkspace(ownerId)

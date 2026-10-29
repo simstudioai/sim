@@ -4,10 +4,7 @@ import { describeError, toError } from '@sim/utils/errors'
 import { inArray } from 'drizzle-orm'
 import { chatBackendCleanupPayloadSchema } from '@/lib/cleanup/chat-backend-cleanup'
 import { CHAT_BACKEND_CLEANUP_EVENT } from '@/lib/cleanup/chat-backend-cleanup-event'
-import {
-  cleanupCopilotBackend,
-  organizationAttachmentsStillReferenced,
-} from '@/lib/cleanup/chat-cleanup'
+import { cleanupCopilotBackend, deletableChatFiles } from '@/lib/cleanup/chat-cleanup'
 import { env } from '@/lib/core/config/env'
 import {
   continueOutboxHandler,
@@ -65,7 +62,8 @@ export const chatBackendCleanupOutboxHandlers = {
    * continues in a later run once its deadline nears. Any failure throws so the outbox retries it:
    * a failed backend call, a failed object delete, or chat ids queued for the backend reaching a
    * processor without `COPILOT_API_KEY`. An object already gone counts as deleted, so a retry
-   * repeats only what is left.
+   * repeats only what is left. A stored file another chat of its scope still references, as a
+   * fork's uncopied attachment does, is kept ({@link deletableChatFiles}).
    */
   [CHAT_BACKEND_CLEANUP_EVENT]: async (rawPayload, context) => {
     const { chatIds, files, copilotBackend, imagesSwept } =
@@ -100,9 +98,8 @@ export const chatBackendCleanupOutboxHandlers = {
     }
 
     if (deletedFiles.length === 0) return
-    const stillReferenced = await organizationAttachmentsStillReferenced(deletedFiles)
     const failures = await mapWithConcurrency(
-      deletedFiles.filter((file) => !stillReferenced.has(file.key)),
+      await deletableChatFiles(deletedFiles),
       FILE_DELETE_CONCURRENCY,
       async ({ key, context: storageContext }) => {
         context.signal.throwIfAborted()

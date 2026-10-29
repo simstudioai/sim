@@ -7,7 +7,9 @@ import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { enqueueChatBackendCleanup } from '@/lib/cleanup/chat-backend-cleanup'
 import {
   type ChatFileRef,
+  type ChatFileReferenceScope,
   type ChatScopedContext,
+  chatFileReferenceScope,
   collectChatFiles,
 } from '@/lib/cleanup/chat-files'
 import { env } from '@/lib/core/config/env'
@@ -24,22 +26,38 @@ const COPILOT_CLEANUP_BATCH_SIZE = 1000
 const CHAT_FILE_COLLECT_CHUNK_SIZE = 500
 
 /**
- * Organization attachment keys that a remaining chat still references, so they outlive the
- * chats being purged. Runs after the caller deleted those chats' rows, so any match is
- * another chat: a fork, or a chat that is only soft-deleted and may be restored.
+ * The files among `files` that may be deleted: those no remaining chat of their scope still
+ * references ({@link chatFileReferenceScope}). A fork keeps naming its source's key wherever it
+ * did not copy the file, so a key still in another chat's `fileAttachments` outlives the chats
+ * being purged, and a key whose scope is unknown is kept rather than risked. Runs after the caller
+ * deleted those chats' rows, so any match is another chat: a fork, or a chat that is only
+ * soft-deleted and may be restored.
  */
-export async function organizationAttachmentsStillReferenced(
-  files: readonly ChatFileRef[]
-): Promise<Set<string>> {
-  const keysByOrganization = new Map<string, string[]>()
+export async function deletableChatFiles(files: readonly ChatFileRef[]): Promise<ChatFileRef[]> {
+  const keysByScope = new Map<string, { scope: ChatFileReferenceScope; keys: string[] }>()
+  const kept = new Set<string>()
   for (const file of files) {
-    if (!file.organizationId) continue
-    const keys = keysByOrganization.get(file.organizationId)
-    if (keys) keys.push(file.key)
-    else keysByOrganization.set(file.organizationId, [file.key])
+    const scope = chatFileReferenceScope(file)
+    if (scope === null) continue
+    if (scope === undefined) {
+      kept.add(file.key)
+      continue
+    }
+    const scopeKey = `${scope.kind}:${scope.id}`
+    const group = keysByScope.get(scopeKey)
+    if (group) group.keys.push(file.key)
+    else keysByScope.set(scopeKey, { scope, keys: [file.key] })
   }
-  const referenced = new Set<string>()
-  for (const [organizationId, keys] of keysByOrganization) {
+  if (kept.size > 0) {
+    logger.warn(`Keeping ${kept.size} chat files whose reference scope is unknown`, {
+      keys: [...kept],
+    })
+  }
+  for (const { scope, keys } of keysByScope.values()) {
+    const inScope =
+      scope.kind === 'organization'
+        ? eq(copilotChats.organizationId, scope.id)
+        : eq(copilotChats.workspaceId, scope.id)
     for (const chunk of chunkArray(keys, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
       const wanted = new Set(chunk)
       const rows = await cleanupDb
@@ -48,7 +66,7 @@ export async function organizationAttachmentsStillReferenced(
         .innerJoin(copilotChats, eq(copilotChats.id, copilotMessages.chatId))
         .where(
           and(
-            eq(copilotChats.organizationId, organizationId),
+            inScope,
             or(
               ...chunk.map(
                 (key) =>
@@ -65,12 +83,12 @@ export async function organizationAttachmentsStillReferenced(
             typeof attachment.key === 'string' &&
             wanted.has(attachment.key)
           )
-            referenced.add(attachment.key)
+            kept.add(attachment.key)
         }
       }
     }
   }
-  return referenced
+  return files.filter((file) => !kept.has(file.key))
 }
 
 /** Groups files by storage context so each context can use one batch DELETE call. */
@@ -195,11 +213,8 @@ export async function prepareChatCleanup(
         )
       }
       const confirmedChatIds = chatIds.filter((id) => !survivors.has(id))
-      const sharedKeys = await organizationAttachmentsStillReferenced(
+      const confirmedFiles = await deletableChatFiles(
         files.filter((file) => !survivors.has(file.chatId))
-      )
-      const confirmedFiles = files.filter(
-        (file) => !survivors.has(file.chatId) && !sharedKeys.has(file.key)
       )
 
       // Call copilot backend
