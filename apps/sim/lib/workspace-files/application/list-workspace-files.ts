@@ -28,7 +28,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import type { WorkspaceFileKind, WorkspaceFileSizeBucket } from '@/lib/workspace-files/list-filters'
+import type { FileBrowserSize, FileBrowserType } from '@/lib/workspace-files/browser'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 
 export interface ListAllWorkspaceFilesInput {
@@ -53,9 +53,9 @@ export interface QueryWorkspaceFilePageInput {
   name?: string
   search?: string
   /** Files of any of these kinds. */
-  kinds?: readonly WorkspaceFileKind[]
+  kinds?: readonly FileBrowserType[]
   /** Files in any of these size buckets. */
-  sizeBuckets?: readonly WorkspaceFileSizeBucket[]
+  sizeBuckets?: readonly FileBrowserSize[]
   /** Files uploaded by any of these users. */
   uploadedBy?: readonly string[]
   sortBy: WorkspaceFileSortBy
@@ -245,7 +245,10 @@ export const searchWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({ input }: { input: SearchWorkspaceFilesInput }) =>
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
-    const folderIndex = await loadFileFolderIndex(context.workspaceId)
+    const [folderIndex, matchedFolders] = await Promise.all([
+      loadFileFolderIndex(context.workspaceId),
+      findWorkspaceFileFoldersMatching(context.workspaceId, input.query),
+    ])
     let folderId: string | null | string[] | undefined
     if (input.folderId === null) {
       folderId = input.recursive ? undefined : null
@@ -255,12 +258,10 @@ export const searchWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
         ? resolveFolderScope(folderIndex, { kind: 'folder', folderId: input.folderId }, true)
         : input.folderId
     }
-    const childrenByParent = indexFolderChildren([...folderIndex.rowById.values()])
+    const folders = [...folderIndex.rowById.values()]
+    const childrenByParent = indexFolderChildren(folders)
     const pathFolderIds = new Set<string>()
-    for (const matched of await findWorkspaceFileFoldersMatching(
-      context.workspaceId,
-      input.query
-    )) {
+    for (const matched of matchedFolders) {
       if (!folderIndex.rowById.has(matched)) continue
       pathFolderIds.add(matched)
       for (const id of collectDescendantFolderIdsFrom(childrenByParent, matched)) {
@@ -272,6 +273,7 @@ export const searchWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
       folderId,
       pathFolderIds: [...pathFolderIds],
       limit: input.limit,
+      folders,
     })
     return { files: await withShares(context.workspaceId, files) }
   },

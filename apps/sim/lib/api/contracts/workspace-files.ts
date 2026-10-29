@@ -5,6 +5,7 @@ import {
   folderIdSchema,
   inlineFileRefQuerySchema,
   isCanonicalBase64,
+  queryListSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -12,10 +13,7 @@ import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { V2_SEARCH_MAX_LENGTH, v2LimitSchema } from '@/lib/api/contracts/v2/shared'
 import { LIST_SORT_ORDERS } from '@/lib/api/list-query'
-import {
-  WORKSPACE_FILE_KINDS,
-  WORKSPACE_FILE_SIZE_BUCKETS,
-} from '@/lib/workspace-files/list-filters'
+import { FILE_BROWSER_SIZES, FILE_BROWSER_TYPES } from '@/lib/workspace-files/browser'
 
 /**
  * Client-reachable listing scopes. `all` is deliberately excluded: it drops the
@@ -73,27 +71,6 @@ export const WORKSPACE_FILE_PAGE_PARAMS = [
   'cursor',
 ] as const
 
-/**
- * A set filter on the wire: comma-separated members, parsed to its sorted, de-duplicated
- * members so `a,b` and `b,a` are one filter for the query and for the cursor bound to it.
- */
-function commaSetSchema<T extends z.ZodType<string>>(member: T) {
-  return z.preprocess(
-    (raw) =>
-      typeof raw === 'string'
-        ? [
-            ...new Set(
-              raw
-                .split(',')
-                .map((entry) => entry.trim())
-                .filter((entry) => entry.length > 0)
-            ),
-          ].sort()
-        : raw,
-    z.array(member).max(100, 'A filter cannot list more than 100 values')
-  )
-}
-
 export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
   /** The folder to list; `root` for root files. Omit for every folder. */
@@ -108,11 +85,14 @@ export const listWorkspaceFilesQuerySchema = z.object({
     .max(V2_SEARCH_MAX_LENGTH, 'q is too long')
     .optional(),
   /** File kinds, comma-separated: a file matching any of them is listed. */
-  types: commaSetSchema(z.enum(WORKSPACE_FILE_KINDS)).optional(),
+  types: queryListSchema(z.enum(FILE_BROWSER_TYPES), { canonical: true }).optional(),
   /** Size buckets, comma-separated: a file in any of them is listed. */
-  sizes: commaSetSchema(z.enum(WORKSPACE_FILE_SIZE_BUCKETS)).optional(),
+  sizes: queryListSchema(z.enum(FILE_BROWSER_SIZES), { canonical: true }).optional(),
   /** Uploader user ids, comma-separated. */
-  uploadedBy: commaSetSchema(z.string().max(255, 'uploadedBy entry is too long')).optional(),
+  uploadedBy: queryListSchema(z.string().max(255, 'uploadedBy entry is too long'), {
+    max: 100,
+    canonical: true,
+  }).optional(),
   sortBy: z.enum(WORKSPACE_FILE_SORT_FIELDS).optional(),
   sortOrder: z.enum(LIST_SORT_ORDERS).optional(),
   limit: z.coerce

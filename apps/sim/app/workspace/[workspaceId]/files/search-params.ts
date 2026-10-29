@@ -1,9 +1,6 @@
 import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
-import {
-  WORKSPACE_FILE_KINDS,
-  WORKSPACE_FILE_SIZE_BUCKETS,
-} from '@/lib/workspace-files/list-filters'
+import { FILE_BROWSER_SIZES, FILE_BROWSER_TYPES } from '@/lib/workspace-files/browser'
 import {
   type WorkspaceFileListParams,
   type WorkspaceFileListSortBy,
@@ -88,8 +85,8 @@ export const filesUrlKeys = {
  */
 export const filesFilterParsers = {
   search: parseAsString.withDefault(''),
-  type: parseAsArrayOf(parseAsStringLiteral(WORKSPACE_FILE_KINDS)).withDefault([]),
-  size: parseAsArrayOf(parseAsStringLiteral(WORKSPACE_FILE_SIZE_BUCKETS)).withDefault([]),
+  type: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_TYPES)).withDefault([]),
+  size: parseAsArrayOf(parseAsStringLiteral(FILE_BROWSER_SIZES)).withDefault([]),
   uploadedBy: parseAsArrayOf(parseAsString).withDefault([]),
 } as const
 
@@ -110,7 +107,7 @@ export const filesListPreferenceConfig = {
   module: 'files',
   sortColumns: FILE_SORT_COLUMNS,
   filterKeys: ['type', 'size', 'uploadedBy'],
-  filterValues: { type: WORKSPACE_FILE_KINDS, size: WORKSPACE_FILE_SIZE_BUCKETS },
+  filterValues: { type: FILE_BROWSER_TYPES, size: FILE_BROWSER_SIZES },
   preferenceUrlKeys: filesFilterUrlKeyMap,
   defaultPreference: {
     sort: filesSortParams.default,
@@ -137,8 +134,8 @@ export function filesBrowserListParams(state: {
   search: string
   sort: FileSortColumn
   dir: 'asc' | 'desc'
-  type: readonly (typeof WORKSPACE_FILE_KINDS)[number][]
-  size: readonly (typeof WORKSPACE_FILE_SIZE_BUCKETS)[number][]
+  type: readonly (typeof FILE_BROWSER_TYPES)[number][]
+  size: readonly (typeof FILE_BROWSER_SIZES)[number][]
   uploadedBy: readonly string[]
 }): WorkspaceFileListParams {
   const searching = state.search.trim().length > 0

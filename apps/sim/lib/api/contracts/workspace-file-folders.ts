@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { queryListSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { MAX_WORKSPACE_FILE_BULK_REQUEST_IDS } from '@/lib/workspace-files/limits'
 
@@ -86,17 +87,7 @@ export const bulkArchiveWorkspaceFileItemsBodySchema = z
     message: 'At least one file or folder must be selected',
   })
 
-const queryIdListSchema = z
-  .union([z.string(), z.array(z.string())])
-  .optional()
-  .transform((value) => {
-    if (!value) return []
-    const values = Array.isArray(value) ? value : [value]
-    return values
-      .flatMap((entry) => entry.split(','))
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-  })
+const queryIdListSchema = queryListSchema(z.string()).default([])
 
 export const downloadWorkspaceFileItemsQuerySchema = z.object({
   fileIds: queryIdListSchema,

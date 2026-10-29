@@ -41,9 +41,12 @@ import {
   getMimeTypeFromExtension,
   isArchiveFileName,
 } from '@/lib/uploads/utils/file'
-import { isWorkspaceFileKind, isWorkspaceFileSizeBucket } from '@/lib/workspace-files/list-filters'
+import {
+  fileBrowserTypeLabel,
+  isFileBrowserSize,
+  isFileBrowserType,
+} from '@/lib/workspace-files/browser'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
-import { workspaceFileTypeLabel } from '@/lib/workspace-files/type-label'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
@@ -405,8 +408,8 @@ function FilesContent() {
   const applyListPreference = useCallback(
     (preference: ResourceListPreference) => {
       void setFileFilters({
-        type: preference.filters.type.filter(isWorkspaceFileKind),
-        size: preference.filters.size.filter(isWorkspaceFileSizeBucket),
+        type: preference.filters.type.filter(isFileBrowserType),
+        size: preference.filters.size.filter(isFileBrowserSize),
         uploadedBy: [...preference.filters.uploadedBy],
       })
       applyUrlSort(preference.sort.column, preference.sort.direction)
@@ -691,7 +694,7 @@ function FilesContent() {
           sortColumn === 'size'
             ? file.size
             : sortColumn === 'type'
-              ? workspaceFileTypeLabel(file.type, file.name)
+              ? fileBrowserTypeLabel(file.type, file.name)
               : sortColumn === 'created'
                 ? new Date(file.uploadedAt).getTime()
                 : sortColumn === 'updated'
@@ -772,7 +775,7 @@ function FilesContent() {
             },
             type: {
               icon: <Icon className='size-[14px]' />,
-              label: workspaceFileTypeLabel(file.type, file.name),
+              label: fileBrowserTypeLabel(file.type, file.name),
             },
             created: timeCell(file.uploadedAt),
             owner: ownerCell(file.uploadedBy, membersById),

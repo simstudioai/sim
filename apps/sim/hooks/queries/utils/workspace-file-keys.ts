@@ -1,5 +1,5 @@
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileKind, WorkspaceFileSizeBucket } from '@/lib/workspace-files/list-filters'
+import type { FileBrowserSize, FileBrowserType } from '@/lib/workspace-files/browser'
 
 export type WorkspaceFileListScope = 'active' | 'archived'
 export type WorkspaceFileListSortBy =
@@ -32,8 +32,8 @@ export interface WorkspaceFileListParams {
   recursive?: boolean
   /** Case-insensitive substring of the file name. */
   q?: string
-  types?: readonly WorkspaceFileKind[]
-  sizes?: readonly WorkspaceFileSizeBucket[]
+  types?: readonly FileBrowserType[]
+  sizes?: readonly FileBrowserSize[]
   uploadedBy?: readonly string[]
   sortBy: WorkspaceFileListSortBy
   sortOrder: WorkspaceFileListSortOrder
@@ -74,8 +74,8 @@ export function workspaceFileListParams(input: {
   folderId?: string | null
   recursive?: boolean
   q?: string
-  types?: readonly WorkspaceFileKind[]
-  sizes?: readonly WorkspaceFileSizeBucket[]
+  types?: readonly FileBrowserType[]
+  sizes?: readonly FileBrowserSize[]
   uploadedBy?: readonly string[]
   sortBy: WorkspaceFileListSortBy
   sortOrder: WorkspaceFileListSortOrder

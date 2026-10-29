@@ -14,13 +14,23 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CursorKey } from '@/lib/api/list-query'
 import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
+  EXTENSION_TO_MIME,
+  getFileExtension,
+  MIME_TYPE_MAPPING,
+  resolveEffectiveMimeType,
+} from '@/lib/uploads/utils/file'
+import { isSupportedExtension } from '@/lib/uploads/utils/validation'
+import {
   getWorkspaceFileFolderStats,
   listWorkspaceFileCollection,
   lookupWorkspaceFiles,
   searchWorkspaceFiles,
 } from '@/lib/workspace-files/application/list-workspace-files'
-import { workspaceFileTypeLabelExpression } from '@/lib/workspace-files/query-scope'
-import { workspaceFileTypeLabel } from '@/lib/workspace-files/type-label'
+import { fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
+import {
+  workspaceFileKindCondition,
+  workspaceFileTypeLabelExpression,
+} from '@/lib/workspace-files/query-scope'
 
 const alice = generateId()
 const bob = generateId()
@@ -29,10 +39,18 @@ const workspaceId = generateId()
 const otherWorkspaceId = generateId()
 const filterWorkspaceId = generateId()
 const sortWorkspaceId = generateId()
+const parityWorkspaceId = generateId()
 /** Uploaders with fixed display names: two members and one who has left the workspace. */
 const ann = generateId()
 const ben = generateId()
 const zed = generateId()
+/** The four kind columns of a parity row. */
+const pick = (row: Record<string, string | boolean>) => ({
+  document: row.document,
+  image: row.image,
+  audio: row.audio,
+  video: row.video,
+})
 const session = (userId: string) => ({ kind: 'session' as const, userId, sessionId: generateId() })
 
 /** Folder tree in the main workspace: Docs/{Sub/{Deep}}, Media; plus one in the other workspace. */
@@ -153,6 +171,7 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       { id: otherWorkspaceId, name: 'Other fixture', ownerId: alice, billedAccountUserId: alice },
       { id: filterWorkspaceId, name: 'Filter fixture', ownerId: alice, billedAccountUserId: alice },
       { id: sortWorkspaceId, name: 'Sort fixture', ownerId: alice, billedAccountUserId: alice },
+      { id: parityWorkspaceId, name: 'Parity fixture', ownerId: alice, billedAccountUserId: alice },
     ])
     await db.insert(permissions).values([
       {
@@ -282,7 +301,13 @@ describe('bounded workspace file reads in PostgreSQL', () => {
   afterAll(async () => {
     await deleteWorkspaceFixture(
       db,
-      inArray(workspace.id, [workspaceId, otherWorkspaceId, filterWorkspaceId, sortWorkspaceId])
+      inArray(workspace.id, [
+        workspaceId,
+        otherWorkspaceId,
+        filterWorkspaceId,
+        sortWorkspaceId,
+        parityWorkspaceId,
+      ])
     )
     await db.delete(user).where(inArray(user.id, [alice, bob, carol, ann, ben, zed]))
   })
@@ -567,7 +592,7 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         seeded.push({
           id: file.id,
           name: fixture.name,
-          label: workspaceFileTypeLabel(fixture.contentType, fixture.name),
+          label: fileBrowserTypeLabel(fixture.contentType, fixture.name),
           owner: ownerNames.get(fixture.userId) ?? null,
         })
       }
@@ -667,6 +692,53 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         await db.execute(
           sql`DELETE FROM ${workspaceFiles} WHERE id LIKE 'wf_sortpad_%' AND workspace_id = ${sortWorkspaceId}`
         )
+      }
+    })
+  })
+
+  describe('SQL type labels and kinds', () => {
+    /**
+     * Every extension the MIME table knows, stored three ways: declaring nothing (so the
+     * extension decides), declaring the generic type (likewise), and declaring its own type (so
+     * the declared type decides). The SQL must agree with the JS rules for each.
+     */
+    it('labels and classifies a file of every known extension as the JS rules do', async () => {
+      const cases = Object.keys(EXTENSION_TO_MIME).flatMap((extension) =>
+        ['', 'application/octet-stream', EXTENSION_TO_MIME[extension]].map((contentType) => ({
+          name: `file.${extension}`,
+          contentType,
+        }))
+      )
+      const ids = new Map<string, { name: string; contentType: string }>()
+      for (const [index, fixture] of cases.entries()) {
+        const file = await insertFile({
+          workspaceId: parityWorkspaceId,
+          name: `${index}-${fixture.name}`,
+          contentType: fixture.contentType,
+          uploadedAt: '2026-06-01T00:00:00',
+        })
+        ids.set(file.id, { name: file.name, contentType: fixture.contentType })
+      }
+      const rows = await db.execute<Record<string, string | boolean>>(sql`
+        SELECT id, ${workspaceFileTypeLabelExpression} AS label,
+          ${workspaceFileKindCondition(['document'])} AS document,
+          ${workspaceFileKindCondition(['image'])} AS image,
+          ${workspaceFileKindCondition(['audio'])} AS audio,
+          ${workspaceFileKindCondition(['video'])} AS video
+        FROM ${workspaceFiles} WHERE workspace_id = ${parityWorkspaceId}`)
+      expect(rows).toHaveLength(cases.length)
+      for (const row of rows) {
+        const fixture = ids.get(String(row.id))
+        if (!fixture) throw new Error('Unexpected row')
+        const mime = resolveEffectiveMimeType(fixture.contentType, fixture.name)
+        expect({ id: row.id, label: row.label, ...pick(row) }).toEqual({
+          id: row.id,
+          label: fileBrowserTypeLabel(fixture.contentType, fixture.name),
+          document: isSupportedExtension(getFileExtension(fixture.name)),
+          image: mime.startsWith('image/'),
+          audio: MIME_TYPE_MAPPING[mime.toLowerCase()] === 'audio',
+          video: MIME_TYPE_MAPPING[mime.toLowerCase()] === 'video',
+        })
       }
     })
   })

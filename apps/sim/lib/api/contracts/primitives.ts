@@ -605,6 +605,32 @@ export const retentionOverridesSchema = z
 
 export type RetentionOverrides = z.output<typeof retentionOverridesSchema>
 
+/**
+ * A list-valued query param, sent repeated (`a=x&a=y`, how `requestJson` serializes an array) or
+ * comma-separated (`a=x,y`): entries trimmed, empty ones dropped. `canonical` also de-duplicates
+ * and sorts them, for a filter the query treats as a set — so `x,y` and `y,x` are one filter, for
+ * the query and for a cursor bound to it.
+ */
+export function queryListSchema<T extends z.ZodType<string>>(
+  member: T,
+  options: { max?: number; canonical?: boolean } = {}
+) {
+  const entries = z.array(member)
+  return z.preprocess(
+    (raw) => {
+      if (typeof raw !== 'string' && !Array.isArray(raw)) return raw
+      const values = (Array.isArray(raw) ? raw : [raw])
+        .flatMap((entry) => (typeof entry === 'string' ? entry.split(',') : [entry]))
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : entry))
+        .filter((entry) => entry !== '')
+      return options.canonical ? [...new Set(values)].sort() : values
+    },
+    options.max === undefined
+      ? entries
+      : entries.max(options.max, `Cannot list more than ${options.max} values`)
+  )
+}
+
 export const booleanQueryFlagSchema = z.preprocess(
   (value) => {
     if (typeof value === 'boolean') return value
