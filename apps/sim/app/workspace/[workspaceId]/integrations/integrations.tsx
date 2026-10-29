@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useCallback, useMemo, useRef } from 'react'
+import { type ComponentType, useCallback, useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
   ChipInput,
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
   Search,
 } from '@sim/emcn'
+import { Lock } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
@@ -37,7 +38,11 @@ import {
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import {
+  PermissionAccessBoundary,
+  useWorkspaceAccessRequestFeatures,
+} from '@/ee/access-requests/components/permission-access-boundary'
+import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -74,6 +79,8 @@ interface IntegrationItemProps {
   description?: string | null
   icon: ComponentType<{ className?: string }>
   unavailable?: boolean
+  /** Set for an integration the viewer's policy restricts but lets them request. */
+  onRequestAccess?: () => void
 }
 
 function IntegrationItem({
@@ -84,7 +91,9 @@ function IntegrationItem({
   description,
   icon: Icon,
   unavailable = false,
+  onRequestAccess,
 }: IntegrationItemProps) {
+  const restricted = onRequestAccess !== undefined
   return (
     <SettingsResourceRow
       iconVariant='custom'
@@ -95,9 +104,15 @@ function IntegrationItem({
           ? 'Unavailable in this deployment. Contact your administrator.'
           : description || undefined
       }
-      href={`/workspace/${workspaceId}/integrations/${slug}`}
-      clickLabel={`Open ${name}`}
-      navigable={!unavailable}
+      badge={
+        restricted ? (
+          <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden />
+        ) : undefined
+      }
+      href={restricted ? undefined : `/workspace/${workspaceId}/integrations/${slug}`}
+      onClick={onRequestAccess}
+      clickLabel={restricted ? `Request access to ${name}` : `Open ${name}`}
+      navigable={!unavailable && !restricted}
       disabled={unavailable}
     />
   )
@@ -156,11 +171,14 @@ function IntegrationsContent() {
   const {
     integrationAvailability,
     isBlockPermitted,
+    isBlockRequestable,
     isIntegrationAvailabilityReady,
     isIntegrationAvailabilityFetching,
     integrationAvailabilityError,
     refetchIntegrationAvailability,
   } = usePermissionConfig()
+  const accessRequestsEnabled = useWorkspaceAccessRequestFeatures().data?.enabled === true
+  const [requestedIntegration, setRequestedIntegration] = useState<Integration | null>(null)
 
   const [{ category: urlCategory, search: urlSearchTerm }, setIntegrationFilters] = useQueryStates(
     integrationsParsers,
@@ -218,29 +236,33 @@ function IntegrationsContent() {
   }, [oauthCredentials])
 
   /**
-   * The catalog lists nothing until the deployment allowlist has loaded, so a
-   * pending or failed availability request never shows an integration the
-   * deployment's `ALLOWED_INTEGRATIONS` excludes.
+   * The catalog lists what the viewer's integration policy permits, plus — when
+   * access requests are on — what it restricts but lets them request, which
+   * renders as a locked row. It lists nothing until the deployment allowlist has
+   * loaded, so a pending or failed availability request never shows an
+   * integration the deployment's `ALLOWED_INTEGRATIONS` excludes.
    */
-  const permittedFeatured = useMemo(
-    () =>
-      isIntegrationAvailabilityReady
-        ? FEATURED_INTEGRATIONS.filter((integration) => isBlockPermitted(integration.type))
-        : [],
-    [isIntegrationAvailabilityReady, isBlockPermitted]
+  const isListed = useMemo(
+    () => (blockType: string) =>
+      isIntegrationAvailabilityReady &&
+      (isBlockPermitted(blockType) || (accessRequestsEnabled && isBlockRequestable(blockType))),
+    [isIntegrationAvailabilityReady, isBlockPermitted, accessRequestsEnabled, isBlockRequestable]
   )
 
-  const permittedCategorySections = useMemo(
+  const listedFeatured = useMemo(
+    () => FEATURED_INTEGRATIONS.filter((integration) => isListed(integration.type)),
+    [isListed]
+  )
+
+  const listedCategorySections = useMemo(
     () =>
-      isIntegrationAvailabilityReady
-        ? ALL_CATEGORY_SECTIONS.flatMap((section) => {
-            const integrations = section.integrations.filter((integration) =>
-              isBlockPermitted(integration.type)
-            )
-            return integrations.length > 0 ? [{ label: section.label, integrations }] : []
-          })
-        : [],
-    [isIntegrationAvailabilityReady, isBlockPermitted]
+      ALL_CATEGORY_SECTIONS.flatMap((section) => {
+        const integrations = section.integrations.filter((integration) =>
+          isListed(integration.type)
+        )
+        return integrations.length > 0 ? [{ label: section.label, integrations }] : []
+      }),
+    [isListed]
   )
 
   const setSelectedCategory = useCallback(
@@ -253,8 +275,8 @@ function IntegrationsContent() {
   const categoryOptions = [
     ALL_CATEGORY,
     ...(connectedItems.length > 0 ? [CONNECTED_LABEL] : []),
-    ...(permittedFeatured.length > 0 ? [FEATURED_LABEL] : []),
-    ...permittedCategorySections.map((section) => section.label),
+    ...(listedFeatured.length > 0 ? [FEATURED_LABEL] : []),
+    ...listedCategorySections.map((section) => section.label),
   ]
 
   /**
@@ -282,7 +304,7 @@ function IntegrationsContent() {
       integration.description.toLowerCase().includes(normalizedSearch)
 
     if (isFeaturedSelected) {
-      const items = permittedFeatured.filter(matchesSearch)
+      const items = listedFeatured.filter(matchesSearch)
       return items.length > 0 ? [{ label: FEATURED_LABEL, integrations: items }] : []
     }
 
@@ -291,11 +313,11 @@ function IntegrationsContent() {
 
     // Featured is a curated home-row pin: hide it during search so results
     // are not duplicated between the Featured section and the category list.
-    const featured = normalizedSearch ? [] : permittedFeatured.filter(matchesCategory)
+    const featured = normalizedSearch ? [] : listedFeatured.filter(matchesCategory)
     const featuredSection =
       featured.length > 0 ? [{ label: FEATURED_LABEL, integrations: featured }] : []
 
-    const categorySections = permittedCategorySections
+    const categorySections = listedCategorySections
       .filter((section) => isAllCategorySelected || section.label === selectedCategory)
       .map((section) => ({
         label: section.label,
@@ -305,8 +327,8 @@ function IntegrationsContent() {
 
     return [...featuredSection, ...categorySections]
   }, [
-    permittedFeatured,
-    permittedCategorySections,
+    listedFeatured,
+    listedCategorySections,
     isAllCategorySelected,
     isConnectedSelected,
     isFeaturedSelected,
@@ -349,6 +371,15 @@ function IntegrationsContent() {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <IntegrationTabsHeader active='integrations' workspaceId={workspaceId} />
+      {requestedIntegration && accessRequestsEnabled && (
+        <RequestAccessModal
+          key={requestedIntegration.type}
+          scope={{ kind: 'workspace', workspaceId }}
+          target={{ kind: 'integration', id: requestedIntegration.type }}
+          label={requestedIntegration.name}
+          onClose={() => setRequestedIntegration(null)}
+        />
+      )}
       <div
         ref={scrollContainerRef}
         className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'
@@ -429,6 +460,11 @@ function IntegrationsContent() {
                       description={integration.description}
                       icon={Icon}
                       unavailable={integration.authType === 'oauth' && deploymentUnavailable}
+                      onRequestAccess={
+                        isBlockPermitted(integration.type)
+                          ? undefined
+                          : () => setRequestedIntegration(integration)
+                      }
                     />
                   )
                 })}

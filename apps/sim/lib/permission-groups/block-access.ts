@@ -44,6 +44,19 @@ export function isBlockTypeAccessControlExempt(blockType: string): boolean {
 }
 
 /**
+ * Whether a resolved integration allowlist permits `blockType`. The allowlist is
+ * in the successor-resolved vocabulary `toAccessControlAllowlist` and
+ * `intersectAccessControlAllowlists` produce; `null` is unrestricted.
+ */
+export function isBlockTypePermittedByAllowlist(
+  allowlist: ReadonlySet<string> | null,
+  blockType: string
+): boolean {
+  if (allowlist === null || isBlockTypeAccessControlExempt(blockType)) return true
+  return allowlist.has(resolveAccessControlBlockType(blockType.toLowerCase()))
+}
+
+/**
  * Whether `blockType` is a row in the Access Control editor's allowlist
  * universe — the set the editor materializes an allowlist from and compares
  * against to collapse one back to `null`.

@@ -8,7 +8,10 @@ import {
   isDeploymentGatedIntegrationType,
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import {
+  isBlockTypeAccessControlExempt,
+  isBlockTypePermittedByAllowlist,
+} from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -146,13 +149,11 @@ export function usePermissionConfig(): PermissionConfigResult {
     [envAllowlistData?.oauthServiceAvailability]
   )
 
-  const isBlockPermitted = useMemo(() => {
-    return (blockType: string) => {
-      if (isBlockTypeAccessControlExempt(blockType)) return true
-      if (allowedAccessControlTypes === null) return true
-      return allowedAccessControlTypes.has(resolveAccessControlBlockType(blockType.toLowerCase()))
-    }
-  }, [allowedAccessControlTypes])
+  const isBlockPermitted = useMemo(
+    () => (blockType: string) =>
+      isBlockTypePermittedByAllowlist(allowedAccessControlTypes, blockType),
+    [allowedAccessControlTypes]
+  )
 
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {

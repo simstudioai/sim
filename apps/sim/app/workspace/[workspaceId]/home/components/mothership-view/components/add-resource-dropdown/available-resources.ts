@@ -1,6 +1,8 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
+import { isBlockTypePermittedByAllowlist } from '@/lib/permission-groups/block-access'
+import { intersectAccessControlAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import {
@@ -10,9 +12,14 @@ import {
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
-import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
+import {
+  type IntegrationDescriptor,
+  listIntegrationsByPopularity,
+} from '@/blocks/integration-matcher'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
+import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
@@ -93,6 +100,7 @@ interface UseAvailableResourcesOptions {
 
 /** Stable identity for the disabled result, so downstream memos never bust. */
 const NO_RESOURCE_GROUPS: AvailableItemsByType[] = []
+const NO_INTEGRATIONS: readonly IntegrationDescriptor[] = []
 
 const LOG_DROPDOWN_LIMIT = 50
 
@@ -178,6 +186,29 @@ export function useAvailableResources(
   const { data: tasks, isPending: tasksPending } = useMothershipChats(workspaceId, {
     enabled: enabled && Boolean(workspaceId),
   })
+  const integrationsIncluded = !excludeTypes?.includes('integration')
+  const { data: permissionConfig, isPending: permissionConfigPending } = useUserPermissionConfig(
+    enabled && integrationsIncluded && workspaceId ? workspaceId : undefined
+  )
+  const { data: integrationAvailability, isPending: integrationAvailabilityPending } =
+    useIntegrationAvailability()
+
+  /**
+   * Integrations this workspace's policy permits: the viewer's permission group
+   * intersected with the deployment allowlist. Fails closed — nothing is offered
+   * until both have loaded — because the server drops a mention of an
+   * integration either policy disallows.
+   */
+  const permittedIntegrations = useMemo(() => {
+    if (!permissionConfig || !integrationAvailability) return NO_INTEGRATIONS
+    const allowlist = intersectAccessControlAllowlists(
+      permissionConfig.config?.allowedIntegrations ?? null,
+      integrationAvailability.allowedIntegrations
+    )
+    return listIntegrationsByPopularity().filter((integration) =>
+      isBlockTypePermittedByAllowlist(allowlist, integration.blockType)
+    )
+  }, [permissionConfig, integrationAvailability])
   const { data: logsData, isPending: logsPending } = useLogsList(
     workspaceId,
     LOG_DROPDOWN_FILTERS,
@@ -208,7 +239,8 @@ export function useAvailableResources(
           (!excludeTypes?.includes('knowledgebase') && knowledgeBaseFoldersPending))) ||
       fileFoldersPending ||
       tasksPending ||
-      logsPending)
+      logsPending ||
+      (integrationsIncluded && (permissionConfigPending || integrationAvailabilityPending)))
 
   const groups = useMemo(() => {
     if (!enabled) return NO_RESOURCE_GROUPS
@@ -279,7 +311,7 @@ export function useAvailableResources(
       },
       {
         type: 'integration' as const,
-        items: listIntegrationsByPopularity().map((integration) => ({
+        items: permittedIntegrations.map((integration) => ({
           id: integration.blockType,
           name: integration.name,
           iconComponent: integration.icon,
@@ -355,6 +387,7 @@ export function useAvailableResources(
     knowledgeBases,
     tasks,
     logs,
+    permittedIntegrations,
     excludeTypes,
     dashboardsEnabled,
     testsEnabled,

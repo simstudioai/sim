@@ -51,8 +51,14 @@ export function mergeOrganizationResourceInventories(
     })
     for (const group of inventory.groups) {
       if (group.type === 'browser' || group.type === 'terminal') continue
-      // Integration definitions are global and do not belong to a workspace.
-      if (group.type === 'integration' && byType.has(group.type)) continue
+      // Integrations are not workspace-owned, but a permission group can target
+      // individual workspaces, so one is offered only where every workspace permits it.
+      const integrations = group.type === 'integration' ? byType.get(group.type) : undefined
+      if (integrations) {
+        const permittedHere = new Set(group.items.map((item) => item.id))
+        integrations.items = integrations.items.filter((item) => permittedHere.has(item.id))
+        continue
+      }
       let target = byType.get(group.type)
       if (!target) {
         target = { type: group.type, items: [] }
