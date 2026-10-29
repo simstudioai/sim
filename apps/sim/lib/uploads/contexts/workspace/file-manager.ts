@@ -30,6 +30,7 @@ import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import {
   type CursorKey,
+  classifyTimestampCursor,
   encodeKeyset,
   INVALID_CURSOR_MESSAGE,
   type KeysetKey,
@@ -38,6 +39,8 @@ import {
   type ListSortOrder,
   listOrderBy,
   numberKey,
+  preciseTimestampKey,
+  preciseTimestampText,
   searchFilter,
   textKey,
   timestampKey,
@@ -150,6 +153,7 @@ import {
 } from '@/lib/workspace-files/page-source-embed'
 import {
   contentWritableWorkspaceFileContextCondition,
+  workspaceFileFolderIdCondition,
   workspaceFileFolderScopeCondition,
 } from '@/lib/workspace-files/query-scope'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -1819,25 +1823,78 @@ export async function listWorkspaceFiles(
 }
 
 /**
- * The keysets behind {@link queryWorkspaceFiles}' sortable fields. `satisfies`
- * makes this total over the contract enum: a new sortable field in the contract
- * fails to compile until it has a keyset here, rather than silently falling
- * through to an unordered scan.
- *
- * Every key column is `NOT NULL`, and `id` closes each keyset so a page
- * boundary inside a run of equal names/sizes/timestamps is still stable.
+ * A page row: the listing columns plus each timestamp key's full-precision cursor text (see
+ * {@link preciseTimestampText}), so the keyset orders and compares on the raw column.
  */
-const fileId = textKey<OwnedFileRecord>(workspaceFiles.id, (row) => row.id)
+const workspaceFilePageColumns = {
+  ...workspaceFileListColumns,
+  uploadedAtCursor: preciseTimestampText(workspaceFiles.uploadedAt),
+  updatedAtCursor: preciseTimestampText(workspaceFiles.updatedAt),
+} as const
 
-const WORKSPACE_FILE_SORTS = {
-  name: [textKey(workspaceFiles.originalName, (row) => row.name), fileId],
-  size: [
-    numberKey(sql<number>`${workspaceFiles.sizeBytes}`.mapWith(Number), (row) => row.size),
-    fileId,
-  ],
-  uploadedAt: [timestampKey(workspaceFiles.uploadedAt, (row) => row.uploadedAt), fileId],
-  updatedAt: [timestampKey(workspaceFiles.updatedAt, (row) => row.updatedAt), fileId],
-} satisfies Record<V2FileSortBy, readonly KeysetKey<OwnedFileRecord>[]>
+type WorkspaceFilePageRow = WorkspaceFileListRow & {
+  uploadedAtCursor: string
+  updatedAtCursor: string
+}
+
+/**
+ * A timestamp sort key on the raw column, so an index on `(…, <column>, id)` serves both the
+ * order and the cursor seek. A cursor minted before that carries a millisecond date (see
+ * {@link classifyTimestampCursor}) and was read under millisecond-truncated ordering; resuming
+ * it under the raw ordering would skip or repeat rows sharing that millisecond, so it keeps the
+ * truncated key it was minted under, as does every cursor its walk mints.
+ */
+function fileTimestampKey(
+  column: typeof workspaceFiles.uploadedAt | typeof workspaceFiles.updatedAt,
+  read: (row: WorkspaceFilePageRow) => Date,
+  readCursor: (row: WorkspaceFilePageRow) => string,
+  after: CursorKey[] | undefined
+): KeysetKey<WorkspaceFilePageRow> {
+  return after !== undefined && classifyTimestampCursor(after[0]) === 'date'
+    ? timestampKey(column, read)
+    : preciseTimestampKey(column, readCursor)
+}
+
+/**
+ * The keyset behind {@link queryFileRecords}' sortable fields. The `Record` makes it total over
+ * the contract enum: a new sortable field fails to compile until it has a keyset here.
+ *
+ * Every key column is `NOT NULL`, and `id` closes each keyset so a page boundary inside a run of
+ * equal names/sizes/timestamps is still stable. The name key bounds its scan so a later page
+ * seeks the `(owner, folder, original_name)` index instead of filtering down from its top.
+ */
+function workspaceFileSortKeys(
+  sortBy: V2FileSortBy,
+  after: CursorKey[] | undefined
+): KeysetKey<WorkspaceFilePageRow>[] {
+  const fileId = textKey<WorkspaceFilePageRow>(workspaceFiles.id, (row) => row.id)
+  const sorts: Record<V2FileSortBy, () => KeysetKey<WorkspaceFilePageRow>> = {
+    name: () => ({
+      ...textKey<WorkspaceFilePageRow>(workspaceFiles.originalName, (row) => row.originalName),
+      boundsScan: true,
+    }),
+    size: () =>
+      numberKey<WorkspaceFilePageRow>(
+        sql<number>`${workspaceFiles.sizeBytes}`.mapWith(Number),
+        (row) => getWorkspaceFileSize(row)
+      ),
+    uploadedAt: () =>
+      fileTimestampKey(
+        workspaceFiles.uploadedAt,
+        (row) => row.uploadedAt,
+        (row) => row.uploadedAtCursor,
+        after
+      ),
+    updatedAt: () =>
+      fileTimestampKey(
+        workspaceFiles.updatedAt,
+        (row) => row.updatedAt,
+        (row) => row.updatedAtCursor,
+        after
+      ),
+  }
+  return [sorts[sortBy](), fileId]
+}
 
 export interface QueryWorkspaceFilesOptions {
   /** Exact file ids. */
@@ -1876,10 +1933,7 @@ export interface QueryWorkspaceFilesResult {
 function workspaceFileFolderCondition(
   folderId: string | null | readonly string[] | undefined
 ): SQL | undefined {
-  if (folderId === undefined) return undefined
-  if (folderId === null) return isNull(workspaceFiles.folderId)
-  if (Array.isArray(folderId)) return inArray(workspaceFiles.folderId, folderId)
-  return eq(workspaceFiles.folderId, folderId as string)
+  return folderId === undefined ? undefined : workspaceFileFolderIdCondition(folderId)
 }
 
 /**
@@ -1931,7 +1985,7 @@ export async function queryFileRecords<const O extends EditableFileOwner>(
   if (folderId !== undefined && folderScope !== undefined) {
     throw new OrchestrationError('validation', 'Specify either folderId or folderScope, not both')
   }
-  const keys: readonly KeysetKey<OwnedFileRecord>[] = WORKSPACE_FILE_SORTS[sortBy]
+  const keys = workspaceFileSortKeys(sortBy, after)
 
   let resumeAfter: SQL | undefined
   if (after) {
@@ -1955,8 +2009,8 @@ export async function queryFileRecords<const O extends EditableFileOwner>(
     resumeAfter,
   ]
 
-  const rows = await client
-    .select(workspaceFileListColumns)
+  const rows: WorkspaceFilePageRow[] = await client
+    .select(workspaceFilePageColumns)
     .from(workspaceFiles)
     .where(and(...conditions))
     .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
@@ -1969,7 +2023,7 @@ export async function queryFileRecords<const O extends EditableFileOwner>(
     : []
   const paths = buildWorkspaceFileFolderPathMap(folders)
   const files = page.map((file) => mapFileRecord(file, owner, paths))
-  const last = files.at(-1)
+  const last = page.at(-1)
 
   return { files, nextKeys: hasMore && last ? encodeKeyset(keys, last) : null }
 }
