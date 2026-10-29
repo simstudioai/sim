@@ -22,9 +22,11 @@ export const INVALIDATION_COALESCE_MS = 1000
  * The longest a delivery waits for its refetches. A fetch has no timeout of its own, so one that
  * hangs would otherwise hold the room's deliveries forever. Past this, later deliveries run again:
  * their invalidation cancels and restarts a hung refetch of a query that has data, while a hung
- * first load is joined, as it always was, until it settles or its last observer unmounts.
+ * first load is joined, as it always was, until it settles or its last observer unmounts. A refetch
+ * still progressing past the cap is restarted the same way, so the cap sits well above the
+ * slowest list read seen.
  */
-export const DELIVERY_SETTLE_CAP_MS = 30_000
+export const DELIVERY_SETTLE_CAP_MS = 60_000
 
 interface JoinErrorPayload {
   workspaceId: string
