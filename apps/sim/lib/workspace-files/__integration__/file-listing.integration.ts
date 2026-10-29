@@ -849,10 +849,10 @@ describe('bounded workspace file reads in PostgreSQL', () => {
   })
 
   describe('folder stats', () => {
-    const stats = (parentId: string | null) =>
+    const stats = (...parentIds: (string | null)[]) =>
       getWorkspaceFileFolderStats.execute({
         principal: session(alice),
-        input: { workspaceId, parentId },
+        input: { workspaceId, parentIds },
       })
 
     it('rolls each child folder subtree up, excluding deleted files', async () => {
@@ -868,6 +868,18 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         { folderId: folders.sub, fileCount: 2, sizeBytes: 1400 },
       ])
       expect((await stats(folders.deep)).folders).toEqual([])
+    })
+
+    it('rolls up the children of several parents in one read, skipping unknown ones', async () => {
+      const combined = (await stats(null, folders.docs, generateId())).folders
+      expect(combined).toHaveLength(3)
+      expect(combined).toEqual(
+        expect.arrayContaining([
+          { folderId: folders.docs, fileCount: 4, sizeBytes: 100 + 200 + 400 + 1000 },
+          { folderId: folders.media, fileCount: 1, sizeBytes: 50 },
+          { folderId: folders.sub, fileCount: 2, sizeBytes: 1400 },
+        ])
+      )
     })
 
     it('reports nothing for another workspace folder or an unknown folder', async () => {
@@ -890,7 +902,7 @@ describe('bounded workspace file reads in PostgreSQL', () => {
       await expect(
         getWorkspaceFileFolderStats.execute({
           principal: session(carol),
-          input: { workspaceId, parentId: null },
+          input: { workspaceId, parentIds: [null] },
         })
       ).rejects.toMatchObject(refused)
     })

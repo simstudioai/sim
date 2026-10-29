@@ -353,10 +353,18 @@ export const lookupWorkspaceFilesContract = defineRouteContract({
 const workspaceFileFolderStatsQuerySchema = z.object({
   /** The folder whose child folders to report: `root` (default) or a folder id. */
   parentId: workspaceFileFolderFilterSchema.prefault('root'),
+  /**
+   * Several folders whose child folders to report at once (`root` or folder ids), for a view
+   * whose folders sit under different parents; replaces `parentId` when sent.
+   */
+  parentIds: queryListSchema(z.union([z.literal('root'), folderIdSchema]), {
+    max: 100,
+    canonical: true,
+  }).optional(),
 })
 
 const workspaceFileFolderStatsResponseSchema = workspaceFileSuccessSchema.extend({
-  /** One entry per direct child folder of `parentId`, totals covering its whole subtree. */
+  /** One entry per direct child folder of each parent, totals covering its whole subtree. */
   folders: z.array(
     z.object({
       folderId: z.string(),

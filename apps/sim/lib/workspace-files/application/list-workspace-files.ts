@@ -178,14 +178,15 @@ export const lookupWorkspaceFiles = defineAuthorizedWorkspaceFileUseCase({
 
 export interface GetWorkspaceFileFolderStatsInput {
   workspaceId: string
-  /** The folder whose child folders to report, `null` for the workspace root. */
-  parentId: string | null
+  /** The folders whose child folders to report, `null` for the workspace root. */
+  parentIds: readonly (string | null)[]
 }
 
 /**
- * For each direct child folder of `parentId`, the live files and bytes in its whole subtree.
- * One grouped aggregate over the subtrees' folder ids, rolled up against the active folder
- * tree; root files are never read. A `parentId` naming no active folder reports no children.
+ * For each direct child folder of every parent in `parentIds`, the live files and bytes in its
+ * whole subtree. One grouped aggregate over the subtrees' folder ids, rolled up against the
+ * active folder tree; root files are never read. A parent naming no active folder reports no
+ * children.
  */
 export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.list,
@@ -193,14 +194,12 @@ export const getWorkspaceFileFolderStats = defineAuthorizedWorkspaceFileUseCase(
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
     const folderIndex = await loadFileFolderIndex(context.workspaceId)
-    if (input.parentId !== null && !folderIndex.rowById.has(input.parentId)) {
-      return { folders: [] }
-    }
+    const parents = new Set(input.parentIds)
     const rows = [...folderIndex.rowById.values()]
     // One child index for every subtree: `resolveFolderScope` would rebuild it per child.
     const childrenByParent = indexFolderChildren(rows)
     const subtrees = rows
-      .filter((row) => (row.parentId ?? null) === input.parentId)
+      .filter((row) => parents.has(row.parentId ?? null))
       .map((row) => ({
         folderId: row.id,
         ids: [row.id, ...collectDescendantFolderIdsFrom(childrenByParent, row.id)],
