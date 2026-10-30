@@ -329,9 +329,7 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
         clientSecret = secret
       }
       const existingTokenMethod =
-        existing && trimTrailingSlashes(existing.issuer) === trimTrailingSlashes(issuer)
-          ? stored.tokenEndpointAuthentication
-          : undefined
+        existing?.issuer === issuer ? stored.tokenEndpointAuthentication : undefined
 
       const oidcConfig: NonNullable<SsoProviderConfig['oidcConfig']> = {
         clientId,
@@ -679,7 +677,7 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
           providerConfig.oidcConfig.clientSecret = secret
         }
         if (
-          trimTrailingSlashes(existing.issuer) === trimTrailingSlashes(issuer) &&
+          existing.issuer === providerConfig.issuer &&
           (current.tokenEndpointAuthentication === 'client_secret_basic' ||
             current.tokenEndpointAuthentication === 'client_secret_post')
         )

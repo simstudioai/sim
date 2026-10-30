@@ -202,8 +202,12 @@ export function createSsoProviderRepository(
   }
 
   return {
-    async register(body: SsoProviderConfig) {
-      plugin.endpoints.registerSSOProvider.options.body.parse(body)
+    async register(input: SsoProviderConfig) {
+      // Keep the parser's output so its defaults apply; its declared output type is untyped.
+      const body: SsoProviderConfig = {
+        ...input,
+        ...plugin.endpoints.registerSSOProvider.options.body.parse(input),
+      }
       if (body.organizationId !== organizationId)
         throw new APIError('BAD_REQUEST', {
           message: 'Provider organization does not match its authorized scope',

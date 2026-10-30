@@ -270,6 +270,15 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
     const wantAssertionsSigned = process.env.SSO_SAML_WANT_ASSERTIONS_SIGNED === 'true'
 
     let spMetadata = process.env.SSO_SAML_SP_METADATA
+    if (
+      spMetadata &&
+      wantAssertionsSigned &&
+      !/\sWantAssertionsSigned\s*=\s*(["'])(true|1)\1/.test(spMetadata)
+    ) {
+      throw new Error(
+        'SSO_SAML_SP_METADATA must declare WantAssertionsSigned="true" when SSO_SAML_WANT_ASSERTIONS_SIGNED=true'
+      )
+    }
     if (!spMetadata) {
       spMetadata = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(appBaseUrl)}">
@@ -726,13 +735,10 @@ async function registerSSOProvider(): Promise<boolean> {
 
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || 'https://your-domain.com'
-    const callbackPath =
-      ssoConfig.providerType === 'saml'
-        ? `api/auth/sso/saml2/sp/acs/${ssoConfig.providerId}`
-        : `api/auth/sso/callback/${ssoConfig.providerId}`
-    logger.info(
-      `📋 Callback URL (configure this in your identity provider): ${baseUrl}/${callbackPath}`
-    )
+    const callbackUrl =
+      ssoConfig.samlConfig?.callbackUrl ??
+      `${baseUrl}/api/auth/sso/callback/${ssoConfig.providerId}`
+    logger.info(`📋 Callback URL (configure this in your identity provider): ${callbackUrl}`)
 
     return true
   } catch (error) {

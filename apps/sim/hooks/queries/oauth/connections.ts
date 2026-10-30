@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -205,11 +206,19 @@ export function useConnectOAuthService() {
       }
 
       const scopes = getPerRequestOAuthLinkScopes(providerId)
-      await client.linkSocial({
+      const result = await client.linkSocial({
         provider: providerId,
         callbackURL: stateCallbackUrl.toString(),
         ...(scopes && { scopes }),
       })
+      if (result.error) {
+        throw new Error(
+          getErrorMessage(
+            result.error.message,
+            result.error.statusText || 'Failed to start OAuth connection'
+          )
+        )
+      }
 
       return { success: true }
     },

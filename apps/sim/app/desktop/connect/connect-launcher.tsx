@@ -33,7 +33,7 @@ export function ConnectLauncher({ providerId, completeUrl }: ConnectLauncherProp
     setError(null)
     try {
       const scopes = getPerRequestOAuthLinkScopes(providerId)
-      await client.linkSocial({
+      const result = await client.linkSocial({
         provider: providerId,
         callbackURL: completeUrl,
         ...(scopes && { scopes }),
@@ -44,6 +44,9 @@ export function ConnectLauncher({ providerId, completeUrl }: ConnectLauncherProp
         // that the complete page can't read — so it would look like success.
         errorCallbackURL: completeUrl,
       })
+      if (result.error) {
+        setError(getErrorMessage(result.error.message, 'Could not start the connection.'))
+      }
     } catch (err) {
       setError(getErrorMessage(err, 'Could not start the connection.'))
     }

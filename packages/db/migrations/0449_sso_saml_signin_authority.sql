@@ -49,7 +49,7 @@ BEGIN
     END IF;
 
     IF config->'wantAssertionsSigned' = 'true'::jsonb
-      AND coalesce(config #>> '{spMetadata,metadata}', '') !~ '\sWantAssertionsSigned=(["''])(true|1)\1' THEN
+      AND coalesce(config #>> '{spMetadata,metadata}', '') !~ '\sWantAssertionsSigned\s*=\s*(["''])(true|1)\1' THEN
       updated := jsonb_set(updated, '{wantAssertionsSigned}', 'false'::jsonb);
     END IF;
 
