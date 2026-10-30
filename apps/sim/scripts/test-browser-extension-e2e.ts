@@ -1143,6 +1143,68 @@ try {
     await expect(attachments()).toHaveCount(0)
     await screenshot('shared-workspace-organization-navigation')
   })
+  for (const allowRequests of [false, true]) {
+    await check(
+      `Workspace Chat policy revocation and regrant work with access requests ${allowRequests ? 'enabled' : 'disabled'}`,
+      async () => {
+        assert(userId)
+        const permissionGroupId = generateId()
+        await sql`insert into organization_access_request_settings (organization_id, allow_requests)
+          values (${otherOrganizationId}, ${allowRequests})
+          on conflict (organization_id) do update set allow_requests=excluded.allow_requests`
+        try {
+          await navigate(`${base.origin}/extension/${hostedWorkspaceId}`)
+          const input = frame().getByRole('textbox', { name: 'Message', exact: true })
+          await expect(input).toBeVisible()
+          await capture()
+          await input.fill('Keep text, but discard the page when Chat access is revoked.')
+          await expect(attachments()).toHaveCount(1)
+          await shell.bringToFront()
+          const discovery = await browserContext.request.get(
+            `${base.origin}/api/access-requests/discovery?kind=workspace&workspaceId=${hostedWorkspaceId}&targetKind=feature`
+          )
+          assert.equal(discovery.status(), 200)
+          assert.equal(toRecord(await discovery.json()).enabled, allowRequests)
+          await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
+            values (${permissionGroupId}, ${otherOrganizationId}, 'Revoked Chat access',
+            ${sql.json({ hideCopilot: true })}, ${otherUserId}, true)`
+          const policy = await browserContext.request.get(
+            `${base.origin}/api/permission-groups/user?workspaceId=${hostedWorkspaceId}`
+          )
+          assert.equal(policy.status(), 200)
+          assert.equal(toRecord(toRecord(await policy.json()).config).hideCopilot, true)
+          await expect(input).toHaveCount(0, { timeout: ACCESS_REVALIDATION_TIMEOUT_MS })
+          await expect(attachments()).toHaveCount(0)
+          await expect(frame().getByText('Access required', { exact: true })).toBeVisible()
+          await screenshot(`workspace-chat-revoked-requests-${allowRequests}`)
+          await sql`delete from permission_group where id=${permissionGroupId}`
+          await expect(input).toBeVisible({ timeout: ACCESS_REVALIDATION_TIMEOUT_MS })
+          await expect(input).toHaveValue(
+            'Keep text, but discard the page when Chat access is revoked.'
+          )
+          await expect(attachments()).toHaveCount(0)
+          await screenshot(`workspace-chat-regranted-requests-${allowRequests}`)
+          await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
+            values (${permissionGroupId}, ${otherOrganizationId}, 'Revoked Chat access',
+            ${sql.json({ hideCopilot: true })}, ${otherUserId}, true)`
+          await navigate(`${base.origin}/extension/${hostedWorkspaceId}`)
+          await expect(frame().getByText('Access required', { exact: true })).toBeVisible()
+          await expect(input).toHaveCount(0)
+          await expect(attachments()).toHaveCount(0)
+          await screenshot(`workspace-chat-initial-denial-requests-${allowRequests}`)
+          await frame().getByRole('link', { name: 'Back to chat', exact: true }).click()
+          await expect
+            .poll(() => new URL(frame().url()).pathname)
+            .toBe(`/extension/o/${organizationId}`)
+          await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+          await expect(attachments()).toHaveCount(0)
+        } finally {
+          await sql`delete from permission_group where id=${permissionGroupId}`
+          await sql`delete from organization_access_request_settings where organization_id=${otherOrganizationId}`
+        }
+      }
+    )
+  }
   await check(
     'A first-open toolbar capture survives authenticated organization landing',
     async () => {

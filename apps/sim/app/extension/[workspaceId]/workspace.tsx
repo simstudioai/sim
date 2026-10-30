@@ -59,7 +59,10 @@ export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
           <CustomBlocksLoader />
           <BlockVisibilityLoader workspaceId={workspaceId} />
           <WorkspaceScopeSync />
-          <PermissionAccessBoundary configKey='hideCopilot'>
+          <PermissionAccessBoundary
+            configKey='hideCopilot'
+            navigationAction={<ChipLink href='/extension'>Back to chat</ChipLink>}
+          >
             <ExtensionChat workspaceId={workspaceId} workspaceName={data.workspace.name} />
           </PermissionAccessBoundary>
         </WorkspacePermissionsProvider>
