@@ -24,14 +24,14 @@ The full machine-readable accounting is in [report.json](report.json), with the 
 | Root lint | 26 workspace tasks passed | `bun run lint` |
 | Root type check | 26 workspace tasks passed | `bun run type-check` |
 | Repository audits | All 61 passed | `bun run check:audits` |
-| Root tests | 634 script tests and all 20 workspace tasks passed; 38,745 application tests passed | `bun run test` with Node 24 |
+| Root tests | Original full run passed; latest run stopped on script timeouts. All four affected files passed in isolation (78 tests), and the docs workspace passed | `bun run test` with Node 24 |
 | Block registry | Canonical IDs, metadata coverage, replacements, and selector coercion passed | Base-sensitive check against staging |
 | Migration preservation | Zero lost routes/anchors or changed code-fence hashes | [Migration report](report.json) |
 | Complete corpus over HTTP | 2,996 passed | [Corpus report](verification/corpus.json) |
 | HTTP and real MCP client | 15 passed | [Interface report](verification/interfaces.json) |
 | Content negotiation | 7 passed | [Negotiation report](verification/negotiation.json) |
 | Native header merger | 16 passed | [Header report](verification/headers.json) |
-| Browser behavior and responsive layouts | 50 passed | [Browser report](verification/browser.json) |
+| Browser behavior and responsive layouts | 58 passed | [Browser report](verification/browser.json) |
 | Isolated PostgreSQL search and publication | 7 passed | [Database report](verification/search-postgres.json) |
 | Workflow SSR and hydrated inspector | Authored node text in initial HTML; inspector, Escape, focus restoration, and zero browser errors passed | [SSR report](verification/workflow-ssr.json), [interaction report](verification/workflow-inspector.json) |
 
@@ -54,6 +54,14 @@ Root lint and all 26 workspace type checks passed. All 61 audit checks passed af
 The root App Router layout owns the navbar, sidebar, footer, search provider, and mobile drawer. Each page supplies its server-rendered article and page-specific outline through the shared page frame. The desktop sidebar keeps the same DOM scroll container across document navigation; changing documentation sections selects the corresponding navigation tree. Only navigation metadata crosses the shared client boundary, not the content catalog or every page's headings.
 
 The [pre-fix browser report](verification/sidebar-before-fix.json) reproduces the desktop reset from 277px to 0 and the mobile drawer reset from 258px to 0. The new browser checks cover opening Logs from a scrolled article, nested Run logs navigation, browser Back, and reopening the mobile menu with another long branch expanded. The mobile drawer restores its offset after branch expansion and closes when search navigates to another document. The production build passes all 50 browser scenarios, [2,996 corpus/asset checks](verification/sidebar-corpus-summary.json), and 15 machine-interface checks. Root lint, all 26 workspace type checks, all 61 audits, the docs unit suite, and the block registry check passed. The root test rerun again passed 633 script tests and timed out in the unchanged desktop script test; it did not reach the workspace suites. [The Logs screenshot](verification/screenshots/sidebar-preserved.png) shows the retained sidebar position.
+
+### Screenshot presentation review
+
+Compared the introduction and Files pages with the live docs and their source components. The shared image renderer was discarding the authored background and reducing all screenshot variants to fixed padding. `ScreenshotFrame` now owns the original background selection, proportional spacing, rounded edges, and screenshot placement for hero, overview, detail, result, and full-size viewer presentations. The introduction uses the live hero aspect ratio and responsive crop. Original screenshot and background files are unchanged.
+
+All eight new framing scenarios failed on the previous renderer ([report](verification/images-before-fix.json)). They now pass at 390px and 1440px, checking loaded backgrounds, relative image geometry, the hero crop, and viewer backgrounds. The complete production browser suite passes all 58 scenarios; [all 2,996 corpus/asset checks pass](verification/image-corpus-summary.json). See [desktop hero](verification/screenshots/image-hero-1440.png), [mobile hero](verification/screenshots/image-hero-390.png), [overview](verification/screenshots/image-overview-1440.png), and [detail](verification/screenshots/image-detail-1440.png).
+
+Production build, root lint, all 26 workspace type checks, all 61 audits, the docs unit suite, and the block registry check passed. The root test command stopped on six timeouts across four script files; rerunning those files after the other checks completed passed all 78 tests. The latest root invocation did not reach the workspace suites.
 
 ### Performance evidence
 

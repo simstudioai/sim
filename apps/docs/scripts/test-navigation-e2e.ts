@@ -178,6 +178,122 @@ try {
   } finally {
     await drawerContext.close()
   }
+  for (const width of [390, 1440]) {
+    const context = await browser.newContext({ viewport: { width, height: 1000 } })
+    try {
+      for (const scene of [
+        {
+          path: '/introduction',
+          image: 'platform.webp',
+          background: 'san-francisco',
+          variant: 'hero',
+        },
+        {
+          path: '/files',
+          image: 'files-markdown.webp',
+          background: 'architecture',
+          variant: 'overview',
+        },
+        {
+          path: '/logs-debugging',
+          image: 'log-trace.webp',
+          background: 'canyon',
+          variant: 'detail',
+        },
+        {
+          path: '/search/ask-questions',
+          image: 'launch-update-draft.webp',
+          background: 'architecture',
+          variant: 'result',
+        },
+      ]) {
+        await check(`Screenshot framing: ${scene.variant} at ${width}px`, async () => {
+          const page = await context.newPage()
+          try {
+            await open(page, scene.path)
+            const figure = page
+              .locator('figure')
+              .filter({ has: page.locator(`img[src*="${scene.image}"]`) })
+            const screenshot = figure.getByRole('img')
+            await figure.scrollIntoViewIfNeeded()
+            await expect
+              .poll(() =>
+                screenshot.evaluate(
+                  (element) =>
+                    element instanceof HTMLImageElement &&
+                    element.complete &&
+                    element.naturalWidth > 0
+                )
+              )
+              .toBe(true)
+            const background = figure.locator('img[aria-hidden="true"]')
+            await expect(background).toHaveCount(1)
+            await expect
+              .poll(() =>
+                background.evaluate(
+                  (element) =>
+                    element instanceof HTMLImageElement &&
+                    element.complete &&
+                    element.naturalWidth > 0
+                )
+              )
+              .toBe(true)
+            expect(await background.getAttribute('src')).toContain(`${scene.background}.webp`)
+            const geometry = await screenshot.evaluate((element) => {
+              const backdrop = element.closest('figure')?.querySelector('img[aria-hidden="true"]')
+              const frame = backdrop?.parentElement?.getBoundingClientRect()
+              const image = element.getBoundingClientRect()
+              if (!frame) throw new Error('Screenshot has no background frame')
+              return {
+                left: (image.left - frame.left) / frame.width,
+                right: (frame.right - image.right) / frame.width,
+                top: (image.top - frame.top) / frame.width,
+                bottom: (frame.bottom - image.bottom) / frame.width,
+                aspect: frame.width / frame.height,
+                heroTop: (image.top - frame.top) / frame.height,
+                width: image.width / frame.width,
+              }
+            })
+            if (scene.variant === 'hero') {
+              expect(geometry.aspect).toBeCloseTo(width < 640 ? 2 : 50 / 19, 1)
+              expect(Math.abs(geometry.left - (width < 640 ? 0.06 : 0.11))).toBeLessThan(0.008)
+              expect(Math.abs(geometry.width - (width < 640 ? 0.88 : 0.78))).toBeLessThan(0.012)
+              expect(Math.abs(geometry.heroTop - (width < 640 ? 0.14 : 0.184))).toBeLessThan(0.015)
+              expect(geometry.bottom).toBeLessThan(0)
+            } else {
+              const side = scene.variant === 'overview' ? 0.07 : 0.05
+              expect(Math.abs(geometry.left - side)).toBeLessThan(0.008)
+              expect(Math.abs(geometry.right - side)).toBeLessThan(0.008)
+              expect(
+                Math.abs(geometry.top - (scene.variant === 'overview' ? 0.06 : 0.05))
+              ).toBeLessThan(0.008)
+              expect(
+                Math.abs(geometry.bottom - (scene.variant === 'detail' ? 0.05 : 0))
+              ).toBeLessThan(0.008)
+            }
+            await page.mouse.move(width - 5, 5)
+            await page.screenshot({
+              path: join(directory, `image-${scene.variant}-${width}.png`),
+              animations: 'disabled',
+            })
+            await figure.getByRole('button').click()
+            const viewer = page.getByRole('dialog')
+            await expect(viewer.getByRole('img')).toBeVisible()
+            await expect(viewer.locator('img[aria-hidden="true"]')).toHaveAttribute(
+              'src',
+              new RegExp(`${scene.background}\\.webp`)
+            )
+            await page.keyboard.press('Escape')
+            await expect(viewer).toHaveCount(0)
+          } finally {
+            await page.close()
+          }
+        })
+      }
+    } finally {
+      await context.close()
+    }
+  }
   const scenarios = [
     { path: '/introduction', title: 'Introduction', content: '## Models and integrations' },
     { path: '/getting-started', title: 'Getting started', content: '## Start in Chat' },

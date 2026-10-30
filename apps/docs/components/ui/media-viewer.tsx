@@ -5,16 +5,18 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X } from '@sim/emcn/icons'
 import NextImage from 'next/image'
 import { docsControlClass } from '@/components/docs/primitives'
+import { ScreenshotFrame } from '@/components/ui/screenshot-frame'
 
 interface MediaViewerProps {
   children: ReactNode
   src: string
+  backgroundSrc: string
   alt: string
   caption?: string
 }
 
 /** The original image remains available at full size in a keyboard-accessible dialog. */
-export function MediaViewer({ children, src, alt, caption }: MediaViewerProps) {
+export function MediaViewer({ children, src, backgroundSrc, alt, caption }: MediaViewerProps) {
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
@@ -38,7 +40,7 @@ export function MediaViewer({ children, src, alt, caption }: MediaViewerProps) {
           <Dialog.Description className='sr-only'>
             {caption || 'Full-size documentation image. Press Escape to close.'}
           </Dialog.Description>
-          <div className='relative min-h-0 flex-1'>
+          <ScreenshotFrame variant='viewer' backgroundSrc={backgroundSrc} sizes='100vw' eager>
             <NextImage
               src={src}
               alt={alt}
@@ -47,7 +49,7 @@ export function MediaViewer({ children, src, alt, caption }: MediaViewerProps) {
               sizes='100vw'
               className='object-contain'
             />
-          </div>
+          </ScreenshotFrame>
           {caption && <p className='pt-3 text-[var(--docs-muted)] text-docs-caption'>{caption}</p>}
         </Dialog.Content>
       </Dialog.Portal>

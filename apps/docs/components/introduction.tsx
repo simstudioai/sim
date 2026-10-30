@@ -25,8 +25,7 @@ export function IntroductionHero({ alt }: IntroductionHeroProps) {
       alt={alt}
       width={2400}
       height={1200}
-      variant='overview'
-      caption='Sim Chat with a release tracker table open beside it.'
+      variant='hero'
       preload
     />
   )
