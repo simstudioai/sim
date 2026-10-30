@@ -62,7 +62,7 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div className='space-y-6'>
+    <div className='au:space-y-[var(--auth-group-gap)]'>
       <AuthHeader title='Reset your password' description='Enter a new password for your account' />
 
       <SetNewPasswordForm
@@ -81,7 +81,9 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense
-      fallback={<div className='flex min-h-[320px] items-center justify-center'>Loading…</div>}
+      fallback={
+        <div className='au:flex au:min-h-[320px] au:items-center au:justify-center'>Loading…</div>
+      }
     >
       <ResetPasswordContent />
     </Suspense>

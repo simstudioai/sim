@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipLink } from '@sim/emcn'
+import { AuthButton as Chip, AuthLinkButton as ChipLink } from '@sim/auth-ui'
 import { redirect } from 'next/navigation'
 import {
   slackSearchIntegrationsPath,
@@ -36,22 +36,24 @@ export function SlackSearchOnboarding({ token, userId }: SlackSearchOnboardingPr
     </Chip>
   )
   if (status.isPending)
-    return <p className='text-[var(--text-secondary)] text-sm'>Checking your connection…</p>
+    return <p className='au:text-[var(--auth-secondary)] au:text-body'>Checking your connection…</p>
   if (status.isError)
     return (
-      <div className='flex flex-col gap-4'>
-        <h1 className='text-2xl'>Couldn’t open this question</h1>
-        <p className='text-[var(--text-error)] text-sm'>{status.error.message}</p>
+      <div className='au:flex au:flex-col au:gap-4'>
+        <h1 className='au:text-2xl'>Couldn’t open this question</h1>
+        <p className='au:text-[var(--auth-error)] au:text-body'>{status.error.message}</p>
         {refresh}
       </div>
     )
   const data = status.data
   if (!('organizationId' in data))
     return (
-      <div className='flex flex-col gap-4'>
-        <h1 className='text-2xl'>Finish your Sim account setup</h1>
-        <p className='text-[var(--text-secondary)] text-sm'>{ACCOUNT_STATUS_COPY[data.status]}</p>
-        <div className='flex flex-wrap gap-2'>
+      <div className='au:flex au:flex-col au:gap-4'>
+        <h1 className='au:text-2xl'>Finish your Sim account setup</h1>
+        <p className='au:text-[var(--auth-secondary)] au:text-body'>
+          {ACCOUNT_STATUS_COPY[data.status]}
+        </p>
+        <div className='au:flex au:flex-wrap au:gap-2'>
           <Chip
             disabled={switchAccount.isPending}
             onClick={() =>
@@ -73,7 +75,7 @@ export function SlackSearchOnboarding({ token, userId }: SlackSearchOnboardingPr
           {refresh}
         </div>
         {switchAccount.isError && (
-          <p className='text-[var(--text-error)] text-sm'>{switchAccount.error.message}</p>
+          <p className='au:text-[var(--auth-error)] au:text-body'>{switchAccount.error.message}</p>
         )}
       </div>
     )

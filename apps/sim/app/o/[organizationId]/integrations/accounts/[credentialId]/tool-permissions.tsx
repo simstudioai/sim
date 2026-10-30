@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipInput, ChipLink, ChipSelect, ChipSwitch, Tooltip, toast } from '@sim/emcn'
+import { ChipInput, ChipLink, ChipSelect, ChipSwitch, Info, toast } from '@sim/emcn'
 import { ArrowLeft, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import type {
@@ -182,8 +182,6 @@ function ToolPermissionGroup({
     `${tool.name} ${tool.description}`.toLowerCase().includes(query)
   )
   if (tools.length === 0) return null
-  const defaultPolicy = effect === 'read' ? data.readPolicy : data.writePolicy
-  const defaultLabel = POLICY_OPTIONS.find((option) => option.value === defaultPolicy)?.label
   const groupValue = tools.every((tool) => tool.policy === tools[0].policy)
     ? tools[0].policy
     : undefined
@@ -208,41 +206,29 @@ function ToolPermissionGroup({
         />
       }
     >
-      <div className='divide-y divide-[var(--border)]'>
-        {visible.map((tool) => (
-          <div
-            key={tool.toolId}
-            className='flex flex-col items-start gap-3 py-3 sm:flex-row sm:items-center sm:justify-between'
-          >
-            <div className='min-w-0 flex-1'>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <span className='text-[var(--text-body)] text-small'>{tool.name}</span>
-                </Tooltip.Trigger>
-                <Tooltip.Content>{tool.description}</Tooltip.Content>
-              </Tooltip.Root>
-            </div>
-            <div className='flex max-w-full shrink-0 flex-wrap items-center gap-2'>
-              {!tool.inherited && (
-                <Chip
-                  aria-label={`Reset ${tool.name} to ${defaultLabel}`}
-                  disabled={pending}
-                  onClick={() => onChange({ kind: 'tool', toolId: tool.toolId, policy: null })}
-                >
-                  Reset to {defaultLabel}
-                </Chip>
-              )}
-              <ChipSwitch
-                options={options}
-                value={tool.policy}
-                disabled={pending}
-                aria-label={`${tool.name} permission`}
-                onChange={(policy) => onChange({ kind: 'tool', toolId: tool.toolId, policy })}
-              />
-            </div>
+      {visible.map((tool) => (
+        <div
+          key={tool.toolId}
+          className='flex flex-col items-start gap-3 py-3 sm:flex-row sm:items-center sm:justify-between'
+        >
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
+            <span className='text-[var(--text-body)] text-small'>{tool.name}</span>
+            {tool.description && (
+              <Info side='top' className='shrink-0'>
+                {tool.description}
+              </Info>
+            )}
           </div>
-        ))}
-      </div>
+          <ChipSwitch
+            className='max-w-full shrink-0'
+            options={options}
+            value={tool.policy}
+            disabled={pending}
+            aria-label={`${tool.name} permission`}
+            onChange={(policy) => onChange({ kind: 'tool', toolId: tool.toolId, policy })}
+          />
+        </div>
+      ))}
       {!visible.length && (
         <SettingsEmptyState variant='inline'>No matching tools</SettingsEmptyState>
       )}

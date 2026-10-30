@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
-import { Eye, EyeOff } from '@sim/emcn/icons'
+import { AuthField, PasswordInput } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
@@ -21,10 +20,10 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
   const router = useRouter()
   const authenticate = usePublicFileAuth(token)
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleAuthenticate = async () => {
+    if (authenticate.isPending) return
     if (!password.trim()) {
       setError('Password is required.')
       return
@@ -39,48 +38,32 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
   }
 
   return (
-    <PublicFileAuthShell title='Password Required' subtitle='This file is password-protected'>
+    <PublicFileAuthShell title='Password required' subtitle='This file is password-protected'>
       <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          handleAuthenticate()
+        onSubmit={(event) => {
+          event.preventDefault()
+          void handleAuthenticate()
         }}
-        className='space-y-6'
+        className='au:space-y-5'
       >
-        <div className='space-y-2'>
-          <Label htmlFor='password'>Password</Label>
-          <div className='relative'>
-            <Input
-              id='password'
-              name='password'
-              required
-              type={showPassword ? 'text' : 'password'}
-              autoCapitalize='none'
-              autoComplete='current-password'
-              autoCorrect='off'
-              placeholder='Enter password'
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value)
-                setError(null)
-              }}
-              className={cn(
-                'pr-10',
-                error && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
-              )}
-            />
-            <button
-              type='button'
-              onClick={() => setShowPassword(!showPassword)}
-              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff className='size-[18px]' /> : <Eye className='size-[18px]' />}
-            </button>
-          </div>
-          {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
-        </div>
-
+        <AuthField htmlFor='password' label='Password' errors={error ? [error] : undefined}>
+          <PasswordInput
+            id='password'
+            name='password'
+            required
+            autoComplete='current-password'
+            autoCapitalize='none'
+            autoCorrect='off'
+            placeholder='Enter password'
+            value={password}
+            disabled={authenticate.isPending}
+            error={Boolean(error)}
+            onChange={(event) => {
+              setPassword(event.target.value)
+              setError(null)
+            }}
+          />
+        </AuthField>
         <AuthSubmitButton
           disabled={!password.trim()}
           loading={authenticate.isPending}

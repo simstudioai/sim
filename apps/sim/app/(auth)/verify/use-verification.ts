@@ -92,7 +92,7 @@ export function useVerification({
   const isOtpComplete = otp.length === 6
 
   async function verifyCode() {
-    if (!isOtpComplete || !email) return
+    if (!isOtpComplete || !email || status === 'verifying' || isResending) return
 
     setStatus('verifying')
     setErrorMessage('')
@@ -157,7 +157,14 @@ export function useVerification({
   }
 
   function resendCode() {
-    if (!email || !hasEmailService || !isEmailVerificationEnabled) return
+    if (
+      !email ||
+      !hasEmailService ||
+      !isEmailVerificationEnabled ||
+      isResending ||
+      status === 'verifying'
+    )
+      return
 
     setIsResending(true)
     setErrorMessage('')
@@ -168,7 +175,11 @@ export function useVerification({
         email: normalizedEmail,
         type: 'email-verification',
       })
-      .then(() => {})
+      .then((response) => {
+        if (response.error) {
+          setErrorMessage('Failed to resend verification code. Please try again later.')
+        }
+      })
       .catch(() => {
         setErrorMessage('Failed to resend verification code. Please try again later.')
       })

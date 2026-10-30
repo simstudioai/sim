@@ -248,7 +248,7 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
       </nav>
       {(hasConversation || (activeMode === 'search' && q.trim())) && (
         <Chip
-          rightIcon={Plus}
+          leftIcon={Plus}
           aria-label={newLabel}
           onClick={startNew}
           disabled={isStartingNew}

@@ -1,8 +1,10 @@
 import { db } from '@sim/db'
 import { credential, credentialGroupEnrollment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import {
   type ResourceOwner,
@@ -32,6 +34,21 @@ const logger = createLogger('ManagedOAuthCredential')
 const MANAGED_OAUTH_TOKEN_SET_TYPE = 'managed-oauth-token-set' as const
 const MANAGED_OAUTH_TOKEN_SET_VERSION = 1 as const
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 30_000
+const SALESFORCE_INSTANCE_CACHE_TTL_MS = 5 * 60_000
+const SALESFORCE_INSTANCE_CACHE_MAX = 10_000
+
+/** Only verified destinations are cached; credential authorization remains fresh on every use. */
+const salesforceInstanceCache = new LRUCache<
+  string,
+  string,
+  { providerId: string; accessToken: string }
+>({
+  max: SALESFORCE_INSTANCE_CACHE_MAX,
+  ttl: SALESFORCE_INSTANCE_CACHE_TTL_MS,
+  ignoreFetchAbort: true,
+  fetchMethod: (_key, _stale, { context }) =>
+    fetchSalesforceInstanceUrl(context.providerId, context.accessToken),
+})
 
 export type ManagedOAuthCredentialErrorCode =
   | 'MANAGED_CREDENTIAL_NOT_FOUND'
@@ -378,7 +395,10 @@ async function resolveProviderTokenContext(
   token: ResolvedManagedOAuthToken
 ): Promise<ResolvedManagedOAuthToken> {
   if (!isSalesforceOAuthProviderId(providerId)) return token
-  const instanceUrl = await fetchSalesforceInstanceUrl(providerId, token.accessToken)
+  const instanceUrl = await salesforceInstanceCache.fetch(
+    `${providerId}:${sha256Hex(token.accessToken)}`,
+    { context: { providerId, accessToken: token.accessToken } }
+  )
   if (!instanceUrl)
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_IDENTITY_UNAVAILABLE',

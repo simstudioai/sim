@@ -814,6 +814,162 @@ try {
     }
   })
   await check(
+    'Search keeps results usable through partial coverage and a failed request',
+    async () => {
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      const samples = [
+        {
+          documentId: 'launch-brief',
+          documentName: 'Launch brief',
+          connectorType: 'google_drive',
+          knowledgeBaseName: 'Google Drive',
+          sourceUrl: 'https://docs.example.test/launch',
+          content: 'The launch checklist is complete. Final owner sign-off is due Friday.',
+        },
+        {
+          documentId: 'launch-readiness',
+          documentName: 'Launch readiness',
+          connectorType: 'confluence',
+          knowledgeBaseName: 'Confluence',
+          sourceUrl: 'https://wiki.example.test/launch',
+          content: 'Engineering validation is complete. The support handoff is still in progress.',
+        },
+      ].map((sample) => ({
+        ...sample,
+        knowledgeBaseId: 'preview-source',
+        author: 'Taylor',
+        sourceModifiedAt: '2026-10-28T18:30:00.000Z',
+        chunkIndex: 0,
+        similarity: 0.9,
+      }))
+      let unavailable = false
+      let partial = false
+      const searchRoute = '**/api/knowledge/search'
+      await page.route(searchRoute, async (route) => {
+        if (unavailable) {
+          await route.fulfill({ status: 503, json: { error: 'Search is temporarily unavailable' } })
+          return
+        }
+        const body = toRecord(route.request().postDataJSON())
+        const source = toRecord(body.filters).source
+        await route.fulfill({
+          json: searchWorkspaceKnowledgeContract.response.schema.parse({
+            success: true,
+            data: {
+              query: body.query,
+              results: samples.filter((sample) => !source || sample.connectorType === source),
+              retrieval: { status: partial ? 'partial' : 'complete', timedOutLegs: [] },
+              live: {
+                backend: 'live',
+                accounts: samples.map((sample) => ({
+                  accountId: sample.documentId,
+                  provider: sample.connectorType,
+                  displayName: 'taylor@example.test',
+                  status: partial && sample.connectorType === 'confluence' ? 'timeout' : 'ok',
+                })),
+                guidance: '',
+              },
+            },
+          }),
+        })
+      })
+      try {
+        await page.goto(`${baseUrl.origin}${root}/search?q=Launch%20readiness`)
+        await expect(page.getByText('Launch brief', { exact: true }).first()).toBeVisible()
+        const wikiResult = page.locator(
+          'a[data-source-link][href="https://wiki.example.test/launch"]'
+        )
+        await expect(wikiResult).toBeVisible()
+        await capture('search-populated-desktop')
+        await page.getByRole('button', { name: 'Filter by source: All sources' }).click()
+        await capture('search-source-filter')
+        await page.getByRole('menuitem', { name: 'Google Drive', exact: true }).click()
+        await expect(page).toHaveURL((url) => url.searchParams.get('source') === 'google_drive')
+        await expect(wikiResult).toHaveCount(0)
+        await capture('search-filtered')
+        await page.getByRole('button', { name: 'Filter by date: Any time' }).click()
+        await capture('search-date-filter')
+        await page.keyboard.press('Escape')
+        await page.setViewportSize({ width: 390, height: 844 })
+        await capture('search-populated-mobile')
+        await page.setViewportSize({ width: 1440, height: 1000 })
+        partial = true
+        await page.goto(`${baseUrl.origin}${root}/search?q=Partial%20coverage`)
+        await expect(
+          page.getByText('Some apps couldn’t be searched. Showing available results.')
+        ).toBeVisible()
+        await capture('search-partial-coverage')
+        unavailable = true
+        await page.goto(`${baseUrl.origin}${root}/search?q=Provider%20outage`)
+        await expect(page.getByText('Search couldn’t run.', { exact: true })).toBeVisible()
+        await capture('search-error-retry')
+        unavailable = false
+        partial = false
+        await page.getByRole('button', { name: 'Try again', exact: true }).click()
+        await expect(page.getByText('Launch brief', { exact: true }).first()).toBeVisible()
+        await expect(page.getByText('Search couldn’t run.', { exact: true })).toHaveCount(0)
+
+        const citedChatId = generateId()
+        const citedAnswer =
+          'The checklist is complete, with final owner sign-off due Friday. <source>{"id":"document:launch-brief"}</source>\n\nThe support handoff is still in progress. <source>{"id":"document:launch-readiness"}</source>'
+        await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config)
+        values (${citedChatId}, ${userId}, ${organizationId}, 'mothership', 'Cited launch update', ${sql.json({ conversationMode: 'assistant' })})`
+        for (const [seq, role, content] of [
+          [1, 'user', question],
+          [2, 'assistant', citedAnswer],
+        ] as const) {
+          const id = generateId()
+          const contentBlocks =
+            role === 'assistant'
+              ? [
+                  {
+                    type: 'tool',
+                    phase: 'call',
+                    toolCall: {
+                      id: 'preview-retrieval',
+                      name: 'search_workspace',
+                      state: 'success',
+                      result: {
+                        success: true,
+                        output: {
+                          success: true,
+                          data: {
+                            results: samples.map((sample) => ({
+                              ...sample,
+                              citationId: `document:${sample.documentId}`,
+                              citationUrl: sample.sourceUrl,
+                            })),
+                          },
+                        },
+                      },
+                    },
+                  },
+                  { type: 'text', channel: 'final', content },
+                ]
+              : undefined
+          await sql`insert into copilot_messages (id, chat_id, message_id, role, content, seq)
+          values (${generateId()}, ${citedChatId}, ${id}, ${role}, ${sql.json({ id, role, content, contentBlocks, timestamp: new Date().toISOString() })}, ${seq})`
+        }
+        await page.goto(`${baseUrl.origin}${root}/search/chat/${citedChatId}`)
+        await expect(page.getByRole('button', { name: '2 sources', exact: true })).toBeVisible()
+        await capture('assistant-cited-answer')
+        await page.getByRole('button', { name: '2 sources', exact: true }).click()
+        await capture('assistant-sources-dropdown')
+        await page.getByRole('button', { name: 'View all sources', exact: true }).click()
+        const sourcesPanel = page.getByLabel('Cited sources', { exact: true })
+        await expect(sourcesPanel).toBeVisible()
+        await expect(sourcesPanel.getByText('Launch brief', { exact: true })).toBeVisible()
+        await expect(sourcesPanel.getByText('Launch readiness', { exact: true })).toBeVisible()
+        await capture('assistant-resources-panel')
+        await page.setViewportSize({ width: 390, height: 844 })
+        await expect(sourcesPanel).toBeVisible()
+        await capture('assistant-resources-mobile')
+      } finally {
+        await page.unroute(searchRoute)
+      }
+    }
+  )
+  await check(
     'Search-only members can reopen assistant history without access to Home chat',
     async () => {
       await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)

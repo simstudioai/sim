@@ -1,0 +1,93 @@
+{
+  "runtimeOwner": "@sim/auth-ui",
+  "styleOwner": "src/styles.module.css",
+  "snapshot": "design/tokens.json",
+  "architecture": {
+    "static": ["primitives.tsx", "compositions.tsx", "icons.tsx", "wordmark.tsx"],
+    "interactive": ["controls.tsx", "code-entry.tsx"],
+    "hostAdapters": "apps/sim/app/(auth)/components; apps/desktop/src/renderer",
+    "rule": "Shared visual elements live in this package. Route-specific operations stay colocated with their page. No auth/session logic or App/Docs/Landing theme imports in the package.",
+    "isolation": [
+      "CSS Modules",
+      "root-owned Auth variables",
+      "au: prefixed utilities without preflight",
+      "local licensed fonts",
+      "portals in AuthRoot",
+      "deployment CSS suppressed only while Auth is visible",
+      "identity, favicon and legal/support endpoints retained"
+    ]
+  },
+  "responsive": {
+    "desktop": {
+      "formMaxWidth": 400,
+      "navigationMaxWidth": 1280,
+      "navigationHeight": 56,
+      "pagePadding": "48px 24px",
+      "groupGap": 20,
+      "inputFontSize": 14,
+      "navigationAction": "32px ink pill",
+      "support": "flow footer after flexible main"
+    },
+    "mobile": {
+      "breakpointMax": 767,
+      "gutters": 16,
+      "mainTop": 24,
+      "groupGap": 24,
+      "visibleControlHeight": 32,
+      "touchTargetHeight": 44,
+      "inputFontSize": 16,
+      "navigationAction": "quiet text link",
+      "support": "after form, in document flow"
+    },
+    "all": {
+      "fieldGap": 20,
+      "labelGap": 8,
+      "controlRadius": 8,
+      "controlInset": 10,
+      "quietControl": 28,
+      "glyph": 16,
+      "otpSlot": 32,
+      "otpGap": 8,
+      "providerColumns": 2,
+      "providerGap": 8,
+      "menuPadding": 4,
+      "menuRadius": 10,
+      "menuRowMinHeight": 30,
+      "menuRowRadius": 6,
+      "menuBlur": 20
+    }
+  },
+  "tokens": {
+    "canvas": "--color-background",
+    "primary": "--color-app-text-primary",
+    "secondary": "--color-app-text-secondary",
+    "reading": "--color-app-reading",
+    "overlay": "--color-app-overlay",
+    "inputBorder": "--color-border",
+    "secondaryBorder": "--color-app-border",
+    "hover": "--color-app-hover",
+    "selected": "--color-app-selected",
+    "pressed": "--color-app-pressed",
+    "focus": "--blue",
+    "error": "#C83232 from Auth state boards",
+    "disabledOpacity": 0.4
+  },
+  "practicesReviewed": {
+    "date": "2026-10-29",
+    "documentationVersion": "16.4.3",
+    "installedVersion": "16.4.1",
+    "sources": [
+      "https://nextjs.org/docs/app/getting-started/project-structure",
+      "https://nextjs.org/docs/app/getting-started/server-and-client-components",
+      "https://nextjs.org/docs/app/api-reference/functions/generate-metadata",
+      "https://developers.google.com/search/docs/crawling-indexing/block-indexing"
+    ],
+    "decisions": [
+      "Keep server-rendered route/layout composition; isolate interactive controls behind client boundaries.",
+      "Colocate route-specific forms and keep the reusable visual system in a workspace package.",
+      "Keep Auth noindex/nofollow through metadata and HTTP indexing policy; no Auth sitemap, structured-data marketing, or agent discovery additions.",
+      "Preserve full-document Auth/App navigation boundaries.",
+      "Serve local WOFF2 with font-display swap; avoid adding a network font or analytics dependency."
+    ]
+  }
+}

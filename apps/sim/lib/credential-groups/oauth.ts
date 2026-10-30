@@ -227,6 +227,7 @@ async function persistGrant(
         id: credential.id,
         revokedAt: credential.revokedAt,
         providerSubjectId: credential.providerSubjectId,
+        providerTenantId: credential.providerTenantId,
         encryptedOauthTokenSet: credential.encryptedOauthTokenSet,
         refreshTokenExpiresAt: credential.refreshTokenExpiresAt,
       })
@@ -250,12 +251,19 @@ async function persistGrant(
       )
     }
 
-    let refreshToken = grant.refreshToken
     if (
-      !refreshToken &&
-      existing?.providerSubjectId === grant.providerSubjectId &&
-      existing.encryptedOauthTokenSet
+      existing &&
+      (existing.providerSubjectId !== grant.providerSubjectId ||
+        existing.providerTenantId !== grant.providerTenantId)
     ) {
+      throw new CredentialGroupOAuthError(
+        'Reconnect with the account originally used for this connection. Switching to a different account is not supported for this connection.',
+        409
+      )
+    }
+
+    let refreshToken = grant.refreshToken
+    if (!refreshToken && existing?.encryptedOauthTokenSet) {
       refreshToken = (await decryptManagedOAuthTokenSet(existing.encryptedOauthTokenSet))
         .refreshToken
     }

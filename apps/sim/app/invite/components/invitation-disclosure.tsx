@@ -1,3 +1,4 @@
+import { AuthResourceIdentity, AuthResourceRow } from '@sim/auth-ui'
 import type { InvitationDetails, MyInvitation } from '@/lib/api/contracts/invitations'
 import { InvitationWorkspaceAccess } from '@/app/invite/components/invitation-workspace-access'
 
@@ -5,13 +6,16 @@ interface InvitationDisclosureProps {
   invitation: InvitationDetails
   joinPreview: MyInvitation['joinPreview']
   showWorkspaceAccess?: boolean
+  appearance?: 'app' | 'auth'
 }
 
 export function InvitationDisclosure({
   invitation,
   joinPreview,
   showWorkspaceAccess = true,
+  appearance = 'app',
 }: InvitationDisclosureProps) {
+  const auth = appearance === 'auth'
   const outcome =
     joinPreview?.outcome ?? (invitation.membershipIntent === 'external' ? 'external' : null)
   const organizationName =
@@ -20,13 +24,21 @@ export function InvitationDisclosure({
     'the workspace’s organization'
 
   return (
-    <div className='space-y-3 text-left text-[var(--text-body)] text-small'>
+    <div
+      className={
+        auth
+          ? 'au:space-y-3 au:text-left au:text-[var(--auth-primary)] au:text-control'
+          : 'space-y-3 text-left text-[var(--text-body)] text-small'
+      }
+    >
       {outcome === 'will-join' && (
         <>
           <p>
-            You will join <strong className='font-medium'>{organizationName}</strong> as an
-            organization <strong className='font-medium'>{invitation.role}</strong>. This uses one
-            organization seat.
+            You will join{' '}
+            <strong className={auth ? 'au:font-medium' : 'font-medium'}>{organizationName}</strong>{' '}
+            as an organization{' '}
+            <strong className={auth ? 'au:font-medium' : 'font-medium'}>{invitation.role}</strong>.
+            This uses one organization seat.
           </p>
           {joinPreview && joinPreview.workspaceIdsToMove.length > 0 ? (
             <div>
@@ -35,12 +47,25 @@ export function InvitationDisclosure({
                 organization. Its administrators will be able to manage them:
               </p>
               <ul
-                className='mt-1 list-disc space-y-1 pl-5'
+                className={auth ? 'au:mt-2 au:list-none' : 'mt-1 list-disc space-y-1 pl-5'}
                 aria-label='Workspaces moving into the organization'
               >
                 {joinPreview.workspaceIdsToMove.map((id, index) => (
-                  <li key={id} className='break-words'>
-                    {joinPreview.workspacesToMove[index] || 'Unnamed workspace'}
+                  <li key={id} className={auth ? 'au:break-words' : 'break-words'}>
+                    {auth ? (
+                      <AuthResourceRow
+                        icon={
+                          <AuthResourceIdentity
+                            initial={(joinPreview.workspacesToMove[index] || 'W')
+                              .slice(0, 1)
+                              .toUpperCase()}
+                          />
+                        }
+                        title={joinPreview.workspacesToMove[index] || 'Unnamed workspace'}
+                      />
+                    ) : (
+                      joinPreview.workspacesToMove[index] || 'Unnamed workspace'
+                    )}
                   </li>
                 ))}
               </ul>
@@ -69,9 +94,17 @@ export function InvitationDisclosure({
         </p>
       )}
       {showWorkspaceAccess && invitation.grants.length > 0 && (
-        <div className='space-y-2'>
-          <p className='text-[var(--text-muted)] text-caption'>Workspace access</p>
-          <InvitationWorkspaceAccess grants={invitation.grants} />
+        <div className={auth ? 'au:space-y-2' : 'space-y-2'}>
+          <p
+            className={
+              auth
+                ? 'au:text-[var(--auth-secondary)] au:text-caption'
+                : 'text-[var(--text-muted)] text-caption'
+            }
+          >
+            Workspace access
+          </p>
+          <InvitationWorkspaceAccess grants={invitation.grants} appearance={appearance} />
         </div>
       )}
     </div>

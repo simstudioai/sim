@@ -81,6 +81,7 @@ export function isAppSurfacePath(pathname: string): boolean {
  */
 const NOINDEX_PATH_ROOTS = [
   '/chat',
+  '/extension',
   '/resume',
   '/invite',
   '/unsubscribe',

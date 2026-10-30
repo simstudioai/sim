@@ -1,12 +1,11 @@
 'use client'
 
 import { Suspense } from 'react'
-import { Chip, cn, Loader } from '@sim/emcn'
+import { AuthHeader, AuthButton as Chip, AuthLoader as Loader } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import type { UnsubscribeType } from '@/lib/api/contracts/user'
 import { AuthSubmitButton } from '@/app/(auth)/components'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { InviteLayout } from '@/app/invite/components'
 import { useUnsubscribe, useUnsubscribeMutation } from '@/hooks/queries/unsubscribe'
 
@@ -39,12 +38,9 @@ function UnsubscribeContent() {
   if (loading) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[32px] text-[var(--text-primary)] tracking-tight'}>Loading</h1>
-          <p className={'text-[var(--text-muted)] text-md'}>Validating your unsubscribe link…</p>
-        </div>
-        <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-          <Loader className='size-8 text-[var(--text-muted)]' animate />
+        <AuthHeader title='Loading' description='Validating your unsubscribe link…' />
+        <div className='au:mt-[var(--auth-group-gap)] au:flex au:w-full au:items-center au:justify-center au:py-8'>
+          <Loader className='au:size-8 au:text-[var(--auth-secondary)]' animate />
         </div>
       </InviteLayout>
     )
@@ -53,16 +49,11 @@ function UnsubscribeContent() {
   if (error) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[32px] text-[var(--text-primary)] tracking-tight'}>
-            Invalid Unsubscribe Link
-          </h1>
-          <p className={'text-[var(--text-muted)] text-md'}>{error}</p>
-        </div>
+        <AuthHeader title='Invalid unsubscribe link' description={error} />
 
-        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+        <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
           <AuthSubmitButton type='button' onClick={() => window.history.back()} loadingLabel=''>
-            Go Back
+            Go back
           </AuthSubmitButton>
         </div>
       </InviteLayout>
@@ -72,17 +63,12 @@ function UnsubscribeContent() {
   if (data?.isTransactional) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[32px] text-[var(--text-primary)] tracking-tight'}>
-            Important Account Emails
-          </h1>
-          <p className={'text-[var(--text-muted)] text-md'}>
-            Transactional emails like password resets, account confirmations, and security alerts
-            cannot be unsubscribed from as they contain essential information for your account.
-          </p>
-        </div>
+        <AuthHeader
+          title='Important account emails'
+          description='Transactional emails like password resets, account confirmations, and security alerts cannot be unsubscribed from as they contain essential information for your account.'
+        />
 
-        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+        <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
           <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
             Close
           </AuthSubmitButton>
@@ -94,17 +80,12 @@ function UnsubscribeContent() {
   if (unsubscribed) {
     return (
       <InviteLayout>
-        <div className='space-y-1 text-center'>
-          <h1 className={'text-[32px] text-[var(--text-primary)] tracking-tight'}>
-            Successfully Unsubscribed
-          </h1>
-          <p className={'text-[var(--text-muted)] text-md'}>
-            You have been unsubscribed from our emails. You will stop receiving emails within 48
-            hours.
-          </p>
-        </div>
+        <AuthHeader
+          title='Successfully unsubscribed'
+          description='You have been unsubscribed from our emails. You will stop receiving emails within 48 hours.'
+        />
 
-        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+        <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
           <AuthSubmitButton type='button' onClick={() => window.close()} loadingLabel=''>
             Close
           </AuthSubmitButton>
@@ -117,17 +98,17 @@ function UnsubscribeContent() {
 
   return (
     <InviteLayout>
-      <div className='space-y-1 text-center'>
-        <h1 className={'text-[32px] text-[var(--text-primary)] tracking-tight'}>
-          Email Preferences
-        </h1>
-        <p className={'text-[var(--text-muted)] text-md'}>
-          Choose which emails you'd like to stop receiving.
+      <div className='au:space-y-1'>
+        <AuthHeader
+          title='Email preferences'
+          description="Choose which emails you'd like to stop receiving."
+        />
+        <p className='au:break-all au:text-[var(--auth-secondary)] au:text-control'>
+          {data?.email}
         </p>
-        <p className={'text-[var(--text-muted)] text-sm'}>{data?.email}</p>
       </div>
 
-      <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+      <div className='au:mt-[var(--auth-group-gap)] au:w-full au:space-y-3'>
         <AuthSubmitButton
           type='button'
           onClick={() => handleUnsubscribe('all')}
@@ -140,8 +121,10 @@ function UnsubscribeContent() {
             : 'Unsubscribe from All Marketing Emails'}
         </AuthSubmitButton>
 
-        <div className='py-2 text-center'>
-          <span className={'text-[var(--text-muted)] text-sm'}>or choose specific types</span>
+        <div className='au:py-2 au:text-center'>
+          <span className='au:text-[var(--auth-secondary)] au:text-caption'>
+            or choose specific types
+          </span>
         </div>
 
         <Chip
@@ -152,7 +135,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
@@ -167,7 +150,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
@@ -182,7 +165,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
-          className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+          variant='outline'
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'
@@ -190,8 +173,8 @@ function UnsubscribeContent() {
         </Chip>
       </div>
 
-      <div className={'mt-6 max-w-[410px] text-center'}>
-        <p className='text-[var(--text-muted)] text-small'>
+      <div className='au:mt-[var(--auth-group-gap)]'>
+        <p className='au:text-[var(--auth-secondary)] au:text-caption'>
           You'll continue receiving important account emails like password resets and security
           alerts.
         </p>
@@ -205,12 +188,9 @@ export default function Unsubscribe() {
     <Suspense
       fallback={
         <InviteLayout>
-          <div className='space-y-1 text-center'>
-            <h1 className={'text-[32px] text-[var(--text-primary)] tracking-tight'}>Loading</h1>
-            <p className={'text-[var(--text-muted)] text-md'}>Validating your unsubscribe link…</p>
-          </div>
-          <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-            <Loader className='size-8 text-[var(--text-muted)]' animate />
+          <AuthHeader title='Loading' description='Validating your unsubscribe link…' />
+          <div className='au:mt-[var(--auth-group-gap)] au:flex au:w-full au:items-center au:justify-center au:py-8'>
+            <Loader className='au:size-8 au:text-[var(--auth-secondary)]' animate />
           </div>
         </InviteLayout>
       }

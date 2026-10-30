@@ -8,43 +8,52 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { ChevronDown, ChevronRight } from '@sim/emcn/icons'
-import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
+import {
+  assistantActionFieldPresentation,
+  assistantActionPresentation,
+} from '@/components/assistant-actions/presentation'
 import type { AssistantActionsResponse } from '@/lib/api/contracts/assistant-actions'
 
 type ReviewField = AssistantActionsResponse['actions'][number]['fields'][number]
 
 interface ActionPreviewProps {
   action: Pick<AssistantActionsResponse['actions'][number], 'toolId' | 'name' | 'fields'>
+  account?: string
   full?: boolean
 }
 
 /** Readable content first; supplied secondary parameters remain inspectable. */
-export function ActionPreview({ action, full = false }: ActionPreviewProps) {
+export function ActionPreview({ action, account, full = false }: ActionPreviewProps) {
   const [expanded, setExpanded] = useState(false)
   const detailsId = useId()
   const { targets, primary, details } = assistantActionPresentation(action)
   return (
     <div className='flex min-w-0 flex-col gap-2'>
-      {targets.length > 0 && (
-        <dl className='flex flex-wrap gap-x-4 gap-y-1'>
+      {(account || targets.length > 0) && (
+        <div className='flex flex-col gap-1'>
+          {account && (
+            <dl className='grid grid-cols-[minmax(0,6rem)_minmax(0,1fr)] items-baseline gap-x-3 text-small'>
+              <dt className='text-[var(--text-muted)] text-caption'>Account</dt>
+              <dd className='min-w-0 break-all text-[var(--text-body)]'>{account}</dd>
+            </dl>
+          )}
           {targets.map((field) => (
-            <div key={field.name} className='flex min-w-0 flex-wrap gap-x-1.5 text-small'>
-              <dt className='text-[var(--text-muted)]'>{field.label}</dt>
-              <dd className='whitespace-pre-wrap break-all text-[var(--text-body)]'>
-                {field.value}
-              </dd>
-            </div>
+            <PreviewField key={field.name} field={field} compact />
           ))}
-        </dl>
+        </div>
       )}
-      {primary.map((field, index) => (
-        <PreviewField
-          key={field.name}
-          field={field}
-          primary
-          prominent={index === 0 && field.format === 'text'}
-        />
-      ))}
+      {primary.length > 0 && (
+        <div className='flex min-w-0 flex-col gap-1 border-[var(--border)] border-t pt-2'>
+          {primary.map((field, index) => (
+            <PreviewField
+              key={field.name}
+              field={field}
+              compact={field.format === 'text'}
+              prominent={index === 0 && field.format === 'text'}
+            />
+          ))}
+        </div>
+      )}
       {details.length > 0 && (
         <>
           {!full && (
@@ -62,7 +71,7 @@ export function ActionPreview({ action, full = false }: ActionPreviewProps) {
           {(expanded || full) && (
             <div id={detailsId} className='flex flex-col gap-2'>
               {details.map((field) => (
-                <PreviewField key={field.name} field={field} />
+                <PreviewField key={field.name} field={field} compact />
               ))}
             </div>
           )}
@@ -74,30 +83,36 @@ export function ActionPreview({ action, full = false }: ActionPreviewProps) {
 
 interface PreviewFieldProps {
   field: ReviewField
-  primary?: boolean
+  compact?: boolean
   prominent?: boolean
 }
 
-function PreviewField({ field, primary = false, prominent = false }: PreviewFieldProps) {
+function PreviewField({ field, compact = false, prominent = false }: PreviewFieldProps) {
   const scroll = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges(scroll)
-  let value = field.value
+  const display = assistantActionFieldPresentation(field)
+  let value = display.value
   if (field.format === 'json') {
     try {
       value = JSON.stringify(JSON.parse(value), null, 2)
     } catch {}
   }
   return (
-    <dl className='flex min-w-0 flex-col gap-1'>
-      {(!primary || field.format === 'json') && (
-        <dt className='text-[var(--text-muted)] text-caption'>{field.label}</dt>
+    <dl
+      className={cn(
+        'min-w-0',
+        compact && field.format === 'text'
+          ? 'grid grid-cols-[minmax(0,6rem)_minmax(0,1fr)] items-baseline gap-x-3'
+          : 'flex flex-col gap-1'
       )}
-      <dd>
+    >
+      <dt className='break-words text-[var(--text-muted)] text-caption'>{display.label}</dt>
+      <dd className='min-w-0'>
         <div
           ref={scroll}
           tabIndex={edges.top || edges.bottom ? 0 : undefined}
           role='region'
-          aria-label={`${field.label} preview`}
+          aria-label={`${display.label} preview`}
           className={cn(
             'max-h-32 overflow-auto whitespace-pre-wrap break-words text-[var(--text-body)] text-small',
             scrollFadeClass,

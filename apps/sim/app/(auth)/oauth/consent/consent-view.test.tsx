@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { AuthRoot } from '@sim/auth-ui'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
@@ -29,11 +30,10 @@ function button(label: string): HTMLButtonElement {
   return found
 }
 
-async function click(label: string) {
-  await act(async () => {
-    button(label).click()
-    await vi.advanceTimersByTimeAsync(1)
-  })
+function accountButton(): HTMLButtonElement {
+  const found = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')
+  if (!found) throw new Error('Missing account menu')
+  return found
 }
 
 describe('OAuth consent view', () => {
@@ -46,18 +46,21 @@ describe('OAuth consent view', () => {
       name: 'Sim CLI',
     })
     container = document.createElement('div')
+    document.body.appendChild(container)
     root = createRoot(container)
     act(() =>
       root.render(
         <QueryClientProvider client={queryClient}>
-          <OAuthConsentView
-            refusal={null}
-            clientId='sim-cli'
-            authorizationRequestKey='request'
-            scope='offline_access api:read api:write'
-            redirectUri='http://127.0.0.1:1234/callback'
-            email='test@example.com'
-          />
+          <AuthRoot>
+            <OAuthConsentView
+              refusal={null}
+              clientId='sim-cli'
+              authorizationRequestKey='request'
+              scope='offline_access api:read api:write'
+              redirectUri='http://127.0.0.1:1234/callback'
+              email='test@example.com'
+            />
+          </AuthRoot>
         </QueryClientProvider>
       )
     )
@@ -65,6 +68,7 @@ describe('OAuth consent view', () => {
 
   afterEach(() => {
     act(() => root.unmount())
+    container.remove()
     queryClient.clear()
     vi.useRealTimers()
   })
@@ -76,10 +80,20 @@ describe('OAuth consent view', () => {
         finish = resolve
       })
     )
-    await click('Use another account')
+    await act(async () => {
+      accountButton().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await vi.advanceTimersByTimeAsync(20)
+    })
+    const switchAccount = container.querySelector<HTMLElement>('[role="menuitem"]')
+    expect(switchAccount?.textContent).toBe('Use another account')
+    await act(async () => {
+      switchAccount?.click()
+      await vi.advanceTimersByTimeAsync(1)
+    })
     expect(button('Allow').disabled).toBe(true)
     expect(button('Deny').disabled).toBe(true)
-    expect(button('Signing out…').disabled).toBe(true)
+    expect(accountButton().disabled).toBe(true)
+    expect(accountButton().textContent).toContain('Signing out…')
     await act(async () => {
       finish({ error: { message: 'Unable to end this session.' } })
       await vi.advanceTimersByTimeAsync(1)
@@ -87,7 +101,8 @@ describe('OAuth consent view', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       'Unable to end this session.'
     )
-    expect(container.textContent).toContain('Continuing as test@example.com.')
+    expect(accountButton().textContent).toContain('Signed in as')
+    expect(accountButton().textContent).toContain('test@example.com')
     expect(button('Allow').disabled).toBe(false)
     expect(mocks.consent).not.toHaveBeenCalled()
   })

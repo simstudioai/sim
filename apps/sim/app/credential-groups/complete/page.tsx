@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { AuthLinkButton as ChipLink } from '@sim/auth-ui'
 import { isValidUuid } from '@sim/utils/id'
 import type { Metadata } from 'next'
 import {
@@ -50,7 +50,7 @@ export default async function CredentialGroupCompletePage({
         }
       />
       {(error || returnHref) && (
-        <div className='mt-6 flex justify-center'>
+        <div className='au:mt-6 au:flex au:justify-center'>
           <ChipLink href={returnHref ?? APP_ENTRY_PATH}>
             {returnHref ? 'Return to Integrations' : 'Open Sim'}
           </ChipLink>

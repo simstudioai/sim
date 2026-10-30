@@ -1,0 +1,25 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme) prefix(au);
+@import 'tailwindcss/utilities.css' layer(utilities) prefix(au) source(none);
+@source '../../../apps/sim/app';
+@source '../../../apps/sim/ee/sso/components/sso-auth.tsx';
+@source '../../../apps/sim/ee/sso/components/sso-form.tsx';
+@source '../../../apps/desktop/src/renderer';
+@theme {
+  --spacing: 4px;
+  --text-title: 24px;
+  --text-title--line-height: 32px;
+  --text-body: 14px;
+  --text-body--line-height: 22px;
+  --text-control: 13px;
+  --text-control--line-height: 18px;
+  --text-caption: 12px;
+  --text-caption--line-height: 18px;
+  --text-md: 16px;
+  --text-md--line-height: 24px;
+  --radius-lg: 8px;
+}
+@theme inline {
+  --font-sans: var(--auth-font);
+  --font-mono: var(--auth-mono);
+}

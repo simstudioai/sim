@@ -34,6 +34,7 @@ import { buildProgram } from './program'
  */
 
 export type { EmbeddedCliIdentity, EmbeddedFileSnapshot } from './embed-context'
+export { STILL_RUNNING_EXIT_CODE } from './exit-codes'
 export type {
   ExportWorkflowResponse,
   ListFilesResponse,

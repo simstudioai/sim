@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
+import { AuthCodeEntry, AuthEmailInput, AuthField } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AuthSubmitButton, AuthTextLink } from '@/app/(auth)/components'
+import { AuthSubmitButton } from '@/app/(auth)/components'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileOtpRequest, usePublicFileOtpVerify } from '@/hooks/queries/public-shares'
 
@@ -37,6 +37,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   }, [countdown])
 
   const sendCode = async () => {
+    if (requestOtp.isPending || verifyOtp.isPending) return
     if (!quickValidateEmail(normalizeEmail(email)).isValid) {
       setError('Please enter a valid email address.')
       return
@@ -52,6 +53,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   }
 
   const verifyCode = async (code: string) => {
+    if (requestOtp.isPending || verifyOtp.isPending) return
     if (code.length !== 6) return
     setError(null)
     try {
@@ -63,6 +65,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   }
 
   const resend = async () => {
+    if (requestOtp.isPending || verifyOtp.isPending) return
     setCountdown(30)
     try {
       await requestOtp.mutateAsync({ email: normalizeEmail(email) })
@@ -74,126 +77,72 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
     }
   }
 
-  if (!sent) {
-    return (
-      <PublicFileAuthShell
-        title='Email Verification'
-        subtitle='This file requires email verification'
-      >
+  return (
+    <PublicFileAuthShell
+      title={sent ? 'Verify your email' : 'Email verification'}
+      subtitle={
+        sent
+          ? `A verification code has been sent to ${email}`
+          : 'This file requires email verification'
+      }
+    >
+      {!sent ? (
         <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            sendCode()
+          onSubmit={(event) => {
+            event.preventDefault()
+            void sendCode()
           }}
-          className='space-y-6'
+          className='au:space-y-5'
         >
-          <div className='space-y-2'>
-            <Label htmlFor='email'>Email</Label>
-            <Input
+          <AuthField htmlFor='email' label='Email' errors={error ? [error] : undefined}>
+            <AuthEmailInput
               id='email'
               name='email'
               type='email'
               required
-              autoCapitalize='none'
-              autoComplete='email'
-              autoCorrect='off'
-              placeholder='Enter your email'
               value={email}
-              onChange={(e) => {
-                setEmail(e.target.value)
+              onChange={(event) => {
+                setEmail(event.target.value)
                 setError(null)
               }}
-              className={cn(error && 'border-[var(--text-error)] focus:border-[var(--text-error)]')}
+              error={Boolean(error)}
+              disabled={requestOtp.isPending}
             />
-            {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
-          </div>
-
+          </AuthField>
           <AuthSubmitButton
             disabled={!email.trim()}
             loading={requestOtp.isPending}
-            loadingLabel='Sending Code…'
+            loadingLabel='Sending code…'
           >
             Continue
           </AuthSubmitButton>
         </form>
-      </PublicFileAuthShell>
-    )
-  }
-
-  return (
-    <PublicFileAuthShell
-      title='Verify Your Email'
-      subtitle={`A verification code has been sent to ${email}`}
-    >
-      <div className='space-y-6'>
-        <p className='text-center text-[var(--text-muted)] text-sm'>
-          Enter the 6-digit code to verify your access. If you don't see it in your inbox, check
-          your spam folder.
-        </p>
-
-        <div className='flex justify-center'>
-          <InputOTP
-            maxLength={6}
-            value={otp}
-            onChange={(value) => {
-              setOtp(value)
-              setError(null)
-              if (value.length === 6) verifyCode(value)
-            }}
-            disabled={verifyOtp.isPending}
-            className={cn('gap-2', error && 'otp-error')}
-          >
-            <InputOTPGroup>
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <InputOTPSlot
-                  key={i}
-                  index={i}
-                  className={cn(error && 'border-[var(--text-error)]')}
-                />
-              ))}
-            </InputOTPGroup>
-          </InputOTP>
-        </div>
-
-        {error ? <p className='text-center text-[var(--text-error)] text-xs'>{error}</p> : null}
-
-        <AuthSubmitButton
-          type='button'
-          onClick={() => verifyCode(otp)}
-          disabled={otp.length !== 6}
-          loading={verifyOtp.isPending}
-          loadingLabel='Verifying…'
-        >
-          Verify Email
-        </AuthSubmitButton>
-
-        <div className='text-center'>
-          <p className='text-[var(--text-muted)] text-sm'>
-            Didn't receive a code?{' '}
-            {countdown > 0 ? (
-              <span>
-                Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
-              </span>
-            ) : (
-              <AuthTextLink onClick={resend} disabled={requestOtp.isPending || verifyOtp.isPending}>
-                Resend
-              </AuthTextLink>
-            )}
-          </p>
-        </div>
-
-        <div className='text-center font-light text-sm'>
-          <AuthTextLink
-            onClick={() => {
-              setSent(false)
-              setOtp('')
-              setError(null)
-            }}
-          >
-            Change email
-          </AuthTextLink>
-        </div>
-      </div>
+      ) : (
+        <AuthCodeEntry
+          value={otp}
+          onChange={(value) => {
+            setOtp(value)
+            setError(null)
+            if (value.length === 6) void verifyCode(value)
+          }}
+          onVerify={() => {
+            void verifyCode(otp)
+          }}
+          onResend={() => {
+            void resend()
+          }}
+          onChangeEmail={() => {
+            setSent(false)
+            setOtp('')
+            setError(null)
+          }}
+          verifying={verifyOtp.isPending}
+          resending={requestOtp.isPending}
+          countdown={countdown}
+          error={error}
+          help="Enter the six-digit code to verify your access. If you don't see it in your inbox, check your spam folder."
+        />
+      )}
     </PublicFileAuthShell>
   )
 }

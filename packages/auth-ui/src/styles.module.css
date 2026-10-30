@@ -1,0 +1,824 @@
+@reference 'tailwindcss';
+
+@font-face {
+  font-family: "Sim Auth Geist";
+  src: url("./assets/geist-variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Sim Auth Geist Mono";
+  src: url("./assets/geist-mono-variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.root {
+  --auth-canvas: #fff;
+  --auth-primary: rgb(10 10 10 / 80%);
+  --auth-secondary: rgb(10 10 10 / 60%);
+  --auth-reading: rgb(255 255 255 / 96%);
+  --auth-overlay: rgb(255 255 255 / 88%);
+  --auth-border: rgb(0 0 0 / 12%);
+  --auth-border-subtle: rgb(0 0 0 / 6%);
+  --auth-hover: rgb(10 10 10 / 6%);
+  --auth-selected: rgb(0 0 0 / 8%);
+  --auth-pressed: rgb(0 0 0 / 12%);
+  --auth-accent: #06c;
+  --auth-error: #c83232;
+  --auth-disabled: 0.4;
+  --auth-font: "Sim Auth Geist", Arial, sans-serif;
+  --auth-mono: "Sim Auth Geist Mono", monospace;
+  --auth-title-size: 24px;
+  --auth-title-leading: 32px;
+  --auth-body-size: 14px;
+  --auth-body-leading: 22px;
+  --auth-control-size: 13px;
+  --auth-control-leading: 18px;
+  --auth-caption-size: 12px;
+  --auth-input-size: 14px;
+  --auth-control-height: 32px;
+  --auth-control-radius: 8px;
+  --auth-quiet-size: 28px;
+  --auth-icon-size: 16px;
+  --auth-field-gap: 20px;
+  --auth-group-gap: 20px;
+  --auth-label-gap: 8px;
+  --auth-control-inset: 10px;
+  --auth-form-width: 400px;
+  --auth-nav-width: 1280px;
+  --auth-touch-height: 32px;
+  color-scheme: light;
+  color: var(--auth-primary);
+  font-family: var(--auth-font);
+  font-size: var(--auth-body-size);
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: var(--auth-body-leading);
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  -webkit-font-smoothing: antialiased;
+}
+.root :where(*, *::before, *::after) {
+  box-sizing: border-box;
+}
+.root :where(h1, h2, h3, p, ul, ol, fieldset) {
+  margin: 0;
+  padding: 0;
+}
+.root :where(ul, ol) {
+  list-style: none;
+}
+.root :where(button, input, select, textarea) {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  color: inherit;
+}
+.root :where(a) {
+  color: inherit;
+}
+.root :where(button) {
+  cursor: pointer;
+}
+.root :where(button:disabled) {
+  cursor: not-allowed;
+}
+.root :where(svg) {
+  flex-shrink: 0;
+}
+.root :where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--auth-accent);
+  outline-offset: 2px;
+}
+.root .page {
+  @apply flex w-full flex-col;
+  min-height: 100svh;
+  background: var(--auth-canvas);
+}
+.root .header {
+  @apply w-full shrink-0;
+  height: 56px;
+}
+.root .nav {
+  @apply mx-auto flex h-full w-full items-center justify-between;
+  max-width: var(--auth-nav-width);
+  padding-inline: 16px;
+}
+.root .wordmark {
+  @apply inline-flex items-center;
+  width: 40px;
+  min-height: 44px;
+}
+.root .wordmark :where(svg, img) {
+  display: block;
+  translate: 0 -2px;
+  color: #000;
+  width: 40px;
+  max-height: 24px;
+  object-fit: contain;
+}
+.root .main {
+  @apply flex w-full flex-1 items-center justify-center;
+  padding: 48px 24px;
+}
+.root .column {
+  @apply w-full shrink-0;
+  max-width: var(--auth-form-width);
+  min-width: 0;
+}
+.root .footer {
+  @apply flex shrink-0 justify-center;
+  padding: 0 16px 24px;
+  font-size: var(--auth-caption-size);
+  line-height: 18px;
+}
+.root .footer .textLink {
+  color: var(--auth-primary);
+}
+.root .heading {
+  @apply flex flex-col;
+  gap: 6px;
+}
+.root .heading h1 {
+  font-family: var(--auth-font);
+  font-size: var(--auth-title-size);
+  line-height: var(--auth-title-leading);
+  font-weight: 500;
+  color: var(--auth-primary);
+  letter-spacing: -0.02em;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.root .heading p {
+  color: var(--auth-primary);
+  font-size: var(--auth-body-size);
+  line-height: var(--auth-body-leading);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.root .stack {
+  @apply flex flex-col;
+  gap: var(--auth-group-gap);
+}
+.root .field {
+  @apply flex w-full flex-col;
+  gap: var(--auth-label-gap);
+}
+.root .labelRow {
+  @apply flex items-center justify-between;
+  gap: 8px;
+}
+.root .labelRow .textLink {
+  font-size: var(--auth-caption-size);
+  line-height: var(--auth-control-leading);
+}
+.root .label {
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  font-weight: 400;
+}
+.root .caption,
+.root .fieldErrors {
+  font-size: var(--auth-caption-size);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.root .caption {
+  color: var(--auth-secondary);
+}
+.root .caption:empty {
+  display: none;
+}
+.root .fieldErrors {
+  color: var(--auth-error);
+}
+.root .inputLane,
+.root .select {
+  @apply flex w-full items-center;
+  position: relative;
+  min-width: 0;
+  height: var(--auth-touch-height);
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.root .inputSurface {
+  @apply flex w-full items-center;
+  position: relative;
+  min-width: 0;
+  height: var(--auth-control-height);
+  padding-inline: var(--auth-control-inset);
+  border: 1px solid var(--auth-border);
+  border-radius: var(--auth-control-radius);
+  background: var(--auth-reading);
+  gap: 6px;
+}
+.root .inputSurface:has(.quietAction) {
+  padding-right: 2px;
+}
+.root .inputLane:focus-within .inputSurface {
+  border-color: var(--auth-accent);
+  box-shadow: 0 0 0 1px var(--auth-accent);
+}
+.root .inputLane[data-invalid] .inputSurface {
+  border-color: var(--auth-error);
+}
+.root .inputLane[data-disabled] {
+  opacity: var(--auth-disabled);
+}
+.root .input {
+  @apply w-full min-w-0 flex-1;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  font-family: var(--auth-font);
+  font-size: var(--auth-input-size);
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--auth-primary);
+  caret-color: var(--auth-primary);
+  opacity: 1;
+}
+.root .input:focus-visible {
+  outline: none;
+}
+.root .input::placeholder {
+  color: var(--auth-secondary);
+  opacity: 1;
+}
+.root .input:-webkit-autofill {
+  -webkit-text-fill-color: var(--auth-primary);
+  box-shadow: 0 0 0 1000px white inset;
+}
+.root .button {
+  @apply relative inline-flex shrink-0 items-center justify-center;
+  height: var(--auth-touch-height);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--auth-control-radius);
+  background: transparent;
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 150ms;
+}
+.root .buttonSurface {
+  @apply inline-flex h-full w-full items-center justify-center;
+  height: var(--auth-control-height);
+  min-width: 0;
+  padding-inline: var(--auth-control-inset);
+  gap: 6px;
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: var(--auth-control-radius);
+  background: var(--auth-reading);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  transition: background-color 150ms;
+}
+.root .button[data-variant="primary"] .buttonSurface {
+  background: var(--auth-primary);
+  color: white;
+  border-color: transparent;
+  box-shadow: none;
+}
+.root .button[data-variant="navigation"] .buttonSurface {
+  background: #0a0a0a;
+  color: white;
+  border-color: transparent;
+  border-radius: 9999px;
+  padding-inline: 16px;
+  font-weight: 450;
+  line-height: 19.5px;
+  box-shadow: none;
+}
+.root .button[data-variant="navigation"]:hover .buttonSurface {
+  background: rgb(10 10 10 / 80%);
+}
+.root .button[data-variant="ghost"] .buttonSurface {
+  background: transparent;
+  box-shadow: none;
+  border-color: transparent;
+}
+.root .button:hover:not(:disabled, [data-variant="navigation"]) .buttonSurface {
+  background: var(--auth-hover);
+}
+.root .button[data-variant="primary"]:hover:not(:disabled) .buttonSurface {
+  background: rgb(10 10 10 / 90%);
+}
+.root .button:active:not(:disabled, [data-variant="navigation"]) .buttonSurface {
+  background: var(--auth-pressed);
+}
+.root .button[data-variant="primary"]:active:not(:disabled) .buttonSurface {
+  background: rgb(10 10 10);
+}
+.root .button:disabled {
+  opacity: var(--auth-disabled);
+}
+.root .fullWidth {
+  width: 100%;
+}
+.root .icon,
+.root .buttonSurface svg {
+  width: var(--auth-icon-size);
+  height: var(--auth-icon-size);
+  flex-shrink: 0;
+}
+.root .quietAction {
+  @apply relative inline-flex shrink-0 items-center justify-center;
+  width: var(--auth-quiet-size);
+  height: var(--auth-quiet-size);
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--auth-secondary);
+}
+.root .quietAction:hover {
+  background: var(--auth-hover);
+  color: var(--auth-primary);
+}
+.root .textLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--auth-secondary);
+  text-decoration: none;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 400;
+}
+.root .textLink:not(:disabled):not([aria-disabled="true"]):hover {
+  color: var(--auth-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.root .textLink:disabled,
+.root .textLink[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: var(--auth-disabled);
+}
+.root .feedback {
+  @apply flex items-start;
+  gap: 8px;
+  font-size: var(--auth-control-size);
+  line-height: 18px;
+  color: var(--auth-primary);
+  overflow-wrap: anywhere;
+}
+.root .feedback[data-align="center"] {
+  justify-content: center;
+  text-align: center;
+}
+.root .feedback[data-tone="error"] {
+  color: var(--auth-error);
+}
+.root .feedbackIcon {
+  @apply flex shrink-0 items-center;
+  width: 16px;
+  height: 18px;
+}
+.root .divider {
+  @apply flex w-full items-center;
+  gap: 16px;
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+  line-height: 18px;
+}
+.root .divider::before,
+.root .divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--auth-border-subtle);
+}
+.root .providers {
+  @apply grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.root .providers > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+.root .legal {
+  font-size: var(--auth-caption-size);
+  line-height: 18px;
+  text-align: center;
+  color: var(--auth-secondary);
+}
+.root .legal a {
+  color: var(--auth-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.root .navPrompt {
+  @apply flex flex-wrap items-center;
+  gap: 6px;
+  font-size: var(--auth-control-size);
+  line-height: 18px;
+  color: var(--auth-secondary);
+}
+.root .navPrompt a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.root .identity {
+  @apply flex items-start;
+  gap: 8px;
+  padding: 8px;
+  min-height: 40px;
+}
+.root .identityText {
+  @apply min-w-0 flex-1;
+  overflow-wrap: anywhere;
+  font-size: var(--auth-control-size);
+  line-height: 18px;
+}
+.root .identityText p + p {
+  font-size: var(--auth-caption-size);
+  color: var(--auth-secondary);
+}
+.root .avatar {
+  @apply flex shrink-0 items-center justify-center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--auth-hover);
+  font-size: 12px;
+  line-height: 16px;
+}
+.root .actions {
+  @apply flex flex-wrap items-center;
+  gap: 8px;
+}
+.root .resourceRow {
+  @apply grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  padding: 8px;
+}
+.root .resourceIcon {
+  @apply flex items-center justify-center;
+  width: 24px;
+  height: 24px;
+}
+.root .resourceIcon svg {
+  width: 16px;
+  height: 16px;
+}
+.root .resourceText {
+  min-width: 0;
+  font-size: var(--auth-body-size);
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+.root .resourceText p {
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+  line-height: 18px;
+}
+.root .resourceActions {
+  @apply flex items-center;
+  gap: 8px;
+}
+.root .tag {
+  display: inline-flex;
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: 6px;
+  padding: 2px 6px;
+  color: var(--auth-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.root .sectionHeading h2 {
+  color: var(--auth-primary);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+.root .sectionHeading p {
+  font-size: var(--auth-body-size);
+  line-height: 22px;
+}
+.root .loader {
+  display: inline-block;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.root .spinning {
+  animation: spin 800ms linear infinite;
+}
+@layer components {
+  .root .loader {
+    width: 16px;
+    height: 16px;
+  }
+  .root .skeleton {
+    height: var(--auth-touch-height);
+    border-radius: 8px;
+  }
+  .root .skeleton[data-shape="title"] {
+    height: 32px;
+  }
+  .root .skeleton[data-shape="label"] {
+    height: 18px;
+    border-radius: 4px;
+  }
+  .root .skeleton[data-shape="divider"] {
+    height: 1px;
+    border-radius: 0;
+  }
+}
+.root .skeleton {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.root .skeleton::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--auth-hover);
+}
+.root .skeleton[data-shape="control"]::before {
+  height: var(--auth-control-height);
+  max-height: 100%;
+}
+.root .otpLane {
+  @apply relative flex items-center;
+  min-height: var(--auth-touch-height);
+}
+.root .otpLane:has(input:disabled) {
+  opacity: var(--auth-disabled);
+}
+.root .otpGroup {
+  @apply flex items-center;
+  gap: 8px;
+}
+.root .otpSlot {
+  @apply relative flex items-center justify-center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--auth-border);
+  border-radius: 8px;
+  background: var(--auth-reading);
+  font-size: 16px;
+  line-height: 18px;
+}
+.root .otpSlot[data-active] {
+  border-color: var(--auth-accent);
+  outline: 1px solid var(--auth-accent);
+}
+.root .caret {
+  width: 1px;
+  height: 18px;
+  background: var(--auth-primary);
+  animation: pulse 1s infinite;
+}
+.root .select {
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: 18px;
+}
+.root .select .inputSurface {
+  justify-content: space-between;
+}
+.root .select .inputSurface > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.root .select:disabled {
+  opacity: var(--auth-disabled);
+}
+.root.menu {
+  width: var(--radix-popover-trigger-width, 280px);
+  max-width: calc(100vw - 32px);
+  padding: 4px;
+  z-index: 1000;
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: 10px;
+  background: var(--auth-overlay);
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 6%),
+    inset 0 1px 0 rgb(255 255 255 / 70%);
+}
+.root .options {
+  overflow-y: auto;
+  max-height: min(320px, var(--radix-popover-content-available-height, 60vh));
+}
+.root .menuRow {
+  @apply flex items-center justify-between;
+  min-height: 30px;
+  padding: 6px 8px;
+  gap: 8px;
+  border-radius: 6px;
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: 18px;
+  cursor: pointer;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+.root .menuRow[aria-selected="true"] {
+  background: var(--auth-selected);
+}
+.root .menuRow[data-focused="true"],
+.root .menuRow[data-highlighted] {
+  background: var(--auth-hover);
+}
+.root .menuRow[aria-disabled="true"] {
+  opacity: var(--auth-disabled);
+  cursor: not-allowed;
+}
+.root .menuSearch {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--auth-border-subtle);
+  padding: 6px 8px;
+  background: transparent;
+  font-size: var(--auth-input-size);
+  line-height: 18px;
+}
+.root .menuLabel,
+.root .empty {
+  padding: 6px 8px;
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.root .accountTrigger {
+  @apply flex w-full items-center justify-between;
+  padding: 8px;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--auth-primary);
+  text-align: left;
+  font-size: var(--auth-control-size);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.root .accountTrigger:hover {
+  background: var(--auth-hover);
+}
+.root .accountTrigger:disabled {
+  opacity: var(--auth-disabled);
+}
+.root .notification {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  width: max-content;
+  max-width: min(400px, calc(100vw - 40px));
+  padding: 12px;
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: 10px;
+  background: var(--auth-overlay);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 6%);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (max-width: 767px) {
+  .root {
+    --auth-input-size: 16px;
+    --auth-touch-height: 44px;
+    --auth-group-gap: 24px;
+  }
+  .root .main {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    padding: 24px 16px 0;
+  }
+  .root .button[data-variant="navigation"] .buttonSurface {
+    background: transparent;
+    color: var(--auth-primary);
+    padding: 0;
+    font-weight: 400;
+    line-height: 18px;
+  }
+  .root .button[data-variant="navigation"]:hover .buttonSurface {
+    background: transparent;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .root .quietAction {
+    width: 44px;
+    height: 44px;
+    background: transparent;
+  }
+  .root .quietAction:hover {
+    background: transparent;
+  }
+  .root .quietAction::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+  .root .quietAction:hover::after {
+    background: var(--auth-hover);
+  }
+  .root .inputSurface:has(.quietAction) {
+    padding-right: 0;
+  }
+  .root .resourceActions {
+    grid-column: 2 / -1;
+  }
+  .root .resourceRow {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+  .root .textLink {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .root .labelRow .textLink {
+    min-height: 18px;
+    font-size: var(--auth-control-size);
+  }
+  .root .otpLane {
+    width: fit-content;
+  }
+  .root .footer {
+    padding: 11px 16px 40px;
+  }
+  .root .footer .textLink {
+    color: var(--auth-secondary);
+  }
+  .root .page:not(:has(.footer)) .main {
+    padding-bottom: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .root :where(*, *::before, *::after) {
+    animation: none;
+    transition: none;
+  }
+}
+/* biome-ignore lint/correctness/noUnknownMediaFeatureName: Standard reduced-transparency preference; unsupported browsers keep the fallback. */
+@media (prefers-reduced-transparency: reduce) {
+  .root.menu,
+  .root .notification {
+    background: #fafafa;
+    backdrop-filter: none;
+  }
+}
+.root [data-auth-titlebar] {
+  height: var(--desktop-title-bar-height, 0px);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+.root .codeHelp {
+  text-align: center;
+  font-size: var(--auth-control-size);
+  line-height: 18px;
+  color: var(--auth-secondary);
+}
+.root .otpLane:has(input[aria-invalid="true"]) .otpSlot {
+  border-color: var(--auth-error);
+}
+
+.root .accountEmail {
+  display: block;
+  color: var(--auth-secondary);
+  font-size: var(--auth-caption-size);
+}
+
+.root .readonlyValue {
+  font-family: var(--auth-mono);
+}
