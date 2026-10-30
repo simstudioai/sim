@@ -135,6 +135,7 @@ async function hybridSearch(query: string, limit: number, signal?: AbortSignal) 
           })
         continue
       }
+      const seenPages = new Set<string>()
       list.value.forEach((row, index) => {
         let citation: URL
         try {
@@ -147,6 +148,8 @@ async function hybridSearch(query: string, limit: number, signal?: AbortSignal) 
         if (!page || row.metadata?.contentHash !== page.contentHash) return
         if (citation.hash && !page.headings.some((heading) => `#${heading.id}` === citation.hash))
           return
+        if (seenPages.has(page.id)) return
+        seenPages.add(page.id)
         const existing = scores.get(page.id)
         const score = (existing?.score ?? 0) + 1 / (60 + index + 1)
         scores.set(page.id, {
