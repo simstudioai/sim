@@ -19,7 +19,6 @@ export function ScrollRegion({ label, className, children, ...props }: ScrollReg
     const observer = new ResizeObserver(updateFocusability)
     observer.observe(element)
     if (element.firstElementChild) observer.observe(element.firstElementChild)
-    updateFocusability()
     return () => observer.disconnect()
   }, [])
   return (

@@ -941,7 +941,7 @@ async function interactions(browser: Browser, profile: Profile, repetition: numb
         .getByRole('button', { name: /^(Expand .*workflow preview|Inspect workflow: .*)$/i })
         .first()
       await trigger.waitFor({ state: 'visible', timeout: 15_000 })
-      await trigger.scrollIntoViewIfNeeded()
+      await trigger.click({ trial: true })
       const start = performance.now()
       await trigger.click()
       const dialog = run.page.getByRole('dialog').first()

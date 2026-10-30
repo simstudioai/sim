@@ -21,10 +21,20 @@ interface CheckResult {
   durationMs: number
   contentType?: string
   vary?: string
+  statusCode?: number
   error?: string
 }
 
-const cases = [
+interface RepresentationCase {
+  name: string
+  accept: string
+  expected: 'text/html' | 'text/markdown'
+  method?: 'GET' | 'HEAD'
+  statusCode?: number
+  useHtmlValidator?: boolean
+}
+
+const cases: readonly RepresentationCase[] = [
   {
     name: 'HTML advertises its representation and router cache dimensions',
     accept: 'text/html',
@@ -60,6 +70,39 @@ const cases = [
     accept: 'text/html;q=0,text/*;q=0.5',
     expected: 'text/markdown',
   },
+  {
+    name: 'HTML HEAD retains representation headers without a body',
+    accept: 'text/html',
+    expected: 'text/html',
+    method: 'HEAD',
+  },
+  {
+    name: 'Markdown HEAD retains representation headers without a body',
+    accept: 'text/markdown',
+    expected: 'text/markdown',
+    method: 'HEAD',
+  },
+  {
+    name: 'Matching HTML validator returns a bodyless 304 with cache dimensions',
+    accept: 'text/html',
+    expected: 'text/html',
+    statusCode: 304,
+    useHtmlValidator: true,
+  },
+  {
+    name: 'Conditional HTML HEAD returns a bodyless 304',
+    accept: 'text/html',
+    expected: 'text/html',
+    method: 'HEAD',
+    statusCode: 304,
+    useHtmlValidator: true,
+  },
+  {
+    name: 'An HTML validator cannot suppress the Markdown representation',
+    accept: 'text/markdown',
+    expected: 'text/markdown',
+    useHtmlValidator: true,
+  },
 ] as const
 
 for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -72,24 +115,37 @@ for (let attempt = 0; attempt < 20; attempt += 1) {
 }
 
 const checks: CheckResult[] = []
+let htmlValidator: string | undefined
 for (const entry of cases) {
   const started = performance.now()
   const result: CheckResult = { name: entry.name, status: 'failed', durationMs: 0 }
   try {
+    const headers = new Headers({ Accept: entry.accept })
+    if (entry.useHtmlValidator) {
+      if (!htmlValidator) throw new Error('HTML did not provide a cache validator')
+      headers.set('If-None-Match', htmlValidator)
+    }
     const response = await fetch(url, {
-      headers: { Accept: entry.accept },
+      method: entry.method ?? 'GET',
+      headers,
       signal: AbortSignal.timeout(10000),
     })
-    await response.body?.cancel()
+    if (entry.method === 'HEAD' || entry.statusCode === 304) {
+      if ((await response.arrayBuffer()).byteLength !== 0)
+        throw new Error('HEAD and 304 responses must not contain a body')
+    } else await response.body?.cancel()
+    result.statusCode = response.status
     result.contentType = response.headers.get('Content-Type') ?? ''
     result.vary = response.headers.get('Vary') ?? ''
     const fields = result.vary.split(',').map((field) => field.trim().toLowerCase())
-    if (!response.ok) throw new Error(`Unexpected HTTP status ${response.status}`)
-    if (!result.contentType.startsWith(entry.expected)) {
+    if (response.status !== (entry.statusCode ?? 200))
+      throw new Error(`Unexpected HTTP status ${response.status}`)
+    if (response.status !== 304 && !result.contentType.startsWith(entry.expected)) {
       throw new Error(`Expected ${entry.expected}; received ${result.contentType}`)
     }
     if (!fields.includes('accept')) throw new Error('The response lost Vary: Accept')
     if (entry.expected === 'text/html') {
+      if (response.status === 200) htmlValidator = response.headers.get('etag') ?? undefined
       for (const field of [
         'rsc',
         'next-router-state-tree',

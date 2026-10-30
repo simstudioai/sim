@@ -6,6 +6,7 @@ const config: NextConfig = {
   transpilePackages: ['@sim/emcn', '@sim/workflow-renderer'],
   images: {
     deviceSizes: [384, 640, 828, 1080, 1440, 1920, 2560],
+    imageSizes: [32, 48, 64, 96, 128, 256],
     qualities: [75, 90],
     minimumCacheTTL: 60,
     localPatterns: [{ pathname: '/_next/static/media/**' }, { pathname: '/static/**' }],

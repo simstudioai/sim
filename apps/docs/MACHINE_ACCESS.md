@@ -47,6 +47,8 @@ All three tools advertise read-only behavior. Unknown pages produce tool errors;
 
 Basic search uses a server-only index generated atomically with the local compiled catalog and needs no database or embedding credentials. Markdown parsing and text normalization happen during content compilation; requests read precomputed chunks. The generated index is capped at 64 MiB and its catalog fingerprint is validated before serving results. When `DATABASE_URL` is present, bounded PostgreSQL keyword search can supplement it; `OPENAI_API_KEY` additionally enables vector search using the existing 1536-dimensional `text-embedding-3-small` table contract. Unavailable providers fall back to lexical results. Results with old content hashes or nonexistent heading targets are excluded.
 
+Search chunks contain at most 6,000 characters, including continuation context. Paragraphs and code blocks stay intact when they fit. Larger code blocks become explicitly labeled excerpts with the original language, complete fences and unchanged code lines; an excerpt is not necessarily a complete JSON value or executable program. Continuations repeat the page and heading, and table excerpts repeat their column headers while retaining oversized cell text in fragments. Content that cannot fit safely, such as one oversized code line or an oversized nested code block, stops compilation with the page and heading in the error instead of discarding content.
+
 From `apps/docs`:
 
 ```sh

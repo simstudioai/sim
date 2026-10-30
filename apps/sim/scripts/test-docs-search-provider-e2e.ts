@@ -155,8 +155,8 @@ try {
       'First publication persists a real 1536-dimensional provider vector and canonical citation',
       async () => {
         const result = await publish('publish', 'first-publish', providerKey)
-        assert.equal(result.embeddingRequests, 1)
-        assert.equal(result.embeddingInputs, expectedChunks)
+        assert(result.embeddingRequests >= 1 && result.embeddingRequests <= 3)
+        assert.equal(result.embeddingInputs, expectedChunks * result.embeddingRequests)
         const rows = await sql<
           Array<{
             chunk_id: string

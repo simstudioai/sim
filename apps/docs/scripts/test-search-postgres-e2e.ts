@@ -7,7 +7,12 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type Server, serve } from 'bun'
+import { toString as markdownToString } from 'mdast-util-to-string'
 import postgres from 'postgres'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
 import { z } from 'zod'
 import { getPage, getPages } from '@/lib/content/catalog'
 import { pageSearchChunks } from '@/lib/search/chunks'
@@ -15,7 +20,10 @@ import { searchDatabase } from '@/lib/search/database'
 import { searchDocs } from '@/lib/search/service'
 
 const logger = createLogger('DocsSearchPostgresE2E')
-const databaseSetting = process.env.DOCS_SEARCH_E2E_DATABASE_URL
+const chunksOnly = process.argv.includes('--chunks-only')
+const databaseSetting =
+  process.env.DOCS_SEARCH_E2E_DATABASE_URL ??
+  (chunksOnly ? 'postgres://127.0.0.1:1/docs_search_test' : undefined)
 const reportSetting = process.env.DOCS_SEARCH_E2E_REPORT_PATH
 assert(
   databaseSetting && reportSetting,
@@ -136,7 +144,113 @@ async function fingerprint() {
   return row
 }
 
-try {
+async function verifyChunks() {
+  const parser = unified().use(remarkParse).use(remarkGfm)
+  for (const path of [
+    '/api-reference/access-requests/cancelOrganizationAccessRequest',
+    '/integrations/buffer',
+    '/integrations/plane',
+  ]) {
+    const page = getPage(path)
+    assert(page)
+    const source = parser.parse(page.markdown)
+    const chunks = [...pageSearchChunks(page)]
+    const trees = chunks.map((chunk) => {
+      assert(chunk.text.length <= 6000, `${chunk.id}: chunk exceeds the complete payload budget`)
+      assert.equal(new URL(chunk.sourceLink).pathname, path)
+      const anchor = new URL(chunk.sourceLink).hash.slice(1)
+      assert(
+        !anchor || page.headings.some((heading) => heading.id === anchor),
+        `${chunk.id}: unknown citation`
+      )
+      if (!chunk.id.endsWith(':0')) {
+        assert(
+          chunk.text.includes(page.title) &&
+            chunk.text.includes(chunk.headerText) &&
+            /continued/i.test(chunk.text),
+          `${chunk.id}: continuation lost its page/section context`
+        )
+      }
+      const tree = parser.parse(chunk.text)
+      visit(tree, 'code', (node) => {
+        const raw = chunk.text.slice(node.position?.start.offset, node.position?.end.offset)
+        const marker = /^ {0,3}(`{3,}|~{3,})/.exec(raw)?.[1]
+        if (marker)
+          assert(
+            raw.trimEnd().split('\n').at(-1)?.trim().startsWith(marker),
+            `${chunk.id}: unclosed fenced code`
+          )
+      })
+      return tree
+    })
+    const originalCode: Array<{ value: string; lang: string | null | undefined }> = []
+    visit(source, 'code', (node) => {
+      originalCode.push({ value: node.value, lang: node.lang })
+    })
+    let sourceIndex = 0
+    let reconstructed = ''
+    let pieces = 0
+    for (const tree of trees)
+      visit(tree, 'code', (node) => {
+        const expected = originalCode[sourceIndex]
+        assert(expected, `${path}: unexpected code block`)
+        assert.equal(node.lang, expected.lang, `${path}: code language changed`)
+        reconstructed += `${pieces++ ? '\n' : ''}${node.value}`
+        assert(expected.value.startsWith(reconstructed), `${path}: code bytes or order changed`)
+        if (reconstructed === expected.value) {
+          sourceIndex += 1
+          reconstructed = ''
+          pieces = 0
+        }
+      })
+    assert.equal(sourceIndex, originalCode.length, `${path}: code content was lost`)
+    assert.equal(pieces, 0, `${path}: code continuation was incomplete`)
+    visit(source, 'paragraph', (node) => {
+      const raw = page.markdown.slice(node.position?.start.offset, node.position?.end.offset)
+      if (raw.length < 4500)
+        assert(
+          chunks.some((chunk) => chunk.text.includes(raw)),
+          `${path}: a fitting paragraph was split`
+        )
+    })
+    const emittedRows: string[][] = []
+    for (const tree of trees)
+      visit(tree, 'tableRow', (row) => {
+        emittedRows.push(row.children.map((cell) => markdownToString(cell)))
+      })
+    visit(source, 'table', (table) => {
+      const header = page.markdown.slice(
+        table.children[0]?.position?.start.offset,
+        table.children[0]?.position?.end.offset
+      )
+      for (const row of table.children.slice(1)) {
+        const raw = page.markdown.slice(row.position?.start.offset, row.position?.end.offset)
+        if (raw.length < 4500) {
+          const containing = chunks.find((chunk) => chunk.text.includes(raw))
+          assert(
+            containing?.text.includes(header),
+            `${path}: fitting table row or repeated header lost`
+          )
+        } else {
+          const cells = row.children.map((cell) => markdownToString(cell))
+          const matching = emittedRows.filter((candidate) => candidate[0] === cells[0])
+          for (const [index, cell] of cells.entries()) {
+            const retained = matching
+              .map((candidate) => candidate[index] ?? '')
+              .join(' ')
+              .replace(/\s+/g, ' ')
+            assert(
+              retained.includes(cell.replace(/\s+/g, ' ')),
+              `${path}: oversized table cell lost content`
+            )
+          }
+        }
+      }
+    })
+  }
+}
+
+async function verifyDatabase() {
   const [existing] = await sql<
     Array<{ count: number }>
   >`SELECT count(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public'`
@@ -522,6 +636,14 @@ try {
       assert.deepEqual(await documentState(source), before)
     }
   )
+}
+
+try {
+  await check(
+    'Compiled publication chunks preserve code, tables, context and bounded payloads',
+    verifyChunks
+  )
+  if (!chunksOnly) await verifyDatabase()
 } catch (error) {
   if (!results.some((result) => result.status === 'failed')) {
     results.push({
@@ -538,8 +660,11 @@ try {
   await Promise.all([sql.end({ timeout: 5 }), searchDatabase().end({ timeout: 5 })])
   await writeFile(
     reportPath,
-    `${JSON.stringify({ results, provider: { mode: 'loopback-http-fixture', maxRequests: 16, maxInputsPerRequest: 16, requests: providerRequests } }, null, 2)}\n`
+    `${JSON.stringify({ scope: chunksOnly ? 'compiled-content' : 'postgres-publication', results, provider: { mode: 'loopback-http-fixture', maxRequests: 16, maxInputsPerRequest: 16, requests: providerRequests } }, null, 2)}\n`
   )
 }
-logger.info('Verified isolated PostgreSQL search boundary', { checks: results.length, reportPath })
+logger.info(
+  chunksOnly ? 'Verified compiled search chunks' : 'Verified isolated PostgreSQL search boundary',
+  { checks: results.length, reportPath }
+)
 if (results.some((result) => result.status === 'failed')) process.exitCode = 1
