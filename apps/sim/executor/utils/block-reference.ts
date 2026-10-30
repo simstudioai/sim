@@ -74,15 +74,25 @@ function getProperties(schema: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+/** A node declaring its fields but allowing others, so a field it does not name is not an error. */
+function isOpenSchemaNode(value: unknown): boolean {
+  return asSchemaNode(value)?.open === true
+}
+
 function lookupField(schema: unknown, fieldName: string): unknown | undefined {
   if (typeof schema !== 'object' || schema === null) return undefined
   const typed = schema as Record<string, unknown>
+  const props = getProperties(schema)
+
+  /** An open node's fields are its `properties`; its own keys are schema metadata, never fields. */
+  if (isOpenSchemaNode(schema)) {
+    return props && fieldName in props ? props[fieldName] : undefined
+  }
 
   if (fieldName in typed) {
     return typed[fieldName]
   }
 
-  const props = getProperties(schema)
   if (props && fieldName in props) {
     return props[fieldName]
   }
@@ -101,11 +111,6 @@ function isOpaqueSchemaNode(value: unknown): boolean {
     return true
   }
   return false
-}
-
-/** A node declaring its fields but allowing others, so a field it does not name is not an error. */
-function isOpenSchemaNode(value: unknown): boolean {
-  return asSchemaNode(value)?.open === true
 }
 
 /** Whether `pathParts` names a field the declared output schema has, the check a run makes. */

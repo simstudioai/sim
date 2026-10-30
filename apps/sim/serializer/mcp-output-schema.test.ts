@@ -118,6 +118,35 @@ describe('MCP block output typed from a declared output schema', () => {
     expect(resolve(untypedItems, ['structuredContent', 'rows', '0', 'id'])).toBeUndefined()
   })
 
+  it('checks a declared field named like the openness flag as a field', () => {
+    const named = (additionalProperties?: false) =>
+      createMcpToolOutputSnapshot('server-1', 'on_call', {
+        type: 'object',
+        properties: {
+          open: {
+            type: 'object',
+            properties: { id: { type: 'string' } },
+            ...(additionalProperties === false && { additionalProperties }),
+          },
+        },
+        ...(additionalProperties === false && { additionalProperties }),
+      })
+    expect(resolve(named(), ['structuredContent', 'open', 'id'])).toBeUndefined()
+    expect(resolve(named(), ['structuredContent', 'open', 'extra'])).toBeUndefined()
+    expect(resolve(named(false), ['structuredContent', 'open', 'id'])).toBeUndefined()
+    expect(() => resolve(named(false), ['structuredContent', 'open', 'extra'])).toThrow(
+      InvalidFieldError
+    )
+  })
+
+  it('rejects any field of a closed object that declares none', () => {
+    const empty = createMcpToolOutputSnapshot('server-1', 'on_call', {
+      type: 'object',
+      additionalProperties: false,
+    })
+    expect(() => resolve(empty, ['structuredContent', 'onCall'])).toThrow(InvalidFieldError)
+  })
+
   it('keeps a snapshot saved before openness was recorded closed until it is retaken', () => {
     const legacy = {
       server: 'server-1',

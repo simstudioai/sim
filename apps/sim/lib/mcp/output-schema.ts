@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { McpToolSchema } from '@/lib/mcp/types'
 
 /**
@@ -73,14 +73,14 @@ function reduceNode(node: unknown, depth: number, budget: { nodes: number }): Mc
 
   switch (declaredType(node)) {
     case 'object': {
-      if (!isRecordLike(node.properties)) return { type: 'object' }
+      const closed = node.additionalProperties === false && node.patternProperties === undefined
+      if (!closed && !isRecordLike(node.properties)) return { type: 'object' }
       const entries: [string, McpToolOutputShape][] = []
-      for (const [name, child] of Object.entries(node.properties)) {
+      for (const [name, child] of Object.entries(toRecord(node.properties))) {
         /** Past the budget the object is saved untyped: any field resolves, none is declared. */
         if (budget.nodes <= 0) return { type: 'object' }
         entries.push([name, reduceNode(child, depth + 1, budget)])
       }
-      const closed = node.additionalProperties === false && node.patternProperties === undefined
       return {
         type: 'object',
         /** `fromEntries` keeps every declared name, `__proto__` included, as an own field. */
