@@ -43,7 +43,8 @@
     "electron-updater": "6.8.9",
     "micromatch": "4.0.8",
     "safe-regex2": "5.1.2",
-    "pdf-lib": "1.17.1"
+    "pdf-lib": "1.17.1",
+    "@sim/auth-ui": "workspace:*"
   },
   "devDependencies": {
     "@electron/fuses": "1.8.0",

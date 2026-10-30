@@ -1,14 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import {
-  ChipModal,
-  ChipModalBody,
-  ChipModalError,
-  ChipModalField,
-  ChipModalFooter,
-  ChipModalHeader,
-} from '@sim/emcn'
+import { AuthStack } from '@sim/auth-ui'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
@@ -21,7 +14,7 @@ import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { buildAuthCrossLink, DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
+import { DEFAULT_POST_AUTH_ROUTE, POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
   AuthField,
@@ -29,7 +22,6 @@ import {
   AuthHeader,
   AuthInput,
   AuthLegalFooter,
-  AuthNavPrompt,
   AuthSubmitButton,
   AuthTextLink,
   PasswordInput,
@@ -87,13 +79,10 @@ export default function LoginPage({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  registrationDisabled,
 }: {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
-  /** DISABLE_REGISTRATION. Hides the signup cross-link, which `/signup` blocks. */
-  registrationDisabled: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -112,11 +101,6 @@ export default function LoginPage({
     logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
   }
   const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : DEFAULT_POST_AUTH_ROUTE
-  const isInviteFlow = searchParams?.get('invite_flow') === 'true'
-  const signupHref = buildAuthCrossLink('/signup', {
-    callbackUrl: isValidCallbackUrl ? callbackUrl : null,
-    isInviteFlow,
-  })
 
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
@@ -155,12 +139,14 @@ export default function LoginPage({
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (isLoading) return
     setIsLoading(true)
     setPolicyError(null)
 
     const redirectToVerify = (emailToVerify: string) => {
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailToVerify)
+        sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, callbackUrl)
       }
       router.push('/verify')
     }
@@ -291,6 +277,7 @@ export default function LoginPage({
   }
 
   const handleForgotPassword = async () => {
+    if (isSubmittingReset) return
     if (!forgotPasswordEmail) {
       setResetStatus({
         type: 'error',
@@ -333,7 +320,11 @@ export default function LoginPage({
           errorMessage.includes('user not found') ||
           errorMessage.includes('User not found')
         ) {
-          errorMessage = 'No account found with this email address'
+          setResetStatus({
+            type: 'success',
+            message: 'If an account exists for this email, you will receive a password reset link.',
+          })
+          return
         }
 
         throw new Error(errorMessage)
@@ -341,13 +332,8 @@ export default function LoginPage({
 
       setResetStatus({
         type: 'success',
-        message: 'Password reset link sent to your email',
+        message: 'If an account exists for this email, you will receive a password reset link.',
       })
-
-      setTimeout(() => {
-        setForgotPasswordOpen(false)
-        setResetStatus({ type: null, message: '' })
-      }, 2000)
     } catch (error) {
       logger.error('Error requesting password reset:', { error })
       setResetStatus({
@@ -371,25 +357,90 @@ export default function LoginPage({
   const passwordFieldErrors = showValidationError && passwordErrors.length > 0 ? passwordErrors : []
   const canSubmit = email.trim().length > 0 && password.length > 0
 
+  if (!emailEnabled && !ssoEnabled && !hasSocial)
+    return (
+      <AuthHeader
+        title='Sign-in is unavailable'
+        description='No sign-in methods are available on this deployment. Ask your administrator to enable a sign-in method.'
+      />
+    )
+
+  if (forgotPasswordOpen)
+    return (
+      <AuthStack>
+        <AuthHeader
+          title='Reset your password'
+          description='Enter your email and we’ll send you a reset link if an account exists.'
+        />
+        <form
+          className='au:space-y-5'
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleForgotPassword()
+          }}
+        >
+          <AuthField htmlFor='recovery-email' label='Email'>
+            <AuthInput
+              id='recovery-email'
+              name='email'
+              inputMode='email'
+              type='email'
+              autoComplete='email'
+              autoFocus
+              value={forgotPasswordEmail}
+              disabled={isSubmittingReset}
+              onChange={(event) => {
+                setForgotPasswordEmail(event.target.value)
+                setResetStatus({ type: null, message: '' })
+              }}
+            />
+          </AuthField>
+          {resetStatus.type && (
+            <AuthFormMessage type={resetStatus.type}>{resetStatus.message}</AuthFormMessage>
+          )}
+          <AuthSubmitButton
+            loading={isSubmittingReset}
+            loadingLabel='Sending…'
+            disabled={!forgotPasswordEmail.trim()}
+          >
+            Send reset link
+          </AuthSubmitButton>
+        </form>
+        <AuthTextLink
+          disabled={isSubmittingReset}
+          onClick={() => {
+            setEmail(forgotPasswordEmail)
+            setForgotPasswordOpen(false)
+          }}
+        >
+          Back to sign in
+        </AuthTextLink>
+      </AuthStack>
+    )
+
   return (
     <>
-      <div className='space-y-6'>
-        <AuthHeader title='Sign in' description='Enter your details' />
+      <div className='au:space-y-[var(--auth-group-gap)]'>
+        <AuthHeader title='Sign in' description='Welcome back to Sim.' />
 
-        {showTopSSO && <SSOLoginButton callbackURL={callbackUrl} variant='primary' />}
+        {showTopSSO && (
+          <SSOLoginButton callbackURL={callbackUrl} variant='primary' disabled={isLoading} />
+        )}
 
         {emailEnabled && (
-          <form onSubmit={onSubmit} className='space-y-6'>
-            <div className='space-y-5'>
+          <form onSubmit={onSubmit} className='au:space-y-[var(--auth-group-gap)]'>
+            <div className='au:space-y-5'>
               <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>
                 <AuthInput
                   id='email'
                   name='email'
+                  inputMode='email'
                   placeholder='Enter your email'
                   required
                   autoCapitalize='none'
                   autoComplete='email'
                   autoCorrect='off'
+                  disabled={isLoading}
                   value={email}
                   onChange={handleEmailChange}
                   error={emailFieldErrors.length > 0}
@@ -401,8 +452,13 @@ export default function LoginPage({
                 errors={passwordFieldErrors}
                 action={
                   <AuthTextLink
-                    onClick={() => setForgotPasswordOpen(true)}
-                    className='text-caption'
+                    disabled={isLoading}
+                    onClick={() => {
+                      setForgotPasswordEmail(email)
+                      setResetStatus({ type: null, message: '' })
+                      setForgotPasswordOpen(true)
+                    }}
+                    className='au:text-caption'
                   >
                     Forgot password?
                   </AuthTextLink>
@@ -416,6 +472,7 @@ export default function LoginPage({
                   autoComplete='current-password'
                   autoCorrect='off'
                   placeholder='Enter your password'
+                  disabled={isLoading}
                   value={password}
                   onChange={handlePasswordChange}
                   error={passwordFieldErrors.length > 0}
@@ -450,58 +507,13 @@ export default function LoginPage({
             githubAvailable={githubAvailable}
             microsoftAvailable={microsoftAvailable}
             callbackURL={callbackUrl}
-          >
-            {ssoEnabled && !hasOnlySSO && (
-              <SSOLoginButton callbackURL={callbackUrl} variant='outline' />
-            )}
-          </SocialLoginButtons>
-        )}
-
-        {emailEnabled && !registrationDisabled && (
-          <AuthNavPrompt prompt="Don't have an account?" href={signupHref} linkLabel='Sign up' />
+            ssoEnabled={ssoEnabled && !hasOnlySSO}
+            disabled={isLoading}
+          />
         )}
 
         <AuthLegalFooter action='signing in' />
       </div>
-
-      <ChipModal
-        open={forgotPasswordOpen}
-        onOpenChange={setForgotPasswordOpen}
-        srTitle='Reset Password'
-      >
-        <ChipModalHeader onClose={() => setForgotPasswordOpen(false)}>
-          Reset Password
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Enter your email address and we'll send you a link to reset your password if your
-            account exists.
-          </p>
-          <ChipModalField
-            type='email'
-            title='Email'
-            value={forgotPasswordEmail}
-            onChange={(value) => setForgotPasswordEmail(value)}
-            required
-            placeholder='you@example.com'
-          />
-          {resetStatus.type === 'success' && (
-            <p className='px-2 text-[var(--text-secondary)] text-sm'>{resetStatus.message}</p>
-          )}
-          <ChipModalError>
-            {resetStatus.type === 'error' ? resetStatus.message : null}
-          </ChipModalError>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setForgotPasswordOpen(false)}
-          cancelDisabled={isSubmittingReset}
-          primaryAction={{
-            label: isSubmittingReset ? 'Sending…' : 'Send Reset Link',
-            onClick: handleForgotPassword,
-            disabled: !forgotPasswordEmail || isSubmittingReset,
-          }}
-        />
-      </ChipModal>
     </>
   )
 }

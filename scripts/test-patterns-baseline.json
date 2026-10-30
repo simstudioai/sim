@@ -44,7 +44,6 @@
   "local-factory\tapps/sim/connectors/confluence/attachments.test.ts\t@/lib/knowledge/documents/secure-fetch.server",
   "local-factory\tapps/sim/ee/access-requests/components/permission-access-boundary.test.tsx\t@sim/emcn",
   "local-factory\tapps/sim/ee/credential-groups/components/organization-account-workspace-access.test.tsx\t@sim/emcn",
-  "local-factory\tapps/sim/ee/sso/components/sso-form.test.tsx\t@sim/emcn",
   "local-factory\tapps/sim/ee/sso/components/sso-settings.test.tsx\t@sim/emcn",
   "local-factory\tapps/sim/executor/execution/block-executor.test.ts\t@/lib/logs/execution/pii-redaction",
   "local-factory\tapps/sim/executor/utils/output-filter.test.ts\t@/blocks",

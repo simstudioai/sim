@@ -1,0 +1,254 @@
+{
+  "base": "9c571fbcea10ed2001ea81fc967830e33dadcbf4",
+  "routes": [
+    {
+      "file": "apps/sim/app/(auth)/login/page.tsx",
+      "url": "/login",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/(auth)/oauth/consent/page.tsx",
+      "url": "/oauth/consent",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/(auth)/oauth/sign-in/route.ts",
+      "url": "/oauth/sign-in",
+      "entry": "route.ts"
+    },
+    {
+      "file": "apps/sim/app/(auth)/reset-password/page.tsx",
+      "url": "/reset-password",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/(auth)/signup/page.tsx",
+      "url": "/signup",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/(auth)/sso/launch/[providerId]/route.ts",
+      "url": "/sso/launch/[providerId]",
+      "entry": "route.ts"
+    },
+    {
+      "file": "apps/sim/app/(auth)/sso/page.tsx",
+      "url": "/sso",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/(auth)/verify/page.tsx",
+      "url": "/verify",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/(interfaces)/chat/[identifier]/page.tsx",
+      "url": "/chat/[identifier]",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/cli/auth/done/page.tsx",
+      "url": "/cli/auth/done",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/cli/auth/page.tsx",
+      "url": "/cli/auth",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/credential-groups/complete/page.tsx",
+      "url": "/credential-groups/complete",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/credential-groups/enroll/[token]/page.tsx",
+      "url": "/credential-groups/enroll/[token]",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/credential-groups/slack-complete/page.tsx",
+      "url": "/credential-groups/slack-complete",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/desktop/auth/page.tsx",
+      "url": "/desktop/auth",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/desktop/connect/complete/page.tsx",
+      "url": "/desktop/connect/complete",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/desktop/connect/page.tsx",
+      "url": "/desktop/connect",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/desktop/done/page.tsx",
+      "url": "/desktop/done",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/f/[token]/page.tsx",
+      "url": "/f/[token]",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/invite/[id]/page.tsx",
+      "url": "/invite/[id]",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/knowledge/github/setup/page.tsx",
+      "url": "/knowledge/github/setup",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/oauth-error/page.tsx",
+      "url": "/oauth-error",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/oauth/chat-complete/page.tsx",
+      "url": "/oauth/chat-complete",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/oauth/credential-connected/page.tsx",
+      "url": "/oauth/credential-connected",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/slack-search/connect/[token]/page.tsx",
+      "url": "/slack-search/connect/[token]",
+      "entry": "page.tsx"
+    },
+    {
+      "file": "apps/sim/app/slack-search/install/[teamId]/page.tsx",
+      "url": "/slack-search/install/[teamId]",
+      "entry": "page.tsx"
+    }
+  ],
+  "files": {
+    "apps/sim/app/oauth-error/page.tsx": "1a5fa4e8748cbf416060acb0873f2e4d0ff1a7660d387d1f3ba264ab9ccbe7bd",
+    "apps/sim/app/(auth)/auth-redirect.ts": "2066538d0c022ac73868865ea27099f372b95069fe0bed62cc9d46f4c9f6a009",
+    "apps/sim/app/(auth)/layout.tsx": "dcaf0830bae5f5505f427cd34498cfcb89b05c35b8b55c227d3ce2395674db75",
+    "apps/sim/app/oauth/credential-connected/page.tsx": "e7ec5197c99bbc101bbe506b0fe3d5d2dd69701e571932a1a073474123daf114",
+    "apps/sim/app/oauth/chat-complete/chat-complete-handoff.tsx": "0283caf4e4cd9be7e2457c4bba479e98415c10c62f8ce697d2bcb19c7624288e",
+    "apps/sim/app/oauth/chat-complete/page.tsx": "edb31812ddc4a5609bfa43016c1e432869950e2030e1404166f0db07404e66f7",
+    "apps/sim/app/(interfaces)/chat/constants.ts": "487236115f9c4747dfc209a529729c149a868833b1701fd81bd209b5169076a1",
+    "apps/sim/app/(interfaces)/chat/[identifier]/loading.tsx": "45c3bd015b1291da7cb3d2022eeb4d581796d06eb92bd8d576c4152f289fad06",
+    "apps/sim/app/(interfaces)/chat/[identifier]/chat.tsx": "13406e032408585d436a7269ea2a48f48a3d22bc3ec8b198d0d193abcf26cd77",
+    "apps/sim/app/(interfaces)/chat/[identifier]/office-embed-init.tsx": "a1d7ecb4eff0c967ad823a266cd2cebab1b347a79bbeba7b5063a2d5fe01f144",
+    "apps/sim/app/(interfaces)/chat/[identifier]/page.tsx": "d638860ed9225fdda9a8d8306604dbaed81cc0ec07dcee9213c4cb4011290762",
+    "apps/sim/app/(interfaces)/chat/components/index.ts": "b7d60efb8122e1429d1ab3baca379d9f6affce9df69521ae21212ddbe30233f2",
+    "apps/sim/app/(interfaces)/chat/hooks/use-chat-streaming.ts": "6394629fb8e17e9f8f72ae377687b56f5bea945498781b31cc536641200e1d4a",
+    "apps/sim/app/(interfaces)/chat/hooks/index.ts": "32c8d5c582c99e5546fe7e2f65d3307ced18427e5762ad5647ca26ebd1427375",
+    "apps/sim/app/(interfaces)/chat/components/error-state/error-state.tsx": "9c1bcd1888e02c38e261961d6b2a11a6b101a1755fb52e2373ced85a75a63a0e",
+    "apps/sim/app/(interfaces)/chat/components/input/public-chat-action-button.tsx": "ec3739499c3bed580b3215928bc697066710f61bce07a16de212001df39c4c70",
+    "apps/sim/app/(interfaces)/chat/components/input/input.tsx": "3fef462f1d50088960a3c15052492f3adcde404739d84b13d83e4643a2a98c3c",
+    "apps/sim/app/(interfaces)/chat/components/message/message.tsx": "9850c64457e992a221c98cb0517e9a10e6909f9d46312a2473503b4b3c422cad",
+    "apps/sim/app/(interfaces)/chat/components/loading-state/loading-state.tsx": "cec6ab662cd3ea6ecea214ff080e40d5bc88df7e37b6ed8628f5f53de048a0f3",
+    "apps/sim/app/(interfaces)/chat/components/message-container/message-container.tsx": "f03a0a0717f3dfa2735c7238c3c13ff76cd4cd767488e707da16b1a657431cb7",
+    "apps/sim/app/(interfaces)/chat/components/header/header.tsx": "f1ef8593a60f5dc37dded4fc3527a42854c164bab45b663a2ac289ac4ce04ff1",
+    "apps/sim/app/(interfaces)/chat/components/auth/password/password-auth.tsx": "83e1570c272817e4b770cbc4fffa55c2d48e6e1e0952627bf2fee81bae872222",
+    "apps/sim/app/(interfaces)/chat/components/auth/email/email-auth.tsx": "4b58d5fb519829368c026489d563357428cd2bf369b909a4c700839d0c3a7a54",
+    "apps/sim/app/(interfaces)/chat/components/message/components/markdown-renderer.tsx": "6407200c17ea871832fa9ffba60509504afcfece11b8fc9902e1e35f1aacf6dc",
+    "apps/sim/app/(interfaces)/chat/components/message/components/file-download.tsx": "f0bba0f3e2e3c06d8c3f35c754652f6dfa318e598ae088884d475e184b8c0716",
+    "apps/sim/app/slack-search/install/[teamId]/page.tsx": "96999ba5e81fa49b5e7502c4c4a4f777e270d324a79e144528b71ad0bd6c7a19",
+    "apps/sim/app/slack-search/connect/[token]/slack-search-onboarding.tsx": "0ce711a67dec76cb515c13ee2837388d35d3d7765c24c94f26dc8d38798bceaf",
+    "apps/sim/app/slack-search/connect/[token]/page.tsx": "99e6bfc7731eb33eb4fed5be67702937f01571a4af14f315aa3a310d3116e024",
+    "apps/sim/app/desktop/auth/validation.ts": "db171a6a1e4067a2d43b33fab60ece29b9d8a17d5def63f75cbfb6dddbbc77b1",
+    "apps/sim/app/desktop/auth/authorize-handoff.tsx": "c4b756f1e144df8021d00160daa218ef0bb89fb57d4c8f34b57078b407c6d935",
+    "apps/sim/app/desktop/auth/page.tsx": "1070f9218a544d6d0e3071da1669d3d948482a4612ca5fbd56c185537180d0f2",
+    "apps/sim/app/desktop/done/page.tsx": "5b522f3e0c17c26775a154a4e64b3d13b47aa689e4964d5779fa2fe6b46608f0",
+    "apps/sim/app/desktop/connect/validation.ts": "4354fe3d629bddc11e3b9532d0b77064a430dc19d50570caf0af7023bc89f635",
+    "apps/sim/app/desktop/connect/source-connect-launcher.tsx": "6a1df65d848ac6bf789237f9c6402ca8e2c325a4c4df504865d0a51be0701244",
+    "apps/sim/app/desktop/connect/source-completion.tsx": "c04b9971ed3cbc4ac629b68b63052cbf37d51d2c5432efe2a49d6c412eac39d0",
+    "apps/sim/app/desktop/connect/switch-account.tsx": "3bb07d508a5249038b83b9769f84af30bbcddb3162f301703a59e4f3c49c19cc",
+    "apps/sim/app/desktop/connect/page.tsx": "207969389b8ba5ac280e83eefa3ac37790039f8f58e207ea76909b6913a7afc3",
+    "apps/sim/app/desktop/connect/connect-launcher.tsx": "44b5acff28880b2c33cd3ddca8a00b7ddfb56c1f91029bd7ff9683e9d867d267",
+    "apps/sim/app/desktop/components/desktop-handoff-shell/desktop-handoff-shell.tsx": "c815106b3dd496ab8b0dc592da143f5420f3599eb762bc155b10f750a242fa17",
+    "apps/sim/app/desktop/components/desktop-handoff-shell/index.ts": "a96be859afb28fa3b1ce526deb28ecd7fd6ade07a798dfbb4ba9913446e90e4d",
+    "apps/sim/app/desktop/connect/complete/page.tsx": "5d8b8c144aa52d943595c447a4e2960a6b255457ab6a988951037e23865b574c",
+    "apps/sim/app/cli/auth/search-params.ts": "2566cfdd3422e28b5db036f3dfb0088678537c4668caac627af34f0a574ed59d",
+    "apps/sim/app/cli/auth/cli-auth-request.ts": "38a8749efd7748e9d2d5693522b15a0758282da1272aee5b9f245e93e4ecca74",
+    "apps/sim/app/cli/auth/cli-auth-view.tsx": "83e3243cab31de927928e9bb9a93775035c5950db0819fabd11c02f6ab6ab89d",
+    "apps/sim/app/cli/auth/loading.tsx": "5c7911bfe083244640dbac30d697d63c60f630e1c1d110cef988c562c5b220a9",
+    "apps/sim/app/cli/auth/page.tsx": "bdf0b30e9dcff7539d4e1b27b9c0a399fe1103da23ad85244ccf5b8187d8b090",
+    "apps/sim/app/cli/auth/done/search-params.ts": "c4a6671548e58162081b632c9d78c3a62f4d110b66e63b12e70c16209c4664fc",
+    "apps/sim/app/cli/auth/done/page.tsx": "8a8b713f29217004245a77f180796d4f3e77cf97e1ade9ec3b27b712071c6ea1",
+    "apps/sim/app/cli/auth/done/cli-auth-done-view.tsx": "d2662ec83b79096b5d4e37e93e67e5cfc098f531198d45751b8cca93ee9505a9",
+    "apps/sim/app/f/[token]/public-file-sso-auth.tsx": "1164e4fb43bc59128c8699d1584724c28fbe3815e811cf9ce7e5352022f57ac0",
+    "apps/sim/app/f/[token]/opengraph-image.tsx": "69cdebce026fd8990d5254269bdac67f232086e0dc0d9e81739ee31e12543475",
+    "apps/sim/app/f/[token]/utils.ts": "6f7c5031ef57897b40853ff7bd8262891af683af907fa18d71c2f022e53d42a5",
+    "apps/sim/app/f/[token]/public-file-view.tsx": "9ecc7163d4cf50aebd9d59fda89d5b7b2e1376f09cee6462662b9eb4f04c7f80",
+    "apps/sim/app/f/[token]/public-file-email-auth.tsx": "379223ecfd034371eeae2da3069ea98c83283c6f238f853d78686b13184878b5",
+    "apps/sim/app/f/[token]/page.tsx": "07fcb3522344413ef0a0bd5fde977901294415ec3e0cb90287ff6b3df0cb696a",
+    "apps/sim/app/f/[token]/public-file-auth-shell.tsx": "2820fc9902729473a88186caa3b5b556ead07cb367a769c328972ba929eae33c",
+    "apps/sim/app/f/[token]/public-file-auth.tsx": "9b406e4938cc7ba1bfbca4504b45b4238445fe1bf4371038744904a7f27970aa",
+    "apps/sim/app/invite/components/invitation-workspace-access.tsx": "875d28aa2761b3c9a40193f55bd4fca7ca2e7f8986f8d3675a79c0a1cfe8a92b",
+    "apps/sim/app/invite/components/invitation-disclosure.tsx": "800e58ce7872bfc41b95d8a67904ada2a3a0d1bef40fdf4a4053576bae902953",
+    "apps/sim/app/invite/components/status-card.tsx": "2df446ebf42162e3f221709bcd6909854b5346515c7016a3ffcffe90f6df88f3",
+    "apps/sim/app/invite/components/layout.tsx": "e74dfa769b8a4415032ff99610a4847409c6545d781ddb11f9a58b8a79be6341",
+    "apps/sim/app/invite/components/index.ts": "f0a304ce772d771da821f18e6999db589d537aa06f7d6d75e613050d0cc935a3",
+    "apps/sim/app/invite/[id]/invite.tsx": "eabd903e206e44664988d5620ec3c53eb8b280f3ebbf1021579c508a2d2cfbca",
+    "apps/sim/app/invite/[id]/loading.tsx": "22f10935589df6c151f790f2eba1414537be4d34c66b8d896bcb7074c5a7ded1",
+    "apps/sim/app/invite/[id]/page.tsx": "db659e839b5f8aa5b5e649cbdebc4e88dc726e62ca913fe57e5fee5b2ba5fe23",
+    "apps/sim/app/knowledge/github/setup/setup.tsx": "f41741ce6c1d0d89ca13d89502415174212c046b2c0bdf4a8cf5d8bf9ec66a47",
+    "apps/sim/app/knowledge/github/setup/page.tsx": "d68fd20792fc06311568b1820643ffcce16eae31ac68510af8d926768b8e4b70",
+    "apps/sim/app/credential-groups/slack-complete/slack-completion.tsx": "86d25bd0ecfa893b1b621ee8637405bd48222711132a88e4da1cc0e0a5164115",
+    "apps/sim/app/credential-groups/slack-complete/page.tsx": "293ddb3def11db2d97f08bbb1431e0d31aa52360b2382e72ce09cd26cbed500c",
+    "apps/sim/app/credential-groups/complete/completion-handoff.tsx": "544edefe79cf7b3dbb966f9ba4aeb2911b8c4dd2b4f363738caa3897197cd907",
+    "apps/sim/app/credential-groups/complete/page.tsx": "345c7d36b1513df311c00a9e91d0034ec446d63bbea9cce0dd51d1a501880f5f",
+    "apps/sim/app/credential-groups/enroll/[token]/search-params.ts": "69addc3f9a90c9bb4da58ef468ebf1e39b16187508ac922441dcaddd22f0742f",
+    "apps/sim/app/credential-groups/enroll/[token]/oauth-reconnect-link.tsx": "7fadd3a5542b1308dadeed29e27d4959d0d42c5dc37f6de37d6e04cb4226a7ce",
+    "apps/sim/app/credential-groups/enroll/[token]/oauth-toast.tsx": "4ea38497e5bbd6c4eac152573f37c0b02e7b6a355636b97b7543e9b65afd18ac",
+    "apps/sim/app/credential-groups/enroll/[token]/page.tsx": "6a313f7a7e2fcf75c543fd62098f32575b6f57458641f2740bfb8f54ce6d665b",
+    "apps/sim/app/(auth)/verify/use-verification.ts": "92a1ea22661f1268c2ee826728cd3979082d6a16016f83d70a6b9a209ead91ef",
+    "apps/sim/app/(auth)/verify/verify-content.tsx": "57c2534e8dcc1faf0b0c8a0c976f0ebecfeef60840ac986bf8d0cc6b25cb9529",
+    "apps/sim/app/(auth)/verify/loading.tsx": "a3f80de1f6a97ecd94a9b090edeb71c807bea9a3b53103d91737ff2fecdfeda2",
+    "apps/sim/app/(auth)/verify/page.tsx": "b0a53fc84f03a8d3fc06b4b396ea726fb57070c0017642abaece747453050c4a",
+    "apps/sim/app/(auth)/signup/search-params.ts": "824ab478bb22311eb98a8edc384826498f42f2c98f3ecdd3af01a7edeb16cdc0",
+    "apps/sim/app/(auth)/signup/registration-disabled.tsx": "4dd7cf7640fa6eb6ef376c01e346208e2265cfa7405e905712c203eaf33d792d",
+    "apps/sim/app/(auth)/signup/loading.tsx": "c50b6797c33ec5b9ddc33775f6dca1271634211e2727e18d4b7da6a204790ef0",
+    "apps/sim/app/(auth)/signup/signup-form.tsx": "0f367f32f12af869fbb754646146922698a9c2b8cd09ae52520e0e488fd31603",
+    "apps/sim/app/(auth)/signup/page.tsx": "d55744d1f9341e76a2c94e6e0ea81268e4000de5e16d19b2d431f2a17801f042",
+    "apps/sim/app/(auth)/components/social-login-buttons.tsx": "f5367bc0f43d264e761102391d7e8545c6d06e7d050443013e28df68d359d97e",
+    "apps/sim/app/(auth)/components/auth-field.tsx": "302a8fb1a7336e2c868ffeed7c9e357649915d13eeee5b4d1d28a3b38ae45457",
+    "apps/sim/app/(auth)/components/auth-text-link.tsx": "a89b88257e64633c1c401c1deda9fe24926fea44de1a173a4da62f29ad88a50c",
+    "apps/sim/app/(auth)/components/auth-shell.tsx": "21b7e9eb214754a187c1aefc378ab8451684e46b73265a7fa376b8e8225f012b",
+    "apps/sim/app/(auth)/components/auth-legal-footer.tsx": "6214e8fc00177b8f47833ea5a1d06204a936579a53adc0f3e025d39c0a94fe05",
+    "apps/sim/app/(auth)/components/auth-nav-prompt.tsx": "037772a5a5017e18dec6665ffd2476341055cb0e6266eca367bd945f784c02c0",
+    "apps/sim/app/(auth)/components/auth-submit-button.tsx": "16f535ecfcb888296947bc11dad6ca00ad67897011c53c83deb85e4db51e23bd",
+    "apps/sim/app/(auth)/components/auth-loading-skeleton.tsx": "a42e64528f81aee40f56da4571f871682cb403eebbea2044963b9f610a7a9c47",
+    "apps/sim/app/(auth)/components/oauth-provider-checker.tsx": "ea5ba223887cbf90e9175e5d7e59a1d23b8f16804cb99d0802f7da54ed503dea",
+    "apps/sim/app/(auth)/components/auth-divider.tsx": "384918b4f425581f47833198c2fc532467715192303dd0676064ab8090895949",
+    "apps/sim/app/(auth)/components/password-input.tsx": "8e86414021d3eaa1d5bacce8fdd5ed49a1268bd6784c3428774e6012e892e336",
+    "apps/sim/app/(auth)/components/constants.ts": "64a9bf8f3fdb8fce5e96f5def9939a1f520a842f02d23dd111948f0c89a4c3a3",
+    "apps/sim/app/(auth)/components/auth-input.tsx": "12a175523d140b15a8eef45ee3ab709f64b8603ac4f2bed264dfb5b69af06209",
+    "apps/sim/app/(auth)/components/auth-header.tsx": "39bb7c86bb70d07adb3bd8e44ff2b7a0c25151b11c2993b23bbb49b61583d16d",
+    "apps/sim/app/(auth)/components/sso-login-button.tsx": "c06c62a419af92d9c3c3eb624e927447e636e9b8ffb1c2e30451c20ec299ece0",
+    "apps/sim/app/(auth)/components/index.ts": "f0d2af59924b323a846d2fbb16dbf8367c4bae1e91afb8e40d4d39ea8d185bd2",
+    "apps/sim/app/(auth)/components/auth-form-message.tsx": "19688a09af97fd41113157486de4b03835f01217f9ab9b611ddd9284f8e9a5f1",
+    "apps/sim/app/(auth)/components/support-footer.tsx": "5122b11949594d2812eb92f20f8d18cda90b214bcebe8ac745e7448d660550da",
+    "apps/sim/app/(auth)/sso/loading.tsx": "cebab4d6de272d4d4b055ee0091453a71d7158a37124bf2053434593f58fb94d",
+    "apps/sim/app/(auth)/sso/page.tsx": "b917cd70a259229f1d0a3cc8346d21f673810f245467cf3aafe5121d7707fd1e",
+    "apps/sim/app/(auth)/reset-password/reset-password-form.tsx": "74f0b8aba88b70342be18bd2ee64f53a229c14755569392e2250f0b59fa1e8f5",
+    "apps/sim/app/(auth)/reset-password/reset-password-content.tsx": "fbd1b53ea8c4a5c86c8a9a3d1ced414feafbb8a756be428d24d9f34252a61fca",
+    "apps/sim/app/(auth)/reset-password/loading.tsx": "33475f75b4f3cae9f53b4482b119c53fcfb8c899b437c8468411aed28380fc66",
+    "apps/sim/app/(auth)/reset-password/page.tsx": "b9dd840603e49ed1926a0944d04a3bf2e2cb30656f817587689250503b4546e8",
+    "apps/sim/app/(auth)/login/loading.tsx": "be903941ac9953b609b268e7d63b6506004eafb10e6ebdcb3ba767fa3c186dff",
+    "apps/sim/app/(auth)/login/login-form.tsx": "f6294c9a6401ca8c64b2d1211ebaef5923aeefa6689712cc60ac470d303b567c",
+    "apps/sim/app/(auth)/login/page.tsx": "265df71867021458275fe5dad2e58f66ea81cf8b5c8ba98caf5c73fc9039ee5e",
+    "apps/sim/app/(auth)/oauth/consent/search-params.ts": "febb15167ebda615cc0bb54c0b2c587921eb4ea52c0198313952451659a8e74f",
+    "apps/sim/app/(auth)/oauth/consent/loading.tsx": "8794dcadbbccf1b05943a22d1aea22190a7520c82f1ad08f1e4747ae410da066",
+    "apps/sim/app/(auth)/oauth/consent/page.tsx": "3fd5d9ad77386745df773a251f5f4d0da02224b8f5a59f92e103a9ec7e51f8cb",
+    "apps/sim/app/(auth)/oauth/consent/consent-view.tsx": "4a3b7dee52d87038de070890226a9ad6fdd81158c879cbbe41ee560d0ae7caea",
+    "apps/sim/app/(auth)/oauth/sign-in/route.ts": "d6b46c7f0cd4fe54ab90dfbc786d6a5fe165c5a5b48d5dedb17e119fc2569a22",
+    "apps/sim/app/(auth)/sso/launch/[providerId]/route.ts": "7737458be1a0e0a10df8e3859441f37d8953c3cc256c8ed83f846d2cf4ee6301"
+  }
+}

@@ -284,7 +284,8 @@
     "yauzl": "3.4.0",
     "yjs": "13.6.33",
     "zod": "4.3.6",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.15",
+    "@sim/auth-ui": "workspace:*"
   },
   "devDependencies": {
     "@next/env": "16.4.1",

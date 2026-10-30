@@ -1,4 +1,4 @@
-import { Skeleton } from '@sim/emcn'
+import { AuthSkeleton as Skeleton } from '@sim/auth-ui'
 import { AuthShell } from '@/app/(auth)/components'
 
 /**
@@ -10,12 +10,12 @@ import { AuthShell } from '@/app/(auth)/components'
  */
 export function CliAuthLoading() {
   return (
-    <div className='flex w-full flex-col items-center'>
-      <Skeleton className='h-[38px] w-[280px] rounded-[4px]' />
-      <Skeleton className='mt-1 h-[23px] w-[360px] rounded-[4px]' />
-      <Skeleton className='h-[23px] w-[240px] rounded-[4px]' />
-      <Skeleton className='mt-6 h-[70px] w-full rounded-[10px]' />
-      <Skeleton className='mt-4 h-9 w-full rounded-[10px]' />
+    <div className='au:flex au:w-full au:flex-col au:items-center'>
+      <Skeleton className='au:h-[38px] au:w-[280px] au:rounded-[4px]' />
+      <Skeleton className='au:mt-1 au:h-[23px] au:w-[360px] au:rounded-[4px]' />
+      <Skeleton className='au:h-[23px] au:w-[240px] au:rounded-[4px]' />
+      <Skeleton className='au:h-[70px] au:w-full au:rounded-[10px]' />
+      <Skeleton className='au:h-9 au:w-full au:rounded-[10px]' />
     </div>
   )
 }

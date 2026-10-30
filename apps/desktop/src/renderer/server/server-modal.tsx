@@ -1,14 +1,6 @@
 import { useRef, useState } from 'react'
+import { AuthButton, AuthField, AuthHeader, AuthInput, AuthRoot, AuthStack } from '@sim/auth-ui'
 import type { DesktopServerConfiguration } from '@sim/desktop-bridge'
-import {
-  ChipModalBody,
-  ChipModalDescription,
-  ChipModalField,
-  ChipModalFooter,
-  ChipModalHeader,
-  ChipModalSurface,
-} from '@sim/emcn'
-import { mountShellModal } from '@/renderer/shell'
 import type { ShellWindowApi } from '@/shared/shell'
 
 interface ServerModalProps {
@@ -22,7 +14,24 @@ function closeWindow() {
 }
 
 function mountServerModal(element: HTMLDivElement | null) {
-  return mountShellModal(element, closeWindow)
+  if (!element) return
+  element.querySelector<HTMLInputElement>('input')?.focus()
+  const host = (window as Window & { simShell?: ShellWindowApi }).simShell
+  const resize = () => host?.resizeContent(Math.ceil(element.scrollHeight))
+  const observer = new ResizeObserver(resize)
+  observer.observe(element)
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeWindow()
+    }
+  }
+  document.addEventListener('keydown', onKey)
+  resize()
+  return () => {
+    observer.disconnect()
+    document.removeEventListener('keydown', onKey)
+  }
 }
 
 export function ServerModal({ server, configuration, initialError }: ServerModalProps) {
@@ -58,50 +67,73 @@ export function ServerModal({ server, configuration, initialError }: ServerModal
   }
 
   return (
-    <ChipModalSurface
-      ref={mountServerModal}
-      role='dialog'
-      aria-modal='true'
-      aria-labelledby='server-title'
-      aria-describedby='server-description'
-      className='max-h-screen'
-    >
-      <ChipModalHeader
-        onClose={closeWindow}
-        className='[-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]'
+    <AuthRoot>
+      <div
+        ref={mountServerModal}
+        role='dialog'
+        aria-modal='true'
+        aria-label='Sim server'
+        className='au:p-6'
       >
-        <span id='server-title'>Sim server</span>
-      </ChipModalHeader>
-      <ChipModalBody>
-        <ChipModalDescription id='server-description'>
-          Point this app at your own Sim deployment. Self-hosted servers must use HTTPS; localhost
-          may use HTTP.
-        </ChipModalDescription>
-        <ChipModalField
-          type='input'
-          inputType='url'
-          title='Server URL'
-          value={origin}
-          onChange={(value) => {
-            setOrigin(value)
-            setError(undefined)
-            setMessage('')
-          }}
-          autoComplete='off'
-          placeholder='https://sim.example.com'
-          disabled={pending}
-          error={error}
-          hint={<span role='status'>{pending ? 'Connecting…' : message}</span>}
-        />
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={closeWindow}
-        primaryAction={{
-          label: pending ? 'Connecting…' : 'Connect',
-          onClick: connect,
-          disabled: pending || !origin.trim(),
-        }}
-      />
-    </ChipModalSurface>
+        <AuthStack>
+          <div className='au:[-webkit-app-region:drag]'>
+            <AuthHeader
+              title='Sim server'
+              description='Connect to your organization’s Sim deployment.'
+            />
+          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void connect()
+            }}
+            className='au:space-y-5'
+          >
+            <AuthField
+              htmlFor='server-origin'
+              label='Server URL'
+              errors={error ? [error] : undefined}
+              hint={
+                <>
+                  <span>Use HTTPS for self-hosted servers. Localhost may use HTTP.</span>
+                  <span role='status'>{message && ` ${message}`}</span>
+                </>
+              }
+            >
+              <AuthInput
+                id='server-origin'
+                type='url'
+                value={origin}
+                onChange={(event) => {
+                  setOrigin(event.target.value)
+                  setError(undefined)
+                  setMessage('')
+                }}
+                autoComplete='off'
+                placeholder='https://sim.example.com'
+                disabled={pending}
+                error={Boolean(error)}
+                aria-describedby='server-origin-hint'
+              />
+            </AuthField>
+            <div className='au:grid au:grid-cols-2 au:gap-2'>
+              <AuthButton onClick={closeWindow} fullWidth>
+                Cancel
+              </AuthButton>
+              <AuthButton
+                type='submit'
+                variant='primary'
+                disabled={!origin.trim()}
+                loading={pending}
+                loadingLabel='Connecting…'
+                fullWidth
+              >
+                Connect
+              </AuthButton>
+            </div>
+          </form>
+        </AuthStack>
+      </div>
+    </AuthRoot>
   )
 }

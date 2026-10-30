@@ -1,9 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, cn, Input, Label } from '@sim/emcn'
+import {
+  AuthDivider,
+  AuthField,
+  AuthHeader,
+  AuthInput,
+  AuthLinkButton,
+  AuthNavPrompt,
+  AuthStack,
+} from '@sim/auth-ui'
 import { createLogger } from '@sim/logger'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -14,7 +21,7 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
-import { AuthFormMessage, AuthSubmitButton } from '@/app/(auth)/components'
+import { AuthFormMessage, AuthLegalFooter, AuthSubmitButton } from '@/app/(auth)/components'
 
 const logger = createLogger('SSOForm')
 const SSO_SIGN_IN_ERROR = 'Unable to start SSO. Check your email and try again.'
@@ -128,6 +135,7 @@ function SSOFormContent({
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (isLoading) return
     setIsLoading(true)
     setFormError(null)
 
@@ -187,126 +195,50 @@ function SSOFormContent({
   }
 
   return (
-    <>
-      <div className='space-y-1 text-center'>
-        <h1
-          className={
-            'text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'
-          }
+    <AuthStack>
+      <AuthHeader title='Sign in with SSO' description='Enter your work email to continue' />
+      <form onSubmit={onSubmit} className='au:space-y-5'>
+        {formError && <AuthFormMessage type='error'>{formError}</AuthFormMessage>}
+        <AuthField
+          htmlFor='email'
+          label='Work email'
+          errors={showEmailValidationError ? emailErrors : undefined}
         >
-          Sign in with SSO
-        </h1>
-        <p
-          className={
-            'text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'
-          }
-        >
-          Enter your work email to continue
-        </p>
-      </div>
-
-      <form onSubmit={onSubmit} className={'mt-8 space-y-8'}>
-        {formError && (
-          <div role='alert'>
-            <AuthFormMessage type='error'>{formError}</AuthFormMessage>
-          </div>
-        )}
-
-        <div className='space-y-6'>
-          <div className='space-y-2'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='email'>Work email</Label>
-            </div>
-            <Input
-              id='email'
-              name='email'
-              placeholder='Enter your work email'
-              required
-              autoCapitalize='none'
-              autoComplete='email'
-              autoCorrect='off'
-              value={email}
-              onChange={handleEmailChange}
-              aria-invalid={hasEmailError || undefined}
-              aria-describedby={hasEmailError ? 'sso-email-errors' : undefined}
-              className={cn(
-                hasEmailError && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
-              )}
-            />
-            {hasEmailError && (
-              <div
-                id='sso-email-errors'
-                role='alert'
-                className='mt-1 space-y-1 text-[var(--text-error)] text-caption'
-              >
-                {emailErrors.map((error) => (
-                  <p key={error}>{error}</p>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
+          <AuthInput
+            id='email'
+            name='email'
+            type='email'
+            required
+            autoCapitalize='none'
+            autoComplete='email'
+            autoCorrect='off'
+            placeholder='Enter your work email'
+            value={email}
+            onChange={handleEmailChange}
+            error={hasEmailError}
+            disabled={isLoading}
+          />
+        </AuthField>
         <AuthSubmitButton loading={isLoading} loadingLabel='Redirecting to SSO provider…'>
           Continue with SSO
         </AuthSubmitButton>
       </form>
-
       {emailEnabled && (
         <>
-          <div className='relative my-6 font-light'>
-            <div className='absolute inset-0 flex items-center'>
-              <div className='w-full border-[var(--border)] border-t' />
-            </div>
-            <div className='relative flex justify-center text-sm'>
-              <span className='bg-[var(--bg)] px-4 font-normal text-[var(--text-muted)]'>Or</span>
-            </div>
-          </div>
-
-          <div className='space-y-3'>
-            <Link
-              href={`/login${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            >
-              <Button variant='outline' className='w-full rounded-[10px]' type='button'>
-                Sign in with email
-              </Button>
-            </Link>
-          </div>
+          <AuthDivider label='Or' />
+          <AuthLinkButton href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} fullWidth>
+            Sign in with email
+          </AuthLinkButton>
         </>
       )}
-
       {emailEnabled && !registrationDisabled && (
-        <div className='pt-6 text-center font-light text-base'>
-          <span className='font-normal'>Don't have an account? </span>
-          <Link
-            href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='text-[var(--text-primary)] underline-offset-4 transition hover:underline'
-          >
-            Sign up
-          </Link>
-        </div>
+        <AuthNavPrompt
+          prompt="Don't have an account?"
+          href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+          linkLabel='Sign up'
+        />
       )}
-
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-normal text-[var(--text-muted)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
-        By signing in, you agree to our{' '}
-        <Link
-          href='/terms'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
-        >
-          Terms of Service
-        </Link>{' '}
-        and{' '}
-        <Link
-          href='/privacy'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
-        >
-          Privacy Policy
-        </Link>
-      </div>
-    </>
+      <AuthLegalFooter action='signing in' />
+    </AuthStack>
   )
 }

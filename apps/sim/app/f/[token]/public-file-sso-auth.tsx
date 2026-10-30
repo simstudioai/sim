@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
+import { cn, AuthInput as Input, AuthLabel as Label } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
@@ -64,9 +64,9 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
           e.preventDefault()
           handleAuthenticate()
         }}
-        className='space-y-6'
+        className='au:space-y-[var(--auth-group-gap)]'
       >
-        <div className='space-y-2'>
+        <div className='au:space-y-2'>
           <Label htmlFor='email'>Work Email</Label>
           <Input
             id='email'
@@ -82,9 +82,11 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
               setEmail(e.target.value)
               setError(null)
             }}
-            className={cn(error && 'border-[var(--text-error)] focus:border-[var(--text-error)]')}
+            className={cn(
+              error && 'au:border-[var(--auth-error)] au:focus:border-[var(--auth-error)]'
+            )}
           />
-          {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
+          {error ? <p className='au:text-[var(--auth-error)] au:text-caption'>{error}</p> : null}
         </div>
 
         <AuthSubmitButton

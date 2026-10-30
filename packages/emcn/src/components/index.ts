@@ -44,7 +44,7 @@ export {
   type ChipDropdownProps,
 } from './chip-dropdown/chip-dropdown'
 export { ChipEmailsInput } from './chip-emails-input/chip-emails-input'
-export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
+export { ChipInput } from './chip-input/chip-input'
 export {
   ChipConfirmModal,
   type ChipConfirmTextSegment,
@@ -112,7 +112,6 @@ export {
   InfoCardList,
 } from './info-card/info-card'
 export { Input } from './input/input'
-export { InputOTP, InputOTPGroup, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
 export { Lightbox } from './lightbox/lightbox'
 export {

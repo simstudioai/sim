@@ -1,0 +1,30 @@
+'use client'
+
+import { AuthLinkButton } from '@sim/auth-ui'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { getEnv, isFalsy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
+import { buildAuthCrossLink, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
+
+/** Preserves return and invitation context in the Paper header cross-link. */
+export function AuthNavigation({ registrationDisabled }: { registrationDisabled: boolean }) {
+  const pathname = usePathname()
+  const params = useSearchParams()
+  if (pathname !== '/login' && pathname !== '/signup') return null
+  if (isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))) return null
+  if (pathname === '/login' && registrationDisabled) return null
+  const { rawCallbackUrl: callback, isInviteFlow } = resolveAuthRedirect({
+    redirect: params.get('redirect'),
+    callbackUrl: params.get('callbackUrl'),
+    inviteFlow: params.get('invite_flow'),
+  })
+  const href = buildAuthCrossLink(pathname === '/login' ? '/signup' : '/login', {
+    callbackUrl: callback && validateCallbackUrl(callback) ? callback : null,
+    isInviteFlow,
+  })
+  return (
+    <AuthLinkButton href={href} variant='navigation'>
+      {pathname === '/login' ? 'Sign up' : 'Sign in'}
+    </AuthLinkButton>
+  )
+}

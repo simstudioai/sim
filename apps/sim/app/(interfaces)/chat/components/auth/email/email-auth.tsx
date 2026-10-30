@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { cn, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@sim/emcn'
+import { AuthCodeEntry, AuthField, AuthHeader, AuthInput, AuthStack } from '@sim/auth-ui'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AuthSubmitButton, AuthTextLink } from '@/app/(auth)/components'
+import { AuthShell, AuthSubmitButton } from '@/app/(auth)/components'
 import { useChatEmailOtpRequest, useChatEmailOtpVerify } from '@/hooks/queries/chats'
 
 const logger = createLogger('EmailAuth')
@@ -56,6 +56,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
   }
 
   const handleSendOtp = async () => {
+    if (requestOtp.isPending || verifyOtp.isPending) return
     const emailValidationErrors = validateEmailField(email)
     setEmailErrors(emailValidationErrors)
 
@@ -75,6 +76,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
   }
 
   const handleVerifyOtp = async (otp?: string) => {
+    if (requestOtp.isPending || verifyOtp.isPending) return
     const codeToVerify = otp || otpValue
 
     if (!codeToVerify || codeToVerify.length !== 6) {
@@ -92,6 +94,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
   }
 
   const handleResendOtp = async () => {
+    if (requestOtp.isPending || verifyOtp.isPending) return
     setAuthError(null)
     setCountdown(30)
 
@@ -106,145 +109,70 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
   }
 
   return (
-    <div className='flex flex-1 items-center justify-center px-4 py-16'>
-      <div className='w-full max-w-[410px]'>
-        <div className='flex flex-col items-center justify-center'>
-          <div className='space-y-1 text-center'>
-            <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-              {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
-            </h1>
-            <p className='text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-              {showOtpVerification
-                ? `A verification code has been sent to ${email}`
-                : 'This chat requires email verification'}
-            </p>
-          </div>
-
-          <div className='mt-8 w-full max-w-[410px]'>
-            {!showOtpVerification ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  handleSendOtp()
-                }}
-                className='space-y-6'
-              >
-                <div className='space-y-2'>
-                  <div className='flex items-center justify-between'>
-                    <Label htmlFor='email'>Email</Label>
-                  </div>
-                  <Input
-                    id='email'
-                    name='email'
-                    placeholder='Enter your email'
-                    required
-                    autoCapitalize='none'
-                    autoComplete='email'
-                    autoCorrect='off'
-                    value={email}
-                    onChange={handleEmailChange}
-                    className={cn(
-                      hasEmailError && 'border-[var(--text-error)] focus:border-[var(--text-error)]'
-                    )}
-                  />
-                  {hasEmailError && (
-                    <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
-                      {emailErrors.map((error) => (
-                        <p key={error}>{error}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <AuthSubmitButton
-                  type='submit'
-                  loading={requestOtp.isPending}
-                  loadingLabel='Sending Code…'
-                >
-                  Continue
-                </AuthSubmitButton>
-              </form>
-            ) : (
-              <div className='space-y-6'>
-                <p className='text-center text-[var(--text-muted)] text-sm'>
-                  Enter the 6-digit code to verify your account. If you don't see it in your inbox,
-                  check your spam folder.
-                </p>
-
-                <div className='flex justify-center'>
-                  <InputOTP
-                    maxLength={6}
-                    value={otpValue}
-                    onChange={(value) => {
-                      setOtpValue(value)
-                      if (value.length === 6) {
-                        handleVerifyOtp(value)
-                      }
-                    }}
-                    disabled={verifyOtp.isPending}
-                    className={cn('gap-2', authError && 'otp-error')}
-                  >
-                    <InputOTPGroup>
-                      {[0, 1, 2, 3, 4, 5].map((index) => (
-                        <InputOTPSlot
-                          key={index}
-                          index={index}
-                          className={cn(authError && 'border-[var(--text-error)]')}
-                        />
-                      ))}
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
-
-                {authError && (
-                  <div className='mt-1 space-y-1 text-center text-[var(--text-error)] text-xs'>
-                    <p>{authError}</p>
-                  </div>
-                )}
-
-                <AuthSubmitButton
-                  onClick={() => handleVerifyOtp()}
-                  disabled={otpValue.length !== 6}
-                  loading={verifyOtp.isPending}
-                  loadingLabel='Verifying…'
-                >
-                  Verify Email
-                </AuthSubmitButton>
-
-                <div className='text-center'>
-                  <p className='text-[var(--text-muted)] text-sm'>
-                    Didn't receive a code?{' '}
-                    {countdown > 0 ? (
-                      <span>
-                        Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
-                      </span>
-                    ) : (
-                      <AuthTextLink
-                        onClick={handleResendOtp}
-                        disabled={verifyOtp.isPending || requestOtp.isPending}
-                      >
-                        Resend
-                      </AuthTextLink>
-                    )}
-                  </p>
-                </div>
-
-                <div className='text-center font-light text-sm'>
-                  <AuthTextLink
-                    onClick={() => {
-                      setShowOtpVerification(false)
-                      setOtpValue('')
-                      setAuthError(null)
-                    }}
-                  >
-                    Change email
-                  </AuthTextLink>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <AuthShell>
+      <AuthStack>
+        <AuthHeader
+          title={showOtpVerification ? 'Verify your email' : 'Email verification'}
+          description={
+            showOtpVerification
+              ? `A verification code has been sent to ${email}`
+              : 'This chat requires email verification'
+          }
+        />
+        {!showOtpVerification ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSendOtp()
+            }}
+            className='au:space-y-5'
+          >
+            <AuthField htmlFor='email' label='Email' errors={emailErrors}>
+              <AuthInput
+                id='email'
+                name='email'
+                type='email'
+                required
+                autoCapitalize='none'
+                autoComplete='email'
+                autoCorrect='off'
+                placeholder='Enter your email'
+                value={email}
+                onChange={handleEmailChange}
+                error={hasEmailError}
+                disabled={requestOtp.isPending}
+              />
+            </AuthField>
+            <AuthSubmitButton loading={requestOtp.isPending} loadingLabel='Sending code…'>
+              Continue
+            </AuthSubmitButton>
+          </form>
+        ) : (
+          <AuthCodeEntry
+            value={otpValue}
+            onChange={(value) => {
+              setOtpValue(value)
+              if (value.length === 6) void handleVerifyOtp(value)
+            }}
+            onVerify={() => {
+              void handleVerifyOtp()
+            }}
+            onResend={() => {
+              void handleResendOtp()
+            }}
+            onChangeEmail={() => {
+              setShowOtpVerification(false)
+              setOtpValue('')
+              setAuthError(null)
+            }}
+            verifying={verifyOtp.isPending}
+            resending={requestOtp.isPending}
+            countdown={countdown}
+            error={authError}
+            help="Enter the six-digit code to verify your access. If you don't see it in your inbox, check your spam folder."
+          />
+        )}
+      </AuthStack>
+    </AuthShell>
   )
 }
