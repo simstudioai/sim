@@ -1,3 +1,4 @@
+import { createDeferred } from '@sim/testing/helpers'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -144,7 +145,7 @@ describe('search pipeline diagnostics', () => {
   })
 
   it('records preview failures that settle after the search has returned', async () => {
-    const pending = Promise.withResolvers<void>()
+    const pending = createDeferred<void>()
     let request: Promise<unknown> | undefined
     await withSearchDiagnostics({}, () =>
       withSearchProviderDiagnostics({ provider: 'gmail', accountIndex: 0 }, async () => {
