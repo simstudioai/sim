@@ -88,6 +88,19 @@ for (const [size, file] of [
 ] as const) {
   await cp(resolve(root, '../sim/public/favicon', file), resolve(dist, `icon-${size}.png`))
 }
+/**
+ * Chrome navigates a typed `sim/<name>` to `http://sim/<name>`; this rewrites it to the Sim link
+ * resolver on the configured origin, keeping the rest of the path and query verbatim.
+ */
+const simLinkRules = [
+  {
+    id: 1,
+    priority: 1,
+    action: { type: 'redirect', redirect: { regexSubstitution: `${origin.origin}/sim/\\1` } },
+    condition: { regexFilter: '^https?://sim/(.*)$', resourceTypes: ['main_frame'] },
+  },
+]
+await writeFile(resolve(dist, 'sim-links.json'), JSON.stringify(simLinkRules, null, 2))
 await writeFile(
   resolve(dist, 'manifest.json'),
   JSON.stringify(
@@ -98,8 +111,18 @@ await writeFile(
       description:
         'Ask Sim about the page you are reading, with your existing Sim conversations and tools.',
       minimum_chrome_version: '120',
-      permissions: ['activeTab', 'scripting', 'sidePanel', 'storage', 'contextMenus'],
-      host_permissions: [`${origin.origin}/*`],
+      permissions: [
+        'activeTab',
+        'scripting',
+        'sidePanel',
+        'storage',
+        'contextMenus',
+        'declarativeNetRequestWithHostAccess',
+      ],
+      host_permissions: [`${origin.origin}/*`, 'http://sim/*', 'https://sim/*'],
+      declarative_net_request: {
+        rule_resources: [{ id: 'sim_links', enabled: true, path: 'sim-links.json' }],
+      },
       optional_host_permissions: ['https://*/*', 'http://*/*'],
       background: { service_worker: 'background.js' },
       side_panel: { default_path: 'sidepanel.html' },
