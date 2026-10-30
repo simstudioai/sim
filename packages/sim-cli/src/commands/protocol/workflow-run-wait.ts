@@ -6,6 +6,7 @@ import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import { CLI_CONTRACT } from '../../contract/commands'
 import type { CommandSpec } from '../../contract/types'
 import { setSoftExitCode } from '../../embed-context'
+import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
@@ -39,7 +40,7 @@ const WAIT_EXIT_CODES = {
   failed: 1,
   cancelled: 2,
   paused: 3,
-  timeout: 4,
+  timeout: STILL_RUNNING_EXIT_CODE,
 } as const
 
 type WaitOutcome = keyof typeof WAIT_EXIT_CODES
