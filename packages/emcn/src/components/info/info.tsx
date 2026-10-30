@@ -24,9 +24,9 @@ interface InfoProps {
   interactive?: boolean
   /** Optional class names applied to the badge. */
   className?: string
-  /** Tooltip side. Defaults to `'top'`. */
+  /** Preferred side for pinned help. Hover help follows the cursor. Defaults to `'top'`. */
   side?: InfoSide
-  /** Tooltip alignment. Defaults to `'start'`. */
+  /** Alignment for pinned help. Hover help follows the cursor. Defaults to `'start'`. */
   align?: InfoAlign
 }
 
@@ -69,7 +69,7 @@ export function Info({
         </button>
       </Tooltip.Trigger>
       <Tooltip.Content side={side} align={align} className='max-w-xs'>
-        {children}
+        <p>{children}</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -78,12 +78,19 @@ export function Info({
 function InteractiveInfo({ children, className, side, align, label }: InfoProps) {
   const contentId = useId()
   const [open, setOpen] = useState(false)
-  const { state, handlers } = useFloatingTooltip(() => !open, {
+  const { state, handlers, dismiss } = useFloatingTooltip(() => !open, {
     preferAbove: side === 'top',
     revalidateKey: open,
+    dismissOnEscape: true,
   })
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) dismiss()
+        setOpen(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type='button'
