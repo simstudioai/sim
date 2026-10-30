@@ -21,7 +21,7 @@ export function ProseTable({ className, ...props }: ProseTableProps) {
       <table
         {...props}
         className={cn(
-          'w-full border-collapse text-left text-docs-table [&_tr:not(:last-child)]:border-b [&_tr]:border-[var(--docs-border)]',
+          'w-full border-collapse text-left text-docs-table dark:[&_td:first-child]:text-[var(--docs-text)] [&_td:last-child]:pr-0 [&_td>p]:my-0 [&_td>p]:text-docs-table dark:[&_td>p]:text-inherit [&_td]:py-3.5 [&_td]:pr-6 [&_td]:align-top dark:[&_td]:text-[var(--docs-muted)] [&_th:last-child]:pr-0 [&_th]:py-3 [&_th]:pr-6 [&_th]:align-bottom [&_th]:font-medium [&_thead]:border-[var(--docs-border)] [&_thead]:border-b [&_tr:not(:last-child)]:border-b [&_tr]:border-[var(--docs-border)]',
           className
         )}
       />
@@ -114,21 +114,6 @@ export function getMDXComponents(overrides: MDXComponents = {}): MDXComponents {
       />
     ),
     table: ProseTable,
-    thead: ({ className, ...props }) => (
-      <thead {...props} className={cn('border-[var(--docs-border)] border-b', className)} />
-    ),
-    th: ({ className, ...props }) => (
-      <th {...props} className={cn('py-3 pr-6 align-bottom font-medium last:pr-0', className)} />
-    ),
-    td: ({ className, ...props }) => (
-      <td
-        {...props}
-        className={cn(
-          'py-3.5 pr-6 align-top last:pr-0 dark:text-[var(--docs-muted)] dark:first:text-[var(--docs-text)] [&>p]:my-0 [&>p]:text-docs-table dark:[&>p]:text-inherit',
-          className
-        )}
-      />
-    ),
     hr: ({ className, ...props }) => (
       <hr {...props} className={cn('my-8 border-[var(--docs-border)]', className)} />
     ),

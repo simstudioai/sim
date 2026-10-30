@@ -1,18 +1,19 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
 import { Parser } from 'htmlparser2'
+import { toString as mdastToString } from 'mdast-util-to-string'
 import remarkGfm from 'remark-gfm'
+import remarkMdx from 'remark-mdx'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import type { ContentCatalog, DocsPage } from '@/lib/content/types'
 import { DOCS_REDIRECTS } from '@/lib/redirects'
-import screenshotAssets from '@/lib/screenshot-assets.json'
 
 const logger = createLogger('DocsCorpusE2E')
 const baseSetting = process.env.DOCS_E2E_BASE_URL
@@ -28,6 +29,7 @@ const canonicalOrigin = new URL(process.env.NEXT_PUBLIC_DOCS_URL ?? 'https://doc
 const MAX_BODY_BYTES = 32 * 1024 * 1024
 const CONCURRENCY = 4
 const startedAt = new Date().toISOString()
+const selectedPaths = process.env.DOCS_CORPUS_PATHS?.split(',').filter(Boolean)
 
 interface BaselinePage {
   source: string
@@ -65,6 +67,8 @@ const baseline = JSON.parse(
 ) as Baseline
 const baselinePages = new Map(baseline.pages.map((page) => [page.url, page]))
 const canonicalPages = new Set(catalog.pages.map((page) => page.url))
+if (selectedPaths?.some((path) => !canonicalPages.has(path)))
+  throw new Error('DOCS_CORPUS_PATHS must contain comma-separated canonical document paths')
 const readablePages = catalog.pages.filter((page) => page.url !== '/')
 const excludedAssets = baseline.assets.filter(
   (asset) => asset.path.split('/').at(-1) === '.DS_Store'
@@ -72,7 +76,22 @@ const excludedAssets = baseline.assets.filter(
 const publicAssets = baseline.assets.filter((asset) => !excludedAssets.includes(asset))
 const results: CheckResult[] = []
 const markdownParser = unified().use(remarkParse).use(remarkGfm)
-const optimized: Record<string, string> = screenshotAssets
+const sourceParser = unified().use(remarkParse).use(remarkGfm).use(remarkMdx)
+const staticMediaSources = new Map<string, string[]>()
+const staticMediaRoot = resolve(docsRoot, '.next/static/media')
+for (const filename of await readdir(staticMediaRoot)) {
+  if (!/\.(png|jpe?g|webp|avif)$/.test(filename)) continue
+  const filenamePath = resolve(staticMediaRoot, filename)
+  assert((await stat(filenamePath)).size <= MAX_BODY_BYTES, `Oversized static image: ${filename}`)
+  const hash = createHash('sha256')
+    .update(await readFile(filenamePath))
+    .digest('hex')
+  const originals = publicAssets.filter((asset) => asset.sha256 === hash)
+  staticMediaSources.set(
+    `/_next/static/media/${filename}`,
+    originals.map((asset) => `/${asset.path}`)
+  )
+}
 const specifications = new Map<string, Record<string, unknown>>()
 for (const page of catalog.pages)
   if (page.operation && !specifications.has(page.operation.specFile))
@@ -103,6 +122,92 @@ function plainMarkdown(value: string): string {
     return blocks.has(String(record.type)) ? ` ${value} ` : value
   }
   return normalized(readNode(markdownParser.parse(value)))
+}
+
+async function assertMarkdownStructure(page: DocsPage, markdown: string) {
+  if (page.operation) return
+  const source = await readFile(resolve(docsRoot, 'content/docs', page.sourcePath), 'utf8')
+  const authored = sourceParser.parse(source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, ''))
+  const received = markdownParser.parse(markdown)
+  const failures: string[] = []
+  const headingKey = (depth: number, title: string) =>
+    `${depth}:${title.replace(/\s*\[#[^\]]+\]\s*$/, '')}`
+  const headings = new Map<string, number>()
+  const fences = new Map<string, number>()
+  const tables: Array<{ rows: number; cells: number; codes: string[] }> = []
+  visit(received, (node) => {
+    if (node.type === 'heading') {
+      const key = headingKey(node.depth, mdastToString(node))
+      headings.set(key, (headings.get(key) ?? 0) + 1)
+    }
+    if (node.type === 'code') {
+      const key = `${node.lang ?? ''}:${node.value}`
+      fences.set(key, (fences.get(key) ?? 0) + 1)
+    }
+    if (node.type === 'table') {
+      const codes: string[] = []
+      visit(node, 'inlineCode', (code) => {
+        codes.push(code.value)
+      })
+      tables.push({
+        rows: node.children.length,
+        cells: node.children.reduce((count, row) => count + row.children.length, 0),
+        codes,
+      })
+    }
+  })
+  const consumeOccurrence = (counts: Map<string, number>, key: string, label: string) => {
+    const count = counts.get(key) ?? 0
+    if (count === 0) failures.push(`${label}: ${key.slice(0, 100)}`)
+    else counts.set(key, count - 1)
+  }
+  let tableIndex = 0
+  visit(authored, (node) => {
+    if (node.type === 'heading')
+      consumeOccurrence(headings, headingKey(node.depth, mdastToString(node)), 'Missing heading')
+    if (node.type === 'code')
+      consumeOccurrence(fences, `${node.lang ?? ''}:${node.value}`, 'Missing code fence')
+    if (
+      node.type !== 'table' &&
+      !(
+        (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') &&
+        node.name === 'table'
+      )
+    )
+      return
+    let rows = 0
+    let cells = 0
+    const codes: string[] = []
+    visit(node, (child) => {
+      if (child.type === 'tableRow') rows++
+      if (child.type === 'tableCell') cells++
+      if (child.type === 'inlineCode') codes.push(child.value)
+      if (child.type !== 'mdxJsxFlowElement' && child.type !== 'mdxJsxTextElement') return
+      if (child.name === 'tr') rows++
+      if (child.name === 'th' || child.name === 'td') cells++
+      if (child.name === 'code')
+        codes.push(
+          child.children
+            .map((part) => {
+              if (part.type !== 'mdxTextExpression' && part.type !== 'mdxFlowExpression')
+                return mdastToString(part)
+              const statement = toRecord(toArray(toRecord(part.data?.estree).body)[0])
+              const expression = toRecord(statement.expression)
+              assert(expression.type === 'Literal', 'Unsupported source code expression')
+              return String(expression.value)
+            })
+            .join('')
+        )
+    })
+    const table = tables[tableIndex++]
+    if (!table || table.rows !== rows || table.cells !== cells)
+      failures.push(`Table ${tableIndex} lost its ${rows} rows or ${cells} cells`)
+    const actualCodes = new Map<string, number>()
+    for (const code of table?.codes ?? []) actualCodes.set(code, (actualCodes.get(code) ?? 0) + 1)
+    for (const code of codes)
+      consumeOccurrence(actualCodes, code, `Table ${tableIndex} lost an inline code value`)
+  })
+  assert(!failures.length, failures.join('; '))
 }
 
 async function consume(response: Response, onChunk: (chunk: Uint8Array) => void): Promise<number> {
@@ -198,8 +303,11 @@ async function readHtml(response: Response): Promise<HtmlResult & { bytes: numbe
         if (!main || ignored) return
         if (name === 'h1') h1++
         if (attributes.id) result.ids.set(attributes.id, (result.ids.get(attributes.id) ?? 0) + 1)
-        if (['img', 'video', 'source', 'iframe'].includes(name) && attributes.src)
-          result.media.add(mediaPath(attributes.src))
+        if (['img', 'video', 'source', 'iframe'].includes(name) && attributes.src) {
+          const source = mediaPath(attributes.src)
+          result.media.add(source)
+          for (const original of staticMediaSources.get(source) ?? []) result.media.add(original)
+        }
         if (authentication && name === 'a' && attributes.href)
           result.authenticationLinks.add(
             new URL(attributes.href, `${canonicalOrigin}${new URL(response.url).pathname}`).href
@@ -358,6 +466,7 @@ function authenticationLinks(page: DocsPage): Set<string> {
 }
 
 async function check(name: string, path: string, run: (result: CheckResult) => Promise<void>) {
+  if (selectedPaths && !selectedPaths.includes(path.replace(/\.mdx$/, ''))) return
   const result: CheckResult = { name, path, status: 'failed', durationMs: 0 }
   const started = performance.now()
   try {
@@ -473,7 +582,7 @@ try {
             media.src ??
             (media.type === 'IntroductionHero' ? '/static/introduction/platform.webp' : undefined)
           if (!original) continue
-          const expected = mediaPath(optimized[original] ?? original)
+          const expected = mediaPath(original)
           assert(
             html.media.has(expected),
             `Missing source media ${original} (expected ${expected})`
@@ -489,14 +598,18 @@ try {
       }
     )
     await check(
-      'Complete Markdown matches canonical catalog',
+      'Complete Markdown matches the catalog and preserves source structure',
       `${page.url}.mdx`,
       async (result) => {
         const response = await request(`${page.url}.mdx`)
         result.responseStatus = response.status
         await expectResponse(response, 200, 'text/markdown')
         const hasher = createHash('sha256')
-        result.bytes = await consume(response, (chunk) => hasher.update(chunk))
+        const chunks: Uint8Array[] = []
+        result.bytes = await consume(response, (chunk) => {
+          hasher.update(chunk)
+          chunks.push(chunk)
+        })
         assert(
           result.bytes === Buffer.byteLength(page.markdown),
           `Markdown byte length differs: ${result.bytes} versus ${Buffer.byteLength(page.markdown)}`
@@ -505,6 +618,7 @@ try {
           hasher.digest('hex') === digest(page.markdown),
           'Markdown content differs from the complete canonical page'
         )
+        await assertMarkdownStructure(page, Buffer.concat(chunks).toString('utf8'))
       }
     )
   })
@@ -576,7 +690,7 @@ try {
   const failed = results.filter((result) => result.status === 'failed')
   await writeFile(
     reportPath,
-    `${JSON.stringify({ startedAt, completedAt: new Date().toISOString(), origin: base.origin, canonicalOrigin, catalogHash: digest(catalog.pages.map((page) => `${page.id}:${page.contentHash}`).join('\n')), concurrency: CONCURRENCY, maxBodyBytes: MAX_BODY_BYTES, catalogPages: catalog.pages.length, readablePages: readablePages.length, redirectOnlyPages: ['/'], assets: publicAssets.length, excludedOsArtifacts: excludedAssets.map((asset) => asset.path), checks: results.length, passed: results.length - failed.length, failed: failed.length, results }, null, 2)}\n`
+    `${JSON.stringify({ startedAt, completedAt: new Date().toISOString(), origin: base.origin, canonicalOrigin, selectedPaths, catalogHash: digest(catalog.pages.map((page) => `${page.id}:${page.contentHash}`).join('\n')), concurrency: CONCURRENCY, maxBodyBytes: MAX_BODY_BYTES, catalogPages: catalog.pages.length, readablePages: readablePages.length, redirectOnlyPages: ['/'], assets: publicAssets.length, excludedOsArtifacts: excludedAssets.map((asset) => asset.path), checks: results.length, passed: results.length - failed.length, failed: failed.length, results }, null, 2)}\n`
   )
   logger.info('Corpus verification completed', {
     checks: results.length,

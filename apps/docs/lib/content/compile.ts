@@ -160,6 +160,75 @@ function codeMetadata() {
   }
 }
 
+function staticImages() {
+  return (tree: Root) => {
+    const imageComponents = new Set<string>()
+    visit(tree, 'mdxjsEsm', (node) => {
+      for (const statement of node.data?.estree?.body ?? []) {
+        if (
+          statement.type !== 'ImportDeclaration' ||
+          statement.source.value !== '@/components/ui/image'
+        )
+          continue
+        for (const specifier of statement.specifiers)
+          if (specifier.type === 'ImportSpecifier') imageComponents.add(specifier.local.name)
+      }
+    })
+    const imports: MdxjsEsm[] = []
+    visit(tree, (node) => {
+      if (
+        (node.type !== 'mdxJsxFlowElement' && node.type !== 'mdxJsxTextElement') ||
+        !node.name ||
+        !imageComponents.has(node.name)
+      )
+        return
+      const source = node.attributes.find(
+        (attribute) => attribute.type === 'mdxJsxAttribute' && attribute.name === 'src'
+      )
+      if (
+        source?.type !== 'mdxJsxAttribute' ||
+        typeof source.value !== 'string' ||
+        !/^\/static\/.+\.(png|jpe?g|webp|avif)$/.test(source.value)
+      )
+        return
+      const name = `__docsImage${imports.length}`
+      const specifier = `@/public${source.value}`
+      imports.push({
+        type: 'mdxjsEsm',
+        value: `import ${name} from ${JSON.stringify(specifier)}`,
+        data: {
+          estree: {
+            type: 'Program',
+            sourceType: 'module',
+            body: [
+              {
+                type: 'ImportDeclaration',
+                attributes: [],
+                specifiers: [
+                  { type: 'ImportDefaultSpecifier', local: { type: 'Identifier', name } },
+                ],
+                source: { type: 'Literal', value: specifier },
+              },
+            ],
+          },
+        },
+      })
+      source.value = {
+        type: 'mdxJsxAttributeValueExpression',
+        value: name,
+        data: {
+          estree: {
+            type: 'Program',
+            sourceType: 'module',
+            body: [{ type: 'ExpressionStatement', expression: { type: 'Identifier', name } }],
+          },
+        },
+      }
+    })
+    tree.children.unshift(...imports)
+  }
+}
+
 /** Compiles trusted repository MDX once at build time; no evaluators or compilers ship to the browser. */
 export async function compileDocument(source: string, body: string, description: string) {
   const context: CompileContext = {
@@ -178,7 +247,7 @@ export async function compileDocument(source: string, body: string, description:
       format: 'mdx',
       outputFormat: 'program',
       development: false,
-      remarkPlugins: [remarkGfm, [catalogPlugin, context]],
+      remarkPlugins: [remarkGfm, [catalogPlugin, context], staticImages],
       rehypePlugins: [
         codeMetadata,
         [rehypeShiki, { ...simShikiOptions, fallbackLanguage: 'text' }],

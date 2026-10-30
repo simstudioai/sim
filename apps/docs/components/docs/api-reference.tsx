@@ -298,9 +298,11 @@ export function ApiExamples({ reference }: ApiReferenceProps) {
     <div className='flex min-w-0 flex-col gap-4'>
       <SamplePanels
         label='Request'
-        presentation={samples.length > 3 ? 'select' : 'tabs'}
+        groupId='api-request-language'
+        presentation={samples.length > 6 ? 'select' : 'tabs'}
         items={samples.map((sample, index) => ({
           value: sample.label,
+          groupValue: sample.language,
           label: sample.label,
           id: `request-example-${index + 1}`,
           copyText: sample.code,

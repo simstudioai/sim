@@ -45,7 +45,7 @@ export function PageActions({ url }: PageActionsProps) {
   return (
     <div className='relative'>
       <Dropdown.Root modal={false}>
-        <Dropdown.Trigger className={cn(docsControlClass, 'h-8')} aria-label='Page actions'>
+        <Dropdown.Trigger className={cn(docsControlClass, 'h-8')} aria-label='Copy page options'>
           {showCopied ? <Check className='size-4' /> : null}
           {showCopied ? 'Copied' : 'Copy page'}
           <ChevronDown className='size-4' />

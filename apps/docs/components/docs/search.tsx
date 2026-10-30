@@ -100,7 +100,7 @@ export function DocsSearchTrigger({ compact = false }: DocsSearchTriggerProps) {
   return (
     <button
       type='button'
-      aria-label='Search documentation'
+      aria-label='Search docs'
       aria-haspopup='dialog'
       onClick={(event) => show?.(event.currentTarget)}
       className={cn(

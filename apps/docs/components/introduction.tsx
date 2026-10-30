@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { MessageSquareText, TerminalWindow, Workflow } from '@sim/emcn/icons'
 import { Card } from '@/components/ui/cards'
 import { Image } from '@/components/ui/image'
+import platform from '@/public/static/introduction/platform.webp'
 
 const BUILD_PATH_ICONS = {
   chat: MessageSquareText,
@@ -19,16 +20,7 @@ interface IntroductionLinkProps {
 }
 
 export function IntroductionHero({ alt }: IntroductionHeroProps) {
-  return (
-    <Image
-      src='/static/introduction/platform.webp'
-      alt={alt}
-      width={2400}
-      height={1200}
-      variant='hero'
-      preload
-    />
-  )
+  return <Image src={platform} alt={alt} width={2400} height={1200} variant='hero' preload />
 }
 
 export function IntroductionLink({ href, title, icon, children }: IntroductionLinkProps) {

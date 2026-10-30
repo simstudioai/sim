@@ -123,14 +123,14 @@ export function DocsShell({ children, navigationBySection }: DocsShellProps) {
                   { label: 'Privacy', href: `${SIM_SITE_URL}/privacy` },
                   { label: 'Terms', href: `${SIM_SITE_URL}/terms` },
                 ].map(({ label, href }) => (
-                  <a
+                  <Link
                     key={label}
                     href={href}
                     draggable={false}
                     className='flex min-h-11 items-center hover:underline focus-visible:outline-2 focus-visible:outline-[var(--docs-link)]'
                   >
                     {label}
-                  </a>
+                  </Link>
                 ))}
               </nav>
             </div>

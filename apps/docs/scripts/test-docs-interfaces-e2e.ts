@@ -134,7 +134,10 @@ await check('Unknown pages and arbitrary URL inputs fail explicitly', async () =
 
 for (const entry of [
   { query: 'Slack', prefix: '/integrations/' },
+  { query: 'slack send message', prefix: '/integrations/slack' },
   { query: 'List workflows', prefix: '/api-reference/' },
+  { query: 'workflow variables', prefix: '/workflows/variables' },
+  { query: 'webhook trigger', prefix: '/workflows/blocks/webhook' },
   { query: 'CLI', prefix: '/cli' },
   { query: 'MCP', prefix: '/mcp/' },
 ]) {
@@ -174,6 +177,25 @@ await check('Search keeps empty, bounded, and alias behavior', async () => {
   const first: unknown = await query.json()
   assert(Array.isArray(first) && first.length === 1, 'Search limit ignored')
   assert(JSON.stringify(first) === JSON.stringify(await alias.json()), 'query and q disagree')
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const term = attempt % 2 ? `zzzz-no-such-content-${attempt}-zzzz` : 'Slack'
+    const response = await fetch(new URL(`/api/search?query=${term}&attempt=${attempt}`, base), {
+      signal: AbortSignal.timeout(3000),
+      cache: 'no-store',
+    })
+    assert(response.ok, `Repeated search ${attempt} returned ${response.status}`)
+    const results: unknown = await response.json()
+    assert(Array.isArray(results), 'Repeated search did not return results')
+    assert(
+      attempt % 2
+        ? results.length === 0
+        : results.some((value) => {
+            const url = toRecord(value).url
+            return typeof url === 'string' && new URL(url).pathname === '/integrations/slack'
+          }),
+      `Repeated search ${attempt} lost its catalog fallback`
+    )
+  }
 })
 
 await check(

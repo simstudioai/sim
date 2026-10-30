@@ -26,12 +26,25 @@ on:
         description: Commit to build for the benchmark (empty uses this workflow revision)
         type: string
         default: ''
+      preview_artifact:
+        description: Save the verified production build for local visual inspection
+        type: boolean
+        default: false
+      benchmark_scope:
+        description: Full measurements, navigation without Lighthouse, or only interactive controls
+        type: choice
+        options: [full, navigation, interactions]
+        default: full
+      benchmark_production:
+        description: Also measure the public production origin (only when it permits automated access)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: docs-negotiation-${{ github.ref }}
+  group: docs-negotiation-${{ github.ref }}-${{ inputs.benchmark && 'benchmark' || 'verification' }}
   cancel-in-progress: true
 
 jobs:
@@ -44,7 +57,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        target: [build, production]
+        target: ${{ fromJSON(inputs.benchmark_production && '["build","production"]' || '["build"]') }}
     env:
       DATABASE_URL: ''
       OPENAI_API_KEY: ''
@@ -54,6 +67,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           ref: ${{ inputs.build_ref || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
@@ -84,6 +99,8 @@ jobs:
         if: matrix.target == 'build'
         run: bun run --cwd apps/docs build
       - name: Measure navigation and Lighthouse sequentially
+        env:
+          BENCHMARK_SCOPE: ${{ inputs.benchmark_scope || 'full' }}
         run: |
           if [ "$DOCS_BENCHMARK_BASE_URL" = http://127.0.0.1:3001 ]; then
             bun run --cwd apps/docs start --port 3001 >test-results/benchmark/server.log 2>&1 &
@@ -96,8 +113,13 @@ jobs:
           fi
           NAVIGATION_STATUS=0
           LIGHTHOUSE_STATUS=0
+          if [ "$BENCHMARK_SCOPE" = interactions ]; then
+            export DOCS_BENCHMARK_SCENARIOS=interactions
+          fi
           DOCS_BENCHMARK_MODE=navigation DOCS_BENCHMARK_REPORT_PATH="$GITHUB_WORKSPACE/test-results/benchmark/navigation.json" bun run --cwd apps/docs scripts/benchmark-readiness.ts || NAVIGATION_STATUS=$?
-          DOCS_BENCHMARK_MODE=lighthouse DOCS_BENCHMARK_REPORT_PATH="$GITHUB_WORKSPACE/test-results/benchmark/lighthouse.json" bun run --cwd apps/docs scripts/benchmark-readiness.ts || LIGHTHOUSE_STATUS=$?
+          if [ "$BENCHMARK_SCOPE" = full ]; then
+            DOCS_BENCHMARK_MODE=lighthouse DOCS_BENCHMARK_REPORT_PATH="$GITHUB_WORKSPACE/test-results/benchmark/lighthouse.json" bun run --cwd apps/docs scripts/benchmark-readiness.ts || LIGHTHOUSE_STATUS=$?
+          fi
           test "$NAVIGATION_STATUS" -eq 0 && test "$LIGHTHOUSE_STATUS" -eq 0
       - name: Upload measurements
         if: always()
@@ -111,7 +133,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || !inputs.benchmark
     name: docs HTTP
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
-    timeout-minutes: 20
+    timeout-minutes: 45
     services:
       search-postgres:
         image: pgvector/pgvector:pg17
@@ -129,43 +151,85 @@ jobs:
     env:
       DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
       DOCS_E2E_BASE_URL: http://127.0.0.1:3001
-      DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/test-results/docs-negotiation.json
+      DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-negotiation.json
       DOCS_SEARCH_E2E_DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:5432/docs_search_test
-      DOCS_SEARCH_E2E_REPORT_PATH: ${{ github.workspace }}/test-results/search-postgres/report.json
-      DOCS_INTERFACES_REPORT_PATH: ${{ github.workspace }}/test-results/docs-interfaces.json
-      DOCS_CORPUS_REPORT_PATH: ${{ github.workspace }}/test-results/docs-corpus.json
-      DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/test-results/docs-headers.json
-      DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/test-results/navigation/docs.json
+      DOCS_SEARCH_E2E_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/search-postgres/report.json
+      DOCS_INTERFACES_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-interfaces.json
+      DOCS_CORPUS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-corpus.json
+      DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-headers.json
+      DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/navigation/docs.json
+      DOCS_GENERATORS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/generators/report.json
+      DOCS_SAMPLES_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/samples/report.json
+      DOCS_SAMPLES_SYNTAX_LANGUAGES: javascript,python,bash,go,java,csharp
+      DOCS_SAMPLES_HTTP_BASE_URL: http://127.0.0.1:3001
+      DOCS_PROVIDER_E2E_DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:5432/docs_search_test
+      DOCS_PROVIDER_E2E_BASE_URL: http://127.0.0.1:3001
+      DOCS_PROVIDER_E2E_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/platform-consumer/report.json
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
       - name: Build production docs
+        id: build
         run: bun run --cwd apps/docs build
+      - name: Verify generator idempotence and authored regions
+        run: bun run --cwd apps/docs scripts/test-generators-e2e.ts
       - name: Verify native header edge cases
         run: bun run --cwd apps/docs test:headers:e2e
       - name: Verify isolated PostgreSQL search and index lifecycle
         run: bun run --cwd apps/docs test:search:postgres:e2e
+      - name: Set up Java for copied request examples
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up .NET for copied request examples
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Set up Go for copied request examples
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.25.x'
+          cache: false
       - name: Install browser for navigation checks
-        run: bunx --no-install playwright install --with-deps chromium
+        run: bunx --no-install playwright install --with-deps chromium webkit
       - name: Verify HTTP content negotiation
         run: |
-          mkdir -p test-results
-          bun run --cwd apps/docs start --port 3001 >test-results/docs-server.log 2>&1 &
+          mkdir -p apps/docs/test-results
+          bun run --cwd apps/docs start --port 3001 >apps/docs/test-results/docs-server.log 2>&1 &
           DOCS_SERVER_PID=$!
           trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
-          bun run --cwd apps/docs test:negotiation:e2e
-          bun run --cwd apps/docs scripts/test-docs-interfaces-e2e.ts
-          bun run --cwd apps/docs test:corpus:e2e
-          bun run --cwd apps/docs test:navigation:e2e
+          STATUS=0
+          bun run --cwd apps/docs test:negotiation:e2e || STATUS=1
+          bun run --cwd apps/docs scripts/test-docs-interfaces-e2e.ts || STATUS=1
+          bun run --cwd apps/docs test:corpus:e2e || STATUS=1
+          bun run --cwd apps/docs scripts/verify-api-samples.ts || STATUS=1
+          bun --cwd apps/sim --no-env-file scripts/test-docs-search-provider-e2e.ts || STATUS=1
+          bun run --cwd apps/docs test:navigation:e2e || STATUS=1
+          DOCS_NAVIGATION_BROWSER=webkit DOCS_NAVIGATION_REPORT_PATH="$GITHUB_WORKSPACE/apps/docs/test-results/navigation-webkit/docs.json" bun run --cwd apps/docs test:navigation:e2e || STATUS=1
+          exit "$STATUS"
+      - name: Package production preview for visual inspection
+        if: always() && inputs.preview_artifact && steps.build.outcome == 'success'
+        run: tar -czf docs-preview-build.tar.gz --exclude='.next/cache' -C apps/docs .next .content
+      - name: Upload production preview
+        if: always() && inputs.preview_artifact && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-preview-build
+          path: docs-preview-build.tar.gz
+          retention-days: 3
       - name: Upload HTTP regression report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-negotiation-report
-          path: test-results/
+          path: apps/docs/test-results/
           if-no-files-found: warn
           retention-days: 14

@@ -5,7 +5,7 @@ import { ChevronDown } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
 import { CodeContent } from '@/components/ui/code-block'
 import { CopyButton } from '@/components/ui/copy-button'
-import { Tab, Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tab, Tabs, TabsList, TabsSelect, TabsTrigger } from '@/components/ui/tabs'
 
 interface SamplePanelItem {
   value: string
@@ -13,6 +13,7 @@ interface SamplePanelItem {
   panel: ReactNode
   copyText: string
   id?: string
+  groupValue?: string
 }
 
 interface SamplePanelsProps {
@@ -21,6 +22,7 @@ interface SamplePanelsProps {
   presentation?: 'tabs' | 'select'
   defaultValue?: string
   className?: string
+  groupId?: string
 }
 
 /** API requests and real response examples share one compact, copyable code surface. */
@@ -30,6 +32,7 @@ export function SamplePanels({
   presentation = 'tabs',
   defaultValue,
   className,
+  groupId,
 }: SamplePanelsProps) {
   const selectorId = useId()
   const [selected, setSelected] = useState(defaultValue ?? items[0]?.value ?? '')
@@ -40,6 +43,10 @@ export function SamplePanels({
     <Tabs
       value={current.value}
       onValueChange={setSelected}
+      groupId={groupId}
+      groupValues={Object.fromEntries(
+        items.map((item) => [item.value, item.groupValue ?? item.value])
+      )}
       aria-label={label}
       className={cn('my-0 overflow-hidden rounded-lg bg-[var(--docs-surface)]', className)}
     >
@@ -55,10 +62,8 @@ export function SamplePanels({
           </TabsList>
         ) : (
           <div className='relative min-w-0'>
-            <select
+            <TabsSelect
               id={selectorId}
-              value={current.value}
-              onChange={(event) => setSelected(event.target.value)}
               aria-label={`${label} status`}
               aria-controls={current.id ?? `${selectorId}-${current.value}`}
               className='h-7 pointer-coarse:min-h-11 w-full cursor-pointer appearance-none rounded-lg bg-transparent py-1 pr-6 pl-2 text-docs-control hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
@@ -68,7 +73,7 @@ export function SamplePanels({
                   {item.label}
                 </option>
               ))}
-            </select>
+            </TabsSelect>
             <ChevronDown className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-1 size-4 text-[var(--docs-muted)]' />
           </div>
         )}

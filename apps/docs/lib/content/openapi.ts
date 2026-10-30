@@ -1,4 +1,5 @@
 import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
+import { nativeRequestSamples } from '@/lib/content/request-samples'
 import type { DocsPage, OperationReference } from '@/lib/content/types'
 import { OPENAPI_DOCUMENTS_BY_FILE } from '@/lib/openapi-documents'
 import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
@@ -182,6 +183,22 @@ function buildRequestSamples(
     }
   }
   const url = `${base.replace(/\/$/, '')}${pathname}${query.size ? `?${query}` : ''}`
+  const responseMedia = Object.entries(toRecord(operation.responses))
+    .filter(([status]) => /^2\d\d$/.test(status))
+    .flatMap(([, response]) => Object.keys(toRecord(resolveReference(response, document).content)))
+  const streaming = responseMedia.some((media) =>
+    ['text/event-stream', 'application/x-ndjson'].includes(media)
+  )
+  const jsonResponse =
+    responseMedia.length > 0 && responseMedia.every((media) => media.includes('json'))
+  const textResponse =
+    responseMedia.length > 0 && responseMedia.every((media) => media.startsWith('text/'))
+  const javascriptResult = streaming
+    ? `const contentType = response.headers.get('content-type') ?? '';\nconst result = contentType.includes('text/event-stream') || contentType.includes('application/x-ndjson')\n  ? response.body\n  : await response.json();`
+    : `const result = ${!responseMedia.length ? 'undefined' : `await response.${jsonResponse ? 'json' : textResponse ? 'text' : 'arrayBuffer'}()`};`
+  const pythonResult = streaming
+    ? `content_type = response.headers.get("Content-Type", "")\nresult = response.iter_lines() if "text/event-stream" in content_type or "application/x-ndjson" in content_type else response.json()`
+    : `result = ${!responseMedia.length ? 'None' : jsonResponse ? 'response.json()' : textResponse ? 'response.text' : 'response.content'}`
   const curl = [
     `curl --request ${reference.method} ${quoteShell(url)}`,
     ...Object.entries(headers).map(
@@ -208,23 +225,34 @@ function buildRequestSamples(
         pythonData[name] = value
       }
     }
-    const javascript = `const fileInput = document.querySelector('input[type="file"]');\n${form.join('\n')}\nconst response = await fetch(${JSON.stringify(url)}, {\n  method: ${JSON.stringify(reference.method)},\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: form,\n});\nconst result = await response.json();`
-    const python = `import requests\n\nwith open("/path/to/document.pdf", "rb") as document:\n    response = requests.request(\n        ${JSON.stringify(reference.method)},\n        ${JSON.stringify(url)},\n        headers=${JSON.stringify(headers)},\n        files={\n${pythonFiles.join(',\n')}\n        },\n        data=${JSON.stringify(pythonData)},\n    )\nresponse.raise_for_status()\nresult = response.json()`
+    const javascript = `const fileInput = document.querySelector('input[type="file"]');\n${form.join('\n')}\nconst response = await fetch(${JSON.stringify(url)}, {\n  method: ${JSON.stringify(reference.method)},\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: form,\n});\nif (!response.ok) throw new Error(\`HTTP \${response.status}\`);\n${javascriptResult}`
+    const python = `import requests\n\nwith open("/path/to/document.pdf", "rb") as document:\n    response = requests.request(\n        ${JSON.stringify(reference.method)},\n        ${JSON.stringify(url)},\n        headers=${JSON.stringify(headers)},\n        files={\n${pythonFiles.join(',\n')}\n        },\n        data=${JSON.stringify(pythonData)},${streaming ? '\n        stream=True,' : ''}\n    )\nresponse.raise_for_status()\n${pythonResult}`
     return [
       { label: 'cURL', language: 'bash', code: curl.join(' \\\n') },
       { label: 'JavaScript', language: 'javascript', code: javascript },
       { label: 'Python', language: 'python', code: python },
+      ...nativeRequestSamples({
+        method: reference.method,
+        url,
+        headers,
+        fields: entries.map(({ name, schema }) => ({
+          name,
+          file: schema.format === 'binary' || schema.contentEncoding === 'binary',
+          value: String(exampleValue(schema, document)),
+        })),
+      }),
     ]
   }
   if (body !== undefined) curl.push(`  --data ${quoteShell(body)}`)
   const options = { method: reference.method, headers, ...(body === undefined ? {} : { body }) }
-  const js = `const response = await fetch(${JSON.stringify(url)}, ${JSON.stringify(options, null, 2)});\nconst result = await response.json();`
+  const js = `const response = await fetch(${JSON.stringify(url)}, ${JSON.stringify(options, null, 2)});\nif (!response.ok) throw new Error(\`HTTP \${response.status}\`);\n${javascriptResult}`
   const pyHeaders = JSON.stringify(headers, null, 2)
-  const python = `import requests\n\nresponse = requests.request(\n    ${JSON.stringify(reference.method)},\n    ${JSON.stringify(url)},\n    headers=${pyHeaders},${body === undefined ? '' : `\n    data=${JSON.stringify(body)},`}\n)\nresponse.raise_for_status()\nresult = response.json()`
+  const python = `import requests\n\nresponse = requests.request(\n    ${JSON.stringify(reference.method)},\n    ${JSON.stringify(url)},\n    headers=${pyHeaders},${body === undefined ? '' : `\n    data=${JSON.stringify(body)},`}${streaming ? '\n    stream=True,' : ''}\n)\nresponse.raise_for_status()\n${pythonResult}`
   return [
     { label: 'cURL', language: 'bash', code: curl.join(' \\\n') },
     { label: 'JavaScript', language: 'javascript', code: js },
     { label: 'Python', language: 'python', code: python },
+    ...nativeRequestSamples({ method: reference.method, url, headers, body }),
   ]
 }
 

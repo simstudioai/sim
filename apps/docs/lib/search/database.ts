@@ -10,6 +10,8 @@ export function searchDatabase() {
   client = postgres(url, {
     max: 2,
     connect_timeout: 2,
+    // Optional search must not wait through an outage's growing reconnect delay.
+    backoff: () => 0.1,
     idle_timeout: 20,
     prepare: false,
     connection: { application_name: 'sim-docs-search', statement_timeout: 2000 },

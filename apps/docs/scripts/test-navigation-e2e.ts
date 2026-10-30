@@ -7,6 +7,7 @@ import {
   expect,
   type Locator,
   type Page,
+  webkit,
 } from '@playwright/test'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -21,19 +22,26 @@ const target = new URL(origin)
 if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname))
   throw new Error('Only a loopback docs server may be tested')
 const directory = dirname(reportPath)
+const engine = process.env.DOCS_NAVIGATION_BROWSER ?? 'chromium'
+if (engine !== 'chromium' && engine !== 'webkit')
+  throw new Error('DOCS_NAVIGATION_BROWSER must be chromium or webkit')
 const results: Array<{
   name: string
-  status: 'passed' | 'failed'
+  status: 'passed' | 'failed' | 'unavailable'
   durationMs: number
   error?: string
 }> = []
 await mkdir(directory, { recursive: true })
 
-async function check(name: string, action: () => Promise<void>) {
+async function check(name: string, action: () => Promise<void>, unavailable?: string) {
   if (process.env.DOCS_NAVIGATION_FILTER && !name.includes(process.env.DOCS_NAVIGATION_FILTER))
     return
   logger.info('Running', { name })
   const started = performance.now()
+  if (unavailable) {
+    results.push({ name, status: 'unavailable', durationMs: 0, error: unavailable })
+    return
+  }
   try {
     await action()
     results.push({ name, status: 'passed', durationMs: Math.round(performance.now() - started) })
@@ -47,7 +55,10 @@ async function check(name: string, action: () => Promise<void>) {
     })
     logger.error('Failed', { name, error: getErrorMessage(error) })
   }
-  await writeFile(reportPath, `${JSON.stringify({ origin: target.origin, results }, null, 2)}\n`)
+  await writeFile(
+    reportPath,
+    `${JSON.stringify({ origin: target.origin, engine, results }, null, 2)}\n`
+  )
 }
 
 async function open(page: Page, path: string) {
@@ -65,7 +76,9 @@ async function copyMenu(page: Page) {
     name: /^(Copy Markdown|Copied|Copy prepared Markdown)$/,
   })
   if (!(await item.isVisible()))
-    await page.getByRole('button', { name: 'Page actions', exact: true }).click()
+    await page
+      .getByRole('button', { name: /^(Page actions|Copy page options)$/, exact: true })
+      .click()
   return item
 }
 
@@ -104,7 +117,7 @@ async function verifyClipboard(
 
 let browser: Browser | undefined
 try {
-  browser = await chromium.launch()
+  browser = await (engine === 'webkit' ? webkit : chromium).launch()
   const sidebarContext = await browser.newContext({
     viewport: { width: 1440, height: 640 },
     reducedMotion: 'reduce',
@@ -185,8 +198,15 @@ try {
   } finally {
     await drawerContext.close()
   }
-  for (const width of [390, 1440]) {
-    const context = await browser.newContext({ viewport: { width, height: 1000 } })
+  for (const { width, dpr } of [
+    { width: 390, dpr: 3 },
+    { width: 768, dpr: 2 },
+    { width: 1440, dpr: 1 },
+  ]) {
+    const context = await browser.newContext({
+      viewport: { width, height: 1000 },
+      deviceScaleFactor: dpr,
+    })
     try {
       for (const scene of [
         {
@@ -214,7 +234,7 @@ try {
           variant: 'result',
         },
       ]) {
-        await check(`Screenshot framing: ${scene.variant} at ${width}px`, async () => {
+        await check(`Screenshot framing: ${scene.variant} at ${width}px DPR${dpr}`, async () => {
           const page = await context.newPage()
           try {
             await open(page, scene.path)
@@ -246,6 +266,30 @@ try {
               )
               .toBe(true)
             expect(await background.getAttribute('src')).toContain(`${scene.background}.webp`)
+            const delivery = await screenshot.evaluate((element) => {
+              if (!(element instanceof HTMLImageElement)) throw new Error('Screenshot is missing')
+              const source = new URL(element.currentSrc)
+              return {
+                currentSrc: element.currentSrc,
+                srcset: element.srcset,
+                sizes: element.sizes,
+                requestedWidth: Number(source.searchParams.get('w')),
+                renderedWidth: element.getBoundingClientRect().width,
+                sourceWidth: Number(element.getAttribute('width')),
+                dpr: devicePixelRatio,
+                resources: performance
+                  .getEntriesByName(element.currentSrc)
+                  .map((entry) => entry.toJSON()),
+              }
+            })
+            await writeFile(
+              join(directory, `image-delivery-${scene.variant}-${width}-dpr${dpr}.json`),
+              `${JSON.stringify(delivery, null, 2)}\n`
+            )
+            expect(delivery.requestedWidth).toBeGreaterThan(0)
+            expect(delivery.requestedWidth).toBeLessThanOrEqual(
+              Math.max(delivery.sourceWidth, delivery.renderedWidth * dpr * 2)
+            )
             const geometry = await screenshot.evaluate((element) => {
               const backdrop = element.closest('figure')?.querySelector('img[aria-hidden="true"]')
               const frame = backdrop?.parentElement?.getBoundingClientRect()
@@ -357,7 +401,7 @@ try {
       const context = await browser.newContext({ viewport, reducedMotion: 'reduce' })
       try {
         await check(
-          `${viewport.name}: navigation and complete copy for ${scenario.path}`,
+          `${viewport.name}: navigation${engine === 'chromium' ? ' and complete copy' : ''} for ${scenario.path}`,
           async () => {
             const page = await context.newPage()
             const errors: string[] = []
@@ -382,7 +426,7 @@ try {
                 expect((await panel.locator('code').textContent())?.trim()).toBeTruthy()
               }
             }
-            if (viewport.name === 'desktop') {
+            if (viewport.name === 'desktop' && engine === 'chromium') {
               await verifyClipboard(page, context, scenario.path, scenario.title, scenario.content)
               expect(markdownRequests[0]).toBe(new URL(`${scenario.path}.md`, target).href)
             }
@@ -422,7 +466,7 @@ try {
               await expect(branch).toHaveAttribute('aria-expanded', 'true')
               if (viewport.name === 'mobile')
                 await page.getByRole('button', { name: 'Close navigation' }).click()
-              else
+              else if (engine === 'chromium')
                 await verifyClipboard(
                   page,
                   context,
@@ -481,7 +525,65 @@ try {
     }
   }
 
-  const legacy = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] })
+  const languageContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  try {
+    await check('API language preference survives navigation and reload', async () => {
+      const page = await languageContext.newPage()
+      await open(page, '/api-reference/workflows/listWorkflows')
+      const languages = page.getByRole('tablist', { name: 'Request language', exact: true })
+      const javascript = languages.getByRole('tab', { name: /^(JavaScript|TypeScript)$/ })
+      await javascript.click()
+      await expect(javascript).toHaveAttribute('aria-selected', 'true')
+      const navigation = page.getByRole('navigation', { name: 'Documentation sidebar' })
+      const destination = navigation.locator('a[href="/api-reference/logs/getLog"]')
+      if (!(await destination.isVisible()))
+        await navigation.getByRole('button', { name: /^(Expand |Collapse )?Logs$/ }).click()
+      await destination.click()
+      await expect(page).toHaveURL(new URL('/api-reference/logs/getLog', target).href)
+      await page.screenshot({ path: join(directory, 'api-language-after-navigation.png') })
+      await expect(javascript).toHaveAttribute('aria-selected', 'true')
+      await page.reload()
+      await expect(javascript).toHaveAttribute('aria-selected', 'true')
+      const panelId = await javascript.getAttribute('aria-controls')
+      if (!panelId) throw new Error('Selected language has no sample panel')
+      await expect(page.locator(`[id="${panelId}"]`)).toBeVisible()
+      await page.screenshot({ path: join(directory, 'api-language-after-reload.png') })
+    })
+    await check('API language preference tolerates an unavailable stored language', async () => {
+      const page = await languageContext.newPage()
+      await open(page, '/api-reference/logs/getLog')
+      await page.evaluate(() => sessionStorage.setItem('docs-tab:api-request-language', 'rust'))
+      await page.reload()
+      const languages = page.getByRole('tablist', { name: 'Request language', exact: true })
+      await expect(languages.getByRole('tab', { name: 'cURL', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
+      expect(
+        await page.evaluate(() => sessionStorage.getItem('docs-tab:api-request-language'))
+      ).toBe('rust')
+      await languages.getByRole('tab', { name: 'Python', exact: true }).click()
+      await expect(languages.getByRole('tab', { name: 'Python', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
+      await page.screenshot({ path: join(directory, 'api-language-unavailable-fallback.png') })
+      expect(
+        await page.evaluate(() => sessionStorage.getItem('docs-tab:api-request-language'))
+      ).toBe('python')
+      await page.reload()
+      await expect(languages.getByRole('tab', { name: 'Python', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
+    })
+  } finally {
+    await languageContext.close()
+  }
+
+  const legacy = await browser.newContext({
+    permissions: engine === 'chromium' ? ['clipboard-read', 'clipboard-write'] : [],
+  })
   try {
     await check(
       'Legacy clipboard preserves activation and invalidates prepared content after navigation',
@@ -549,7 +651,10 @@ try {
           new URL('/platform/costs.md', target).href,
         ])
         await page.screenshot({ path: join(directory, 'legacy-clipboard.png') })
-      }
+      },
+      engine === 'webkit'
+        ? 'Playwright WebKit does not support granting clipboard-read/write permissions; Chromium owns clipboard readback verification.'
+        : undefined
     )
   } finally {
     await Promise.all(legacy.pages().map((page) => page.unrouteAll({ behavior: 'ignoreErrors' })))
@@ -596,6 +701,51 @@ try {
       } finally {
         await context.close()
       }
+    }
+  }
+
+  for (const viewport of [
+    { name: 'short phone', width: 320, height: 480, dpr: 2 },
+    { name: 'landscape phone', width: 844, height: 390, dpr: 3 },
+    { name: 'short laptop', width: 1280, height: 600, dpr: 1 },
+    { name: '200 percent zoom-equivalent viewport', width: 720, height: 450, dpr: 2 },
+  ]) {
+    const context = await browser.newContext({
+      viewport,
+      deviceScaleFactor: viewport.dpr,
+      colorScheme: 'dark',
+      reducedMotion: 'reduce',
+    })
+    try {
+      await check(`Constrained viewport: ${viewport.name}`, async () => {
+        const page = await context.newPage()
+        await open(page, '/getting-started')
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+          true
+        )
+        if (viewport.width < 1024) {
+          await page.getByRole('button', { name: 'Menu', exact: true }).click()
+          const close = page.getByRole('button', { name: 'Close navigation', exact: true })
+          await expect(close).toBeInViewport()
+          await close.click()
+        }
+        await page.keyboard.press('Control+k')
+        const search = page.getByRole('dialog', { name: 'Search documentation', exact: true })
+        await expect(search).toBeVisible()
+        await expect(search.getByRole('combobox')).toBeFocused()
+        await expect(search.getByRole('button', { name: 'Close search' })).toBeInViewport()
+        const bounds = await search.boundingBox()
+        if (!bounds) throw new Error('Search dialog has no bounds')
+        expect(bounds.y).toBeGreaterThanOrEqual(0)
+        expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height)
+        await page.screenshot({
+          path: join(directory, `constrained-${viewport.width}-${viewport.height}.png`),
+        })
+        await page.keyboard.press('Escape')
+        await expect(search).toHaveCount(0)
+      })
+    } finally {
+      await context.close()
     }
   }
 
@@ -654,7 +804,10 @@ try {
       const page = await interactive.newPage()
       try {
         await open(page, '/introduction')
-        const trigger = page.getByRole('button', { name: 'Search documentation', exact: true })
+        const trigger = page.getByRole('button', {
+          name: /^(Search documentation|Search docs)$/,
+          exact: true,
+        })
         await trigger.click()
         await page.getByRole('combobox').press('Control+k')
         await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -679,7 +832,9 @@ try {
           const destinations = await sidebarLinks.evaluateAll((links) =>
             links.map((link) => link.getAttribute('href'))
           )
-          await page.getByRole('button', { name: 'Search documentation', exact: true }).click()
+          await page
+            .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+            .click()
           const search = page.getByRole('combobox')
           await expect(page.getByRole('option').first()).toBeVisible()
           await page.route('**/api/search?*', (route) => route.fulfill({ status: 503, body: '{}' }))
@@ -703,7 +858,10 @@ try {
       async () => {
         const page = await interactive.newPage()
         await open(page, '/introduction')
-        const trigger = page.getByRole('button', { name: 'Search documentation', exact: true })
+        const trigger = page.getByRole('button', {
+          name: /^(Search documentation|Search docs)$/,
+          exact: true,
+        })
         await trigger.focus()
         await page.keyboard.press('Control+k')
         const search = page.getByRole('combobox', { name: 'Search documentation' })
@@ -714,7 +872,9 @@ try {
         await search.press('ArrowDown')
         await search.press('Enter')
         await expect(page).not.toHaveURL(new URL('/introduction', target).href)
-        await page.getByRole('button', { name: 'Search documentation', exact: true }).click()
+        await page
+          .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+          .click()
         await search.fill('zzzz-no-such-content-zzzz')
         await expect(page.getByRole('status')).toContainText('No results')
         await page.route('**/api/search?*', (route) => route.fulfill({ status: 503, body: '{}' }))
@@ -725,7 +885,7 @@ try {
         await expect(page.getByRole('status')).toContainText('No results')
         await search.press('Escape')
         await expect(
-          page.getByRole('button', { name: 'Search documentation', exact: true })
+          page.getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
         ).toBeFocused()
       }
     )
@@ -734,7 +894,9 @@ try {
       try {
         await open(page, '/introduction')
         await page.route('**/api/search?query=cancel-request', () => {})
-        await page.getByRole('button', { name: 'Search documentation', exact: true }).click()
+        await page
+          .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+          .click()
         const requested = page.waitForRequest((request) =>
           request.url().includes('query=cancel-request')
         )
@@ -745,7 +907,7 @@ try {
         await page.getByRole('combobox', { name: 'Search documentation' }).fill('cancel-request')
         await requested
         await page.keyboard.press('Escape')
-        expect((await failed).failure()?.errorText).toContain('ERR_ABORTED')
+        expect((await failed).failure()?.errorText).toMatch(/abort|cancel/i)
         await expect(page.getByRole('dialog')).toHaveCount(0)
       } finally {
         await page.unrouteAll({ behavior: 'ignoreErrors' })
@@ -775,7 +937,7 @@ try {
         await page.getByRole('button', { name: 'Menu', exact: true }).click()
         await page
           .getByRole('dialog', { name: 'Documentation', exact: true })
-          .getByRole('button', { name: 'Search documentation', exact: true })
+          .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
           .click()
         const search = page.getByRole('combobox', { name: 'Search documentation' })
         await search.fill('Slack')
@@ -837,7 +999,10 @@ try {
         await assertOpaque(page.getByRole('dialog'))
         await page.screenshot({ path: join(directory, 'dark-opaque-media.png') })
         await page.keyboard.press('Escape')
-      }
+      },
+      engine === 'webkit'
+        ? 'Chromium CDP reduced-transparency emulation is unavailable in Playwright WebKit; native OS preference needs manual Safari verification.'
+        : undefined
     )
   } finally {
     await darkSurfaces.close()
@@ -915,7 +1080,10 @@ try {
   })
 } finally {
   await browser?.close()
-  await writeFile(reportPath, `${JSON.stringify({ origin: target.origin, results }, null, 2)}\n`)
+  await writeFile(
+    reportPath,
+    `${JSON.stringify({ origin: target.origin, engine, limitations: engine === 'webkit' ? ['Clipboard readback and reduced-transparency emulation remain Chromium-only; this is Playwright WebKit, not native Safari.'] : [], results }, null, 2)}\n`
+  )
 }
 logger.info('Verified documentation navigation', { checks: results.length, reportPath })
 if (results.some((result) => result.status === 'failed')) process.exitCode = 1

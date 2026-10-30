@@ -2,7 +2,27 @@ import NextImage, { type ImageProps as NextImageProps } from 'next/image'
 import { cn } from '@/components/docs/classnames'
 import { MediaViewer } from '@/components/ui/media-viewer'
 import { ScreenshotFrame, type ScreenshotVariant } from '@/components/ui/screenshot-frame'
-import screenshotAssets from '@/lib/screenshot-assets.json'
+import architecture from '@/public/static/introduction/architecture.webp'
+import canyon from '@/public/static/introduction/canyon.webp'
+import ridges from '@/public/static/introduction/ridges.webp'
+import sanFrancisco from '@/public/static/introduction/san-francisco.webp'
+
+const BACKGROUNDS = { architecture, canyon, ridges, 'san-francisco': sanFrancisco } as const
+const MAX_WIDTHS = {
+  md: { className: 'max-w-md', rem: 28 },
+  xl: { className: 'max-w-xl', rem: 36 },
+} as const
+
+function screenshotSizes(scale: number, maxWidth?: keyof typeof MAX_WIDTHS, hero = false) {
+  const limit = (value: string, ratio: number) =>
+    maxWidth ? `min(${value}, ${MAX_WIDTHS[maxWidth].rem * ratio}rem)` : value
+  return [
+    ...(hero ? [`(max-width: 639px) ${limit('calc(88vw - 2.2rem)', 0.88)}`] : []),
+    `(max-width: 1023px) ${limit(`calc(${scale * 100}vw - ${scale * 2.5}rem)`, scale)}`,
+    `(max-width: 1279px) ${limit(`calc(${scale * 100}vw - ${scale * 216}px - ${scale * 5}rem)`, scale)}`,
+    limit(`calc(${scale * 856}px - ${scale * 8}rem)`, scale),
+  ].join(', ')
+}
 
 interface ImageProps extends Omit<NextImageProps, 'className'> {
   className?: string
@@ -10,6 +30,7 @@ interface ImageProps extends Omit<NextImageProps, 'className'> {
   variant?: ScreenshotVariant
   background?: 'san-francisco' | 'architecture' | 'ridges' | 'canyon'
   caption?: string
+  maxWidth?: keyof typeof MAX_WIDTHS
 }
 
 export function Image({
@@ -20,24 +41,26 @@ export function Image({
   caption,
   alt = '',
   src,
+  maxWidth,
+  sizes: providedSizes,
   ...props
 }: ImageProps) {
-  const original = typeof src === 'string' ? src : 'default' in src ? src.default.src : src.src
-  const optimizedAssets: Record<string, string> = screenshotAssets
-  const imageSrc = optimizedAssets[original] ?? src
-  const backgroundSrc = `/static/introduction/${background}.webp`
-  const sizes =
-    '(max-width: 1023px) calc(100vw - 40px), (max-width: 1279px) calc(100vw - 296px), 728px'
+  const backgroundSrc = BACKGROUNDS[background].src
+  const frameSizes = screenshotSizes(1, maxWidth)
+  const scale = variant === 'hero' ? 0.78 : variant === 'overview' ? 0.86 : 0.9
+  const sizes = providedSizes ?? screenshotSizes(scale, maxWidth, variant === 'hero')
   const image = (
     <ScreenshotFrame
       variant={variant}
       backgroundSrc={backgroundSrc}
-      sizes={sizes}
+      sizes={frameSizes}
       eager={props.preload}
     >
       <NextImage
         {...props}
-        src={imageSrc}
+        src={src}
+        quality={90}
+        unoptimized={typeof src === 'string' && !src.startsWith('/')}
         alt={alt}
         sizes={sizes}
         className='block h-auto w-full'
@@ -45,7 +68,13 @@ export function Image({
     </ScreenshotFrame>
   )
   return (
-    <figure className={cn('not-prose my-7 min-w-0', className)}>
+    <figure
+      className={cn(
+        'not-prose my-7 min-w-0',
+        maxWidth && MAX_WIDTHS[maxWidth].className,
+        className
+      )}
+    >
       {enableLightbox ? (
         <MediaViewer
           expandedImage={

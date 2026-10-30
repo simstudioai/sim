@@ -45,6 +45,8 @@ Default components to server rendering. Client islands are reserved for navigati
 
 Keep platform screenshots and original integration logos in `public/static/` with meaningful alternative text. Use the shared `Image` component for sizing, captions and expansion. Preserve workflow fixtures as data; the shared preview renders the actual graph, inspector, and outputs.
 
+The compiler converts local screenshot sources into Next.js static image imports after extracting their original Markdown URLs. Static imports give changed assets new content-addressed URLs. The shared image component supplies responsive sizes for each frame variant; Next serves a small set of WebP widths at quality 90 for interface text and 75 for scenery. The original loads when the media viewer opens. Backgrounds use the same hashed assets in both views. Legacy public asset URLs remain available; mutable filenames do not receive immutable caching.
+
 Product contracts remain authoritative for OpenAPI. Run `bun run generate:openapi` after changing their owners; the docs compiler projects operations from all registered specifications. CLI, MCP operations, integration content, and marked Agent streaming regions retain their existing generators listed in `EDITORIAL_GUIDE.md`. Do not hand-edit generated regions. Request examples are inert and never execute an API call or accept credentials.
 
 The agent docs manifest continues to publish existing `.mdx` paths and its deliberate corpus exclusions. Run `bun run check:docs-manifest`, `bun run check:agent-stream-docs`, `bun run check:cli-docs`, `bun run check:openapi`, and `bun run check:docs` after relevant changes.

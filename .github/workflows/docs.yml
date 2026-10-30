@@ -19,11 +19,15 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
     if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: docs-search-index-production
+      cancel-in-progress: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
+          ref: main
           persist-credentials: false
 
       - name: Setup workspace
@@ -39,12 +43,12 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           bun run content:generate
-          bun run scripts/index-search.ts
-          bun run scripts/index-search.ts --check
+          DOCS_SEARCH_REPORT_PATH=test-results/docs-search-publish.json bun run scripts/index-search.ts
+          DOCS_SEARCH_REPORT_PATH=test-results/docs-search-check.json bun run scripts/index-search.ts --check
 
       - name: Upload search index report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-search-index
-          path: apps/docs/test-results/docs-search-index.json
+          path: apps/docs/test-results/docs-search-*.json

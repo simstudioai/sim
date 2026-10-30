@@ -1,8 +1,9 @@
 import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
-import type { Nodes, Root, RootContent } from 'mdast'
+import type { Nodes, PhrasingContent, Root, RootContent, TableRow } from 'mdast'
 import { gfmToMarkdown } from 'mdast-util-gfm'
 import { toMarkdown } from 'mdast-util-to-markdown'
 import { toString as mdastToString } from 'mdast-util-to-string'
+import { SKIP, visit } from 'unist-util-visit'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import * as workflowExamples from '@/components/workflow-preview/examples'
 
@@ -75,9 +76,35 @@ const json = (value: unknown): Nodes => ({
   value: JSON.stringify(value, null, 2),
 })
 
+function isPhrasing(node: Nodes): node is PhrasingContent {
+  return [
+    'text',
+    'emphasis',
+    'strong',
+    'delete',
+    'inlineCode',
+    'break',
+    'image',
+    'imageReference',
+    'link',
+    'linkReference',
+    'footnoteReference',
+    'html',
+  ].includes(node.type)
+}
+
+function inlineContent(nodes: Nodes[]): PhrasingContent[] {
+  return nodes.flatMap((node): PhrasingContent[] => {
+    if (node.type === 'paragraph') return inlineContent(node.children)
+    if (node.type === 'break') return [{ type: 'html', value: '<br />' }]
+    if (isPhrasing(node)) return [node]
+    throw new Error(`Unsupported block inside inline documentation content: ${node.type}`)
+  })
+}
+
 /** Converts every authored component to useful Markdown while retaining all inactive content. */
 export function serializeMarkdown(tree: Root): string {
-  const convert = (node: Nodes, tabLabel?: string): Nodes[] => {
+  const convertNode = (node: Nodes, tabLabel?: string): Nodes[] => {
     if (node.type === 'mdxjsEsm') return []
     if (node.type === 'mdxFlowExpression' || node.type === 'mdxTextExpression') {
       const value = expressionValue(node)
@@ -164,12 +191,7 @@ export function serializeMarkdown(tree: Root): string {
               {
                 type: 'link',
                 url: props.href,
-                children: [
-                  {
-                    type: 'text',
-                    value: mdastToString({ type: 'root', children: children as RootContent[] }),
-                  },
-                ],
+                children: inlineContent(children),
               },
             ]
           return typeof props.id === 'string'
@@ -186,45 +208,32 @@ export function serializeMarkdown(tree: Root): string {
         case 'br':
           return [{ type: 'break' }]
         case 'table': {
-          const rows = node.children
-            .flatMap((child) =>
-              child.type === 'mdxJsxFlowElement' && ['thead', 'tbody'].includes(child.name ?? '')
-                ? child.children
-                : [child]
-            )
-            .filter(
-              (child) =>
-                (child.type === 'mdxJsxFlowElement' || child.type === 'mdxJsxTextElement') &&
-                child.name === 'tr'
-            )
+          const rows: Nodes[] = []
+          visit(node, (child) => {
+            if (
+              (child.type === 'mdxJsxFlowElement' || child.type === 'mdxJsxTextElement') &&
+              child.name === 'tr'
+            ) {
+              rows.push(child)
+              return SKIP
+            }
+          })
           return [
             {
               type: 'table',
-              children: rows.map((row) => ({
-                type: 'tableRow',
-                children:
-                  'children' in row
-                    ? row.children
-                        .filter(
-                          (cell) =>
-                            (cell.type === 'mdxJsxFlowElement' ||
-                              cell.type === 'mdxJsxTextElement') &&
-                            ['th', 'td'].includes(cell.name ?? '')
-                        )
-                        .map((cell) => ({
-                          type: 'tableCell',
-                          children: [
-                            {
-                              type: 'text',
-                              value: mdastToString({
-                                type: 'root',
-                                children: convert(cell) as RootContent[],
-                              }),
-                            },
-                          ],
-                        }))
-                    : [],
-              })),
+              children: rows.map((row): TableRow => {
+                const cells: TableRow['children'] = []
+                visit(row, (cell) => {
+                  if (
+                    (cell.type === 'mdxJsxFlowElement' || cell.type === 'mdxJsxTextElement') &&
+                    (cell.name === 'td' || cell.name === 'th')
+                  ) {
+                    cells.push({ type: 'tableCell', children: inlineContent(convert(cell)) })
+                    return SKIP
+                  }
+                })
+                return { type: 'tableRow', children: cells }
+              }),
             },
           ]
         }
@@ -242,6 +251,19 @@ export function serializeMarkdown(tree: Root): string {
     if ('children' in node)
       return [{ ...node, children: node.children.flatMap((child) => convert(child)) } as Nodes]
     return [node]
+  }
+  const convert = (node: Nodes, tabLabel?: string): Nodes[] => {
+    const converted = convertNode(node, tabLabel)
+    if (node.type !== 'mdxJsxFlowElement' && node.type !== 'mdxFlowExpression') return converted
+    const blocks: Nodes[] = []
+    for (const child of converted) {
+      if (isPhrasing(child) && child.type !== 'html') {
+        const previous = blocks.at(-1)
+        if (previous?.type === 'paragraph') previous.children.push(child)
+        else blocks.push({ type: 'paragraph', children: [child] })
+      } else blocks.push(child)
+    }
+    return blocks
   }
   const markdownTree: Root = {
     type: 'root',

@@ -1,5 +1,6 @@
 import { getPage, getPages } from '@/lib/content/catalog'
 import { getLLMText } from '@/lib/llms'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 export const dynamic = 'force-static'
 export const dynamicParams = false
@@ -13,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
       'Content-Type': 'text/markdown; charset=utf-8',
       'Cache-Control': 'public, max-age=0, s-maxage=86400, must-revalidate',
       Vary: 'Accept',
-      Link: `<${page.url}>; rel="canonical"`,
+      Link: `<${DOCS_BASE_URL}${page.url}>; rel="canonical"`,
       'X-Content-Type-Options': 'nosniff',
     },
   })

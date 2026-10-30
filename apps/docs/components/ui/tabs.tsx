@@ -24,6 +24,7 @@ interface TabContextValue {
 }
 
 const TabContext = createContext<TabContextValue | null>(null)
+const GROUP_CHANGE_EVENT = 'docs-tab-group-change'
 
 interface TabsProps extends Omit<ComponentPropsWithoutRef<typeof RadixTabs.Root>, 'defaultValue'> {
   items?: string[]
@@ -31,6 +32,7 @@ interface TabsProps extends Omit<ComponentPropsWithoutRef<typeof RadixTabs.Root>
   defaultIndex?: number
   updateAnchor?: boolean
   groupId?: string
+  groupValues?: Record<string, string>
   persist?: boolean
 }
 
@@ -46,6 +48,7 @@ export function Tabs({
   defaultIndex = 0,
   updateAnchor = false,
   groupId,
+  groupValues,
   persist = false,
   value: controlledValue,
   onValueChange,
@@ -67,6 +70,9 @@ export function Tabs({
     return cloneElement(child, { value })
   })
   const first = defaultValue ?? items?.[defaultIndex] ?? panelIds.keys().next().value ?? ''
+  const groupOptions = JSON.stringify(
+    [...panelIds.keys()].map((option) => [option, groupValues?.[option] ?? option])
+  )
   const [selected, setSelected] = useState(first)
   const value = controlledValue ?? selected
   const reveal = useEffectEvent((next: string) => {
@@ -80,12 +86,24 @@ export function Tabs({
     onValueChange?.(next)
     if (updateAnchor)
       window.history.replaceState(null, '', `#${encodeURIComponent(panelIds.get(next) ?? next)}`)
-    if (persist && groupId) {
+    if (groupId) {
+      const preference = groupValues?.[next] ?? next
       try {
-        localStorage.setItem(`docs-tab:${groupId}`, next)
+        sessionStorage.setItem(`docs-tab:${groupId}`, preference)
+        if (persist) localStorage.setItem(`docs-tab:${groupId}`, preference)
       } catch {}
+      window.dispatchEvent(
+        new CustomEvent(GROUP_CHANGE_EVENT, { detail: { groupId, value: preference } })
+      )
     }
   }
+
+  const restorePreference = useEffectEvent((preference: string) => {
+    const available = [...panelIds.keys()].find(
+      (candidate) => (groupValues?.[candidate] ?? candidate) === preference
+    )
+    if (available !== undefined) reveal(available)
+  })
 
   useEffect(() => {
     const element = root.current
@@ -115,12 +133,18 @@ export function Tabs({
       if (!(event.target instanceof HTMLElement)) return
       revealPanel(event.target)
     }
-    if (persist && groupId) {
+    function groupChanged(event: Event) {
+      const detail = (event as CustomEvent<{ groupId: string; value: string }>).detail
+      if (detail?.groupId === groupId) restorePreference(detail.value)
+    }
+    if (groupId) {
       try {
-        const saved = localStorage.getItem(`docs-tab:${groupId}`)
-        if (saved && element.querySelector(`[data-docs-tab-value="${CSS.escape(saved)}"]`))
-          reveal(saved)
+        const saved =
+          sessionStorage.getItem(`docs-tab:${groupId}`) ??
+          (persist ? localStorage.getItem(`docs-tab:${groupId}`) : null)
+        if (saved) restorePreference(saved)
       } catch {}
+      window.addEventListener(GROUP_CHANGE_EVENT, groupChanged)
     }
     revealTarget()
     window.addEventListener('hashchange', revealTarget)
@@ -128,8 +152,9 @@ export function Tabs({
     return () => {
       window.removeEventListener('hashchange', revealTarget)
       element.removeEventListener('beforematch', revealMatch)
+      window.removeEventListener(GROUP_CHANGE_EVENT, groupChanged)
     }
-  }, [groupId, persist])
+  }, [groupId, persist, groupOptions])
 
   return (
     <TabContext.Provider value={{ baseId, value, select, panelIds }}>
@@ -158,6 +183,23 @@ export function Tabs({
 }
 
 interface TabsListProps extends ComponentPropsWithoutRef<typeof RadixTabs.List> {}
+
+interface TabsSelectProps extends ComponentPropsWithoutRef<'select'> {}
+
+export function TabsSelect({ onChange, ...props }: TabsSelectProps) {
+  const context = useContext(TabContext)
+  if (!context) throw new Error('TabsSelect must be inside Tabs')
+  return (
+    <select
+      {...props}
+      value={context.value}
+      onChange={(event) => {
+        context.select(event.target.value)
+        onChange?.(event)
+      }}
+    />
+  )
+}
 
 export function TabsList({ className, children, ...props }: TabsListProps) {
   return (

@@ -30,6 +30,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
   const isCurrent = node.url === pathname
   const inBranch = containsPath(node, pathname)
   const [expanded, setExpanded] = useState(inBranch || Boolean(node.defaultOpen))
+  const [prefetch, setPrefetch] = useState(false)
   useEffect(() => {
     if (!isBranch) return
     try {
@@ -73,7 +74,10 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
         >
           <Link
             href={node.url}
-            prefetch={false}
+            prefetch={prefetch ? null : false}
+            onMouseEnter={() => setPrefetch(true)}
+            onFocus={() => setPrefetch(true)}
+            onTouchStart={() => setPrefetch(true)}
             aria-current={isCurrent ? 'page' : undefined}
             onClick={onNavigate}
             className={cn(rowClass, 'min-w-0 flex-1', isBranch && 'pr-0')}

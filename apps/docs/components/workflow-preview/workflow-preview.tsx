@@ -289,7 +289,7 @@ export function WorkflowPreview({
         <div className='flex h-11 shrink-0 items-center justify-between gap-3 border-[var(--docs-border)] border-b px-4'>
           <span className='min-w-0 text-docs-control'>{workflow.name}</span>
           <DocsButton
-            aria-label={`Expand ${workflow.name} workflow preview`}
+            aria-label={`Inspect workflow: ${workflow.name}`}
             onClick={() => openWith(null)}
           >
             <Expand className='size-4' />
@@ -343,7 +343,7 @@ export function WorkflowPreview({
                   type='button'
                   aria-label='Close'
                   onClick={() => setExpanded(false)}
-                  className={`${docsControlClass} pointer-events-auto pointer-coarse:size-11`}
+                  className={cn(docsControlClass, 'pointer-events-auto pointer-coarse:size-11')}
                 >
                   <X className='size-4' />
                 </button>

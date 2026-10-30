@@ -183,13 +183,14 @@ async function readCache(): Promise<CompiledCache> {
 async function generate() {
   await mkdir(path.join(OUTPUT_ROOT, 'pages'), { recursive: true })
   const pipelineFiles = [
+    import.meta.filename,
     path.join(DOCS_ROOT, 'lib/content/compile.ts'),
     path.join(DOCS_ROOT, 'lib/content/markdown.ts'),
     path.join(DOCS_ROOT, 'lib/shiki-theme.ts'),
     path.join(DOCS_ROOT, 'components/workflow-preview/examples.ts'),
     path.join(DOCS_ROOT, 'components/workflow-preview/block-display-workflows.ts'),
     path.join(DOCS_ROOT, 'package.json'),
-  ].filter((file) => !file.endsWith('/catalog.ts'))
+  ]
   const pipelineHash = hash(
     (await Promise.all(pipelineFiles.map((file) => readFile(file, 'utf8')))).join('\n')
   )
@@ -219,8 +220,11 @@ async function generate() {
       prior?.hash === sourceHash &&
       existsSync(javascriptPath)
     ) {
-      cache.files[relative] = prior
-      pages.push(prior.page)
+      const { lastModified: _previousDate, ...content } = prior.page
+      const date = dates.get(file)
+      const page = { ...content, ...(date ? { lastModified: date } : {}) }
+      cache.files[relative] = { ...prior, page }
+      pages.push(page)
       continue
     }
     const parsed = matter(raw)

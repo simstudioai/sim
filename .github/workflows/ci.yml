@@ -1149,9 +1149,18 @@ jobs:
         with:
           filters: |
             docs:
-              - 'apps/docs/content/docs/**'
-              - 'apps/sim/scripts/process-docs.ts'
-              - 'apps/sim/lib/chunkers/**'
+              - 'apps/docs/content/**'
+              - 'apps/docs/scripts/compile-content.ts'
+              - 'apps/docs/scripts/index-search.ts'
+              - 'apps/docs/lib/content/**'
+              - 'apps/docs/lib/search/**'
+              - 'apps/docs/lib/openapi-specs.ts'
+              - 'apps/docs/lib/urls.ts'
+              - 'apps/docs/public/openapi*.json'
+              - 'apps/docs/package.json'
+              - 'bun.lock'
+              - '.github/workflows/docs.yml'
+              - '.github/workflows/ci.yml'
 
   # Process docs embeddings (only when docs change, after images are promoted)
   docs:

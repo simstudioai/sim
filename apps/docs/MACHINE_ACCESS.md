@@ -56,9 +56,11 @@ bun scripts/index-search.ts --check
 bun scripts/index-search.ts
 ```
 
-`--plan` is local and read-only. `--check` requires the search database and reports missing, stale or retired documents without writes. The final command publishes changed pages with database and embedding credentials: it prepares bounded embedding batches, atomically replaces one document at a time, and removes retired documents only after all page updates succeed. A failed page leaves its previous index intact. The canonical index includes authored content and generated API operations; the agent VFS retains its deliberate `academy` and `api-reference` exclusions.
+`--plan` is local and read-only. `--check` requires the search database and reports missing, stale or retired documents without writes. It compares stored chunk text, embedding model and input identity, headings, citations and metadata with the canonical catalog. The final command prepares bounded embedding batches, atomically updates one document at a time, and removes retired documents only after all page updates succeed. A failed page leaves its previous index intact. Citation or metadata changes reuse existing vectors when the embedding input is unchanged. The canonical index includes authored content and generated API operations; the agent VFS retains its deliberate `academy` and `api-reference` exclusions.
 
-Set `DOCS_SEARCH_REPORT_PATH` to choose the JSON report destination. The default is `test-results/docs-search-index.json`. The main-branch docs workflow runs publication and freshness checks; no production indexing is part of the docs build.
+Add one or more `--path=/introduction` arguments to plan, check or repair specific canonical pages. Scoped publication never retires other pages. Publication and checks acquire an exclusive PostgreSQL advisory lock; a competing invocation fails before changing rows. The main-branch workflow also serializes publisher jobs and checks out current `main`, including when an older queued workflow starts. Do not run an older publisher checkout against the index.
+
+Set `DOCS_SEARCH_REPORT_PATH` to choose the JSON report destination. The default is `test-results/docs-search-index.json`. Reports include embedding request, input and provider token counts. The main-branch docs workflow retains separate publication and freshness reports; no production indexing is part of the docs build.
 
 ## Repeatable verification
 
@@ -74,6 +76,10 @@ The suite exercises real HTTP and the official MCP client, including discovery p
 
 
 The PostgreSQL suite uses a new, empty, loopback database and no embedding key. It verifies real keyword search, citation freshness, graceful database failure, repeated index publication, retirement and failed-publication preservation. It refuses databases containing existing tables. CI provisions its own `pgvector/pgvector:pg17` service and uploads the report with the other docs checks.
+
+The platform consumer harness also uses an empty loopback database and the running docs build. From `apps/sim`, run `bun --no-env-file scripts/test-docs-search-provider-e2e.ts` with `DOCS_PROVIDER_E2E_DATABASE_URL`, `DOCS_PROVIDER_E2E_BASE_URL` and `DOCS_PROVIDER_E2E_REPORT_PATH`. Its default mode uses the existing Azure endpoint configuration with a local HTTP fixture, deterministic vectors and the real PostgreSQL provider-admission store. It verifies the platform's direct-table search, scope exclusions, VFS reads and public citations, with no paid requests. This verifies the transport and consumer contract, not semantic relevance.
+
+Live provider verification is opt-in: set `DOCS_PROVIDER_E2E_ALLOW_LIVE=1` and supply `OPENAI_API_KEY`, using a fresh database named `docs_search_provider_test`. The harness limits publication to one introduction chunk and the consumer to one query, with at most two provider requests. Provider failure stops the run and remains a failed report. The default fixture mode also accepts the empty `docs_search_test` database used by the PostgreSQL suite. Both modes remove their tables when finished.
 
 To repeat locally, create a disposable container (the command returns its ID):
 

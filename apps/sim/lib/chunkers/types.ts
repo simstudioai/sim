@@ -25,28 +25,6 @@ export interface StructuredDataOptions extends ChunkerOptions {
   sheetName?: string
 }
 
-export interface DocChunk {
-  text: string
-  tokenCount: number
-  sourceDocument: string
-  headerLink: string
-  headerText: string
-  headerLevel: number
-  embedding: number[]
-  embeddingModel: string
-  metadata: {
-    sourceUrl?: string
-    headers?: string[]
-    title?: string
-    startIndex: number
-    endIndex: number
-  }
-}
-
-export interface DocsChunkerOptions extends ChunkerOptions {
-  baseUrl?: string
-}
-
 export type ChunkingStrategy = 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
 
 export type RecursiveRecipe = 'plain' | 'markdown' | 'code'

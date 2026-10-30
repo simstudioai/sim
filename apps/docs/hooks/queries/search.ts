@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { z } from 'zod'
+import { z } from 'zod/mini'
 
 const SEARCH_STALE_TIME = 60_000
 const SEARCH_GC_TIME = 300_000

@@ -25,7 +25,9 @@ const DOCUMENTS = [
 
 const generatedFiles = DOCUMENTS.map((document) => path.basename(document.output))
 if (JSON.stringify(generatedFiles) !== JSON.stringify(OPENAPI_SPEC_FILES)) {
-  throw new Error('OpenAPI generator documents do not match the Fumadocs specification manifest')
+  throw new Error(
+    'OpenAPI generator documents do not match the documentation specification manifest'
+  )
 }
 
 const args = process.argv.slice(2)
