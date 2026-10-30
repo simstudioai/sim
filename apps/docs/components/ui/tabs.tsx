@@ -170,7 +170,9 @@ export function Tabs({
       >
         <noscript>
           <style>{`
-            .docs-root [data-docs-tab-panel][hidden] { display: block !important; }
+            @layer base {
+              .docs-root [data-docs-tab-panel][hidden] { display: block !important; }
+            }
             .docs-root [data-docs-tabs-root] [role="tablist"],
             .docs-root [data-docs-tabs-root] select,
             .docs-root [data-docs-tabs-root] button { display: none; }
