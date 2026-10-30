@@ -27,6 +27,9 @@ describe('Sim link destinations', () => {
     'https://example.com{*}',
     'https://example.com@{*}',
     'https://example.com:{*}',
+    'https://{*}@corp.example.com/',
+    'https://user:{*}@corp.example.com/',
+    'https://corp.example.com:{*}/path',
     '{*}',
     'https:{*}',
     'javascript:alert(1)',
@@ -64,6 +67,21 @@ describe('Sim link destinations', () => {
     }
   )
 
+  it.each(['https://{*}@corp.example.com/', 'https://user:{*}@corp.example.com/'])(
+    'refuses to resolve %s, whose values could move the host',
+    (url) => {
+      for (const values of [
+        ['evil.com', 'x'],
+        ['443', 'x'],
+        ['a b', 'x:y'],
+      ]) {
+        expect(() => resolveSimLinkTarget({ url, defaultUrl: null }, values)).toThrow(
+          'no fixed http(s) origin'
+        )
+      }
+    }
+  )
+
   it('fills each variable in order, the last taking every remaining value', () => {
     expect(redirectUrl('https://github.com/{*}/issues/{*}', ['sim', 'BUG 12', 'x'])).toBe(
       'https://github.com/sim/issues/BUG%2012/x'
@@ -97,8 +115,10 @@ describe('Sim link destinations', () => {
   })
 
   it('refuses to redirect to a stored destination that is not http(s)', () => {
-    expect(() =>
-      resolveSimLinkTarget({ url: 'javascript:alert(1)', defaultUrl: null }, [])
-    ).toThrow('not an http(s) URL')
+    for (const url of ['javascript:alert(1)', 'data:text/html,hi']) {
+      expect(() => resolveSimLinkTarget({ url, defaultUrl: null }, [])).toThrow(
+        'no fixed http(s) origin'
+      )
+    }
   })
 })

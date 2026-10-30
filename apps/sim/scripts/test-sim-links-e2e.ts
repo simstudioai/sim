@@ -219,7 +219,12 @@ async function run() {
   })
 
   await check('destinations must be http(s) with a fixed origin', async () => {
-    for (const url of ['javascript:alert(1)', 'https://{*}.example.com', 'example.com']) {
+    for (const url of [
+      'javascript:alert(1)',
+      'https://{*}.example.com',
+      'https://{*}@corp.example.com/',
+      'example.com',
+    ]) {
       await api(owner, '', { method: 'POST', body: fields({ name: 'bad', url }), expected: 400 })
     }
     await api(owner, '', {

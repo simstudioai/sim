@@ -14,7 +14,6 @@ import { serializeSimLinkView } from '@/app/o/[organizationId]/links/search-para
 
 export const metadata: Metadata = {
   title: 'Sim link',
-  referrer: 'no-referrer',
   robots: { index: false, follow: false },
 }
 

@@ -75,7 +75,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       }
     >
       <div className={RESOURCE_LIST_STACK}>
-        {links.error ? (
+        {links.isLoadingError ? (
           <SettingsQueryErrorState
             error={links.error}
             fallback='Could not load Sim links'

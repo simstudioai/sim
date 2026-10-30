@@ -43,14 +43,20 @@ function useInvalidateSimLinks(organizationId: string) {
   return () => queryClient.invalidateQueries({ queryKey: simLinkKeys.lists(organizationId) })
 }
 
-/** Creates a link, or replaces the fields of `linkId` when given. */
-export function useSaveSimLink(organizationId: string) {
+export function useCreateSimLink(organizationId: string) {
   const invalidate = useInvalidateSimLinks(organizationId)
   return useMutation({
-    mutationFn: ({ linkId, body }: { linkId?: string; body: SimLinkBody }) =>
-      linkId
-        ? requestJson(updateSimLinkContract, { params: { id: organizationId, linkId }, body })
-        : requestJson(createSimLinkContract, { params: { id: organizationId }, body }),
+    mutationFn: (body: SimLinkBody) =>
+      requestJson(createSimLinkContract, { params: { id: organizationId }, body }),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateSimLink(organizationId: string) {
+  const invalidate = useInvalidateSimLinks(organizationId)
+  return useMutation({
+    mutationFn: ({ linkId, body }: { linkId: string; body: SimLinkBody }) =>
+      requestJson(updateSimLinkContract, { params: { id: organizationId, linkId }, body }),
     onSuccess: invalidate,
   })
 }

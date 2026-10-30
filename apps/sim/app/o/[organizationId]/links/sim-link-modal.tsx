@@ -19,7 +19,7 @@ import {
   SIM_LINK_VARIABLE,
   simLinkFieldsSchema,
 } from '@/lib/sim-links/validation'
-import { useSaveSimLink } from '@/hooks/queries/sim-links'
+import { useCreateSimLink, useUpdateSimLink } from '@/hooks/queries/sim-links'
 
 type Field = 'name' | 'url' | 'defaultUrl' | 'description'
 
@@ -45,7 +45,9 @@ function draftOf(link: SimLink | undefined, initialName = ''): SimLinkBody {
 
 /** Mount per link (keyed) so each open starts from that link's saved fields. */
 export function SimLinkModal({ organizationId, onClose, link, initialName }: SimLinkModalProps) {
-  const mutation = useSaveSimLink(organizationId)
+  const create = useCreateSimLink(organizationId)
+  const update = useUpdateSimLink(organizationId)
+  const mutation = link ? update : create
   const nameTaken = isApiClientError(mutation.error) && mutation.error.status === 409
   const [draft, setDraft] = useState(() => draftOf(link, initialName))
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
@@ -73,7 +75,8 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
       )
       return
     }
-    mutation.mutate({ linkId: link?.id, body: parsed.data }, { onSuccess: onClose })
+    if (link) update.mutate({ linkId: link.id, body: parsed.data }, { onSuccess: onClose })
+    else create.mutate(parsed.data, { onSuccess: onClose })
   }
 
   const title = link ? `Edit sim/${link.name}` : 'New Sim link'

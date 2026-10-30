@@ -24,11 +24,17 @@ export function parseHttpUrl(value: string): URL | null {
   return url.protocol === 'https:' || url.protocol === 'http:' ? url : null
 }
 
-/** Values may fill a destination's path, query, or fragment, never its origin. */
-function hasFixedHttpOrigin(url: string): boolean {
-  const first = parseHttpUrl(url.replaceAll(SIM_LINK_VARIABLE, 'a'))
-  const second = parseHttpUrl(url.replaceAll(SIM_LINK_VARIABLE, 'b'))
-  return Boolean(first && second && first.origin === second.origin)
+/** A scheme and authority closed by `/`, `?`, or `#`: nothing typed later can extend the host. */
+const CLOSED_AUTHORITY = /^https?:\/\/[^/?#]+[/?#]/i
+
+/**
+ * The origin every visit to `url` must land on, or null when values could change it. Values fill
+ * only what follows the authority, so the text before the first `{*}` must already close it.
+ */
+export function simLinkOrigin(url: string): string | null {
+  const [prefix] = url.split(SIM_LINK_VARIABLE)
+  if (isVariableSimLinkUrl(url) && !CLOSED_AUTHORITY.test(prefix)) return null
+  return parseHttpUrl(url.replaceAll(SIM_LINK_VARIABLE, 'value'))?.origin ?? null
 }
 
 export const simLinkNameSchema = z
@@ -46,7 +52,7 @@ const destinationSchema = z
   .max(URL_MAX_LENGTH, `Use at most ${URL_MAX_LENGTH} characters`)
 
 const simLinkUrlSchema = destinationSchema.refine(
-  hasFixedHttpOrigin,
+  (url) => simLinkOrigin(url) !== null,
   `Enter a full http:// or https:// URL. ${SIM_LINK_VARIABLE} can't replace the domain.`
 )
 
