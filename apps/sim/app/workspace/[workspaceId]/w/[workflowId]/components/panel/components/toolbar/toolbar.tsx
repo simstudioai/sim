@@ -122,7 +122,7 @@ const ToolbarItem = memo(function ToolbarItem({
     <div
       ref={itemRef}
       role='button'
-      aria-label={item.restricted ? `View access for ${item.name}` : `Add ${item.name}`}
+      aria-label={item.restricted ? `View or request access to ${item.name}` : `Add ${item.name}`}
       tabIndex={-1}
       draggable={!item.restricted}
       onDragStart={item.restricted ? undefined : handleDragStart}

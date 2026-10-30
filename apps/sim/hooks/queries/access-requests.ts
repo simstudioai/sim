@@ -73,7 +73,8 @@ export function useDiscoverAccessRequests(query: DiscoverAccessRequestsQuery, en
     enabled:
       Boolean(query.kind === 'workspace' ? query.workspaceId : query.organizationId) && enabled,
     staleTime: ACCESS_REQUESTS_STALE_TIME,
-    refetchInterval: ACCESS_REQUESTS_POLL_INTERVAL,
+    refetchInterval: (query) =>
+      query.state.data?.organizationId === null ? false : ACCESS_REQUESTS_POLL_INTERVAL,
   })
 }
 

@@ -137,7 +137,7 @@ export function RequestAccessModal({
   const alreadyAllowed = entry?.state === 'allowed'
   const unavailableReason =
     discovery.isSuccess && !pendingRequestId && !canRequest && !alreadyAllowed
-      ? !discovery.data.enabled && discovery.data.organizationId
+      ? !discovery.data.enabled && discovery.data.organizationId && entry?.state === 'requestable'
         ? 'Access requests are paused for your organization.'
         : (entry?.reason ?? 'Access requests are unavailable.')
       : null

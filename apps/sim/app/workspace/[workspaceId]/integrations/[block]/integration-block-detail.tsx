@@ -67,11 +67,9 @@ interface IntegrationBlockDetailProps {
 }
 
 /**
- * Integration detail page, shown only when the viewer's access policy permits
- * the integration (an unconfigured one included, which the page presents as
- * unavailable). A direct link to a restricted one renders an access-required
- * state instead of the connect actions, and nothing renders until the policy
- * has loaded.
+ * Shows integration content only when the viewer's resolved policy permits it.
+ * Restricted integrations show access and request status, with loading and retry
+ * states while that status is being checked.
  */
 export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
   const { getAccess, availabilityError, refetchAvailability } = useIntegrationAccess(workspaceId)
@@ -91,6 +89,22 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   if (access === undefined) return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
   if (isIntegrationPermitted(access)) {
     return <IntegrationBlockDetailContent integration={integration} workspaceId={workspaceId} />
+  }
+
+  if (access === 'requestable') {
+    if (accessRequests.isError) {
+      return (
+        <IntegrationAccessNotice
+          workspaceId={workspaceId}
+          title='Unable to check access'
+          description={accessRequests.error.message}
+          action={<Chip onClick={() => void accessRequests.refetch()}>Try again</Chip>}
+        />
+      )
+    }
+    if (!accessRequests.data) {
+      return <IntegrationBlockDetailFallback workspaceId={workspaceId} />
+    }
   }
 
   const requestable = access === 'requestable' && accessRequests.data?.enabled === true

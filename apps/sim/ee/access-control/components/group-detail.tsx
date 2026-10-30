@@ -903,8 +903,8 @@ export function GroupDetail({
 
         {configTab !== 'general' && (
           <p className='text-[var(--text-muted)] text-sm'>
-            Allowed gives access. Can request requires admin approval. Unavailable prevents use and
-            requests.
+            Allowed permits use. Can request requires admin approval. Unavailable blocks both.
+            Workspace roles and deployment settings still apply.
           </p>
         )}
 

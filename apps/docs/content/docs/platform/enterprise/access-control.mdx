@@ -25,7 +25,7 @@ Choose an access state in the provider, block, and platform permission lists:
 | State | What members can do |
 | --- | --- |
 | **Allowed** | Use the item, subject to their workspace role and deployment settings. |
-| **Can request** | Discover the item and ask an administrator for access. Use stays blocked until approved. |
+| **Can request** | Discover the item and ask an administrator for access when their role and deployment settings permit it. Use stays blocked until approved. |
 | **Unavailable** | Cannot use or request the item. It is omitted from normal discovery; direct links remain restricted. |
 
 Use **Unavailable** for software your organization has not procured. Existing groups retain their permissions and request behavior until you change them. **Project Issues** keeps its separate checklist: checked projects are restricted.
@@ -34,7 +34,7 @@ Search and the state filter narrow each list. **Set shown to…** changes only t
 
 A restricted parent also restricts its children. Expand a provider, integration, or platform feature to inspect its models, tools, connectors, or authentication modes. Allow the parent before editing its children. Child choices are preserved when a parent changes. An unavailable child stays unavailable even if its parent allows requests. Requests cannot bypass an unavailable parent.
 
-Requests still respect deployment availability and workspace roles. Custom blocks, private dynamically discovered models, and other items outside the public request catalog do not offer **Can request**.
+These choices configure the group's policy, independently of the deployment's current availability. **Allowed** and **Can request** cannot enable a deployment-disabled feature or bypass a workspace role. Members only discover and request items available to their deployment and role. Custom blocks, private dynamically discovered models, and other items outside the public request catalog do not offer **Can request**.
 
 ### General
 
