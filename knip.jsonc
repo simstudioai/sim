@@ -93,8 +93,11 @@
         // Knip's email CLI plugin infers this transitive preview implementation.
         "@react-email/ui"
       ],
-      // Live test spawns this path with cwd=MSHIP_WORKER_ROOT (a sibling repo).
-      "ignoreUnresolved": ["tools/probes/src/controller-run-read.ts"]
+      // Live tests spawn these paths with cwd=MSHIP_WORKER_ROOT (a sibling repo).
+      "ignoreUnresolved": [
+        "tools/probes/src/controller-run-read.ts",
+        "tools/probes/src/draft-run-slices.ts"
+      ]
     },
     "apps/realtime": {
       "includeEntryExports": false,
