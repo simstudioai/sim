@@ -133,7 +133,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       ],
       [
         'Reconnect tools: point MCP nodes at the same servers through ',
-        { text: "Sim's MCP tools", href: 'https://docs.sim.ai/mcp/tools' },
+        { text: "Sim's MCP tools", href: 'https://docs.sim.ai/agents/mcp' },
         ', and move the documents behind File search into a ',
         { text: 'Sim knowledge base', href: 'https://docs.sim.ai/knowledgebase' },
         '.',

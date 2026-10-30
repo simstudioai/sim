@@ -25,7 +25,7 @@ export function MigrationSection({ migration }: MigrationSectionProps) {
         <p className={BODY_CLASS}>
           <ProseText prose={migration.answer} />
         </p>
-        <div className='mt-6 w-full overflow-x-auto rounded-xl border border-[var(--border-1)]'>
+        <div className='mt-6 w-full overflow-x-auto rounded-xl border border-[var(--border)]'>
           <table className='w-full table-fixed border-separate border-spacing-0 text-left'>
             <caption className='sr-only'>{migration.heading}</caption>
             <colgroup>
