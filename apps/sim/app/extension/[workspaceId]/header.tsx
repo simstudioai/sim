@@ -1,14 +1,19 @@
 'use client'
 
+import { useState } from 'react'
 import {
   Chip,
   ChipLink,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  scrollFadeAttributes,
+  scrollFadeClass,
   Tooltip,
+  useScrollEdges,
 } from '@sim/emcn'
 import { ArrowUpRight, BubbleChatDelay, ChevronDown, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
@@ -35,6 +40,10 @@ export function ExtensionHeader({
   const router = useRouter()
   const { data: workspaces } = useWorkspacesQuery()
   const { data: chats, isPending, error } = history
+  const [scopeElement, setScopeElement] = useState<HTMLDivElement | null>(null)
+  const scopeEdges = useScrollEdges(scopeElement)
+  const [historyElement, setHistoryElement] = useState<HTMLDivElement | null>(null)
+  const historyEdges = useScrollEdges(historyElement)
   return (
     <header className='flex shrink-0 items-center gap-1 border-[var(--border)] border-b px-3 py-2'>
       <DropdownMenu>
@@ -43,7 +52,12 @@ export function ExtensionHeader({
             {scopeName}
           </Chip>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='start'>
+        <DropdownMenuContent
+          ref={setScopeElement}
+          align='start'
+          {...scrollFadeAttributes(scopeEdges)}
+          className={scrollFadeClass}
+        >
           <DropdownMenuItem
             active={!workspaceId}
             disabled={!workspaceId}
@@ -76,7 +90,12 @@ export function ExtensionHeader({
           </Tooltip.Trigger>
           <Tooltip.Content>Chat history</Tooltip.Content>
         </Tooltip.Root>
-        <DropdownMenuContent align='end' className='max-h-[320px] w-[240px] overflow-y-auto'>
+        <DropdownMenuContent
+          ref={setHistoryElement}
+          align='end'
+          {...scrollFadeAttributes(historyEdges)}
+          className={cn('max-h-[320px] w-[240px] overflow-y-auto', scrollFadeClass)}
+        >
           {isPending || error || !chats?.length ? (
             <DropdownMenuItem disabled>
               {isPending ? 'Loading chats…' : error ? 'Chat history unavailable' : 'No chats yet'}

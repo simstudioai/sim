@@ -46,7 +46,13 @@ export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
         onRemove={onRemove}
         removeLabel='Remove page context'
       />
-      <ChipModal open={open} onOpenChange={setOpen} srTitle='Page context' size='sm'>
+      <ChipModal
+        open={open}
+        onOpenChange={setOpen}
+        srTitle='Page context'
+        size='sm'
+        className='ph-no-capture'
+      >
         <ChipModalHeader onClose={() => setOpen(false)}>{title}</ChipModalHeader>
         <ChipModalBody>
           <div className='flex flex-wrap items-center justify-between gap-2'>

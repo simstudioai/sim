@@ -14,14 +14,20 @@ import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/prov
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
-import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
+import {
+  useWorkspaceHostContextQuery,
+  WORKSPACE_HOST_CONTEXT_STALE_TIME,
+} from '@/hooks/queries/workspace-host'
 
 interface ExtensionWorkspaceProps {
   workspaceId: string
 }
 
 export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
-  const { data, isPending, error, refetch } = useWorkspaceHostContextQuery(workspaceId)
+  const { data, isPending, error, refetch } = useWorkspaceHostContextQuery(workspaceId, {
+    refetchInterval: WORKSPACE_HOST_CONTEXT_STALE_TIME,
+    refetchOnWindowFocus: true,
+  })
   if (isApiClientError(error) && error.status === 401) return <ExtensionSignIn />
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 403 || error.status === 404)

@@ -36,6 +36,7 @@ const fixture = Bun.serve({
         const received = [];
         window.addEventListener('message', event => {
           if (event.source !== parent || !event.origin.startsWith('chrome-extension://')) return;
+          if (event.data.type === 'e2e-barrier') document.body.dataset.barrierId = event.data.id;
           if (event.data.type === 'context' && event.data.sessionId === document.body.dataset.sessionId) {
             if (document.body.dataset.ignoreCaptures) return;
             received.push(event.data.snapshot);
@@ -206,6 +207,19 @@ try {
       }
     })
 
+  const settleMessages = async () => {
+    const barrierId = generateId()
+    await panel.evaluate(
+      ({ origin, barrierId }) => {
+        const target = document.querySelector('iframe')?.contentWindow
+        if (!target) throw new Error('Missing hosted frame')
+        target.postMessage({ type: 'e2e-barrier', id: barrierId }, origin)
+      },
+      { origin, barrierId }
+    )
+    await app.waitForFunction((id) => document.body.dataset.barrierId === id, barrierId)
+  }
+
   await check('Capture stays local until the trusted hosted frame is ready', async () => {
     await capture()
     await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()
@@ -225,6 +239,7 @@ try {
         }),
       receiverSessionId
     )
+    await settleMessages()
     assert((await snapshots()).length === 0, 'Wrong-origin readiness was accepted')
     const wrongFrameDelivered = panel.evaluate(
       () =>
@@ -246,6 +261,7 @@ try {
       document.body.append(child)
     }, receiverSessionId)
     await wrongFrameDelivered
+    await settleMessages()
     assert((await snapshots()).length === 0, 'Wrong-frame readiness was accepted')
     await page.evaluate(() => {
       document.body.textContent = 'SECOND_CAPTURE_SENTINEL'

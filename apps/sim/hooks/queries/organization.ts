@@ -55,6 +55,8 @@ export function useOrganizationSummary(organizationId: string) {
     queryFn: ({ signal }) =>
       requestJson(getOrganizationContract, { params: { id: organizationId }, query: {}, signal }),
     staleTime: ORGANIZATION_DETAIL_STALE_TIME,
+    refetchInterval: ORGANIZATION_DETAIL_STALE_TIME,
+    refetchOnWindowFocus: true,
   })
 }
 

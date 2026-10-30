@@ -17,6 +17,8 @@ on:
       - 'apps/sim/next.config.ts'
       - 'apps/sim/package.json'
       - 'packages/emcn/**'
+      - 'packages/logger/**'
+      - 'packages/utils/**'
       - 'bun.lock'
   workflow_dispatch:
 

@@ -11,27 +11,31 @@ import {
   type BrowserContext,
   expect as browserExpect,
   chromium,
+  type Frame,
   type Page,
   type Request,
 } from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { generateRandomHex } from '@sim/utils/random'
 import postgres from 'postgres'
+import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 
 /** Authenticated packaged-browser acceptance against a real local Sim app and disposable Postgres. */
 const logger = createLogger('BrowserExtensionAppE2E')
 const expect = browserExpect.configure({ timeout: 30_000 })
+const ACCESS_REVALIDATION_TIMEOUT_MS = 35_000
 function required(name: string): string {
   const value = process.env[name]
   assert(value, `${name} must be explicitly provided`)
   return value
 }
 const base = new URL(required('EXTENSION_APP_E2E_BASE_URL'))
-const database = new URL(required('EXTENSION_APP_E2E_DATABASE_URL'))
+const database = assertDisposableTestDatabaseUrl(required('EXTENSION_APP_E2E_DATABASE_URL'))
 const report = resolve(required('EXTENSION_APP_E2E_REPORT_PATH'))
 const liveChat = process.env.EXTENSION_APP_E2E_LIVE_CHAT === '1'
 const loopback = ['127.0.0.1', 'localhost', '[::1]']
@@ -42,12 +46,6 @@ assert(
     !base.username &&
     !base.password,
   'Use a loopback HTTP app origin'
-)
-assert(
-  loopback.includes(database.hostname) &&
-    ['postgres:', 'postgresql:'].includes(database.protocol) &&
-    /(?:^|[_-])test(?:[_-]|$)/i.test(database.pathname.slice(1)),
-  'Use a disposable local test database'
 )
 const extensionRoot = resolve(import.meta.dirname, '../../extension')
 const temporary = await mkdtemp(resolve(tmpdir(), 'sim-extension-app-e2e-'))
@@ -62,6 +60,10 @@ const screenshots: string[] = []
 const browserErrors: string[] = []
 const httpErrors: { path: string; status: number; injected: boolean }[] = []
 const injectedRequests = new WeakSet<Request>()
+const pendingRequests = new Set<Request>()
+const failedRequests: { path: string; error: string | null }[] = []
+let failureState: { path: string; text: string }[] = []
+let pendingAtFailure: { path: string; method: string; resourceType: string }[] = []
 const uploadedPaths = new Set<string>()
 
 function trackUploadedFile(key: string) {
@@ -116,9 +118,57 @@ async function check(name: string, run: () => Promise<void>) {
 }
 async function screenshot(name: string) {
   if (!panel) return
+  for (const frame of panel.frames()) {
+    await frame.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter(
+            (animation) =>
+              animation.playState === 'running' &&
+              animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY
+          )
+          .map((animation) => animation.finished.catch(() => {}))
+      )
+    )
+    for (const element of await frame
+      .getByRole('menu')
+      .or(frame.getByRole('dialog'))
+      .elementHandles()) {
+      try {
+        await element.waitForElementState('stable')
+      } catch (error) {
+        if (await element.isVisible()) throw error
+      } finally {
+        await element.dispose()
+      }
+    }
+  }
   const path = `${report}.${name}.png`
   await panel.screenshot({ path, fullPage: true, animations: 'disabled' })
   screenshots.push(path)
+}
+
+async function recordSnapshot(target: Frame | Page) {
+  await target.addScriptTag({ url: `${base.origin}/__extension-qa-recorder.js` })
+  return target.evaluate(() => {
+    const recorderWindow = window as typeof window & {
+      __PosthogExtensions__?: {
+        rrweb?: {
+          record(options: {
+            emit: (event: unknown) => void
+            blockClass: string
+          }): (() => void) | undefined
+        }
+      }
+    }
+    const events: unknown[] = []
+    const record = recorderWindow.__PosthogExtensions__?.rrweb?.record
+    if (!record) throw new Error('Installed PostHog recorder did not load')
+    const stop = record({ emit: (event) => events.push(event), blockClass: 'ph-no-capture' })
+    stop?.()
+    return JSON.stringify(events)
+  })
 }
 async function seed() {
   assert(userId)
@@ -138,6 +188,9 @@ async function seed() {
     await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${deniedId}, ${deniedId}, 'Inaccessible QA workspace', ${otherUserId}, ${otherUserId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${otherUserId}, 'workspace', ${deniedId}, 'admin')`
     await tx`insert into copilot_chats (id, user_id, workspace_id, type, title) values (${historyId}, ${owner}, ${alphaId}, 'mothership', 'Extension QA history')`
+    for (let index = 0; index < 15; index++) {
+      await tx`insert into copilot_chats (id, user_id, workspace_id, type, title) values (${generateId()}, ${owner}, ${alphaId}, 'mothership', ${`Extension QA conversation ${index + 1}`})`
+    }
     const previousQuestion = {
       id: generateId(),
       role: 'user',
@@ -221,6 +274,15 @@ try {
     route.fulfill({ json: { sttAvailable: true } })
   )
   panel.on('pageerror', (error) => browserErrors.push(error.message))
+  panel.on('request', (request) => pendingRequests.add(request))
+  panel.on('requestfinished', (request) => pendingRequests.delete(request))
+  panel.on('requestfailed', (request) => {
+    pendingRequests.delete(request)
+    failedRequests.push({
+      path: new URL(request.url()).pathname,
+      error: request.failure()?.errorText ?? null,
+    })
+  })
   panel.on('response', (response) => {
     const url = new URL(response.url())
     if (url.origin === base.origin && response.status() >= 400)
@@ -237,7 +299,7 @@ try {
     return app
   }
   const navigate = async (url: string) => {
-    const navigation = frame().waitForNavigation({ waitUntil: 'domcontentloaded' })
+    const navigation = frame().waitForNavigation({ waitUntil: 'load' })
     await frame().evaluate((destination) => window.location.assign(destination), url)
     await navigation
   }
@@ -462,6 +524,8 @@ try {
     await capture()
     await frame().getByRole('button', { name: 'Chat history' }).click()
     await screenshot('chat-history')
+    await frame().getByRole('menu').press('End')
+    await screenshot('chat-history-end')
     await frame().getByRole('menuitem', { name: 'Extension QA history' }).click()
     await expect(attachments()).toHaveCount(0)
     await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
@@ -494,12 +558,17 @@ try {
         const payload = toRecord((await request).postDataJSON())
         assert.equal(typeof payload.message, 'string')
         assert.equal(String(payload.message).trim(), '@Page')
-        const contexts = Array.isArray(payload.contexts) ? payload.contexts : []
-        const pageContext = contexts.map(toRecord).find((entry) => entry.kind === 'browser_page')
+        const contexts = chatContextsSchema.parse(payload.contexts)
+        const pageContext = contexts.find((entry) => entry.kind === 'browser_page')
+        if (!pageContext?.snapshot) throw new Error('Page-only submission lost its snapshot')
         assert(
-          String(toRecord(pageContext?.snapshot).text).includes('QA_PRIVATE_PAGE_MARKER'),
+          pageContext.snapshot.text.includes('QA_PRIVATE_PAGE_MARKER'),
           'Page-only submission lost its snapshot'
         )
+        const savedContexts = [
+          { kind: 'browser_page', label: pageContext.label, snapshot: pageContext.snapshot },
+        ]
+        await sql`update copilot_messages set content = jsonb_set(jsonb_set(content, '{contexts}', ${sql.json(savedContexts)}), '{content}', ${sql.json('QA previous question. @Page')}) where chat_id = ${historyId} and role = 'user'`
         await expect(attachments()).toHaveCount(0)
         await expect(
           frame().getByText('QA intentionally declines admission after observing the request.', {
@@ -514,6 +583,43 @@ try {
       await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
     }
   )
+  await browserContext.route('**/__extension-qa-recorder.js', (route) =>
+    route.fulfill({
+      path: resolve(dirname(require.resolve('posthog-js')), 'posthog-recorder.js'),
+      contentType: 'application/javascript',
+    })
+  )
+  await check('Saved page previews stay out of session replay in the full app', async () => {
+    const opened = browserContext.waitForEvent('page')
+    await frame().getByRole('link', { name: 'Open in Sim', exact: true }).click()
+    const app = await opened
+    try {
+      await app.waitForURL(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
+      await app.getByRole('button', { name: 'Review page context: Extension QA page' }).click()
+      const preview = app.getByRole('dialog', { name: 'Page context', exact: true })
+      await expect(preview).toBeVisible()
+      await expect(preview.getByText(captureText, { exact: false })).toBeVisible()
+      await app.evaluate(() => {
+        const control = document.createElement('p')
+        control.textContent = 'QA_PUBLIC_REPLAY_CONTROL'
+        document.body.append(control)
+      })
+      const recorded = await recordSnapshot(app)
+      assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
+      assert(recorded.includes('QA_PUBLIC_REPLAY_CONTROL'), 'Ordinary page text was not recorded')
+      assert(!recorded.includes('QA_PRIVATE_PAGE_MARKER'), 'Page text entered session replay')
+      assert(!recorded.includes('Extension QA page'), 'Page title entered session replay')
+      assert(!recorded.includes(fixtureOrigin), 'Page URL entered session replay')
+      await app
+        .getByText('QA_PUBLIC_REPLAY_CONTROL', { exact: true })
+        .evaluate((element) => element.remove())
+      const path = `${report}.full-app-page-preview.png`
+      await app.screenshot({ path, fullPage: true, animations: 'disabled' })
+      screenshots.push(path)
+    } finally {
+      await app.close()
+    }
+  })
   await check('Sources and resource actions preserve their real destinations', async () => {
     await frame().getByRole('button', { name: '1 source', exact: true }).click()
     await frame().getByRole('button', { name: 'View all sources' }).click()
@@ -529,31 +635,7 @@ try {
     await frame().getByRole('menuitem', { name: 'Copy link', exact: true }).click()
     await expect(dialog.getByRole('button', { name: 'Link copied', exact: true })).toBeVisible()
     await screenshot('source-link-copied')
-    await shell.route('**/__extension-qa-recorder.js', (route) =>
-      route.fulfill({
-        path: resolve(dirname(require.resolve('posthog-js')), 'posthog-recorder.js'),
-        contentType: 'application/javascript',
-      })
-    )
-    await frame().addScriptTag({ url: `${base.origin}/__extension-qa-recorder.js` })
-    const recorded = await frame().evaluate(() => {
-      const recorderWindow = window as typeof window & {
-        __PosthogExtensions__?: {
-          rrweb?: {
-            record(options: {
-              emit: (event: unknown) => void
-              blockClass: string
-            }): (() => void) | undefined
-          }
-        }
-      }
-      const events: unknown[] = []
-      const record = recorderWindow.__PosthogExtensions__?.rrweb?.record
-      if (!record) throw new Error('Installed PostHog recorder did not load')
-      const stop = record({ emit: (event) => events.push(event), blockClass: 'ph-no-capture' })
-      stop?.()
-      return JSON.stringify(events)
-    })
+    const recorded = await recordSnapshot(frame())
     assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
     assert(!recorded.includes('QA evidence'), 'Portaled citation content entered session replay')
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
@@ -676,105 +758,6 @@ try {
       await source.evaluate(() => window.getSelection()?.removeAllRanges())
     }
   )
-  const reconnect = async () => {
-    await frame().evaluate(() => {
-      window.dispatchEvent(new Event('offline'))
-      window.dispatchEvent(new Event('online'))
-    })
-  }
-  await check(
-    'Transient session and workspace refetch failures preserve the mounted composer and page draft',
-    async () => {
-      for (const [path, attempts] of [
-        ['/api/auth/get-session', 1],
-        [`/api/workspaces/${alphaId}/host-context`, 2],
-      ] as const) {
-        await navigate(`${base.origin}/extension/${alphaId}`)
-        const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
-        await expect(editor).toBeVisible()
-        await capture()
-        await editor.fill('Keep this draft through a temporary network failure.')
-        const original = await editor.elementHandle()
-        assert(original)
-        const endpoint = `${base.origin}${path}`
-        let failures = 0
-        await browserContext.route(`${endpoint}*`, async (route) => {
-          injectedRequests.add(route.request())
-          await route.fulfill({
-            status: 503,
-            json: { message: 'QA temporary outage', error: 'QA temporary outage' },
-          })
-          failures++
-        })
-        try {
-          await shell.clock.setFixedTime(Date.now() + 360_000)
-          await reconnect()
-          await expect.poll(() => failures).toBe(attempts)
-          await frame().evaluate(
-            () =>
-              new Promise<void>((resolve) =>
-                requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-              )
-          )
-          assert(
-            await original.evaluate((element) => element.isConnected),
-            'A transient refetch unmounted the composer'
-          )
-          await expect(editor).toHaveValue('Keep this draft through a temporary network failure.')
-          await expect(attachments()).toHaveCount(1)
-          await screenshot(
-            path.includes('get-session') ? 'session-refetch-outage' : 'workspace-refetch-outage'
-          )
-        } finally {
-          await browserContext.unroute(`${endpoint}*`)
-          await shell.clock.setFixedTime(Date.now())
-        }
-      }
-      await navigate(`${base.origin}/extension/${alphaId}`)
-    }
-  )
-  await check(
-    'Explicit session and workspace access failures clear captured context after refetch',
-    async () => {
-      for (const [path, status] of [
-        ['/api/auth/get-session', 401],
-        ['/api/auth/get-session', 403],
-        [`/api/workspaces/${alphaId}/host-context`, 403],
-        [`/api/workspaces/${alphaId}/host-context`, 404],
-      ] as const) {
-        await navigate(`${base.origin}/extension/${alphaId}`)
-        await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
-        await capture()
-        const endpoint = `${base.origin}${path}`
-        await browserContext.route(`${endpoint}*`, async (route) => {
-          injectedRequests.add(route.request())
-          await route.fulfill({
-            status,
-            json: { message: 'QA access revoked', error: 'QA access revoked' },
-          })
-        })
-        try {
-          await shell.clock.setFixedTime(Date.now() + 360_000)
-          await reconnect()
-          if (path.includes('get-session'))
-            await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
-          else await expect(frame().getByText('This workspace is unavailable.')).toBeVisible()
-          await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(
-            0
-          )
-          await expect(attachments()).toHaveCount(0)
-          await screenshot(
-            `${path.includes('get-session') ? 'session' : 'workspace'}-revoked-${status}`
-          )
-        } finally {
-          await browserContext.unroute(`${endpoint}*`)
-          await shell.clock.setFixedTime(Date.now())
-        }
-      }
-      await navigate(`${base.origin}/extension/${alphaId}`)
-      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
-    }
-  )
   const verifyLiveChat = async (scope: {
     name: string
     url: string
@@ -784,6 +767,11 @@ try {
   }) => {
     await navigate(scope.url)
     const captureScreenshot = (name: string) => screenshot(`${scope.name}-${name}`)
+    const input = frame().getByLabel(scope.inputLabel, { exact: true })
+    await expect(input).toBeVisible()
+    await expect(
+      frame().getByRole('button', { name: 'Reasoning effort', exact: true })
+    ).toBeVisible()
 
     await expect(frame().getByRole('button', { name: 'Model', exact: true })).toHaveCount(0)
     const fastMode = frame().getByRole('button', { name: 'Fast mode', exact: true })
@@ -810,7 +798,6 @@ try {
       await gate
       await route.continue()
     })
-    const input = frame().getByLabel(scope.inputLabel, { exact: true })
     await input.fill(
       'Using only the attached page, reply with the launch code and delivery day. Do not use tools.'
     )
@@ -822,24 +809,19 @@ try {
     await input.press('Enter')
     await expect(frame().getByRole('button', { name: 'Edit queued message' })).toBeVisible()
     await captureScreenshot('queued-message')
-    await frame().evaluate(() => {
-      const original = Storage.prototype.setItem
-      Storage.prototype.setItem = function (key, value) {
-        original.call(this, key, value)
-        if (key === 'mothership-drafts:v1')
-          document.body.dataset.qaDraftSaves = String(
-            Number(document.body.dataset.qaDraftSaves ?? '0') + 1
-          )
-      }
-    })
     await frame().getByRole('button', { name: 'Edit queued message' }).click()
     await expect(input).toHaveValue(/QUEUE_OK/)
-    await input.evaluate((element) => (element as HTMLTextAreaElement).setSelectionRange(0, 0))
-    await input.pressSequentially('Updated: ')
+    await expect(input).toBeFocused()
+    await input.fill(`Updated: ${await input.inputValue()}`)
     await input.press('Escape')
     await expect
-      .poll(() => frame().evaluate(() => Number(document.body.dataset.qaDraftSaves ?? '0')))
-      .toBeGreaterThan(0)
+      .poll(() =>
+        frame().evaluate((key) => {
+          const persisted = JSON.parse(localStorage.getItem('mothership-drafts:v1') ?? '{}')
+          return persisted.state?.drafts?.[key]?.text ?? ''
+        }, scope.draftKey)
+      )
+      .toContain('Updated: ')
     const persisted = await frame().evaluate(() =>
       JSON.parse(localStorage.getItem('mothership-drafts:v1') ?? '{}')
     )
@@ -1164,14 +1146,148 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
       await capture()
       await expect(attachments()).toHaveCount(1)
-      await sql`delete from member where organization_id=${organizationId} and user_id=${userId}`
-      await shell.clock.setFixedTime(Date.now() + 360_000)
-      await reconnect()
+      await shell.bringToFront()
+      await Promise.all([
+        shell.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === `/api/organizations/${organizationId}` &&
+            [401, 403, 404].includes(response.status()),
+          { timeout: ACCESS_REVALIDATION_TIMEOUT_MS }
+        ),
+        sql`delete from member where organization_id=${organizationId} and user_id=${userId}`,
+      ])
       await expect(frame().getByText('This organization is unavailable.')).toBeVisible()
       await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveCount(0)
       await expect(attachments()).toHaveCount(0)
       await screenshot('organization-membership-revoked')
-      await shell.clock.setFixedTime(Date.now())
+      await navigate(`${base.origin}/extension/${alphaId}`)
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+    }
+  )
+  await check(
+    'Revoking workspace access removes the live composer and pending captures',
+    async () => {
+      assert(userId)
+      await capture()
+      await expect(attachments()).toHaveCount(1)
+      await shell.bringToFront()
+      try {
+        await Promise.all([
+          shell.waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === `/api/workspaces/${alphaId}/host-context` &&
+              response.status() === 403,
+            { timeout: ACCESS_REVALIDATION_TIMEOUT_MS }
+          ),
+          sql`delete from permissions where user_id=${userId} and entity_type='workspace' and entity_id=${alphaId}`,
+        ])
+        await expect(frame().getByText('This workspace is unavailable.')).toBeVisible()
+        await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0)
+        await expect(attachments()).toHaveCount(0)
+        await screenshot('workspace-membership-revoked')
+      } finally {
+        await sql`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${userId}, 'workspace', ${alphaId}, 'admin')`
+      }
+      await navigate(`${base.origin}/extension/${alphaId}`)
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+    }
+  )
+  // Clock APIs replace animation timing, so native streaming checks must run first.
+  const reconnect = async () => {
+    await frame().evaluate(() => {
+      window.dispatchEvent(new Event('offline'))
+      window.dispatchEvent(new Event('online'))
+    })
+  }
+  await check(
+    'Transient session and workspace refetch failures preserve the mounted composer and page draft',
+    async () => {
+      for (const [path, attempts] of [
+        ['/api/auth/get-session', 1],
+        [`/api/workspaces/${alphaId}/host-context`, 2],
+      ] as const) {
+        await navigate(`${base.origin}/extension/${alphaId}`)
+        const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
+        await expect(editor).toBeVisible()
+        await capture()
+        await editor.fill('Keep this draft through a temporary network failure.')
+        const original = await editor.elementHandle()
+        assert(original)
+        const endpoint = `${base.origin}${path}`
+        let failures = 0
+        await browserContext.route(`${endpoint}*`, async (route) => {
+          injectedRequests.add(route.request())
+          await route.fulfill({
+            status: 503,
+            json: { message: 'QA temporary outage', error: 'QA temporary outage' },
+          })
+          failures++
+        })
+        try {
+          await shell.clock.setFixedTime(Date.now() + 360_000)
+          await reconnect()
+          await expect.poll(() => failures).toBe(attempts)
+          await frame().evaluate(
+            () =>
+              new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+              )
+          )
+          assert(
+            await original.evaluate((element) => element.isConnected),
+            'A transient refetch unmounted the composer'
+          )
+          await expect(editor).toHaveValue('Keep this draft through a temporary network failure.')
+          await expect(attachments()).toHaveCount(1)
+          await screenshot(
+            path.includes('get-session') ? 'session-refetch-outage' : 'workspace-refetch-outage'
+          )
+        } finally {
+          await browserContext.unroute(`${endpoint}*`)
+          await shell.clock.setFixedTime(Date.now())
+        }
+      }
+      await navigate(`${base.origin}/extension/${alphaId}`)
+    }
+  )
+  await check(
+    'Explicit session and workspace access failures clear captured context after refetch',
+    async () => {
+      for (const [path, status] of [
+        ['/api/auth/get-session', 401],
+        ['/api/auth/get-session', 403],
+        [`/api/workspaces/${alphaId}/host-context`, 403],
+        [`/api/workspaces/${alphaId}/host-context`, 404],
+      ] as const) {
+        await navigate(`${base.origin}/extension/${alphaId}`)
+        await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+        await capture()
+        const endpoint = `${base.origin}${path}`
+        await browserContext.route(`${endpoint}*`, async (route) => {
+          injectedRequests.add(route.request())
+          await route.fulfill({
+            status,
+            json: { message: 'QA access revoked', error: 'QA access revoked' },
+          })
+        })
+        try {
+          await shell.clock.setFixedTime(Date.now() + 360_000)
+          await reconnect()
+          if (path.includes('get-session'))
+            await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+          else await expect(frame().getByText('This workspace is unavailable.')).toBeVisible()
+          await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(
+            0
+          )
+          await expect(attachments()).toHaveCount(0)
+          await screenshot(
+            `${path.includes('get-session') ? 'session' : 'workspace'}-revoked-${status}`
+          )
+        } finally {
+          await browserContext.unroute(`${endpoint}*`)
+          await shell.clock.setFixedTime(Date.now())
+        }
+      }
       await navigate(`${base.origin}/extension/${alphaId}`)
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
@@ -1205,6 +1321,20 @@ try {
       error: getErrorMessage(error),
     })
   logger.error('Browser acceptance failed', { error: getErrorMessage(error) })
+  pendingAtFailure = [...pendingRequests].map((request) => ({
+    path: new URL(request.url()).pathname,
+    method: request.method(),
+    resourceType: request.resourceType(),
+  }))
+  failureState = await Promise.all(
+    (panel?.frames() ?? []).map(async (frame) => ({
+      path: new URL(frame.url()).pathname,
+      text: await frame
+        .locator('body')
+        .innerText({ timeout: 1_000 })
+        .catch(() => ''),
+    }))
+  )
   await screenshot('failure').catch(() => {})
   process.exitCode = 1
 } finally {
@@ -1240,6 +1370,9 @@ try {
         checks,
         screenshots,
         browserErrors,
+        failedRequests,
+        pendingRequests: pendingAtFailure,
+        failureState,
         httpErrors,
       },
       null,
