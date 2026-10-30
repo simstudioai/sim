@@ -80,6 +80,7 @@ import { withPermissionGroupAccessState } from '@/ee/access-control/utils/access
 import {
   type AccessRequestTarget,
   createAccessRequestCatalog,
+  describeAccessRequestTarget,
   getAccessRequestTargetParents,
   getPermissionGroupAccessState,
   type PermissionGroupAccessState,
@@ -523,10 +524,19 @@ export function GroupDetail({
     [editingConfig, editorCatalog, canRequest]
   )
 
-  const isInherited = (target: AccessRequestTarget) =>
-    getAccessRequestTargetParents(target, editorCatalog).some(
+  const getInheritedFrom = (target: AccessRequestTarget): string | null => {
+    const parent = getAccessRequestTargetParents(target, editorCatalog).find(
       (parent) => getState(parent) !== 'allowed'
     )
+    if (!parent) return null
+    return (
+      getInheritedFrom(parent) ??
+      describeAccessRequestTarget(parent, editorCatalog)?.label ??
+      'a restricted parent'
+    )
+  }
+
+  const isInherited = (target: AccessRequestTarget) => getInheritedFrom(target) !== null
 
   const setAccess = (targets: AccessRequestTarget[], state: PermissionGroupAccessState) => {
     setEditingConfig((previous) => {
@@ -544,7 +554,7 @@ export function GroupDetail({
     })
   }
 
-  const controls = { getState, isInherited, canRequest, onSet: setAccess }
+  const controls = { getState, isInherited, getInheritedFrom, canRequest, onSet: setAccess }
 
   const searchedPlatformFeatures = useMemo(() => {
     const search = searchTerm.trim().toLowerCase()
@@ -1152,7 +1162,7 @@ export function GroupDetail({
               <SettingsSection
                 label='Integrations and Triggers'
                 headerAccessory={
-                  <Info side='top'>
+                  <Info side='top' label='About integration and trigger permissions'>
                     Choose access for an integration, then expand it to set individual tools. Parent
                     restrictions apply to every tool.
                   </Info>
@@ -1205,7 +1215,10 @@ export function GroupDetail({
               </SettingsEmptyState>
             )}
             {platformCategorySections.map(({ category, features }) => (
-              <SettingsSection key={category} label={category}>
+              <SettingsSection
+                key={category}
+                label={<span className='flex h-[30px] items-center'>{category}</span>}
+              >
                 <div className='flex flex-col gap-0.5'>
                   {features.map((feature) => (
                     <PlatformPermissionRow
