@@ -23,7 +23,7 @@ interface LinkRow {
   destination: number
 }
 
-/** The held link sits second, inside the fade's opaque head, so its card never dissolves. */
+/** The held link leads, wholly inside the fade's opaque head, so its card never dissolves. */
 const ROWS: readonly LinkRow[] = [
   { name: 54, destination: 132 },
   { name: 70, destination: 108 },
@@ -31,7 +31,7 @@ const ROWS: readonly LinkRow[] = [
   { name: 62, destination: 118 },
 ] as const
 
-const HELD_ROW = 1
+const HELD_ROW = 0
 const ROW_PITCH = 38
 const PILL_X = 12
 const PILL_PADDING = 10
