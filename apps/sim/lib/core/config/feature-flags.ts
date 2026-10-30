@@ -67,6 +67,11 @@ const FEATURE_FLAGS = {
       'Enable the workspace Changelog: the Changelog page, changelog/<id>.md release bodies, and the Sim changelog tool. Supports global and organization rollout; disabled by default.',
     fallback: 'CHANGELOG',
   },
+  'sim-links': {
+    description:
+      'Enable organization Sim links (go links): the Sim Links page and sim/<name> redirects. Supports organization rollout; disabled by default.',
+    fallback: 'SIM_LINKS',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

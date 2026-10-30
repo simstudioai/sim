@@ -938,6 +938,36 @@ export const organizationSecret = pgTable(
   ]
 )
 
+/**
+ * An organization's Sim links (go links): `sim/<name>` redirects members to `url`. Names match
+ * case- and punctuation-insensitively through `normalized_name`. `{*}` in `url`
+ * marks a variable link filled from the path after the name, and `default_url`
+ * serves a variable link opened without values.
+ */
+export const simLink = pgTable(
+  'sim_link',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    normalizedName: text('normalized_name').notNull(),
+    url: text('url').notNull(),
+    defaultUrl: text('default_url'),
+    description: text('description'),
+    unlisted: boolean('unlisted').notNull().default(false),
+    restrictEdit: boolean('restrict_edit').notNull().default(false),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('sim_link_organization_name_unique').on(table.organizationId, table.normalizedName),
+    index('sim_link_created_by_idx').on(table.createdBy),
+  ]
+)
+
 export const workspaceEnvironment = pgTable(
   'workspace_environment',
   {
