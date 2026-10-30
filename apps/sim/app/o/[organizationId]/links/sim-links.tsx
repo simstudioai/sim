@@ -46,9 +46,9 @@ const SORT_TABS = [
   { id: 'popular', label: 'Most used' },
 ] as const satisfies readonly OrganizationPageTab[]
 
-async function copyLink(href: string) {
+async function copyLink(path: string) {
   try {
-    await writeTextToClipboard(new URL(href, window.location.origin).href)
+    await writeTextToClipboard(new URL(path, window.location.origin).href)
   } catch (error) {
     logger.error('Failed to copy Sim link', { error })
   }
@@ -123,44 +123,49 @@ export function SimLinks({ organizationId }: SimLinksProps) {
               : 'No Sim links yet. Create one for a page your team opens often, like sim/handbook.'}
           </SettingsEmptyState>
         ) : (
-          rows.map((link) => (
-            <SettingsResourceRow
-              key={link.id}
-              icon={<Link />}
-              title={`sim/${link.name}`}
-              description={link.description ? `${link.description} · ${link.url}` : link.url}
-              badge={<SimLinkDetails link={link} />}
-              onClick={() => window.open(simLinkPath(link.name), '_blank', 'noopener,noreferrer')}
-              clickLabel={`Open sim/${link.name}`}
-              trailing={
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Chip leftIcon={MoreHorizontal} aria-label={`sim/${link.name} actions`} />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align='end'>
-                    <DropdownMenuItem onSelect={() => void copyLink(simLinkPath(link.name))}>
-                      Copy link
-                    </DropdownMenuItem>
-                    {link.canEdit && (
-                      <>
-                        <DropdownMenuItem onSelect={() => setEditing(link)}>Edit</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className='text-[var(--text-error)]'
-                          onSelect={() => {
-                            remove.reset()
-                            setDeleting(link)
-                          }}
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              }
-            />
-          ))
+          rows.map((link) => {
+            const path = simLinkPath(link.name)
+            return (
+              <SettingsResourceRow
+                key={link.id}
+                icon={<Link />}
+                title={`sim/${link.name}`}
+                description={link.description ? `${link.description} · ${link.url}` : link.url}
+                badge={<SimLinkDetails link={link} />}
+                onClick={() => window.open(path, '_blank', 'noopener,noreferrer')}
+                clickLabel={`Open sim/${link.name}`}
+                trailing={
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Chip leftIcon={MoreHorizontal} aria-label={`sim/${link.name} actions`} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem onSelect={() => void copyLink(path)}>
+                        Copy link
+                      </DropdownMenuItem>
+                      {link.canEdit && (
+                        <>
+                          <DropdownMenuItem onSelect={() => setEditing(link)}>
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className='text-[var(--text-error)]'
+                            onSelect={() => {
+                              remove.reset()
+                              setDeleting(link)
+                            }}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                }
+              />
+            )
+          })
         )}
         <SettingsListPagination {...links} fallback='Could not load more Sim links' />
       </div>

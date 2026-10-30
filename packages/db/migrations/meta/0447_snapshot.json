@@ -1,5 +1,5 @@
 {
-  "id": "42b7ec5a-241f-44fc-84a2-d311b4ebe879",
+  "id": "bf055cdf-b4c5-4124-9871-4d465c57fc9e",
   "prevId": "659943cb-6ede-48d1-b6df-5246d3eff9ac",
   "version": "7",
   "dialect": "postgresql",
@@ -20442,33 +20442,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "sim_link_organization_visits_idx": {
-          "name": "sim_link_organization_visits_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "visit_count",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            },
-            {
-              "expression": "normalized_name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

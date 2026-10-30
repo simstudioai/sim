@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
+import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
@@ -16,6 +17,8 @@ import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
 import type { SimLinkFields, SimLinkSort } from '@/lib/sim-links/validation'
+
+const logger = createLogger('SimLinks')
 
 interface OrganizationInput {
   organizationId: string
@@ -94,7 +97,8 @@ async function withUniqueName<T>(
 function auditOf(
   action: WorkspaceUseCaseAuditEntry['action'],
   verb: string,
-  link: Pick<SimLinkRecord, 'id' | 'name'> & Partial<SimLinkRecord>
+  link: { id: string; name: string },
+  metadata?: Record<string, unknown>
 ): WorkspaceUseCaseAuditEntry {
   return {
     action,
@@ -102,10 +106,13 @@ function auditOf(
     resourceId: link.id,
     resourceName: `sim/${link.name}`,
     description: `${verb} sim/${link.name}`,
-    ...(link.url !== undefined && {
-      metadata: { url: link.url, unlisted: link.unlisted, restrictEdit: link.restrictEdit },
-    }),
+    metadata,
   }
+}
+
+/** What a saved link now does, for its audit entry. */
+function savedMetadata(link: SimLinkView): Record<string, unknown> {
+  return { url: link.url, unlisted: link.unlisted, restrictEdit: link.restrictEdit }
 }
 
 /** Read in the writing transaction, so the result and its audit describe exactly this write. */
@@ -150,7 +157,8 @@ export const createSimLink = defineAuthorizedOrganizationUseCase({
       })
     )
   },
-  projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_CREATED, 'Created', result),
+  projectAudit: ({ result }) =>
+    auditOf(AuditAction.SIM_LINK_CREATED, 'Created', result, savedMetadata(result)),
 })
 
 export const updateSimLink = defineAuthorizedOrganizationUseCase({
@@ -176,7 +184,8 @@ export const updateSimLink = defineAuthorizedOrganizationUseCase({
       })
     )
   },
-  projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_UPDATED, 'Updated', result),
+  projectAudit: ({ result }) =>
+    auditOf(AuditAction.SIM_LINK_UPDATED, 'Updated', result, savedMetadata(result)),
 })
 
 export const deleteSimLink = defineAuthorizedOrganizationUseCase({
@@ -191,6 +200,19 @@ export const deleteSimLink = defineAuthorizedOrganizationUseCase({
   },
   projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_DELETED, 'Deleted', result),
 })
+
+/** Visit counts rank links; failing to record one must never block the redirect it describes. */
+async function countVisit(organizationId: string, linkId: string): Promise<void> {
+  try {
+    await repository.recordSimLinkVisit(organizationId, linkId)
+  } catch (error) {
+    logger.warn('Could not count a Sim link visit', {
+      organizationId,
+      linkId,
+      error: toError(error),
+    })
+  }
+}
 
 /**
  * Unlisted links resolve for every member: unlisting hides a link from browsing, not from use.
@@ -207,8 +229,7 @@ export const resolveSimLink = defineAuthorizedOrganizationUseCase({
     const link = await repository.findSimLinkDestination(input.organizationId, input.name)
     if (!link) return { kind: 'not_found' }
     const target = resolveSimLinkTarget(link, input.values)
-    if (target.kind === 'redirect')
-      await repository.recordSimLinkVisit(input.organizationId, link.id)
+    if (target.kind === 'redirect') await countVisit(input.organizationId, link.id)
     return target
   },
 })

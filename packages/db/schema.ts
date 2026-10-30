@@ -966,11 +966,6 @@ export const simLink = pgTable(
   },
   (table) => [
     uniqueIndex('sim_link_organization_name_unique').on(table.organizationId, table.normalizedName),
-    index('sim_link_organization_visits_idx').on(
-      table.organizationId,
-      table.visitCount.desc(),
-      table.normalizedName
-    ),
     index('sim_link_created_by_idx').on(table.createdBy),
   ]
 )
