@@ -114,6 +114,8 @@ const cases = [
   { name: 'quoted', reference: quotedReference },
 ]
 let activeCase = ''
+let holdStream = false
+let finishStream: (() => void) | undefined
 const captured: Array<{ method?: string; url: string; body: string; contentType: string }> = []
 const binary = new Uint8Array([0, 255, 254, 65, 128, 10])
 const eventStream = 'data: {"ok":true}\n\n'
@@ -143,6 +145,11 @@ const server = createServer(async (request, response) => {
         ? 'text/event-stream'
         : 'application/json'
   )
+  if (activeCase === 'streaming' && holdStream) {
+    finishStream = () => response.end(eventStream)
+    response.write(eventStream)
+    return
+  }
   response.end(
     activeCase === 'binary' ? binary : activeCase === 'streaming' ? eventStream : '{"ok":true}'
   )
@@ -245,6 +252,90 @@ try {
           `${language} compilation failed: ${result.error?.message ?? (result.stderr || result.stdout)}`
         )
       })
+      if (
+        (scenario.name === 'streaming' || scenario.name === 'binary') &&
+        (language === 'go' || language === 'java' || language === 'csharp')
+      ) {
+        await check(`${scenario.name}: ${language} live response bytes`, async () => {
+          const runtimeFolder = join(folder, 'runtime')
+          await mkdir(runtimeFolder, { recursive: true })
+          const runtimeFile = join(runtimeFolder, filename)
+          await writeFile(
+            runtimeFile,
+            sample.code.replaceAll('https://www.sim.ai', `http://127.0.0.1:${address.port}`)
+          )
+          if (language === 'csharp')
+            await writeFile(
+              join(runtimeFolder, 'Example.csproj'),
+              '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>\n'
+            )
+          const compile = {
+            go: ['go', 'build', '-o', join(runtimeFolder, 'example'), runtimeFile],
+            java: ['javac', runtimeFile],
+            csharp: [
+              'dotnet',
+              'build',
+              join(runtimeFolder, 'Example.csproj'),
+              '--nologo',
+              '--verbosity',
+              'quiet',
+            ],
+          }[language]
+          const compiled = spawnSync(compile[0], compile.slice(1), {
+            encoding: 'utf8',
+            timeout: 60000,
+            maxBuffer: 1024 * 1024,
+          })
+          assert(
+            compiled.status === 0,
+            `${language} runtime fixture failed to compile: ${compiled.error?.message ?? (compiled.stderr || compiled.stdout)}`
+          )
+          const command = {
+            go: [join(runtimeFolder, 'example')],
+            java: ['java', '-cp', runtimeFolder, 'Example'],
+            csharp: ['dotnet', join(runtimeFolder, 'bin/Debug/net8.0/Example.dll')],
+          }[language]
+          activeCase = scenario.name
+          holdStream = scenario.name === 'streaming'
+          const child = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' })
+          const reader = child.stdout.getReader()
+          const deadline = setTimeout(() => child.kill(), 10000)
+          const stderr = new Response(child.stderr).text()
+          const chunks: Uint8Array[] = []
+          let bytes = 0
+          let earlyOutput = false
+          try {
+            while (true) {
+              const next = await reader.read()
+              if (next.done) break
+              const chunk = next.value
+              chunks.push(chunk)
+              bytes += chunk.byteLength
+              assert(bytes <= 65536, 'Native sample output exceeded 64KiB')
+              if (holdStream && !earlyOutput && Buffer.concat(chunks).includes(eventStream)) {
+                assert(finishStream, 'Output arrived before the fixture request')
+                earlyOutput = true
+                finishStream()
+                finishStream = undefined
+              }
+            }
+            const status = await child.exited
+            assert(!holdStream || earlyOutput, 'No event reached stdout before stream completion')
+            assert(status === 0, `${language} exited ${status}: ${await stderr}`)
+            const expected = holdStream ? Buffer.from(eventStream.repeat(2)) : Buffer.from(binary)
+            assert(Buffer.concat(chunks).equals(expected), 'Native response bytes changed')
+          } finally {
+            clearTimeout(deadline)
+            reader.releaseLock()
+            finishStream?.()
+            finishStream = undefined
+            holdStream = false
+            child.kill()
+            await child.exited
+            await stderr
+          }
+        })
+      }
     }
     fixtures.push({ name: scenario.name, operationId: scenario.reference.operationId, files })
     await check(
