@@ -27,6 +27,7 @@ import {
 } from '@/app/o/[organizationId]/components/organization-page'
 import { simLinkViewParsers } from '@/app/o/[organizationId]/links/search-params'
 import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
+import { SimLinksEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -116,12 +117,10 @@ export function SimLinks({ organizationId }: SimLinksProps) {
           />
         ) : !links.data ? (
           <SettingsEmptyState variant='inline'>Loading Sim links</SettingsEmptyState>
+        ) : !rows.length && query ? (
+          <SettingsEmptyState variant='inline'>No matching Sim links</SettingsEmptyState>
         ) : !rows.length ? (
-          <SettingsEmptyState variant='inline'>
-            {query
-              ? 'No matching Sim links'
-              : 'No Sim links yet. Create one for a page your team opens often, like sim/handbook.'}
-          </SettingsEmptyState>
+          <SimLinksEmptyState onCreate={() => void setView({ create: '' })} />
         ) : (
           rows.map((link) => {
             const path = simLinkPath(link.name)

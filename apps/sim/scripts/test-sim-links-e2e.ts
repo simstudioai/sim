@@ -337,13 +337,14 @@ async function run() {
   await check('deleting a link stops it resolving and every change is audited', async () => {
     await api(owner, `/${handbook}`, { method: 'DELETE' })
     assert.match((await open(member, 'team-handbook')).text, /doesn.*t exist yet/)
+    const expected = ['sim_link.created', 'sim_link.updated', 'sim_link.deleted']
     let actions: string[] = []
     for (let attempt = 0; attempt < 20; attempt++) {
       actions = await auditActions(orgId)
-      if (actions.includes('sim_link.deleted')) break
+      if (expected.every((action) => actions.includes(action))) break
       await sleep(250)
     }
-    for (const action of ['sim_link.created', 'sim_link.updated', 'sim_link.deleted']) {
+    for (const action of expected) {
       assert(actions.includes(action), `Expected an ${action} audit entry, got ${actions}`)
     }
   })
