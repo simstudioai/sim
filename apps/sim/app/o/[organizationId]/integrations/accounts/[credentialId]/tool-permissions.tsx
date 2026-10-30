@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipInput, ChipLink, ChipSelect, ChipSwitch, Tooltip, toast } from '@sim/emcn'
+import { ChipInput, ChipLink, ChipSelect, ChipSwitch, Info, toast } from '@sim/emcn'
 import { ArrowLeft, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import type {
@@ -211,13 +211,13 @@ function ToolPermissionGroup({
           key={tool.toolId}
           className='flex flex-col items-start gap-3 py-3 sm:flex-row sm:items-center sm:justify-between'
         >
-          <div className='min-w-0 flex-1'>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <span className='text-[var(--text-body)] text-small'>{tool.name}</span>
-              </Tooltip.Trigger>
-              <Tooltip.Content>{tool.description}</Tooltip.Content>
-            </Tooltip.Root>
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
+            <span className='text-[var(--text-body)] text-small'>{tool.name}</span>
+            {tool.description && (
+              <Info side='top' className='shrink-0'>
+                {tool.description}
+              </Info>
+            )}
           </div>
           <ChipSwitch
             className='max-w-full shrink-0'
