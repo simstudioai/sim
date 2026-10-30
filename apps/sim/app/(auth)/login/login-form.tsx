@@ -17,10 +17,10 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { DEFAULT_POST_AUTH_ROUTE, POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
+  AuthEmailInput,
   AuthField,
   AuthFormMessage,
   AuthHeader,
-  AuthInput,
   AuthLegalFooter,
   AuthSubmitButton,
   AuthTextLink,
@@ -380,12 +380,10 @@ export default function LoginPage({
           }}
         >
           <AuthField htmlFor='recovery-email' label='Email'>
-            <AuthInput
+            <AuthEmailInput
               id='recovery-email'
               name='email'
-              inputMode='email'
               type='email'
-              autoComplete='email'
               autoFocus
               value={forgotPasswordEmail}
               disabled={isSubmittingReset}
@@ -431,15 +429,10 @@ export default function LoginPage({
           <form onSubmit={onSubmit} className='au:space-y-[var(--auth-group-gap)]'>
             <div className='au:space-y-5'>
               <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>
-                <AuthInput
+                <AuthEmailInput
                   id='email'
                   name='email'
-                  inputMode='email'
-                  placeholder='Enter your email'
                   required
-                  autoCapitalize='none'
-                  autoComplete='email'
-                  autoCorrect='off'
                   disabled={isLoading}
                   value={email}
                   onChange={handleEmailChange}
@@ -471,7 +464,6 @@ export default function LoginPage({
                   autoCapitalize='none'
                   autoComplete='current-password'
                   autoCorrect='off'
-                  placeholder='Enter your password'
                   disabled={isLoading}
                   value={password}
                   onChange={handlePasswordChange}

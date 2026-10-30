@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import {
   AuthDivider,
+  AuthEmailInput,
   AuthField,
   AuthHeader,
-  AuthInput,
   AuthLinkButton,
   AuthNavPrompt,
   AuthStack,
@@ -204,14 +204,11 @@ function SSOFormContent({
           label='Work email'
           errors={showEmailValidationError ? emailErrors : undefined}
         >
-          <AuthInput
+          <AuthEmailInput
             id='email'
             name='email'
             type='email'
             required
-            autoCapitalize='none'
-            autoComplete='email'
-            autoCorrect='off'
             placeholder='Enter your work email'
             value={email}
             onChange={handleEmailChange}

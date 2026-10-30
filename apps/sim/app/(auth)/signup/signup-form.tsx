@@ -23,6 +23,7 @@ import {
 } from '@/app/(auth)/auth-redirect'
 import {
   AuthDivider,
+  AuthEmailInput,
   AuthField,
   AuthFormMessage,
   AuthHeader,
@@ -435,14 +436,9 @@ function SignupFormContent({
               />
             </AuthField>
             <AuthField htmlFor='email' label='Email' errors={emailFieldErrors}>
-              <AuthInput
+              <AuthEmailInput
                 id='email'
                 name='email'
-                inputMode='email'
-                placeholder='Enter your email'
-                autoCapitalize='none'
-                autoComplete='email'
-                autoCorrect='off'
                 disabled={isLoading}
                 value={email}
                 onChange={handleEmailChange}
@@ -461,7 +457,6 @@ function SignupFormContent({
                 autoCapitalize='none'
                 autoComplete='new-password'
                 aria-describedby='password-hint'
-                placeholder='Enter your password'
                 autoCorrect='off'
                 disabled={isLoading}
                 value={password}

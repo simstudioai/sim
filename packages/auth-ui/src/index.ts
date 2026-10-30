@@ -19,6 +19,7 @@ export {
 export type { AuthSelectOption } from './controls'
 export {
   AuthAccountMenu,
+  AuthEmailInput,
   AuthInput,
   AuthNotification,
   AuthReadonlyInput,
@@ -37,4 +38,5 @@ export {
   AuthTag,
   AuthTextLink,
 } from './primitives'
+export { AuthGithubIcon, AuthGoogleIcon, AuthMicrosoftIcon } from './provider-icons'
 export { AuthWordmark } from './wordmark'

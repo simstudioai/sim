@@ -1,7 +1,6 @@
 'use client'
 
-import { AuthAccountMenu, AuthButton as Chip } from '@sim/auth-ui'
-import { Check } from '@sim/emcn/icons'
+import { AuthAccountMenu, AuthIcon, AuthButton as Chip } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   OAUTH_SCOPE_DESCRIPTIONS,
@@ -149,8 +148,8 @@ export function OAuthConsentView({
                 key={item}
                 className='au:flex au:items-start au:gap-2 au:text-[var(--auth-primary)] au:text-body'
               >
-                <Check
-                  aria-hidden='true'
+                <AuthIcon
+                  name='check'
                   className='au:mt-[3px] au:size-4 au:shrink-0 au:text-[var(--auth-secondary)]'
                 />
                 <span>{OAUTH_SCOPE_DESCRIPTIONS[item]}</span>

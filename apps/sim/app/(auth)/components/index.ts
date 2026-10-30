@@ -1,5 +1,6 @@
 export {
   AuthDivider,
+  AuthEmailInput,
   AuthField,
   AuthFormMessage,
   AuthHeader,

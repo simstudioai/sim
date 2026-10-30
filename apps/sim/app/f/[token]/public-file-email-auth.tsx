@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AuthCodeEntry, AuthField, AuthInput } from '@sim/auth-ui'
+import { AuthCodeEntry, AuthEmailInput, AuthField } from '@sim/auth-ui'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
@@ -95,15 +95,11 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
           className='au:space-y-5'
         >
           <AuthField htmlFor='email' label='Email' errors={error ? [error] : undefined}>
-            <AuthInput
+            <AuthEmailInput
               id='email'
               name='email'
               type='email'
               required
-              autoCapitalize='none'
-              autoComplete='email'
-              autoCorrect='off'
-              placeholder='Enter your email'
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AuthCodeEntry, AuthField, AuthHeader, AuthInput, AuthStack } from '@sim/auth-ui'
+import { AuthCodeEntry, AuthEmailInput, AuthField, AuthHeader, AuthStack } from '@sim/auth-ui'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -128,15 +128,11 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
             className='au:space-y-5'
           >
             <AuthField htmlFor='email' label='Email' errors={emailErrors}>
-              <AuthInput
+              <AuthEmailInput
                 id='email'
                 name='email'
                 type='email'
                 required
-                autoCapitalize='none'
-                autoComplete='email'
-                autoCorrect='off'
-                placeholder='Enter your email'
                 value={email}
                 onChange={handleEmailChange}
                 error={hasEmailError}

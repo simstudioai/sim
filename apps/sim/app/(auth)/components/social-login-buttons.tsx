@@ -1,10 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthFormMessage, AuthProviderGroup, AuthButton as Chip } from '@sim/auth-ui'
+import {
+  AuthFormMessage,
+  AuthGithubIcon,
+  AuthGoogleIcon,
+  AuthMicrosoftIcon,
+  AuthProviderGroup,
+  AuthButton as Chip,
+} from '@sim/auth-ui'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { type SocialSignInProvider, startSocialSignIn } from '@/lib/auth/social-sign-in'
 import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
@@ -23,9 +29,9 @@ interface SocialLoginButtonsProps {
 
 /** Display order of the provider buttons. */
 const PROVIDERS = [
-  { provider: 'google', label: 'Google', icon: GoogleIcon },
-  { provider: 'microsoft', label: 'Microsoft', icon: MicrosoftIcon },
-  { provider: 'github', label: 'GitHub', icon: GithubIcon },
+  { provider: 'google', label: 'Google', icon: AuthGoogleIcon },
+  { provider: 'microsoft', label: 'Microsoft', icon: AuthMicrosoftIcon },
+  { provider: 'github', label: 'GitHub', icon: AuthGithubIcon },
 ] as const
 
 export function SocialLoginButtons({

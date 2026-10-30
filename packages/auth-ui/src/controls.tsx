@@ -123,12 +123,33 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(function A
   )
 })
 
+export const AuthEmailInput = forwardRef<HTMLInputElement, AuthInputProps>(
+  function AuthEmailInput(props, ref) {
+    return (
+      <AuthInput
+        inputMode='email'
+        autoCapitalize='none'
+        autoComplete='email'
+        autoCorrect='off'
+        placeholder='Enter your email'
+        {...props}
+        ref={ref}
+      />
+    )
+  }
+)
+
 interface PasswordInputProps extends Omit<AuthInputProps, 'type' | 'icon' | 'endAdornment'> {}
-export function PasswordInput({ disabled, ...props }: PasswordInputProps) {
+export function PasswordInput({
+  disabled,
+  placeholder = 'Enter your password',
+  ...props
+}: PasswordInputProps) {
   const [visible, setVisible] = useState(false)
   return (
     <AuthInput
       {...props}
+      placeholder={placeholder}
       disabled={disabled}
       type={visible ? 'text' : 'password'}
       endAdornment={

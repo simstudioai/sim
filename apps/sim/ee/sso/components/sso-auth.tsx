@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthField, AuthHeader, AuthInput, AuthStack } from '@sim/auth-ui'
+import { AuthEmailInput, AuthField, AuthHeader, AuthStack } from '@sim/auth-ui'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -107,14 +107,11 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
             label='Work email'
             errors={showEmailValidationError ? emailErrors : undefined}
           >
-            <AuthInput
+            <AuthEmailInput
               id='email'
               name='email'
               required
               type='email'
-              autoCapitalize='none'
-              autoComplete='email'
-              autoCorrect='off'
               placeholder='Enter your work email'
               value={email}
               onChange={handleEmailChange}

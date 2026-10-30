@@ -1,5 +1,28 @@
 {
   "date": "2026-10-29",
+  "controlCleanup": {
+    "changes": [
+      "Centralized email placeholders, keyboard hints and autocomplete defaults in AuthEmailInput.",
+      "Centralized the default password placeholder in PasswordInput.",
+      "Refined the local visibility glyphs and localized provider logos and the consent checkmark.",
+      "Consolidated public-file SSO validation into AuthField."
+    ],
+    "validation": {
+      "lint": "pass across 27 workspaces",
+      "typeCheck": "pass across 27 workspaces",
+      "audits": "61 passed",
+      "desktopBuild": "pass",
+      "blockRegistry": "pass",
+      "focusedTests": "7 files and 24 tests passed, including the assistant-execution file",
+      "browser": [
+        "Recovery email placeholder and email input defaults verified in the running app.",
+        "Mouse and keyboard visibility controls switch the input type and accessible label.",
+        "Desktop and 390px mobile sign-in and recovery layouts visually verified.",
+        "Signup renders the shared email and password controls."
+      ],
+      "fullSuite": "Run before the final provider-logo and consent-icon import changes: 19/20 workspace tasks passed; App had 38,753 passing tests, 4 failures and 8 skips. Two failures were the previously documented executor timeouts; two were in unchanged tools/assistant-execution.test.ts, which passed in the final focused run. No unrelated test or timeout changes were made."
+    }
+  },
   "base": "a0f47b1e87b0a26d9071cad1ce592666b7e7de07",
   "runtime": {
     "bun": "1.4.1",
