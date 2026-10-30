@@ -1,3 +1,4 @@
+import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { truncateAtCodePoint } from '@sim/utils/string'
@@ -46,6 +47,7 @@ export interface PersistedMessageContext {
   owner?: FileOperationOwner
   kind: string
   label: string
+  snapshot?: PageSnapshot
   workspaceId?: string
   projectId?: string
   executionId?: string
@@ -104,6 +106,7 @@ export function copyPersistedMessageContext(c: PersistedMessageContext): Persist
   return {
     kind: c.kind,
     label: c.label,
+    ...(c.kind === 'browser_page' && c.snapshot ? { snapshot: { ...c.snapshot } } : {}),
     ...(c.owner ? { owner: { ...c.owner } } : {}),
     ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
     ...(c.projectId ? { projectId: c.projectId } : {}),

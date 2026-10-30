@@ -17,6 +17,10 @@
       "task": "ci:e2e-desktop-inbox"
     },
     {
+      "group": "browser-extension",
+      "task": "ci:e2e-browser-extension"
+    },
+    {
       "group": "seo",
       "task": "ci:e2e-seo"
     },

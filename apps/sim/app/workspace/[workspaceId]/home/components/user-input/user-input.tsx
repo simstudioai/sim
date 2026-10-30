@@ -32,6 +32,7 @@ import {
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
@@ -56,15 +57,19 @@ export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/ty
 const logger = createLogger('UserInput')
 
 interface UserInputProps {
+  attachments?: React.ReactNode
+  resourceActions?: React.ReactNode
+  modelSelectorOptions?: ModelSelectorOptions
   requestMode?: 'agent' | 'plan'
   onPlanChange?: () => void
   defaultValue?: string
   draftScopeKey?: string
+  /** Returning false synchronously preserves the draft when a surface rejects submission. */
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
-  ) => void
+  ) => unknown
   isSending: boolean
   onStopGeneration: () => void
   isInitialView?: boolean
@@ -90,6 +95,9 @@ export interface UserInputHandle {
  */
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
+    attachments,
+    resourceActions,
+    modelSelectorOptions,
     requestMode = 'agent',
     onPlanChange,
     defaultValue = '',
@@ -217,7 +225,19 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)
   const pendingDraftRef = useRef<{ key: string; payload: DraftPayload } | null>(null)
+  const persistedDraftScopeRef = useRef(draftScopeKey)
   useEffect(() => {
+    const previousKey = persistedDraftScopeRef.current
+    if (previousKey !== draftScopeKey) {
+      if (draftSaveTimerRef.current !== null) {
+        window.clearTimeout(draftSaveTimerRef.current)
+        draftSaveTimerRef.current = null
+      }
+      if (previousKey && draftScopeKey)
+        useMothershipDraftsStore.getState().migrateDraft(previousKey, draftScopeKey)
+      pendingDraftRef.current = null
+      persistedDraftScopeRef.current = draftScopeKey
+    }
     if (isFirstSaveRef.current) {
       isFirstSaveRef.current = false
       return
@@ -248,7 +268,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       pendingDraftRef.current = null
       draftSaveTimerRef.current = null
     }, 200)
-  }, [editor.value, files.attachedFiles, editor.contexts])
+  }, [draftScopeKey, editor.value, files.attachedFiles, editor.contexts])
 
   useEffect(
     () => () => {
@@ -268,6 +288,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     const curr = editor.contexts
     const contextId = (ctx: ChatContext): string => {
       switch (ctx.kind) {
+        case 'browser_page':
+          return `browser_page:${ctx.snapshot.id}`
         case 'workflow':
         case 'current_workflow':
           return `${ctx.kind}:${ctx.workflowId}`
@@ -292,7 +314,11 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     prevSelectedContextsRef.current = curr
   }, [editor.contexts])
 
-  const canSubmit = (editor.value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
+  const hasAdditionalAttachments = Boolean(attachments)
+  const canSubmit =
+    (editor.value.trim().length > 0 || hasFiles || hasAdditionalAttachments) &&
+    !isSending &&
+    !hasUploadingFiles
 
   /**
    * Sync the editor when the `defaultValue` prop changes post-mount — e.g.
@@ -519,11 +545,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     // so the message reads as clean `/skill-name` (skills travel via contexts
     // regardless). Only the submitted copy is converted; the live input is not.
     const activeContexts = currentEditor.getActiveContexts()
-    onSubmit(
+    const accepted = onSubmit(
       currentEditor.getPlainValue(),
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
       activeContexts.length > 0 ? activeContexts : undefined
     )
+    if (accepted === false) return
     clearComposer()
   }, [onSubmit, clearComposer])
 
@@ -536,6 +563,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     if (filesRef.current.attachedFiles.some((f) => f.uploading)) return
     const hasSubmitPayload =
       editorRef.current.getValue().trim().length > 0 ||
+      hasAdditionalAttachments ||
       filesRef.current.attachedFiles.some((file) => !file.uploading && file.key)
     if (!hasSubmitPayload) {
       if (isSendingRef.current) {
@@ -544,18 +572,18 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       return
     }
     handleSubmit()
-  }, [handleSubmit])
+  }, [handleSubmit, hasAdditionalAttachments])
 
   /**
    * ArrowUp-on-empty policy: recall the queued tail message for editing. Only
    * claims the key when there are no attachments and a queue handler exists.
    */
   const handleArrowUpOnEmpty = useCallback((): boolean => {
-    if (filesRef.current.attachedFiles.length > 0) return false
+    if (hasAdditionalAttachments || filesRef.current.attachedFiles.length > 0) return false
     const onEditQueuedTail = onEditQueuedTailRef.current
     if (!onEditQueuedTail) return false
     return onEditQueuedTail()
-  }, [])
+  }, [hasAdditionalAttachments])
 
   const handlePlusClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -591,17 +619,19 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
       <AttachedFilesList
         attachedFiles={files.attachedFiles}
+        additionalAttachments={attachments}
         onFileClick={handleFileClick}
         onRemoveFile={handleRemoveFile}
       />
 
       <PromptEditor
         editor={editor}
+        resourceActions={resourceActions}
         aria-label='Message'
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        onNavigateHistory={history.navigate}
+        onNavigateHistory={hasAdditionalAttachments ? undefined : history.navigate}
         className={cn(
           'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
           isInitialView && 'min-h-[56px] max-md:min-h-0'
@@ -657,6 +687,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
             )}
           </>
         }
+        modelSelectorOptions={modelSelectorOptions}
         voiceControl={
           isSttSupported && (
             <MicButton

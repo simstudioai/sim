@@ -485,13 +485,17 @@ describe('buildCopilotRequestPayload', () => {
         workflowName: 'ignored-name',
         provider: 'legacy-provider',
         workspaceContext: '{"credentials":[]}',
-        contexts: [{ type: 'workflow', content: 'ignored-context' }],
+        contexts: [
+          { type: 'workflow', content: 'ignored-context' },
+          { type: 'browser_page', tag: '@Page', content: 'Quoted page snapshot' },
+        ],
         browser: true,
         terminalCapable: true,
         mcpServerIds: ['mcp-1'],
       })
       expect(ChatPayloadSchema.safeParse(payload).success).toBe(true)
       expect(payload.context).toEqual([
+        { type: 'browser_page', tag: '@Page', content: 'Quoted page snapshot' },
         {
           type: owner === 'organization' ? 'search_integrations' : 'connected_accounts',
           content: '{"credentials":[]}',

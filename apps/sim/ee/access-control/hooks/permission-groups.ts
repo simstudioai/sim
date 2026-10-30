@@ -118,8 +118,12 @@ function retryUserPermissionConfig(failureCount: number, error: Error): boolean 
   return failureCount < USER_PERMISSION_CONFIG_RETRIES
 }
 
-export function useUserPermissionConfig(workspaceId?: string) {
+export function useUserPermissionConfig(
+  workspaceId?: string,
+  options?: { refetchInterval?: number | false; refetchOnWindowFocus?: boolean }
+) {
   return useQuery<UserPermissionConfig>({
+    ...options,
     queryKey: permissionGroupKeys.userConfig(workspaceId),
     queryFn: async ({ signal }) => {
       const data = await requestJson(getUserPermissionConfigContract, {

@@ -72,6 +72,15 @@ const documentResponses: {
   status: number
   headers: Record<string, string>
 }[] = []
+let deniedDocument: {
+  url: string
+  status: number
+  bytes: number
+  suspenseTemplates: string[]
+  suspenseMarkers: string[]
+  suspenseInstructions: string[]
+  robots: string[]
+} | null = null
 let browserErrorCount = 0
 let browserErrorEventCount = 0
 let currentCheck = 'Setup'
@@ -752,7 +761,27 @@ try {
     await expect(page.getByRole('navigation', { name: 'Search views' })).toHaveCount(0)
   })
   await check('Assistant history rejects a chat from another organization', async () => {
-    await page.goto(`${baseUrl.origin}${root}/search/chat/${deniedChatId}`)
+    const documentResponse = await page.goto(`${baseUrl.origin}${root}/search/chat/${deniedChatId}`)
+    assert(documentResponse, 'The denied chat navigation must return a document')
+    const html = await documentResponse.text()
+    deniedDocument = {
+      url: documentResponse.url(),
+      status: documentResponse.status(),
+      bytes: new TextEncoder().encode(html).byteLength,
+      suspenseTemplates: (html.match(/<template\b[^>]*>/g) ?? [])
+        .slice(0, DIAGNOSTIC_LIMITS.templates)
+        .map((tag) => truncate(tag, DIAGNOSTIC_LIMITS.text)),
+      suspenseMarkers: (html.match(/<!--\/?\$[^>]*-->/g) ?? [])
+        .slice(0, DIAGNOSTIC_LIMITS.samples)
+        .map((marker) => truncate(marker, DIAGNOSTIC_LIMITS.text)),
+      suspenseInstructions: (html.match(/\$(?:RX|RC)\([^<]*?\)/g) ?? [])
+        .slice(0, DIAGNOSTIC_LIMITS.templates)
+        .map((instruction) => truncate(instruction, DIAGNOSTIC_LIMITS.text)),
+      robots: (html.match(/<meta\b[^>]*>/g) ?? [])
+        .filter((tag) => /name=["']robots["']/.test(tag))
+        .slice(0, DIAGNOSTIC_LIMITS.templates)
+        .map((tag) => truncate(tag, DIAGNOSTIC_LIMITS.text)),
+    }
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
     const response = await page.request.get(
       `${baseUrl.origin}/api/mothership/chats/${deniedChatId}`
@@ -839,6 +868,7 @@ try {
         browserErrorEventCount,
         browserErrorEvents,
         documentResponses,
+        deniedDocument,
         artifactDirectory,
       },
       null,

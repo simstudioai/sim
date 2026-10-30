@@ -60,6 +60,7 @@ import {
   UserInput,
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import {
   fetchWorkspaceResourceRef,
@@ -84,15 +85,19 @@ interface MothershipChatProps {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   workspaceId?: string
   composer?: ReactNode
+  composerAttachments?: ReactNode
+  composerResourceActions?: ReactNode
+  composerModelSelectorOptions?: ModelSelectorOptions
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
   isLoading?: boolean
+  /** Returning false synchronously preserves the composer draft. */
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
-  ) => void
+  ) => unknown
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
@@ -111,8 +116,11 @@ interface MothershipChatProps {
    */
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
   onViewSources?: (messageId: string, requestId?: string) => void
+  onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
+  /** Keeps the live composer mounted when a pending conversation receives its durable ID. */
+  composerKey?: string
   layout?: 'mothership-view' | 'copilot-view'
   reserveResourceHeader?: boolean
   initialScrollBlocked?: boolean
@@ -382,6 +390,9 @@ export function MothershipChat({
   SearchConnectionComponent,
   workspaceId,
   composer,
+  composerAttachments,
+  composerResourceActions,
+  composerModelSelectorOptions,
   messages: messagesProp,
   isSending,
   isReconnecting = false,
@@ -400,8 +411,10 @@ export function MothershipChat({
   onContextAdd,
   onContextRemove,
   onViewSources,
+  onNavigateToChat,
   onWorkspaceResourceSelect,
   draftScopeKey,
+  composerKey,
   layout = 'mothership-view',
   reserveResourceHeader = true,
   initialScrollBlocked = false,
@@ -896,6 +909,7 @@ export function MothershipChat({
       onContextAdd={onContextAdd}
       onContextRemove={onContextRemove}
       onViewSources={onViewSources}
+      onNavigateToChat={onNavigateToChat}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div
@@ -1031,9 +1045,12 @@ export function MothershipChat({
             {!isLoading &&
               (composer ?? (
                 <UserInput
-                  key={draftScopeKey}
+                  key={composerKey ?? draftScopeKey}
                   ref={userInputRef}
                   onSubmit={onSubmit}
+                  attachments={composerAttachments}
+                  resourceActions={composerResourceActions}
+                  modelSelectorOptions={composerModelSelectorOptions}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
                   isInitialView={false}
