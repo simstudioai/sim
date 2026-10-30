@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
   type Browser,
@@ -88,6 +88,10 @@ async function verifyClientMetadata(page: Page, path: string, title: string) {
   await expect(page.locator('meta[name="description"]')).toHaveAttribute(
     'content',
     description ?? ''
+  )
+  await expect(page.locator('link[rel="alternate"][type="text/plain"]')).toHaveAttribute(
+    'href',
+    `${canonicalOrigin}/llms.txt`
   )
   return {
     path,
@@ -807,6 +811,99 @@ try {
 
   const languageContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
   try {
+    await check(
+      'Later request variants stay selected and copy the chosen streaming example',
+      async () => {
+        const page = await languageContext.newPage()
+        try {
+          if (engine === 'chromium')
+            await languageContext.grantPermissions(['clipboard-read', 'clipboard-write'])
+          await open(page, '/api-reference/workflows/executeWorkflowV2')
+          const picker = page.getByRole('button', { name: /^Request example:/ })
+          for (const language of ['Go', 'JavaScript']) {
+            const label = `${language} — Request example 3`
+            await picker.click()
+            await page.getByRole('menuitemradio', { name: label, exact: true }).click()
+            await expect(picker).toHaveAccessibleName(`Request example: ${label}`)
+            const sample = page
+              .getByRole('region', { name: 'Request', exact: true })
+              .filter({ visible: true })
+              .locator('code')
+            await expect(sample).toContainText('stream')
+            if (engine === 'chromium') {
+              await page.getByRole('button', { name: 'Copy request', exact: true }).click()
+              await expect
+                .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+                .toBe(await sample.textContent())
+            }
+            await picker.click()
+            await expect(
+              page.getByRole('menuitemradio', { name: label, exact: true })
+            ).toHaveAttribute('aria-checked', 'true')
+            await page.keyboard.press('Escape')
+          }
+        } finally {
+          await page.close()
+        }
+      }
+    )
+    await check(
+      'MCP tabs with multiword labels retain accessible panel relationships',
+      async () => {
+        const page = await languageContext.newPage()
+        try {
+          await open(page, '/mcp/overview')
+          for (const label of ['Claude Code', 'VS Code']) {
+            const tab = page.getByRole('tab', { name: label, exact: true })
+            await tab.click()
+            const id = await tab.getAttribute('aria-controls')
+            expect(id).toBeTruthy()
+            expect(id).not.toMatch(/\s/)
+            const panel = page.locator(`[id="${id}"]`)
+            await expect(panel).toBeVisible()
+            await expect(panel).toHaveAccessibleName(label)
+          }
+        } finally {
+          await page.close()
+        }
+      }
+    )
+    await check(
+      'Workflow output copy, download and Markdown preserve typed data',
+      async () => {
+        const page = await languageContext.newPage()
+        try {
+          await languageContext.grantPermissions(['clipboard-read', 'clipboard-write'])
+          await open(page, '/tables/using-in-workflows')
+          const expected = {
+            rows: [{ id: 'row_8f2c', data: { company: 'Acme', status: 'unprocessed' } }],
+            rowCount: 1,
+            totalCount: 42,
+          }
+          await page.getByRole('button', { name: 'Copy full output', exact: true }).click()
+          await expect
+            .poll(async () => JSON.parse(await page.evaluate(() => navigator.clipboard.readText())))
+            .toEqual(expected)
+          const pending = page.waitForEvent('download')
+          await page.getByRole('button', { name: 'Download full output', exact: true }).click()
+          const download = await pending
+          const file = await download.path()
+          if (!file) throw new Error('Output download has no artifact')
+          expect(JSON.parse(await readFile(file, 'utf8'))).toEqual(expected)
+          const response = await page.request.get(
+            new URL('/tables/using-in-workflows.md', target).href
+          )
+          expect(response.ok()).toBe(true)
+          const markdown = await response.text()
+          const output = /Output from table1\s+```json\n([\s\S]*?)\n```/.exec(markdown)?.[1]
+          expect(output).toBeTruthy()
+          expect(JSON.parse(output ?? '')).toEqual(expected)
+        } finally {
+          await page.close()
+        }
+      },
+      engine === 'webkit' ? 'Clipboard readback requires Chromium permissions.' : undefined
+    )
     await check('API language preference survives navigation and reload', async () => {
       const page = await languageContext.newPage()
       await open(page, '/api-reference/workflows/listWorkflows')
@@ -958,6 +1055,7 @@ try {
       async () => {
         await legacy.addInitScript(() => {
           Object.defineProperty(window, 'ClipboardItem', { value: undefined })
+          Object.defineProperty(AbortSignal, 'timeout', { value: undefined })
           const write = navigator.clipboard.writeText.bind(navigator.clipboard)
           navigator.clipboard.writeText = (text) => {
             document.documentElement.dataset.clipboardActivation = String(

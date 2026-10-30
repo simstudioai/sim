@@ -115,6 +115,17 @@ await check('Discovery pagination has no gaps, duplicates or unbounded pages', a
   }
 })
 
+await check('Malformed canonical paths are rejected without blocking the HTTP worker', async () => {
+  const malformed = `/${'a'.repeat(24)}!`
+  const response = await fetch(
+    new URL(`/api/docs/page?path=${encodeURIComponent(malformed)}`, base),
+    {
+      signal: AbortSignal.timeout(2000),
+    }
+  )
+  assert(response.status === 400, 'Malformed path was not rejected')
+})
+
 await check('Unknown pages and arbitrary URL inputs fail explicitly', async () => {
   assert(
     (await get('/api/docs/page?path=/no-such-document')).status === 404,
