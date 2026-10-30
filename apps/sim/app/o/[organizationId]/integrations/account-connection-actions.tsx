@@ -46,6 +46,7 @@ export function AccountConnectionActions({
     actions.push({
       id: 'connect',
       text: connectLabel,
+      variant: 'primary',
       disabled: pending || !canConnect,
       onSelect: onConnect,
     })
@@ -54,7 +55,6 @@ export function AccountConnectionActions({
     actions.push({
       id: 'delete',
       text: 'Disconnect',
-      textTone: 'error',
       disabled: pending,
       onSelect: () => {
         disconnect.reset()
