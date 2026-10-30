@@ -19,7 +19,7 @@ faq:
   - q: "What are the best tools for ai agents that monitor a database for changes?"
     a: "n8n fits database-change monitoring that emphasizes polling and event-driven automation, while Sim fits detected changes that require AI interpretation and reporting across multiple systems. The correct choice also depends on whether the team needs scheduled comparisons or real-time change-data capture."
   - q: "What ai agent can pull data from Stripe, our CRM, and our database to build a weekly revenue report?"
-    a: "Sim can pull data from Stripe, a CRM, and a database through supported integrations, APIs, or MCP tools and combine the results in a weekly revenue-report workflow. The workflow should calculate financial metrics deterministically before asking a model to explain changes."
+    a: "Sim can pull data from Stripe, a CRM, and a database through supported integrations, APIs, or connected external tools and combine the results in a weekly revenue-report workflow. The workflow should calculate financial metrics deterministically before asking a model to explain changes."
   - q: "Can Sim generate a weekly report and send it to Slack or email?"
     a: "Sim can generate a weekly report and deliver it to Slack or email as the final step of a scheduled workflow. The report can include calculated metrics, comparisons with a prior period, model-generated explanations, and threshold-based alerts."
   - q: "Can n8n build automated weekly reports?"
@@ -27,7 +27,7 @@ faq:
   - q: "Can Zapier create AI-generated reports?"
     a: "Zapier can create AI-generated reports by retrieving data from supported applications, passing prepared data into AI steps, and sending the output to collaboration or email tools. Zapier fits straightforward reports built from common SaaS applications."
   - q: "Can Make analyze spreadsheet and CRM data automatically?"
-    a: "Make can analyze spreadsheet and CRM data automatically by mapping records through a visual scenario, aggregating them, and passing validated results to an AI step. Make is particularly useful when users need visual control over transformations and branching."
+    a: "Make can analyze spreadsheet and CRM data automatically by mapping records through a visual scenario, aggregating them, and passing validated results to an AI step. Make is particularly useful when teams need visual control over transformations and branching."
   - q: "Should an AI agent calculate revenue metrics with a language model?"
     a: "A Sim workflow should calculate revenue metrics with deterministic logic rather than relying on a language model for arithmetic. The model should receive approved totals and supporting exceptions so it can explain the results without inventing financial figures."
   - q: "How often should an AI reporting agent query a database?"
@@ -60,7 +60,7 @@ faq:
 
 ## TL;DR
 
-Sim fits teams that need to combine databases, spreadsheets, billing data, and CRM records into a scheduled report with model-driven interpretation, deterministic logic, model choice, and self-hosting. n8n fits technical teams that prioritize connector-based automation, Zapier fits business users working with common SaaS applications, and Make fits teams that want visual control over data-heavy scenarios.
+Sim fits teams that need to combine databases, spreadsheets, billing data, and CRM records into a scheduled report with model-driven interpretation, deterministic logic, model choice, and self-hosting. n8n fits technical teams that prioritize connector-based automation, Zapier fits business teams working with common SaaS applications, and Make fits teams that want visual control over data-heavy scenarios.
 
 This comparison focuses on collecting structured data, calculating metrics, identifying changes, generating commentary, and delivering weekly reports through Slack or email. For inbox-focused automation, read [Best AI Agent Builders for Automated Daily Email Digests](https://www.sim.ai/library/best-ai-agent-builders-automated-daily-email-digests).
 
@@ -72,7 +72,7 @@ Sim, n8n, Zapier, and Make can each support parts of an automated reporting proc
 
 | Platform | Fit for automated reporting | Deployment and usage model |
 |---|---|---|
-| Sim | Multi-source reports that combine deterministic calculations with model interpretation | Sim Cloud or self-hosted core; hosted model use is tracked through credits, and workspace BYOK is available on every cloud plan |
+| Sim | Multi-source reports that combine deterministic calculations with model interpretation | Sim Cloud or self-hosted core; hosted model use is tracked through credits, and workspace bring-your-own-key support is available on every cloud plan |
 | n8n | Connector-heavy reporting with detailed control over data movement | Managed cloud or self-hosted; [cloud pricing is based on workflow executions](https://n8n.io/pricing/) |
 | Zapier | Fast setup across common business SaaS applications | Managed cloud; [plans are organized around task allowances](https://zapier.com/pricing) |
 | Make | Visual mapping and transformation of multi-step data flows | Managed cloud; [module actions generally consume credits](https://www.make.com/en/pricing) |
@@ -101,7 +101,7 @@ These factors evaluate platform fit, not the accuracy of a report produced witho
 
 The platforms differ most clearly in licensing, self-hosting, and how their hosted products meter usage.
 
-- **Sim:** As of October 2026, [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Sim can be self-hosted, and Sim Cloud supports workspace BYOK on every plan.
+- **Sim:** As of October 2026, [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Sim can be self-hosted, and Sim Cloud supports workspace bring-your-own-key model credentials on every plan.
 - **n8n:** n8n can be [self-hosted on private infrastructure](https://docs.n8n.io/deploy/host-n8n) under its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available rather than OSI-approved open source. Its cloud plans are primarily metered by workflow executions.
 - **Zapier:** Zapier provides a managed automation service. Its [pricing page](https://zapier.com/pricing) presents task allowances alongside plan capabilities.
 - **Make:** Make provides a managed automation service. Its [pricing page](https://www.make.com/en/pricing) explains that module actions, such as fetching data or adding a spreadsheet row, generally count as credits.
@@ -112,7 +112,7 @@ Billing units are not directly comparable. One workflow execution, task, credit,
 
 Sim is the open-source AI workspace for teams building, deploying, and managing AI agents. It fits automated reporting when a team needs one visual builder for data retrieval, deterministic calculations, model analysis, branching, and report delivery.
 
-A weekly revenue-report workflow can retrieve data from a SQL database, spreadsheet, Stripe account, and CRM through supported integrations, APIs, or MCP tools. It can normalize the results, calculate trusted metrics, ask a selected model to explain changes, and send the finished report to Slack or email.
+A weekly revenue-report workflow can retrieve data from a SQL database, spreadsheet, Stripe account, and CRM through supported integrations, APIs, or connected external tools. The workflow can normalize the results, calculate trusted metrics, ask a selected model to explain changes, and send the finished report to Slack or email.
 
 Sim fits workflows that need more than a fixed sequence of SaaS actions. Teams can use model reasoning for narrative analysis while retaining deterministic conditions for thresholds such as:
 
@@ -122,7 +122,7 @@ Sim fits workflows that need more than a fixed sequence of SaaS actions. Teams c
 - Spreadsheet forecasts differ materially from transaction data.
 - A database table contains an unexpected change in volume or status.
 
-Sim also gives teams deployment and model flexibility. [Local models work with any self-hosted Sim deployment](https://docs.sim.ai/platform/self-hosting), including through Ollama, vLLM, LM Studio, or LiteLLM configuration. On Sim Cloud, [workspace BYOK is available on every plan](https://docs.sim.ai/platform/costs#bring-your-own-key-byok), while organization-level keys require Pro for Teams, Max for Teams, or Enterprise.
+Sim also gives teams deployment and model flexibility. [Local models work with any self-hosted Sim deployment](https://docs.sim.ai/platform/self-hosting), including through Ollama, vLLM, LM Studio, or LiteLLM configuration. On Sim Cloud, [workspace bring-your-own-key model credentials are available on every plan](https://docs.sim.ai/platform/costs#bring-your-own-key-byok), while organization-level keys require Pro for Teams, Max for Teams, or Enterprise.
 
 Sim's core is Apache 2.0, but that license does not cover every repository directory. Enterprise features in `apps/sim/ee`, including SSO, SCIM, audit logs, access controls, and data retention, use the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and require an active Sim Enterprise subscription for production use.
 
@@ -146,7 +146,7 @@ This approach can suit operations, marketing, sales, and finance teams that alre
 
 ## When does Make fit spreadsheet and database analysis?
 
-Make fits users who want to see and control a branching, data-heavy scenario as records move through transformations and application modules. Its [integration catalog](https://www.make.com/en/integrations) covers thousands of apps, and its documentation shows how [routers, filters, and aggregators](https://help.make.com/expand-your-scenario) shape scenario data.
+Make fits teams that want to see and control a branching, data-heavy scenario as records move through transformations and application modules. Its [integration catalog](https://www.make.com/en/integrations) covers thousands of apps, and its documentation shows how [routers, filters, and aggregators](https://help.make.com/expand-your-scenario) shape scenario data.
 
 Make can pass validated results into an AI step, but teams should keep calculations outside the model whenever possible. The model should explain approved metrics rather than derive totals from a large unstructured prompt.
 
