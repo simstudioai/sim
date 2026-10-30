@@ -37,6 +37,26 @@ export const types = metadata.INTEGRATION_METADATA.map((entry) => entry.type)`
     ])
   })
 
+  it('treats a namespace used other than by member access as reading every export', () => {
+    const destructured = `import * as matcher from '@/blocks/integration-matcher'
+const { listIntegrations } = matcher`
+    const indexed = `import * as matcher from '@/blocks/integration-matcher'
+export const all = matcher['listIntegrations']()`
+    const policy = `import * as access from '@/hooks/use-integration-access'
+const { useIntegrationAccessPolicy } = access`
+    expect(check({ 'app/a.ts': destructured, 'app/b.ts': indexed, 'app/c.ts': policy })).toEqual([
+      expect.objectContaining({
+        path: 'app/a.ts',
+        names: ['listIntegrations', 'listIntegrationsByPopularity'],
+      }),
+      expect.objectContaining({
+        path: 'app/b.ts',
+        names: ['listIntegrations', 'listIntegrationsByPopularity'],
+      }),
+      expect.objectContaining({ path: 'app/c.ts', names: ['useIntegrationAccessPolicy'] }),
+    ])
+  })
+
   it('flags a raw listing that imports the gate without calling it', () => {
     const source = `import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { listIntegrations } from '@/blocks/integration-matcher'`

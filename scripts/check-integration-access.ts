@@ -75,12 +75,24 @@ const NAMESPACE_IMPORT = /import\s+\*\s+as\s+([\w$]+)\s+from\s*['"]([^'"]+)['"]/
 /** One export of a module, and the expression the importing module reaches it through. */
 interface ExportReference {
   exported: string
-  /** The local binding, or `namespace.member` for a read through a namespace import. */
-  local: string
+  /**
+   * The local binding, or `namespace.member` for a member read; absent when a
+   * namespace escapes member access, where the read cannot be traced.
+   */
+  local?: string
 }
 
-/** The exports of `from` a module reaches as values, through named or namespace imports. */
-function exportReferences(source: string, from: string): ExportReference[] {
+/**
+ * The exports of `from` a module reaches as values, through named or namespace
+ * imports. A namespace used other than as `namespace.member` — destructured,
+ * indexed, or passed along — is taken to read every one of `exports`, so an
+ * untraceable read is never mistaken for none.
+ */
+function exportReferences(
+  source: string,
+  from: string,
+  exports: readonly string[]
+): ExportReference[] {
   const references: ExportReference[] = []
   for (const [, typeOnly, specifiers, module] of source.matchAll(NAMED_IMPORT)) {
     if (module !== from || typeOnly) continue
@@ -89,17 +101,22 @@ function exportReferences(source: string, from: string): ExportReference[] {
       if (exported && !exported.startsWith('type ')) references.push({ exported, local })
     }
   }
-  for (const [, namespace, module] of source.matchAll(NAMESPACE_IMPORT)) {
+  for (const [declaration, namespace, module] of source.matchAll(NAMESPACE_IMPORT)) {
     if (module !== from) continue
-    const memberRead = new RegExp(`(?<![\\w$.])${escapeRegExp(namespace)}\\.([\\w$]+)`, 'g')
-    for (const [local, exported] of source.matchAll(memberRead)) {
+    const binding = `(?<![\\w$.])${escapeRegExp(namespace)}(?![\\w$])`
+    for (const [local, exported] of source.matchAll(new RegExp(`${binding}\\.([\\w$]+)`, 'g'))) {
       references.push({ exported, local })
+    }
+    const body = source.replace(declaration, '')
+    if (new RegExp(`${binding}(?!\\s*\\.[\\w$])`).test(body)) {
+      references.push(...exports.map((exported) => ({ exported })))
     }
   }
   return references
 }
 
-function isCalled(source: string, local: string): boolean {
+function isCalled(source: string, local: string | undefined): boolean {
+  if (local === undefined) return false
   return new RegExp(`(?<![\\w$.])${escapeRegExp(local)}\\s*\\(`).test(source)
 }
 
@@ -107,7 +124,7 @@ function isCalled(source: string, local: string): boolean {
 function rawCatalogReads(source: string): string[] {
   const names = new Set<string>()
   for (const [module, catalog] of Object.entries(RAW_CATALOGS)) {
-    for (const { exported } of exportReferences(source, module)) {
+    for (const { exported } of exportReferences(source, module, catalog)) {
       if (catalog.includes(exported)) names.add(exported)
     }
   }
@@ -127,7 +144,7 @@ export function findIntegrationAccessViolations(
   const violations: IntegrationAccessViolation[] = []
   const usedExemptions = new Set<string>()
   for (const { path, source } of files) {
-    const gateReferences = exportReferences(source, GATE_MODULE)
+    const gateReferences = exportReferences(source, GATE_MODULE, [GATE_NAME, FAIL_OPEN_NAME])
     const readsFailOpen = gateReferences.some(({ exported }) => exported === FAIL_OPEN_NAME)
     if (readsFailOpen && path !== FAIL_OPEN_READER) {
       violations.push({ path, names: [FAIL_OPEN_NAME], stale: false })
