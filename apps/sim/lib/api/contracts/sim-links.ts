@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { simLinkFieldsSchema } from '@/lib/sim-links/validation'
+import { SIM_LINK_SORTS, simLinkFieldsSchema } from '@/lib/sim-links/validation'
 
 const params = z.object({ id: organizationIdSchema })
 const linkParams = params.extend({ linkId: z.string().min(1).max(255) })
@@ -14,6 +14,8 @@ const simLinkSchema = z.object({
   description: z.string().nullable(),
   unlisted: z.boolean(),
   restrictEdit: z.boolean(),
+  /** Redirects through this link, for the most-used order. */
+  visitCount: z.number().int().nonnegative(),
   createdBy: z
     .object({ id: z.string(), name: z.string(), image: z.string().nullable() })
     .nullable(),
@@ -35,6 +37,7 @@ export const listSimLinksContract = defineRouteContract({
   query: z.object({
     search: z.string().max(200).optional(),
     cursor: z.string().min(1).max(128).optional(),
+    sort: z.enum(SIM_LINK_SORTS).optional(),
   }),
   response: {
     mode: 'json',

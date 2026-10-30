@@ -2,9 +2,14 @@ import { db } from '@sim/db'
 import { simLink, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, eq, gt, ilike, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, ilike, lt, or, type SQL, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { normalizeSimLinkName, type SimLinkFields } from '@/lib/sim-links/validation'
+import {
+  normalizeSimLinkName,
+  type SimLinkFields,
+  type SimLinkSort,
+} from '@/lib/sim-links/validation'
 
 const PAGE_SIZE = 50
 
@@ -17,6 +22,7 @@ export interface SimLinkRecord {
   description: string | null
   unlisted: boolean
   restrictEdit: boolean
+  visitCount: number
   createdBy: { id: string; name: string; image: string | null } | null
   updatedAt: Date
 }
@@ -42,6 +48,7 @@ const recordColumns = {
   description: simLink.description,
   unlisted: simLink.unlisted,
   restrictEdit: simLink.restrictEdit,
+  visitCount: simLink.visitCount,
   updatedAt: simLink.updatedAt,
   creatorId: user.id,
   creatorName: user.name,
@@ -66,13 +73,35 @@ function toRecord({
 }
 
 /**
- * One page of the links `viewer` may browse, in name order; `cursor` is the last normalized name.
- * Unlisted links are listed only to their creator and organization admins.
+ * A keyset position: the last row's normalized name, preceded by its visit count when sorting
+ * by use. Normalized names never contain `:`, so the first one separates the two.
+ */
+function cursorOf(sort: SimLinkSort, row: SimLinkRecord): string {
+  return sort === 'popular' ? `${row.visitCount}:${row.normalizedName}` : row.normalizedName
+}
+
+function afterCursor(sort: SimLinkSort, cursor: string): SQL | undefined {
+  if (sort === 'name') return gt(simLink.normalizedName, cursor)
+  const separator = cursor.indexOf(':')
+  const visits = Number(cursor.slice(0, separator))
+  if (separator < 1 || !Number.isSafeInteger(visits)) {
+    throw new OrchestrationError('validation', 'Invalid cursor')
+  }
+  const name = cursor.slice(separator + 1)
+  return or(
+    lt(simLink.visitCount, visits),
+    and(eq(simLink.visitCount, visits), gt(simLink.normalizedName, name))
+  )
+}
+
+/**
+ * One page of the links `viewer` may browse, by name or by most visited. Unlisted links are
+ * listed only to their creator and organization admins.
  */
 export async function listSimLinks(
   organizationId: string,
   viewer: SimLinkViewer,
-  { search, cursor }: { search?: string; cursor?: string }
+  { search, cursor, sort = 'name' }: { search?: string; cursor?: string; sort?: SimLinkSort }
 ): Promise<{ links: SimLinkRecord[]; nextCursor: string | null }> {
   const conditions: (SQL | undefined)[] = [eq(simLink.organizationId, organizationId)]
   if (!viewer.isAdmin) {
@@ -90,16 +119,18 @@ export async function listSimLinks(
       )
     )
   }
-  if (cursor) conditions.push(gt(simLink.normalizedName, cursor))
+  if (cursor) conditions.push(afterCursor(sort, cursor))
+  const order =
+    sort === 'popular'
+      ? [desc(simLink.visitCount), asc(simLink.normalizedName)]
+      : [asc(simLink.normalizedName)]
   const rows = await selectRecords(db)
     .where(and(...conditions))
-    .orderBy(asc(simLink.normalizedName))
+    .orderBy(...order)
     .limit(PAGE_SIZE + 1)
   const links = rows.slice(0, PAGE_SIZE).map(toRecord)
-  return {
-    links,
-    nextCursor: rows.length > PAGE_SIZE ? (links.at(-1)?.normalizedName ?? null) : null,
-  }
+  const last = links.at(-1)
+  return { links, nextCursor: rows.length > PAGE_SIZE && last ? cursorOf(sort, last) : null }
 }
 
 export async function getSimLink(
@@ -117,9 +148,14 @@ export async function getSimLink(
 export async function findSimLinkDestination(
   organizationId: string,
   name: string
-): Promise<{ name: string; url: string; defaultUrl: string | null } | null> {
+): Promise<{ id: string; name: string; url: string; defaultUrl: string | null } | null> {
   const [row] = await db
-    .select({ name: simLink.name, url: simLink.url, defaultUrl: simLink.defaultUrl })
+    .select({
+      id: simLink.id,
+      name: simLink.name,
+      url: simLink.url,
+      defaultUrl: simLink.defaultUrl,
+    })
     .from(simLink)
     .where(
       and(
@@ -129,6 +165,14 @@ export async function findSimLinkDestination(
     )
     .limit(1)
   return row ?? null
+}
+
+/** Counts a redirect. Visits never change `updated_at`, which tracks edits. */
+export async function recordSimLinkVisit(organizationId: string, id: string): Promise<void> {
+  await db
+    .update(simLink)
+    .set({ visitCount: sql`${simLink.visitCount} + 1`, lastVisitedAt: new Date() })
+    .where(and(eq(simLink.organizationId, organizationId), eq(simLink.id, id)))
 }
 
 /** Locks a link's access fields for the rest of `tx`, so an edit is judged against current access. */

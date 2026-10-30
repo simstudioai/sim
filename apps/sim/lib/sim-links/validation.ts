@@ -6,6 +6,10 @@ export const SIM_LINK_NAME_MAX_LENGTH = 64
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
 const URL_MAX_LENGTH = 2048
 
+/** List orders: alphabetical by name, or most visited first. */
+export const SIM_LINK_SORTS = ['name', 'popular'] as const
+export type SimLinkSort = (typeof SIM_LINK_SORTS)[number]
+
 /** Marks where a variable link places each value typed after its name. */
 export const SIM_LINK_VARIABLE = '{*}'
 

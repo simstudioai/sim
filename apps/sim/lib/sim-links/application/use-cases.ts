@@ -15,7 +15,7 @@ import { resolveSimLinkTarget, type SimLinkTarget } from '@/lib/sim-links/destin
 import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
-import type { SimLinkFields } from '@/lib/sim-links/validation'
+import type { SimLinkFields, SimLinkSort } from '@/lib/sim-links/validation'
 
 interface OrganizationInput {
   organizationId: string
@@ -126,7 +126,9 @@ export const listSimLinks = defineAuthorizedOrganizationUseCase({
   async execute({
     input,
     context,
-  }: OrganizationUseCaseContext<OrganizationInput & { search?: string; cursor?: string }>) {
+  }: OrganizationUseCaseContext<
+    OrganizationInput & { search?: string; cursor?: string; sort?: SimLinkSort }
+  >) {
     const viewer = viewerOf(context)
     const page = await repository.listSimLinks(context.organizationId, viewer, input)
     return {
@@ -190,7 +192,10 @@ export const deleteSimLink = defineAuthorizedOrganizationUseCase({
   projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_DELETED, 'Deleted', result),
 })
 
-/** Unlisted links resolve for every member: unlisting hides a link from browsing, not from use. */
+/**
+ * Unlisted links resolve for every member: unlisting hides a link from browsing, not from use.
+ * Only a redirect counts as a visit; a link opened without the values it needs does not.
+ */
 export const resolveSimLink = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.resolve,
   ...rollout,
@@ -200,6 +205,10 @@ export const resolveSimLink = defineAuthorizedOrganizationUseCase({
     OrganizationInput & { name: string; values: readonly string[] }
   >): Promise<SimLinkResolution> {
     const link = await repository.findSimLinkDestination(input.organizationId, input.name)
-    return link ? resolveSimLinkTarget(link, input.values) : { kind: 'not_found' }
+    if (!link) return { kind: 'not_found' }
+    const target = resolveSimLinkTarget(link, input.values)
+    if (target.kind === 'redirect')
+      await repository.recordSimLinkVisit(input.organizationId, link.id)
+    return target
   },
 })

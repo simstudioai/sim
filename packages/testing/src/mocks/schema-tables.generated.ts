@@ -206,6 +206,8 @@ export const GENERATED_SCHEMA_TABLES = {
     'description',
     'unlisted',
     'restrictEdit',
+    'visitCount',
+    'lastVisitedAt',
     'createdBy',
     'createdAt',
     'updatedAt',

@@ -15,12 +15,14 @@ import {
 } from '@sim/emcn'
 import { Link, MoreHorizontal, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { formatRelativeTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkPath } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   OrganizationPage,
+  type OrganizationPageTab,
   useOrganizationPageFilters,
 } from '@/app/o/[organizationId]/components/organization-page'
 import { simLinkViewParsers } from '@/app/o/[organizationId]/links/search-params'
@@ -39,6 +41,11 @@ import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('SimLinks')
 
+const SORT_TABS = [
+  { id: 'name', label: 'A–Z' },
+  { id: 'popular', label: 'Most used' },
+] as const satisfies readonly OrganizationPageTab[]
+
 async function copyLink(href: string) {
   try {
     await writeTextToClipboard(new URL(href, window.location.origin).href)
@@ -47,15 +54,38 @@ async function copyLink(href: string) {
   }
 }
 
+interface SimLinkDetailsProps {
+  link: SimLink
+}
+
+/** Who made the link, how often it is used, when it last changed, and how it is shared. */
+function SimLinkDetails({ link }: SimLinkDetailsProps) {
+  const details = [
+    link.createdBy?.name,
+    link.visitCount > 0 && `${link.visitCount} ${link.visitCount === 1 ? 'open' : 'opens'}`,
+    formatRelativeTime(link.updatedAt),
+  ].filter(Boolean)
+  return (
+    <>
+      <span className='hidden text-[var(--text-muted)] text-caption sm:inline'>
+        {details.join(' · ')}
+      </span>
+      {link.unlisted && <ChipTag>Unlisted</ChipTag>}
+      {link.restrictEdit && <ChipTag>Restricted</ChipTag>}
+    </>
+  )
+}
+
 interface SimLinksProps {
   organizationId: string
 }
 
 /** Every Sim link the viewer may browse, with create, edit, and delete in place. */
 export function SimLinks({ organizationId }: SimLinksProps) {
-  const { search } = useOrganizationPageFilters()
+  const { search, tab } = useOrganizationPageFilters()
   const query = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
-  const links = useSimLinks(organizationId, query)
+  const sort = tab === 'popular' ? 'popular' : 'name'
+  const links = useSimLinks(organizationId, query, sort)
   const remove = useDeleteSimLink(organizationId)
   const [{ create }, setView] = useQueryStates(simLinkViewParsers)
   const [editing, setEditing] = useState<SimLink | null>(null)
@@ -66,6 +96,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
     <OrganizationPage
       title='Sim Links'
       description='Short, shareable links that take your organization straight to the right page.'
+      tabs={SORT_TABS}
       searchMode='expanded'
       searchPlaceholder='Search Sim links'
       action={
@@ -87,7 +118,9 @@ export function SimLinks({ organizationId }: SimLinksProps) {
           <SettingsEmptyState variant='inline'>Loading Sim links</SettingsEmptyState>
         ) : !rows.length ? (
           <SettingsEmptyState variant='inline'>
-            {query ? 'No matching Sim links' : 'No Sim links yet'}
+            {query
+              ? 'No matching Sim links'
+              : 'No Sim links yet. Create one for a page your team opens often, like sim/handbook.'}
           </SettingsEmptyState>
         ) : (
           rows.map((link) => (
@@ -95,8 +128,8 @@ export function SimLinks({ organizationId }: SimLinksProps) {
               key={link.id}
               icon={<Link />}
               title={`sim/${link.name}`}
-              description={link.url}
-              badge={link.unlisted && <ChipTag>Unlisted</ChipTag>}
+              description={link.description ? `${link.description} · ${link.url}` : link.url}
+              badge={<SimLinkDetails link={link} />}
               onClick={() => window.open(simLinkPath(link.name), '_blank', 'noopener,noreferrer')}
               clickLabel={`Open sim/${link.name}`}
               trailing={

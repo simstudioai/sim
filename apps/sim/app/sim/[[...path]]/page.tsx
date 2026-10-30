@@ -22,16 +22,26 @@ interface SimLinkPageProps {
 }
 
 /**
+ * The typed `sim/<name>/<values…>` path as plain text. Next passes catch-all segments still
+ * percent-encoded (it already rejects malformed escapes with a 400), and a browser site-search
+ * shortcut encodes `/` inside a single segment.
+ */
+function decodeSimLinkPath(path: string[]): string[] {
+  return path.flatMap((segment) => decodeURIComponent(segment).split('/')).filter(Boolean)
+}
+
+/**
  * Where `sim/<name>/<values…>` lands: the viewer's organization link's destination,
  * or a page that offers to create the link when nobody has yet.
  */
 export default async function SimLinkPage({ params }: SimLinkPageProps) {
   const { path = [] } = await params
+  const segments = decodeSimLinkPath(path)
   const session = await getSession()
   if (!session?.user)
     redirect(
       buildAuthCrossLink('/login', {
-        callbackUrl: simLinkPath(...path),
+        callbackUrl: simLinkPath(...segments),
         isInviteFlow: false,
       })
     )
@@ -41,7 +51,7 @@ export default async function SimLinkPage({ params }: SimLinkPageProps) {
   )
   if (!organizationId || !(await isSimLinksEnabled(organizationId))) notFound()
   const library = organizationRoutes(organizationId).simLinks
-  const [name, ...values] = path
+  const [name, ...values] = segments
   if (!name) redirect(library)
 
   const result = await resolveSimLink.execute({

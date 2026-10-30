@@ -942,7 +942,7 @@ export const organizationSecret = pgTable(
  * An organization's Sim links (go links): `sim/<name>` redirects members to `url`. Names match
  * case- and punctuation-insensitively through `normalized_name`. `{*}` in `url`
  * marks a variable link filled from the path after the name, and `default_url`
- * serves a variable link opened without values.
+ * serves a variable link opened without values. `visit_count` counts redirects.
  */
 export const simLink = pgTable(
   'sim_link',
@@ -958,12 +958,19 @@ export const simLink = pgTable(
     description: text('description'),
     unlisted: boolean('unlisted').notNull().default(false),
     restrictEdit: boolean('restrict_edit').notNull().default(false),
+    visitCount: integer('visit_count').notNull().default(0),
+    lastVisitedAt: timestamp('last_visited_at'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex('sim_link_organization_name_unique').on(table.organizationId, table.normalizedName),
+    index('sim_link_organization_visits_idx').on(
+      table.organizationId,
+      table.visitCount.desc(),
+      table.normalizedName
+    ),
     index('sim_link_created_by_idx').on(table.createdBy),
   ]
 )

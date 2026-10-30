@@ -214,9 +214,18 @@ async function run() {
       (await open(member, 'jira/123')).location,
       'https://jira.example.com/browse/PROD-123'
     )
+    assert.equal(
+      (await open(member, 'jira%2F123')).location,
+      'https://jira.example.com/browse/PROD-123'
+    )
     assert.equal((await open(member, 'jira')).location, 'https://jira.example.com/')
     const hostile = new URL((await open(member, 'jira/%2F%2Fevil.example.org')).location ?? '')
     assert.equal(hostile.origin, 'https://jira.example.com')
+    await create(owner, { name: 'wiki', url: 'https://wiki.example.com/search?q={*}' })
+    assert.equal(
+      (await open(member, 'wiki/expense%20policy')).location,
+      'https://wiki.example.com/search?q=expense%20policy'
+    )
     await create(owner, { name: 'gh', url: 'https://github.com/{*}/issues/{*}' })
     assert.match((await open(member, 'gh/sim')).text, /needs 2 values/)
   })
@@ -299,6 +308,25 @@ async function run() {
     assert.match(text, /doesn.*t exist yet/)
     assert.match(text, /links\?create=team-handbook/)
     await api({ ...outsider, orgId }, '', { expected: 404 })
+  })
+
+  await check('redirects are counted and order the most-used view', async () => {
+    const { links } = await api(member, '?sort=popular', {})
+    assert(Array.isArray(links), 'Expected a link list')
+    const visits = new Map(
+      links.flatMap((link) =>
+        isRecordLike(link) ? [[String(link.name), Number(link.visitCount)] as const] : []
+      )
+    )
+    const counts = [...visits.values()]
+    assert.deepEqual(
+      counts,
+      [...counts].sort((a, b) => b - a),
+      'Expected most visited first'
+    )
+    assert.equal(visits.get('jira'), 4, 'Each jira redirect counts once')
+    assert.equal(visits.get('gh'), 0, 'A link opened without its values is not a visit')
+    await api(member, '?sort=popular&cursor=not-a-cursor', { expected: 400 })
   })
 
   await check('deleting a link stops it resolving and every change is audited', async () => {
