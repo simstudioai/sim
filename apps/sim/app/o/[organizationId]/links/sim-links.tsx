@@ -39,9 +39,9 @@ import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('SimLinks')
 
-async function copyLink(name: string) {
+async function copyLink(href: string) {
   try {
-    await writeTextToClipboard(new URL(simLinkPath(name), window.location.origin).href)
+    await writeTextToClipboard(new URL(href, window.location.origin).href)
   } catch (error) {
     logger.error('Failed to copy Sim link', { error })
   }
@@ -105,7 +105,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
                     <Chip leftIcon={MoreHorizontal} aria-label={`sim/${link.name} actions`} />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align='end'>
-                    <DropdownMenuItem onSelect={() => void copyLink(link.name)}>
+                    <DropdownMenuItem onSelect={() => void copyLink(simLinkPath(link.name))}>
                       Copy link
                     </DropdownMenuItem>
                     {link.canEdit && (

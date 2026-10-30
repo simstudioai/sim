@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -22,14 +23,16 @@ function requiredEnvironment(name: string): string {
 }
 
 const baseUrl = new URL(requiredEnvironment('SIM_LINKS_E2E_BASE_URL'))
-const databaseUrl = new URL(requiredEnvironment('SIM_LINKS_E2E_DATABASE_URL'))
+const databaseUrl = assertDisposableTestDatabaseUrl(
+  requiredEnvironment('SIM_LINKS_E2E_DATABASE_URL')
+)
 const authSecret = requiredEnvironment('SIM_LINKS_E2E_AUTH_SECRET')
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]'])
 assert(loopbackHosts.has(baseUrl.hostname), 'The app must use a loopback host')
 assert.equal(baseUrl.protocol, 'http:', 'The app must use local HTTP')
 assert.equal(baseUrl.pathname, '/', 'App URL must be an origin without a path')
-assert(loopbackHosts.has(databaseUrl.hostname), 'The database must use a loopback host')
-assert(/test/i.test(databaseUrl.pathname), 'Use a dedicated test database')
+assert(!baseUrl.username && !baseUrl.password, 'App URL must not contain credentials')
+assert(authSecret.length >= 32, 'Use a local auth secret of at least 32 characters')
 
 const sql = postgres(databaseUrl.toString(), { max: 2 })
 const organizationIds: string[] = []

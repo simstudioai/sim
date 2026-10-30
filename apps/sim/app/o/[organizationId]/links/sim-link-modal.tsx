@@ -92,6 +92,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
       <ChipModalBody>
         <ChipModalField
           type='input'
+          disabled={mutation.isPending}
           title='Destination URL'
           required
           inputType='url'
@@ -108,6 +109,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
         {variable && (
           <ChipModalField
             type='input'
+            disabled={mutation.isPending}
             title='Default destination'
             inputType='url'
             placeholder='https://'
@@ -119,6 +121,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
         )}
         <ChipModalField
           type='input'
+          disabled={mutation.isPending}
           title='Name'
           required
           placeholder='handbook'
@@ -130,6 +133,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
         />
         <ChipModalField
           type='input'
+          disabled={mutation.isPending}
           title='Description'
           placeholder='What is this link for?'
           maxLength={SIM_LINK_DESCRIPTION_MAX_LENGTH}
@@ -146,30 +150,34 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
               : 'Only the creator or an organization admin can change access.'
           }
         >
-          <div className='flex flex-col gap-2'>
-            <label htmlFor={unlistedId} className='flex cursor-pointer items-center gap-2'>
-              <Checkbox
-                id={unlistedId}
-                checked={draft.unlisted}
-                disabled={!canManage}
-                onCheckedChange={(checked) => change('unlisted', checked === true)}
-              />
-              <span className='text-[var(--text-primary)] text-small'>
-                Hide from the Sim Links page for everyone except you and admins
-              </span>
-            </label>
-            <label htmlFor={restrictEditId} className='flex cursor-pointer items-center gap-2'>
-              <Checkbox
-                id={restrictEditId}
-                checked={draft.restrictEdit}
-                disabled={!canManage}
-                onCheckedChange={(checked) => change('restrictEdit', checked === true)}
-              />
-              <span className='text-[var(--text-primary)] text-small'>
-                Restrict editing to you and admins
-              </span>
-            </label>
-          </div>
+          {(aria) => (
+            <div className='flex flex-col gap-2'>
+              <label htmlFor={unlistedId} className='flex cursor-pointer items-center gap-2'>
+                <Checkbox
+                  id={unlistedId}
+                  checked={draft.unlisted}
+                  aria-describedby={aria['aria-describedby']}
+                  disabled={!canManage || mutation.isPending}
+                  onCheckedChange={(checked) => change('unlisted', checked === true)}
+                />
+                <span className='text-[var(--text-primary)] text-small'>
+                  Hide from the Sim Links page for everyone except you and admins
+                </span>
+              </label>
+              <label htmlFor={restrictEditId} className='flex cursor-pointer items-center gap-2'>
+                <Checkbox
+                  id={restrictEditId}
+                  checked={draft.restrictEdit}
+                  aria-describedby={aria['aria-describedby']}
+                  disabled={!canManage || mutation.isPending}
+                  onCheckedChange={(checked) => change('restrictEdit', checked === true)}
+                />
+                <span className='text-[var(--text-primary)] text-small'>
+                  Restrict editing to you and admins
+                </span>
+              </label>
+            </div>
+          )}
         </ChipModalField>
         <ChipModalError>{nameTaken ? undefined : mutation.error?.message}</ChipModalError>
       </ChipModalBody>

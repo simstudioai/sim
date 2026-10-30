@@ -103,11 +103,11 @@ export async function listSimLinks(
 }
 
 export async function getSimLink(
-  executor: DbOrTx,
+  tx: DbTransaction,
   organizationId: string,
   id: string
 ): Promise<SimLinkRecord | null> {
-  const [row] = await selectRecords(executor)
+  const [row] = await selectRecords(tx)
     .where(and(eq(simLink.organizationId, organizationId), eq(simLink.id, id)))
     .limit(1)
   return row ? toRecord(row) : null
@@ -152,12 +152,13 @@ export async function lockSimLinkAccess(
 }
 
 export async function insertSimLink(
+  tx: DbTransaction,
   organizationId: string,
   createdBy: string,
   fields: SimLinkFields
 ): Promise<string> {
   const id = generateId()
-  await db.insert(simLink).values({
+  await tx.insert(simLink).values({
     id,
     organizationId,
     createdBy,

@@ -108,8 +108,14 @@ function auditOf(
   }
 }
 
-async function readView(organizationId: string, linkId: string, viewer: SimLinkViewer) {
-  const record = await repository.getSimLink(db, organizationId, linkId)
+/** Read in the writing transaction, so the result and its audit describe exactly this write. */
+async function readView(
+  tx: DbTransaction,
+  organizationId: string,
+  linkId: string,
+  viewer: SimLinkViewer
+) {
+  const record = await repository.getSimLink(tx, organizationId, linkId)
   if (!record) throw new OrchestrationError('not_found', 'Sim link not found')
   return toView(record, viewer)
 }
@@ -135,10 +141,12 @@ export const createSimLink = defineAuthorizedOrganizationUseCase({
   ...rollout,
   async execute({ input, context }: OrganizationUseCaseContext<OrganizationInput & SimLinkFields>) {
     const { organizationId, ...fields } = input
-    const linkId = await withUniqueName(organizationId, fields.name, () =>
-      repository.insertSimLink(organizationId, context.userId, fields)
+    return withUniqueName(organizationId, fields.name, () =>
+      db.transaction(async (tx) => {
+        const linkId = await repository.insertSimLink(tx, organizationId, context.userId, fields)
+        return readView(tx, organizationId, linkId, viewerOf(context))
+      })
     )
-    return readView(organizationId, linkId, viewerOf(context))
   },
   projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_CREATED, 'Created', result),
 })
@@ -149,7 +157,7 @@ export const updateSimLink = defineAuthorizedOrganizationUseCase({
   async execute({ input, context }: OrganizationUseCaseContext<LinkInput & SimLinkFields>) {
     const { organizationId, linkId, ...fields } = input
     const viewer = viewerOf(context)
-    await withUniqueName(organizationId, fields.name, () =>
+    return withUniqueName(organizationId, fields.name, () =>
       db.transaction(async (tx) => {
         const access = await lockEditableSimLink(tx, input, viewer)
         if (
@@ -162,9 +170,9 @@ export const updateSimLink = defineAuthorizedOrganizationUseCase({
           )
         }
         await repository.updateSimLink(tx, organizationId, linkId, fields)
+        return readView(tx, organizationId, linkId, viewer)
       })
     )
-    return readView(organizationId, linkId, viewer)
   },
   projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_UPDATED, 'Updated', result),
 })
