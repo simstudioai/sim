@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { z } from 'zod/mini'
+import { array, literal, object, string } from 'zod/mini'
 
 const SEARCH_STALE_TIME = 60_000
 const SEARCH_GC_TIME = 300_000
@@ -9,13 +9,13 @@ const searchKeys = {
   all: ['docs-search'] as const,
   query: (query: string) => [...searchKeys.all, query] as const,
 }
-const resultsSchema = z.array(
-  z.object({
-    id: z.string(),
-    type: z.literal('page'),
-    url: z.string(),
-    content: z.string(),
-    breadcrumbs: z.array(z.string()),
+const resultsSchema = array(
+  object({
+    id: string(),
+    type: literal('page'),
+    url: string(),
+    content: string(),
+    breadcrumbs: array(string()),
   })
 )
 
