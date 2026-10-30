@@ -900,7 +900,8 @@ try {
       }
       await capture('email-receipts-mobile')
       const response = await context.request.get(
-        `${baseUrl.origin}/api/organizations/${organizationId}/chats/${emailChatId}/actions/receipts`
+        `${baseUrl.origin}/api/organizations/${organizationId}/chats/${emailChatId}/actions/receipts`,
+        { params: { streamId: emailStreamId } }
       )
       assert.equal(response.status(), 200, await response.text())
       const saved = listAssistantActionReceiptsContract.response.schema.parse(await response.json())

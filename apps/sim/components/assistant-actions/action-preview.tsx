@@ -32,7 +32,7 @@ export function ActionPreview({ action, account, full = false }: ActionPreviewPr
       {(account || targets.length > 0) && (
         <div className='flex flex-col gap-1'>
           {account && (
-            <dl className='grid grid-cols-[minmax(0,5rem)_minmax(0,1fr)] items-baseline gap-x-3 text-small'>
+            <dl className='grid grid-cols-[minmax(0,6rem)_minmax(0,1fr)] items-baseline gap-x-3 text-small'>
               <dt className='text-[var(--text-muted)] text-caption'>Account</dt>
               <dd className='min-w-0 break-all text-[var(--text-body)]'>{account}</dd>
             </dl>
@@ -102,7 +102,7 @@ function PreviewField({ field, compact = false, prominent = false }: PreviewFiel
       className={cn(
         'min-w-0',
         compact && field.format === 'text'
-          ? 'grid grid-cols-[minmax(0,5rem)_minmax(0,1fr)] items-baseline gap-x-3'
+          ? 'grid grid-cols-[minmax(0,6rem)_minmax(0,1fr)] items-baseline gap-x-3'
           : 'flex flex-col gap-1'
       )}
     >

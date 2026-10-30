@@ -85,7 +85,7 @@ export function AssistantActionReceipt({ receipt }: AssistantActionReceiptProps)
                 />
               ) : (
                 <div className='flex flex-col gap-1 break-words text-[var(--text-muted)] text-small'>
-                  {receipt.account && <p>{receipt.account.displayName}</p>}
+                  <p>{receipt.account?.displayName ?? 'Account unavailable'}</p>
                   <p>Details are no longer available for this action.</p>
                 </div>
               )}

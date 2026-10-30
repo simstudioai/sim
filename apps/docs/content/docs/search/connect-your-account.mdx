@@ -22,7 +22,7 @@ After your admin adds a source in **Settings → Sources**, connect your own acc
   variant="overview"
 />
 
-If your organization makes another connection available, choose **Add account** in the header. When several accounts are connected, select an account to see its permissions and connection actions.
+Your organization currently supports one connected account per provider. Open the app to see that account's permissions and connection actions.
 
 The connection is usable when authorization completes; no initial indexing run is required. If a provider is missing, ask an admin to add it in **Sources**. `Not configured` means its app or deployment setup needs an admin's attention.
 
@@ -70,7 +70,7 @@ Search sources and apps used for actions share the same Integrations list. An ad
 
 ## Reconnect or disconnect
 
-Open the app and select the account, then choose **Reconnect** in the header when a grant expires, is revoked, or needs more scopes. Reconnect with the same provider account. To use a different account, add a separate connection. A temporary provider outage does not necessarily require reconnecting.
+Open the app and select the account, then choose **Reconnect** in the header when a grant expires, is revoked, or needs more scopes. Reconnect with the same provider account; switching identities on an existing connection is not supported, including after disconnecting. A temporary provider outage does not necessarily require reconnecting.
 
 Choose **Disconnect** in the same header to stop future use of the grant. This can affect workflows sharing the account. Review the confirmation before removing it. Disconnecting does not remove your Sim membership.
 

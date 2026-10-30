@@ -257,7 +257,7 @@ async function persistGrant(
         existing.providerTenantId !== grant.providerTenantId)
     ) {
       throw new CredentialGroupOAuthError(
-        'Choose the original account to reconnect. Add another connection to use a different account.',
+        'Reconnect with the account originally used for this connection. Switching to a different account is not supported for this connection.',
         409
       )
     }
