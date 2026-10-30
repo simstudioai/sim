@@ -876,12 +876,16 @@ try {
       try {
         await page.goto(`${baseUrl.origin}${root}/search?q=Launch%20readiness`)
         await expect(page.getByText('Launch brief', { exact: true }).first()).toBeVisible()
+        const wikiResult = page.locator(
+          'a[data-source-link][href="https://wiki.example.test/launch"]'
+        )
+        await expect(wikiResult).toBeVisible()
         await capture('search-populated-desktop')
         await page.getByRole('button', { name: 'Filter by source: All sources' }).click()
         await capture('search-source-filter')
         await page.getByRole('menuitem', { name: 'Google Drive', exact: true }).click()
         await expect(page).toHaveURL((url) => url.searchParams.get('source') === 'google_drive')
-        await expect(page.getByText('Launch readiness', { exact: true })).toHaveCount(0)
+        await expect(wikiResult).toHaveCount(0)
         await capture('search-filtered')
         await page.getByRole('button', { name: 'Filter by date: Any time' }).click()
         await capture('search-date-filter')
