@@ -1150,6 +1150,8 @@ jobs:
           filters: |
             docs:
               - 'apps/docs/content/**'
+              - 'apps/docs/components/workflow-preview/examples.ts'
+              - 'apps/docs/components/workflow-preview/block-display-workflows.ts'
               - 'apps/docs/scripts/compile-content.ts'
               - 'apps/docs/scripts/index-search.ts'
               - 'apps/docs/lib/content/**'

@@ -13,8 +13,11 @@ import {
   useRef,
   useState,
 } from 'react'
+import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import * as RadixTabs from '@radix-ui/react-tabs'
+import { Check, ChevronDown } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
+import { docsControlClass, docsMenuClass, docsMenuItemClass } from '@/components/docs/primitives'
 
 interface TabContextValue {
   baseId: string
@@ -195,20 +198,55 @@ export function Tabs({
 
 interface TabsListProps extends ComponentPropsWithoutRef<typeof RadixTabs.List> {}
 
-interface TabsSelectProps extends ComponentPropsWithoutRef<'select'> {}
+interface TabsSelectProps
+  extends Omit<ComponentPropsWithoutRef<typeof Dropdown.Trigger>, 'children'> {
+  items: { value: string; label: string }[]
+  label: string
+}
 
-export function TabsSelect({ onChange, ...props }: TabsSelectProps) {
+export function TabsSelect({ items, label, className, ...props }: TabsSelectProps) {
   const context = useContext(TabContext)
   if (!context) throw new Error('TabsSelect must be inside Tabs')
+  const selected = items.find((item) => item.value === context.value)
   return (
-    <select
-      {...props}
-      value={context.value}
-      onChange={(event) => {
-        context.select(event.target.value)
-        onChange?.(event)
-      }}
-    />
+    <Dropdown.Root modal={false}>
+      <Dropdown.Trigger
+        {...props}
+        aria-label={`${label}: ${selected?.label ?? ''}`}
+        className={cn(docsControlClass, 'min-w-0 max-w-full shrink px-2', className)}
+      >
+        <span className='truncate'>{selected?.label}</span>
+        <ChevronDown className='size-4 shrink-0 text-[var(--docs-muted)]' aria-hidden />
+      </Dropdown.Trigger>
+      <Dropdown.Portal>
+        <Dropdown.Content
+          align='start'
+          sideOffset={6}
+          collisionPadding={12}
+          className={cn(
+            'docs-root z-[100] max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[min(28rem,var(--radix-dropdown-menu-content-available-width))] overflow-y-auto overscroll-contain',
+            docsMenuClass
+          )}
+        >
+          <Dropdown.RadioGroup value={context.value} onValueChange={context.select}>
+            {items.map((item) => (
+              <Dropdown.RadioItem
+                key={item.value}
+                value={item.value}
+                className={cn(docsMenuItemClass, 'pointer-coarse:min-h-11')}
+              >
+                <span className='size-4 shrink-0'>
+                  <Dropdown.ItemIndicator>
+                    <Check className='size-4' aria-hidden />
+                  </Dropdown.ItemIndicator>
+                </span>
+                <span className='min-w-0 break-words'>{item.label}</span>
+              </Dropdown.RadioItem>
+            ))}
+          </Dropdown.RadioGroup>
+        </Dropdown.Content>
+      </Dropdown.Portal>
+    </Dropdown.Root>
   )
 }
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { type ReactNode, useId, useState } from 'react'
-import { ChevronDown } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
 import { CodeContent } from '@/components/ui/code-block'
 import { CopyButton } from '@/components/ui/copy-button'
@@ -51,7 +50,9 @@ export function SamplePanels({
       className={cn('my-0 overflow-hidden rounded-lg bg-[var(--docs-surface)]', className)}
     >
       <div className='flex min-h-11 items-center gap-2 px-3'>
-        <span className='shrink-0 font-medium text-docs-control'>{label}</span>
+        <span id={selectorId} className='shrink-0 font-medium text-docs-control'>
+          {label}
+        </span>
         {presentation === 'tabs' ? (
           <TabsList aria-label={`${label} language`}>
             {items.map((item) => (
@@ -61,21 +62,7 @@ export function SamplePanels({
             ))}
           </TabsList>
         ) : (
-          <div className='relative min-w-0'>
-            <TabsSelect
-              id={selectorId}
-              aria-label={`${label} status`}
-              aria-controls={current.id ?? `${selectorId}-${current.value}`}
-              className='h-7 pointer-coarse:min-h-11 w-full cursor-pointer appearance-none rounded-lg bg-transparent py-1 pr-6 pl-2 text-docs-control hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
-            >
-              {items.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </TabsSelect>
-            <ChevronDown className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-1 size-4 text-[var(--docs-muted)]' />
-          </div>
+          <TabsSelect label={`${label} example`} items={items} />
         )}
         <div className='ml-auto shrink-0'>
           <CopyButton text={current.copyText} label={`Copy ${label.toLowerCase()}`} />

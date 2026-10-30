@@ -104,10 +104,10 @@ export function DocsSearchTrigger({ compact = false }: DocsSearchTriggerProps) {
       aria-haspopup='dialog'
       onClick={(event) => show?.(event.currentTarget)}
       className={cn(
-        'flex items-center gap-1.5 rounded-lg text-[var(--docs-muted)] text-docs-nav transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 active:bg-[var(--docs-pressed)]',
+        'flex items-center gap-1.5 rounded-lg text-[var(--docs-muted)] text-docs-nav focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
         compact
-          ? 'size-11 justify-center'
-          : 'h-[30px] w-full border border-[var(--docs-border)] bg-[var(--docs-reading)] px-[7px]'
+          ? 'before:-z-10 relative isolate size-11 justify-center before:absolute before:inset-1.5 before:rounded-lg before:transition-colors hover:before:bg-[var(--docs-hover)] active:before:bg-[var(--docs-pressed)] motion-reduce:before:transition-none'
+          : 'h-[30px] w-full border border-[var(--docs-border)] bg-[var(--docs-reading)] px-[7px] transition-colors hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)] motion-reduce:transition-none'
       )}
     >
       <Search className='size-4 shrink-0' aria-hidden />
@@ -193,6 +193,7 @@ function SearchContents({ close, navigation, sectionLabel }: SearchContentsProps
             setSelected(0)
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               event.preventDefault()
               if (results.length)

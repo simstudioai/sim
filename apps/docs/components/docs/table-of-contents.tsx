@@ -56,7 +56,7 @@ export function TableOfContents({ headings, active, compact = false }: TableOfCo
       </nav>
     </details>
   ) : (
-    <nav aria-label='On this page' className='pl-2'>
+    <nav aria-label='On this page' className='px-2'>
       <h2 className='mb-4 font-medium text-[var(--docs-heading)] text-docs-control leading-5'>
         On this page
       </h2>

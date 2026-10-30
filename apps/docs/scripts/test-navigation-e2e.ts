@@ -743,6 +743,66 @@ try {
     }
   }
 
+  for (const colorScheme of ['light', 'dark'] as const) {
+    for (const width of [320, 768, 1440]) {
+      const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme })
+      try {
+        await check(`API example menu: ${colorScheme} at ${width}px`, async () => {
+          const page = await context.newPage()
+          await open(page, '/api-reference/workflows/listWorkflows')
+          const trigger = page.getByRole('button', { name: /^Response example:/ })
+          await trigger.scrollIntoViewIfNeeded()
+          const selectedRegion = page.getByRole('region', { name: 'Response', exact: true })
+          const initialPanel = await selectedRegion.getAttribute('id')
+          await trigger.focus()
+          await page.keyboard.press('Enter')
+          const menu = page.getByRole('menu')
+          await expect(menu).toBeVisible()
+          await expect(menu).toHaveAttribute(
+            'aria-labelledby',
+            (await trigger.getAttribute('id')) ?? ''
+          )
+          await expect(trigger).toHaveAttribute(
+            'aria-controls',
+            (await menu.getAttribute('id')) ?? ''
+          )
+          await expect(page.getByRole('menuitemradio', { name: /^200/ })).toHaveAttribute(
+            'aria-checked',
+            'true'
+          )
+          const bounds = await menu.boundingBox()
+          if (!bounds) throw new Error('API example menu has no bounds')
+          expect(bounds.x).toBeGreaterThanOrEqual(0)
+          expect(bounds.x + bounds.width).toBeLessThanOrEqual(width)
+          expect(bounds.y + bounds.height).toBeLessThanOrEqual(900)
+          await page.getByRole('menuitemradio', { name: '400', exact: true }).focus()
+          await page.keyboard.press('Enter')
+          await expect(menu).toHaveCount(0)
+          await expect(trigger).toBeFocused()
+          await expect(trigger).toHaveAccessibleName('Response example: 400')
+          const selectedPanel = await selectedRegion.getAttribute('id')
+          if (!initialPanel || !selectedPanel) throw new Error('API examples have no panel IDs')
+          await expect(page.locator(`[id="${initialPanel}"]`)).toBeHidden()
+          await expect(page.locator(`[id="${selectedPanel}"]`)).toBeVisible()
+          await trigger.click()
+          await expect(
+            page.getByRole('menuitemradio', { name: '400', exact: true })
+          ).toHaveAttribute('aria-checked', 'true')
+          await page.screenshot({
+            path: join(directory, `api-example-menu-${colorScheme}-${width}.png`),
+          })
+          await page.keyboard.press('Escape')
+          await expect(trigger).toBeFocused()
+          expect(
+            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+          ).toBe(true)
+        })
+      } finally {
+        await context.close()
+      }
+    }
+  }
+
   const languageContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
   try {
     await check('API language preference survives navigation and reload', async () => {
@@ -792,17 +852,14 @@ try {
         const page = await languageContext.newPage()
         try {
           await open(page, '/api-reference/workflows/executeWorkflowV2')
-          const language = page.getByRole('combobox', { name: 'Request status', exact: true })
-          const python = await language
-            .getByRole('option', { name: /^Python/ })
+          const language = page.getByRole('button', { name: /^Request example:/ })
+          await language.click()
+          await page
+            .getByRole('menuitemradio', { name: /^Python/ })
             .first()
-            .getAttribute('value')
-          if (!python) throw new Error('Execute workflow has no Python request example')
-          await language.selectOption(python)
-          await expect(language).toHaveValue(python)
-          const requestId = await language.getAttribute('aria-controls')
-          if (!requestId) throw new Error('Selected request has no sample panel')
-          const request = page.locator(`[id="${requestId}"] code`)
+            .click()
+          await expect(language).toHaveAccessibleName(/^Request example: Python/)
+          const request = page.getByRole('region', { name: 'Request', exact: true }).locator('code')
           const originalSample = await request.textContent()
           const formats = page.getByRole('tablist', {
             name: '200 response content type',
@@ -822,7 +879,7 @@ try {
             if (!panelId) throw new Error(`Response format ${format} has no panel`)
             const panel = page.locator(`[id="${panelId}"]`)
             await expect(panel).toBeVisible()
-            await expect(language).toHaveValue(python)
+            await expect(language).toHaveAccessibleName(/^Request example: Python/)
             await expect(request).toHaveText(originalSample ?? '')
             const stringTypeVisible = await panel
               .getByText('string', { exact: true })
@@ -989,6 +1046,14 @@ try {
             await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeFocused()
           }
           if (width >= 1280) {
+            const outlineContainer = page.getByRole('complementary').filter({
+              has: page.getByRole('navigation', { name: 'On this page', exact: true }),
+            })
+            expect(
+              await outlineContainer.evaluate(
+                (element) => element.scrollWidth <= element.clientWidth
+              )
+            ).toBe(true)
             const outline = await page
               .getByRole('navigation', { name: 'On this page', exact: true })
               .filter({ visible: true })
@@ -1175,6 +1240,12 @@ try {
         await search.fill('Slack')
         await expect(page.getByRole('option').first()).toBeVisible()
         await page.screenshot({ path: join(directory, 'search-results.png') })
+        const activeResult = await search.getAttribute('aria-activedescendant')
+        await search.dispatchEvent('keydown', { key: 'ArrowDown', isComposing: true })
+        await expect(search).toHaveAttribute('aria-activedescendant', activeResult ?? '')
+        await search.dispatchEvent('keydown', { key: 'Enter', isComposing: true })
+        await expect(page.getByRole('dialog')).toBeVisible()
+        await expect(page).toHaveURL(new URL('/introduction', target).href)
         await search.press('ArrowDown')
         await search.press('Enter')
         await expect(page).not.toHaveURL(new URL('/introduction', target).href)
