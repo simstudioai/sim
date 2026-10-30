@@ -40,9 +40,7 @@ import {
   readIntegrationCatalog,
 } from '@/lib/mothership/integrations/application/catalog'
 
-const hoisted = vi.hoisted(() => ({ flag: vi.fn(async () => true) }))
 const mocks = {
-  ...hoisted,
   discover: mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase,
   mcpPermission: permissionCheckMockFns.mockAssertPermissionsAllowed,
   build: mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas,
@@ -63,7 +61,6 @@ vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspa
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
-vi.mock('@/lib/mothership/feature-flags', () => ({ isSearchIntegrationToolsEnabled: hoisted.flag }))
 
 const input = { mode: 'assistant' as const, mcpServerIds: [], limit: 20 }
 const tools = [
@@ -100,7 +97,6 @@ function queueChat(mode = 'assistant', role = 'member') {
 }
 beforeEach(() => {
   resetDbChainMock()
-  mocks.flag.mockResolvedValue(true)
   mocks.banned.mockResolvedValue([])
   mocks.config.mockResolvedValue(null)
   mocks.build.mockResolvedValue([...tools])
@@ -806,17 +802,6 @@ it('filters organization enabled servers to the authorized target before broad M
     input: { workspaceId: 'workspace-1' },
   })
   expect(discoveredServerIds()).toEqual(['mcp-abc'])
-})
-
-it('removes previously discoverable Search operations when the runtime flag turns off', async () => {
-  for (const enabled of [true, false, true]) {
-    mocks.flag.mockResolvedValue(enabled)
-    queueChat()
-    const result = await readIntegrationCatalog.execute({ principal: principal(), input })
-    expect(result.operations.map((operation) => operation.toolId)).toEqual(
-      enabled ? ['gmail_send', 'slack_send'] : []
-    )
-  }
 })
 
 describe('tagged MCP servers that cannot be discovered', () => {

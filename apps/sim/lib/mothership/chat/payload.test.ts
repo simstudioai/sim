@@ -44,24 +44,16 @@ const {
   mockDashboardAvailability,
   mockSecretNames,
   mockComputerUseAvailable,
-  mockSearchIntegrationToolsEnabled,
 } = vi.hoisted(() => ({
   mockDashboardAvailability: vi.fn(async () => false),
   mockComputerUseAvailable: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
-  mockSearchIntegrationToolsEnabled: vi.fn(async () => true),
 }))
 
 vi.mock('@/lib/computer-use/application/availability', () => ({
   isComputerUseAvailableFor: mockComputerUseAvailable,
 }))
-
-vi.mock('@/lib/mothership/feature-flags', () => ({
-  isSearchIntegrationToolsEnabled: mockSearchIntegrationToolsEnabled,
-}))
-
-beforeEach(() => mockSearchIntegrationToolsEnabled.mockResolvedValue(true))
 
 // The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
 vi.mock('@/lib/mothership/application/execute-organization-secret-use-case', () => ({
@@ -948,49 +940,32 @@ describe('desktop request capabilities', () => {
   })
 })
 
-it('carries only enabled MCP IDs without eager catalog discovery while preserving desktop capabilities', async () => {
-  const { getBlockVisibilityForCopilot } = await import('@/lib/mothership/block-visibility')
-  vi.mocked(getBlockVisibilityForCopilot).mockClear()
-  const principal = createSessionPrincipal({ userId: 'user-org' })
-  const payload = await buildCopilotRequestPayload({
-    message: 'Use my tools',
-    userId: 'user-org',
-    userMessageId: 'message-org',
-    organizationId: 'org-catalog',
-    chatId: 'chat-org',
-    principal,
-    mode: 'agent',
-    model: '',
-    mcpServerIds: ['server-a', 'server-b'],
-    browser: true,
-    terminalCapable: true,
-  })
-  expect(getBlockVisibilityForCopilot).not.toHaveBeenCalled()
-  expect(payload.integrationCatalog).toEqual({ mcpServerIds: ['server-a', 'server-b'] })
-  expect(payload).not.toHaveProperty('integrationTools')
-  expect(payload).not.toHaveProperty('mothershipTools')
-  expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
-})
-
-/** The worker derives both its gateway tools and prompt instructions from this capability. */
-it.each([{ organizationId: 'org-1' }, { workspaceId: 'ws-1' }])(
-  'switches Search integration capability per turn while preserving Build for %j',
-  async (scope) => {
-    for (const enabled of [true, false, true]) {
-      mockSearchIntegrationToolsEnabled.mockResolvedValue(enabled)
-      for (const mode of ['assistant', 'agent', 'plan']) {
-        const payload = await buildCopilotRequestPayload({
-          message: 'Find a person',
-          userId: 'person',
-          userMessageId: 'message',
-          mode,
-          model: '',
-          ...scope,
-        })
-        expect(payload.integrationCatalog).toEqual(
-          mode === 'assistant' && !enabled ? undefined : { mcpServerIds: [] }
-        )
-      }
-    }
+it.each(['assistant', 'agent', 'plan'] as const)(
+  'advertises the integration gateway while isolating MCP and desktop capabilities in %s mode',
+  async (mode) => {
+    const { getBlockVisibilityForCopilot } = await import('@/lib/mothership/block-visibility')
+    vi.mocked(getBlockVisibilityForCopilot).mockClear()
+    const principal = createSessionPrincipal({ userId: 'user-org' })
+    const payload = await buildCopilotRequestPayload({
+      message: 'Use my tools',
+      userId: 'user-org',
+      userMessageId: 'message-org',
+      organizationId: 'org-catalog',
+      chatId: 'chat-org',
+      principal,
+      mode,
+      model: '',
+      mcpServerIds: ['server-a', 'server-b'],
+      browser: true,
+      terminalCapable: true,
+    })
+    expect(getBlockVisibilityForCopilot).not.toHaveBeenCalled()
+    expect(payload.integrationCatalog).toEqual({
+      mcpServerIds: mode === 'assistant' ? [] : ['server-a', 'server-b'],
+    })
+    expect(payload).not.toHaveProperty('integrationTools')
+    expect(payload).not.toHaveProperty('mothershipTools')
+    if (mode === 'assistant') expect(payload.desktop).toBeUndefined()
+    else expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
   }
 )

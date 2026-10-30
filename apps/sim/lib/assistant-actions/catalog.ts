@@ -7,7 +7,6 @@ import { projectIntegrationToolsForViewer } from '@/lib/integrations/tool-projec
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
-import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
@@ -17,17 +16,16 @@ export async function loadAssistantIntegrationTools(
   scope: { organizationId: string; userId: string },
   executor?: DbOrTx
 ) {
-  const [visibility, config, enabled] = await Promise.all([
+  const [visibility, config] = await Promise.all([
     getBlockVisibility({ userId: scope.userId, orgId: scope.organizationId }),
     getUserPermissionConfigForOrganization(scope.organizationId, executor),
-    isSearchIntegrationToolsEnabled(),
   ])
   const tools = projectIntegrationToolsForViewer(visibility, config)
     .tools.map((entry) => ({
       ...entry,
       config: projectAssistantConnectedAccountTool(entry.config),
     }))
-    .filter(({ config: tool }) => enabled && isAssistantIntegrationTool(tool) && tool.oauth)
+    .filter(({ config: tool }) => isAssistantIntegrationTool(tool) && tool.oauth)
   const providers = [
     ...new Set(
       tools.flatMap(({ config: tool }) => {
