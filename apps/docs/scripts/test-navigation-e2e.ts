@@ -7,6 +7,7 @@ import {
   expect,
   type Locator,
   type Page,
+  type Request,
   type Video,
   webkit,
 } from '@playwright/test'
@@ -212,6 +213,105 @@ try {
     }
   } finally {
     await noScript.close()
+  }
+  const prefetchContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: 'reduce',
+  })
+  try {
+    await check(
+      'In-flight intent prefetch transfers a large reference body only once',
+      async () => {
+        const page = await prefetchContext.newPage()
+        const destination = '/integrations/cloudflare'
+        const requests: Array<{ request: Request; beforeClick: boolean }> = []
+        const finished = new Set<Request>()
+        const transfers: Array<{
+          url: string
+          beforeClick: boolean
+          segment?: string
+          prefetch?: string
+          status: number
+          encodedBytes: number
+        }> = []
+        let clicked = false
+        let inFlightAtClick = false
+        try {
+          await open(page, '/integrations/apollo')
+          await page.getByRole('button', { name: 'Menu', exact: true }).click()
+          const link = page
+            .getByRole('navigation', { name: 'Documentation sidebar', exact: true })
+            .getByRole('link', { name: 'Cloudflare', exact: true })
+          await link.scrollIntoViewIfNeeded()
+          const session = await prefetchContext.newCDPSession(page)
+          await session.send('Network.enable')
+          await session.send('Network.emulateNetworkConditions', {
+            offline: false,
+            latency: 150,
+            downloadThroughput: 100 * 1024,
+            uploadThroughput: 100 * 1024,
+          })
+          const isDestination = (request: Request) =>
+            new URL(request.url()).pathname === destination && request.headers().rsc === '1'
+          page.on('request', (request) => {
+            if (isDestination(request)) requests.push({ request, beforeClick: !clicked })
+          })
+          page.on('requestfinished', (request) => finished.add(request))
+          const prefetched = page.waitForRequest((request) => {
+            if (!isDestination(request)) return false
+            const segment = request.headers()['next-router-segment-prefetch']
+            return !segment || segment.endsWith('/__PAGE__')
+          })
+          await link.focus()
+          const pending = await prefetched
+          inFlightAtClick = !finished.has(pending)
+          expect(inFlightAtClick, 'The regression must navigate during a real body transfer').toBe(
+            true
+          )
+          clicked = true
+          await link.click()
+          await expect(
+            page.getByRole('heading', { level: 1, name: 'Cloudflare', exact: true })
+          ).toBeVisible({ timeout: 15000 })
+          await expect(page).toHaveURL(new URL(destination, target).href)
+          await expect(page.locator('main article')).not.toBeEmpty()
+          for (const { request, beforeClick } of requests) {
+            const response = await request.response()
+            if (!response)
+              throw new Error(`Destination request failed: ${request.failure()?.errorText}`)
+            const failure = await response.finished()
+            if (failure) throw failure
+            const sizes = await request.sizes()
+            transfers.push({
+              url: request.url(),
+              beforeClick,
+              segment: request.headers()['next-router-segment-prefetch'],
+              prefetch: request.headers()['next-router-prefetch'],
+              status: response.status(),
+              encodedBytes: sizes.responseBodySize,
+            })
+            expect(response.ok()).toBe(true)
+          }
+          const bodies = transfers.filter((transfer) => transfer.encodedBytes > 64 * 1024)
+          expect(
+            bodies,
+            'Navigation must reuse the large in-flight prefetched response'
+          ).toHaveLength(1)
+          expect(bodies[0]?.beforeClick, 'The large response must originate from intent').toBe(true)
+        } finally {
+          await writeFile(
+            join(directory, 'in-flight-prefetch.json'),
+            `${JSON.stringify({ source: '/integrations/apollo', destination, latencyMs: 150, bytesPerSecond: 100 * 1024, inFlightAtClick, transfers }, null, 2)}\n`
+          )
+          await page.close()
+        }
+      },
+      engine === 'webkit'
+        ? 'Controlled network throttling uses Chromium CDP; Playwright WebKit cannot exercise this transport regression.'
+        : undefined
+    )
+  } finally {
+    await prefetchContext.close()
   }
   const sidebarContext = await browser.newContext({
     viewport: { width: 1440, height: 640 },
@@ -1308,7 +1408,7 @@ try {
   await browser?.close()
   await writeFile(
     reportPath,
-    `${JSON.stringify({ origin: target.origin, engine, limitations: engine === 'webkit' ? ['Clipboard readback and reduced-transparency emulation remain Chromium-only; this is Playwright WebKit, not native Safari.'] : [], results }, null, 2)}\n`
+    `${JSON.stringify({ origin: target.origin, engine, limitations: engine === 'webkit' ? ['Clipboard readback, reduced-transparency emulation and controlled network throttling remain Chromium-only; this is Playwright WebKit, not native Safari.'] : [], results }, null, 2)}\n`
   )
 }
 logger.info('Verified documentation navigation', { checks: results.length, reportPath })

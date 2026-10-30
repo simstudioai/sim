@@ -74,7 +74,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
         >
           <Link
             href={node.url}
-            prefetch={prefetch ? null : false}
+            prefetch={prefetch}
             onMouseEnter={() => setPrefetch(true)}
             onFocus={() => setPrefetch(true)}
             onTouchStart={() => setPrefetch(true)}
