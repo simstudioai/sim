@@ -8,7 +8,7 @@ import {
   trackGoogleEvent,
   trackGooglePageView,
 } from '@/lib/analytics/google'
-import { getGooglePageLocation } from '@/lib/consent/google-context'
+import { getGooglePageLocation, updateGooglePageContext } from '@/lib/consent/google-context'
 import {
   type ConsentScriptCallbackInfo,
   GOOGLE_ADS_ID,
@@ -99,6 +99,53 @@ describe('consent scripts', () => {
 
     expect(getGlobalConsentScripts().some((script) => script.id === 'gtag')).toBe(false)
     expect(getGooglePageLocation('https://www.sim.ai/library')).toBeUndefined()
+  })
+
+  it.each(['/extension', '/extension/o/org-id', '/%65xtension/workspace-id'])(
+    'does not register third-party tracking scripts for %s',
+    (path) => {
+      window.history.replaceState({}, '', path)
+
+      expect(getGlobalConsentScripts()).toEqual([])
+      expect(getGooglePageLocation(window.location.href)).toBeUndefined()
+    }
+  )
+
+  it('stops Google events when navigating into the extension and resumes on public pages', () => {
+    window.history.replaceState({}, '', '/library')
+    getGlobalConsentScripts()[0]?.onBeforeLoad?.(CALLBACK_INFO)
+    window.dataLayer = []
+    window.history.pushState({}, '', '/extension/o/private-org?utm_source=google')
+
+    trackGooglePageView('/extension/o/private-org')
+    trackGoogleEvent('sign_up', { method: 'email' })
+    trackGoogleAdsConversion('demo_booked')
+
+    expect(window.dataLayer).toEqual([])
+
+    window.history.pushState({}, '', '/extension-guide')
+    trackGooglePageView('/extension-guide')
+    expect(window.dataLayer).toContainEqual([
+      'event',
+      'page_view',
+      {
+        page_path: '/extension-guide',
+        page_location: 'https://www.sim.ai/extension-guide',
+        send_to: GOOGLE_ANALYTICS_ID,
+      },
+    ])
+  })
+
+  it('removes extension scope IDs from referrals to public pages', () => {
+    window.history.replaceState({}, '', '/library')
+    getGlobalConsentScripts()[0]?.onBeforeLoad?.(CALLBACK_INFO)
+
+    updateGooglePageContext(window.location.href, 'https://www.sim.ai/extension/o/private-org')
+
+    expect(window.dataLayer.at(-1)).toEqual([
+      'set',
+      expect.objectContaining({ page_referrer: 'https://www.sim.ai/extension' }),
+    ])
   })
 
   it('keeps supported campaign parameters and removes unknown parameters and fragments', () => {
