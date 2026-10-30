@@ -436,22 +436,30 @@ describe('run usage limit', () => {
           reason: 'usage_unavailable',
         }),
     ],
-    [
-      'the account is blocked',
-      () =>
-        mockCheckExecutionUsageLimits.mockResolvedValueOnce({
-          isExceeded: true,
-          reason: 'billing_blocked',
-          scope: 'payer',
-        }),
-    ],
-  ])('keeps the run going when %s, without reading again for a while', async (_case, answer) => {
+  ])(
+    'stops the free run when %s, since its spend past the limit is never billed',
+    async (_case, answer) => {
+      const request = startRequest(startRun())
+      await modelStep(request, 0.1, 0.1)
+      answer()
+
+      await expect(
+        prepareConversationGeneration(request, 'anthropic', { messages: [] })
+      ).rejects.toThrow('usage limit')
+    }
+  )
+
+  it('keeps the run going when the account is blocked, without reading again for a while', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       const request = startRequest(startRun())
       await modelStep(request, 1, 1)
       mockCheckExecutionUsageLimits.mockClear()
-      answer()
+      mockCheckExecutionUsageLimits.mockResolvedValueOnce({
+        isExceeded: true,
+        reason: 'billing_blocked',
+        scope: 'payer',
+      })
 
       await expect(modelStep(request, 1, 1)).resolves.toBeUndefined()
       await expect(modelStep(request, 1, 1)).resolves.toBeUndefined()

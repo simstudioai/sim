@@ -68,8 +68,9 @@ export function recordModelStepCost(
  * overage, so its runs are left to admission and never read here.
  *
  * Reads nothing until the run has spent, then the cached execution gate. A gate that cannot
- * answer, or an account that is blocked, lets the run continue and is not read again for
- * {@link NEAR_LIMIT_USAGE_GATE_TTL_MS}: the next admission refuses it. The stop is not retried,
+ * answer stops the run as if the limit were spent. A blocked account lets the run continue and
+ * is not read again for {@link NEAR_LIMIT_USAGE_GATE_TTL_MS}: the next admission refuses it with
+ * blocked-account copy rather than the upgrade card. The stop is not retried,
  * it carries the cost of the request's settled steps and tool calls so the stopped block is
  * billed for them, and it is attributed to the user so it logs at info, not error.
  */
@@ -94,15 +95,16 @@ export async function assertRunWithinUsageLimit(
   const verdict = await readMidRunUsageVerdict(attribution, unrecorded.total)
   // A run cancelled during the read keeps its cancellation; the provider call then aborts.
   if (verdict.status === 'within' || executionContext.abortSignal?.aborted) return
-  if (verdict.status !== 'exceeded') {
+  if (verdict.status === 'blocked') {
     unrecorded.readDeferredUntil = Date.now() + NEAR_LIMIT_USAGE_GATE_TTL_MS
     return
   }
 
+  const exceeded = verdict.status === 'exceeded' ? verdict : undefined
   const { message } = await resolveUsageUpgradePayload(
     attribution.actorUserId,
-    verdict.payer ?? attribution,
-    verdict.scope
+    exceeded?.payer ?? attribution,
+    exceeded?.scope
   )
   const error = markFailureKind(new RunUsageLimitError(message), 'user')
   if (runtime.settledCost?.total) attachTrustedExecutionCost(error, runtime.settledCost)
