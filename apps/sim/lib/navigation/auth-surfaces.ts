@@ -9,6 +9,7 @@ const AUTH_SURFACE_ROOTS = [
   '/oauth',
   '/oauth-error',
   '/invite',
+  '/unsubscribe',
   '/desktop/auth',
   '/desktop/done',
   '/desktop/connect',

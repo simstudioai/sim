@@ -63,6 +63,7 @@ export interface AuthLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElem
   fullWidth?: boolean
 }
 
+/** Applies Auth action styling to a native link without introducing client routing. */
 export function AuthLinkButton({
   className,
   children,
@@ -82,6 +83,7 @@ export function AuthLinkButton({
 }
 
 interface AuthLabelProps extends LabelHTMLAttributes<HTMLLabelElement> {}
+/** Labels the control identified by htmlFor; feedback association belongs to AuthField. */
 export function AuthLabel({ className, htmlFor, children, ...props }: AuthLabelProps) {
   return (
     <label {...props} htmlFor={htmlFor} className={clsx(styles.label, className)}>
@@ -93,6 +95,7 @@ export function AuthLabel({ className, htmlFor, children, ...props }: AuthLabelP
 interface AuthLoaderProps extends HTMLAttributes<HTMLSpanElement> {
   animate?: boolean
 }
+/** Decorative spinner with utility-overridable sizing; the loading region owns announcements. */
 export function AuthLoader({ className, animate = true, ...props }: AuthLoaderProps) {
   return (
     <span
@@ -106,6 +109,8 @@ export function AuthLoader({ className, animate = true, ...props }: AuthLoaderPr
 interface AuthSkeletonProps extends HTMLAttributes<HTMLSpanElement> {
   shape?: 'title' | 'label' | 'control' | 'divider'
 }
+/** Decorative placeholder whose sizing utilities override the shared shape defaults.
+ * Controls reserve the mobile touch lane while retaining the compact visible surface. */
 export function AuthSkeleton({ className, shape = 'control', ...props }: AuthSkeletonProps) {
   return (
     <span
@@ -125,6 +130,7 @@ interface AuthTextLinkProps {
   disabled?: boolean
   className?: string
 }
+/** Renders a document link when href is provided, otherwise a button; disabled blocks either action. */
 export function AuthTextLink({
   children,
   href,
@@ -136,8 +142,11 @@ export function AuthTextLink({
   const classes = clsx(styles.textLink, className)
   return href ? (
     <a
-      href={href}
-      onClick={onClick}
+      href={disabled ? undefined : href}
+      role={disabled ? 'link' : undefined}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : undefined}
+      onClick={disabled ? undefined : onClick}
       className={classes}
       {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
     >
@@ -155,6 +164,7 @@ interface AuthTagProps {
   className?: string
   variant?: string
 }
+/** Presents compact, non-interactive metadata beside Auth content. */
 export function AuthTag({ children, className }: AuthTagProps) {
   return <span className={clsx(styles.tag, className)}>{children}</span>
 }

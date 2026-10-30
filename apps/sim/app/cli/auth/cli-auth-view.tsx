@@ -89,7 +89,9 @@ export function CliAuthView() {
   const suggested = workspaces.data?.workspaces.some((w) => w.id === request.suggestedWorkspaceId)
     ? request.suggestedWorkspaceId
     : null
-  const workspaceId = selected ?? suggested ?? workspaces.data?.lastActiveWorkspaceId ?? null
+  const workspaceId = workspaces.isError
+    ? null
+    : (selected ?? suggested ?? workspaces.data?.lastActiveWorkspaceId ?? null)
   const chosen = workspaces.data?.workspaces.find((w) => w.id === workspaceId)
 
   return (

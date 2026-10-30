@@ -62,7 +62,6 @@
     "@tanstack/react-virtual": "^3.13.24",
     "class-variance-authority": "^0.7.1",
     "framer-motion": "^12.5.0",
-    "input-otp": "^1.5.0",
     "next": ">=15",
     "prismjs": "^1.30.0",
     "react": "^19",

@@ -76,6 +76,8 @@ interface AuthInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'si
   endAdornment?: ReactNode
   inputClassName?: string
 }
+/** Forwards native input props and ref inside the Auth control and mobile touch lane.
+ * With error and id supplied, associates the `${id}-errors` region from AuthField. */
 export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(function AuthInput(
   {
     className,
@@ -123,6 +125,7 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(function A
   )
 })
 
+/** Adds overridable email entry defaults while leaving input type and validation to the caller. */
 export const AuthEmailInput = forwardRef<HTMLInputElement, AuthInputProps>(
   function AuthEmailInput(props, ref) {
     return (
@@ -140,6 +143,7 @@ export const AuthEmailInput = forwardRef<HTMLInputElement, AuthInputProps>(
 )
 
 interface PasswordInputProps extends Omit<AuthInputProps, 'type' | 'icon' | 'endAdornment'> {}
+/** Keeps password visibility local; forwards field identity, validation, and autocomplete props. */
 export function PasswordInput({
   disabled,
   placeholder = 'Enter your password',
@@ -172,6 +176,7 @@ interface AuthReadonlyInputProps {
   value: string
   label?: string
 }
+/** Provides a labeled pairing code with copy feedback and manual selection on clipboard failure. */
 export function AuthReadonlyInput({ value, label = 'Pairing code' }: AuthReadonlyInputProps) {
   const ref = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -240,6 +245,7 @@ interface AuthOTPProps
   containerClassName?: string
   onComplete?: (value: string) => void
 }
+/** Adapts a controlled numeric code input; the host supplies its accessible name and feedback IDs. */
 export function AuthOTP({ className, containerClassName, ...props }: AuthOTPProps) {
   return (
     <OTPInput
@@ -253,12 +259,14 @@ export function AuthOTP({ className, containerClassName, ...props }: AuthOTPProp
   )
 }
 interface AuthOTPGroupProps extends HTMLAttributes<HTMLDivElement> {}
+/** Groups visual code slots inside AuthOTP while the underlying input owns keyboard interaction. */
 export function AuthOTPGroup({ className, ...props }: AuthOTPGroupProps) {
   return <div {...props} className={clsx(styles.otpGroup, className)} />
 }
 interface AuthOTPSlotProps extends HTMLAttributes<HTMLDivElement> {
   index: number
 }
+/** Displays one indexed slot from the surrounding AuthOTP context. */
 export function AuthOTPSlot({ index, className, ...props }: AuthOTPSlotProps) {
   const { slots } = useContext(OTPInputContext)
   const slot = slots[index]
@@ -470,6 +478,7 @@ interface AuthAccountMenuProps {
   pending?: boolean
   onSwitch: () => void
 }
+/** Keeps account actions in the Auth portal; the host performs sign-out through onSwitch. */
 export function AuthAccountMenu({ email, disabled, pending, onSwitch }: AuthAccountMenuProps) {
   const portal = useContext(PortalContext)
   return (

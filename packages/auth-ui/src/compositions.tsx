@@ -8,6 +8,7 @@ interface AuthHeaderProps {
   titleId?: string
   description?: ReactNode
 }
+/** Owns the page heading; description accepts inline content rendered in a paragraph. */
 export function AuthHeader({ title, titleId, description }: AuthHeaderProps) {
   return (
     <div className={styles.heading}>
@@ -25,6 +26,9 @@ interface AuthFieldProps {
   action?: ReactNode
   children: ReactNode
 }
+/** Connects a label and feedback to a child whose id equals htmlFor.
+ * AuthInput with error=true references the generated `${htmlFor}-errors` region.
+ * Callers supplying a hint include `${htmlFor}-hint` in the input's aria-describedby. */
 export function AuthField({ htmlFor, label, errors, hint, action, children }: AuthFieldProps) {
   return (
     <div className={styles.field}>
@@ -56,9 +60,15 @@ interface AuthFormMessageProps {
   align?: 'left' | 'center'
   children: ReactNode
 }
-export function AuthFormMessage({ type, children }: AuthFormMessageProps) {
+/** Announces errors as alerts and other feedback as status, without owning validation. */
+export function AuthFormMessage({ type, align = 'left', children }: AuthFormMessageProps) {
   return (
-    <div className={styles.feedback} data-tone={type} role={type === 'error' ? 'alert' : 'status'}>
+    <div
+      className={styles.feedback}
+      data-align={align}
+      data-tone={type}
+      role={type === 'error' ? 'alert' : 'status'}
+    >
       <span className={styles.feedbackIcon}>
         <AuthIcon name={type === 'error' ? 'error' : 'check'} />
       </span>
@@ -70,6 +80,7 @@ export function AuthFormMessage({ type, children }: AuthFormMessageProps) {
 interface AuthDividerProps {
   label?: string
 }
+/** Separates alternate actions; an omitted label leaves only the divider line. */
 export function AuthDivider({ label }: AuthDividerProps) {
   return <div className={styles.divider}>{label && <span>{label}</span>}</div>
 }
@@ -80,6 +91,7 @@ interface AuthNavPromptProps {
   linkLabel: string
   onNavigate?: () => void
 }
+/** Links between Auth routes with full-document navigation; the host preserves return context. */
 export function AuthNavPrompt({ prompt, href, linkLabel, onNavigate }: AuthNavPromptProps) {
   return (
     <div className={styles.navPrompt}>
@@ -99,6 +111,8 @@ interface AuthShellViewProps {
   footer?: ReactNode
   titlebar?: ReactNode
 }
+/** Lays out host-supplied branding, navigation, native titlebar, and footer inside AuthRoot.
+ * The shared column owns responsive sizing, while the host owns authentication and routing. */
 export function AuthShellView({
   children,
   logo,
@@ -133,6 +147,7 @@ interface AuthStatusContentProps {
   detail?: ReactNode
   children?: ReactNode
 }
+/** Composes a status heading, optional detail, and recovery actions in the Auth column. */
 export function AuthStatusContent({
   title,
   titleId,
@@ -155,6 +170,7 @@ interface AuthIdentityProps {
   label?: string
   action?: ReactNode
 }
+/** Displays an account identity; the host supplies any account-switch action. */
 export function AuthIdentity({ email, name, label = 'Signed in as', action }: AuthIdentityProps) {
   return (
     <div className={styles.identity}>
@@ -179,6 +195,7 @@ interface AuthResourceRowProps {
   className?: string
   disabled?: boolean
 }
+/** Wraps resource details and responsive actions; disabled does not disable child controls. */
 export function AuthResourceRow({
   icon,
   title,
@@ -207,6 +224,7 @@ interface AuthSectionProps {
   className?: string
   description?: ReactNode
 }
+/** Groups related controls under a section heading without reserving absent description space. */
 export function AuthSection({ title, children, className, description }: AuthSectionProps) {
   return (
     <section className={clsx(styles.stack, className)}>
@@ -224,6 +242,7 @@ interface AuthLegalProps {
   termsHref: string
   privacyHref: string
 }
+/** Uses host-supplied legal URLs, opening them separately without losing form state. */
 export function AuthLegal({ action, termsHref, privacyHref }: AuthLegalProps) {
   return (
     <p className={styles.legal}>
@@ -244,9 +263,11 @@ interface AuthStackProps {
   children: ReactNode
   className?: string
 }
+/** Applies the shared responsive section rhythm; className may adjust layout. */
 export function AuthStack({ children, className }: AuthStackProps) {
   return <div className={clsx(styles.stack, className)}>{children}</div>
 }
+/** Pairs provider actions in two columns, with an odd final action spanning both. */
 export function AuthProviderGroup({ children, className }: AuthStackProps) {
   return <div className={clsx(styles.providers, className)}>{children}</div>
 }
@@ -255,6 +276,7 @@ interface AuthResourceIdentityProps {
   initial: string
   logoUrl?: string | null
 }
+/** Displays a decorative resource logo or initial beside its accessible name. */
 export function AuthResourceIdentity({ initial, logoUrl }: AuthResourceIdentityProps) {
   return (
     <span className={styles.avatar}>

@@ -2,6 +2,7 @@ import type { SVGProps } from 'react'
 
 interface ProviderIconProps extends SVGProps<SVGSVGElement> {}
 
+/** Decorative Google mark; the enclosing provider action supplies its accessible name. */
 export function AuthGoogleIcon(props: ProviderIconProps) {
   return (
     <svg width='16' height='16' viewBox='0 0 24 24' aria-hidden='true' focusable='false' {...props}>
@@ -25,6 +26,7 @@ export function AuthGoogleIcon(props: ProviderIconProps) {
   )
 }
 
+/** Decorative Microsoft mark; the enclosing provider action supplies its accessible name. */
 export function AuthMicrosoftIcon(props: ProviderIconProps) {
   return (
     <svg
@@ -43,6 +45,7 @@ export function AuthMicrosoftIcon(props: ProviderIconProps) {
   )
 }
 
+/** Decorative GitHub mark; the enclosing provider action supplies its accessible name. */
 export function AuthGithubIcon(props: ProviderIconProps) {
   return (
     <svg width='16' height='16' viewBox='0 0 26 26' aria-hidden='true' focusable='false' {...props}>

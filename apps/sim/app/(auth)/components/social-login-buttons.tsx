@@ -58,7 +58,17 @@ export function SocialLoginButtons({
     setError(null)
     setLoadingProvider(provider)
     try {
-      await startSocialSignIn({ provider, view, surface: 'auth_page', callbackURL })
+      const result = await startSocialSignIn({
+        provider,
+        view,
+        surface: 'auth_page',
+        callbackURL,
+      })
+      if (result.error) {
+        throw new Error(
+          result.error.message || `Could not start ${label} sign-in. Please try again.`
+        )
+      }
     } catch (err) {
       logger.error(`${label} sign-in failed`, { error: getErrorMessage(err) })
       setError(getErrorMessage(err, `Could not start ${label} sign-in. Please try again.`))

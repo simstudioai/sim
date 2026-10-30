@@ -2,7 +2,6 @@
 
 import { AuthLinkButton } from '@sim/auth-ui'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { buildAuthCrossLink, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 
@@ -15,11 +14,7 @@ export function AuthNavigation({ registrationDisabled }: AuthNavigationProps) {
   const pathname = usePathname()
   const params = useSearchParams()
   if (pathname !== '/login' && pathname !== '/signup') return null
-  if (
-    pathname === '/login' &&
-    (registrationDisabled || isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')))
-  )
-    return null
+  if (pathname === '/login' && registrationDisabled) return null
   const { rawCallbackUrl: callback, isInviteFlow } = resolveAuthRedirect({
     redirect: params.get('redirect'),
     callbackUrl: params.get('callbackUrl'),

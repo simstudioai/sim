@@ -16,19 +16,20 @@ export function BrandedLayout({ children }: BrandedLayoutProps) {
   useEffect(() => {
     const config = getBrandConfig()
 
-    // Update document title
     if (config.name !== 'Sim') {
       document.title = config.name
     }
 
-    // Update favicon
     if (config.faviconUrl) {
       const faviconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement
       if (faviconLink) {
         faviconLink.href = config.faviconUrl
       }
     }
+  }, [])
 
+  useEffect(() => {
+    const config = getBrandConfig()
     // Public resource routes can move between an Auth gate and their branded viewer.
     const resourceRoute = pathname.startsWith('/f/') || pathname.startsWith('/chat/')
     const syncCustomCss = () => {

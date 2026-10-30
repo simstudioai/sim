@@ -360,12 +360,14 @@
   line-height: inherit;
   font-weight: 400;
 }
-.root .textLink:hover {
+.root .textLink:not(:disabled):not([aria-disabled="true"]):hover {
   color: var(--auth-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.root .textLink:disabled {
+.root .textLink:disabled,
+.root .textLink[aria-disabled="true"] {
+  cursor: not-allowed;
   opacity: var(--auth-disabled);
 }
 .root .feedback {
@@ -375,6 +377,10 @@
   line-height: 18px;
   color: var(--auth-primary);
   overflow-wrap: anywhere;
+}
+.root .feedback[data-align="center"] {
+  justify-content: center;
+  text-align: center;
 }
 .root .feedback[data-tone="error"] {
   color: var(--auth-error);
@@ -509,8 +515,6 @@
 }
 .root .loader {
   display: inline-block;
-  width: 16px;
-  height: 16px;
   border: 1.5px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
@@ -519,23 +523,44 @@
 .root .spinning {
   animation: spin 800ms linear infinite;
 }
+@layer components {
+  .root .loader {
+    width: 16px;
+    height: 16px;
+  }
+  .root .skeleton {
+    height: var(--auth-touch-height);
+    border-radius: 8px;
+  }
+  .root .skeleton[data-shape="title"] {
+    height: 32px;
+  }
+  .root .skeleton[data-shape="label"] {
+    height: 18px;
+    border-radius: 4px;
+  }
+  .root .skeleton[data-shape="divider"] {
+    height: 1px;
+    border-radius: 0;
+  }
+}
 .root .skeleton {
-  display: block;
-  height: 32px;
-  border-radius: 8px;
-  background: var(--auth-hover);
+  display: flex;
+  align-items: center;
+  max-width: 100%;
   animation: pulse 1.5s ease-in-out infinite;
 }
-.root .skeleton[data-shape="title"] {
-  height: 32px;
+.root .skeleton::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--auth-hover);
 }
-.root .skeleton[data-shape="label"] {
-  height: 18px;
-  border-radius: 4px;
-}
-.root .skeleton[data-shape="divider"] {
-  height: 1px;
-  border-radius: 0;
+.root .skeleton[data-shape="control"]::before {
+  height: var(--auth-control-height);
+  max-height: 100%;
 }
 .root .otpLane {
   @apply relative flex items-center;
