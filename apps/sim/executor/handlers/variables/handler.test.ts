@@ -288,4 +288,27 @@ describe('VariablesBlockHandler', () => {
     expect(output).toEqual({ issues: [2] })
     expect(ctx.workflowVariables?.['var-1'].value).toEqual([2])
   })
+
+  it.each([
+    ['by name', { variableName: 'issues' }],
+    ['by variableId', { variableId: 'var-1' }],
+  ])('keeps the target variable type when a row %s omits type', async (_label, selector) => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext({
+      workflowVariables: {
+        'var-1': { id: 'var-1', name: 'issues', type: 'object', value: {} },
+        'var-2': { id: 'var-2', name: 'count', type: 'number', value: 0 },
+      },
+    })
+
+    await handler.execute(ctx, createBlock(), {
+      variables: [
+        { ...selector, value: { open: 2 } },
+        { variableName: 'count', value: 1 },
+      ],
+    })
+
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual({ open: 2 })
+    expect(ctx.workflowVariables?.['var-2'].value).toBe(1)
+  })
 })

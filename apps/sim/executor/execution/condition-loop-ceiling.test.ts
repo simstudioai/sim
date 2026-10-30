@@ -1,5 +1,8 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
-import { createSerializedBlock, createSerializedWorkflow } from '@sim/testing'
+import {
+  createSerializedBlock,
+  createSerializedWorkflow,
+} from '@sim/testing/factories/serialized-block.factory'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType, DEFAULTS } from '@/executor/constants'
 import { DAGExecutor } from '@/executor/execution/executor'
