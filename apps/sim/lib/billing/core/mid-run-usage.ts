@@ -7,6 +7,7 @@ import {
   type AttributedUsageLimitsResult,
   type BillingAttributionSnapshot,
   checkAccountBillingBlocks,
+  checkAttributedUsageLimits,
   refreshAttributionPeriod,
 } from '@/lib/billing/core/attribution'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
@@ -19,9 +20,11 @@ import {
   USAGE_GATE_TTL_MS,
   usageAdmissionTtlMs,
 } from '@/lib/billing/core/usage-gate-cache'
+import { isFree } from '@/lib/billing/plan-helpers'
 import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 
 const logger = createLogger('MidRunUsage')
 
@@ -33,8 +36,9 @@ const logger = createLogger('MidRunUsage')
  * - `blocked`: the account is blocked (payment failed, dispute); the run is refused as a blocked
  *   account, never with the upgrade card.
  * - `unknown`: usage, or the payer's current period, could not be read. Admission fails closed
- *   on an unreadable ledger, but a run already under way continues: a database blip must not
- *   end a paying user's long run, and the next step or re-check reads again.
+ *   on an unreadable ledger. Callers stop a free payer's run on it (see {@link isFreeRunPayer}),
+ *   whose spend past the limit is never billed, and let a paid payer's run continue: a database
+ *   blip must not end a paying user's long run, and the next step or re-check reads again.
  */
 export type MidRunUsageVerdict =
   | { status: 'within' }
@@ -45,6 +49,28 @@ export type MidRunUsageVerdict =
     }
   | { status: 'blocked'; message?: string }
   | { status: 'unknown' }
+
+interface MidRunUsageReadOptions {
+  /**
+   * Reads a free payer's standing from the ledger rather than a cached admission, for a caller
+   * that has just recorded a charge: a free payer is always near its limit, and a cached
+   * admission would let that charge run past it unseen. Paid payers keep the cached admission.
+   */
+  uncachedForFreePayer?: boolean
+}
+
+/**
+ * Whether a run's payer is on the free plan, as admitted. An attributed run reads its payer
+ * subscription (an organization payer without one is free). A direct-v1 decision records a
+ * subscription only for a payer with an entitled one, and a free payer has none.
+ */
+export function isFreeRunPayer(
+  payer: BillingAttributionSnapshot | AccountBillingDecision
+): boolean {
+  return 'payerSubscription' in payer
+    ? isFree(payer.payerSubscription?.plan)
+    : !payer.payerSubscriptionId
+}
 
 /**
  * How long a payer's current period stays cached for mid-run checks. Every model step settles a
@@ -112,13 +138,20 @@ function limitReachedWith(
 
 async function readGateVerdict(
   attribution: BillingAttributionSnapshot,
-  unrecordedCost: number
+  unrecordedCost: number,
+  options: MidRunUsageReadOptions
 ): Promise<MidRunUsageVerdict> {
   let usage: AttributedUsageLimitsResult
   try {
-    usage = await checkExecutionUsageLimits(attribution)
+    usage =
+      options.uncachedForFreePayer && isFreeRunPayer(attribution)
+        ? await withinDeadline(
+            () => checkAttributedUsageLimits(attribution),
+            Date.now() + USAGE_GATE_SETTLE_TIMEOUT_MS
+          )
+        : await checkExecutionUsageLimits(attribution)
   } catch (error) {
-    logger.warn('Mid-run usage read failed; continuing the run', {
+    logger.warn('Mid-run usage read failed', {
       error: getErrorMessage(error),
     })
     return { status: 'unknown' }
@@ -131,7 +164,7 @@ async function readGateVerdict(
     return { status: 'blocked', ...(usage.message ? { message: usage.message } : {}) }
   }
   if (usage.reason === 'usage_unavailable') {
-    logger.warn('Mid-run usage could not be read; continuing the run')
+    logger.warn('Mid-run usage could not be read')
     return { status: 'unknown' }
   }
   return { status: 'exceeded', ...(usage.scope ? { scope: usage.scope } : {}) }
@@ -141,8 +174,8 @@ async function readGateVerdict(
  * Judges a run against the period its charges land in. A Stripe-period payer's charges roll into
  * whatever period the subscription is in now (a rollover or an early anchor reset included), so
  * such a run is judged against the payer's CURRENT period. A current period that cannot be read,
- * or that ends before its verdict is read, makes the verdict unknown, so the run continues and the
- * next callback judges the next period. Any other payer's charges stay in the admitted
+ * or that ends before its verdict is read, makes the verdict unknown, and the next callback judges
+ * the next period. Any other payer's charges stay in the admitted
  * period (a reporting window, or the open default one), so that period is judged, even after it
  * ends.
  *
@@ -150,23 +183,24 @@ async function readGateVerdict(
  */
 export async function readMidRunUsageVerdict(
   attribution: BillingAttributionSnapshot,
-  unrecordedCost = 0
+  unrecordedCost = 0,
+  options: MidRunUsageReadOptions = {}
 ): Promise<MidRunUsageVerdict> {
   if (!isHosted || !isBillingEnabled) return { status: 'within' }
   if (!rollsIntoCurrentPeriod(attribution.billingPeriod)) {
-    return readGateVerdict(attribution, unrecordedCost)
+    return readGateVerdict(attribution, unrecordedCost, options)
   }
   let judged: BillingAttributionSnapshot
   try {
     judged = await currentAttribution(attribution)
   } catch (error) {
-    logger.warn('Current billing period could not be read; continuing the run', {
+    logger.warn('Current billing period could not be read', {
       error: getErrorMessage(error),
     })
     return { status: 'unknown' }
   }
   if (periodHasEnded(judged)) return { status: 'unknown' }
-  const verdict = await readGateVerdict(judged, unrecordedCost)
+  const verdict = await readGateVerdict(judged, unrecordedCost, options)
   // A period that ended during the read is judged at the next callback, which reloads it.
   return periodHasEnded(judged) ? { status: 'unknown' } : verdict
 }
@@ -187,9 +221,12 @@ const accountVerdictCache = new LRUCache<string, MidRunUsageVerdict>({
  * payer, in the gate's order: a blocked actor or payer first, then the payer's spend. The payer
  * is the one saved in the decision at admission, never re-selected from the actor's current
  * memberships, and the period judged is the one its charges land in, as for attributed runs.
+ * Whether {@link MidRunUsageReadOptions.uncachedForFreePayer} applies is judged by the plan the
+ * run was admitted with, as {@link isFreeRunPayer} judges it.
  */
 export async function readMidRunAccountUsageVerdict(
-  decision: AccountBillingDecision
+  decision: AccountBillingDecision,
+  options: MidRunUsageReadOptions = {}
 ): Promise<MidRunUsageVerdict> {
   if (!isHosted || !isBillingEnabled) return { status: 'within' }
   try {
@@ -220,7 +257,8 @@ export async function readMidRunAccountUsageVerdict(
       subscription?.status ?? '',
       subscription?.seats ?? '',
     ].join(':')
-    const cached = accountVerdictCache.get(key)
+    const uncached = options.uncachedForFreePayer === true && isFreeRunPayer(decision)
+    const cached = uncached ? undefined : accountVerdictCache.get(key)
     if (cached) return cached
     const block = await checkAccountBillingBlocks(decision)
     if (block.blocked) {
@@ -240,15 +278,16 @@ export async function readMidRunAccountUsageVerdict(
             periodEnd: billingPeriod.end,
           }
         : null)
-    const usage = await coalesceLocally(
-      `mid-run-account-usage:${key}`,
-      () =>
-        checkUsageStatus(decision.userId, usageSubscription, {
-          billingEntity: payer,
-          billingPeriod,
-        }),
-      USAGE_GATE_SETTLE_TIMEOUT_MS
-    )
+    const readUsage = () =>
+      checkUsageStatus(decision.userId, usageSubscription, { billingEntity: payer, billingPeriod })
+    // A shared in-flight read may have started before this caller's charge was recorded.
+    const usage = uncached
+      ? await withinDeadline(readUsage, Date.now() + USAGE_GATE_SETTLE_TIMEOUT_MS)
+      : await coalesceLocally(
+          `mid-run-account-usage:${key}`,
+          readUsage,
+          USAGE_GATE_SETTLE_TIMEOUT_MS
+        )
     if (usage.unavailable) return { status: 'unknown' }
     if (usage.isExceeded) {
       return {
@@ -261,7 +300,7 @@ export async function readMidRunAccountUsageVerdict(
     accountVerdictCache.set(key, within, { ttl: usageAdmissionTtlMs(usage) })
     return within
   } catch (error) {
-    logger.warn('Mid-run account usage read failed; continuing the run', {
+    logger.warn('Mid-run account usage read failed', {
       error: getErrorMessage(error),
     })
     return { status: 'unknown' }

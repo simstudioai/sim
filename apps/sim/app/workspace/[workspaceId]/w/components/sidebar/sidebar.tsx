@@ -52,6 +52,7 @@ import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { isIntegrationUsable } from '@/lib/integrations/access'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
@@ -144,6 +145,7 @@ import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useContextMenu } from '@/hooks/use-context-menu'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -419,10 +421,10 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
   const {
     config: permissionConfig,
     filterBlocks,
-    isBlockAllowed,
     isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
+  const { getAccess: getIntegrationAccess } = useIntegrationAccess(workspaceId)
   const accessRequests = useWorkspaceAccessRequestFeatures()
   const accessRequestsEnabled = accessRequests.data?.enabled === true
   const { getSettingsHref, navigateToSettings } = useSettingsNavigation()
@@ -1136,14 +1138,22 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
     () =>
       permissionConfig.hideIntegrationsTab
         ? []
-        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType) => {
-            const availability = integrationAvailability.get(blockType.toLowerCase())
-            if (!availability) return CONNECT_MODE.oauth
-            if (availability?.oauthAvailable) return CONNECT_MODE.oauth
-            if (availability?.state === 'limited') return CONNECT_MODE.serviceAccount
-            return null
-          }),
-    [workspaceId, permissionConfig.hideIntegrationsTab, isBlockAllowed, integrationAvailability]
+        : buildIntegrationSearchItems(
+            workspaceId,
+            (blockType) => isIntegrationUsable(getIntegrationAccess(blockType)),
+            (blockType) => {
+              const availability = integrationAvailability.get(blockType.toLowerCase())
+              if (!availability || availability.oauthAvailable) return CONNECT_MODE.oauth
+              if (availability.state === 'limited') return CONNECT_MODE.serviceAccount
+              return null
+            }
+          ),
+    [
+      workspaceId,
+      permissionConfig.hideIntegrationsTab,
+      getIntegrationAccess,
+      integrationAvailability,
+    ]
   )
 
   const searchModalConnectedAccounts = useMemo(

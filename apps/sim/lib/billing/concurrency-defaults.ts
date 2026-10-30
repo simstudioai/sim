@@ -6,7 +6,7 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
  * and `team` is the Max tier covering Max and Max for Teams.
  */
 export const DEFAULT_BILLING_CONCURRENCY_LIMITS = {
-  free: 10,
+  free: 2,
   pro: 50,
   team: 200,
   enterprise: 1000,

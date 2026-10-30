@@ -5,7 +5,7 @@ description: 'Sim vs n8n vs OpenAI AgentKit: how an agent-first, an automation-f
 seoTitle: 'Sim vs n8n vs OpenAI AgentKit: Which to Use in 2026?'
 seoDescription: 'Sim, n8n and OpenAI AgentKit compared on model choice, self-hosting, licensing and pricing, with fit guidance for each type of team.'
 date: 2025-10-06
-updated: 2026-10-24
+updated: 2026-10-29
 authors:
   - emir
 readingTime: 18
@@ -103,7 +103,7 @@ This page compares the three architectures. For a detailed two-way breakdown of 
 
 ## TL;DR
 
-Choose **Sim** when agents and LLM workflows are the product, you want a visual workflow builder, and ownership of Sim's Apache 2.0 core matters, subject to the [separate license for `apps/sim/ee`](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Choose **n8n** when conventional app integrations, triggers, data movement, and operational automation are the center of the workflow. Choose **OpenAI AgentKit** when your application is committed to OpenAI models and current platform services, but do not start a new architecture around Agent Builder or the Evals platform, which [OpenAI has scheduled to shut down on November 30, 2026](https://openai.com/index/introducing-agentkit/).
+Choose **Sim** when agents and LLM workflows are the product, you want a visual workflow builder, and ownership of Sim's Apache 2.0 core matters, subject to the [separate license for `apps/sim/ee`](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Choose **n8n** when conventional app integrations, triggers, data movement, and operational automation are the center of the workflow. Choose **OpenAI AgentKit** when your application is committed to OpenAI models and current platform services, but do not start a new architecture around Agent Builder or the Evals platform, which [OpenAI has scheduled to shut down on November 30, 2026](https://developers.openai.com/api/docs/deprecations).
 
 ## What is the difference between Sim, n8n, and OpenAI AgentKit?
 
@@ -210,7 +210,7 @@ OpenAI AgentKit is best understood as a family of OpenAI-native agent capabiliti
 
 ![OpenAI AgentKit workflow interface](/library/openai-vs-n8n-vs-sim/openai.png)
 
-This comparison requires an important October 2026 qualification: OpenAI is deprecating Agent Builder and the Evals platform. Agent Builder is scheduled to shut down on November 30, 2026; the Evals platform becomes read-only on October 31, 2026 and is also scheduled to shut down on November 30. OpenAI recommends exporting Agent Builder workflows to the Agents SDK or moving to Workspace Agents, while programmatic evals continue through the Evals API. These dates and migration paths come from OpenAI's [Agent Builder migration guide](https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder) and [Evals documentation](https://developers.openai.com/api/docs/guides/evals).
+This comparison requires an important October 2026 qualification: OpenAI is deprecating Agent Builder and the Evals platform. Agent Builder is scheduled to shut down on November 30, 2026; the Evals platform becomes read-only on October 31, 2026, and its dashboard and API are also scheduled to shut down on November 30. OpenAI recommends exporting Agent Builder workflows to the Agents SDK or moving to Workspace Agents. These dates and migration paths come from OpenAI's [Agent Builder migration guide](https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder) and [deprecations page](https://developers.openai.com/api/docs/deprecations). For a head-to-head view and step-by-step migration to Sim, see the [Sim vs OpenAI AgentKit comparison](https://www.sim.ai/comparisons/openai-agentkit).
 
 OpenAI's remaining stack fits teams already using OpenAI models and services. Application code built with the Agents SDK may run in a team's own environment, while managed models, tools, and platform capabilities remain OpenAI services.
 

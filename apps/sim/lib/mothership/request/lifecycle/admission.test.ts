@@ -112,15 +112,40 @@ describe('continuation admission', () => {
     await authorizeLifecycleContinuation(context)
     expect(mockCheckExecutionUsageLimits).not.toHaveBeenCalled()
   })
-  it('continues a leg when spend cannot be read', async () => {
+  it('continues a paid payer leg when spend cannot be read', async () => {
+    const paid = {
+      ...context,
+      billingAttribution: {
+        ...attribution,
+        payerSubscription: {
+          id: 'sub-org',
+          referenceId: 'original-org',
+          plan: 'team',
+          status: 'active',
+          seats: 4,
+          periodStart: attribution.billingPeriod.start,
+          periodEnd: attribution.billingPeriod.end,
+        },
+      },
+    }
     mockCheckExecutionUsageLimits.mockRejectedValueOnce(new Error('ledger read timed out'))
-    await expect(authorizeLifecycleContinuation(context)).resolves.toBeUndefined()
+    await expect(authorizeLifecycleContinuation(paid)).resolves.toBeUndefined()
 
     mockCheckExecutionUsageLimits.mockResolvedValueOnce({
       isExceeded: true,
       reason: 'usage_unavailable',
     })
-    await expect(authorizeLifecycleContinuation(context)).resolves.toBeUndefined()
+    await expect(authorizeLifecycleContinuation(paid)).resolves.toBeUndefined()
+  })
+  it('refuses a free payer leg when spend cannot be read', async () => {
+    mockCheckExecutionUsageLimits.mockRejectedValueOnce(new Error('ledger read timed out'))
+    await expect(authorizeLifecycleContinuation(context)).rejects.toBeInstanceOf(BillingLimitError)
+
+    mockCheckExecutionUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      reason: 'usage_unavailable',
+    })
+    await expect(authorizeLifecycleContinuation(context)).rejects.toBeInstanceOf(BillingLimitError)
   })
   it('refuses a payer the gate finds blocked as a blocked account, not with the usage card', async () => {
     mockCheckExecutionUsageLimits.mockResolvedValueOnce({
@@ -141,6 +166,15 @@ describe('continuation admission', () => {
         start: '2026-07-01T00:00:00.000Z',
         end: '2026-08-01T00:00:00.000Z',
         source: 'stripe' as const,
+      },
+      payerSubscription: {
+        id: 'sub-org',
+        referenceId: 'original-org',
+        plan: 'team',
+        status: 'active',
+        seats: 4,
+        periodStart: '2026-07-01T00:00:00.000Z',
+        periodEnd: '2026-08-01T00:00:00.000Z',
       },
     }
     mockGetOrganizationSubscription.mockResolvedValue({

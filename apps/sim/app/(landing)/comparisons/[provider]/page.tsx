@@ -11,6 +11,7 @@ import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/componen
 import { ComparisonCards } from '@/app/(landing)/comparisons/components/comparison-cards'
 import { ComparisonLinkRow } from '@/app/(landing)/comparisons/components/comparison-link-row'
 import { ComparisonTable } from '@/app/(landing)/comparisons/components/comparison-table'
+import { MigrationSection } from '@/app/(landing)/comparisons/components/migration-section'
 import { ProseText } from '@/app/(landing)/comparisons/components/prose-text'
 import { getLibraryPostsForCompetitor } from '@/app/(landing)/comparisons/library-links'
 import {
@@ -61,8 +62,10 @@ export async function generateMetadata({
   }
 
   return buildLandingMetadata({
-    title: `Sim vs ${competitor.name} | Sim, the AI Workspace`,
-    description: `Compare Sim, the open-source AI workspace, to ${competitor.name} on platform, AI, integrations, pricing, security, and support. Sourced and dated facts.`,
+    title: competitor.seoTitle ?? `Sim vs ${competitor.name} | Sim, the AI Workspace`,
+    description:
+      competitor.seoDescription ??
+      `Compare Sim, the open-source AI workspace, to ${competitor.name} on platform, AI, integrations, pricing, security, and support. Sourced and dated facts.`,
     path: `/comparisons/${competitor.id}`,
     keywords: [
       `Sim vs ${competitor.name}`,
@@ -215,6 +218,12 @@ export default async function ComparisonProviderPage({
 
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
           <div className='border-[var(--border)] border-x'>
+            {competitor.migration ? (
+              <>
+                <MigrationSection migration={competitor.migration} />
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            ) : null}
             {competitor.betterThanAnswer ? (
               <>
                 <section aria-labelledby='better-than-heading' className='px-6 py-10'>
