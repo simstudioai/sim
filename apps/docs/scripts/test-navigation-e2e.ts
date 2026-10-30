@@ -376,6 +376,17 @@ try {
               path: join(directory, `toc-anchor-${width}.png`),
               animations: 'disabled',
             })
+            if (width < 1280)
+              await page
+                .getByText('On this page', { exact: true })
+                .filter({ visible: true })
+                .click()
+            await page.getByRole('link', { name: 'Next steps', exact: true }).click()
+            for (const lastLink of await page
+              .locator('nav[aria-label="On this page"] a[href="#next-steps"]')
+              .all()) {
+              await expect(lastLink).toHaveAttribute('aria-current', 'location')
+            }
           }
         } finally {
           await page.close()

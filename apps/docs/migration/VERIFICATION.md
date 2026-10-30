@@ -45,6 +45,8 @@ The first PR CI run exposed two setup differences from the local verification: t
 
 The production build passes 48 browser scenarios, 2,996 corpus/asset checks, and 15 machine-interface checks after the shared styling review. Six new browser regressions failed before the fixes: nested TOC selection, shortcut dismissal focus, and empty-search navigation in Documentation, API, CLI, and MCP. The TOC scenario checks desktop, tablet, and mobile header clearance; the search scenarios also verify that clearing a failed query restores section defaults. The [pre-fix report](verification/navigation-before-polish.json) records those failures.
 
+The TOC scenario also checks every responsive copy and the final section when scrolling reaches the document's end. Its [pre-fix failure](verification/toc-end-before-fix.json) demonstrates the viewport-clamping case. One shell-owned subscription now drives the outline, including this end-of-document state.
+
 Root lint and all 26 workspace type checks passed. All 61 audit checks passed after deleting the unused legacy class-helper re-export and rerunning the dead-code check. The docs workspace test and block-registry checks passed. The latest full repository test command stopped at a five-second timeout in `scripts/desktop-e2e.test.ts` (633 other script tests passed); the isolated rerun also timed out. The earlier full application-test result in the table remains historical, not a claim about this latest run.
 
 ### Performance evidence
