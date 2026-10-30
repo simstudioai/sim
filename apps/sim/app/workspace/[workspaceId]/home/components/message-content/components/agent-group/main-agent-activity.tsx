@@ -8,6 +8,7 @@ import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 
 interface MainAgentActivityProps {
+  standaloneToolIds?: ReadonlySet<string>
   activity?: ToolActivity
   items: AgentGroupItem[]
   ToolCallComponent: ComponentType<ToolCallItemProps>
@@ -31,8 +32,9 @@ export function MainAgentActivity({
   renderItem,
   autoScrollActivity,
   liveToolId,
+  standaloneToolIds,
 }: MainAgentActivityProps) {
-  const entries = splitMainLane(items)
+  const entries = splitMainLane(items, standaloneToolIds)
   const runActivity =
     groupActivity && !isAgentGroupResolved(items)
       ? omit(groupActivity, ['completedTitle'])

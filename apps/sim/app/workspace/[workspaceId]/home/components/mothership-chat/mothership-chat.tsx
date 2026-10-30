@@ -60,6 +60,7 @@ import {
   UserInput,
   type UserInputHandle,
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import {
   fetchWorkspaceResourceRef,
@@ -84,15 +85,19 @@ interface MothershipChatProps {
   SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   workspaceId?: string
   composer?: ReactNode
+  composerAttachments?: ReactNode
+  composerResourceActions?: ReactNode
+  composerModelSelectorOptions?: ModelSelectorOptions
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
   isLoading?: boolean
+  /** Returning false synchronously preserves the composer draft. */
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
-  ) => void
+  ) => unknown
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
@@ -111,9 +116,13 @@ interface MothershipChatProps {
    */
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
   onViewSources?: (messageId: string, requestId?: string) => void
+  onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
+  /** Keeps the live composer mounted when a pending conversation receives its durable ID. */
+  composerKey?: string
   layout?: 'mothership-view' | 'copilot-view'
+  reserveResourceHeader?: boolean
   initialScrollBlocked?: boolean
   animateInput?: boolean
   onInputAnimationEnd?: () => void
@@ -381,6 +390,9 @@ export function MothershipChat({
   SearchConnectionComponent,
   workspaceId,
   composer,
+  composerAttachments,
+  composerResourceActions,
+  composerModelSelectorOptions,
   messages: messagesProp,
   isSending,
   isReconnecting = false,
@@ -399,9 +411,12 @@ export function MothershipChat({
   onContextAdd,
   onContextRemove,
   onViewSources,
+  onNavigateToChat,
   onWorkspaceResourceSelect,
   draftScopeKey,
+  composerKey,
   layout = 'mothership-view',
+  reserveResourceHeader = true,
   initialScrollBlocked = false,
   animateInput = false,
   onInputAnimationEnd,
@@ -874,6 +889,17 @@ export function MothershipChat({
   }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer, find.isOpen])
 
   const virtualItems = virtualizer.getVirtualItems()
+  const receiptQueryOwners = new Map<string, string>()
+  const mountedReceiptMessages = new Map<string, string[]>()
+  for (const item of virtualItems) {
+    const message = messages[item.index]
+    if (message.streamId) {
+      receiptQueryOwners.set(message.streamId, message.id)
+      const ids = mountedReceiptMessages.get(message.streamId) ?? []
+      ids.push(message.id)
+      mountedReceiptMessages.set(message.streamId, ids)
+    }
+  }
 
   return (
     <ChatSurfaceProvider
@@ -883,6 +909,7 @@ export function MothershipChat({
       onContextAdd={onContextAdd}
       onContextRemove={onContextRemove}
       onViewSources={onViewSources}
+      onNavigateToChat={onNavigateToChat}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div
@@ -892,6 +919,7 @@ export function MothershipChat({
         className={cn(
           'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
           layout === 'mothership-view' &&
+            reserveResourceHeader &&
             'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
           inter.className,
           className
@@ -946,7 +974,16 @@ export function MothershipChat({
                     className='absolute left-0 w-full'
                     style={{ top: virtualItem.start }}
                   >
-                    <AssistantActionReviewMessage messageId={msg.id}>
+                    <AssistantActionReviewMessage
+                      messageId={msg.id}
+                      mountedMessageIds={
+                        (msg.streamId && mountedReceiptMessages.get(msg.streamId)) || [msg.id]
+                      }
+                      mountedReceiptTurnCount={receiptQueryOwners.size}
+                      isReceiptQueryOwner={
+                        !msg.streamId || receiptQueryOwners.get(msg.streamId) === msg.id
+                      }
+                    >
                       {msg.role === 'user' ? (
                         interactionPairing.hiddenUserByIndex[index] ? null : msg.origin ? (
                           <AutomatedTurnRow
@@ -1008,9 +1045,12 @@ export function MothershipChat({
             {!isLoading &&
               (composer ?? (
                 <UserInput
-                  key={draftScopeKey}
+                  key={composerKey ?? draftScopeKey}
                   ref={userInputRef}
                   onSubmit={onSubmit}
+                  attachments={composerAttachments}
+                  resourceActions={composerResourceActions}
+                  modelSelectorOptions={composerModelSelectorOptions}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
                   isInitialView={false}

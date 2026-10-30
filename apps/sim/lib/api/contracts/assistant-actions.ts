@@ -96,6 +96,7 @@ export const listAssistantActionsContract = defineRouteContract({
         .array(
           z.object({
             toolCallId: z.string().min(1).max(256),
+            sequence: z.number().int().nonnegative().nullish(),
             runId: z.uuid(),
             toolId: toolIdSchema,
             name: z.string().max(512),
@@ -157,3 +158,59 @@ export const decideAssistantActionContract = defineRouteContract({
 
 export type AssistantActionsResponse = z.output<typeof listAssistantActionsContract.response.schema>
 export type AssistantActionDecisionBody = z.input<typeof decisionBodySchema>
+
+export const listAssistantActionReceiptsContract = defineRouteContract({
+  method: 'GET',
+  path: `${reviewPath}/receipts`,
+  params: reviewParamsSchema,
+  query: z.union([
+    z
+      .object({
+        streamId: z.string().min(1).max(256),
+        cursor: z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+      })
+      .strict(),
+    z
+      .object({
+        toolCallIds: z
+          .union([toolIdSchema, z.array(toolIdSchema).min(1).max(32)])
+          .transform((ids) => [...new Set(typeof ids === 'string' ? [ids] : ids)]),
+      })
+      .strict(),
+  ]),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      receipts: z
+        .array(
+          listAssistantActionsContract.response.schema.shape.actions.element
+            .omit({ proposalVersion: true })
+            .extend({
+              sequence: z.number().int().nonnegative().nullable(),
+              streamId: z.string().min(1).max(256),
+              state: z.enum([
+                'pending',
+                'approved',
+                'running',
+                'succeeded',
+                'cancelled',
+                'failed',
+                'uncertain',
+              ]),
+              unsettled: z.boolean(),
+              decision: z.enum(['allow', 'skip', 'allow_chat', 'always_allow']).nullable(),
+              decidedAt: z.iso.datetime().nullable(),
+              completedAt: z.iso.datetime().nullable(),
+              detailsAvailable: z.boolean(),
+              warning: z.string().max(2048).nullable(),
+            })
+        )
+        .max(32),
+      nextCursor: z.number().int().nonnegative().nullable(),
+    }),
+  },
+})
+
+export type AssistantActionReceiptsResponse = z.output<
+  typeof listAssistantActionReceiptsContract.response.schema
+>

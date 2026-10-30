@@ -47,6 +47,7 @@ function fixture() {
     ['apps/sim', '@sim/app', { '@sim/auth': 'workspace:*', '@sim/db': 'workspace:*' }],
     ['apps/realtime', '@sim/realtime', { '@sim/auth': 'workspace:*' }],
     ['apps/desktop', '@sim/desktop', {}],
+    ['apps/extension', '@sim/extension', {}],
     ['apps/docs', 'docs', {}],
     ['packages/auth', '@sim/auth', { '@sim/security': 'workspace:*' }],
     ['packages/security', '@sim/security', {}],
@@ -144,7 +145,7 @@ describe('CI task attribution through real Turborepo', () => {
       'apps/sim/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event.ts',
     ])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['desktop-inbox', 'mobile', 'seo'])
+    expect(groups(plan)).toEqual(['browser-extension', 'desktop-inbox', 'mobile', 'seo'])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
       integration: true,
@@ -214,6 +215,7 @@ describe('CI task attribution through real Turborepo', () => {
   })
   it.each([
     ['test-mobile-e2e.ts', 'mobile'],
+    ['test-browser-extension-e2e.ts', 'browser-extension'],
     ['test-project-file-sharing-e2e.ts', 'project-files'],
     ['test-scim-e2e.ts', 'scim'],
     ['test-landing-seo-e2e.ts', 'seo'],
@@ -234,6 +236,7 @@ describe('CI task attribution through real Turborepo', () => {
     const plan = classifyFiles(['packages/security/src/index.ts'])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([
+      'browser-extension',
       'cli',
       'desktop-inbox',
       'mobile',

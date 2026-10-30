@@ -1,9 +1,14 @@
+import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 import {
   mothershipResourceSchema,
   mothershipTableViewContextSchema,
 } from '@/lib/api/contracts/mothership-resources'
-import { MAX_CHAT_CONTEXT_LABEL_LENGTH } from '@/lib/mothership/chat/context-limits'
+import {
+  MAX_CHAT_CONTEXT_LABEL_LENGTH,
+  MAX_CHAT_CONTEXTS,
+} from '@/lib/mothership/chat/context-limits'
+import { getPageContextBudgetError } from '@/lib/mothership/chat/page-context'
 import {
   CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH,
   MAX_FILE_SELECTION_TEXT_LENGTH,
@@ -72,11 +77,13 @@ export const chatContextSchema = z
       'skill',
       'mcp',
       'browser_tab',
+      'browser_page',
       'terminal_tab',
       'workspace',
       'project',
     ]),
     label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
+    snapshot: pageSnapshotSchema.optional(),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     knowledgeId: z.string().optional(),
@@ -108,45 +115,62 @@ export const chatContextSchema = z
     columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
     selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
   })
-  .superRefine(({ kind, selection, workspaceId, projectId, owner }, refinementContext) => {
-    if (
-      (kind === 'project' && (!projectId || workspaceId !== undefined)) ||
-      (kind !== 'project' && projectId !== undefined)
-    ) {
-      refinementContext.addIssue({
-        code: 'custom',
-        path: ['projectId'],
-        message: 'A Project context requires only a Project target',
-      })
+  .superRefine(
+    ({ kind, snapshot, selection, workspaceId, projectId, owner }, refinementContext) => {
+      if ((kind === 'browser_page') !== (snapshot !== undefined)) {
+        refinementContext.addIssue({
+          code: 'custom',
+          path: ['snapshot'],
+          message: 'A page snapshot is required only for a browser_page context',
+        })
+      }
+      if (
+        (kind === 'project' && (!projectId || workspaceId !== undefined)) ||
+        (kind !== 'project' && projectId !== undefined)
+      ) {
+        refinementContext.addIssue({
+          code: 'custom',
+          path: ['projectId'],
+          message: 'A Project context requires only a Project target',
+        })
+      }
+      if (
+        owner &&
+        ((kind !== 'file' && kind !== 'file_selection') ||
+          (owner.entityType !== 'workspace' && workspaceId) ||
+          (owner.entityType === 'workspace' && workspaceId && owner.entityId !== workspaceId))
+      )
+        refinementContext.addIssue({
+          code: 'custom',
+          path: ['owner'],
+          message: 'File owner conflicts with the context target',
+        })
+      if (kind === 'workspace' && !workspaceId) {
+        refinementContext.addIssue({
+          code: 'custom',
+          message: 'workspaceId is required for a workspace context',
+          path: ['workspaceId'],
+        })
+      }
+      if (!selection) return
+      const isTerminalSelection = 'startLine' in selection
+      const selectionMatchesKind =
+        (kind === 'browser_tab' && !isTerminalSelection) ||
+        (kind === 'terminal_tab' && isTerminalSelection)
+      if (!selectionMatchesKind) {
+        refinementContext.addIssue({
+          code: 'custom',
+          message: 'selection must match its browser_tab or terminal_tab context kind',
+          path: ['selection'],
+        })
+      }
     }
-    if (
-      owner &&
-      ((kind !== 'file' && kind !== 'file_selection') ||
-        (owner.entityType !== 'workspace' && workspaceId) ||
-        (owner.entityType === 'workspace' && workspaceId && owner.entityId !== workspaceId))
-    )
-      refinementContext.addIssue({
-        code: 'custom',
-        path: ['owner'],
-        message: 'File owner conflicts with the context target',
-      })
-    if (kind === 'workspace' && !workspaceId) {
-      refinementContext.addIssue({
-        code: 'custom',
-        message: 'workspaceId is required for a workspace context',
-        path: ['workspaceId'],
-      })
-    }
-    if (!selection) return
-    const isTerminalSelection = 'startLine' in selection
-    const selectionMatchesKind =
-      (kind === 'browser_tab' && !isTerminalSelection) ||
-      (kind === 'terminal_tab' && isTerminalSelection)
-    if (!selectionMatchesKind) {
-      refinementContext.addIssue({
-        code: 'custom',
-        message: 'selection must match its browser_tab or terminal_tab context kind',
-        path: ['selection'],
-      })
-    }
+  )
+
+export const chatContextsSchema = z
+  .array(chatContextSchema)
+  .max(MAX_CHAT_CONTEXTS)
+  .superRefine((contexts, ctx) => {
+    const message = getPageContextBudgetError(contexts)
+    if (message) ctx.addIssue({ code: 'custom', message })
   })

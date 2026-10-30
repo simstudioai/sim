@@ -8,7 +8,7 @@ import type { CommandSpec } from '../../contract/types'
 import { setSoftExitCode } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
-import { apiCommand } from '../../runtime/called-operations'
+import { apiCommand, type Connection } from '../../runtime/called-operations'
 import { renderResult } from '../../runtime/result'
 
 /**
@@ -78,9 +78,9 @@ const DEFAULT_WAIT_TIMEOUT_SECONDS = 3600
  * many of them. Two knobs both called "timeout" would be read as one, and the
  * failure that follows is silent — raising the wrong one changes nothing.
  */
-const WAIT_TIMEOUT_FLAG = '--wait-timeout <seconds>'
+export const WAIT_TIMEOUT_FLAG = '--wait-timeout <seconds>'
 
-interface RunSnapshot {
+export interface RunSnapshot {
   status: string
   /** `time` resumes itself; `human` and null wait for a person. */
   pauseKind: string | null
@@ -175,7 +175,7 @@ function waitProgress(): WaitProgress {
   }
 }
 
-function parseWaitTimeout(raw: string): number {
+export function parseWaitTimeout(raw: string): number {
   const seconds = Number(raw)
   if (!Number.isFinite(seconds) || seconds < 0) {
     throw new SimApiError(
@@ -209,6 +209,76 @@ function runSpec(): CommandSpec {
   return CLI_CONTRACT.getWorkflowRun ?? {}
 }
 
+interface RunWait {
+  runId: string
+  workflowId: string
+  /** When the wait began, for the progress line. */
+  startedAt: number
+  /** When the wait gives up, in epoch milliseconds; `Infinity` waits indefinitely. */
+  deadline: number
+  /** What to say when the bound elapses with the run still moving. */
+  timedOut: (snapshot: RunSnapshot) => string
+}
+
+/** The timeout line `workflows runs wait` prints for its own bound. */
+function waitTimedOut(wait: { runId: string; timeoutSeconds: number }) {
+  return (snapshot: RunSnapshot) =>
+    `Timed out after ${wait.timeoutSeconds}s waiting for run ${wait.runId} (status: ${snapshot.status}${
+      snapshot.resumeAt ? `, resuming at ${snapshot.resumeAt}` : ''
+    }). Raise ${WAIT_TIMEOUT_FLAG}, or set it to 0 to wait indefinitely.`
+}
+
+/**
+ * Polls one run until it settles or the deadline passes, prints the run, and sets the
+ * exit status {@link WAIT_EXIT_CODES} names. A deadline already past still reads the run
+ * once, so a run that settled meanwhile reports its outcome rather than a timeout.
+ */
+export async function waitForRun(
+  { client, profile }: Connection<'getWorkflowRun'>,
+  wait: RunWait
+): Promise<void> {
+  const params = { workflowId: wait.workflowId, runId: wait.runId }
+  const progress = waitProgress()
+  let delayMs = FIRST_POLL_DELAY_MS
+
+  // `finally`, because a request that throws part-way through would
+  // otherwise leave `running — waiting 12s…` sitting on the line the error
+  // is then written onto.
+  try {
+    while (true) {
+      const raw = await client.request<unknown>('getWorkflowRun', { params })
+      const snapshot = readRun(raw)
+      const outcome = classify(snapshot)
+
+      if (outcome) {
+        progress.finish()
+        renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
+        const message = explain(outcome, wait.runId, wait.workflowId, snapshot)
+        if (message) printError(styles().red(message))
+        setSoftExitCode(WAIT_EXIT_CODES[outcome])
+        return
+      }
+
+      const remainingMs = wait.deadline - Date.now()
+      if (remainingMs <= 0) {
+        progress.finish()
+        renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
+        printError(styles().red(wait.timedOut(snapshot)))
+        setSoftExitCode(WAIT_EXIT_CODES.timeout)
+        return
+      }
+
+      progress.advance(snapshot.status, Date.now() - wait.startedAt)
+      // Clamped to the time left so the last sleep of a bounded wait ends
+      // at the deadline instead of overshooting it by a whole interval.
+      await sleep(Math.min(delayMs, remainingMs))
+      delayMs = Math.min(delayMs * POLL_BACKOFF_FACTOR, MAX_POLL_DELAY_MS)
+    }
+  } finally {
+    progress.finish()
+  }
+}
+
 /** Adds `workflows runs wait` — poll one run until it stops moving. */
 export function attachWorkflowRunWait(runs: Command): void {
   const [wait, connectWait] = apiCommand(runs, 'wait', ['getWorkflowRun'])
@@ -235,56 +305,14 @@ export function attachWorkflowRunWait(runs: Command): void {
           ? DEFAULT_WAIT_TIMEOUT_SECONDS
           : parseWaitTimeout(options.waitTimeout)
 
-      const { client, profile } = connectWait()
-      const params = { workflowId: options.workflow, runId }
-
       const startedAt = Date.now()
-      const deadline =
-        timeoutSeconds === 0 ? Number.POSITIVE_INFINITY : startedAt + timeoutSeconds * 1000
-      const progress = waitProgress()
-      let delayMs = FIRST_POLL_DELAY_MS
-
-      // `finally`, because a request that throws part-way through would
-      // otherwise leave `running — waiting 12s…` sitting on the line the error
-      // is then written onto.
-      try {
-        while (true) {
-          const raw = await client.request<unknown>('getWorkflowRun', { params })
-          const snapshot = readRun(raw)
-          const outcome = classify(snapshot)
-
-          if (outcome) {
-            progress.finish()
-            renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
-            const message = explain(outcome, runId, options.workflow, snapshot)
-            if (message) printError(styles().red(message))
-            setSoftExitCode(WAIT_EXIT_CODES[outcome])
-            return
-          }
-
-          const remainingMs = deadline - Date.now()
-          if (remainingMs <= 0) {
-            progress.finish()
-            renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
-            printError(
-              styles().red(
-                `Timed out after ${timeoutSeconds}s waiting for run ${runId} (status: ${snapshot.status}${
-                  snapshot.resumeAt ? `, resuming at ${snapshot.resumeAt}` : ''
-                }). Raise ${WAIT_TIMEOUT_FLAG}, or set it to 0 to wait indefinitely.`
-              )
-            )
-            setSoftExitCode(WAIT_EXIT_CODES.timeout)
-            return
-          }
-
-          progress.advance(snapshot.status, Date.now() - startedAt)
-          // Clamped to the time left so the last sleep of a bounded wait ends
-          // at the deadline instead of overshooting it by a whole interval.
-          await sleep(Math.min(delayMs, remainingMs))
-          delayMs = Math.min(delayMs * POLL_BACKOFF_FACTOR, MAX_POLL_DELAY_MS)
-        }
-      } finally {
-        progress.finish()
-      }
+      await waitForRun(connectWait(), {
+        runId,
+        workflowId: options.workflow,
+        startedAt,
+        deadline:
+          timeoutSeconds === 0 ? Number.POSITIVE_INFINITY : startedAt + timeoutSeconds * 1000,
+        timedOut: waitTimedOut({ runId, timeoutSeconds }),
+      })
     })
 }

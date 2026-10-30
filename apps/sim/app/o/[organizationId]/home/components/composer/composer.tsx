@@ -1,7 +1,16 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { Chip, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
+import { type ReactNode, useEffect, useRef } from 'react'
+import {
+  Chip,
+  ComposerActionButton,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
@@ -15,6 +24,7 @@ import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import {
   PromptEditor,
   usePromptEditor,
@@ -23,6 +33,7 @@ import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/com
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import type { ChatMessage, ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import { filterContextsPresentInMessage } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
@@ -40,11 +51,15 @@ interface ComposerProps {
   isSending: boolean
   onChange: (value: string, contexts?: ChatContext[]) => void
   restoredContexts?: ChatContext[]
-  onSubmit: (text: string, contexts?: ChatContext[]) => void
+  onSubmit: (text: string, contexts?: ChatContext[]) => undefined | false
   onSendQueuedHead?: () => void
   onEditQueuedTail?: () => boolean
   messages?: readonly ChatMessage[]
   onStop: () => void
+  compact?: boolean
+  attachments?: ReactNode
+  resourceActions?: ReactNode
+  modelSelectorOptions?: ModelSelectorOptions
 }
 
 /** Organization composer with scoped resources, attachments, voice, and draft restoration. */
@@ -62,10 +77,16 @@ export function Composer({
   messages,
   restoredContexts,
   onStop,
+  compact = false,
+  attachments,
+  resourceActions,
+  modelSelectorOptions,
 }: ComposerProps) {
   const attachedFilesRef = useRef(files.attachedFiles)
   attachedFilesRef.current = files.attachedFiles
   const imagesOnly = requestMode === 'assistant'
+  const searchInput = imagesOnly && !compact
+  const hasAdditionalAttachments = Boolean(attachments)
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -136,23 +157,33 @@ export function Composer({
   })
   const canSubmit =
     !files.attachedFiles.some((file) => file.uploading) &&
-    (value.trim().length > 0 || files.attachedFiles.some((file) => file.key))
-  const animatedPlaceholder = useAnimatedPlaceholder(!imagesOnly && isInitialView && !value)
-  const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
+    (value.trim().length > 0 ||
+      files.attachedFiles.some((file) => file.key) ||
+      hasAdditionalAttachments)
+  const animatedPlaceholder = useAnimatedPlaceholder(
+    !compact && !imagesOnly && isInitialView && !value
+  )
+  const placeholder = isInitialView && !compact ? animatedPlaceholder : 'Send message to Sim'
 
   const submit = () => {
     if (attachedFilesRef.current.some((file) => file.uploading)) return
     const hasPayload =
-      editor.getValue().trim().length > 0 || attachedFilesRef.current.some((file) => file.key)
+      editor.getValue().trim().length > 0 ||
+      attachedFilesRef.current.some((file) => file.key) ||
+      hasAdditionalAttachments
     if (!hasPayload) {
       if (isSending) onSendQueuedHead?.()
       return
     }
-    /** Consume attachments synchronously so a second Enter cannot submit them twice. */
+    const contexts = imagesOnly
+      ? filterContextsPresentInMessage(
+          editor.contexts.filter((context) => context.kind === 'browser_page'),
+          editor.getPlainValue()
+        )
+      : editor.getActiveContexts()
+    if (onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined) === false) return
     attachedFilesRef.current = []
     voice.resetTranscript()
-    const contexts = imagesOnly ? [] : editor.getActiveContexts()
-    onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
     history.reset()
     editor.clear()
   }
@@ -178,40 +209,51 @@ export function Composer({
   )
 
   const recallQueuedTail = () => {
-    if (attachedFilesRef.current.length > 0) return false
+    if (hasAdditionalAttachments || attachedFilesRef.current.length > 0) return false
     return onEditQueuedTail?.() ?? false
   }
   const promptEditor = (
     <PromptEditor
       editor={editor}
+      resourceActions={resourceActions}
       placeholder={placeholder}
       aria-label='Ask Sim'
       onSubmit={submit}
-      onNavigateHistory={history.navigate}
+      onNavigateHistory={hasAdditionalAttachments ? undefined : history.navigate}
       onArrowUpOnEmpty={recallQueuedTail}
       className={cn(
         'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
-        isInitialView && 'min-h-[56px] max-md:min-h-0'
+        isInitialView && !compact && 'min-h-[56px] max-md:min-h-0'
       )}
     />
   )
 
   const leadingControls = (
     <>
-      {imagesOnly && <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+      {searchInput && <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
+      {imagesOnly && resourceActions && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Chip shape='round' leftIcon={Plus} aria-label='Add resources' />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='start'>{resourceActions}</DropdownMenuContent>
+        </DropdownMenu>
+      )}
       {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}
 
-      {!imagesOnly && (
+      {(!imagesOnly || compact) && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Chip
               shape='round'
               leftIcon={Paperclip}
               onClick={files.handleFileSelect}
-              aria-label='Attach file'
+              aria-label={imagesOnly ? 'Attach image' : 'Attach file'}
             />
           </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+          <Tooltip.Content side='top'>
+            {imagesOnly ? 'Attach image' : 'Attach file'}
+          </Tooltip.Content>
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
@@ -250,13 +292,15 @@ export function Composer({
     </ComposerActionButton>
   )
 
-  const attachmentList = files.attachedFiles.length ? (
-    <AttachedFilesList
-      attachedFiles={files.attachedFiles}
-      onFileClick={files.handleFileClick}
-      onRemoveFile={files.removeFile}
-    />
-  ) : null
+  const attachmentList =
+    files.attachedFiles.length || attachments ? (
+      <AttachedFilesList
+        attachedFiles={files.attachedFiles}
+        onFileClick={files.handleFileClick}
+        onRemoveFile={files.removeFile}
+        additionalAttachments={attachments}
+      />
+    ) : null
 
   return (
     <div
@@ -267,15 +311,15 @@ export function Composer({
       className={cn(
         inter.className,
         'relative z-10 mx-auto w-full max-w-chat',
-        !imagesOnly &&
+        !searchInput &&
           'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        !imagesOnly && isInitialView && 'shadow-ambient'
+        !searchInput && !compact && isInitialView && 'shadow-ambient'
       )}
     >
-      {!imagesOnly && attachmentList}
-      {!imagesOnly && promptEditor}
+      {!searchInput && attachmentList}
+      {!searchInput && promptEditor}
 
-      {imagesOnly ? (
+      {searchInput ? (
         <SearchInputBar
           floating={isInitialView}
           attachments={attachmentList}
@@ -286,7 +330,7 @@ export function Composer({
           onPaste={editor.handlePaste}
           onKeyDown={(event) =>
             editor.handleKeyDown(event, {
-              onNavigateHistory: history.navigate,
+              onNavigateHistory: hasAdditionalAttachments ? undefined : history.navigate,
               onArrowUpOnEmpty: recallQueuedTail,
             })
           }
@@ -299,6 +343,8 @@ export function Composer({
       ) : (
         <InputToolbar
           plan={requestMode === 'plan'}
+          showModelSelector={!imagesOnly}
+          modelSelectorOptions={imagesOnly ? undefined : modelSelectorOptions}
           leadingControls={leadingControls}
           voiceControl={voiceControl}
           submitControl={submitControl}

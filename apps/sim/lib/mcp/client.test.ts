@@ -120,6 +120,30 @@ describe('McpClient notification handler', () => {
     )
   })
 
+  it('keeps the output schema a tool declares and adds none to a tool that declares none', async () => {
+    const outputSchema = {
+      type: 'object',
+      properties: { role: { type: 'string' } },
+      required: ['role'],
+    }
+    mockSdkListTools.mockResolvedValueOnce({
+      tools: [
+        { name: 'on_call', inputSchema: { type: 'object' }, outputSchema },
+        { name: 'add_note', inputSchema: { type: 'object' } },
+      ],
+    })
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    const [declared, undeclared] = await client.listTools()
+
+    expect(declared?.outputSchema).toEqual(outputSchema)
+    expect(undeclared).not.toHaveProperty('outputSchema')
+  })
+
   it('stops paginating when the server repeats a cursor (loop guard)', async () => {
     mockSdkListTools.mockResolvedValue({ tools: [{ name: 'x' }], nextCursor: 'same' })
     const client = new McpClient({

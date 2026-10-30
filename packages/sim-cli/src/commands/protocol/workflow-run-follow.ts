@@ -8,12 +8,18 @@ import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
 import { safeOneLine, sanitize } from '../../output/render'
-import { connect } from '../../runtime/called-operations'
+import { callsOperations, connect } from '../../runtime/called-operations'
 import { executeOperation, runFailureMessage } from '../../runtime/execute'
 import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
+import {
+  parseWaitTimeout,
+  type RunSnapshot,
+  WAIT_TIMEOUT_FLAG,
+  waitForRun,
+} from './workflow-run-wait'
 
 /**
  * Declares that this client understands agent-event framing.
@@ -75,7 +81,10 @@ export function resolveWorkflowRunSelection(
     throw new SimApiError('--source-run requires --from-block <blockId>', 0)
   }
   if ((manual || fromBlock) && flags.async === true) {
-    throw new SimApiError('Manual execution does not support --async', 0)
+    throw new SimApiError(
+      `Manual execution does not support --async; pass ${WAIT_TIMEOUT_FLAG} to let a long run continue in the background`,
+      0
+    )
   }
   if (useMockPayload && flags.input !== undefined) {
     throw new SimApiError('--mock-payload cannot be combined with --input', 0)
@@ -110,12 +119,29 @@ function stringField(frame: Record<string, unknown>, key: string): string | null
   return typeof value === 'string' ? value : null
 }
 
+/** A synchronous run's answer: its result, or the id of a run that outlasted `--wait-timeout`. */
+type WorkflowResult =
+  | { settled: Record<string, unknown> }
+  | {
+      /** The run continues in the background; follow it on the runs resource. */
+      detachedRunId: string
+    }
+
+function detachedRunId(receipt: unknown, status: number): string {
+  if (!isRecordLike(receipt) || typeof receipt.runId !== 'string' || receipt.runId === '') {
+    throw new SimApiError('Workflow run continued in the background without naming its run', status)
+  }
+  return receipt.runId
+}
+
 /**
  * Reads the heartbeat-delimited result transport used for long synchronous
  * runs. A server that predates the transport ignores `Accept` and returns its
- * ordinary JSON envelope, which is consumed without retrying the run.
+ * ordinary JSON envelope, which is consumed without retrying the run. Either
+ * transport may instead hand back the receipt of a run that is still going when
+ * `--wait-timeout` elapsed: a `detached` frame, or a `202`.
  */
-async function readWorkflowResult(response: Response): Promise<Record<string, unknown>> {
+async function readWorkflowResult(response: Response): Promise<WorkflowResult> {
   const contentType = (response.headers.get('content-type') ?? '').toLowerCase()
   if (!contentType.includes(WORKFLOW_RESULT_STREAM_CONTENT_TYPE)) {
     let envelope: unknown
@@ -130,7 +156,9 @@ async function readWorkflowResult(response: Response): Promise<Record<string, un
     if (!isRecordLike(envelope)) {
       throw new SimApiError('Workflow run returned an invalid result envelope', response.status)
     }
-    return isRecordLike(envelope.data) ? envelope.data : envelope
+    const data = isRecordLike(envelope.data) ? envelope.data : envelope
+    if (response.status === 202) return { detachedRunId: detachedRunId(data, response.status) }
+    return { settled: data }
   }
 
   for await (const value of readNdjson(response.body, 'Workflow result stream')) {
@@ -145,7 +173,10 @@ async function readWorkflowResult(response: Response): Promise<Record<string, un
         typeof value.code === 'string' ? value.code : null
       )
     }
-    if (value.type === 'final' && isRecordLike(value.data)) return value.data
+    if (value.type === 'final' && isRecordLike(value.data)) return { settled: value.data }
+    if (value.type === 'detached') {
+      return { detachedRunId: detachedRunId(value.data, response.status) }
+    }
     throw new SimApiError('Workflow result stream returned an unknown event', response.status)
   }
 
@@ -166,22 +197,53 @@ function withEmbeddedFileReferences(
   return { ...body, includeFileBase64: false }
 }
 
-/** Runs synchronously while keeping idle-limited HTTP paths active. */
-async function runWithResultStream(workflowId: string, command: Command): Promise<void> {
+/** What a run still going when `--wait-timeout` elapsed says beside its record. */
+function stillRunning(runId: string, workflowId: string, waitedSeconds: number) {
+  return (snapshot: RunSnapshot) =>
+    `Run ${runId} is still ${snapshot.status} after ${waitedSeconds}s and continues in the background. Keep waiting: sim workflows runs wait ${runId} --workflow ${workflowId} --wait-timeout ${waitedSeconds}. Stop it: sim workflows runs cancel ${runId} --workflow ${workflowId}`
+}
+
+/**
+ * Runs synchronously while keeping idle-limited HTTP paths active.
+ *
+ * With `--wait-timeout`, a run the server stops waiting for keeps going, and this
+ * command ends as a `workflows runs wait` whose bound just elapsed would: the run
+ * record on stdout and its exit status (4 while it is still moving).
+ */
+async function runWithResultStream(
+  workflowId: string,
+  command: Command,
+  waitTimeoutSeconds: number | undefined
+): Promise<void> {
   const flags = command.optsWithGlobals() as Record<string, unknown>
-  const { client, profile } = connect(command, ['executeWorkflow'])
+  const connection = connect(command, ['executeWorkflow', 'getWorkflowRun'])
+  const { client, profile } = connection
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
   const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
 
   try {
     const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
+    const body = withEmbeddedFileReferences(request.body)
     const response = await client.requestRaw('executeWorkflow', {
       params: request.params,
       query: request.query,
-      body: withEmbeddedFileReferences(request.body),
+      body: waitTimeoutSeconds === undefined ? body : { ...body, waitTimeoutSeconds },
       headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
     })
-    const payload = await readWorkflowResult(response)
+    const result = await readWorkflowResult(response)
+    if ('detachedRunId' in result) {
+      // The server already spent the wait, so the run is read once and reported.
+      const now = Date.now()
+      await waitForRun(connection, {
+        runId: result.detachedRunId,
+        workflowId,
+        startedAt: now,
+        deadline: now,
+        timedOut: stillRunning(result.detachedRunId, workflowId, waitTimeoutSeconds ?? 0),
+      })
+      return
+    }
+    const payload = result.settled
 
     renderResult('executeWorkflow', profile.output, payload, commandSpec, {
       expandedTrace: flags.trace === true,
@@ -426,6 +488,22 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
 function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
   return async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const initialFlags = command.optsWithGlobals() as Record<string, unknown>
+    const waitTimeoutSeconds =
+      typeof initialFlags.waitTimeout === 'string'
+        ? Math.ceil(parseWaitTimeout(initialFlags.waitTimeout))
+        : undefined
+    if (waitTimeoutSeconds !== undefined && initialFlags.async === true) {
+      throw new SimApiError(
+        '--wait-timeout bounds how long a synchronous run is waited for, and --async never waits; pass one, not both',
+        0
+      )
+    }
+    if (waitTimeoutSeconds !== undefined && initialFlags.follow === true) {
+      throw new SimApiError(
+        '--wait-timeout cannot be combined with --follow, which streams the run until it ends',
+        0
+      )
+    }
     const selection = resolveWorkflowRunSelection(initialFlags)
     if (selection) command.setOptionValue('run', selection)
     const flags = command.optsWithGlobals() as Record<string, unknown>
@@ -451,7 +529,7 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         )
       }
       if (flags.async !== true) {
-        await runWithResultStream(workflowId, command)
+        await runWithResultStream(workflowId, command, waitTimeoutSeconds)
         return
       }
 
@@ -492,6 +570,8 @@ export function attachWorkflowRunFollow(workflows: Command): void {
 
   const held = (run as Command & { _actionHandler?: unknown })._actionHandler
   const previous = typeof held === 'function' ? (held as (args: unknown[]) => unknown) : null
+  // A run that outlasts --wait-timeout is read back from the runs resource.
+  callsOperations(run, ['executeWorkflow', 'getWorkflowRun'], { runs: 'executeWorkflow' })
 
   run
     .option('--manual', 'Run the current saved workflow state instead of the active deployment')
@@ -511,6 +591,10 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option(
       '--stop-after <blockId>',
       'Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
+    )
+    .option(
+      WAIT_TIMEOUT_FLAG,
+      'Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow'
     )
     .option(
       '--follow',

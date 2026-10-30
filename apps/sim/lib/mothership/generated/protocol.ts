@@ -315,6 +315,13 @@ export const TOOL_DEADLINE_CAPABILITY = "tool-deadline";
  */
 export const WORKSPACE_FILE_COPY_CAPABILITY = "workspace-file-copy";
 
+/**
+ * The `clientCapabilities` token a Sim sends when its CLI's synchronous `workflows run` takes
+ * `--wait-timeout`: a run still going then continues in the background and the command prints
+ * its run record and exits 4, so the worker waits on it in slices.
+ */
+export const WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY = "workflow-run-wait-timeout";
+
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
   fileOwnerProtocolVersion?: 1 | undefined;
@@ -360,8 +367,8 @@ export interface ChatRequest extends StreamResponseReceipt {
    * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
    * this field still gets waited on). Known capability: "workflow-tool-pickup". Sim also
-   * declares its own {@link TOOL_DEADLINE_CAPABILITY} and {@link WORKSPACE_FILE_COPY_CAPABILITY}
-   * here.
+   * declares its own {@link TOOL_DEADLINE_CAPABILITY}, {@link WORKSPACE_FILE_COPY_CAPABILITY} and
+   * {@link WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY} here.
    */
   clientCapabilities?: string[] | undefined;
   /**

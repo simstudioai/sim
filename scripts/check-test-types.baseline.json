@@ -1953,7 +1953,7 @@
     "TS18046": 2
   },
   "apps/sim/lib/mothership/tool-executor/executor.test.ts": {
-    "TS2345": 3,
+    "TS2345": 2,
     "TS2741": 3
   },
   "apps/sim/lib/mothership/tools/client/completion.test.ts": {

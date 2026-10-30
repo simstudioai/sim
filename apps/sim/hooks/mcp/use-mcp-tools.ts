@@ -28,6 +28,7 @@ export interface McpToolForUI {
   serverName: string
   type: 'mcp'
   inputSchema: McpToolSchema
+  outputSchema?: McpToolSchema
   bgColor: string
   icon: ComponentType<SVGProps<SVGSVGElement>>
 }
@@ -55,6 +56,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       serverName: tool.serverName,
       type: 'mcp' as const,
       inputSchema: tool.inputSchema,
+      outputSchema: tool.outputSchema,
       bgColor: getManagedMcpConnectorBgColor(tool.managedConnectorId) ?? '#6366F1',
       icon: tool.managedConnectorId ? getManagedMcpConnectorIcon(tool.managedConnectorId) : McpIcon,
     }))

@@ -105,6 +105,10 @@
         "vitest.integration.setup.ts"
       ]
     },
+    "apps/extension": {
+      // Chrome loads the manifest entrypoints; Bun runs packaging and browser verification scripts.
+      "entry": ["src/background.ts", "src/sidepanel.tsx", "scripts/*.ts"]
+    },
     "apps/desktop": {
       "includeEntryExports": false,
       // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path; the nested

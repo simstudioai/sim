@@ -91,6 +91,8 @@ export interface McpToolSchema {
 /** SDK `Tool` plus the server context Sim tracks. */
 export interface McpTool extends Pick<Tool, 'name' | 'description'> {
   inputSchema: McpToolSchema
+  /** The `structuredContent` shape the tool declares, absent when it declares none. */
+  outputSchema?: McpToolSchema
   canonicalServerId?: string
   serverId: string
   serverName: string

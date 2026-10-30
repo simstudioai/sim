@@ -1,6 +1,13 @@
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 
 export const assistantActionOperations = {
+  // permission-group-exempt: reads the owner's existing action history without granting tool access.
+  receipts: defineOrganizationOperation({
+    id: 'assistant_actions.receipts',
+    minimumRole: 'member',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
   list: defineOrganizationOperation({
     id: 'assistant_actions.list',
     minimumRole: 'member',

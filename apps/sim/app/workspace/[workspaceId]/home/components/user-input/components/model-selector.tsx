@@ -28,8 +28,21 @@ import {
   useMothershipPlanEffortStore,
 } from '@/stores/mothership-effort/store'
 
+export interface ModelSelectorOptions {
+  showModelPicker?: boolean
+  fastModeDescription?: string
+}
+
+interface ModelSelectorProps extends ModelSelectorOptions {
+  plan?: boolean
+}
+
 /** Model, reasoning effort, and Fast mode for Build chat composers. */
-export function ModelSelector({ plan = false }: { plan?: boolean }) {
+export function ModelSelector({
+  plan = false,
+  showModelPicker = true,
+  fastModeDescription = 'Faster responses at a higher price',
+}: ModelSelectorProps) {
   const usePreferenceStore = plan ? useMothershipPlanEffortStore : useMothershipEffortStore
   const advanced = useFeatureFlag('mothership-model-selector')
   const selection = usePreferenceStore((state) => state.modelSelection)
@@ -65,30 +78,32 @@ export function ModelSelector({ plan = false }: { plan?: boolean }) {
             <FastModeToggle
               enabled={modelSelection.fastMode}
               onChange={setFastMode}
-              description='Faster responses at a higher price'
+              description={fastModeDescription}
             />
           )}
-          <DropdownMenu modal={false}>
-            <ModelSettingTrigger
-              label='Model'
-              valueLabel={
-                MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
-                  ?.label ?? modelSelection.model
-              }
-              icon={Sparkles}
-              showChevron
-            />
-            <DropdownMenuContent side='top' align='end'>
-              {MOTHERSHIP_MODEL_OPTIONS.map((option) => (
-                <DropdownMenuItem key={option.value} onSelect={() => setModel(option.value)}>
-                  <DropdownMenuItemLabel label={option.label} />
-                  {modelSelection.model === option.value && (
-                    <Check className='ml-auto! size-[16px]!' />
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {showModelPicker && (
+            <DropdownMenu modal={false}>
+              <ModelSettingTrigger
+                label='Model'
+                valueLabel={
+                  MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
+                    ?.label ?? modelSelection.model
+                }
+                icon={Sparkles}
+                showChevron
+              />
+              <DropdownMenuContent side='top' align='end'>
+                {MOTHERSHIP_MODEL_OPTIONS.map((option) => (
+                  <DropdownMenuItem key={option.value} onSelect={() => setModel(option.value)}>
+                    <DropdownMenuItemLabel label={option.label} />
+                    {modelSelection.model === option.value && (
+                      <Check className='ml-auto! size-[16px]!' />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </>
       )}
       <DropdownMenu>

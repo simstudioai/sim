@@ -206,6 +206,7 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
 
   const display: ChatMessage = {
     id: msg.id,
+    ...(msg.streamId ? { streamId: msg.streamId } : {}),
     role: msg.role,
     ...(msg.origin ? { origin: msg.origin } : {}),
     content: msg.content,

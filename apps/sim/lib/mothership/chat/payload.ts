@@ -32,12 +32,12 @@ import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-imag
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 import { computeEntitlements } from '@/lib/mothership/entitlements'
-import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import {
   type ChatRequest,
   type ModelSelection,
   TOOL_DEADLINE_CAPABILITY,
+  WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
 } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
@@ -112,6 +112,8 @@ export interface ToolSchema {
   name: string
   description: string
   input_schema: Record<string, unknown>
+  /** JSON Schema of the structured reply, for an MCP operation that declares one. */
+  output_schema?: Record<string, unknown>
   outputs?: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean
@@ -385,7 +387,6 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     params.principal !== undefined &&
     computerUseOwner !== null &&
     (await isComputerUseAvailableFor(params.principal, computerUseOwner))
-  const integrationGateway = !isAssistant || (await isSearchIntegrationToolsEnabled())
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.
   // Tracking writes `workspace_files` rows, so it needs the same write grant the
@@ -461,14 +462,17 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
   }
 
   const allContexts = isAssistant
-    ? params.workspaceContext
-      ? [
-          {
-            type: params.organizationId ? 'search_integrations' : 'connected_accounts',
-            content: params.workspaceContext,
-          },
-        ]
-      : []
+    ? [
+        ...(contexts ?? []).filter((context) => context.type === 'browser_page'),
+        ...(params.workspaceContext
+          ? [
+              {
+                type: params.organizationId ? 'search_integrations' : 'connected_accounts',
+                content: params.workspaceContext,
+              },
+            ]
+          : []),
+      ]
     : [
         ...(contexts ?? []),
         ...uploadContexts,
@@ -536,13 +540,9 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
-    ...(integrationGateway
-      ? {
-          integrationCatalog: {
-            mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
-          },
-        }
-      : {}),
+    integrationCatalog: {
+      mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
+    },
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
@@ -562,11 +562,13 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
       : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit it and the server runs
-    // those tools immediately. The deadline token is this server's own: it bounds every
-    // handed call by the deadline its frame names.
+    // those tools immediately. The deadline and run-wait tokens are this server's own: it
+    // bounds every handed call by the deadline its frame names, and its CLI lets a
+    // synchronous `workflows run` outlast `--wait-timeout`.
     clientCapabilities: [
       ...(isAssistant ? [] : ['workflow-tool-pickup']),
       TOOL_DEADLINE_CAPABILITY,
+      WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
     ],
   }
 }

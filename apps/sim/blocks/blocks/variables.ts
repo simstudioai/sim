@@ -40,7 +40,8 @@ export const VariablesBlock: BlockConfig = {
   inputs: {
     variables: {
       type: 'json',
-      description: 'Array of variable objects with name and value properties',
+      description:
+        "Array of assignments, each { variableName, value }: variableName is an existing workflow variable's name, value its new value",
     },
   },
   outputs: {

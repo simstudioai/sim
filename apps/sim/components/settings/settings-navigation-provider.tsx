@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'next/navigation'
 
 interface SettingsNavigationState {
+  navigationTarget: '_self' | '_blank'
   /** The section a sidebar click is navigating to, until that navigation settles. */
   pendingSection: string | null
   /** Navigates to a section, previewing `pendingSection` until it settles; null previews nothing. */
@@ -27,6 +28,7 @@ const SettingsNavigationContext = createContext<SettingsNavigationState | null>(
 
 interface SettingsNavigationProviderProps {
   children: ReactNode
+  navigationTarget?: '_self' | '_blank'
 }
 
 /**
@@ -39,7 +41,10 @@ interface SettingsNavigationProviderProps {
  * settles — on commit, and equally when the server redirects back or the navigation fails — and
  * because it is state rather than a Suspense fallback, the incoming section is never held back.
  */
-export function SettingsNavigationProvider({ children }: SettingsNavigationProviderProps) {
+export function SettingsNavigationProvider({
+  children,
+  navigationTarget = '_self',
+}: SettingsNavigationProviderProps) {
   const router = useRouter()
   const [pendingSection, setPendingSection] = useOptimistic<string | null>(null)
   const [, startTransition] = useTransition()
@@ -64,8 +69,14 @@ export function SettingsNavigationProvider({ children }: SettingsNavigationProvi
   }, [])
 
   const value = useMemo(
-    () => ({ pendingSection, navigateToSection, signalIntent, registerIntentHandler }),
-    [pendingSection, navigateToSection, signalIntent, registerIntentHandler]
+    () => ({
+      pendingSection,
+      navigateToSection,
+      signalIntent,
+      registerIntentHandler,
+      navigationTarget,
+    }),
+    [pendingSection, navigateToSection, signalIntent, registerIntentHandler, navigationTarget]
   )
 
   return (
@@ -81,6 +92,11 @@ export function useSettingsNavigationState(): SettingsNavigationState {
     throw new Error('useSettingsNavigationState must be used within a SettingsNavigationProvider')
   }
   return state
+}
+
+/** Embedded surfaces open full settings outside their constrained frame. */
+export function useSettingsNavigationTarget(): '_self' | '_blank' {
+  return useContext(SettingsNavigationContext)?.navigationTarget ?? '_self'
 }
 
 /**

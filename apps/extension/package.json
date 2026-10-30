@@ -1,0 +1,37 @@
+{
+  "name": "@sim/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test:e2e": "bun scripts/test-e2e.ts"
+  },
+  "dependencies": {
+    "@sim/browser-extension-protocol": "workspace:*",
+    "@sim/emcn": "workspace:*",
+    "@sim/logger": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@sim/tsconfig": "workspace:*",
+    "@types/bun": "1.4.3",
+    "@types/chrome": "0.3.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "esbuild": "0.28.2",
+    "postcss": "^8.5.30",
+    "postcss-load-config": "6.0.1",
+    "typescript": "^7.0.2"
+  }
+}

@@ -145,6 +145,31 @@
         "vitest": "^5.0.4",
       },
     },
+    "apps/extension": {
+      "name": "@sim/extension",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/browser-extension-protocol": "workspace:*",
+        "@sim/emcn": "workspace:*",
+        "@sim/logger": "workspace:*",
+        "@sim/utils": "workspace:*",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
+        "zod": "4.3.6",
+      },
+      "devDependencies": {
+        "@playwright/test": "1.61.1",
+        "@sim/tsconfig": "workspace:*",
+        "@types/bun": "1.4.3",
+        "@types/chrome": "0.3.6",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "esbuild": "0.28.2",
+        "postcss": "^8.5.30",
+        "postcss-load-config": "6.0.1",
+        "typescript": "^7.0.2",
+      },
+    },
     "apps/pii": {
       "name": "@sim/pii",
       "version": "0.0.0",
@@ -268,6 +293,7 @@
         "@react-email/render": "2.1.0",
         "@sim/audit": "workspace:*",
         "@sim/auth": "workspace:*",
+        "@sim/browser-extension-protocol": "workspace:*",
         "@sim/browser-protocol": "workspace:*",
         "@sim/db": "workspace:*",
         "@sim/deployment-config": "workspace:*",
@@ -428,6 +454,7 @@
         "@trigger.dev/build": "4.7.6",
         "@types/archiver": "8.0.0",
         "@types/busboy": "1.5.4",
+        "@types/chrome": "0.3.6",
         "@types/hast": "3.0.5",
         "@types/heic-convert": "2.1.1",
         "@types/html-to-text": "9.0.4",
@@ -485,6 +512,18 @@
       "dependencies": {
         "@sim/db": "workspace:*",
         "better-auth": "1.6.27",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/node": "24.19.2",
+        "typescript": "^7.0.2",
+      },
+    },
+    "packages/browser-extension-protocol": {
+      "name": "@sim/browser-extension-protocol",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "4.3.6",
       },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
@@ -1965,6 +2004,8 @@
 
     "@sim/auth": ["@sim/auth@workspace:packages/auth"],
 
+    "@sim/browser-extension-protocol": ["@sim/browser-extension-protocol@workspace:packages/browser-extension-protocol"],
+
     "@sim/browser-protocol": ["@sim/browser-protocol@workspace:packages/browser-protocol"],
 
     "@sim/db": ["@sim/db@workspace:packages/db"],
@@ -1976,6 +2017,8 @@
     "@sim/desktop-bridge": ["@sim/desktop-bridge@workspace:packages/desktop-bridge"],
 
     "@sim/emcn": ["@sim/emcn@workspace:packages/emcn"],
+
+    "@sim/extension": ["@sim/extension@workspace:apps/extension"],
 
     "@sim/logger": ["@sim/logger@workspace:packages/logger"],
 
@@ -2205,6 +2248,8 @@
 
     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, "sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA=="],
 
+    "@types/chrome": ["@types/chrome@0.3.6", "", { "dependencies": { "@types/har-format": "*" } }, "sha512-NXCrCBefCHCKMVbkaxfBQqyP766Wg85S2FQhixCCxq7AtjJwoEaja2y5NSqCzpihIi9mPqhaF5RuybTnrdYD2Q=="],
+
     "@types/cors": ["@types/cors@2.8.19", "", { "dependencies": { "@types/node": "*" } }, "sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg=="],
 
     "@types/d3": ["@types/d3@7.4.3", "", { "dependencies": { "@types/d3-array": "*", "@types/d3-axis": "*", "@types/d3-brush": "*", "@types/d3-chord": "*", "@types/d3-color": "*", "@types/d3-contour": "*", "@types/d3-delaunay": "*", "@types/d3-dispatch": "*", "@types/d3-drag": "*", "@types/d3-dsv": "*", "@types/d3-ease": "*", "@types/d3-fetch": "*", "@types/d3-force": "*", "@types/d3-format": "*", "@types/d3-geo": "*", "@types/d3-hierarchy": "*", "@types/d3-interpolate": "*", "@types/d3-path": "*", "@types/d3-polygon": "*", "@types/d3-quadtree": "*", "@types/d3-random": "*", "@types/d3-scale": "*", "@types/d3-scale-chromatic": "*", "@types/d3-selection": "*", "@types/d3-shape": "*", "@types/d3-time": "*", "@types/d3-time-format": "*", "@types/d3-timer": "*", "@types/d3-transition": "*", "@types/d3-zoom": "*" } }, "sha512-lZXZ9ckh5R8uiFVt8ogUNf+pIrK4EsWrx2Np75WvF/eTpJ0FMHNhjXk8CKEx/+gpHbNQyJWehbFaTvqmHWB3ww=="],
@@ -2282,6 +2327,8 @@
     "@types/geojson": ["@types/geojson@7946.0.16", "", {}, "sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg=="],
 
     "@types/google.maps": ["@types/google.maps@3.65.3", "", {}, "sha512-tqbbx7MUtoDk+RwpZMymPDj6Skez0FhqDZNhLhS5UDmCx4D1dgP+BJOHTebiO/rhjJLa1f8te2p6mJJeFKVFOQ=="],
+
+    "@types/har-format": ["@types/har-format@1.2.16", "", {}, "sha512-fluxdy7ryD3MV6h8pTfTYpy/xQzCFC7m89nOH9y94cNqJ1mDIDPut7MnRHI3F6qRmh/cT2fUjG1MLdCNb4hE9A=="],
 
     "@types/hast": ["@types/hast@3.0.5", "", { "dependencies": { "@types/unist": "*" } }, "sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g=="],
 

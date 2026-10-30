@@ -103,14 +103,20 @@ describe('PermissionAccessBoundary', () => {
     expect(container.textContent).toContain('Access required')
   })
 
-  it('does not mount protected data consumers behind the request state', () => {
-    render()
-    expect(protectedMount).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Access required')
-    expect(container.textContent).toContain('Request access')
-    expect(container.querySelector('a')?.getAttribute('href')).toBe('https://docs.sim.ai/tables')
-    expect(container.textContent).not.toContain('My requests')
-  })
+  it.each([false, true])(
+    'does not mount protected data consumers when access requests are enabled: %s',
+    (enabled) => {
+      if (!enabled)
+        discovery.mockReturnValue({ isPending: false, data: { enabled: false, entries: [] } })
+      render()
+      expect(protectedMount).not.toHaveBeenCalled()
+      expect(container.textContent).toContain('Access required')
+      if (enabled) expect(container.textContent).toContain('Request access')
+      else expect(container.textContent).not.toContain('Request access')
+      expect(container.querySelector('a')?.getAttribute('href')).toBe('https://docs.sim.ai/tables')
+      expect(container.textContent).not.toContain('My requests')
+    }
+  )
 
   it('waits for policy without mounting protected content', () => {
     policy.mockReturnValue({ data: undefined, isPending: true })

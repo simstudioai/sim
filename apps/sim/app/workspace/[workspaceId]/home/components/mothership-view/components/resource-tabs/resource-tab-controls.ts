@@ -32,6 +32,8 @@ export const RESOURCE_HEADER_CLASSES = {
    * to centre too or it lands a pixel below the row it belongs to.
    */
   overlay: 'absolute top-0 flex h-[var(--resource-header-controls-height)] items-center',
+  content:
+    'flex h-[var(--resource-header-controls-height)] shrink-0 items-center gap-1 pl-4 pr-[var(--resource-header-fixed-reserve)]',
   endPosition: 'right-[var(--resource-header-end-inset)]',
   /**
    * Clears the collapse toggle's 40px hit target so adjacent controls never

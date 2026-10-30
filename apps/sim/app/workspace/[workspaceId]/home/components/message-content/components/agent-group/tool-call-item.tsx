@@ -188,5 +188,15 @@ export function ToolCallItem({
       <ToolIcon className='size-full' />
     ),
   }
-  return renderStatus ? renderStatus(activity) : <ActivityStatus {...activity} />
+  const fallback = renderStatus ? renderStatus(activity) : <ActivityStatus {...activity} />
+  return toolCallId && getToolMetadata(toolName)?.assistant ? (
+    <AssistantActionReviewStatus
+      toolCallId={toolCallId}
+      title={title}
+      awaitingApproval={false}
+      fallback={fallback}
+    />
+  ) : (
+    fallback
+  )
 }

@@ -268,7 +268,7 @@ export function buildCSPString(directives: CSPDirectives): string {
  * but resolves env vars at request time via getEnv() to fix Docker
  * deployments where build-time values may be stale placeholders.
  */
-export function generateRuntimeCSP(): string {
+export function generateRuntimeCSP(frameAncestors?: string[]): string {
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
 
   // Must permit whatever getSocketUrl() actually connects to, or the browser
@@ -293,6 +293,10 @@ export function generateRuntimeCSP(): string {
 
   const runtimeDirectives: CSPDirectives = {
     ...buildTimeCSPDirectives,
+
+    ...(frameAncestors
+      ? { 'frame-ancestors': frameAncestors.length > 0 ? frameAncestors : ["'none'"] }
+      : {}),
 
     'img-src': [...STATIC_IMG_SRC],
 
