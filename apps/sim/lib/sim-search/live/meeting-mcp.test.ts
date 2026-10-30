@@ -1,3 +1,4 @@
+import { getAllMockLoggers } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it } from 'vitest'
 import { readFirefliesMcp, searchFirefliesMcp } from '@/lib/sim-search/live/fireflies-mcp'
 import { readGranolaMcp, searchGranolaMcp } from '@/lib/sim-search/live/granola-mcp'
@@ -155,6 +156,30 @@ describe('meeting MCP provider wire contracts', () => {
       },
     }
     await expect(searchFirefliesMcp(client, input)).rejects.toThrow('unsupported')
+  })
+
+  it('diagnoses unsupported Fireflies envelopes without logging private values or arbitrary keys', async () => {
+    const privateMarker = 'PRIVATE_MEETING_OR_CREDENTIAL'
+    const client: ManagedSearchMcpClient = {
+      async call() {
+        return {
+          text: privateMarker.repeat(1000),
+          data: { error: privateMarker },
+          result: { items: [{ title: privateMarker }] },
+          ...Object.fromEntries(
+            Array.from({ length: 1000 }, (_, index) => [`${privateMarker}_${index}`, privateMarker])
+          ),
+        }
+      },
+    }
+    await expect(searchFirefliesMcp(client, { ...input, query: privateMarker })).rejects.toThrow(
+      'unsupported'
+    )
+    const warnings = getAllMockLoggers().flatMap((logger) => logger.warn.mock.calls)
+    expect(warnings).toHaveLength(1)
+    const serialized = JSON.stringify(warnings)
+    expect(serialized).not.toContain(privateMarker)
+    expect(serialized.length).toBeLessThan(2000)
   })
 
   it('rejects invalid continuation offsets before Fireflies receives a query', async () => {
