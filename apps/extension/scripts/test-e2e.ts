@@ -220,6 +220,18 @@ try {
     await app.waitForFunction((id) => document.body.dataset.barrierId === id, barrierId)
   }
 
+  await check(
+    'A typed sim/ link opens the Sim link resolver on the configured origin',
+    async () => {
+      const tab = await page.context().newPage()
+      for (const path of ['handbook', 'jira/123?view=board']) {
+        await tab.goto(`http://sim/${path}`)
+        assert(tab.url() === `${origin}/sim/${path}`, `sim/${path} reached ${tab.url()}`)
+      }
+      await tab.close()
+    }
+  )
+
   await check('Capture stays local until the trusted hosted frame is ready', async () => {
     await capture()
     await panel.getByRole('status').filter({ hasText: 'Waiting for Sim' }).waitFor()

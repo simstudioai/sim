@@ -55,7 +55,8 @@ other workspace resources or browser-control tools.
 
 - Required browser capabilities: side panel, scripting, active tab, context menus,
   and short-lived session storage for selection handoff. Required host access is
-  limited to the configured Sim origin.
+  limited to the configured Sim origin and to `http(s)://sim/*`, which exists only so
+  one static redirect rule can send a typed `sim/<name>` to the Sim link resolver.
 - Other HTTP(S) origins are optional grants requested for the current site from a
   user gesture. Each grant can be revoked. Keeping the panel open is not a grant
   to read every subsequently selected tab.
