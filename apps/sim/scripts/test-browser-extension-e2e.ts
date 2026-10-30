@@ -1,3 +1,5 @@
+/// <reference types="chrome" />
+
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { once } from 'node:events'
@@ -5,7 +7,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
-import { type BrowserContext, expect as browserExpect, chromium, type Page } from '@playwright/test'
+import {
+  type BrowserContext,
+  expect as browserExpect,
+  chromium,
+  type Page,
+  type Request,
+} from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -52,7 +60,16 @@ const checks: {
 }[] = []
 const screenshots: string[] = []
 const browserErrors: string[] = []
-const httpErrors: { path: string; status: number }[] = []
+const httpErrors: { path: string; status: number; injected: boolean }[] = []
+const injectedRequests = new WeakSet<Request>()
+const uploadedPaths = new Set<string>()
+
+function trackUploadedFile(key: string) {
+  const root = resolve(import.meta.dirname, '../uploads')
+  const path = resolve(root, key)
+  assert(path.startsWith(`${root}/`), 'Upload escaped the local fixture directory')
+  uploadedPaths.add(path)
+}
 let context: BrowserContext | undefined
 let panel: Page | undefined
 let userId: string | undefined
@@ -60,6 +77,9 @@ let releaseHeldRequest = () => {}
 const alphaId = generateId()
 const betaId = generateId()
 const deniedId = generateId()
+const organizationId = generateId()
+const otherOrganizationId = generateId()
+const otherOrganizationChatId = generateId()
 const historyId = generateId()
 const historyMessageId = generateId()
 const historyRequestId = generateId()
@@ -204,7 +224,11 @@ try {
   panel.on('response', (response) => {
     const url = new URL(response.url())
     if (url.origin === base.origin && response.status() >= 400)
-      httpErrors.push({ path: url.pathname, status: response.status() })
+      httpErrors.push({
+        path: url.pathname,
+        status: response.status(),
+        injected: injectedRequests.has(response.request()),
+      })
   })
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`)
   const frame = () => {
@@ -219,6 +243,7 @@ try {
   }
   await check('Signed-out users get the real top-level Sim sign-in flow', async () => {
     await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+    await screenshot('signed-out')
     const link = frame().getByRole('link', { name: 'Sign in', exact: true })
     const opened = browserContext.waitForEvent('page')
     await link.click()
@@ -246,6 +271,7 @@ try {
     await expect(
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
     ).toBeVisible()
+    await screenshot('workspace-picker')
     await frame().getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible({
       timeout: 120_000,
@@ -253,34 +279,61 @@ try {
   })
   const source = await context.newPage()
   await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
-  await shell.evaluate((origin) => {
-    let receipts = 0
-    document.body.dataset.captureReceipts = '0'
-    window.addEventListener('message', (event: MessageEvent<unknown>) => {
-      if (
-        event.origin !== origin ||
-        event.source !== document.querySelector('iframe')?.contentWindow ||
-        typeof event.data !== 'object' ||
-        event.data === null ||
-        !('type' in event.data) ||
-        event.data.type !== 'context-received'
-      )
-        return
-      document.body.dataset.captureReceipts = String(++receipts)
-    })
-  }, base.origin)
-  const capture = async () => {
+  const observeCaptureReceipts = () =>
+    shell.evaluate((origin) => {
+      let receipts = 0
+      document.body.dataset.captureReceipts = '0'
+      window.addEventListener('message', (event: MessageEvent<unknown>) => {
+        if (
+          event.origin !== origin ||
+          event.source !== document.querySelector('iframe')?.contentWindow ||
+          typeof event.data !== 'object' ||
+          event.data === null ||
+          !('type' in event.data) ||
+          event.data.type !== 'context-received'
+        )
+          return
+        document.body.dataset.captureReceipts = String(++receipts)
+      })
+    }, base.origin)
+  await observeCaptureReceipts()
+  const capture = async (mode: 'page' | 'selection' = 'page') => {
     await source.bringToFront()
     const before = Number(await shell.locator('body').getAttribute('data-capture-receipts'))
+    await frame().getByRole('button', { name: 'Add resources', exact: true }).press('Enter')
     await frame()
-      .getByRole('button', { name: 'Add resources', exact: true })
-      .evaluate((button) => (button as HTMLButtonElement).click())
-    await frame()
-      .getByRole('menuitem', { name: 'Current page', exact: true })
-      .evaluate((button) => (button as HTMLElement).click())
+      .getByRole('menuitem', {
+        name: mode === 'page' ? 'Current page' : 'Selected text',
+        exact: true,
+      })
+      .press('Enter')
     await expect(shell.locator('body')).toHaveAttribute('data-capture-receipts', String(before + 1))
   }
-  const attachments = () => frame().getByRole('region', { name: 'Page attached to next message' })
+  const attachments = () => frame().getByRole('group', { name: 'Page attached to next message' })
+  const attachFile = async () => {
+    const completion = shell.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname.startsWith('/api/files/uploads/') &&
+        new URL(response.url()).pathname.endsWith('/complete')
+    )
+    await frame()
+      .locator('input[type="file"]')
+      .setInputFiles({
+        name: 'extension-notes.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('This synthetic file belongs only to extension QA.'),
+      })
+    const response = await completion
+    assert.equal(response.status(), 200, await response.text())
+    const body: unknown = await response.json()
+    const asset = toRecord(toRecord(toRecord(body).data).result)
+    assert.equal(typeof asset.key, 'string')
+    trackUploadedFile(String(asset.key))
+    await expect(
+      frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true })
+    ).toBeEnabled()
+  }
   await check(
     'Capture, preview, removal, and the three-page cap use the real composer',
     async () => {
@@ -297,12 +350,14 @@ try {
       await expect(preview.locator('pre')).toHaveText(
         captureText.replace('QA_PRIVATE_PAGE_MARKER:', 'Delivery plan\nQA_PRIVATE_PAGE_MARKER:')
       )
+      await screenshot('page-preview')
       await preview.getByRole('button', { name: 'Close', exact: true }).click()
       await capture()
       await capture()
       await capture()
       await expect(attachments()).toHaveCount(3)
       await expect(frame().getByRole('alert').filter({ hasText: 'Remove one' })).toBeVisible()
+      await screenshot('page-limit')
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
       await expect(attachments()).toHaveCount(2)
       const stored = await frame().evaluate(() => JSON.stringify(localStorage))
@@ -393,6 +448,7 @@ try {
     await capture()
     await expect(attachments()).toHaveCount(1)
     await frame().getByRole('button', { name: 'Extension QA alpha', exact: true }).click()
+    await screenshot('workspace-menu')
     await expect(
       frame().getByRole('menuitem', { name: 'Extension QA alpha', exact: true })
     ).toBeDisabled()
@@ -405,6 +461,7 @@ try {
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     await capture()
     await frame().getByRole('button', { name: 'Chat history' }).click()
+    await screenshot('chat-history')
     await frame().getByRole('menuitem', { name: 'Extension QA history' }).click()
     await expect(attachments()).toHaveCount(0)
     await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
@@ -449,6 +506,7 @@ try {
             exact: false,
           })
         ).toBeVisible()
+        await screenshot('submission-error')
       } finally {
         await browserContext.unroute(endpoint)
       }
@@ -461,6 +519,7 @@ try {
     await frame().getByRole('button', { name: 'View all sources' }).click()
     const dialog = frame().getByRole('dialog', { name: 'Cited sources' })
     await expect(dialog).toBeVisible()
+    await screenshot('sources')
     await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
       'href',
       'https://example.com/qa-evidence'
@@ -469,6 +528,7 @@ try {
     await dialog.getByRole('button', { name: 'Actions for QA evidence' }).click()
     await frame().getByRole('menuitem', { name: 'Copy link', exact: true }).click()
     await expect(dialog.getByRole('button', { name: 'Link copied', exact: true })).toBeVisible()
+    await screenshot('source-link-copied')
     await shell.route('**/__extension-qa-recorder.js', (route) =>
       route.fulfill({
         path: resolve(dirname(require.resolve('posthog-js')), 'posthog-recorder.js'),
@@ -535,122 +595,397 @@ try {
       await browserContext.clearPermissions()
     }
   )
+  await check(
+    'Files and pages share the attachment row, remove independently, and reach the submission boundary together',
+    async () => {
+      await capture()
+      await attachFile()
+      await screenshot('mixed-attachments')
+      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+      await expect(
+        frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true })
+      ).toBeEnabled()
+      await capture()
+      await frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true }).click()
+      await expect(attachments()).toHaveCount(1)
+      await attachFile()
+      const endpoint = `${base.origin}/api/mothership/chat`
+      await browserContext.route(endpoint, (route) =>
+        route.fulfill({ status: 403, json: { error: 'QA mixed attachment admission check' } })
+      )
+      try {
+        const request = browserContext.waitForEvent('request', {
+          predicate: (entry) => entry.url() === endpoint && entry.method() === 'POST',
+        })
+        await frame()
+          .getByRole('textbox', { name: 'Message', exact: true })
+          .fill('Use the attached page and file.')
+        await shell.bringToFront()
+        await frame().getByRole('button', { name: 'Send message', exact: true }).press('Enter')
+        const payload = toRecord((await request).postDataJSON())
+        assert(
+          Array.isArray(payload.fileAttachments) && payload.fileAttachments.length === 1,
+          'File attachment was lost'
+        )
+        assert.equal(toRecord(payload.fileAttachments[0]).filename, 'extension-notes.txt')
+        assert(
+          Array.isArray(payload.contexts) && payload.contexts.length === 1,
+          'Page attachment was lost'
+        )
+        assert(
+          pageSnapshotSchema
+            .parse(toRecord(payload.contexts[0]).snapshot)
+            .text.includes('QA_PRIVATE_PAGE_MARKER')
+        )
+        await expect(
+          frame().getByText('QA mixed attachment admission check', { exact: false })
+        ).toBeVisible()
+      } finally {
+        await browserContext.unroute(endpoint)
+      }
+      await navigate(`${base.origin}/extension/${alphaId}`)
+      await expect(attachments()).toHaveCount(0)
+    }
+  )
+  await check(
+    'Selected text attaches only the selected excerpt through the shared plus menu',
+    async () => {
+      await source.evaluate(() => {
+        const text = document.querySelector('p')?.firstChild
+        if (!text) throw new Error('Selection fixture is missing')
+        const range = document.createRange()
+        const start = text.textContent?.indexOf('The launch code') ?? -1
+        if (start < 0) throw new Error('Selection fixture is missing')
+        range.setStart(text, start)
+        range.setEnd(text, start + 'The launch code is ORCHID-482.'.length)
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+      })
+      await capture('selection')
+      await expect(attachments()).toHaveCount(1)
+      await attachments()
+        .first()
+        .getByRole('button', { name: /^Review page context:/ })
+        .click()
+      const preview = frame().getByRole('dialog', { name: 'Page context', exact: true })
+      await expect(preview.locator('pre')).toHaveText('The launch code is ORCHID-482.')
+      await screenshot('selection-preview')
+      await preview.getByRole('button', { name: 'Close', exact: true }).click()
+      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+      await source.evaluate(() => window.getSelection()?.removeAllRanges())
+    }
+  )
+  const reconnect = async () => {
+    await frame().evaluate(() => {
+      window.dispatchEvent(new Event('offline'))
+      window.dispatchEvent(new Event('online'))
+    })
+  }
+  await check(
+    'Transient session and workspace refetch failures preserve the mounted composer and page draft',
+    async () => {
+      for (const [path, attempts] of [
+        ['/api/auth/get-session', 1],
+        [`/api/workspaces/${alphaId}/host-context`, 2],
+      ] as const) {
+        await navigate(`${base.origin}/extension/${alphaId}`)
+        const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
+        await expect(editor).toBeVisible()
+        await capture()
+        await editor.fill('Keep this draft through a temporary network failure.')
+        const original = await editor.elementHandle()
+        assert(original)
+        const endpoint = `${base.origin}${path}`
+        let failures = 0
+        await browserContext.route(`${endpoint}*`, async (route) => {
+          injectedRequests.add(route.request())
+          await route.fulfill({
+            status: 503,
+            json: { message: 'QA temporary outage', error: 'QA temporary outage' },
+          })
+          failures++
+        })
+        try {
+          await shell.clock.setFixedTime(Date.now() + 360_000)
+          await reconnect()
+          await expect.poll(() => failures).toBe(attempts)
+          await frame().evaluate(
+            () =>
+              new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+              )
+          )
+          assert(
+            await original.evaluate((element) => element.isConnected),
+            'A transient refetch unmounted the composer'
+          )
+          await expect(editor).toHaveValue('Keep this draft through a temporary network failure.')
+          await expect(attachments()).toHaveCount(1)
+          await screenshot(
+            path.includes('get-session') ? 'session-refetch-outage' : 'workspace-refetch-outage'
+          )
+        } finally {
+          await browserContext.unroute(`${endpoint}*`)
+          await shell.clock.setFixedTime(Date.now())
+        }
+      }
+      await navigate(`${base.origin}/extension/${alphaId}`)
+    }
+  )
+  await check(
+    'Explicit session and workspace access failures clear captured context after refetch',
+    async () => {
+      for (const [path, status] of [
+        ['/api/auth/get-session', 401],
+        ['/api/auth/get-session', 403],
+        [`/api/workspaces/${alphaId}/host-context`, 403],
+        [`/api/workspaces/${alphaId}/host-context`, 404],
+      ] as const) {
+        await navigate(`${base.origin}/extension/${alphaId}`)
+        await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+        await capture()
+        const endpoint = `${base.origin}${path}`
+        await browserContext.route(`${endpoint}*`, async (route) => {
+          injectedRequests.add(route.request())
+          await route.fulfill({
+            status,
+            json: { message: 'QA access revoked', error: 'QA access revoked' },
+          })
+        })
+        try {
+          await shell.clock.setFixedTime(Date.now() + 360_000)
+          await reconnect()
+          if (path.includes('get-session'))
+            await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+          else await expect(frame().getByText('This workspace is unavailable.')).toBeVisible()
+          await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(
+            0
+          )
+          await expect(attachments()).toHaveCount(0)
+          await screenshot(
+            `${path.includes('get-session') ? 'session' : 'workspace'}-revoked-${status}`
+          )
+        } finally {
+          await browserContext.unroute(`${endpoint}*`)
+          await shell.clock.setFixedTime(Date.now())
+        }
+      }
+      await navigate(`${base.origin}/extension/${alphaId}`)
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+    }
+  )
+  const verifyLiveChat = async (scope: {
+    name: string
+    url: string
+    inputLabel: string
+    draftKey: string
+    organizationId?: string
+  }) => {
+    await navigate(scope.url)
+    const captureScreenshot = (name: string) => screenshot(`${scope.name}-${name}`)
+
+    await expect(frame().getByRole('button', { name: 'Model', exact: true })).toHaveCount(0)
+    const fastMode = frame().getByRole('button', { name: 'Fast mode', exact: true })
+    if (await fastMode.count()) {
+      await fastMode.press('Enter')
+      await expect(fastMode).toHaveAttribute('aria-pressed', 'true')
+      await captureScreenshot('fast-mode')
+      await fastMode.press('Enter')
+      await expect(fastMode).toHaveAttribute('aria-pressed', 'false')
+    }
+    await frame().getByRole('button', { name: 'Reasoning effort', exact: true }).press('Enter')
+    await captureScreenshot('reasoning-menu')
+    await frame().getByRole('menuitemradio', { name: 'Low', exact: true }).press('Enter')
+    await capture()
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    releaseHeldRequest = release
+    const submitted: unknown[] = []
+    await shell.route('**/api/mothership/chat', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      submitted.push(route.request().postDataJSON())
+      await gate
+      await route.continue()
+    })
+    const input = frame().getByLabel(scope.inputLabel, { exact: true })
+    await input.fill(
+      'Using only the attached page, reply with the launch code and delivery day. Do not use tools.'
+    )
+    await input.press('Enter')
+    await expect.poll(() => submitted.length).toBe(1)
+    await capture()
+    await attachFile()
+    await input.fill('Reply only QUEUE_OK using this queued page context.')
+    await input.press('Enter')
+    await expect(frame().getByRole('button', { name: 'Edit queued message' })).toBeVisible()
+    await captureScreenshot('queued-message')
+    await frame().evaluate(() => {
+      const original = Storage.prototype.setItem
+      Storage.prototype.setItem = function (key, value) {
+        original.call(this, key, value)
+        if (key === 'mothership-drafts:v1')
+          document.body.dataset.qaDraftSaves = String(
+            Number(document.body.dataset.qaDraftSaves ?? '0') + 1
+          )
+      }
+    })
+    await frame().getByRole('button', { name: 'Edit queued message' }).click()
+    await expect(input).toHaveValue(/QUEUE_OK/)
+    await input.evaluate((element) => (element as HTMLTextAreaElement).setSelectionRange(0, 0))
+    await input.pressSequentially('Updated: ')
+    await input.press('Escape')
+    await expect
+      .poll(() => frame().evaluate(() => Number(document.body.dataset.qaDraftSaves ?? '0')))
+      .toBeGreaterThan(0)
+    const persisted = await frame().evaluate(() =>
+      JSON.parse(localStorage.getItem('mothership-drafts:v1') ?? '{}')
+    )
+    const drafts = toRecord(toRecord(toRecord(persisted).state).drafts)
+    const restored = toRecord(drafts[scope.draftKey])
+    assert(
+      String(restored.text).includes('Updated: '),
+      'Restoring a queued page discarded the ordinary text draft'
+    )
+    assert(
+      Array.isArray(restored.fileAttachments) && restored.fileAttachments.length === 1,
+      'Restoring a queued page discarded the file attachment draft'
+    )
+    await captureScreenshot('editing-queued-message')
+    assert(
+      !(await frame().evaluate(() => JSON.stringify(localStorage))).includes(
+        'QA_PRIVATE_PAGE_MARKER'
+      ),
+      'Restored queued page bytes entered draft storage'
+    )
+    await input.press('Enter')
+    await capture()
+    await input.fill('FOLLOW_UP_DRAFT_SURVIVES_ADMISSION')
+    const pendingEditor = await input.elementHandle()
+    assert(pendingEditor)
+    release()
+    await expect
+      .poll(() => new URL(frame().url()).searchParams.get('chat'), { timeout: 120_000 })
+      .toBeTruthy()
+    await expect(input).toHaveValue('FOLLOW_UP_DRAFT_SURVIVES_ADMISSION')
+    assert(
+      await pendingEditor.evaluate((element) => element.isConnected),
+      'Admission replaced the active composer'
+    )
+    await expect(attachments()).toHaveCount(1)
+    const chatId = new URL(frame().url()).searchParams.get('chat')
+    assert(chatId)
+    const contexts = toRecord(submitted[0]).contexts
+    assert(
+      Array.isArray(contexts) && contexts.length === 1,
+      'Page context was not sent exactly once'
+    )
+    const sent = pageSnapshotSchema.parse(toRecord(contexts[0]).snapshot)
+    assert(sent.text.includes('ORCHID-482') && !sent.url.includes('QUERY_SECRET'))
+    await expect(
+      frame()
+        .getByText(/ORCHID-482/)
+        .filter({ visible: true })
+        .first()
+    ).toBeVisible({ timeout: 180_000 })
+    await expect
+      .poll(
+        async () => {
+          const rows =
+            await sql`select content from copilot_messages where chat_id=${chatId} and role='assistant' order by seq limit 1`
+          return String(toRecord(rows[0]?.content).content ?? '')
+        },
+        { timeout: 180_000 }
+      )
+      .toMatch(/ORCHID-482[\s\S]*Friday|Friday[\s\S]*ORCHID-482/i)
+    const [saved] =
+      await sql`select content from copilot_messages where chat_id=${chatId} and role='user' order by seq limit 1`
+    const savedContexts = toRecord(saved?.content).contexts
+    assert(Array.isArray(savedContexts))
+    assert.deepEqual(pageSnapshotSchema.parse(toRecord(savedContexts[0]).snapshot), sent)
+    await expect.poll(() => submitted.length, { timeout: 120_000 }).toBe(2)
+    const queuedContexts = toRecord(submitted[1]).contexts
+    assert(
+      Array.isArray(queuedContexts) && queuedContexts.length === 1,
+      'Queued page context was dropped or duplicated'
+    )
+    const queuedFiles = toRecord(submitted[1]).fileAttachments
+    assert(
+      Array.isArray(queuedFiles) && queuedFiles.length === 1,
+      'Queued file attachment was lost'
+    )
+    const queued = pageSnapshotSchema.parse(toRecord(queuedContexts[0]).snapshot)
+    assert.notEqual(queued.id, sent.id)
+    assert.equal(queued.text, sent.text)
+    await expect(frame().getByText('QUEUE_OK', { exact: true })).toBeVisible({
+      timeout: 120_000,
+    })
+    await shell.unroute('**/api/mothership/chat')
+    await captureScreenshot('grounded-response')
+    await navigate(`${scope.url}?chat=${chatId}`)
+    await expect(frame().getByRole('textbox', { name: scope.inputLabel, exact: true })).toHaveValue(
+      'FOLLOW_UP_DRAFT_SURVIVES_ADMISSION'
+    )
+    await expect(
+      frame()
+        .getByText(/ORCHID-482/)
+        .first()
+    ).toBeVisible()
+    await expect(attachments()).toHaveCount(0)
+    await frame()
+      .getByRole('button', { name: 'Fork in new chat', exact: true })
+      .last()
+      .press('Enter')
+    await expect.poll(() => new URL(frame().url()).searchParams.get('chat')).not.toBe(chatId)
+    const forkUrl = new URL(frame().url())
+    assert.equal(
+      forkUrl.pathname,
+      new URL(scope.url).pathname,
+      'Fork escaped the extension surface'
+    )
+    const forkId = forkUrl.searchParams.get('chat')
+    assert(forkId)
+    const [forkOwner] =
+      await sql`select organization_id, workspace_id from copilot_chats where id=${forkId}`
+    assert.equal(forkOwner.organization_id, scope.organizationId ?? null)
+    assert.equal(forkOwner.workspace_id, scope.organizationId ? null : alphaId)
+    const forkMessages =
+      await sql`select content from copilot_messages where chat_id=${forkId} and role='user'`
+    for (const row of forkMessages) {
+      const files = toRecord(row.content).fileAttachments
+      if (Array.isArray(files))
+        for (const file of files) {
+          const key = toRecord(file).key
+          if (typeof key === 'string') trackUploadedFile(key)
+        }
+    }
+    await expect(frame().getByRole('textbox', { name: scope.inputLabel, exact: true })).toHaveValue(
+      ''
+    )
+    await captureScreenshot('forked-chat')
+    await frame().getByRole('button', { name: 'New chat', exact: true }).click()
+    await expect(frame().getByRole('textbox', { name: scope.inputLabel, exact: true })).toHaveValue(
+      ''
+    )
+    const [owner] =
+      await sql`select organization_id, workspace_id from copilot_chats where id=${chatId}`
+    assert.equal(owner.organization_id, scope.organizationId ?? null)
+    assert.equal(owner.workspace_id, scope.organizationId ? null : alphaId)
+    assert.equal(toRecord(submitted[0]).organizationId, scope.organizationId)
+    assert.equal(toRecord(submitted[0]).workspaceId, scope.organizationId ? undefined : alphaId)
+  }
   if (liveChat) {
     await check(
-      'Page context reaches Mothership, streams a grounded answer, and preserves the follow-up draft through admission',
-      async () => {
-        await capture()
-        let release = () => {}
-        const gate = new Promise<void>((resolve) => {
-          release = resolve
+      'Workspace live admission preserves queued pages, files, and the active draft',
+      () =>
+        verifyLiveChat({
+          name: 'workspace',
+          url: `${base.origin}/extension/${alphaId}`,
+          inputLabel: 'Message',
+          draftKey: `extension:${userId}:${alphaId}:new`,
         })
-        releaseHeldRequest = release
-        const submitted: unknown[] = []
-        await shell.route('**/api/mothership/chat', async (route) => {
-          if (route.request().method() !== 'POST') return route.continue()
-          submitted.push(route.request().postDataJSON())
-          await gate
-          await route.continue()
-        })
-        const input = frame().getByLabel('Message', { exact: true })
-        await input.fill(
-          'Using only the attached page, reply with the launch code and delivery day. Do not use tools.'
-        )
-        await input.press('Enter')
-        await expect.poll(() => submitted.length).toBe(1)
-        await capture()
-        await input.fill('Reply only QUEUE_OK using this queued page context.')
-        await input.press('Enter')
-        await expect(frame().getByRole('button', { name: 'Edit queued message' })).toBeVisible()
-        await frame().evaluate(() => {
-          const original = Storage.prototype.setItem
-          Storage.prototype.setItem = function (key, value) {
-            original.call(this, key, value)
-            if (key === 'mothership-drafts:v1')
-              document.body.dataset.qaDraftSaves = String(
-                Number(document.body.dataset.qaDraftSaves ?? '0') + 1
-              )
-          }
-        })
-        await frame().getByRole('button', { name: 'Edit queued message' }).click()
-        await expect(input).toHaveValue(/QUEUE_OK/)
-        await input.evaluate((element) => (element as HTMLTextAreaElement).setSelectionRange(0, 0))
-        await input.pressSequentially('Updated: ')
-        await input.press('Escape')
-        await expect
-          .poll(() => frame().evaluate(() => Number(document.body.dataset.qaDraftSaves ?? '0')))
-          .toBeGreaterThan(0)
-        assert(
-          !(await frame().evaluate(() => JSON.stringify(localStorage))).includes(
-            'QA_PRIVATE_PAGE_MARKER'
-          ),
-          'Restored queued page bytes entered draft storage'
-        )
-        await input.press('Enter')
-        await capture()
-        await input.fill('FOLLOW_UP_DRAFT_SURVIVES_ADMISSION')
-        release()
-        await expect
-          .poll(() => new URL(frame().url()).searchParams.get('chat'), { timeout: 120_000 })
-          .toBeTruthy()
-        await expect(input).toHaveValue('FOLLOW_UP_DRAFT_SURVIVES_ADMISSION')
-        await expect(attachments()).toHaveCount(1)
-        const chatId = new URL(frame().url()).searchParams.get('chat')
-        assert(chatId)
-        const contexts = toRecord(submitted[0]).contexts
-        assert(
-          Array.isArray(contexts) && contexts.length === 1,
-          'Page context was not sent exactly once'
-        )
-        const sent = pageSnapshotSchema.parse(toRecord(contexts[0]).snapshot)
-        assert(sent.text.includes('ORCHID-482') && !sent.url.includes('QUERY_SECRET'))
-        await expect(
-          frame()
-            .getByText(/ORCHID-482/)
-            .filter({ visible: true })
-            .first()
-        ).toBeVisible({ timeout: 180_000 })
-        await expect
-          .poll(
-            async () => {
-              const rows =
-                await sql`select content from copilot_messages where chat_id=${chatId} and role='assistant' order by seq limit 1`
-              return String(toRecord(rows[0]?.content).content ?? '')
-            },
-            { timeout: 180_000 }
-          )
-          .toMatch(/ORCHID-482[\s\S]*Friday|Friday[\s\S]*ORCHID-482/i)
-        const [saved] =
-          await sql`select content from copilot_messages where chat_id=${chatId} and role='user' order by seq limit 1`
-        const savedContexts = toRecord(saved?.content).contexts
-        assert(Array.isArray(savedContexts))
-        assert.deepEqual(pageSnapshotSchema.parse(toRecord(savedContexts[0]).snapshot), sent)
-        await expect.poll(() => submitted.length, { timeout: 120_000 }).toBe(2)
-        const queuedContexts = toRecord(submitted[1]).contexts
-        assert(
-          Array.isArray(queuedContexts) && queuedContexts.length === 1,
-          'Queued page context was dropped or duplicated'
-        )
-        const queued = pageSnapshotSchema.parse(toRecord(queuedContexts[0]).snapshot)
-        assert.notEqual(queued.id, sent.id)
-        assert.equal(queued.text, sent.text)
-        await expect(frame().getByText('QUEUE_OK', { exact: true })).toBeVisible({
-          timeout: 120_000,
-        })
-        await shell.unroute('**/api/mothership/chat')
-        await screenshot('grounded-response')
-        await navigate(`${base.origin}/extension/${alphaId}?chat=${chatId}`)
-        await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue(
-          'FOLLOW_UP_DRAFT_SURVIVES_ADMISSION'
-        )
-        await expect(
-          frame()
-            .getByText(/ORCHID-482/)
-            .first()
-        ).toBeVisible()
-        await frame().getByRole('button', { name: 'New chat', exact: true }).click()
-        await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
-      }
     )
   } else
     checks.push({ name: 'Live Mothership send and admission', status: 'skipped', durationMs: 0 })
@@ -665,6 +1000,182 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
+  await check(
+    'Organization default landing binds page-only submissions to the organization',
+    async () => {
+      assert(userId)
+      await sql`insert into organization (id, name, slug, created_at) values (${organizationId}, 'Extension QA organization', ${organizationId}, now())`
+      await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${userId}, ${organizationId}, 'owner')`
+      await navigate(`${base.origin}/extension`)
+      await expect
+        .poll(() => new URL(frame().url()).pathname)
+        .toBe(`/extension/o/${organizationId}`)
+      await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+      await screenshot('organization-new-chat')
+      await capture()
+      await expect(attachments()).toHaveCount(1)
+      let submitted: unknown
+      await shell.route('**/api/mothership/chat', async (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        submitted = route.request().postDataJSON()
+        injectedRequests.add(route.request())
+        await route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      try {
+        await frame().getByRole('textbox', { name: 'Ask Sim', exact: true }).press('Enter')
+        await expect.poll(() => submitted).toBeTruthy()
+        const payload = toRecord(submitted)
+        assert.equal(payload.organizationId, organizationId)
+        assert.equal(payload.workspaceId, undefined)
+        assert.equal(payload.mode, 'agent')
+        assert(Array.isArray(payload.contexts) && payload.contexts.length === 1)
+        assert(
+          pageSnapshotSchema
+            .parse(toRecord(payload.contexts[0]).snapshot)
+            .text.includes('ORCHID-482')
+        )
+        await expect(attachments()).toHaveCount(0)
+      } finally {
+        await shell.unroute('**/api/mothership/chat')
+      }
+      await sql`insert into organization (id, name, slug, created_at) values (${otherOrganizationId}, 'Other QA organization', ${otherOrganizationId}, now())`
+      await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${otherUserId}, ${otherOrganizationId}, 'owner')`
+      await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config) values (${otherOrganizationChatId}, ${userId}, ${otherOrganizationId}, 'mothership', 'Other organization history', ${sql.json({ conversationMode: 'agent' })})`
+      await navigate(
+        `${base.origin}/extension/o/${otherOrganizationId}?chat=${otherOrganizationChatId}`
+      )
+      await expect(frame().getByText('This organization is unavailable.')).toBeVisible()
+      for (const chatId of [historyId, otherOrganizationChatId]) {
+        await navigate(`${base.origin}/extension/o/${organizationId}?chat=${chatId}`)
+        await expect(frame().getByText('This chat is unavailable.')).toBeVisible()
+        await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveCount(0)
+      }
+      await screenshot('organization-wrong-scope-history')
+    }
+  )
+  await check(
+    'A first-open toolbar capture survives authenticated organization landing',
+    async () => {
+      await source.bringToFront()
+      await shell.goto('about:blank')
+      const intent = await worker.evaluate(async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (tab.id === undefined || !tab.url) throw new Error('Missing source tab')
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(tab.url))
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id, frameIds: [0] },
+          func: () => null,
+        })
+        return {
+          tabId: tab.id,
+          windowId: tab.windowId,
+          kind: 'page',
+          createdAt: Date.now(),
+          documentId: result.documentId,
+          urlDigest: Array.from(new Uint8Array(digest), (byte) =>
+            byte.toString(16).padStart(2, '0')
+          ).join(''),
+        }
+      })
+      await worker.evaluate(async (pending) => {
+        await chrome.storage.session.set({
+          [`captureIntent:${pending.windowId}:first-open`]: pending,
+        })
+      }, intent)
+      await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+      await observeCaptureReceipts()
+      await expect
+        .poll(() => new URL(frame().url()).pathname)
+        .toBe(`/extension/o/${organizationId}`)
+      await expect(attachments()).toHaveCount(1)
+      await screenshot('organization-first-open-capture')
+    }
+  )
+  if (liveChat) {
+    await check(
+      'Organization live admission preserves queued pages and files without a workspace',
+      () =>
+        verifyLiveChat({
+          name: 'organization',
+          url: `${base.origin}/extension/o/${organizationId}`,
+          inputLabel: 'Ask Sim',
+          draftKey: `extension:${userId}:organization:${organizationId}:home`,
+          organizationId,
+        })
+    )
+  }
+  await check('Search-only organization members can attach a page in Assistant', async () => {
+    assert(userId)
+    await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
+      values (${generateId()}, ${organizationId}, 'Search only',
+      ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
+    await navigate(`${base.origin}/extension`)
+    await expect.poll(() => new URL(frame().url()).pathname).toBe(`/extension/o/${organizationId}`)
+    await expect(frame().getByRole('button', { name: 'Attach image', exact: true })).toBeVisible()
+    await capture()
+    await screenshot('organization-assistant-page')
+    if (!liveChat)
+      await shell.route('**/api/mothership/chat', (route) =>
+        route.fulfill({ status: 403, json: { error: 'QA submission boundary' } })
+      )
+    const submitted = shell.waitForRequest(
+      (request) =>
+        new URL(request.url()).pathname === '/api/mothership/chat' && request.method() === 'POST'
+    )
+    const input = frame().getByRole('textbox', { name: 'Ask Sim', exact: true })
+    await input.fill(
+      'Using only the attached page, reply with the launch code and delivery day. Do not use tools.'
+    )
+    await input.press('Enter')
+    const body = toRecord((await submitted).postDataJSON())
+    assert.equal(body.mode, 'assistant')
+    assert.equal(body.organizationId, organizationId)
+    assert.equal(body.workspaceId, undefined)
+    assert(Array.isArray(body.contexts) && body.contexts.length === 1)
+    assert(
+      pageSnapshotSchema.parse(toRecord(body.contexts[0]).snapshot).text.includes('ORCHID-482')
+    )
+    if (liveChat) {
+      await expect(
+        frame()
+          .getByText(/ORCHID-482/)
+          .filter({ visible: true })
+      ).toBeVisible({ timeout: 120_000 })
+      await expect(
+        frame()
+          .getByText(/Friday/)
+          .filter({ visible: true })
+      ).toBeVisible({ timeout: 120_000 })
+      const chatId = new URL(frame().url()).searchParams.get('chat')
+      assert(chatId)
+      const [chat] =
+        await sql`select organization_id, workspace_id, config from copilot_chats where id=${chatId}`
+      assert.equal(chat.organization_id, organizationId)
+      assert.equal(chat.workspace_id, null)
+      assert.equal(toRecord(chat.config).conversationMode, 'assistant')
+      await screenshot('organization-assistant-response')
+    } else await shell.unroute('**/api/mothership/chat')
+  })
+  await check(
+    'Revoking organization membership removes the live composer and pending captures',
+    async () => {
+      assert(userId)
+      await navigate(`${base.origin}/extension/o/${organizationId}`)
+      await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+      await capture()
+      await expect(attachments()).toHaveCount(1)
+      await sql`delete from member where organization_id=${organizationId} and user_id=${userId}`
+      await shell.clock.setFixedTime(Date.now() + 360_000)
+      await reconnect()
+      await expect(frame().getByText('This organization is unavailable.')).toBeVisible()
+      await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveCount(0)
+      await expect(attachments()).toHaveCount(0)
+      await screenshot('organization-membership-revoked')
+      await shell.clock.setFixedTime(Date.now())
+      await navigate(`${base.origin}/extension/${alphaId}`)
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+    }
+  )
   await check('Signing out removes authenticated chat and captured page context', async () => {
     await capture()
     const response = await browserContext.request.post(`${base.origin}/api/auth/sign-out`, {
@@ -672,14 +1183,16 @@ try {
       data: {},
     })
     assert.equal(response.status(), 200)
-    await navigate(`${base.origin}/extension/${alphaId}`)
+    await shell.clock.setFixedTime(Date.now() + 360_000)
+    await reconnect()
     await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+    await screenshot('expired-session')
     await expect(attachments()).toHaveCount(0)
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0)
   })
   assert.deepEqual(browserErrors, [], 'Browser raised uncaught application errors')
   assert.deepEqual(
-    httpErrors.filter((entry) => entry.status >= 500),
+    httpErrors.filter((entry) => entry.status >= 500 && !entry.injected),
     [],
     'App returned a server error'
   )
@@ -697,12 +1210,14 @@ try {
 } finally {
   releaseHeldRequest()
   await context?.close()
+  for (const path of uploadedPaths) await rm(path, { force: true })
   fixture.closeAllConnections()
   fixture.close()
   await check('Disposable database fixtures are removed', async () => {
     if (!userId) return
     const owner = userId
     await sql.begin(async (tx) => {
+      await tx`delete from organization where id in (${organizationId}, ${otherOrganizationId})`
       for (const id of [owner, otherUserId]) {
         await tx`delete from workspace where owner_id=${id}`
         await tx`delete from project where owner_id=${id}`

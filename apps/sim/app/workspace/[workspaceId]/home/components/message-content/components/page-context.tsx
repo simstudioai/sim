@@ -3,8 +3,6 @@
 import { useState } from 'react'
 import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import {
-  Button,
-  Chip,
   ChipLink,
   ChipModal,
   ChipModalBody,
@@ -14,14 +12,16 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { Globe, X } from '@sim/emcn/icons'
+import { Globe } from '@sim/emcn/icons'
+import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 
 interface PageContextProps {
   snapshot: PageSnapshot
-  onRemove: () => void
+  onRemove?: () => void
+  label?: string
 }
 
-export function PageContext({ snapshot, onRemove }: PageContextProps) {
+export function PageContext({ snapshot, onRemove, label }: PageContextProps) {
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState<HTMLPreElement | null>(null)
   const edges = useScrollEdges(preview)
@@ -29,29 +29,23 @@ export function PageContext({ snapshot, onRemove }: PageContextProps) {
   const title = snapshot.title || hostname
 
   return (
-    <section
-      className='ph-no-capture relative min-w-0 max-w-[min(220px,100%)]'
-      aria-label='Page attached to next message'
+    <span
+      className='ph-no-capture inline-flex min-w-0 max-w-[min(220px,100%)] align-middle'
+      role={onRemove ? 'group' : undefined}
+      aria-label={onRemove ? 'Page attached to next message' : undefined}
     >
-      <Chip
-        variant='border'
-        leftIcon={Globe}
-        className='max-w-full'
-        rightAdornment={<span className='w-4' />}
-        aria-label={`Review page context: ${title}${snapshot.truncated ? ' (partial capture)' : ''}`}
-        onClick={() => setOpen(true)}
-      >
-        {`${snapshot.kind === 'selection' ? `Selection · ${title}` : title}${snapshot.truncated ? ' · Partial' : ''}`}
-      </Chip>
-      <Button
-        className='absolute top-0 right-0'
-        variant='ghost'
-        size='icon'
-        onClick={onRemove}
-        aria-label='Remove page context'
-      >
-        <X className='size-[14px]' />
-      </Button>
+      <ResourceMention
+        variant={onRemove ? 'field' : 'mono'}
+        icon={<Globe className='size-[12px] shrink-0 text-[var(--text-icon)]' />}
+        title={
+          label ??
+          `${snapshot.kind === 'selection' ? `Selection · ${title}` : title}${snapshot.truncated ? ' · Partial' : ''}`
+        }
+        ariaLabel={`Review page context: ${title}${snapshot.truncated ? ' (partial capture)' : ''}`}
+        onSelect={() => setOpen(true)}
+        onRemove={onRemove}
+        removeLabel='Remove page context'
+      />
       <ChipModal open={open} onOpenChange={setOpen} srTitle='Page context' size='sm'>
         <ChipModalHeader onClose={() => setOpen(false)}>{title}</ChipModalHeader>
         <ChipModalBody>
@@ -86,11 +80,13 @@ export function PageContext({ snapshot, onRemove }: PageContextProps) {
           >
             {snapshot.text}
           </pre>
-          <p className='text-[var(--text-muted)] text-caption'>
-            Saved in this chat when you send your message.
-          </p>
+          {onRemove && (
+            <p className='text-[var(--text-muted)] text-caption'>
+              Saved in this chat when you send your message.
+            </p>
+          )}
         </ChipModalBody>
       </ChipModal>
-    </section>
+    </span>
   )
 }

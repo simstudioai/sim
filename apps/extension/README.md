@@ -1,6 +1,6 @@
 # Sim browser extension
 
-The Chrome extension attaches an explicitly captured page or selection to the existing Sim chat. The native side panel hosts the authenticated `/extension` app surface. Chat rendering, execution, permissions, billing, and history belong to Sim and Mothership.
+The Chrome extension attaches an explicitly captured page or selection to the existing Sim chat. The native side panel hosts the authenticated `/extension` app surface. Chat opens in the user's organization when available; choosing a workspace is optional. Members without access to Home use the organization's Assistant. Chat rendering, execution, permissions, billing, and history belong to Sim and Mothership.
 
 ## Build and load
 
@@ -48,7 +48,7 @@ The E2E suite uses real Chromium, the packaged extension, and a disposable HTTP 
 
 Release verification must additionally exercise the native toolbar and shortcut, Chrome's real grant/revoke prompt, sign-in/SSO and expiry against the running Sim app, side-panel closing/reopening, workspace changes, narrow widths, and the real Mothership streaming response. The fixture suite does not establish those integrations. The design document records launch scope and release criteria.
 
-The authenticated acceptance suite runs against a real local app, Better Auth, and a disposable Postgres database whose name contains `test`:
+The authenticated acceptance suite runs against a real local app, Better Auth, and a disposable Postgres database whose name contains `test`. Enable `KNOWLEDGE_MEMBER_ACCESS`, `CREDENTIAL_GROUPS`, `ACCESS_CONTROL_ENABLED`, and `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` on that app to exercise restricted organization members:
 
 ```sh
 EXTENSION_APP_E2E_BASE_URL=http://127.0.0.1:3007 \
@@ -58,7 +58,7 @@ SIM_EXTENSION_KEY="$PUBLIC_EXTENSION_KEY" \
 bun run --cwd apps/sim test:browser-extension:e2e
 ```
 
-Configure the matching extension ID in the running app. The suite builds into a temporary directory, creates its own accounts/workspaces, and removes them afterward; it leaves the shipping `dist` untouched. It verifies real authentication, workspace denial, page limits, navigation, source links, clipboard writes, actual replay-recorder exclusion, themes, widths, and sign-out. CI provisions this isolated environment with `next dev`; the main checks workflow separately validates the production build. This keeps the disposable extension origin and identity independent of the shared app build. Set `EXTENSION_APP_E2E_LIVE_CHAT=1` when the app is connected to a working local Mothership instance to additionally verify live rendering, saved page context, queue editing, and drafts through chat admission. Provider credentials belong only in that server's environment. Reports and screenshots are written beside the supplied report path. Native toolbar/shortcut/context-menu and permission-prompt checks remain manual release checks.
+Configure the matching extension ID in the running app. The suite builds into a temporary directory, creates its own accounts/workspaces, and removes them afterward; it leaves the shipping `dist` untouched. It verifies real authentication, workspace denial, page limits, navigation, source links, clipboard writes, actual replay-recorder exclusion, themes, widths, and sign-out. CI provisions this isolated environment in the shared HTTP acceptance matrix, using the same production build as the other app suites. The packaged extension transport suite runs separately. Set `EXTENSION_APP_E2E_LIVE_CHAT=1` when the app is connected to a working local Mothership instance to additionally verify live rendering, saved page context, queue editing, and drafts through chat admission. Provider credentials belong only in that server's environment. Reports and screenshots are written beside the supplied report path. Native toolbar/shortcut/context-menu and permission-prompt checks remain manual release checks.
 
 ## Distribution
 

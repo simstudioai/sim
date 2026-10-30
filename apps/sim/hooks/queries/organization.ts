@@ -11,6 +11,7 @@ import {
 import {
   createOrganizationContract,
   getMemberRemovalImpactContract,
+  getOrganizationContract,
   getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
   type OrganizationBillingSummary,
@@ -46,6 +47,16 @@ export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
 export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 0
 
 export { organizationKeys }
+
+/** Revalidates current organization membership through the shared authorized read. */
+export function useOrganizationSummary(organizationId: string) {
+  return useQuery({
+    queryKey: organizationKeys.summary(organizationId),
+    queryFn: ({ signal }) =>
+      requestJson(getOrganizationContract, { params: { id: organizationId }, query: {}, signal }),
+    staleTime: ORGANIZATION_DETAIL_STALE_TIME,
+  })
+}
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
 

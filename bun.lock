@@ -435,6 +435,7 @@
         "@trigger.dev/build": "4.7.6",
         "@types/archiver": "8.0.0",
         "@types/busboy": "1.5.4",
+        "@types/chrome": "0.3.6",
         "@types/hast": "3.0.5",
         "@types/heic-convert": "2.1.1",
         "@types/html-to-text": "9.0.4",

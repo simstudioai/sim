@@ -2,6 +2,7 @@
 
 import { createContext, type ReactNode, useContext } from 'react'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import ExtensionLoading from '@/app/extension/loading'
 import { ExtensionSignIn } from '@/app/extension/sign-in'
@@ -29,7 +30,8 @@ export function ExtensionProviders({
 }: ExtensionProvidersProps) {
   const { data: session, isPending, error } = useSession()
   if (isPending) return <ExtensionLoading />
-  if (error || !session?.user || session.user.id !== userId) return <ExtensionSignIn />
+  const accessDenied = isApiClientError(error) && (error.status === 401 || error.status === 403)
+  if (accessDenied || !session?.user || session.user.id !== userId) return <ExtensionSignIn />
   return (
     <ExtensionIdentityContext.Provider value={{ origins, userId }}>
       <FeatureFlagsProvider

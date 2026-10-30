@@ -152,8 +152,12 @@ function SidePanel({ origin }: SidePanelProps) {
             )
           return
         }
-        if (!disposed && intent && Date.now() - intent.createdAt <= CAPTURE_INTENT_TTL_MS)
-          await capture(intent.kind, intent)
+        if (disposed || !intent) return
+        if (Date.now() - intent.createdAt > CAPTURE_INTENT_TTL_MS) {
+          setStatus('The capture expired. Attach the page again.')
+          return
+        }
+        await capture(intent.kind, intent)
       } catch {
         if (!disposed) setStatus('Could not receive the capture request. Attach the page again.')
       } finally {
@@ -209,10 +213,18 @@ function SidePanel({ origin }: SidePanelProps) {
       }
       void consumeIntent()
     }, 5_000)
+    const tabUpdated = (
+      _tabId: number,
+      change: chrome.tabs.OnUpdatedInfo,
+      tab: chrome.tabs.Tab
+    ) => {
+      if (!tab.active || (change.url === undefined && change.status === undefined)) return
+      update()
+    }
     window.addEventListener('message', message)
     chrome.storage.onChanged.addListener(storageChanged)
     chrome.tabs.onActivated.addListener(update)
-    chrome.tabs.onUpdated.addListener(update)
+    chrome.tabs.onUpdated.addListener(tabUpdated)
     chrome.permissions.onAdded.addListener(update)
     chrome.permissions.onRemoved.addListener(update)
     update()
@@ -227,7 +239,7 @@ function SidePanel({ origin }: SidePanelProps) {
       window.removeEventListener('message', message)
       chrome.storage.onChanged.removeListener(storageChanged)
       chrome.tabs.onActivated.removeListener(update)
-      chrome.tabs.onUpdated.removeListener(update)
+      chrome.tabs.onUpdated.removeListener(tabUpdated)
       chrome.permissions.onAdded.removeListener(update)
       chrome.permissions.onRemoved.removeListener(update)
     }
@@ -271,9 +283,8 @@ function SidePanel({ origin }: SidePanelProps) {
         <ChipModalHeader onClose={() => setAccessOpen(false)}>Site access</ChipModalHeader>
         <ChipModalBody>
           {site ? (
-            <Chip onClick={() => void toggleSite()}>
-              {site.allowed ? 'Remove access to' : 'Allow access to'}{' '}
-              {new URL(site.origin).hostname}
+            <Chip className='max-w-full' onClick={() => void toggleSite()}>
+              {`${site.allowed ? 'Remove access to' : 'Allow access to'} ${new URL(site.origin).hostname}`}
             </Chip>
           ) : (
             <p className='text-[var(--text-muted)] text-small'>

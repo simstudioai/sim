@@ -37,7 +37,8 @@
         "!scripts/test-workflow-stop-after-e2e.ts",
         "!scripts/test-workflow-version-compare-e2e.ts",
         "!vitest.*",
-        "!test-results/**"
+        "!test-results/**",
+        "!scripts/test-browser-extension-e2e.ts"
       ],
       "outputs": []
     },
@@ -169,7 +170,8 @@
         "$TURBO_ROOT$/vitest.shared.ts",
         "$TURBO_ROOT$/apps/docs/content/**",
         "!**/AGENTS.md",
-        "!**/CLAUDE.md"
+        "!**/CLAUDE.md",
+        "!scripts/test-browser-extension-e2e.ts"
       ]
     },
     "build": {
@@ -192,6 +194,15 @@
         "!lib/projects/README.md",
         "!tools/pitchbook/__fixtures__/README.md"
       ]
+    },
+    "ci:e2e-browser-extension": {
+      "dependsOn": ["ci:server", "ci:ui"],
+      "inputs": [
+        "scripts/test-browser-extension-e2e.ts",
+        "$TURBO_ROOT$/apps/extension/**",
+        "$TURBO_ROOT$/packages/browser-extension-protocol/**"
+      ],
+      "cache": false
     }
   }
 }

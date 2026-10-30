@@ -217,9 +217,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Desktop inbox and Project Files use Redis.
+      # Desktop inbox, browser extension, and Project Files use Redis.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'browser-extension' || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
         ports:
           - 6379:6379
         options: >-
@@ -296,7 +296,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-reports-${{ matrix.group }}
-          path: ${{ runner.temp }}/e2e/**/*.json
+          path: |
+            ${{ runner.temp }}/e2e/**/*.json
+            ${{ runner.temp }}/e2e/browser-extension/**/*.png
           if-no-files-found: ignore
           retention-days: 7
 

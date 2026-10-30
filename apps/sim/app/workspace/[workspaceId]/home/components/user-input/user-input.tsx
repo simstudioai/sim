@@ -32,6 +32,7 @@ import {
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
+import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
@@ -58,6 +59,7 @@ const logger = createLogger('UserInput')
 interface UserInputProps {
   attachments?: React.ReactNode
   resourceActions?: React.ReactNode
+  modelSelectorOptions?: ModelSelectorOptions
   requestMode?: 'agent' | 'plan'
   onPlanChange?: () => void
   defaultValue?: string
@@ -95,6 +97,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   {
     attachments,
     resourceActions,
+    modelSelectorOptions,
     requestMode = 'agent',
     onPlanChange,
     defaultValue = '',
@@ -684,6 +687,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
             )}
           </>
         }
+        modelSelectorOptions={modelSelectorOptions}
         voiceControl={
           isSttSupported && (
             <MicButton

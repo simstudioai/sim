@@ -55,6 +55,7 @@ export function usePageContext(origins: string[], scopeKey: string) {
   useEffect(() => {
     if (window.parent === window) return
     const sessionId = generateId()
+    let disposed = false
     const receive = (event: MessageEvent<unknown>) => {
       if (event.source !== window.parent || !origins.includes(event.origin)) return
       const parsed = extensionToAppMessageSchema.safeParse(event.data)
@@ -82,8 +83,12 @@ export function usePageContext(origins: string[], scopeKey: string) {
       type: 'ready',
       sessionId,
     }
-    for (const origin of origins) window.parent.postMessage(ready, origin)
+    // A discarded effect setup must not claim a waiting capture.
+    queueMicrotask(() => {
+      if (!disposed) for (const origin of origins) window.parent.postMessage(ready, origin)
+    })
     return () => {
+      disposed = true
       bridgeRef.current = null
       window.removeEventListener('message', receive)
       const unavailable: AppToExtensionMessage = {

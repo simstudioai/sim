@@ -1,35 +1,25 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import {
-  ChipModal,
-  ChipModalHeader,
-  cn,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  toast,
-} from '@sim/emcn'
-import { Globe, Highlighter, Settings } from '@sim/emcn/icons'
+import { useCallback, useState } from 'react'
+import { ChipModal, ChipModalHeader, cn, toast } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useQueryState, useQueryStates } from 'nuqs'
-import { getPageContextBudgetError } from '@/lib/mothership/chat/page-context'
 import type { WorkspaceResourceRef } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { ExtensionHeader } from '@/app/extension/[workspaceId]/header'
-import { PageContext } from '@/app/extension/[workspaceId]/page-context'
 import {
   extensionChatParam,
   extensionSourceParams,
 } from '@/app/extension/[workspaceId]/search-params'
-import { usePageContext } from '@/app/extension/hooks/use-page-context'
+import { useExtensionComposer } from '@/app/extension/hooks/use-composer'
 import { useExtensionIdentity } from '@/app/extension/providers'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat'
 import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
-import { prepareContextForInsert } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import type { ChatContext } from '@/stores/panel'
 
 interface ExtensionChatProps {
@@ -38,7 +28,8 @@ interface ExtensionChatProps {
 }
 
 export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps) {
-  const { origins, userId } = useExtensionIdentity()
+  const { userId } = useExtensionIdentity()
+  const history = useMothershipChats(workspaceId)
   const queryClient = useQueryClient()
   const [sourceParams, setSourceParams] = useQueryStates(extensionSourceParams)
   const [selectedChatId, setSelectedChatId] = useQueryState(
@@ -51,42 +42,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
     setCaptureChatId(selectedChatId)
     setComposerKey(generateId())
   }
-  const { snapshots, captureError, clearSnapshots, removeSnapshot, connected, requestAction } =
-    usePageContext(origins, composerKey)
-  const composerAttachments = useMemo(
-    () =>
-      snapshots.length > 0
-        ? snapshots.map((snapshot) => (
-            <PageContext
-              key={snapshot.id}
-              snapshot={snapshot}
-              onRemove={() => removeSnapshot(snapshot.id)}
-            />
-          ))
-        : undefined,
-    [snapshots, removeSnapshot]
-  )
-  const composerResourceActions = useMemo(
-    () =>
-      connected ? (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => requestAction('capture-page')}>
-            <Globe className='size-[14px]' />
-            Current page
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => requestAction('capture-selection')}>
-            <Highlighter className='size-[14px]' />
-            Selected text
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => requestAction('site-access')}>
-            <Settings className='size-[14px]' />
-            Site access
-          </DropdownMenuItem>
-        </>
-      ) : undefined,
-    [connected, requestAction]
-  )
+  const composer = useExtensionComposer(composerKey)
   const chat = useChat(workspaceId, selectedChatId ?? undefined, {
     apiPath: '/api/mothership/chat',
     stopPath: '/api/mothership/chat/stop',
@@ -143,37 +99,26 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
     closeSources()
     void setSelectedChatId(chatId)
   }
-  const submit = (message: string, files?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
-    const submittedContexts: ChatContext[] = [...(contexts ?? [])]
-    let submittedMessage = message
-    for (const snapshot of snapshots) {
-      const pageContext = prepareContextForInsert(
-        {
-          kind: 'browser_page',
-          label: snapshot.kind === 'selection' ? 'Selection' : 'Page',
-          snapshot,
-        },
-        submittedContexts
-      )
-      if (pageContext) {
-        submittedContexts.push(pageContext)
-        submittedMessage += `\n\n@${pageContext.label}`
-      }
-    }
-    const budgetError = getPageContextBudgetError(submittedContexts)
-    if (budgetError) {
-      toast.error(budgetError)
-      return false
-    }
-    void chat.sendMessage(submittedMessage, files, submittedContexts)
-    clearSnapshots()
-  }
+  const { sendMessage, stopGeneration } = chat
+  const stop = useCallback(() => {
+    void stopGeneration()
+  }, [stopGeneration])
+  const submit = useCallback(
+    (message: string, files?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+      const submission = composer.prepareSubmission(message, contexts)
+      if (submission === false) return false
+      void sendMessage(submission.message, files, submission.contexts)
+      composer.onSubmitted()
+    },
+    [composer.prepareSubmission, sendMessage, composer.onSubmitted]
+  )
 
   return (
     <main className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'>
       <ExtensionHeader
         workspaceId={workspaceId}
-        workspaceName={workspaceName}
+        scopeName={workspaceName}
+        history={history}
         chatId={chat.resolvedChatId}
         onSelectChat={selectChat}
         appHref={appHref}
@@ -183,9 +128,9 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
           {chat.error}
         </p>
       )}
-      {captureError && (
+      {composer.captureError && (
         <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
-          {captureError}
+          {composer.captureError}
         </p>
       )}
       {!selectedChatId && chat.messages.length === 0 && (
@@ -194,6 +139,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
         </div>
       )}
       <MothershipChat
+        onNavigateToChat={selectChat}
         workspaceId={workspaceId}
         userId={userId}
         chatId={chat.resolvedChatId}
@@ -204,7 +150,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
           Boolean(selectedChatId) && chat.messages.length === 0 && chat.isChatHistoryPending
         }
         onSubmit={submit}
-        onStopGeneration={() => void chat.stopGeneration()}
+        onStopGeneration={stop}
         messageQueue={chat.messageQueue}
         editingQueuedId={chat.editingQueuedId}
         dispatchingHeadId={chat.dispatchingHeadId}
@@ -221,8 +167,9 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
         onWorkspaceResourceSelect={(resource) => void openResource(resource)}
         composerKey={composerKey}
         draftScopeKey={`extension:${userId}:${workspaceId}:${selectedChatId ?? 'new'}`}
-        composerAttachments={composerAttachments}
-        composerResourceActions={composerResourceActions}
+        composerAttachments={composer.attachments}
+        composerResourceActions={composer.resourceActions}
+        composerModelSelectorOptions={composer.modelSelectorOptions}
         layout='copilot-view'
         className={cn(
           'h-auto min-h-0',

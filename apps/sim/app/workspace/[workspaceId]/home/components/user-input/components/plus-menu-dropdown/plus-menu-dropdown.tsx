@@ -8,6 +8,7 @@ import {
   DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuSearchInput,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   dropdownMenuRowClass,
   OverflowText,
@@ -479,7 +480,12 @@ export const PlusMenuDropdown = React.memo(
                 onSelect={handleSelect}
                 subContentClassName={RESOURCE_MENU_WIDTH_CLASS}
               />
-              {actions}
+              {actions && (
+                <>
+                  <DropdownMenuSeparator />
+                  {actions}
+                </>
+              )}
             </div>
             {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
                   menu Collection, or FocusScope restores focus to the content root. */}

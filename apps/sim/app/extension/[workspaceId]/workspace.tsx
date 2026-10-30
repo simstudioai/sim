@@ -24,7 +24,8 @@ export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
   const { data, isPending, error, refetch } = useWorkspaceHostContextQuery(workspaceId)
   if (isApiClientError(error) && error.status === 401) return <ExtensionSignIn />
   if (isPending) return <ExtensionLoading />
-  if (error || !data) {
+  const accessDenied = isApiClientError(error) && (error.status === 403 || error.status === 404)
+  if (accessDenied || !data) {
     return (
       <main className='flex h-dvh flex-col items-center justify-center gap-4 bg-[var(--bg)] p-6 text-[var(--text-body)] text-small'>
         <p>This workspace is unavailable.</p>

@@ -90,8 +90,12 @@ export const useMothershipDraftsStore = create<MothershipDraftsState>()(
         partialize: (state) => {
           const drafts: Record<string, DraftPayload> = {}
           for (const [key, payload] of Object.entries(state.drafts)) {
-            if (payload.contexts?.some((context) => context.kind === 'browser_page')) continue
-            drafts[key] = payload
+            const contexts = payload.contexts?.filter((context) => context.kind !== 'browser_page')
+            const persistedPayload: DraftPayload = {
+              ...payload,
+              contexts: contexts?.length ? contexts : undefined,
+            }
+            if (!isEmpty(persistedPayload)) drafts[key] = persistedPayload
           }
           return { drafts }
         },

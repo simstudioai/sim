@@ -52,7 +52,8 @@
     "ci:e2e-mobile": "bash ../../.github/scripts/http-e2e.sh mobile",
     "ci:e2e-seo": "bash ../../.github/scripts/http-e2e.sh seo",
     "ci:integration": "vitest run --mode integration",
-    "ci:desktop-live": "cd ../desktop && bunx --no-install playwright test e2e/desktop-tools-live-sim.spec.ts"
+    "ci:desktop-live": "cd ../desktop && bunx --no-install playwright test e2e/desktop-tools-live-sim.spec.ts",
+    "ci:e2e-browser-extension": "bash ../../.github/scripts/http-e2e.sh browser-extension"
   },
   "dependencies": {
     "@1password/sdk": "0.5.0",
@@ -297,6 +298,7 @@
     "@trigger.dev/build": "4.7.6",
     "@types/archiver": "8.0.0",
     "@types/busboy": "1.5.4",
+    "@types/chrome": "0.3.6",
     "@types/hast": "3.0.5",
     "@types/heic-convert": "2.1.1",
     "@types/html-to-text": "9.0.4",

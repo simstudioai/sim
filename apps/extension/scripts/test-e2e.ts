@@ -258,6 +258,20 @@ try {
     )
     await page.reload()
   })
+  await check(
+    'An expired toolbar intent asks for a fresh capture without delivering content',
+    async () => {
+      const before = (await snapshots()).length
+      const intent = { ...(await pendingIntent()), createdAt: Date.now() - 60_000 }
+      await worker.evaluate(async (pending) => {
+        await chrome.storage.session.set({ [`captureIntent:${pending.windowId}:expired`]: pending })
+      }, intent)
+      await expect(panel.getByRole('status')).toHaveText(
+        'The capture expired. Attach the page again.'
+      )
+      assert((await snapshots()).length === before, 'Expired toolbar intent delivered content')
+    }
+  )
   await check('Page extraction excludes secrets and strips URL query and fragment', async () => {
     const [snapshot] = await snapshots()
     assert(snapshot.text.includes('visible-reference-482'), 'Visible page content missing')

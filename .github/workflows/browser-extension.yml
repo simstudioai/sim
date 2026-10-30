@@ -28,42 +28,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  browser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: extension_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d extension_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-      redis:
-        image: redis:8.2-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/extension_test
-      REDIS_URL: redis://127.0.0.1:6379
-      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3007
-      BETTER_AUTH_URL: http://127.0.0.1:3007
-      BETTER_AUTH_SECRET: browser-extension-ci-auth-secret-32-characters
-      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
-      API_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
-      NEXT_TELEMETRY_DISABLED: '1'
-      DISABLE_AUTH: 'false'
+  transport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -81,43 +48,9 @@ jobs:
         working-directory: apps/extension
         env:
           EXTENSION_REPORT_PATH: test-results/extension-report.json
-      - name: Provision the disposable app database
-        run: bun run --cwd packages/db db:migrate
-      - name: Generate the fixture extension identity
-        run: |
-          bun - <<'JS' >> "$GITHUB_ENV"
-            import { generateKeyPairSync, createHash } from "node:crypto";
-            const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-            const der = publicKey.export({ type: "spki", format: "der" });
-            const id = [...createHash("sha256").update(der).digest("hex").slice(0, 32)]
-              .map(c => String.fromCharCode(97 + parseInt(c, 16))).join("");
-            process.stdout.write(`SIM_EXTENSION_KEY=${der.toString("base64")}\nBROWSER_EXTENSION_IDS=${id}\n`);
-          JS
-      - name: Start the real Sim app
-        working-directory: apps/sim
-        run: |
-          node "$(bun -p 'require.resolve("next/dist/bin/next")')" dev --hostname 127.0.0.1 --port 3007 > "$RUNNER_TEMP/extension-app.log" 2>&1 &
-          for ((attempt=0; attempt<60; attempt++)); do
-            if curl --fail --silent http://127.0.0.1:3007/api/auth/get-session > /dev/null; then exit 0; fi
-            sleep 2
-          done
-          exit 1
-      - name: Exercise authenticated app integration
-        working-directory: apps/sim
-        run: bun run test:browser-extension:e2e
-        env:
-          EXTENSION_APP_E2E_BASE_URL: http://127.0.0.1:3007
-          EXTENSION_APP_E2E_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/extension_test
-          EXTENSION_APP_E2E_REPORT_PATH: ../extension/test-results/real-app-report.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: browser-extension-results
           path: apps/extension/test-results
-          retention-days: 7
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: failure()
-        with:
-          name: browser-extension-app-log
-          path: ${{ runner.temp }}/extension-app.log
           retention-days: 7
