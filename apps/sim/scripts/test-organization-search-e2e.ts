@@ -715,17 +715,37 @@ try {
     await expect(page).toHaveURL(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
   })
-  await check('New search clears its draft while Back restores the prior query draft', async () => {
-    await page.goto(`${baseUrl.origin}${root}/search?q=Launch`)
-    const input = page.getByRole('textbox', { name: 'Search your sources' })
-    await input.fill('Edited launch query')
-    await page.getByRole('button', { name: 'New search', exact: true }).click()
-    await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
-    await expect(input).toHaveValue('')
-    await page.goBack()
-    await expect(input).toHaveValue('Edited launch query')
-    assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch')
-  })
+  await check(
+    'Search protects edits during hydration and restores the prior draft on Back',
+    async () => {
+      const releaseScripts = createDeferred<void>()
+      const scripts = '**/_next/static/**/*.js'
+      await page.route(scripts, async (route) => {
+        await releaseScripts.promise
+        await route.continue()
+      })
+      const input = page.getByRole('textbox', { name: 'Search your sources' })
+      try {
+        await page.goto(`${baseUrl.origin}${root}/search?q=Launch`, { waitUntil: 'commit' })
+        await expect(input).toBeVisible()
+        await expect(input).toBeDisabled()
+        await expect(page.getByLabel('Search', { exact: true })).toBeDisabled()
+      } finally {
+        releaseScripts.resolve()
+        await page.unrouteAll({ behavior: 'wait' })
+        await page.waitForLoadState()
+      }
+      await expect(input).toBeFocused()
+      await input.fill('Edited launch query')
+      await expect(input).toHaveValue('Edited launch query')
+      await page.getByRole('button', { name: 'New search', exact: true }).click()
+      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
+      await expect(input).toHaveValue('')
+      await page.goBack()
+      await expect(input).toHaveValue('Edited launch query')
+      assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch')
+    }
+  )
   await check('Search URLs cannot change an agent conversation into an assistant', async () => {
     await page.goto(`${baseUrl.origin}${root}/search/chat/${agentId}`)
     await expect(page).toHaveURL(`${baseUrl.origin}${root}/chat/${agentId}`)
