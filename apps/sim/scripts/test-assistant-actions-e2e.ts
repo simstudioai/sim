@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { chromium, expect } from '@playwright/test'
+import { chromium, expect, type Locator } from '@playwright/test'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { createDeferred } from '@sim/testing/helpers/deferred'
@@ -186,6 +186,16 @@ async function capture(name: string) {
       )
     )
   await page.screenshot({ path: resolve(artifactDirectory, `${name}.png`), animations: 'disabled' })
+}
+
+async function captureExpandedReceipt(name: string, disclosure: Locator) {
+  await disclosure.hover()
+  await page.mouse.wheel(0, -1000)
+  await disclosure.click()
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+  await expect(disclosure).toBeInViewport({ ratio: 1 })
+  await capture(name)
+  await expect(disclosure).toBeInViewport({ ratio: 1 })
 }
 
 function proposalArguments(summary: string) {
@@ -1042,10 +1052,12 @@ try {
       const historicalReceipt = page
         .getByRole('region', { name: 'Create Jira issue receipt' })
         .filter({ hasText: 'Approved historical title' })
-      await historicalReceipt
-        .getByRole('button', { name: 'View Create Jira issue receipt: Completed', exact: true })
-        .click()
-      await capture('action-receipt-completed-expanded')
+      await captureExpandedReceipt(
+        'action-receipt-completed-expanded',
+        historicalReceipt.getByRole('button', {
+          name: /^(View|Hide) Create Jira issue receipt: Completed$/,
+        })
+      )
       await historicalReceipt
         .getByRole('button', { name: 'Hide Create Jira issue receipt: Completed', exact: true })
         .click()
@@ -1633,7 +1645,15 @@ try {
           await expect(
             page.getByText('Could not load action history', { exact: true })
           ).toHaveCount(index + 1, { timeout: 15_000 })
+          const historyError = page
+            .getByText('Could not load action history', { exact: true })
+            .last()
+          await historyError.hover()
+          await page.mouse.wheel(0, -1000)
+          await historyError.scrollIntoViewIfNeeded()
+          await expect(historyError).toBeInViewport({ ratio: 1 })
           await capture(`receipt-history-${fixture.state.toLowerCase()}-retry`)
+          await expect(historyError).toBeInViewport({ ratio: 1 })
         } finally {
           await page.unroute(`${receiptsUrl}*`)
         }
@@ -1660,13 +1680,12 @@ try {
           const receipt = page
             .getByRole('region', { name: 'Create Jira issue receipt' })
             .filter({ hasText: 'Batch issue 62' })
-          await receipt
-            .getByRole('button', {
-              name: `View Create Jira issue receipt: ${fixture.label}`,
-              exact: true,
+          await captureExpandedReceipt(
+            `action-receipt-${fixture.label.toLowerCase().replaceAll(' ', '-')}`,
+            receipt.getByRole('button', {
+              name: new RegExp(`^(View|Hide) Create Jira issue receipt: ${fixture.label}$`),
             })
-            .click()
-          await capture(`action-receipt-${fixture.label.toLowerCase().replaceAll(' ', '-')}`)
+          )
         }
         const incompatibleBinding = {
           ...toRecord(savedExecution.assistant_action),
@@ -1681,13 +1700,12 @@ try {
         ]) {
           await sql`update copilot_async_tool_calls set assistant_action = ${sql.json(fixture.binding)} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
           await page.reload()
-          await page
-            .getByRole('button', {
-              name: 'View Create Jira issue receipt: Outcome unknown',
-              exact: true,
+          await captureExpandedReceipt(
+            `action-receipt-${fixture.name}`,
+            page.getByRole('button', {
+              name: /^(View|Hide) Create Jira issue receipt: Outcome unknown$/,
             })
-            .click()
-          await capture(`action-receipt-${fixture.name}`)
+          )
         }
       } finally {
         await sql`update copilot_async_tool_calls set status = ${savedExecution.status}, execution_started_at = ${savedExecution.execution_started_at}, execution_settled_at = ${savedExecution.execution_settled_at}, execution_owner_token = ${savedExecution.execution_owner_token}, execution_lease_expires_at = ${savedExecution.execution_lease_expires_at}, completed_at = ${savedExecution.completed_at}, result = ${savedExecution.result === null ? null : sql.json(savedExecution.result)}, assistant_action = ${sql.json(savedExecution.assistant_action)} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`

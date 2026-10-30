@@ -28,7 +28,6 @@ interface EnvFlagsMockState {
   isAppConfigEnabled: boolean
   isSlackExtendedScopesEnabled: boolean
   isTriggerDevEnabled: boolean
-  isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
   isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
@@ -82,7 +81,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAppConfigEnabled: false,
   isSlackExtendedScopesEnabled: false,
   isTriggerDevEnabled: false,
-  isEnterpriseEnabled: false,
   isSsoEnabled: false,
   /** OAuth-aware route behavior is available unless a suite overrides it. */
   isUsageMonitoringEnabled: false,
