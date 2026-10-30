@@ -1328,6 +1328,92 @@ try {
       window.dispatchEvent(new Event('online'))
     })
   }
+  const workspaceListUrl = (url: URL) =>
+    url.origin === base.origin && url.pathname === '/api/workspaces'
+  for (const [status, name] of [
+    [503, 'A transient workspace-list refetch preserves the mounted picker and scroll position'],
+    [401, 'An expired workspace-list session replaces cached choices with sign-in recovery'],
+    [403, 'A forbidden workspace-list refetch removes cached choices'],
+    [404, 'A missing workspace-list refetch removes cached choices'],
+    [400, 'An invalid workspace-list request removes cached choices'],
+  ] as const) {
+    await check(name, async () => {
+      await navigate(`${base.origin}/extension`)
+      const choices = frame().getByRole('navigation', { name: 'Workspaces', exact: true })
+      await expect(choices).toBeVisible()
+      const original = await choices.elementHandle()
+      assert(original)
+      const scroller = frame().getByRole('main')
+      await scroller.evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
+      const scrollTop = await scroller.evaluate((element) => element.scrollTop)
+      assert(scrollTop > 0, 'Workspace picker fixture did not overflow')
+      const failures: Request[] = []
+      await browserContext.route(workspaceListUrl, async (route) => {
+        injectedRequests.add(route.request())
+        await route.fulfill({ status, json: { error: 'QA workspace-list failure' } })
+        failures.push(route.request())
+      })
+      try {
+        await shell.clock.setFixedTime(Date.now() + 360_000)
+        await reconnect()
+        await expect.poll(() => failures.length).toBe(2)
+        await Promise.all(
+          failures.map(async (request) => {
+            const response = await request.response()
+            assert(response)
+            await response.finished()
+          })
+        )
+        await frame().evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+            )
+        )
+        if (status === 503) {
+          assert(
+            await original.evaluate((element) => element.isConnected),
+            'A transient workspace-list refetch unmounted the picker'
+          )
+          assert.equal(await scroller.evaluate((element) => element.scrollTop), scrollTop)
+          await screenshot('workspace-picker-refetch-outage')
+          await choices.getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
+          await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+        } else {
+          await expect(choices).toHaveCount(0)
+          if (status === 401)
+            await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+          else
+            await expect(
+              frame().getByRole('button', { name: 'Retry loading workspaces', exact: true })
+            ).toBeVisible()
+          await screenshot(`workspace-picker-refetch-${status}`)
+        }
+      } finally {
+        await original.dispose()
+        await browserContext.unroute(workspaceListUrl)
+        await shell.clock.setFixedTime(Date.now())
+      }
+    })
+  }
+  await check('An initial workspace-list 401 opens sign-in recovery', async () => {
+    await browserContext.route(workspaceListUrl, async (route) => {
+      injectedRequests.add(route.request())
+      await route.fulfill({ status: 401, json: { error: 'QA workspace-list session expired' } })
+    })
+    try {
+      await navigate(`${base.origin}/extension`)
+      await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+      await expect(
+        frame().getByRole('navigation', { name: 'Workspaces', exact: true })
+      ).toHaveCount(0)
+      await screenshot('workspace-picker-initial-session-expired')
+    } finally {
+      await browserContext.unroute(workspaceListUrl)
+    }
+  })
   await check(
     'Transient session and workspace refetch failures preserve the mounted composer and page draft',
     async () => {
