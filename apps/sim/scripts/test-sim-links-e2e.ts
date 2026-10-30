@@ -233,6 +233,8 @@ async function run() {
     )
     await create(owner, { name: 'gh', url: 'https://github.com/{*}/issues/{*}' })
     assert.match((await open(member, 'gh/sim')).text, /needs 2 values/)
+    assert.match((await open(member, 'jira%2F..%2F..%2Fadmin')).text, /can.*t open/)
+    assert.doesNotMatch((await open(member, 'not%20a%20link%20name')).text, /not a link name/)
   })
 
   await check('destinations must be http(s) with a fixed origin', async () => {
@@ -240,6 +242,7 @@ async function run() {
       'javascript:alert(1)',
       'https://{*}.example.com',
       'https://{*}@corp.example.com/',
+      'https://\t/{*}',
       'example.com',
     ]) {
       await api(owner, '', { method: 'POST', body: fields({ name: 'bad', url }), expected: 400 })
@@ -250,6 +253,15 @@ async function run() {
         name: 'bad',
         url: 'https://example.com',
         defaultUrl: 'https://x.example.com',
+      }),
+      expected: 400,
+    })
+    await api(owner, '', {
+      method: 'POST',
+      body: fields({
+        name: 'bad',
+        url: 'https://example.com/{*}',
+        defaultUrl: 'https://elsewhere.example.org',
       }),
       expected: 400,
     })

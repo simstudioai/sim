@@ -35,6 +35,9 @@ describe('Sim link destinations', () => {
     'ftp://example.com/file',
     '//example.com/path',
     'example.com',
+    'https://\t/{*}',
+    'https://\n/{*}',
+    'https://example.com/\r{*}',
   ])('rejects %s, whose origin is not a fixed http(s) origin', (url) => {
     expect(acceptsDestination(url)).toBe(false)
   })
@@ -53,6 +56,9 @@ describe('Sim link destinations', () => {
     expect(acceptsDestination('https://example.com', 'https://example.com/other')).toBe(false)
     expect(acceptsDestination('https://example.com/{*}', 'https://example.com/{*}')).toBe(false)
     expect(acceptsDestination('https://example.com/{*}', 'javascript:alert(1)')).toBe(false)
+    expect(acceptsDestination('https://example.com/{*}', 'https://elsewhere.example.org')).toBe(
+      false
+    )
   })
 
   it.each(['//evil.com', '@evil.com', '../../admin', '?x=1#y', '%2Fetc', 'a:b'])(
@@ -71,6 +77,17 @@ describe('Sim link destinations', () => {
       expect(() => resolveSimLinkTarget({ url, defaultUrl: null }, ['evil.com', 'x'])).toThrow(
         'no fixed http(s) origin'
       )
+    }
+  )
+
+  it.each([[['..', '..', 'attacker', 'phish']], [['.']], [['a', '..']]])(
+    'refuses dot segments in %j, which would climb out of the link path',
+    (values) => {
+      for (const url of ['https://github.com/acme/{*}', 'https://github.com/acme/handbook']) {
+        expect(resolveSimLinkTarget({ url, defaultUrl: null }, values)).toEqual({
+          kind: 'invalid_values',
+        })
+      }
     }
   )
 

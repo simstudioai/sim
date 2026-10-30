@@ -13,6 +13,12 @@ interface SimLinkDestination {
 export type SimLinkTarget =
   | { kind: 'redirect'; url: string }
   | { kind: 'missing_values'; required: number }
+  | { kind: 'invalid_values' }
+
+/** URL parsers resolve `.` and `..` even when encoded, so a value could climb out of the link's path. */
+function isDotSegment(value: string): boolean {
+  return value === '.' || value === '..'
+}
 
 function encodeSegments(values: readonly string[]): string {
   return values.map(encodeURIComponent).join('/')
@@ -37,17 +43,14 @@ export function resolveSimLinkTarget(
 ): SimLinkTarget {
   const origin = simLinkOrigin(link.url)
   if (!origin) throw new Error('Sim link destination has no fixed http(s) origin')
+  if (values.some(isDotSegment)) return { kind: 'invalid_values' }
   if (!isVariableSimLinkUrl(link.url)) {
     if (!values.length) return redirectWithin(origin, link.url)
     const url = new URL(link.url)
     url.pathname = `${url.pathname.replace(/\/+$/, '')}/${encodeSegments(values)}`
     return redirectWithin(origin, url.toString())
   }
-  if (!values.length && link.defaultUrl) {
-    const defaultUrl = parseHttpUrl(link.defaultUrl)
-    if (!defaultUrl) throw new Error('Sim link default destination is not an http(s) URL')
-    return { kind: 'redirect', url: defaultUrl.toString() }
-  }
+  if (!values.length && link.defaultUrl) return redirectWithin(origin, link.defaultUrl)
   const parts = link.url.split(SIM_LINK_VARIABLE)
   const slots = parts.length - 1
   if (values.length < slots) return { kind: 'missing_values', required: slots }

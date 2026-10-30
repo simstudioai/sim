@@ -31,11 +31,15 @@ export function parseHttpUrl(value: string): URL | null {
 /** A scheme and authority closed by `/`, `?`, or `#`: nothing typed later can extend the host. */
 const CLOSED_AUTHORITY = /^https?:\/\/[^/?#]+[/?#]/i
 
+/** URL parsers strip tabs and line breaks, so one inside the authority could hide where it ends. */
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
+
 /**
  * The origin every visit to `url` must land on, or null when values could change it. Values fill
  * only what follows the authority, so the text before the first `{*}` must already close it.
  */
 export function simLinkOrigin(url: string): string | null {
+  if (CONTROL_CHARACTER.test(url)) return null
   const [prefix] = url.split(SIM_LINK_VARIABLE)
   if (isVariableSimLinkUrl(url) && !CLOSED_AUTHORITY.test(prefix)) return null
   return parseHttpUrl(url.replaceAll(SIM_LINK_VARIABLE, 'value'))?.origin ?? null
@@ -61,7 +65,7 @@ const simLinkUrlSchema = destinationSchema.refine(
 )
 
 const defaultUrlSchema = destinationSchema.refine(
-  (url) => !isVariableSimLinkUrl(url) && parseHttpUrl(url) !== null,
+  (url) => !isVariableSimLinkUrl(url) && simLinkOrigin(url) !== null,
   'Enter a full http:// or https:// URL'
 )
 
@@ -88,5 +92,10 @@ export const simLinkFieldsSchema = z
     path: ['defaultUrl'],
     message: `Only a link with ${SIM_LINK_VARIABLE} has a default destination`,
   })
+  .refine(
+    (fields) =>
+      !fields.defaultUrl || simLinkOrigin(fields.defaultUrl) === simLinkOrigin(fields.url),
+    { path: ['defaultUrl'], message: 'Use a page on the same site as the destination URL' }
+  )
 
 export type SimLinkFields = z.output<typeof simLinkFieldsSchema>

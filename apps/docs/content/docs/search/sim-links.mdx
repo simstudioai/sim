@@ -49,7 +49,7 @@ To place a value somewhere else, put `{*}` in the destination URL:
 | `https://wiki.example.com/search?q={*}` | `sim/wiki/expense policy` | `https://wiki.example.com/search?q=expense%20policy` |
 | `https://github.com/acme/{*}/issues/{*}` | `sim/issues/api/42` | `https://github.com/acme/api/issues/42` |
 
-Each value fills the next `{*}` in order, and the last `{*}` takes everything that remains. A link with `{*}` can also have a **Default destination**, which opens when you use the link without a value. `{*}` can't replace the domain.
+Each value fills the next `{*}` in order, and the last `{*}` takes everything that remains. A link with `{*}` can also have a **Default destination** on the same site, which opens when you use the link without a value. `{*}` can't replace the domain, and values can't be `.` or `..`.
 
 ## Control access
 

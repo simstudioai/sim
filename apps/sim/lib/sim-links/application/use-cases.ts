@@ -32,7 +32,7 @@ export interface SimLinkView extends SimLinkRecord {
   canManage: boolean
 }
 
-type SimLinkResolution = SimLinkTarget | { kind: 'not_found' }
+export type SimLinkResolution = SimLinkTarget | { kind: 'not_found' }
 
 const rollout = {
   authorizeResource: ({ context }: { context: OrganizationMembershipContext }) =>
@@ -112,7 +112,12 @@ function auditOf(
 
 /** What a saved link now does, for its audit entry. */
 function savedMetadata(link: SimLinkView): Record<string, unknown> {
-  return { url: link.url, unlisted: link.unlisted, restrictEdit: link.restrictEdit }
+  return {
+    url: link.url,
+    defaultUrl: link.defaultUrl,
+    unlisted: link.unlisted,
+    restrictEdit: link.restrictEdit,
+  }
 }
 
 /** Read in the writing transaction, so the result and its audit describe exactly this write. */

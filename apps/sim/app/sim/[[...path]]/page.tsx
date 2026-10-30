@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
-import { resolveSimLink } from '@/lib/sim-links/application/use-cases'
+import { resolveSimLink, type SimLinkResolution } from '@/lib/sim-links/application/use-cases'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { simLinkNameSchema } from '@/lib/sim-links/validation'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -30,6 +30,20 @@ interface SimLinkPageProps {
 function decodeSimLinkPath(path: string[]): string[] {
   const segments = path.map(decodeURIComponent)
   return segments.length === 1 ? segments[0].split('/').filter(Boolean) : segments
+}
+
+/**
+ * Why a link did not redirect. Only a valid link name is echoed back, so an arbitrary path
+ * can't put its own text on this page.
+ */
+function describeUnresolved(result: SimLinkResolution, validName: boolean, name: string): string {
+  if (result.kind === 'missing_values') {
+    const example = Array.from({ length: result.required }, () => 'value').join('/')
+    const needed = result.required === 1 ? 'a value' : `${result.required} values`
+    return `This link needs ${needed}, like sim/${name}/${example}.`
+  }
+  if (result.kind === 'invalid_values') return "Sim links can't open . or .. as a value."
+  return validName ? "This Sim link doesn't exist yet." : "That isn't a valid Sim link name."
 }
 
 /**
@@ -62,16 +76,13 @@ export default async function SimLinkPage({ params }: SimLinkPageProps) {
   })
   if (result.kind === 'redirect') redirect(result.url)
 
-  const creatable = result.kind === 'not_found' && simLinkNameSchema.safeParse(name).success
+  const validName = simLinkNameSchema.safeParse(name).success
+  const creatable = result.kind === 'not_found' && validName
   return (
     <LogoShell center theme='inherit'>
       <StatusPageContent
-        title={`sim/${name}`}
-        description={
-          result.kind === 'missing_values'
-            ? `This link needs ${result.required === 1 ? 'a value' : `${result.required} values`}, like sim/${name}/${Array.from({ length: result.required }, () => 'value').join('/')}.`
-            : "This Sim link doesn't exist yet."
-        }
+        title={validName ? `sim/${name}` : 'Sim link'}
+        description={describeUnresolved(result, validName, name)}
       >
         {creatable && (
           <ChipLink variant='primary' href={serializeSimLinkView(library, { create: name })}>
