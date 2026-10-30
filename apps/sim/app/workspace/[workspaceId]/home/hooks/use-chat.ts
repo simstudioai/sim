@@ -657,6 +657,8 @@ export function shouldQueueOutgoingMessage(
 export interface UseChatOptions {
   /** Intent for new turns; persisted chat intent remains authoritative on reload. */
   requestMode?: ChatRequestMode
+  /** Build the admitted conversation URL from the owning surface's current view state. */
+  getChatUrl?: (chatId: string) => string
   onResourceEvent?: ResourceEventHandler
   apiPath?: string
   stopPath?: string
@@ -707,6 +709,7 @@ export function getMothershipUseChatOptions(
     | 'activeResourceState'
     | 'onRequestStarted'
     | 'requestMode'
+    | 'getChatUrl'
   > = {}
 ): UseChatOptions {
   return {
@@ -771,6 +774,8 @@ export function useChat(
   const [activeResourceId, setActiveResourceId] =
     options?.activeResourceState ?? internalActiveResourceState
   const onResourceEventRef = useRef(options?.onResourceEvent)
+  const getChatUrlRef = useRef(options?.getChatUrl)
+  getChatUrlRef.current = options?.getChatUrl
   const revealedSimKeysRef = useRef<RevealedSimKeysByMessage | null>(null)
   const revealedSimKeys = (revealedSimKeysRef.current ??= new Map())
   onResourceEventRef.current = options?.onResourceEvent
@@ -1367,11 +1372,12 @@ export function useChat(
         window.history.replaceState(
           null,
           '',
-          chatUrl(
-            organizationId ? { organizationId } : workspaceId!,
-            chatId,
-            requestModeRef.current
-          )
+          getChatUrlRef.current?.(chatId) ??
+            chatUrl(
+              organizationId ? { organizationId } : workspaceId!,
+              chatId,
+              requestModeRef.current
+            )
         )
       }
       if (options?.invalidateList) {
@@ -2414,7 +2420,6 @@ export function useChat(
         pendingUserMsgRef,
         activeTurnRef,
         resourcesRef,
-        workflowIdRef,
         activeResourceIdRef,
         onTitleUpdateRef,
         onToolResultRef,

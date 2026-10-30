@@ -126,9 +126,9 @@ export const listOrganizationAssistantActionReceipts = defineAuthorizedOrganizat
         record.currentStreamId !== record.streamId ||
         toolStartWindowClosed(record.deadlineAt?.getTime(), now)
       let state: ReceiptState
-      if (record.status === 'completed') state = 'succeeded'
+      if (record.outcomeUnknown) state = 'uncertain'
+      else if (record.status === 'completed') state = 'succeeded'
       else if (
-        record.outcomeUnknown ||
         (record.startedAt && record.revokedAt) ||
         (record.startedAt && record.status === 'cancelled')
       )

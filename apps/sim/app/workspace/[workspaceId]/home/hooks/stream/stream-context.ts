@@ -115,7 +115,7 @@ export interface StreamLoopDeps {
   setPendingMessages: Dispatch<SetStateAction<ChatMessage[]>>
   setResolvedChatId: Dispatch<SetStateAction<string | undefined>>
   /** Adopts a server-created chat before any event handler mutates chatIdRef. */
-  adoptResolvedChatId: (chatId: string) => void
+  adoptResolvedChatId: (chatId: string, options?: { replaceHomeHistory?: boolean }) => void
   setResources: Dispatch<SetStateAction<MothershipResource[]>>
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 
@@ -185,7 +185,6 @@ export interface StreamLoopDeps {
   pendingUserMsgRef: MutableRefObject<PersistedMessage | null>
   activeTurnRef: MutableRefObject<ActiveTurn | null>
   resourcesRef: MutableRefObject<MothershipResource[]>
-  workflowIdRef: MutableRefObject<string | undefined>
   activeResourceIdRef: MutableRefObject<string | null>
   onTitleUpdateRef: MutableRefObject<(() => void) | undefined>
   onToolResultRef: MutableRefObject<

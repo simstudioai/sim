@@ -162,6 +162,18 @@ function getMainTrailingCall(
   return last?.type === 'run' ? last.run.tools.at(-1) : undefined
 }
 
+function hasVisibleLaneContent(
+  items: AgentGroupItem[],
+  standaloneToolIds?: ReadonlySet<string>
+): boolean {
+  return items.some((item) => {
+    if (item.type === 'tool') return !standaloneToolIds?.has(item.data.id)
+    if (item.type === 'agent_group')
+      return Boolean(item.group.error) || hasVisibleLaneContent(item.group.items, standaloneToolIds)
+    return hasAgentGroupItemContent(item)
+  })
+}
+
 /**
  * The one live indicator of a lane, if it has one. See
  * {@link getTurnLiveIndicators} for the rule this implements.
@@ -183,7 +195,7 @@ export function getLaneLiveIndicator({
   if (running) return { type: 'call', tool: running }
   if (!isOpen) return undefined
   if (kind === 'subagent' && calls.length === 0) {
-    return parts.some((items) => items.some(hasAgentGroupItemContent))
+    return parts.some((items) => hasVisibleLaneContent(items, standaloneToolIds))
       ? { type: 'narration' }
       : undefined
   }

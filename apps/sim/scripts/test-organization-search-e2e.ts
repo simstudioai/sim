@@ -484,6 +484,8 @@ try {
     'Admission, New chat and repeated summaries preserve mode, context and drafts',
     async () => {
       const releaseAdmission = createDeferred<void>()
+      let heldAdmission: Promise<void> | undefined
+      let includeAdmissionHeader = true
       const posts: Record<string, unknown>[] = []
       const createdChatIds: string[] = []
       const chatEndpoint = `${baseUrl.origin}/api/mothership/chat`
@@ -525,6 +527,7 @@ try {
         const body = toRecord(route.request().postDataJSON())
         const number = posts.push(body)
         if (number === 1) await releaseAdmission.promise
+        await heldAdmission
         const chatId = toStringOrNull(body.chatId) ?? generateId()
         const streamId = toStringOrNull(body.userMessageId)
         assert(streamId)
@@ -562,7 +565,10 @@ try {
         ]
         await route.fulfill({
           status: 200,
-          headers: { 'content-type': 'text/event-stream', 'x-mothership-chat-id': chatId },
+          headers: {
+            'content-type': 'text/event-stream',
+            ...(includeAdmissionHeader ? { 'x-mothership-chat-id': chatId } : {}),
+          },
           body: `${events.map((event) => `data: ${JSON.stringify(createEvent(event))}\n\n`).join('')}data: [DONE]\n\n`,
         })
       })
@@ -662,6 +668,41 @@ try {
         assert(Date.parse(String(repeatedCutoff)) <= Date.now() - 7 * 24 * 60 * 60 * 1000)
         await expect(composer).toHaveValue('Keep this unsent draft')
         await capture('assistant-repeat-summary-preserves-draft')
+        for (const selectedMode of ['search', 'assistant'] as const) {
+          includeAdmissionHeader = selectedMode === 'search'
+          await page.goto(`${baseUrl.origin}${root}/search?mode=assistant&q=Launch&source=slack`)
+          await composer.fill(`Preserve the pending ${selectedMode} selection`)
+          const admission = createDeferred<void>()
+          heldAdmission = admission.promise
+          const requestNumber = posts.length + 1
+          try {
+            await composer.press('Enter')
+            await expect.poll(() => posts.length).toBe(requestNumber)
+            if (selectedMode === 'assistant') {
+              await navigation.getByRole('button', { name: 'Search', exact: true }).click()
+              await expect(page).toHaveURL((url) => url.searchParams.get('mode') === 'search')
+            }
+            await page.clock.pauseAt(new Date(Date.now() + 100))
+            const selected = navigation.getByRole('button', {
+              name: selectedMode === 'assistant' ? 'Assistant' : 'Search',
+              exact: true,
+            })
+            await selected.click({ force: true })
+            await expect(selected).toHaveAttribute('aria-current', 'page')
+            assert.notEqual(new URL(page.url()).searchParams.get('mode'), selectedMode)
+            admission.resolve()
+            await expect(page).toHaveURL(
+              (url) =>
+                url.pathname === `${root}/search/chat/${createdChatIds.at(-1)}` &&
+                url.searchParams.get('mode') === selectedMode
+            )
+            assert.equal(new URL(page.url()).searchParams.get('source'), 'slack')
+          } finally {
+            admission.resolve()
+            heldAdmission = undefined
+            await page.clock.resume()
+          }
+        }
       } finally {
         releaseAdmission.resolve()
         await page.unroute(chatEndpoint)

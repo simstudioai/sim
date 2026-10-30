@@ -426,6 +426,14 @@ try {
       assert(!JSON.stringify(result).includes('privatePayload'))
       const cases = [
         {
+          status: 'completed',
+          decision: 'allow',
+          started: true,
+          revoked: false,
+          unknown: true,
+          expected: 'uncertain',
+        },
+        {
           status: 'pending',
           decision: 'skip',
           started: false,
@@ -737,6 +745,27 @@ try {
         await capture('integration-paused-empty')
       } finally {
         await sql`update credential_group set status = 'active' where id = ${groupId}`
+      }
+      await sql`update credential set managed_oauth_status = 'revoked' where id = ${nativeCredentialId}`
+      await sql`update credential_group set options = (select jsonb_agg(case when value->>'id' = 'salesforce' then value || '{"status":"disabled"}'::jsonb else value end) from jsonb_array_elements(options)) where id = ${groupId}`
+      try {
+        await page.goto(`${baseUrl.origin}${root}/integrations`)
+        const salesforce = page.getByRole('link', {
+          name: 'Open Salesforce integration',
+          exact: true,
+        })
+        await expect(salesforce).toBeVisible()
+        await salesforce.click()
+        await expect(page).toHaveURL(
+          (url) => url.searchParams.get('integration') === 'app:salesforce'
+        )
+        await expect(page.getByText('No account connected', { exact: true })).toBeVisible()
+        await expect(page.getByText('Connections unavailable', { exact: true })).toBeVisible()
+        await expect(connect).toHaveCount(0)
+        await capture('integration-disabled-app-empty')
+      } finally {
+        await sql`update credential set managed_oauth_status = 'active' where id = ${nativeCredentialId}`
+        await sql`update credential_group set options = (select jsonb_agg(case when value->>'id' = 'salesforce' then value || '{"status":"active"}'::jsonb else value end) from jsonb_array_elements(options)) where id = ${groupId}`
       }
     }
   )

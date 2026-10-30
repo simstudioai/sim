@@ -13,6 +13,42 @@ const liveId = (items: AgentGroupItem[], isOpen = true) => {
 }
 
 describe('getLaneLiveIndicator', () => {
+  it.each([false, true])(
+    'leaves the turn indicator visible when a settled action is lifted (nested: %s)',
+    (nested) => {
+      const action = call('action', 'jira_write')
+      const items: AgentGroupItem[] = nested
+        ? [
+            {
+              type: 'agent_group',
+              group: {
+                id: 'child',
+                agentName: 'research',
+                agentLabel: 'Research',
+                items: [action],
+                isDelegating: false,
+                isOpen: true,
+              },
+            },
+          ]
+        : [action]
+      const input = {
+        kind: 'subagent' as const,
+        parts: [items],
+        isActive: true,
+        isOpen: true,
+        standaloneToolIds: new Set(['action']),
+      }
+      expect(getLaneLiveIndicator(input)).toBeUndefined()
+      expect(
+        getLaneLiveIndicator({
+          ...input,
+          parts: [[...items, { type: 'text', content: 'Checking the result.' }]],
+        })
+      ).toEqual({ type: 'narration' })
+    }
+  )
+
   it('gives the gap to a succeeded trailing call, including search, never a failure', () => {
     expect(liveId([call('s', 'search_workspace'), call('a', 'read')])).toBe('a')
     expect(liveId([call('a', 'read'), call('s', 'search_workspace')])).toBe('s')

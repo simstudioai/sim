@@ -27,13 +27,9 @@ export function assistantAccountOptions(data: OrganizationAccountsSettings, sear
   const providers = data.assistantProviders.filter(
     (provider) => !SEARCH_ACCOUNT_PROVIDERS.has(provider)
   )
-  const ownedOptions = new Set(data.viewerAccounts?.map((account) => account.optionId))
   const configured =
     data.credentialGroup?.options.filter(
-      (option) =>
-        !SEARCH_ACCOUNT_PROVIDERS.has(option.provider) &&
-        ((option.status === 'active' && providers.includes(option.provider)) ||
-          ownedOptions.has(option.id))
+      (option) => !SEARCH_ACCOUNT_PROVIDERS.has(option.provider)
     ) ?? []
   const query = search.trim().toLowerCase()
   const visible = configured.filter((option) =>
