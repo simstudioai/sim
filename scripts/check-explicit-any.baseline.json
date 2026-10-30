@@ -159,7 +159,7 @@
     "apps/sim/executor/handlers/router/handler.ts": 5,
     "apps/sim/executor/handlers/shared/response-format.ts": 2,
     "apps/sim/executor/handlers/trigger/handler.ts": 4,
-    "apps/sim/executor/handlers/variables/handler.ts": 16,
+    "apps/sim/executor/handlers/variables/handler.ts": 15,
     "apps/sim/executor/handlers/wait/handler.test.ts": 3,
     "apps/sim/executor/handlers/wait/handler.ts": 2,
     "apps/sim/executor/handlers/workflow/custom-block-tool-runner.test.ts": 2,
