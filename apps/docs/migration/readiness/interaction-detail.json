@@ -1,0 +1,1252 @@
+{
+  "sourceRevision": "66faa48d018adaa7ebf540968f029455557cfef1",
+  "run": "https://github.com/simstudioai/sim/actions/runs/41114445590",
+  "observations": [
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "cold",
+      "status": "completed",
+      "images": [
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=32&q=75 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=48&q=75 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=64&q=75 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=96&q=75 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=128&q=75 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=256&q=75 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "(max-width: 1023px) calc(100vw - 2.5rem), (max-width: 1279px) calc(100vw - 216px - 5rem), calc(856px - 8rem)",
+          "alt": "",
+          "width": 726,
+          "height": 274.625,
+          "dpr": 1,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=32&q=90 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=48&q=90 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=64&q=90 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=96&q=90 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=128&q=90 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=256&q=90 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=384&q=90 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=828&q=90 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1440&q=90 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1920&q=90 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=2560&q=90 2560w",
+          "sizes": "(max-width: 639px) calc(88vw - 2.2rem), (max-width: 1023px) calc(78vw - 1.9500000000000002rem), (max-width: 1279px) calc(78vw - 168.48000000000002px - 3.9000000000000004rem), calc(667.6800000000001px - 6.24rem)",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 564.265625,
+          "height": 282.125,
+          "dpr": 1,
+          "loading": "auto",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "fill",
+          "objectPosition": "50% 50%"
+        }
+      ],
+      "mediaReadyMs": 199.29999999998836,
+      "resources": [
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "startTime": 24.79999999998836,
+          "initiatorType": "link",
+          "deliveryType": "",
+          "contentType": "",
+          "responseEnd": 52.89999999999418,
+          "transferSize": 69952,
+          "encodedBodySize": 69652,
+          "decodedBodySize": 69652,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "startTime": 25,
+          "initiatorType": "link",
+          "deliveryType": "",
+          "contentType": "image/webp",
+          "responseEnd": 127.5,
+          "transferSize": 28858,
+          "encodedBodySize": 28558,
+          "decodedBodySize": 28558,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "startTime": 25.10000000000582,
+          "initiatorType": "link",
+          "deliveryType": "",
+          "contentType": "image/webp",
+          "responseEnd": 101.89999999999418,
+          "transferSize": 15076,
+          "encodedBodySize": 14776,
+          "decodedBodySize": 14776,
+          "responseStatus": 200
+        }
+      ],
+      "network": [
+        {
+          "url": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "type": "font",
+          "status": 200,
+          "headers": {
+            "content-type": "font/woff2",
+            "content-length": "69652",
+            "cache-control": "public, max-age=31536000, immutable",
+            "etag": "W/\"11014-1a18e44b9fe\"",
+            "last-modified": "Fri, 30 Oct 2026 19:23:51 GMT"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 580,
+            "responseBodySize": 69652,
+            "responseHeadersSize": 301
+          },
+          "timing": {
+            "startTime": 1793388282598.2002,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.994,
+            "responseStart": 25.019,
+            "responseEnd": 28.267
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "28558",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "MWprQYGs-TVhyI51JSAfAiUtmkflfS97zkqfUdKOEGw",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 568,
+            "responseBodySize": 28558,
+            "responseHeadersSize": 428
+          },
+          "timing": {
+            "startTime": 1793388282598.53,
+            "domainLookupStart": 0.505,
+            "domainLookupEnd": 0.514,
+            "connectStart": 0.514,
+            "secureConnectionStart": -1,
+            "connectEnd": 0.978,
+            "requestStart": 1.136,
+            "responseStart": 101.211,
+            "responseEnd": 102.566
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "14776",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "ECCteQPdq_0-3Zpk2OquBuMIldGQCDYHUbLwqbKGBmQ",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 568,
+            "responseBodySize": 14776,
+            "responseHeadersSize": 423
+          },
+          "timing": {
+            "startTime": 1793388282599.335,
+            "domainLookupStart": 0.078,
+            "domainLookupEnd": 0.091,
+            "connectStart": 0.091,
+            "secureConnectionStart": -1,
+            "connectEnd": 0.181,
+            "requestStart": 0.387,
+            "responseStart": 74.893,
+            "responseEnd": 76.795
+          }
+        }
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "warm",
+      "status": "completed",
+      "images": [
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=32&q=75 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=48&q=75 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=64&q=75 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=96&q=75 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=128&q=75 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=256&q=75 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "(max-width: 1023px) calc(100vw - 2.5rem), (max-width: 1279px) calc(100vw - 216px - 5rem), calc(856px - 8rem)",
+          "alt": "",
+          "width": 726,
+          "height": 274.625,
+          "dpr": 1,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=32&q=90 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=48&q=90 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=64&q=90 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=96&q=90 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=128&q=90 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=256&q=90 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=384&q=90 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=828&q=90 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1440&q=90 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1920&q=90 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=2560&q=90 2560w",
+          "sizes": "(max-width: 639px) calc(88vw - 2.2rem), (max-width: 1023px) calc(78vw - 1.9500000000000002rem), (max-width: 1279px) calc(78vw - 168.48000000000002px - 3.9000000000000004rem), calc(667.6800000000001px - 6.24rem)",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 564.265625,
+          "height": 282.125,
+          "dpr": 1,
+          "loading": "auto",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "fill",
+          "objectPosition": "50% 50%"
+        }
+      ],
+      "mediaReadyMs": 111.80000000001746,
+      "resources": [
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "startTime": 12.5,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "",
+          "responseEnd": 12.5,
+          "transferSize": 0,
+          "encodedBodySize": 69652,
+          "decodedBodySize": 69652,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "startTime": 12.5,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 12.5,
+          "transferSize": 0,
+          "encodedBodySize": 28558,
+          "decodedBodySize": 28558,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "startTime": 12.60000000000582,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 12.60000000000582,
+          "transferSize": 0,
+          "encodedBodySize": 14776,
+          "decodedBodySize": 14776,
+          "responseStatus": 200
+        }
+      ],
+      "network": [
+        {
+          "url": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "type": "font",
+          "status": 200,
+          "headers": {
+            "content-type": "font/woff2",
+            "content-length": "69652",
+            "cache-control": "public, max-age=31536000, immutable",
+            "etag": "W/\"11014-1a18e44b9fe\"",
+            "last-modified": "Fri, 30 Oct 2026 19:23:51 GMT"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 406,
+            "responseBodySize": -301,
+            "responseHeadersSize": 301
+          },
+          "timing": {
+            "startTime": 1793388283367.582,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": -1,
+            "responseStart": 0.079,
+            "responseEnd": 0.079
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "28558",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "MWprQYGs-TVhyI51JSAfAiUtmkflfS97zkqfUdKOEGw",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 329,
+            "responseBodySize": -428,
+            "responseHeadersSize": 428
+          },
+          "timing": {
+            "startTime": 1793388283367.696,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": -1,
+            "responseStart": 0.023,
+            "responseEnd": 0.023
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "14776",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "ECCteQPdq_0-3Zpk2OquBuMIldGQCDYHUbLwqbKGBmQ",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 329,
+            "responseBodySize": -423,
+            "responseHeadersSize": 423
+          },
+          "timing": {
+            "startTime": 1793388283367.737,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": -1,
+            "responseStart": 0.021,
+            "responseEnd": 0.021
+          }
+        }
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "cold-shortcut-observation",
+      "status": "completed",
+      "data": {
+        "readyState": "complete",
+        "time": 133.20000000001164,
+        "openedAfterTwoFrames": true,
+        "interpretation": "Early input observation, before control readiness. Not included in warm search timing."
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "media-dialog",
+      "status": "completed",
+      "images": [
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=32&q=75 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=48&q=75 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=64&q=75 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=96&q=75 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=128&q=75 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=256&q=75 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "(max-width: 1023px) calc(100vw - 2.5rem), (max-width: 1279px) calc(100vw - 216px - 5rem), calc(856px - 8rem)",
+          "alt": "",
+          "width": 726,
+          "height": 274.625,
+          "dpr": 1,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=32&q=90 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=48&q=90 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=64&q=90 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=96&q=90 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=128&q=90 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=256&q=90 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=384&q=90 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=828&q=90 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1440&q=90 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1920&q=90 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=2560&q=90 2560w",
+          "sizes": "(max-width: 639px) calc(88vw - 2.2rem), (max-width: 1023px) calc(78vw - 1.9500000000000002rem), (max-width: 1279px) calc(78vw - 168.48000000000002px - 3.9000000000000004rem), calc(667.6800000000001px - 6.24rem)",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 564.265625,
+          "height": 282.125,
+          "dpr": 1,
+          "loading": "auto",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "fill",
+          "objectPosition": "50% 50%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "100vw",
+          "alt": "",
+          "width": 1340,
+          "height": 860,
+          "dpr": 1,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/static/media/platform.0_5pdtc3y55g0.webp",
+          "srcset": "",
+          "sizes": "",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 1276,
+          "height": 639,
+          "dpr": 1,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "contain",
+          "objectPosition": "50% 50%"
+        }
+      ],
+      "mediaReadyMs": null,
+      "resources": [
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "startTime": 12.200000000011642,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "",
+          "responseEnd": 12.200000000011642,
+          "transferSize": 0,
+          "encodedBodySize": 69652,
+          "decodedBodySize": 69652,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75",
+          "startTime": 12.299999999988358,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 12.299999999988358,
+          "transferSize": 0,
+          "encodedBodySize": 28558,
+          "decodedBodySize": 28558,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90",
+          "startTime": 12.299999999988358,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 12.299999999988358,
+          "transferSize": 0,
+          "encodedBodySize": 14776,
+          "decodedBodySize": 14776,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/geist_mono_variable-s.3x-_q69-5-na5.woff2",
+          "startTime": 19.400000000023283,
+          "initiatorType": "css",
+          "deliveryType": "cache",
+          "contentType": "",
+          "responseEnd": 19.400000000023283,
+          "transferSize": 0,
+          "encodedBodySize": 71596,
+          "decodedBodySize": 71596,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/platform.0_5pdtc3y55g0.webp",
+          "startTime": 224.40000000002328,
+          "initiatorType": "img",
+          "deliveryType": "",
+          "contentType": "image/webp",
+          "responseEnd": 228.60000000003492,
+          "transferSize": 92262,
+          "encodedBodySize": 91962,
+          "decodedBodySize": 91962,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75",
+          "startTime": 224.40000000002328,
+          "initiatorType": "img",
+          "deliveryType": "",
+          "contentType": "image/webp",
+          "responseEnd": 333.9000000000233,
+          "transferSize": 61978,
+          "encodedBodySize": 61678,
+          "decodedBodySize": 61678,
+          "responseStatus": 200
+        }
+      ],
+      "network": [
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "61678",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "ErAWEkQ1yvDyfaba538MntSZAmGW-IWH5njSJvrO2QQ",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 568,
+            "responseBodySize": 61678,
+            "responseHeadersSize": 428
+          },
+          "timing": {
+            "startTime": 1793388312506.811,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.233,
+            "responseStart": 108.791,
+            "responseEnd": 109.572
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/static/media/platform.0_5pdtc3y55g0.webp",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "91962",
+            "cache-control": "public, max-age=31536000, immutable",
+            "etag": "W/\"1673a-1a18e44ba12\"",
+            "last-modified": "Fri, 30 Oct 2026 19:23:51 GMT"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 603,
+            "responseBodySize": 91962,
+            "responseHeadersSize": 301
+          },
+          "timing": {
+            "startTime": 1793388312506.9558,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.166,
+            "responseStart": 3.141,
+            "responseEnd": 4.139
+          }
+        }
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "history-and-footer",
+      "status": "completed",
+      "data": {
+        "scrollBefore": 500,
+        "scrollAfter": 500,
+        "footerPresent": true,
+        "footerDocumentReload": false
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/api-reference/logs/getLog",
+      "repetition": 1,
+      "scenario": "copy-request-control",
+      "status": "completed",
+      "data": {
+        "exactSelectedSampleCopied": true,
+        "characters": 245
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 2,
+      "scenario": "cold-shortcut-observation",
+      "status": "completed",
+      "data": {
+        "readyState": "complete",
+        "time": 114.5,
+        "openedAfterTwoFrames": true,
+        "interpretation": "Early input observation, before control readiness. Not included in warm search timing."
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 2,
+      "scenario": "history-and-footer",
+      "status": "completed",
+      "data": {
+        "scrollBefore": 500,
+        "scrollAfter": 500,
+        "footerPresent": true,
+        "footerDocumentReload": false
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/api-reference/logs/getLog",
+      "repetition": 2,
+      "scenario": "copy-request-control",
+      "status": "completed",
+      "data": {
+        "exactSelectedSampleCopied": true,
+        "characters": 245
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 3,
+      "scenario": "cold-shortcut-observation",
+      "status": "completed",
+      "data": {
+        "readyState": "complete",
+        "time": 134,
+        "openedAfterTwoFrames": true,
+        "interpretation": "Early input observation, before control readiness. Not included in warm search timing."
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/introduction",
+      "repetition": 3,
+      "scenario": "history-and-footer",
+      "status": "completed",
+      "data": {
+        "scrollBefore": 500,
+        "scrollAfter": 500,
+        "footerPresent": true,
+        "footerDocumentReload": false
+      }
+    },
+    {
+      "profile": "desktop",
+      "route": "/api-reference/logs/getLog",
+      "repetition": 3,
+      "scenario": "copy-request-control",
+      "status": "completed",
+      "data": {
+        "exactSelectedSampleCopied": true,
+        "characters": 245
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "cold",
+      "status": "completed",
+      "images": [
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=32&q=75 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=48&q=75 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=64&q=75 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=96&q=75 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=128&q=75 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=256&q=75 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "(max-width: 1023px) calc(100vw - 2.5rem), (max-width: 1279px) calc(100vw - 216px - 5rem), calc(856px - 8rem)",
+          "alt": "",
+          "width": 348,
+          "height": 173,
+          "dpr": 3,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=32&q=90 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=48&q=90 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=64&q=90 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=96&q=90 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=128&q=90 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=256&q=90 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=384&q=90 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=828&q=90 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1440&q=90 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1920&q=90 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=2560&q=90 2560w",
+          "sizes": "(max-width: 639px) calc(88vw - 2.2rem), (max-width: 1023px) calc(78vw - 1.9500000000000002rem), (max-width: 1279px) calc(78vw - 168.48000000000002px - 3.9000000000000004rem), calc(667.6800000000001px - 6.24rem)",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 304.234375,
+          "height": 152.109375,
+          "dpr": 3,
+          "loading": "auto",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "fill",
+          "objectPosition": "50% 50%"
+        }
+      ],
+      "mediaReadyMs": 1419.8000000000466,
+      "resources": [
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "startTime": 169,
+          "initiatorType": "link",
+          "deliveryType": "",
+          "contentType": "",
+          "responseEnd": 2069.5,
+          "transferSize": 69952,
+          "encodedBodySize": 69652,
+          "decodedBodySize": 69652,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "startTime": 170.10000000003492,
+          "initiatorType": "link",
+          "deliveryType": "",
+          "contentType": "image/webp",
+          "responseEnd": 1402.5,
+          "transferSize": 42954,
+          "encodedBodySize": 42654,
+          "decodedBodySize": 42654,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "startTime": 170.30000000004657,
+          "initiatorType": "link",
+          "deliveryType": "",
+          "contentType": "image/webp",
+          "responseEnd": 1215,
+          "transferSize": 33986,
+          "encodedBodySize": 33686,
+          "decodedBodySize": 33686,
+          "responseStatus": 200
+        }
+      ],
+      "network": [
+        {
+          "url": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "type": "font",
+          "status": 200,
+          "headers": {
+            "content-type": "font/woff2",
+            "content-length": "69652",
+            "cache-control": "public, max-age=31536000, immutable",
+            "etag": "W/\"11014-1a18e44b9fe\"",
+            "last-modified": "Fri, 30 Oct 2026 19:23:51 GMT"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 580,
+            "responseBodySize": 69652,
+            "responseHeadersSize": 301
+          },
+          "timing": {
+            "startTime": 1793388376480.612,
+            "domainLookupStart": 0.115,
+            "domainLookupEnd": 0.13,
+            "connectStart": 0.13,
+            "secureConnectionStart": -1,
+            "connectEnd": 0.266,
+            "requestStart": 0.32,
+            "responseStart": 160.222,
+            "responseEnd": 1900.593
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "42654",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "dTJoJhrWr92QyqmzuA27nwY22EpvD60hZabZ04WRKho",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 568,
+            "responseBodySize": 42654,
+            "responseHeadersSize": 428
+          },
+          "timing": {
+            "startTime": 1793388376481.742,
+            "domainLookupStart": 0.08,
+            "domainLookupEnd": 0.091,
+            "connectStart": 0.091,
+            "secureConnectionStart": -1,
+            "connectEnd": 0.166,
+            "requestStart": 0.201,
+            "responseStart": 174.403,
+            "responseEnd": 1232.954
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "33686",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "ZC_ThSKkQTLtK3R1gfPlQzslQ8yVXaYm-CRSkkN2PH4",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 568,
+            "responseBodySize": 33686,
+            "responseHeadersSize": 423
+          },
+          "timing": {
+            "startTime": 1793388376488.3862,
+            "domainLookupStart": 0.085,
+            "domainLookupEnd": 0.097,
+            "connectStart": 0.097,
+            "secureConnectionStart": -1,
+            "connectEnd": 0.453,
+            "requestStart": 0.801,
+            "responseStart": 189.893,
+            "responseEnd": 1044.764
+          }
+        }
+      ]
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "warm",
+      "status": "completed",
+      "images": [
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=32&q=75 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=48&q=75 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=64&q=75 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=96&q=75 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=128&q=75 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=256&q=75 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "(max-width: 1023px) calc(100vw - 2.5rem), (max-width: 1279px) calc(100vw - 216px - 5rem), calc(856px - 8rem)",
+          "alt": "",
+          "width": 348,
+          "height": 173,
+          "dpr": 3,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=32&q=90 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=48&q=90 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=64&q=90 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=96&q=90 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=128&q=90 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=256&q=90 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=384&q=90 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=828&q=90 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1440&q=90 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1920&q=90 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=2560&q=90 2560w",
+          "sizes": "(max-width: 639px) calc(88vw - 2.2rem), (max-width: 1023px) calc(78vw - 1.9500000000000002rem), (max-width: 1279px) calc(78vw - 168.48000000000002px - 3.9000000000000004rem), calc(667.6800000000001px - 6.24rem)",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 304.234375,
+          "height": 152.109375,
+          "dpr": 3,
+          "loading": "auto",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "fill",
+          "objectPosition": "50% 50%"
+        }
+      ],
+      "mediaReadyMs": 403.0999999999767,
+      "resources": [
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "startTime": 187.29999999998836,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "",
+          "responseEnd": 187.29999999998836,
+          "transferSize": 0,
+          "encodedBodySize": 69652,
+          "decodedBodySize": 69652,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "startTime": 188,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 188,
+          "transferSize": 0,
+          "encodedBodySize": 42654,
+          "decodedBodySize": 42654,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "startTime": 188,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 188,
+          "transferSize": 0,
+          "encodedBodySize": 33686,
+          "decodedBodySize": 33686,
+          "responseStatus": 200
+        }
+      ],
+      "network": [
+        {
+          "url": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "type": "font",
+          "status": 200,
+          "headers": {
+            "content-type": "font/woff2",
+            "content-length": "69652",
+            "cache-control": "public, max-age=31536000, immutable",
+            "etag": "W/\"11014-1a18e44b9fe\"",
+            "last-modified": "Fri, 30 Oct 2026 19:23:51 GMT"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 406,
+            "responseBodySize": -301,
+            "responseHeadersSize": 301
+          },
+          "timing": {
+            "startTime": 1793388379675.589,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": -1,
+            "responseStart": 0.064,
+            "responseEnd": 0.064
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "42654",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "dTJoJhrWr92QyqmzuA27nwY22EpvD60hZabZ04WRKho",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 329,
+            "responseBodySize": -428,
+            "responseHeadersSize": 428
+          },
+          "timing": {
+            "startTime": 1793388379676.1738,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": -1,
+            "responseStart": 0.603,
+            "responseEnd": 0.603
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "33686",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "ZC_ThSKkQTLtK3R1gfPlQzslQ8yVXaYm-CRSkkN2PH4",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 329,
+            "responseBodySize": -423,
+            "responseHeadersSize": 423
+          },
+          "timing": {
+            "startTime": 1793388379676.2878,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": -1,
+            "responseStart": 0.031,
+            "responseEnd": 0.031
+          }
+        }
+      ]
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "cold-shortcut-observation",
+      "status": "completed",
+      "data": {
+        "readyState": "interactive",
+        "time": 1006,
+        "openedAfterTwoFrames": false,
+        "interpretation": "Early input observation, before control readiness. Not included in warm search timing."
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "media-dialog",
+      "status": "completed",
+      "images": [
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=32&q=75 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=48&q=75 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=64&q=75 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=96&q=75 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=128&q=75 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=256&q=75 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "(max-width: 1023px) calc(100vw - 2.5rem), (max-width: 1279px) calc(100vw - 216px - 5rem), calc(856px - 8rem)",
+          "alt": "",
+          "width": 348,
+          "height": 173,
+          "dpr": 3,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=32&q=90 32w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=48&q=90 48w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=64&q=90 64w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=96&q=90 96w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=128&q=90 128w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=256&q=90 256w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=384&q=90 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=640&q=90 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=828&q=90 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1440&q=90 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1920&q=90 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=2560&q=90 2560w",
+          "sizes": "(max-width: 639px) calc(88vw - 2.2rem), (max-width: 1023px) calc(78vw - 1.9500000000000002rem), (max-width: 1279px) calc(78vw - 168.48000000000002px - 3.9000000000000004rem), calc(667.6800000000001px - 6.24rem)",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 304.234375,
+          "height": 152.109375,
+          "dpr": 3,
+          "loading": "auto",
+          "fetchPriority": "auto",
+          "complete": true,
+          "objectFit": "fill",
+          "objectPosition": "50% 50%"
+        },
+        {
+          "currentSrc": "",
+          "srcset": "/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=384&q=75 384w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=640&q=75 640w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=828&q=75 828w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75 1080w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75 1440w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1920&q=75 1920w, /_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=2560&q=75 2560w",
+          "sizes": "100vw",
+          "alt": "",
+          "width": 330,
+          "height": 706,
+          "dpr": 3,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": false,
+          "objectFit": "cover",
+          "objectPosition": "50% 32%"
+        },
+        {
+          "currentSrc": "",
+          "srcset": "",
+          "sizes": "",
+          "alt": "Sim Chat summarizing shipped and planned work beside the release tracker table.",
+          "width": 2,
+          "height": 2,
+          "dpr": 3,
+          "loading": "eager",
+          "fetchPriority": "auto",
+          "complete": false,
+          "objectFit": "contain",
+          "objectPosition": "50% 50%"
+        }
+      ],
+      "mediaReadyMs": null,
+      "resources": [
+        {
+          "name": "http://127.0.0.1:3001/_next/static/media/geist_variable-s.p.0mrjj4bg00-he.woff2",
+          "startTime": 189.20000000001164,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "",
+          "responseEnd": 189.20000000001164,
+          "transferSize": 0,
+          "encodedBodySize": 69652,
+          "decodedBodySize": 69652,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1080&q=75",
+          "startTime": 189.29999999998836,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 189.29999999998836,
+          "transferSize": 0,
+          "encodedBodySize": 42654,
+          "decodedBodySize": 42654,
+          "responseStatus": 200
+        },
+        {
+          "name": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fplatform.0_5pdtc3y55g0.webp&w=1080&q=90",
+          "startTime": 189.29999999998836,
+          "initiatorType": "link",
+          "deliveryType": "cache",
+          "contentType": "image/webp",
+          "responseEnd": 189.29999999998836,
+          "transferSize": 0,
+          "encodedBodySize": 33686,
+          "decodedBodySize": 33686,
+          "responseStatus": 200
+        }
+      ],
+      "network": [
+        {
+          "url": "http://127.0.0.1:3001/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fsan-francisco.1hc9yhqw1m24c.webp&w=1440&q=75",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "61678",
+            "cache-control": "public, max-age=315360000, immutable",
+            "etag": "ErAWEkQ1yvDyfaba538MntSZAmGW-IWH5njSJvrO2QQ",
+            "vary": "Accept"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 568,
+            "responseBodySize": 61678,
+            "responseHeadersSize": 427
+          },
+          "timing": {
+            "startTime": 1793388484841.2039,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.438,
+            "responseStart": 168.109,
+            "responseEnd": 1255.116
+          }
+        },
+        {
+          "url": "http://127.0.0.1:3001/_next/static/media/platform.0_5pdtc3y55g0.webp",
+          "type": "image",
+          "status": 200,
+          "headers": {
+            "content-type": "image/webp",
+            "content-length": "91962",
+            "cache-control": "public, max-age=31536000, immutable",
+            "etag": "W/\"1673a-1a18e44ba12\"",
+            "last-modified": "Fri, 30 Oct 2026 19:23:51 GMT"
+          },
+          "sizes": {
+            "requestBodySize": 0,
+            "requestHeadersSize": 603,
+            "responseBodySize": 91962,
+            "responseHeadersSize": 301
+          },
+          "timing": {
+            "startTime": 1793388484841.497,
+            "domainLookupStart": -1,
+            "domainLookupEnd": -1,
+            "connectStart": -1,
+            "secureConnectionStart": -1,
+            "connectEnd": -1,
+            "requestStart": 0.26,
+            "responseStart": 159.277,
+            "responseEnd": 1712.668
+          }
+        }
+      ]
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 1,
+      "scenario": "history-and-footer",
+      "status": "completed",
+      "data": {
+        "scrollBefore": 500,
+        "scrollAfter": 500,
+        "footerPresent": true,
+        "footerDocumentReload": false
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/api-reference/logs/getLog",
+      "repetition": 1,
+      "scenario": "copy-request-control",
+      "status": "completed",
+      "data": {
+        "exactSelectedSampleCopied": true,
+        "characters": 245
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 2,
+      "scenario": "cold-shortcut-observation",
+      "status": "completed",
+      "data": {
+        "readyState": "interactive",
+        "time": 1072.4000000000233,
+        "openedAfterTwoFrames": false,
+        "interpretation": "Early input observation, before control readiness. Not included in warm search timing."
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 2,
+      "scenario": "history-and-footer",
+      "status": "completed",
+      "data": {
+        "scrollBefore": 500,
+        "scrollAfter": 500,
+        "footerPresent": true,
+        "footerDocumentReload": false
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/api-reference/logs/getLog",
+      "repetition": 2,
+      "scenario": "copy-request-control",
+      "status": "completed",
+      "data": {
+        "exactSelectedSampleCopied": true,
+        "characters": 245
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 3,
+      "scenario": "cold-shortcut-observation",
+      "status": "completed",
+      "data": {
+        "readyState": "interactive",
+        "time": 1022.7000000000698,
+        "openedAfterTwoFrames": false,
+        "interpretation": "Early input observation, before control readiness. Not included in warm search timing."
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/introduction",
+      "repetition": 3,
+      "scenario": "history-and-footer",
+      "status": "completed",
+      "data": {
+        "scrollBefore": 500,
+        "scrollAfter": 500,
+        "footerPresent": true,
+        "footerDocumentReload": false
+      }
+    },
+    {
+      "profile": "mobile",
+      "route": "/api-reference/logs/getLog",
+      "repetition": 3,
+      "scenario": "copy-request-control",
+      "status": "completed",
+      "data": {
+        "exactSelectedSampleCopied": true,
+        "characters": 245
+      }
+    }
+  ]
+}
