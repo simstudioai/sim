@@ -32,7 +32,6 @@ import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-imag
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 import { computeEntitlements } from '@/lib/mothership/entitlements'
-import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import {
   type ChatRequest,
@@ -388,7 +387,6 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     params.principal !== undefined &&
     computerUseOwner !== null &&
     (await isComputerUseAvailableFor(params.principal, computerUseOwner))
-  const integrationGateway = !isAssistant || (await isSearchIntegrationToolsEnabled())
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.
   // Tracking writes `workspace_files` rows, so it needs the same write grant the
@@ -539,13 +537,9 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
-    ...(integrationGateway
-      ? {
-          integrationCatalog: {
-            mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
-          },
-        }
-      : {}),
+    integrationCatalog: {
+      mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
+    },
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),

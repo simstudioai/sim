@@ -57,11 +57,6 @@ const FEATURE_FLAGS = {
       'personal workspaces follow the global switch. Each device must also opt in.',
     fallback: 'MSHIP_COMPUTER_USE',
   },
-  'mothership-search-integration-tools': {
-    description:
-      'Enable personal-account integration reads and reviewed actions in Search Assistant. Global rollout with MSHIP_SEARCH_INTEGRATION_TOOLS fallback when AppConfig is unavailable; disabled by default.',
-    fallback: 'MSHIP_SEARCH_INTEGRATION_TOOLS',
-  },
   'workflow-tests': {
     description:
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',

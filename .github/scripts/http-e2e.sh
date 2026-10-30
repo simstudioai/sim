@@ -205,7 +205,6 @@ case "$group" in
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
-    export MSHIP_SEARCH_INTEGRATION_TOOLS=true
     bunx --no-install playwright install --with-deps chromium
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw

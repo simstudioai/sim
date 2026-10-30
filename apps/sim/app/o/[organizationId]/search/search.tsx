@@ -26,6 +26,7 @@ import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-in
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
@@ -54,6 +55,7 @@ interface SearchFieldProps {
 /** Search commits a query on submit while retaining an independent editable draft. */
 function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const hydrated = useHydrated()
   const { organization } = useOrganizationContext()
   const queryClient = useQueryClient()
   const queryKey = knowledgeKeys.searchQuery(
@@ -90,14 +92,17 @@ function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
     getValue: () => value,
     onChange: setValue,
   })
-  const canSubmit = value.trim().length > 0
+  const canSubmit = hydrated && value.trim().length > 0
 
-  useEffect(() => inputRef.current?.focus(), [])
+  useEffect(() => {
+    if (hydrated) inputRef.current?.focus()
+  }, [hydrated])
 
   const field = (
     <SearchInputBar
       inputRef={inputRef}
       value={value}
+      disabled={!hydrated}
       onChange={setValue}
       onSubmit={() => submit()}
       floating={!initialValue.trim()}

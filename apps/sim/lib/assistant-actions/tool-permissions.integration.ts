@@ -74,7 +74,6 @@ import { getToolMetadata } from '@/tools/metadata'
 
 vi.hoisted(() => {
   Object.assign(process.env, {
-    MSHIP_SEARCH_INTEGRATION_TOOLS: 'true',
     JIRA_CLIENT_ID: 'assistant-fixture-client',
     JIRA_CLIENT_SECRET: 'assistant-fixture-client-secret',
     GOOGLE_CLIENT_ID: 'assistant-google-fixture-client',
