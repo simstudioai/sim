@@ -8,7 +8,7 @@ interface RequestInput {
 
 const quote = (value: string) => JSON.stringify(value)
 
-/** Native HTTP examples preserve request bytes and leave binary responses intact. */
+/** Native HTTP examples preserve request bytes and copy response bytes as they arrive. */
 export function nativeRequestSamples({ method, url, headers, body, fields }: RequestInput) {
   const goImports = ['io', 'net/http', 'os']
   const goBody: string[] = []
@@ -100,8 +100,7 @@ ${goHeaders.map((line) => `  ${line}`).join('\n')}
   response := must(http.DefaultClient.Do(request))
   defer response.Body.Close()
   if response.StatusCode >= 400 { panic(response.Status) }
-  result := must(io.ReadAll(response.Body))
-  must(os.Stdout.Write(result))
+  must(io.Copy(os.Stdout, response.Body))
 }`,
     },
     {
@@ -117,9 +116,11 @@ public class Example {
     var builder = HttpRequest.newBuilder(URI.create(${quote(url)}));
 ${[...javaHeaders, ...javaBody].map((line) => `    ${line}`).join('\n')}
     var request = builder.method(${quote(method)}, ${javaPayload}).build();
-    var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofByteArray());
-    if (response.statusCode() >= 400) throw new IllegalStateException("HTTP " + response.statusCode());
-    System.out.write(response.body());
+    var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+    try (var body = response.body()) {
+      if (response.statusCode() >= 400) throw new IllegalStateException("HTTP " + response.statusCode());
+      body.transferTo(System.out);
+    }
   }
 }`,
     },
@@ -134,10 +135,9 @@ using System.Text;
 using var client = new HttpClient();
 using var request = new HttpRequestMessage(new HttpMethod(${quote(method)}), ${quote(url)});
 ${[...csharpBody, ...csharpHeaders].join('\n')}
-using var response = await client.SendAsync(request);
+using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
 response.EnsureSuccessStatusCode();
-var result = await response.Content.ReadAsByteArrayAsync();
-await Console.OpenStandardOutput().WriteAsync(result);`,
+await response.Content.CopyToAsync(Console.OpenStandardOutput());`,
     },
   ]
 }

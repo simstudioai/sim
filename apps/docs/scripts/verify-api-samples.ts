@@ -257,7 +257,7 @@ try {
         (language === 'go' || language === 'java' || language === 'csharp')
       ) {
         await check(`${scenario.name}: ${language} live response bytes`, async () => {
-          const runtimeFolder = join(folder, 'runtime')
+          const runtimeFolder = join(directory, scenario.name, `${language}-runtime`)
           await mkdir(runtimeFolder, { recursive: true })
           const runtimeFile = join(runtimeFolder, filename)
           await writeFile(
