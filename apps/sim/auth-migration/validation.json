@@ -1,0 +1,380 @@
+{
+  "date": "2026-10-29",
+  "controlCleanup": {
+    "changes": [
+      "Centralized email placeholders, keyboard hints and autocomplete defaults in AuthEmailInput.",
+      "Centralized the default password placeholder in PasswordInput.",
+      "Refined the local visibility glyphs and localized provider logos and the consent checkmark.",
+      "Consolidated public-file SSO validation into AuthField."
+    ],
+    "validation": {
+      "lint": "pass across 27 workspaces",
+      "typeCheck": "pass across 27 workspaces",
+      "audits": "61 passed",
+      "desktopBuild": "pass",
+      "blockRegistry": "pass",
+      "focusedTests": "7 files and 24 tests passed, including the assistant-execution file",
+      "browser": [
+        "Recovery email placeholder and email input defaults verified in the running app.",
+        "Mouse and keyboard visibility controls switch the input type and accessible label.",
+        "Desktop and 390px mobile sign-in and recovery layouts visually verified.",
+        "Signup renders the shared email and password controls."
+      ],
+      "fullSuite": "Run before the final provider-logo and consent-icon import changes: 19/20 workspace tasks passed; App had 38,753 passing tests, 4 failures and 8 skips. Two failures were the previously documented executor timeouts; two were in unchanged tools/assistant-execution.test.ts, which passed in the final focused run. No unrelated test or timeout changes were made."
+    }
+  },
+  "base": "a0f47b1e87b0a26d9071cad1ce592666b7e7de07",
+  "runtime": {
+    "bun": "1.4.1",
+    "node": "24.19.0",
+    "next": "16.4.1"
+  },
+  "gates": [
+    {
+      "command": "bun run lint",
+      "status": "pass",
+      "workspaces": 27
+    },
+    {
+      "command": "bun run type-check",
+      "status": "pass",
+      "workspaces": 27
+    },
+    {
+      "command": "bun run check:audits",
+      "status": "pass",
+      "audits": 61
+    },
+    {
+      "command": "bun run build",
+      "cwd": "apps/sim",
+      "status": "pass",
+      "note": "Full production build passed before the final two-selector navigation-hover correction. That CSS correction was compiled through the same PostCSS pipeline, verified in the real shared-component browser fixture, and included in a fresh desktop build."
+    },
+    {
+      "command": "bun run build",
+      "cwd": "apps/desktop",
+      "status": "pass"
+    },
+    {
+      "command": "bun run apps/sim/scripts/check-block-registry.ts origin/staging",
+      "status": "pass"
+    },
+    {
+      "command": "git diff --check",
+      "status": "pass"
+    },
+    {
+      "command": "Focused Auth and shared invitation regressions",
+      "status": "pass",
+      "files": 10,
+      "tests": 65
+    },
+    {
+      "command": "bun run test",
+      "status": "failed",
+      "scriptTests": {
+        "filesPassed": 41,
+        "testsPassed": 634
+      },
+      "workspaceTasks": {
+        "passed": 19,
+        "total": 20
+      },
+      "appTests": {
+        "filesPassed": 3430,
+        "filesFailed": 2,
+        "testsPassed": 38755,
+        "testsFailed": 2,
+        "testsSkipped": 8
+      },
+      "failures": [
+        {
+          "file": "apps/sim/executor/execution/executor.test.ts",
+          "test": "does not run a stale branch inside a loop",
+          "result": "10000ms timeout"
+        },
+        {
+          "file": "apps/sim/executor/execution/test-hooks.test.ts",
+          "test": "delivers one call per loop iteration, in order",
+          "result": "10000ms timeout"
+        }
+      ],
+      "investigation": "These executor files and their production owners are unchanged. Both failures reproduce with bundled and official Node 24.19.0, including with the Vitest filesystem cache disabled. Both files pass all 22 tests under Node 23.10.0. No executor or test-timeout workaround was added to the Auth redesign."
+    }
+  ],
+  "routeParity": {
+    "baseline": "a0f47b1e87b0a26d9071cad1ce592666b7e7de07",
+    "originalInventoryBase": "9c571fbcea10ed2001ea81fc967830e33dadcbf4",
+    "checkedRoutes": 1061,
+    "authEntries": 26,
+    "authPages": 24,
+    "authRedirects": 2,
+    "nativeAuthPages": 2,
+    "missing": [],
+    "removed": [],
+    "added": []
+  },
+  "checks": {
+    "productionBrowser": [
+      {
+        "name": "Header preserves nested callback and invitation context",
+        "status": "pass",
+        "durationMs": 795
+      },
+      {
+        "name": "Password visibility preserves input and does not submit",
+        "status": "pass",
+        "durationMs": 95
+      },
+      {
+        "name": "Recovery keeps the email and original return URL",
+        "status": "pass",
+        "durationMs": 42
+      },
+      {
+        "name": "Real invalid sign-in response remains visible and associated",
+        "status": "pass",
+        "durationMs": 125
+      },
+      {
+        "name": "Auth is noindex over real HTTP",
+        "status": "pass",
+        "durationMs": 627
+      },
+      {
+        "name": "Login responsive 320",
+        "status": "pass",
+        "durationMs": 643
+      },
+      {
+        "name": "Login responsive 390",
+        "status": "pass",
+        "durationMs": 619
+      },
+      {
+        "name": "Login responsive 768",
+        "status": "pass",
+        "durationMs": 663
+      },
+      {
+        "name": "Login responsive 1280",
+        "status": "pass",
+        "durationMs": 611
+      },
+      {
+        "name": "Login responsive 1440",
+        "status": "pass",
+        "durationMs": 634
+      },
+      {
+        "name": "Signup retains the legacy redirect parameter in its header",
+        "status": "pass",
+        "durationMs": 586
+      },
+      {
+        "name": "Signup validation messages wrap without overlay at 320px",
+        "status": "pass",
+        "durationMs": 60
+      },
+      {
+        "name": "Public status route /reset-password",
+        "status": "pass",
+        "durationMs": 614
+      },
+      {
+        "name": "Public status route /oauth/consent",
+        "status": "pass",
+        "durationMs": 646
+      },
+      {
+        "name": "Public status route /desktop/auth",
+        "status": "pass",
+        "durationMs": 552
+      },
+      {
+        "name": "Public status route /desktop/done",
+        "status": "pass",
+        "durationMs": 553
+      },
+      {
+        "name": "Public status route /desktop/connect",
+        "status": "pass",
+        "durationMs": 552
+      },
+      {
+        "name": "Public status route /cli/auth/done",
+        "status": "pass",
+        "durationMs": 549
+      },
+      {
+        "name": "Public status route /oauth-error?error=access_denied",
+        "status": "pass",
+        "durationMs": 662
+      },
+      {
+        "name": "Public status route /oauth/credential-connected",
+        "status": "pass",
+        "durationMs": 655
+      },
+      {
+        "name": "Public status route /credential-groups/complete",
+        "status": "pass",
+        "durationMs": 695
+      },
+      {
+        "name": "Public status route /credential-groups/slack-complete",
+        "status": "pass",
+        "durationMs": 620
+      }
+    ],
+    "productionVisualAndIsolation": [
+      {
+        "name": "Mobile uses text navigation and support follows the form",
+        "status": "pass",
+        "durationMs": 759
+      },
+      {
+        "name": "Desktop uses pill navigation, 400px form and flow footer",
+        "status": "pass",
+        "durationMs": 653
+      },
+      {
+        "name": "App dark mode and brand variables do not change Auth typography or control colors",
+        "status": "pass",
+        "durationMs": 4
+      },
+      {
+        "name": "Auth suppresses configured deployment custom CSS",
+        "status": "pass",
+        "durationMs": 796
+      },
+      {
+        "name": "Auth content and robots metadata are server rendered without JavaScript",
+        "status": "pass",
+        "durationMs": 82
+      }
+    ],
+    "deploymentConfigurations": [
+      {
+        "name": "Server-only registration policy hides signup after hydration",
+        "status": "pass",
+        "durationMs": 6160
+      },
+      {
+        "name": "SSO-only policy keeps its primary action and removes email/recovery/signup controls",
+        "status": "pass",
+        "durationMs": 4543
+      },
+      {
+        "name": "No-methods deployment provides an explicit unavailable state",
+        "status": "pass",
+        "durationMs": 4535
+      },
+      {
+        "name": "All-provider configuration matches the specified ordering and mobile two-column layout",
+        "status": "pass",
+        "durationMs": 4603
+      }
+    ],
+    "realAccountLifecycle": [
+      {
+        "name": "Real signup reaches verification with callback retained",
+        "status": "pass"
+      },
+      {
+        "name": "Invalid OTP has visible associated feedback",
+        "status": "pass"
+      },
+      {
+        "name": "Mail-delivered OTP verifies once and returns to the requested page",
+        "status": "pass"
+      },
+      {
+        "name": "Recovery sends a real reset email and retains its neutral acknowledgement",
+        "status": "pass"
+      },
+      {
+        "name": "Reset validates mismatch, changes password, and returns to login",
+        "status": "pass"
+      },
+      {
+        "name": "New password signs in through the existing session handler",
+        "status": "pass"
+      }
+    ],
+    "sharedControls": [
+      {
+        "name": "Select keyboard skips disabled options and returns focus",
+        "status": "pass"
+      },
+      {
+        "name": "Search filters options and keeps keyboard selection",
+        "status": "pass"
+      },
+      {
+        "name": "Copy announces success then returns to Copy",
+        "status": "pass"
+      },
+      {
+        "name": "Account menu executes only its existing switch action",
+        "status": "pass"
+      },
+      {
+        "name": "OTP paste fills six slots and pending prevents duplicate actions",
+        "status": "pass"
+      },
+      {
+        "name": "Long menu and controls fit viewport 320",
+        "status": "pass"
+      },
+      {
+        "name": "Long menu and controls fit viewport 390",
+        "status": "pass"
+      },
+      {
+        "name": "Long menu and controls fit viewport 768",
+        "status": "pass"
+      },
+      {
+        "name": "Long menu and controls fit viewport 1440",
+        "status": "pass"
+      }
+    ],
+    "nativeElectron": [
+      {
+        "name": "Actual Electron loads the isolated offline screen and bundled fonts",
+        "status": "pass"
+      },
+      {
+        "name": "Native Change server opens the existing dialog with current URL",
+        "status": "pass"
+      },
+      {
+        "name": "Native server validation retains input and fits resized content",
+        "status": "pass"
+      },
+      {
+        "name": "Native Escape dismisses the existing server window",
+        "status": "pass"
+      }
+    ],
+    "navigationInteractionColors": [
+      {
+        "name": "Desktop navigation keeps dark fill and readable white text during hover and press",
+        "status": "pass"
+      },
+      {
+        "name": "Mobile navigation remains quiet text during hover",
+        "status": "pass"
+      }
+    ]
+  },
+  "liveInfrastructure": "Disposable local PostgreSQL, Mailpit SMTP, production Next server and actual Electron; no production accounts or external provider credentials used.",
+  "limitations": [
+    "The full monorepo test gate is not green because of the two Node 24 executor timeouts listed above.",
+    "Live external-provider and enterprise-tenant flows were not exercised. The route/state inventory is not an assertion that every provider or policy branch was executed.",
+    "Bun 1.4.1 is installed locally; the repository declares Bun 1.4.4. The Node 24 runtime used for validation was isolated without changing the global installation.",
+    "Browser screenshots and raw execution logs are local review artifacts; the checks and outcomes are recorded here without credentials, OTPs or handoff tokens."
+  ]
+}

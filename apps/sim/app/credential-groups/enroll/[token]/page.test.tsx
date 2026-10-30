@@ -34,6 +34,7 @@ vi.mock('@/lib/credential-groups/managed-mcp-connector-icons', () => ({
   getManagedMcpConnectorIcon: () => () => null,
 }))
 vi.mock('@/app/(auth)/components', () => ({
+  AuthShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
   AuthHeader: ({ title, description }: { title: string; description: string }) => (
     <header>
       <h1>{title}</h1>
@@ -41,9 +42,6 @@ vi.mock('@/app/(auth)/components', () => ({
     </header>
   ),
   SupportFooter: () => null,
-}))
-vi.mock('@/app/(landing)/components/logo-shell', () => ({
-  LogoShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }))
 vi.mock('@/app/credential-groups/enroll/[token]/oauth-toast', () => ({
   CredentialGroupOAuthToast: ({ message }: { message: string }) => (

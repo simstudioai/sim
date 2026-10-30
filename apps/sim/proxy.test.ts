@@ -228,9 +228,22 @@ describe('proxy indexing policy', () => {
     expect(robotsTag('/library.md/some-article')).toBeNull()
   })
 
-  it('leaves a self-hosted non-landing public page indexable', () => {
-    setEnvFlags({ isHosted: false })
-    expect(robotsTag('/login')).toBeNull()
+  it.each([
+    '/login',
+    '/signup',
+    '/verify',
+    '/oauth/consent',
+    '/invite/example',
+    '/desktop/auth',
+    '/cli/auth',
+    '/credential-groups/enroll/example',
+    '/f/example',
+    '/chat/example',
+  ])('keeps Auth out of search results on every deployment: %s', (pathname) => {
+    for (const isHosted of [false, true]) {
+      setEnvFlags({ isHosted })
+      expect(robotsTag(pathname)).toBe('noindex, nofollow')
+    }
   })
 })
 

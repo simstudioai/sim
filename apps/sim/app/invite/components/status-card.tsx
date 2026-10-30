@@ -1,6 +1,6 @@
 'use client'
-import { Chip, cn, Loader } from '@sim/emcn'
-import { AuthSubmitButton } from '@/app/(auth)/components'
+import { AuthStack, AuthButton as Chip, cn, AuthLoader as Loader } from '@sim/auth-ui'
+import { AuthHeader, AuthSubmitButton } from '@/app/(auth)/components'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 /** A document navigation, so the marketing surface initializes its own theme store. */
@@ -37,26 +37,20 @@ export function InviteStatusCard({
   if (type === 'loading') {
     return (
       <>
-        <div className='space-y-1 text-center'>
-          <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>Loading</h1>
-          <p className='text-[var(--text-muted)]'>{description}</p>
-        </div>
-        <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader className='size-8 text-[var(--text-muted)]' animate />
+        <AuthHeader title='Loading' description={description} />
+        <div className='au:mt-[var(--auth-group-gap)] au:flex au:w-full au:items-center au:justify-center au:py-8'>
+          <Loader className='au:size-8 au:text-[var(--auth-secondary)]' animate />
         </div>
       </>
     )
   }
 
   return (
-    <>
-      <div className='space-y-1 text-center'>
-        <h1 className='text-[32px] text-[var(--text-primary)] tracking-tight'>{title}</h1>
-        <p className='text-[var(--text-muted)]'>{description}</p>
-      </div>
+    <AuthStack>
+      <AuthHeader title={title} description={description} />
 
-      <div className='mt-8 w-full max-w-[410px] space-y-3'>
-        {details}
+      {details}
+      <div className='au:w-full au:space-y-2'>
         {isExpiredError && (
           <AuthSubmitButton type='button' onClick={returnHome} loadingLabel=''>
             Request New Invitation
@@ -81,11 +75,11 @@ export function InviteStatusCard({
               fullWidth
               onClick={action.onClick}
               disabled={action.disabled || action.loading}
-              className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border)]')}
+              className={cn(AUTH_BUTTON_CLASS, 'au:border au:border-[var(--auth-border)]')}
             >
               {action.loading ? (
-                <span className='flex items-center gap-2'>
-                  <Loader className='size-4' animate />
+                <span className='au:flex au:items-center au:gap-2'>
+                  <Loader className='au:size-4' animate />
                   {action.label}...
                 </span>
               ) : (
@@ -95,6 +89,6 @@ export function InviteStatusCard({
           )
         )}
       </div>
-    </>
+    </AuthStack>
   )
 }

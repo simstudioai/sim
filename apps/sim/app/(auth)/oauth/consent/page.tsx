@@ -49,7 +49,7 @@ export default async function OAuthConsentPage({
   const authorizationRequestKey = refusal ? null : JSON.stringify(raw)
 
   return (
-    <div className='[overflow-wrap:anywhere]'>
+    <div className='au:[overflow-wrap:anywhere]'>
       <OAuthConsentView
         refusal={refusal}
         clientId={params?.client_id ?? null}

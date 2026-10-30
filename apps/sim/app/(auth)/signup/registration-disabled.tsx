@@ -16,7 +16,7 @@ interface RegistrationDisabledProps {
  */
 export function RegistrationDisabled({ callbackUrl, isInviteFlow }: RegistrationDisabledProps) {
   return (
-    <div className='space-y-6'>
+    <div className='au:space-y-[var(--auth-group-gap)]'>
       <AuthHeader
         title='Account creation is disabled'
         description='Ask your admin to create an account for you.'

@@ -217,7 +217,6 @@
     "https-proxy-agent": "7.0.6",
     "idb-keyval": "6.3.0",
     "imapflow": "1.7.8",
-    "input-otp": "^1.5.0",
     "ioredis": "^5.6.0",
     "isolated-vm": "6.2.0",
     "jose": "6.2.3",
@@ -284,7 +283,8 @@
     "yauzl": "3.4.0",
     "yjs": "13.6.33",
     "zod": "4.3.6",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.15",
+    "@sim/auth-ui": "workspace:*"
   },
   "devDependencies": {
     "@next/env": "16.4.1",

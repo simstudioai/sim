@@ -1,7 +1,9 @@
 import { createRoot } from 'react-dom/client'
 import { ServerModal } from '@/renderer/server/server-modal'
-import { initializeShellPage, shellWindow } from '@/renderer/shell'
-import '@/renderer/shell.css'
+import type { ShellWindowApi } from '@/shared/shell'
+
+const shellWindow = (window as Window & { simShell?: ShellWindowApi }).simShell
+import '@/renderer/auth.css'
 
 const container = document.getElementById('root')
 if (!container || !shellWindow) throw new Error('Server modal host is unavailable')
@@ -17,4 +19,4 @@ async function renderServerModal() {
   }
 }
 
-void initializeShellPage().then(renderServerModal)
+void renderServerModal()

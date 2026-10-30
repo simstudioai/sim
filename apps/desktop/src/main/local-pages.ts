@@ -37,6 +37,8 @@ const LOCAL_PAGES: ReadonlySet<string> = new Set<LocalPage>(['offline.html', 'se
 const SERVABLE_FILES: ReadonlySet<string> = new Set([
   ...LOCAL_PAGES,
   'SeasonSansUprightsVF.woff2',
+  'geist-variable.woff2',
+  'geist-mono-variable.woff2',
   'server.js',
   'server.css',
   'offline.js',

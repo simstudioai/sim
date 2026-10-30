@@ -1,16 +1,17 @@
 'use client'
-import { Chip, cn } from '@sim/emcn'
+import { AuthIcon, AuthButton as Chip } from '@sim/auth-ui'
 import { useRouter } from 'next/navigation'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 interface SSOLoginButtonProps {
+  disabled?: boolean
   callbackURL?: string
   className?: string
   variant?: 'primary' | 'outline'
 }
 
 export function SSOLoginButton({
+  disabled,
   callbackURL,
   className,
   variant = 'outline',
@@ -30,14 +31,12 @@ export function SSOLoginButton({
     <Chip
       variant={variant === 'primary' ? 'primary' : undefined}
       fullWidth
+      disabled={disabled}
       onClick={handleSSOClick}
-      className={cn(
-        AUTH_BUTTON_CLASS,
-        variant === 'outline' && 'border border-[var(--border-1)]',
-        className
-      )}
+      className={className}
+      leftIcon={() => <AuthIcon name='lock' />}
     >
-      Sign in with SSO
+      {variant === 'primary' ? 'Continue with SSO' : 'SSO'}
     </Chip>
   )
 }
