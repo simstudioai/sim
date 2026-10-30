@@ -178,3 +178,16 @@ export function flattenNavigation(nodes: NavNode[]): NavNode[] {
   walk(nodes)
   return flat
 }
+
+/** Returns the same parent label used by page headers and search results. */
+export function findNavigationGroup(nodes: NavNode[], url: string, label = ''): string | undefined {
+  let current = label
+  for (const node of nodes) {
+    if (node.kind === 'label') current = node.title
+    if (node.url === url) return current
+    if (node.children) {
+      const found = findNavigationGroup(node.children, url, node.title)
+      if (found !== undefined) return found
+    }
+  }
+}

@@ -54,7 +54,8 @@ export function listPages(input: z.input<typeof listPagesSchema>) {
 /** Catalog lookup is the entire read boundary: no caller-supplied URL is fetched. */
 export function readPage(path: string) {
   const parsed = pagePathSchema.parse(path)
-  const page = getPage(parsed)
+  const canonical = parsed === '/' ? parsed : parsed.replace(/\/$/, '')
+  const page = getPage(canonical)
   if (!page || page.url === '/') return null
   return { ...pageMetadata(page), headings: page.headings, markdown: page.markdown }
 }

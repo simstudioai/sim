@@ -180,6 +180,15 @@ async function readCache(): Promise<CompiledCache> {
   }
 }
 
+function validateMedia(relative: string, mediaPaths: string[]) {
+  for (const media of mediaPaths)
+    if (
+      media.startsWith('/') &&
+      !existsSync(path.join(DOCS_ROOT, 'public', decodeURIComponent(media.split(/[?#]/)[0])))
+    )
+      throw new Error(`${relative}: missing media ${media}`)
+}
+
 async function generate() {
   await mkdir(path.join(OUTPUT_ROOT, 'pages'), { recursive: true })
   const pipelineFiles = [
@@ -221,6 +230,7 @@ async function generate() {
       prior?.hash === sourceHash &&
       existsSync(javascriptPath)
     ) {
+      validateMedia(relative, prior.media)
       const { lastModified: _previousDate, ...content } = prior.page
       const date = dates.get(file)
       const page = { ...content, ...(date ? { lastModified: date } : {}) }
@@ -256,12 +266,7 @@ async function generate() {
       contentHash: hash(markdown),
       ...(dates.get(file) ? { lastModified: dates.get(file) } : {}),
     }
-    for (const media of result.media)
-      if (
-        media.startsWith('/') &&
-        !existsSync(path.join(DOCS_ROOT, 'public', decodeURIComponent(media.split(/[?#]/)[0])))
-      )
-        throw new Error(`${relative}: missing media ${media}`)
+    validateMedia(relative, result.media)
     await writeFile(javascriptPath, result.javascript)
     await writeFile(
       javascriptPath.replace(/\.js$/, '.d.ts'),

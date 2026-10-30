@@ -87,13 +87,19 @@ export function PageActions({ url }: PageActionsProps) {
       </Dropdown.Root>
       <span
         role='status'
-        className='absolute top-full right-0 z-10 whitespace-nowrap text-[var(--docs-muted)] text-docs-caption'
+        className={
+          showCopied
+            ? 'sr-only'
+            : 'absolute top-full right-0 z-10 whitespace-nowrap text-[var(--docs-muted)] text-docs-caption'
+        }
       >
         {status === 'error'
           ? 'Could not copy. Try again or view Markdown.'
           : status === 'ready'
             ? 'Select again to copy.'
-            : ''}
+            : showCopied
+              ? 'Copied to clipboard.'
+              : ''}
       </span>
     </div>
   )

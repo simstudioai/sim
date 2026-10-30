@@ -181,8 +181,7 @@ export function Tabs({
               .docs-root [data-docs-tab-panel][hidden] { display: block !important; }
             }
             .docs-root [data-docs-tabs-root] [role="tablist"],
-            .docs-root [data-docs-tabs-root] select,
-            .docs-root [data-docs-tabs-root] button { display: none; }
+            .docs-root [data-docs-tabs-select] { display: none; }
           `}</style>
         </noscript>
         {items && (
@@ -216,6 +215,7 @@ export function TabsSelect({ items, label, className, ...props }: TabsSelectProp
     <Dropdown.Root modal={false}>
       <Dropdown.Trigger
         {...props}
+        data-docs-tabs-select=''
         aria-label={`${label}: ${selected?.label ?? ''}`}
         className={cn(docsControlClass, 'min-w-0 max-w-full shrink px-2', className)}
       >

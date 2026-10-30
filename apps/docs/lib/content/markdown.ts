@@ -117,11 +117,13 @@ export function serializeMarkdown(tree: Root): string {
       switch (node.name) {
         case 'WorkflowPreview':
           return [paragraph('Workflow configuration'), json(props.workflow)]
-        case 'BlockPreview':
-          return [
-            paragraph(`${String(props.type)} block configuration`),
-            json(BLOCK_DISPLAY_WORKFLOWS[String(props.type)]),
-          ]
+        case 'BlockPreview': {
+          const type = props.type
+          if (typeof type !== 'string' || !Object.hasOwn(BLOCK_DISPLAY_WORKFLOWS, type))
+            throw new Error(`Unknown documentation block preview: ${String(type)}`)
+          const workflow = BLOCK_DISPLAY_WORKFLOWS[type]
+          return [paragraph(`${type} block configuration`), json(workflow)]
+        }
         case 'OutputBundle':
           return [
             paragraph(`Output from ${String(props.blockName)}`),

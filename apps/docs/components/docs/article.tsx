@@ -5,7 +5,8 @@ import { ContentInteractions } from '@/components/docs/content-interactions'
 import { PageActions } from '@/components/docs/page-actions'
 import { IntegrationIcon } from '@/components/ui/integration-icon'
 import { getNavigation, getNeighbours } from '@/lib/content/catalog'
-import type { DocsPage, NavNode } from '@/lib/content/types'
+import { findNavigationGroup } from '@/lib/content/navigation'
+import type { DocsPage } from '@/lib/content/types'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
 interface ArticleProps {
@@ -14,21 +15,9 @@ interface ArticleProps {
   aside?: ReactNode
 }
 
-function findGroup(nodes: NavNode[], url: string, label = ''): string | undefined {
-  let current = label
-  for (const node of nodes) {
-    if (node.kind === 'label') current = node.title
-    if (node.url === url) return current
-    if (node.children) {
-      const found = findGroup(node.children, url, node.title)
-      if (found !== undefined) return found
-    }
-  }
-}
-
 export function Article({ page, children, aside }: ArticleProps) {
   const group =
-    findGroup(getNavigation(page.section), page.url) ||
+    findNavigationGroup(getNavigation(page.section), page.url) ||
     { docs: 'Documentation', api: 'API reference', cli: 'CLI', mcp: 'MCP' }[page.section]
   const { previous, next } = getNeighbours(page)
   const source = page.operation

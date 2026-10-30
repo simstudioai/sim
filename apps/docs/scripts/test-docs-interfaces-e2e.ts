@@ -115,8 +115,15 @@ await check('Discovery pagination has no gaps, duplicates or unbounded pages', a
   }
 })
 
+await check('Canonical page lookup normalizes a trailing slash', async () => {
+  const response = await get('/api/docs/page?path=%2Fintroduction%2F')
+  assert(response.ok, 'Trailing-slash page lookup failed')
+  const page = toRecord(toRecord(await response.json()).page)
+  assert(page.path === '/introduction', 'Page identity was not canonicalized')
+})
+
 await check('Malformed canonical paths are rejected without blocking the HTTP worker', async () => {
-  const malformed = `/${'a'.repeat(24)}!`
+  const malformed = `/${'a'.repeat(32)}!`
   const response = await fetch(
     new URL(`/api/docs/page?path=${encodeURIComponent(malformed)}`, base),
     {

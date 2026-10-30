@@ -8,9 +8,7 @@
   "maxBodyBytes": 33554432,
   "catalogPages": 803,
   "readablePages": 802,
-  "redirectOnlyPages": [
-    "/"
-  ],
+  "redirectOnlyPages": ["/"],
   "assets": 187,
   "excludedOsArtifacts": [],
   "checks": 2996,

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
-import { getPage } from '@/lib/content/catalog'
+import { getNavigation, getPage } from '@/lib/content/catalog'
+import { findNavigationGroup } from '@/lib/content/navigation'
 import type { DocsPage } from '@/lib/content/types'
 import { generateSearchEmbedding } from '@/lib/embeddings'
 import { getSearchIndex } from '@/lib/search/precomputed'
@@ -27,12 +28,18 @@ const SECTION_LABELS = { docs: 'Documentation', api: 'API reference', cli: 'CLI'
 let hybridRequests = 0
 
 function resultFor(page: DocsPage, id: string, url: string, heading: string): SearchResult {
+  const section = SECTION_LABELS[page.section]
+  const group = findNavigationGroup(getNavigation(page.section), page.url)
   return {
     id,
     type: 'page',
     url,
     content: heading || page.title,
-    breadcrumbs: [SECTION_LABELS[page.section], page.title],
+    breadcrumbs: [
+      section,
+      ...(group && group !== section && group !== page.title ? [group] : []),
+      page.title,
+    ],
   }
 }
 
