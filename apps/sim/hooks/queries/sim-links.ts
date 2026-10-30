@@ -51,7 +51,7 @@ export function useSaveSimLink(organizationId: string) {
       linkId
         ? requestJson(updateSimLinkContract, { params: { id: organizationId, linkId }, body })
         : requestJson(createSimLinkContract, { params: { id: organizationId }, body }),
-    onSettled: invalidate,
+    onSuccess: invalidate,
   })
 }
 
@@ -60,6 +60,6 @@ export function useDeleteSimLink(organizationId: string) {
   return useMutation({
     mutationFn: (linkId: string) =>
       requestJson(deleteSimLinkContract, { params: { id: organizationId, linkId } }),
-    onSettled: invalidate,
+    onSuccess: invalidate,
   })
 }

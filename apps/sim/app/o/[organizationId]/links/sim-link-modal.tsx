@@ -148,8 +148,8 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
                 disabled={!canManage}
                 onCheckedChange={(checked) => change('unlisted', checked === true)}
               />
-              <span className='text-[var(--text-primary)] text-sm'>
-                Unlist: hide from the Sim Links page except for you and admins
+              <span className='text-[var(--text-primary)] text-small'>
+                Hide from the Sim Links page for everyone except you and admins
               </span>
             </label>
             <label htmlFor={restrictEditId} className='flex cursor-pointer items-center gap-2'>
@@ -159,7 +159,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
                 disabled={!canManage}
                 onCheckedChange={(checked) => change('restrictEdit', checked === true)}
               />
-              <span className='text-[var(--text-primary)] text-sm'>
+              <span className='text-[var(--text-primary)] text-small'>
                 Restrict editing to you and admins
               </span>
             </label>

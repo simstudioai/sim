@@ -133,6 +133,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       </div>
       {create !== null && (
         <SimLinkModal
+          key={create}
           organizationId={organizationId}
           initialName={create}
           onClose={() => void setView({ create: null })}
@@ -151,7 +152,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleting(null)
         }}
-        title={`Delete sim/${deleting?.name ?? ''}`}
+        title='Delete Sim link'
         text={`sim/${deleting?.name ?? ''} will stop working for everyone in your organization.`}
         confirm={{
           label: 'Delete',
