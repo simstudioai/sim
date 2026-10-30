@@ -752,7 +752,9 @@ try {
           await open(page, '/api-reference/workflows/listWorkflows')
           const trigger = page.getByRole('button', { name: /^Response example:/ })
           await trigger.scrollIntoViewIfNeeded()
-          const selectedRegion = page.getByRole('region', { name: 'Response', exact: true })
+          const selectedRegion = page
+            .getByRole('region', { name: 'Response', exact: true })
+            .filter({ visible: true })
           const initialPanel = await selectedRegion.getAttribute('id')
           await trigger.focus()
           await page.keyboard.press('Enter')
@@ -859,7 +861,10 @@ try {
             .first()
             .click()
           await expect(language).toHaveAccessibleName(/^Request example: Python/)
-          const request = page.getByRole('region', { name: 'Request', exact: true }).locator('code')
+          const request = page
+            .getByRole('region', { name: 'Request', exact: true })
+            .filter({ visible: true })
+            .locator('code')
           const originalSample = await request.textContent()
           const formats = page.getByRole('tablist', {
             name: '200 response content type',
