@@ -244,4 +244,71 @@ describe('VariablesBlockHandler', () => {
       isExisting: true,
     })
   })
+
+  it.each([
+    ['a blank variableName', { variableName: '  ', type: 'array', value: '[1]' }],
+    ['a name key instead of variableName', { name: 'issues', type: 'array', value: '[1]' }],
+    ['an unknown variableId and no name', { variableId: 'gone', type: 'boolean', value: false }],
+  ])('fails an assignment that sets a value through %s', async (_label, assignment) => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+
+    await expect(
+      handler.execute(ctx, createBlock(), {
+        variables: [{ variableName: 'issues', type: 'array', value: '[0]' }, assignment],
+      })
+    ).rejects.toThrow('Assignment 2 sets a value but names no variable')
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual([])
+  })
+
+  it('skips the blank rows the editor creates without failing', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [
+        { id: 'row-1', variableName: '', type: 'string', value: '', isExisting: false },
+        { id: 'row-2', variableName: 'issues', type: 'array', value: '[1]', isExisting: true },
+        { id: 'row-3', variableName: '', type: 'number', value: '   ', isExisting: false },
+      ],
+    })
+
+    expect(output).toEqual({ issues: [1] })
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual([1])
+  })
+
+  it('updates the variable a row selects by variableId when the row carries no name', async () => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext()
+
+    const output = await handler.execute(ctx, createBlock(), {
+      variables: [{ variableId: 'var-1', type: 'array', value: '[2]' }],
+    })
+
+    expect(output).toEqual({ issues: [2] })
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual([2])
+  })
+
+  it.each([
+    ['by name', { variableName: 'issues' }],
+    ['by variableId', { variableId: 'var-1' }],
+  ])('keeps the target variable type when a row %s omits type', async (_label, selector) => {
+    const handler = new VariablesBlockHandler()
+    const ctx = createContext({
+      workflowVariables: {
+        'var-1': { id: 'var-1', name: 'issues', type: 'object', value: {} },
+        'var-2': { id: 'var-2', name: 'count', type: 'number', value: 0 },
+      },
+    })
+
+    await handler.execute(ctx, createBlock(), {
+      variables: [
+        { ...selector, value: { open: 2 } },
+        { variableName: 'count', value: 1 },
+      ],
+    })
+
+    expect(ctx.workflowVariables?.['var-1'].value).toEqual({ open: 2 })
+    expect(ctx.workflowVariables?.['var-2'].value).toBe(1)
+  })
 })
