@@ -38,6 +38,7 @@ import {
   type ChatRequest,
   type ModelSelection,
   TOOL_DEADLINE_CAPABILITY,
+  WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
 } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
@@ -562,11 +563,13 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
       : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit it and the server runs
-    // those tools immediately. The deadline token is this server's own: it bounds every
-    // handed call by the deadline its frame names.
+    // those tools immediately. The deadline and run-wait tokens are this server's own: it
+    // bounds every handed call by the deadline its frame names, and its CLI lets a
+    // synchronous `workflows run` outlast `--wait-timeout`.
     clientCapabilities: [
       ...(isAssistant ? [] : ['workflow-tool-pickup']),
       TOOL_DEADLINE_CAPABILITY,
+      WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
     ],
   }
 }
