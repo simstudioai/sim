@@ -17,6 +17,15 @@ on:
       - 'bun.lock'
       - '.github/workflows/docs-negotiation.yml'
   workflow_dispatch:
+    inputs:
+      benchmark:
+        description: Run bounded production navigation, image and Lighthouse measurements
+        type: boolean
+        default: false
+      build_ref:
+        description: Commit to build for the benchmark (empty uses this workflow revision)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -26,7 +35,80 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.benchmark
+    name: docs benchmark (${{ matrix.target }})
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: [build, production]
+    env:
+      DATABASE_URL: ''
+      OPENAI_API_KEY: ''
+      DOCS_BENCHMARK_BASE_URL: ${{ matrix.target == 'production' && 'https://docs.sim.ai' || 'http://127.0.0.1:3001' }}
+    steps:
+      - name: Checkout measured revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ inputs.build_ref || github.sha }}
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+      - name: Checkout benchmark harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: .readiness-harness
+          sparse-checkout: apps/docs/scripts/benchmark-readiness.ts
+          sparse-checkout-cone-mode: false
+      - name: Prepare measurements
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MEASURED_TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p test-results/benchmark
+          cp .readiness-harness/apps/docs/scripts/benchmark-readiness.ts apps/docs/scripts/benchmark-readiness.ts
+          if [ "$MEASURED_TARGET" = production ]; then
+            gh api "repos/$GITHUB_REPOSITORY/deployments?environment=Production&per_page=1" >test-results/benchmark/deployment.json
+            REVISION=$(jq -r '.[0].sha' test-results/benchmark/deployment.json)
+          else
+            REVISION=$(git rev-parse HEAD)
+          fi
+          echo "DOCS_BENCHMARK_REVISION=$REVISION" >> "$GITHUB_ENV"
+          bunx --no-install playwright install --with-deps chromium
+      - name: Build measured production docs
+        if: matrix.target == 'build'
+        run: bun run --cwd apps/docs build
+      - name: Measure navigation and Lighthouse sequentially
+        run: |
+          if [ "$DOCS_BENCHMARK_BASE_URL" = http://127.0.0.1:3001 ]; then
+            bun run --cwd apps/docs start --port 3001 >test-results/benchmark/server.log 2>&1 &
+            DOCS_SERVER_PID=$!
+            trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
+            for attempt in $(seq 1 30); do
+              curl -fsS "$DOCS_BENCHMARK_BASE_URL/introduction" -o /dev/null && break
+              sleep 1
+            done
+          fi
+          NAVIGATION_STATUS=0
+          LIGHTHOUSE_STATUS=0
+          DOCS_BENCHMARK_MODE=navigation DOCS_BENCHMARK_REPORT_PATH="$GITHUB_WORKSPACE/test-results/benchmark/navigation.json" bun run --cwd apps/docs scripts/benchmark-readiness.ts || NAVIGATION_STATUS=$?
+          DOCS_BENCHMARK_MODE=lighthouse DOCS_BENCHMARK_REPORT_PATH="$GITHUB_WORKSPACE/test-results/benchmark/lighthouse.json" bun run --cwd apps/docs scripts/benchmark-readiness.ts || LIGHTHOUSE_STATUS=$?
+          test "$NAVIGATION_STATUS" -eq 0 && test "$LIGHTHOUSE_STATUS" -eq 0
+      - name: Upload measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-benchmark-${{ matrix.target }}
+          path: test-results/benchmark/
+          retention-days: 14
+
   http:
+    if: github.event_name != 'workflow_dispatch' || !inputs.benchmark
     name: docs HTTP
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 20
