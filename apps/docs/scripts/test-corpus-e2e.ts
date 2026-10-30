@@ -544,7 +544,8 @@ function representativeRedirects(): string[] {
 }
 
 try {
-  await bounded(readablePages, async (page) => {
+  // Synchronous Markdown parsing must not delay another page’s timed response reader.
+  for (const page of readablePages) {
     await check(
       'HTML identity, anchors, media and operation reference',
       page.url,
@@ -621,7 +622,7 @@ try {
         await assertMarkdownStructure(page, Buffer.concat(chunks).toString('utf8'))
       }
     )
-  })
+  }
   await bounded(publicAssets, async (asset) => {
     await check('Original public asset bytes preserved', `/${asset.path}`, async (result) => {
       const response = await request(`/${asset.path}`)
@@ -690,7 +691,7 @@ try {
   const failed = results.filter((result) => result.status === 'failed')
   await writeFile(
     reportPath,
-    `${JSON.stringify({ startedAt, completedAt: new Date().toISOString(), origin: base.origin, canonicalOrigin, selectedPaths, catalogHash: digest(catalog.pages.map((page) => `${page.id}:${page.contentHash}`).join('\n')), concurrency: CONCURRENCY, maxBodyBytes: MAX_BODY_BYTES, catalogPages: catalog.pages.length, readablePages: readablePages.length, redirectOnlyPages: ['/'], assets: publicAssets.length, excludedOsArtifacts: excludedAssets.map((asset) => asset.path), checks: results.length, passed: results.length - failed.length, failed: failed.length, results }, null, 2)}\n`
+    `${JSON.stringify({ startedAt, completedAt: new Date().toISOString(), origin: base.origin, canonicalOrigin, selectedPaths, catalogHash: digest(catalog.pages.map((page) => `${page.id}:${page.contentHash}`).join('\n')), concurrency: CONCURRENCY, pageConcurrency: 1, maxBodyBytes: MAX_BODY_BYTES, catalogPages: catalog.pages.length, readablePages: readablePages.length, redirectOnlyPages: ['/'], assets: publicAssets.length, excludedOsArtifacts: excludedAssets.map((asset) => asset.path), checks: results.length, passed: results.length - failed.length, failed: failed.length, results }, null, 2)}\n`
   )
   logger.info('Corpus verification completed', {
     checks: results.length,
