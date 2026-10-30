@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { findIntegrationAccessViolations } from './check-integration-access'
 
-const GATE = "import { useIntegrationAccess } from '@/hooks/use-integration-access'"
+const GATE = `import { useIntegrationAccess } from '@/hooks/use-integration-access'
+const { getAccess } = useIntegrationAccess(workspaceId)`
 
 function check(sources: Record<string, string>, exempt: Record<string, string> = {}) {
   return findIntegrationAccessViolations(
@@ -28,9 +29,28 @@ describe('findIntegrationAccessViolations', () => {
     ])
   })
 
-  it('flags a namespace import of a raw catalog module', () => {
-    const source = "import * as metadata from '@sim/deployment-config/integration-metadata'"
-    expect(check({ 'ee/tile.tsx': source })).toHaveLength(1)
+  it('flags a raw catalog read through a namespace import', () => {
+    const source = `import * as metadata from '@sim/deployment-config/integration-metadata'
+export const types = metadata.INTEGRATION_METADATA.map((entry) => entry.type)`
+    expect(check({ 'ee/tile.tsx': source })).toEqual([
+      expect.objectContaining({ path: 'ee/tile.tsx', names: ['INTEGRATION_METADATA'] }),
+    ])
+  })
+
+  it('flags a raw listing that imports the gate without calling it', () => {
+    const source = `import { useIntegrationAccess } from '@/hooks/use-integration-access'
+import { listIntegrations } from '@/blocks/integration-matcher'`
+    expect(check({ 'app/picker.ts': source })).toHaveLength(1)
+  })
+
+  it('accepts the gate called through a namespace or a renamed binding', () => {
+    const namespaced = `import * as access from '@/hooks/use-integration-access'
+import { INTEGRATIONS } from '@/lib/integrations'
+const { getAccess } = access.useIntegrationAccess(workspaceId)`
+    const renamed = `import { useIntegrationAccess as useAccess } from '@/hooks/use-integration-access'
+import { INTEGRATIONS } from '@/lib/integrations'
+const { getAccess } = useAccess(workspaceId)`
+    expect(check({ 'app/a.tsx': namespaced, 'app/b.tsx': renamed })).toEqual([])
   })
 
   it('accepts a raw catalog read alongside the access gate', () => {
@@ -53,6 +73,14 @@ import { type listIntegrations } from '@/blocks/integration-matcher'`
         { 'app/sitemap.ts': 'public', 'app/(landing)/': 'public' }
       )
     ).toEqual([])
+  })
+
+  it('refuses the fail-open policy through a namespace import', () => {
+    const source = `import * as access from '@/hooks/use-integration-access'
+const { policy } = access.useIntegrationAccessPolicy(workspaceId)`
+    expect(check({ 'app/picker.tsx': source })).toEqual([
+      expect.objectContaining({ path: 'app/picker.tsx', names: ['useIntegrationAccessPolicy'] }),
+    ])
   })
 
   it('refuses the fail-open access policy outside the permission config hook', () => {

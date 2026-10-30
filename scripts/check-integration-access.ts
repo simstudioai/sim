@@ -10,7 +10,7 @@
  * one verdict those surfaces share; this audit makes reaching a raw catalog
  * without it a build failure.
  *
- * The rule: a scanned module that imports a raw catalog must also import
+ * The rule: a scanned module that reads a raw catalog must also call
  * `useIntegrationAccess`, or appear in {@link EXEMPT} with the reason it may see
  * every integration (a lookup by id, a public page, a builder whose caller
  * gates). An exemption that no longer covers a raw import is reported too, so
@@ -25,6 +25,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { escapeRegExp } from '@sim/utils/string'
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../apps/sim')
 const SCAN_ROOTS = ['app', 'components', 'hooks', 'stores', 'ee'] as const
@@ -63,36 +64,54 @@ interface SourceFile {
 
 interface IntegrationAccessViolation {
   path: string
-  /** The raw catalog exports, or the fail-open policy, imported without leave; empty for a stale exemption. */
+  /** The raw catalog exports, or the fail-open policy, read without leave; empty for a stale exemption. */
   names: string[]
   stale: boolean
 }
 
 const NAMED_IMPORT = /import\s+(type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g
-const NAMESPACE_IMPORT = /import\s+\*\s+as\s+\w+\s+from\s*['"]([^'"]+)['"]/g
+const NAMESPACE_IMPORT = /import\s+\*\s+as\s+([\w$]+)\s+from\s*['"]([^'"]+)['"]/g
 
-/** The names a module imports as values from `from`, by their exported name. */
-function valueImports(source: string, from: string): string[] {
-  const names: string[] = []
+/** One export of a module, and the expression the importing module reaches it through. */
+interface ExportReference {
+  exported: string
+  /** The local binding, or `namespace.member` for a read through a namespace import. */
+  local: string
+}
+
+/** The exports of `from` a module reaches as values, through named or namespace imports. */
+function exportReferences(source: string, from: string): ExportReference[] {
+  const references: ExportReference[] = []
   for (const [, typeOnly, specifiers, module] of source.matchAll(NAMED_IMPORT)) {
     if (module !== from || typeOnly) continue
     for (const specifier of specifiers.split(',')) {
-      const [imported] = specifier.trim().split(/\s+as\s+/)
-      if (imported && !imported.startsWith('type ')) names.push(imported)
+      const [exported, local = exported] = specifier.trim().split(/\s+as\s+/)
+      if (exported && !exported.startsWith('type ')) references.push({ exported, local })
     }
   }
-  return names
+  for (const [, namespace, module] of source.matchAll(NAMESPACE_IMPORT)) {
+    if (module !== from) continue
+    const memberRead = new RegExp(`(?<![\\w$.])${escapeRegExp(namespace)}\\.([\\w$]+)`, 'g')
+    for (const [local, exported] of source.matchAll(memberRead)) {
+      references.push({ exported, local })
+    }
+  }
+  return references
 }
 
-/** The raw catalog exports a module imports as values. */
-function rawCatalogImports(source: string): string[] {
-  const names = Object.entries(RAW_CATALOGS).flatMap(([module, catalog]) =>
-    valueImports(source, module).filter((name) => catalog.includes(name))
-  )
-  for (const [, from] of source.matchAll(NAMESPACE_IMPORT)) {
-    if (RAW_CATALOGS[from]) names.push(...RAW_CATALOGS[from])
+function isCalled(source: string, local: string): boolean {
+  return new RegExp(`(?<![\\w$.])${escapeRegExp(local)}\\s*\\(`).test(source)
+}
+
+/** The raw catalog exports a module reads. */
+function rawCatalogReads(source: string): string[] {
+  const names = new Set<string>()
+  for (const [module, catalog] of Object.entries(RAW_CATALOGS)) {
+    for (const { exported } of exportReferences(source, module)) {
+      if (catalog.includes(exported)) names.add(exported)
+    }
   }
-  return names
+  return [...names]
 }
 
 function exemptionFor(path: string, exempt: Readonly<Record<string, string>>): string | undefined {
@@ -108,18 +127,22 @@ export function findIntegrationAccessViolations(
   const violations: IntegrationAccessViolation[] = []
   const usedExemptions = new Set<string>()
   for (const { path, source } of files) {
-    const gateImports = valueImports(source, GATE_MODULE)
-    if (gateImports.includes(FAIL_OPEN_NAME) && path !== FAIL_OPEN_READER) {
+    const gateReferences = exportReferences(source, GATE_MODULE)
+    const readsFailOpen = gateReferences.some(({ exported }) => exported === FAIL_OPEN_NAME)
+    if (readsFailOpen && path !== FAIL_OPEN_READER) {
       violations.push({ path, names: [FAIL_OPEN_NAME], stale: false })
     }
-    const names = rawCatalogImports(source)
+    const names = rawCatalogReads(source)
     if (names.length === 0) continue
     const exemption = exemptionFor(path, exempt)
     if (exemption) {
       usedExemptions.add(exemption)
       continue
     }
-    if (!gateImports.includes(GATE_NAME)) violations.push({ path, names, stale: false })
+    const callsGate = gateReferences.some(
+      ({ exported, local }) => exported === GATE_NAME && isCalled(source, local)
+    )
+    if (!callsGate) violations.push({ path, names, stale: false })
   }
   for (const entry of Object.keys(exempt)) {
     if (!usedExemptions.has(entry)) violations.push({ path: entry, names: [], stale: true })
@@ -152,21 +175,21 @@ function collectSources(): SourceFile[] {
 function main() {
   const violations = findIntegrationAccessViolations(collectSources(), EXEMPT)
   if (violations.length === 0) {
-    console.log('✓ every integration listing reads useIntegrationAccess')
+    console.log('✓ every integration listing calls useIntegrationAccess')
     return
   }
   for (const violation of violations) {
     if (violation.stale) {
       console.error(
-        `✗ ${violation.path}: exempt in check-integration-access.ts but imports no raw catalog — remove the entry`
+        `✗ ${violation.path}: exempt in check-integration-access.ts but reads no raw catalog — remove the entry`
       )
     } else if (violation.names.includes(FAIL_OPEN_NAME)) {
       console.error(
-        `✗ apps/sim/${violation.path}: imports ${FAIL_OPEN_NAME}, which fails open while loading — only ${FAIL_OPEN_READER} may`
+        `✗ apps/sim/${violation.path}: reads ${FAIL_OPEN_NAME}, which fails open while loading — only ${FAIL_OPEN_READER} may`
       )
     } else {
       console.error(
-        `✗ apps/sim/${violation.path}: imports ${violation.names.join(', ')} without ${GATE_NAME}`
+        `✗ apps/sim/${violation.path}: reads ${violation.names.join(', ')} without calling ${GATE_NAME}`
       )
     }
   }
