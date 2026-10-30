@@ -66,7 +66,7 @@ function FieldControl({ field }: { field: InspectorField }) {
             style={{ width: `${percent}%` }}
           />
           <div
-            className='-translate-y-1/2 absolute top-1/2 size-[12px] rounded-full border border-[var(--border-1)] bg-white'
+            className='-translate-y-1/2 absolute top-1/2 size-[12px] rounded-full border border-[var(--docs-segment-border)] bg-[var(--docs-segment-fill)]'
             style={{ left: `calc(${percent}% - 6px)` }}
           />
         </div>

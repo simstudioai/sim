@@ -1,6 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type Browser, type BrowserContext, chromium, expect, type Page } from '@playwright/test'
+import {
+  type Browser,
+  type BrowserContext,
+  chromium,
+  expect,
+  type Locator,
+  type Page,
+} from '@playwright/test'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 
@@ -785,6 +792,55 @@ try {
     )
   } finally {
     await mobileSearch.close()
+  }
+  const darkSurfaces = await browser.newContext({
+    colorScheme: 'dark',
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: 'reduce',
+  })
+  try {
+    await check(
+      'Dark theme respects reduced transparency across navigation and portals',
+      async () => {
+        const page = await darkSurfaces.newPage()
+        const session = await darkSurfaces.newCDPSession(page)
+        await session.send('Emulation.setEmulatedMedia', {
+          features: [
+            { name: 'prefers-color-scheme', value: 'dark' },
+            { name: 'prefers-reduced-transparency', value: 'reduce' },
+          ],
+        })
+        await open(page, '/introduction')
+        await expect(page.locator('html')).toHaveClass(/dark/)
+        const assertOpaque = async (surface: Locator) => {
+          await expect(surface).toBeVisible()
+          const styles = await surface.evaluate((element) => {
+            const style = getComputedStyle(element)
+            return { background: style.backgroundColor, blur: style.backdropFilter }
+          })
+          expect(styles.background).toMatch(/^rgb\(\d+, \d+, \d+\)$/)
+          expect(['none', 'blur(0px)']).toContain(styles.blur)
+        }
+        await assertOpaque(page.locator('header').first())
+        await copyMenu(page)
+        await assertOpaque(page.getByRole('menu'))
+        await page.screenshot({ path: join(directory, 'dark-opaque-menu.png') })
+        await page.keyboard.press('Escape')
+        await page.keyboard.press('Control+k')
+        await assertOpaque(page.getByRole('dialog', { name: 'Search documentation', exact: true }))
+        await page.screenshot({ path: join(directory, 'dark-opaque-search.png') })
+        await page.keyboard.press('Escape')
+        await page
+          .getByRole('button', { name: /Open .* in media viewer/ })
+          .first()
+          .click()
+        await assertOpaque(page.getByRole('dialog'))
+        await page.screenshot({ path: join(directory, 'dark-opaque-media.png') })
+        await page.keyboard.press('Escape')
+      }
+    )
+  } finally {
+    await darkSurfaces.close()
   }
   const largeReference = await browser.newContext({
     viewport: { width: 390, height: 844 },

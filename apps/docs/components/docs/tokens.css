@@ -37,20 +37,44 @@
   --docs-heading: #0a0a0a;
   --docs-text: rgb(10 10 10 / 80%);
   --docs-muted: rgb(10 10 10 / 60%);
+  --docs-placeholder: var(--docs-muted);
+  --docs-disabled: var(--docs-muted);
   --docs-surface: rgb(10 10 10 / 4%);
   --docs-border: rgb(0 0 0 / 6%);
   --docs-rule: rgb(0 0 0 / 12%);
   --docs-hover: rgb(10 10 10 / 6%);
   --docs-selected: rgb(0 0 0 / 8%);
+  --docs-selected-hover: var(--docs-selected);
+  --docs-current-edge: none;
   --docs-pressed: rgb(0 0 0 / 12%);
   --docs-link: #0066cc;
+  --docs-prose-link: var(--docs-link);
+  --docs-toc-current: var(--docs-link);
   --docs-glass: rgb(255 255 255 / 80%);
   --docs-overlay: rgb(255 255 255 / 88%);
   --docs-reading: rgb(255 255 255 / 96%);
+  --docs-raised: #fff;
+  --docs-search-scrim: var(--docs-overlay);
+  --docs-navigation-scrim: rgb(0 0 0 / 20%);
+  --docs-media-scrim: rgb(0 0 0 / 50%);
+  --docs-chrome-blur: 20px;
+  --docs-backdrop-blur: 8px;
   --docs-highlight: rgb(255 255 255 / 70%);
   --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 8%);
   --docs-segment-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  --docs-segment-fill: var(--docs-canvas);
+  --docs-segment-border: var(--docs-border);
+  --docs-segment-text: var(--docs-muted);
   --docs-menu-shadow: inset 0 1px 0 var(--docs-highlight), 0 10px 15px -3px rgb(0 0 0 / 6%);
+  --docs-dialog-shadow: var(--docs-shadow);
+  --docs-search-fill: var(--docs-canvas);
+  --docs-primary-fill: var(--docs-heading);
+  --docs-primary-hover: color-mix(in srgb, var(--docs-heading) 85%, var(--docs-canvas));
+  --docs-primary-pressed: color-mix(in srgb, var(--docs-heading) 75%, var(--docs-canvas));
+  --docs-primary-label: var(--docs-canvas);
+  --docs-secondary-fill: var(--docs-surface);
+  --docs-secondary-hover: var(--docs-hover);
+  --docs-secondary-pressed: var(--docs-pressed);
   --docs-radius: 8px;
   --docs-blue: #0066cc;
   --docs-blue-soft: rgb(191 219 254 / 35%);
@@ -97,35 +121,91 @@
 .dark .docs-portal,
 .docs-root.dark,
 .docs-portal.dark {
-  --docs-canvas: #1b1b1b;
+  --docs-canvas: #141414;
   --docs-heading: #e6e6e6;
   --docs-text: #e6e6e6;
-  --docs-muted: #ccc;
-  --docs-surface: #1f1f1f;
-  --docs-border: #444;
-  --docs-rule: #444;
-  --docs-hover: #262626;
-  --docs-selected: #2c2c2c;
-  --docs-pressed: #333;
-  --docs-link: #93c5fd;
-  --docs-glass: rgb(27 27 27 / 80%);
-  --docs-overlay: rgb(31 31 31 / 88%);
-  --docs-reading: #1f1f1f;
-  --docs-highlight: rgb(255 255 255 / 8%);
+  --docs-muted: #b0b0b0;
+  --docs-placeholder: #a8a8a8;
+  --docs-disabled: #707070;
+  --docs-surface: #1c1c1c;
+  --docs-border: #383838;
+  --docs-rule: #383838;
+  --docs-boundary: #8a8a8a;
+  --docs-hover: #2b2b2b;
+  --docs-selected: #333;
+  --docs-selected-hover: var(--docs-pressed);
+  --docs-current-edge: inset 2px 0 0 var(--docs-boundary);
+  --docs-pressed: #3a3a3a;
+  --docs-link: #8abeff;
+  --docs-prose-link: var(--docs-heading);
+  --docs-toc-current: var(--docs-muted);
+  --docs-glass: rgb(20 20 20 / 92%);
+  --docs-overlay: rgb(36 36 36 / 92%);
+  --docs-reading: #1c1c1c;
+  --docs-raised: #242424;
+  --docs-search-fill: var(--docs-overlay);
+  --docs-search-scrim: rgb(0 0 0 / 60%);
+  --docs-navigation-scrim: var(--docs-search-scrim);
+  --docs-media-scrim: var(--docs-search-scrim);
+  --docs-highlight: rgb(255 255 255 / 10%);
   --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 40%);
-  --docs-segment-shadow: 0 1px 2px rgb(0 0 0 / 30%);
-  --docs-menu-shadow: inset 0 1px 0 var(--docs-highlight), 0 10px 15px -3px rgb(0 0 0 / 40%);
-  --docs-blue: #93c5fd;
-  --docs-blue-soft: rgb(59 130 246 / 16%);
-  --docs-green: #86efac;
-  --docs-green-soft: rgb(34 197 94 / 16%);
-  --docs-purple: #d8b4fe;
-  --docs-purple-soft: rgb(168 85 247 / 16%);
-  --docs-orange: #fdba74;
-  --docs-orange-soft: rgb(249 115 22 / 16%);
-  --docs-red: #fca5a5;
-  --docs-red-soft: rgb(239 68 68 / 16%);
+  --docs-segment-shadow: none;
+  --docs-segment-fill: var(--docs-selected);
+  --docs-segment-border: var(--docs-boundary);
+  --docs-segment-text: var(--docs-heading);
+  --docs-menu-shadow: inset 0 1px 0 var(--docs-highlight), 0 8px 24px rgb(0 0 0 / 40%);
+  --docs-dialog-shadow: 0 16px 48px rgb(0 0 0 / 40%), 0 0 0 1px var(--docs-highlight);
+  --docs-primary-hover: #d4d4d4;
+  --docs-primary-pressed: #c2c2c2;
+  --docs-secondary-fill: var(--docs-selected);
+  --docs-secondary-hover: var(--docs-pressed);
+  --docs-secondary-pressed: #424242;
+  --docs-blue: var(--docs-link);
+  --docs-blue-soft: #203047;
+  --docs-green: #8ed5a4;
+  --docs-green-soft: #20382a;
+  --docs-purple: #c4a6f2;
+  --docs-purple-soft: #332b43;
+  --docs-orange: #edb27b;
+  --docs-orange-soft: #3e3024;
+  --docs-red: #f09a9a;
+  --docs-red-soft: #432a2a;
   color-scheme: dark;
+}
+
+/* biome-ignore lint/correctness/noUnknownMediaFeatureName: Media Queries Level 5 feature not yet recognized by the installed CSS linter. */
+@media (prefers-reduced-transparency: reduce) {
+  .docs-root,
+  .docs-portal,
+  .dark .docs-root,
+  .dark .docs-portal,
+  .docs-root.dark,
+  .docs-portal.dark {
+    --docs-glass: var(--docs-canvas);
+    --docs-overlay: var(--docs-raised);
+    --docs-chrome-blur: 0px;
+    --docs-backdrop-blur: 0px;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .docs-root,
+  .docs-portal,
+  .dark .docs-root,
+  .dark .docs-portal,
+  .docs-root.dark,
+  .docs-portal.dark {
+    --docs-glass: var(--docs-canvas);
+    --docs-overlay: var(--docs-raised);
+    --docs-chrome-blur: 0px;
+    --docs-backdrop-blur: 0px;
+  }
+}
+
+.dark .docs-root ::selection,
+.dark .docs-portal ::selection {
+  background: rgb(138 190 255 / 24%);
+  color: var(--docs-heading);
 }
 
 @media (max-width: 1023px) {

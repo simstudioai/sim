@@ -16,7 +16,8 @@ import {
 } from '@xyflow/react'
 import { domAnimation, LazyMotion, m, useReducedMotion } from 'framer-motion'
 import '@xyflow/react/dist/style.css'
-import { DocsButton, docsControlClass } from '@/components/docs/primitives'
+import { cn } from '@/components/docs/classnames'
+import { DocsButton, docsControlClass, docsDialogClass } from '@/components/docs/primitives'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
@@ -327,7 +328,10 @@ export function WorkflowPreview({
           )
             setExpanded(false)
         }}
-        className='fixed inset-0 m-auto h-[90dvh] max-h-none w-[calc(100%-24px)] max-w-none overflow-hidden rounded-2xl border border-[var(--docs-border)] bg-[var(--docs-overlay)] p-0 text-[var(--docs-text)] shadow-[var(--docs-shadow)] backdrop-blur-[20px] backdrop:bg-black/50 backdrop:backdrop-blur-sm sm:w-[92vw]'
+        className={cn(
+          docsDialogClass,
+          'fixed inset-0 m-auto h-[90dvh] max-h-none w-[calc(100%-24px)] max-w-none overflow-hidden p-0 backdrop:bg-[var(--docs-media-scrim)] backdrop:backdrop-blur-[var(--docs-backdrop-blur)] sm:w-[92vw]'
+        )}
       >
         {expanded && (
           <div className='relative flex size-full flex-col sm:flex-row'>

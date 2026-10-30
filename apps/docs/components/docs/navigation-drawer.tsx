@@ -23,8 +23,8 @@ export function DocsNavigationDrawer({ children }: DocsNavigationDrawerProps) {
     <Dialog.Root open={drawer.open} onOpenChange={(open) => setDrawer({ pathname, open })}>
       {children}
       <Dialog.Portal>
-        <Dialog.Overlay className='fixed inset-0 z-50 bg-black/20 backdrop-blur-sm' />
-        <Dialog.Content className='docs-root fixed inset-y-0 left-0 z-50 flex w-[min(340px,100vw-32px)] flex-col border-[var(--docs-border)] border-r bg-[var(--docs-canvas)] p-5 shadow-xl'>
+        <Dialog.Overlay className='docs-portal fixed inset-0 z-50 bg-[var(--docs-navigation-scrim)] backdrop-blur-[var(--docs-backdrop-blur)]' />
+        <Dialog.Content className='docs-portal fixed inset-y-0 left-0 z-50 flex w-[min(340px,100vw-32px)] flex-col border-[var(--docs-border)] border-r bg-[var(--docs-canvas)] p-5 shadow-xl'>
           <div className='mb-5 flex items-center justify-between'>
             <Dialog.Title className='text-docs-nav'>Documentation</Dialog.Title>
             <Dialog.Close

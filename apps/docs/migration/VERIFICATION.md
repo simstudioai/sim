@@ -24,14 +24,14 @@ The full machine-readable accounting is in [report.json](report.json), with the 
 | Root lint | 26 workspace tasks passed | `bun run lint` |
 | Root type check | 26 workspace tasks passed | `bun run type-check` |
 | Repository audits | All 61 passed | `bun run check:audits` |
-| Root tests | 634 script tests and 19 workspace tasks passed; the app suite passed 38,746 tests with 8 skipped and two executor timeouts, reproduced in isolation | `bun run test` with Node 24 |
+| Root tests | 634 script tests and 19 workspace tasks passed; app run: 38,713 passed, 8 skipped, two executor timeouts and four worker startup errors; the affected 33 tests passed a focused rerun | `bun run test` with Node 24 |
 | Block registry | Canonical IDs, metadata coverage, replacements, and selector coercion passed | Base-sensitive check against staging |
 | Migration preservation | Zero lost routes/anchors or changed code-fence hashes | [Migration report](report.json) |
 | Complete corpus over HTTP | 2,996 passed | [Corpus report](verification/corpus.json) |
 | HTTP and real MCP client | 15 passed | [Interface report](verification/interfaces.json) |
 | Content negotiation | 7 passed | [Negotiation report](verification/negotiation.json) |
 | Native header merger | 16 passed | [Header report](verification/headers.json) |
-| Browser behavior and responsive layouts | 58 passed | [Browser report](verification/browser.json) |
+| Browser behavior and responsive layouts | 59 passed | [Browser report](verification/browser.json) |
 | Isolated PostgreSQL search and publication | 7 passed | [Database report](verification/search-postgres.json) |
 | Workflow SSR and hydrated inspector | Authored node text in initial HTML; inspector, Escape, focus restoration, and zero browser errors passed | [SSR report](verification/workflow-ssr.json), [interaction report](verification/workflow-inspector.json) |
 
@@ -132,3 +132,13 @@ The optional OpenAI vector path is implemented against the existing embedding co
 Workflow previews retain real shared renderer components and their original data. Their initial HTML includes node text after provider initialization; canvas measurement, final outlines, fit, dragging, and inspection are enhanced during hydration. Fully painted static workflow diagrams would require changes to the shared renderer's geometry lifecycle. The processed Markdown includes complete workflow configuration and outputs independently of JavaScript.
 
 No production deployment, database migration, or shared platform/landing UI change is part of this replacement. Roll back by reverting the docs replacement commit, including its lockfile and workflow changes. Existing search rows remain usable by the prior publisher; no product-data rollback is needed. The PR remains a draft for review.
+
+### Shared dark theme
+
+The dark theme now uses the current shared palette for canvas, opaque reading surfaces, secondary text, selected boundaries, hover/pressed states, action buttons, syntax colors, and semantic badges. Sidebar selection has a neutral left edge; current outline links and inline links use underlines without changing type weight. Search, media, and workflow dialogs share one surface primitive, and every portal inherits the theme and native color scheme. Original screenshots and provider colors are unchanged.
+
+Reduced-transparency preferences remove blur and replace translucent navigation and popup surfaces with opaque fills. The [pre-fix browser report](verification/dark-transparency-before-fix.json) records the original translucent header; the retained production scenario verifies the header, copy menu, search dialog, and media viewer. The CSS feature is defined in [Media Queries Level 5](https://drafts.csswg.org/mediaqueries-5/#prefers-reduced-transparency); a single local annotation accommodates the installed CSS linter's incomplete media-feature list without disabling the rule elsewhere.
+
+All 59 production browser scenarios passed, including both themes at 320, 390, 639, 640, 767, 768, 1023, 1024, 1279, 1280, 1440, and 1920px. The production build, 26 lint tasks, 26 type-check tasks, and 61 repository audits passed. Visual review covered Chat, CLI code, navigation selection, current-section underlines, search, and the production desktop/mobile screenshots. See [desktop](verification/screenshots/responsive-dark-1440.png), [mobile](verification/screenshots/responsive-dark-390.png), [menu](verification/screenshots/introduction-desktop-dark.png), and [opaque search](verification/screenshots/dark-opaque-search.png).
+
+The final root test run passed all 634 script tests and 19 workspace tasks, including the docs test. The app run passed 38,713 tests with eight skipped, reproduced the same two previously isolated executor timeouts, and reported four worker startup timeouts before their tests ran. Running those four files separately with one worker passed all 33 tests in 2.25 seconds. No platform or executor source was changed. The full root gate remains unsuccessful because of the two executor failures; the focused retry does not replace that result.

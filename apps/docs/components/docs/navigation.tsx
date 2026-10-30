@@ -67,7 +67,8 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
         <div
           className={cn(
             'group/branch flex min-h-[30px] items-center rounded-lg transition-colors hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)]',
-            isCurrent && 'bg-[var(--docs-selected)] hover:bg-[var(--docs-selected)]'
+            isCurrent &&
+              'bg-[var(--docs-selected)] shadow-[var(--docs-current-edge)] hover:bg-[var(--docs-selected-hover)]'
           )}
         >
           <Link

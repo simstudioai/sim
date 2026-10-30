@@ -51,10 +51,10 @@ export function ThemeSwitch() {
           onClick={() => setTheme(value)}
           aria-pressed={mounted && resolvedTheme === value}
           className={cn(
-            'before:-inset-y-2 relative flex h-7 items-center justify-center gap-1.5 rounded-full border border-transparent px-3 text-[var(--docs-muted)] transition-colors before:absolute before:inset-x-0 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
+            'before:-inset-y-2 relative flex h-7 items-center justify-center gap-1.5 rounded-full border border-transparent px-3 text-[var(--docs-segment-text)] transition-colors before:absolute before:inset-x-0 hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
             mounted &&
               resolvedTheme === value &&
-              'border-[var(--docs-border)] bg-[var(--docs-canvas)] text-[var(--docs-heading)] shadow-[var(--docs-segment-shadow)]'
+              'border-[var(--docs-segment-border)] bg-[var(--docs-segment-fill)] text-[var(--docs-heading)] shadow-[var(--docs-segment-shadow)] hover:bg-[var(--docs-segment-fill)]'
           )}
         >
           <Icon className='size-4' />

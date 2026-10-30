@@ -20,7 +20,7 @@ export function DocsPageFrame({ children, headings, api = false }: DocsPageFrame
   const activeHeading = useActiveHeading(headings)
   return (
     <div className='min-w-0'>
-      <div className='sticky top-[104px] z-30 flex h-11 items-center justify-between border-[var(--docs-border)] border-y bg-[var(--docs-glass)] px-5 backdrop-blur-[20px] lg:hidden'>
+      <div className='sticky top-[104px] z-30 flex h-11 items-center justify-between border-[var(--docs-border)] border-y bg-[var(--docs-glass)] px-5 backdrop-blur-[var(--docs-chrome-blur)] lg:hidden'>
         <Dialog.Trigger className='flex min-h-11 items-center gap-2 text-docs-control'>
           <Menu className='size-4' />
           Menu

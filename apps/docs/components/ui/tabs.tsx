@@ -192,7 +192,7 @@ export function TabsTrigger({
       id={id ?? `${context?.baseId}-${value}-trigger`}
       aria-controls={controls ?? context?.panelIds.get(value) ?? `${context?.baseId}-${value}`}
       className={cn(
-        'pointer-coarse:before:-inset-y-2 relative inline-flex min-h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-transparent px-3 text-[var(--docs-muted)] text-docs-control leading-4 transition-colors pointer-coarse:before:absolute pointer-coarse:before:inset-x-0 hover:bg-[var(--docs-hover)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 disabled:opacity-40 data-[state=active]:border-[var(--docs-border)] data-[state=active]:bg-[var(--docs-canvas)] data-[state=active]:text-[var(--docs-text)] data-[state=active]:shadow-[var(--docs-segment-shadow)] motion-reduce:transition-none',
+        'pointer-coarse:before:-inset-y-2 relative inline-flex min-h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-transparent px-3 text-[var(--docs-segment-text)] text-docs-control leading-4 transition-colors pointer-coarse:before:absolute pointer-coarse:before:inset-x-0 hover:bg-[var(--docs-hover)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 disabled:opacity-40 data-[state=active]:border-[var(--docs-segment-border)] data-[state=active]:bg-[var(--docs-segment-fill)] data-[state=active]:text-[var(--docs-text)] data-[state=active]:shadow-[var(--docs-segment-shadow)] motion-reduce:transition-none dark:disabled:text-[var(--docs-disabled)] dark:disabled:opacity-100',
         className
       )}
     />

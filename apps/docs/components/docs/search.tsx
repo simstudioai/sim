@@ -15,6 +15,7 @@ import { ArrowRight, Search, X } from '@sim/emcn/icons'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/components/docs/classnames'
+import { docsDialogClass } from '@/components/docs/primitives'
 import type { NavNode } from '@/lib/content/types'
 import { DOCS_SECTIONS } from '@/lib/navigation'
 import { useDocsSearch } from '@/hooks/queries/search'
@@ -62,9 +63,12 @@ export function DocsSearchProvider({ children, navigation, section }: DocsSearch
       <QueryClientProvider client={client}>
         <Dialog.Root open={open} onOpenChange={setOpen}>
           <Dialog.Portal>
-            <Dialog.Overlay className='docs-root fixed inset-0 z-50 bg-[var(--docs-overlay)] backdrop-blur-sm' />
+            <Dialog.Overlay className='docs-portal fixed inset-0 z-50 bg-[var(--docs-search-scrim)] backdrop-blur-[var(--docs-backdrop-blur)]' />
             <Dialog.Content
-              className='docs-root -translate-x-1/2 fixed top-[10dvh] left-1/2 z-50 flex max-h-[80dvh] w-[calc(100%_-_32px)] max-w-[640px] flex-col overflow-hidden rounded-xl border border-[var(--docs-border)] bg-[var(--docs-canvas)] text-[var(--docs-text)] shadow-[var(--docs-shadow)] outline-none'
+              className={cn(
+                docsDialogClass,
+                '-translate-x-1/2 fixed top-[10dvh] left-1/2 z-50 flex max-h-[80dvh] w-[calc(100%_-_32px)] max-w-[680px] flex-col overflow-hidden bg-[var(--docs-search-fill)] outline-none'
+              )}
               onCloseAutoFocus={(event) => {
                 event.preventDefault()
                 trigger.current?.focus()
@@ -169,7 +173,7 @@ function SearchContents({ close, navigation, sectionLabel }: SearchContentsProps
 
   return (
     <>
-      <div className='flex shrink-0 items-center gap-3 border-[var(--docs-border)] border-b px-4 py-3'>
+      <div className='flex shrink-0 items-center gap-3 border-[var(--docs-border)] border-b px-5 py-3'>
         <Search className='size-4 shrink-0 text-[var(--docs-muted)]' aria-hidden />
         <input
           ref={inputRef}
@@ -201,10 +205,10 @@ function SearchContents({ close, navigation, sectionLabel }: SearchContentsProps
               navigate(selectedIndex)
             }
           }}
-          className='min-w-0 flex-1 bg-transparent text-docs-body outline-none placeholder:text-[var(--docs-muted)]'
+          className='min-w-0 flex-1 bg-transparent text-docs-body outline-none placeholder:text-[var(--docs-placeholder)]'
         />
         <Dialog.Close
-          className='before:-inset-1.5 relative flex size-8 shrink-0 items-center justify-center rounded-md before:absolute hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)]'
+          className='before:-inset-1.5 relative flex size-8 shrink-0 items-center justify-center rounded-md before:absolute hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
           aria-label='Close search'
         >
           <X className='size-4' aria-hidden />

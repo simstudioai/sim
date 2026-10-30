@@ -2,13 +2,19 @@ import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
 import { cn } from '@/components/docs/classnames'
 
 export const docsControlClass =
-  'relative inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-docs-control text-[var(--docs-text)] transition-colors hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-40 pointer-coarse:before:absolute pointer-coarse:before:-inset-y-2 pointer-coarse:before:inset-x-0 motion-reduce:transition-none'
+  'relative inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-docs-control text-[var(--docs-text)] transition-colors hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-40 dark:disabled:text-[var(--docs-disabled)] dark:disabled:opacity-100 pointer-coarse:before:absolute pointer-coarse:before:-inset-y-2 pointer-coarse:before:inset-x-0 motion-reduce:transition-none'
 
 export const docsMenuClass =
-  'rounded-[10px] border border-[var(--docs-border)] bg-[var(--docs-overlay)] p-1 text-docs-control shadow-[var(--docs-menu-shadow)] backdrop-blur-xl'
+  'rounded-[10px] border border-[var(--docs-border)] bg-[var(--docs-overlay)] p-1 text-docs-control shadow-[var(--docs-menu-shadow)] backdrop-blur-[var(--docs-chrome-blur)]'
+
+export const docsDialogClass =
+  'docs-portal rounded-2xl border border-[var(--docs-border)] bg-[var(--docs-overlay)] text-[var(--docs-text)] shadow-[var(--docs-dialog-shadow)] backdrop-blur-[var(--docs-chrome-blur)]'
+
+export const docsInlineLinkClass =
+  'rounded-sm text-[var(--docs-prose-link)] decoration-current underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 dark:underline dark:underline-offset-[3px]'
 
 export const docsMenuItemClass =
-  'flex min-h-[30px] cursor-pointer items-center gap-2 rounded-md px-2 outline-none data-[highlighted]:bg-[var(--docs-hover)] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50'
+  'flex min-h-[30px] cursor-pointer items-center gap-2 rounded-md px-2 outline-none data-[highlighted]:bg-[var(--docs-hover)] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 dark:data-[disabled]:text-[var(--docs-disabled)] dark:data-[disabled]:opacity-100'
 
 interface DocsButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconOnly?: boolean

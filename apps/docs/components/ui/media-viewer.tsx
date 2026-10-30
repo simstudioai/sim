@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from '@sim/emcn/icons'
-import { docsControlClass } from '@/components/docs/primitives'
+import { cn } from '@/components/docs/classnames'
+import { docsControlClass, docsDialogClass } from '@/components/docs/primitives'
 import { ScreenshotFrame } from '@/components/ui/screenshot-frame'
 
 interface MediaViewerProps {
@@ -34,8 +35,13 @@ export function MediaViewer({
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className='fixed inset-0 z-50 bg-black/50 backdrop-blur-sm' />
-        <Dialog.Content className='docs-portal fixed inset-3 z-50 flex flex-col overflow-hidden rounded-2xl border border-[var(--docs-border)] bg-[var(--docs-overlay)] p-4 shadow-[var(--docs-shadow)] backdrop-blur-[20px] sm:inset-8'>
+        <Dialog.Overlay className='docs-portal fixed inset-0 z-50 bg-[var(--docs-media-scrim)] backdrop-blur-[var(--docs-backdrop-blur)]' />
+        <Dialog.Content
+          className={cn(
+            docsDialogClass,
+            'fixed inset-3 z-50 flex flex-col overflow-hidden p-4 sm:inset-8'
+          )}
+        >
           <div className='flex shrink-0 items-center justify-between gap-4 pb-3'>
             <Dialog.Title className='text-docs-table'>{alt || 'Image'}</Dialog.Title>
             <Dialog.Close className={docsControlClass} aria-label='Close media viewer'>

@@ -1,7 +1,7 @@
 import { toArray, toRecord } from '@sim/utils/object'
 import { ApiSchema } from '@/components/docs/api-schema'
 import { CodeSample, Markdown } from '@/components/docs/markdown'
-import { MethodBadge, NeutralBadge } from '@/components/docs/primitives'
+import { docsInlineLinkClass, MethodBadge, NeutralBadge } from '@/components/docs/primitives'
 import { SamplePanels } from '@/components/docs/sample-panels'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Tab, Tabs } from '@/components/ui/tabs'
@@ -64,7 +64,7 @@ function MediaContent({ content, document, prefix }: MediaContentProps) {
               {typeof example.externalValue === 'string' && (
                 <a
                   href={example.externalValue}
-                  className='text-[var(--docs-link)] text-docs-control'
+                  className={`${docsInlineLinkClass} text-docs-control`}
                 >
                   Read external example
                 </a>

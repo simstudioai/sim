@@ -60,7 +60,7 @@ export function DocsShell({ children, navigationBySection }: DocsShellProps) {
     <DocsNavigationContext value={{ navigation, pathname }}>
       <DocsSearchProvider navigation={navigation} section={section}>
         <DocsNavigationDrawer>
-          <header className='sticky top-0 z-40 select-none bg-[var(--docs-glass)] backdrop-blur-[20px]'>
+          <header className='sticky top-0 z-40 select-none bg-[var(--docs-glass)] backdrop-blur-[var(--docs-chrome-blur)]'>
             <div className='mx-auto flex h-14 max-w-[1280px] items-center gap-10 px-5 lg:px-4'>
               <Link
                 href='/introduction'
@@ -75,14 +75,14 @@ export function DocsShell({ children, navigationBySection }: DocsShellProps) {
                 <a
                   href={`${SIM_SITE_URL}/contact`}
                   draggable={false}
-                  className='hidden rounded-full bg-[var(--docs-surface)] px-4 py-1.5 text-[var(--docs-heading)] transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] sm:block'
+                  className='hidden rounded-full bg-[var(--docs-secondary-fill)] px-4 py-1.5 text-[var(--docs-heading)] transition-colors hover:bg-[var(--docs-secondary-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 active:bg-[var(--docs-secondary-pressed)] sm:block'
                 >
                   Contact sales
                 </a>
                 <a
                   href={`${SIM_SITE_URL}/signup`}
                   draggable={false}
-                  className='rounded-full bg-[var(--docs-heading)] px-4 py-1.5 text-[var(--docs-canvas)] transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
+                  className='rounded-full bg-[var(--docs-primary-fill)] px-4 py-1.5 text-[var(--docs-primary-label)] transition-colors hover:bg-[var(--docs-primary-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 active:bg-[var(--docs-primary-pressed)]'
                 >
                   Try for free
                 </a>

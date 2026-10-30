@@ -2,6 +2,7 @@ import type { ComponentPropsWithoutRef, HTMLAttributes } from 'react'
 import type { MDXComponents } from 'mdx/types'
 import Link from 'next/link'
 import { cn } from '@/components/docs/classnames'
+import { docsInlineLinkClass } from '@/components/docs/primitives'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ScrollRegion } from '@/components/ui/scroll-region'
@@ -29,10 +30,7 @@ export function ProseTable({ className, ...props }: ProseTableProps) {
 }
 
 function ProseLink({ href = '', className, ...props }: ProseLinkProps) {
-  const classes = cn(
-    'rounded-sm text-[var(--docs-link)] decoration-current underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
-    className
-  )
+  const classes = cn(docsInlineLinkClass, className)
   if (href.startsWith('/') && !href.startsWith('//'))
     return <Link {...props} href={href} className={classes} />
   return <a {...props} href={href} className={classes} />
@@ -126,7 +124,7 @@ export function getMDXComponents(overrides: MDXComponents = {}): MDXComponents {
       <td
         {...props}
         className={cn(
-          'py-3.5 pr-6 align-top last:pr-0 [&>p]:my-0 [&>p]:text-docs-table',
+          'py-3.5 pr-6 align-top last:pr-0 dark:text-[var(--docs-muted)] dark:first:text-[var(--docs-text)] [&>p]:my-0 [&>p]:text-docs-table dark:[&>p]:text-inherit',
           className
         )}
       />
