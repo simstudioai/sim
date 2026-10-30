@@ -112,6 +112,26 @@ describe('guardOAuthProviderWrites', () => {
     expect(mocks.insert).not.toHaveBeenCalled()
   })
 
+  it('refuses an access token whose refresh token a concurrent replay revoked', async () => {
+    const base = adapter()
+    vi.mocked(base.create).mockRejectedValueOnce(
+      Object.assign(new Error('Failed query'), {
+        cause: Object.assign(new Error('violates foreign key constraint'), {
+          code: '23503',
+          constraint_name: 'oauth_access_token_refresh_id_oauth_refresh_token_id_fk',
+        }),
+      })
+    )
+    const guarded = guardOAuthProviderWrites(base)
+
+    await expect(
+      guarded.create({
+        model: 'oauthAccessToken',
+        data: { userId: 'user-1', scopes: ['api:read'], refreshId: 'revoked' },
+      })
+    ).rejects.toMatchObject({ body: { error: 'invalid_grant' } })
+  })
+
   it.each(['oauthAccessToken', 'oauthRefreshToken'])(
     'persists the verified audience on %s and ignores injected resource fields',
     async (model) => {

@@ -586,35 +586,89 @@ describe('OAuth token route in PostgreSQL', () => {
           .where(eq(schema.oauthTokenFamily.id, secondRefresh?.familyId ?? 'missing'))
       ).toHaveLength(0)
 
-      const racingVerifier = `${testId}-racing-verifier-with-more-than-forty-three-characters`
-      const racingCode = await issueAuthorizationCode(racingVerifier)
-      const exchangeSameCode = () =>
+      const exchangeCode = (code: string, verifier: string) =>
         exchangeToken(
           createFormRequest(
             '/api/auth/oauth2/token',
             new URLSearchParams({
               grant_type: 'authorization_code',
               client_id: provider.SIM_CLI_CLIENT_ID,
-              code: racingCode,
-              code_verifier: racingVerifier,
+              code,
+              code_verifier: verifier,
               redirect_uri: redirectUri,
             })
           )
         )
-      const racingResponses = await Promise.all([exchangeSameCode(), exchangeSameCode()])
-      expect(racingResponses.map((response) => response.status).sort()).toEqual([200, 400])
-      const rejectedExchange = racingResponses.find((response) => response.status === 400)
-      await expect(rejectedExchange?.json()).resolves.toMatchObject({ error: 'invalid_grant' })
-      expect(
-        await db
+      const familyIdsForUser = () =>
+        db
           .select({ id: schema.oauthTokenFamily.id })
           .from(schema.oauthTokenFamily)
           .where(eq(schema.oauthTokenFamily.userId, userId))
-      ).toHaveLength(1)
 
-      const activeTokens = (await racingResponses
-        .find((response) => response.status === 200)
-        ?.json()) as TokenResponseBody
+      const racingVerifier = `${testId}-racing-verifier-with-more-than-forty-three-characters`
+      const racingCode = await issueAuthorizationCode(racingVerifier)
+      const racingResponses = await Promise.all([
+        exchangeCode(racingCode, racingVerifier),
+        exchangeCode(racingCode, racingVerifier),
+      ])
+      // The replay revokes whatever the first exchange has issued so far, so which of the two
+      // succeeds depends on interleaving; neither may fail as a server error or strand a family.
+      const racingStatuses = racingResponses.map((response) => response.status)
+      expect(racingStatuses).toContain(400)
+      expect(racingStatuses.every((status) => status === 200 || status === 400)).toBe(true)
+      for (const response of racingResponses.filter(({ status }) => status === 400)) {
+        await expect(response.json()).resolves.toMatchObject({ error: 'invalid_grant' })
+      }
+      const refreshFamilyIds = new Set(
+        (
+          await db
+            .select({ familyId: schema.oauthRefreshToken.familyId })
+            .from(schema.oauthRefreshToken)
+            .where(eq(schema.oauthRefreshToken.userId, userId))
+        ).map(({ familyId }) => familyId)
+      )
+      expect((await familyIdsForUser()).every(({ id }) => refreshFamilyIds.has(id))).toBe(true)
+      for (const response of racingResponses.filter(({ status }) => status === 200)) {
+        const { refresh_token } = (await response.json()) as TokenResponseBody
+        await revokeToken(
+          createFormRequest(
+            '/api/auth/oauth2/revoke',
+            new URLSearchParams({ client_id: provider.SIM_CLI_CLIENT_ID, token: refresh_token })
+          )
+        )
+      }
+      expect(await familyIdsForUser()).toHaveLength(0)
+
+      const replayVerifier = `${testId}-replay-verifier-with-more-than-forty-three-characters`
+      const replayCode = await issueAuthorizationCode(replayVerifier)
+      const firstExchange = await exchangeCode(replayCode, replayVerifier)
+      expect(firstExchange.status).toBe(200)
+      const firstGrant = (await firstExchange.json()) as TokenResponseBody
+      expect(await familyIdsForUser()).toHaveLength(1)
+      const replayedExchange = await exchangeCode(replayCode, replayVerifier)
+      expect(replayedExchange.status).toBe(400)
+      await expect(replayedExchange.json()).resolves.toMatchObject({ error: 'invalid_grant' })
+      expect(await familyIdsForUser()).toHaveLength(0)
+      const refreshAfterReplay = await exchangeToken(
+        createFormRequest(
+          '/api/auth/oauth2/token',
+          new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: provider.SIM_CLI_CLIENT_ID,
+            refresh_token: firstGrant.refresh_token,
+          })
+        )
+      )
+      expect(refreshAfterReplay.status).toBe(400)
+
+      const activeVerifier = `${testId}-active-verifier-with-more-than-forty-three-characters`
+      const activeExchange = await exchangeCode(
+        await issueAuthorizationCode(activeVerifier),
+        activeVerifier
+      )
+      expect(activeExchange.status).toBe(200)
+      const activeTokens = (await activeExchange.json()) as TokenResponseBody
+      expect(await familyIdsForUser()).toHaveLength(1)
       const withheldVerifier = `${testId}-withheld-verifier-with-more-than-forty-three-characters`
       const withheldCode = await issueAuthorizationCode(withheldVerifier)
       const consentUrl = await createAuthorizeUrl(withheldVerifier)
