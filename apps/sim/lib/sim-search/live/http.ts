@@ -2,8 +2,15 @@ import {
   type PinnedConnectionPool,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
+import {
+  type SearchFailureReason,
+  withSearchRequestDiagnostics,
+} from '@/lib/knowledge/search/diagnostics'
 import type { NativeClient } from '@/lib/sim-search/live/types'
-import { isGoogleQuotaReason } from '@/connectors/google-workspace/api-errors'
+import {
+  isGoogleQuotaReason,
+  safeGoogleErrorReasons,
+} from '@/connectors/google-workspace/api-errors'
 
 export class NativeSearchError extends Error {
   constructor(
@@ -11,7 +18,8 @@ export class NativeSearchError extends Error {
     message: string,
     readonly retryAfterSeconds?: number,
     /** The provider's HTTP status, when the failure is a plain non-success response. */
-    readonly httpStatus?: number
+    readonly httpStatus?: number,
+    readonly diagnosticCode: SearchFailureReason = 'provider_validation'
   ) {
     super(message)
   }
@@ -33,104 +41,137 @@ export function createNativeClient(input: {
   requestBudget?: number
 }): NativeClient {
   let requests = 0
-  async function request(
+  async function request<T>(
     path: string,
-    options?: {
-      query?: Record<string, string | string[]>
-      body?: unknown
-      googleService?: 'sheets'
-      signal?: AbortSignal
-    }
+    options:
+      | {
+          query?: Record<string, string | string[]>
+          body?: unknown
+          googleService?: 'sheets'
+          signal?: AbortSignal
+        }
+      | undefined,
+    read: (response: Awaited<ReturnType<typeof secureFetchWithValidation>>) => Promise<T>
   ) {
     const signal = options?.signal ? AbortSignal.any([input.signal, options.signal]) : input.signal
-    signal.throwIfAborted()
-    if (++requests > (input.requestBudget ?? NATIVE_SEARCH_REQUEST_BUDGET))
-      throw new NativeSearchError('unavailable', 'Request budget reached. Narrow the query.')
-    const url = new URL(input.origin)
-    if (options?.googleService === 'sheets') {
-      if (url.origin !== 'https://www.googleapis.com') throw new Error('Invalid Google service')
-      url.hostname = 'sheets.googleapis.com'
-    }
-    if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\'))
-      throw new Error('Invalid provider path')
-    url.pathname = path
-    for (const [key, value] of Object.entries(options?.query ?? {})) {
-      for (const item of Array.isArray(value) ? value : [value]) url.searchParams.append(key, item)
-    }
-    const response = await secureFetchWithValidation(url.toString(), {
-      profile: 'configuredEndpoint',
-      headers: {
-        Authorization: `Bearer ${input.accessToken}`,
-        Accept:
-          url.hostname === 'api.github.com'
-            ? 'application/vnd.github.text-match+json'
-            : 'application/json',
-        ...(url.hostname === 'api.github.com' ? { 'X-GitHub-Api-Version': '2026-03-10' } : {}),
-        ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
-      },
-      method: options?.body ? 'POST' : 'GET',
-      ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
-      signal,
-      timeout: 10_000,
-      maxResponseBytes: NATIVE_RESPONSE_MAX_BYTES,
-      maxRedirects: 0,
-      acceptCompressed: true,
-      connectionPool: input.pool,
-    })
-    if (!response.ok) {
-      /** Reading the small error body also returns a pooled connection for reuse. */
-      let quotaExceeded = false
-      if (response.status === 403 && url.hostname.endsWith('.googleapis.com'))
-        quotaExceeded = isGoogleQuotaError(await response.json().catch(() => null))
-      else await response.text().catch(() => '')
-      if (
-        response.status === 429 ||
-        quotaExceeded ||
-        (response.status === 403 &&
-          (response.headers.get('retry-after') !== null ||
-            response.headers.get('x-ratelimit-remaining') === '0'))
-      ) {
-        const retry = Number(response.headers.get('retry-after'))
-        const reset = Number(response.headers.get('x-ratelimit-reset'))
-        const seconds = retry > 0 ? retry : reset > 0 ? Math.ceil(reset - Date.now() / 1000) : 0
-        throw new NativeSearchError(
-          'rate_limited',
-          'Provider rate limit reached. Try again later.',
-          Number.isFinite(seconds) && seconds > 0 ? seconds : undefined
-        )
+    return withSearchRequestDiagnostics(
+      { transport: 'native_http', method: options?.body ? 'POST' : 'GET' },
+      async (record) => {
+        signal.throwIfAborted()
+        if (++requests > (input.requestBudget ?? NATIVE_SEARCH_REQUEST_BUDGET))
+          throw new NativeSearchError(
+            'unavailable',
+            'Request budget reached. Narrow the query.',
+            undefined,
+            undefined,
+            'request_budget_exceeded'
+          )
+        const url = new URL(input.origin)
+        if (options?.googleService === 'sheets') {
+          if (url.origin !== 'https://www.googleapis.com') throw new Error('Invalid Google service')
+          url.hostname = 'sheets.googleapis.com'
+        }
+        if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\'))
+          throw new Error('Invalid provider path')
+        url.pathname = path
+        for (const [key, value] of Object.entries(options?.query ?? {})) {
+          for (const item of Array.isArray(value) ? value : [value])
+            url.searchParams.append(key, item)
+        }
+        const response = await secureFetchWithValidation(url.toString(), {
+          profile: 'configuredEndpoint',
+          headers: {
+            Authorization: `Bearer ${input.accessToken}`,
+            Accept:
+              url.hostname === 'api.github.com'
+                ? 'application/vnd.github.text-match+json'
+                : 'application/json',
+            ...(url.hostname === 'api.github.com' ? { 'X-GitHub-Api-Version': '2026-03-10' } : {}),
+            ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+          },
+          method: options?.body ? 'POST' : 'GET',
+          ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
+          signal,
+          timeout: 10_000,
+          maxResponseBytes: NATIVE_RESPONSE_MAX_BYTES,
+          maxRedirects: 0,
+          acceptCompressed: true,
+          connectionPool: input.pool,
+        })
+        record({ httpStatus: response.status })
+        if (!response.ok) {
+          /** Reading the small error body also returns a pooled connection for reuse. */
+          let quotaExceeded = false
+          if (response.status === 403 && url.hostname.endsWith('.googleapis.com')) {
+            const body = await response.json().catch(() => null)
+            quotaExceeded = isGoogleQuotaError(body)
+            const error = object(object(body).error)
+            record({
+              providerReasons: safeGoogleErrorReasons(
+                [...array(error.errors), ...array(error.details)].map((entry) =>
+                  string(entry.reason)
+                )
+              ),
+            })
+          } else await response.text().catch(() => '')
+          if (
+            response.status === 429 ||
+            quotaExceeded ||
+            (response.status === 403 &&
+              (response.headers.get('retry-after') !== null ||
+                response.headers.get('x-ratelimit-remaining') === '0'))
+          ) {
+            const retry = Number(response.headers.get('retry-after'))
+            const reset = Number(response.headers.get('x-ratelimit-reset'))
+            const seconds = retry > 0 ? retry : reset > 0 ? Math.ceil(reset - Date.now() / 1000) : 0
+            throw new NativeSearchError(
+              'rate_limited',
+              'Provider rate limit reached. Try again later.',
+              Number.isFinite(seconds) && seconds > 0 ? seconds : undefined,
+              response.status,
+              'provider_rate_limited'
+            )
+          }
+          if (response.status === 401 || response.status === 403)
+            throw new NativeSearchError(
+              'reconnect',
+              url.hostname === 'api.github.com'
+                ? 'GitHub denied access. Reconnect your account and check that the GitHub App has access to this repository, with read permissions for Contents, Issues, and Pull requests.'
+                : 'The provider denied access. Reconnect your account with search and read permissions.',
+              undefined,
+              response.status,
+              'provider_access_denied'
+            )
+          throw new NativeSearchError(
+            'unavailable',
+            response.status === 400 || response.status === 422
+              ? `The provider rejected this query (${response.status}). Check its native query syntax and supported search scope.`
+              : `Provider request failed (${response.status}).`,
+            undefined,
+            response.status,
+            'provider_http_error'
+          )
+        }
+        return read(response)
       }
-      if (response.status === 401 || response.status === 403)
-        throw new NativeSearchError(
-          'reconnect',
-          url.hostname === 'api.github.com'
-            ? 'GitHub denied access. Reconnect your account and check that the GitHub App has access to this repository, with read permissions for Contents, Issues, and Pull requests.'
-            : 'The provider denied access. Reconnect your account with search and read permissions.'
-        )
-      throw new NativeSearchError(
-        'unavailable',
-        response.status === 400 || response.status === 422
-          ? `The provider rejected this query (${response.status}). Check its native query syntax and supported search scope.`
-          : `Provider request failed (${response.status}).`,
-        undefined,
-        response.status
-      )
-    }
-    return response
+    )
   }
   return withJsonMemo({
     async json(path, options) {
-      return (await request(path, options)).json()
+      return request(path, options, (response) => response.json())
     },
     async bytes(path, query) {
       try {
-        return Buffer.from(await (await request(path, { query })).arrayBuffer())
+        return await request(path, { query }, async (response) =>
+          Buffer.from(await response.arrayBuffer())
+        )
       } catch (error) {
         input.signal.throwIfAborted()
         throw error
       }
     },
     async text(path, query) {
-      return (await request(path, { query })).text()
+      return request(path, { query }, (response) => response.text())
     },
   })
 }
