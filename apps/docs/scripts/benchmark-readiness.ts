@@ -609,8 +609,8 @@ async function existingLink(page: Page, route: string): Promise<Locator | null> 
 
 function searchInput(page: Page) {
   return page
-    .getByRole('combobox')
-    .or(page.getByRole('searchbox'))
+    .getByRole('combobox', { name: /Search/i })
+    .or(page.getByRole('searchbox', { name: /Search/i }))
     .or(page.getByPlaceholder(/Search/))
     .filter({ visible: true })
     .first()
@@ -629,7 +629,7 @@ async function readyForControls(page: Page) {
       .click()
   }
   await input.waitFor()
-  await page.waitForFunction(() => document.activeElement instanceof HTMLInputElement)
+  await expect(input).toBeFocused()
   await page.keyboard.press('Escape')
   await input.waitFor({ state: 'hidden' })
 }
@@ -940,11 +940,7 @@ async function interactions(browser: Browser, profile: Profile, repetition: numb
       const trigger = run.page
         .getByRole('button', { name: /^(Expand .*workflow preview|Inspect workflow: .*)$/i })
         .first()
-      if (!(await trigger.count()))
-        return {
-          status: 'unavailable',
-          error: 'No named workflow inspection trigger on this baseline.',
-        }
+      await trigger.waitFor({ state: 'visible', timeout: 15_000 })
       await trigger.scrollIntoViewIfNeeded()
       const start = performance.now()
       await trigger.click()
@@ -1007,6 +1003,44 @@ async function interactions(browser: Browser, profile: Profile, repetition: numb
   }
 }
 
+async function tabControl(
+  run: Awaited<ReturnType<typeof contextFor>>,
+  profile: Profile,
+  repetition: number,
+  route: string,
+  control: { scenario: string; label: string; choice: RegExp }
+) {
+  await measure(profile, route, repetition, control.scenario, async () => {
+    const list = run.page.getByRole('tablist', { name: control.label, exact: true })
+    const tab = list.getByRole('tab', { name: control.choice }).filter({ visible: true }).first()
+    if (!(await tab.count()))
+      return {
+        status: 'unavailable',
+        error: `No matching ${control.label} tab on this baseline.`,
+      }
+    const choices = await list.getByRole('tab').count()
+    await tab.scrollIntoViewIfNeeded()
+    const start = performance.now()
+    await tab.click()
+    await expect(tab).toHaveAttribute('aria-selected', 'true')
+    const id = await tab.getAttribute('aria-controls')
+    if (!id) throw new Error('Tab has no linked content')
+    const panel = run.page.locator(`[id="${id}"]`)
+    await panel.waitFor({ state: 'visible' })
+    await painted(run.page)
+    return {
+      status: 'completed',
+      feedbackMs: choices > 1 ? performance.now() - start : undefined,
+      data: {
+        choices,
+        selected: await tab.textContent(),
+        contentLength: (await panel.textContent())?.length,
+        applicableTransition: choices > 1,
+      },
+    }
+  })
+}
+
 async function apiControls(
   run: Awaited<ReturnType<typeof contextFor>>,
   profile: Profile,
@@ -1037,39 +1071,11 @@ async function apiControls(
     { scenario: 'response-status-control', label: 'Response status', choice: /^400$/ },
     {
       scenario: 'response-media-control',
-      label: 'Response 400 content type',
+      label: '400 response content type',
       choice: /^application\/json$/,
     },
   ]) {
-    await measure(profile, route, repetition, control.scenario, async () => {
-      const list = run.page.getByRole('tablist', { name: control.label, exact: true })
-      const tab = list.getByRole('tab', { name: control.choice }).filter({ visible: true }).first()
-      if (!(await tab.count()))
-        return {
-          status: 'unavailable',
-          error: `No matching ${control.label} tab on this baseline.`,
-        }
-      const choices = await list.getByRole('tab').count()
-      await tab.scrollIntoViewIfNeeded()
-      const start = performance.now()
-      await tab.click()
-      await expect(tab).toHaveAttribute('aria-selected', 'true')
-      const id = await tab.getAttribute('aria-controls')
-      if (!id) throw new Error('Tab has no linked content')
-      const panel = run.page.locator(`[id="${id}"]`)
-      await panel.waitFor({ state: 'visible' })
-      await painted(run.page)
-      return {
-        status: 'completed',
-        feedbackMs: choices > 1 ? performance.now() - start : undefined,
-        data: {
-          choices,
-          selected: await tab.textContent(),
-          contentLength: (await panel.textContent())?.length,
-          applicableTransition: choices > 1,
-        },
-      }
-    })
+    await tabControl(run, profile, repetition, route, control)
   }
   await measure(profile, route, repetition, 'schema-disclosure-control', async () => {
     const details = run.page.locator('main details:not([open])').filter({ visible: true }).first()
@@ -1126,6 +1132,21 @@ async function apiControls(
       feedbackMs: performance.now() - start,
       data: { exactSelectedSampleCopied: true, characters: expected?.length },
     }
+  })
+  const streamingRoute = '/api-reference/workflows/executeWorkflowV2'
+  await measure(profile, streamingRoute, repetition, 'response-format-readiness', async () => {
+    const response = await run.page.goto(new URL(streamingRoute, base).href, {
+      waitUntil: 'domcontentloaded',
+    })
+    if (!response?.ok()) throw new Error(`Document returned ${response?.status()}`)
+    await meaningful(run.page, streamingRoute)
+    await readyForControls(run.page)
+    return { status: 'completed' }
+  })
+  await tabControl(run, profile, repetition, streamingRoute, {
+    scenario: 'response-format-control',
+    label: '200 response content type',
+    choice: /^text\/event-stream$/,
   })
 }
 
@@ -1282,6 +1303,14 @@ if (mode === 'lighthouse') {
           }
         }
         if (scenarios.has('interactions')) await interactions(browser, profile, repetition)
+        else if (scenarios.has('api-controls')) {
+          const run = await contextFor(browser, profile)
+          try {
+            await apiControls(run, profile, repetition)
+          } finally {
+            await run.context.close()
+          }
+        }
       }
   } finally {
     await browser.close()

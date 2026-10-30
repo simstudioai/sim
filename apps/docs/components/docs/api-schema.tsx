@@ -88,14 +88,12 @@ export function ApiSchema({ schema: raw, document, name, required, ancestors = [
         : (reference?.split('/').at(-1) ?? 'value')
   return (
     <div className='min-w-0 py-4'>
-      {name && (
-        <div className='mb-2 flex flex-wrap items-baseline gap-2.5 font-mono text-docs-control leading-5'>
-          <span className='break-all text-[var(--docs-heading)]'>{name}</span>
-          <span className='text-[var(--docs-muted)]'>{type}</span>
-          {required && <span className='ml-auto text-[var(--docs-muted)]'>Required</span>}
-          {schema.deprecated === true && <NeutralBadge>Deprecated</NeutralBadge>}
-        </div>
-      )}
+      <div className='mb-2 flex flex-wrap items-baseline gap-2.5 font-mono text-docs-control leading-5'>
+        {name && <span className='break-all text-[var(--docs-heading)]'>{name}</span>}
+        <span className='text-[var(--docs-muted)]'>{type}</span>
+        {required && <span className='ml-auto text-[var(--docs-muted)]'>Required</span>}
+        {schema.deprecated === true && <NeutralBadge>Deprecated</NeutralBadge>}
+      </div>
       {typeof schema.description === 'string' && (
         <div className='text-[var(--docs-muted)] text-docs-table [&_p]:my-0 [&_p]:text-docs-table [&_p]:text-inherit'>
           <Markdown>{schema.description}</Markdown>

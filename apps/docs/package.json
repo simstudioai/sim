@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:negotiation:e2e": "bun scripts/test-negotiation-e2e.ts",
     "test:headers:e2e": "bun scripts/test-header-merge-e2e.ts",
-    "type-check": "bun run content:generate && tsc --noEmit",
+    "type-check": "bun run content:generate && next typegen && tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",

@@ -66,7 +66,7 @@ async function check(name: string, action: () => Promise<void>, unavailable?: st
 
 async function open(page: Page, path: string) {
   const response = await page.goto(new URL(path, target).href, { waitUntil: 'domcontentloaded' })
-  expect(response?.ok()).toBe(true)
+  expect(response?.ok() || response?.status() === 304).toBe(true)
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
   await expect(
@@ -686,6 +686,75 @@ try {
       await expect(page.locator(`[id="${panelId}"]`)).toBeVisible()
       await page.screenshot({ path: join(directory, 'api-language-after-reload.png') })
     })
+    await check(
+      'Streaming response formats expose their type without changing request language',
+      async () => {
+        const page = await languageContext.newPage()
+        try {
+          await open(page, '/api-reference/workflows/executeWorkflowV2')
+          const language = page.getByRole('combobox', { name: 'Request status', exact: true })
+          const python = await language
+            .getByRole('option', { name: /^Python/ })
+            .first()
+            .getAttribute('value')
+          if (!python) throw new Error('Execute workflow has no Python request example')
+          await language.selectOption(python)
+          await expect(language).toHaveValue(python)
+          const requestId = await language.getAttribute('aria-controls')
+          if (!requestId) throw new Error('Selected request has no sample panel')
+          const request = page.locator(`[id="${requestId}"] code`)
+          const originalSample = await request.textContent()
+          const formats = page.getByRole('tablist', {
+            name: '200 response content type',
+            exact: true,
+          })
+          const observations = []
+          const missingTypes: string[] = []
+          for (const [index, format] of [
+            'application/json',
+            'application/x-ndjson',
+            'text/event-stream',
+          ].entries()) {
+            const tab = formats.getByRole('tab', { name: format, exact: true })
+            await tab.click()
+            await expect(tab).toHaveAttribute('aria-selected', 'true')
+            const panelId = await tab.getAttribute('aria-controls')
+            if (!panelId) throw new Error(`Response format ${format} has no panel`)
+            const panel = page.locator(`[id="${panelId}"]`)
+            await expect(panel).toBeVisible()
+            await expect(language).toHaveValue(python)
+            await expect(request).toHaveText(originalSample ?? '')
+            const stringTypeVisible = await panel
+              .getByText('string', { exact: true })
+              .first()
+              .isVisible()
+            if (format !== 'application/json' && !stringTypeVisible) missingTypes.push(format)
+            if (format === 'application/json')
+              expect((await panel.innerText()).trim().length).toBeGreaterThan(0)
+            observations.push({
+              format,
+              stringTypeVisible,
+              requestLanguage: 'Python',
+              requestSampleUnchanged: true,
+              contentLength: (await panel.innerText()).trim().length,
+            })
+            await panel.scrollIntoViewIfNeeded()
+            await page.screenshot({
+              path: join(directory, `streaming-response-format-${index}.png`),
+            })
+          }
+          await writeFile(
+            join(directory, 'streaming-response-formats.json'),
+            `${JSON.stringify(observations, null, 2)}\n`
+          )
+          expect(missingTypes, 'Streaming response schemas must display their string type').toEqual(
+            []
+          )
+        } finally {
+          await page.close()
+        }
+      }
+    )
     await check('API language preference tolerates an unavailable stored language', async () => {
       const page = await languageContext.newPage()
       await open(page, '/api-reference/logs/getLog')
