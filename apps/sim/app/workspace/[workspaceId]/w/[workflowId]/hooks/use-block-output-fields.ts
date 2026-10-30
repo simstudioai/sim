@@ -35,6 +35,11 @@ const extractChildFields = (prop: any): SchemaField[] | undefined => {
     return extractNestedFields(prop.items.properties)
   }
 
+  /** Typed elements without `properties` (strings, `any`) have no fields to reference. */
+  if (isObject(prop.items) && typeof prop.items.type === 'string') {
+    return undefined
+  }
+
   if (!('type' in prop)) {
     return extractNestedFields(prop)
   }
@@ -71,7 +76,7 @@ const extractNestedFields = (properties: Record<string, any>): SchemaField[] => 
 /**
  * Creates a schema field from an output definition
  */
-const createFieldFromOutput = (name: string, output: any): SchemaField => {
+export const createFieldFromOutput = (name: string, output: any): SchemaField => {
   const hasExplicitType = isObject(output) && typeof output.type === 'string'
   const type = hasExplicitType ? output.type : isObject(output) ? 'object' : 'string'
 
