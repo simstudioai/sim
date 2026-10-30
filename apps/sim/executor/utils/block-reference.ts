@@ -15,6 +15,8 @@ interface SchemaNode {
   type?: string
   description?: string
   properties?: unknown
+  /** Fields beyond `properties` are allowed, so a path past them is not checked. */
+  open?: boolean
   items?: unknown
 }
 
@@ -101,6 +103,11 @@ function isOpaqueSchemaNode(value: unknown): boolean {
   return false
 }
 
+/** A node declaring its fields but allowing others, so a field it does not name is not an error. */
+function isOpenSchemaNode(value: unknown): boolean {
+  return asSchemaNode(value)?.open === true
+}
+
 /** Whether `pathParts` names a field the declared output schema has, the check a run makes. */
 export function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): boolean {
   if (!schema || pathParts.length === 0) {
@@ -140,7 +147,7 @@ export function isPathInSchema(schema: OutputSchema | undefined, pathParts: stri
     if (arrayMatch) {
       const [, prop] = arrayMatch
       const fieldDef = lookupField(current, prop)
-      if (!fieldDef) return false
+      if (!fieldDef) return isOpenSchemaNode(current)
 
       if (isFileType(fieldDef)) {
         const nextPart = pathParts[i + 1]
@@ -194,9 +201,10 @@ export function isPathInSchema(schema: OutputSchema | undefined, pathParts: stri
         current = itemField
         continue
       }
+      return isOpenSchemaNode(items)
     }
 
-    return false
+    return isOpenSchemaNode(current)
   }
 
   return true

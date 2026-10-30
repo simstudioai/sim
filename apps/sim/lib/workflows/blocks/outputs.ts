@@ -437,6 +437,8 @@ export function getEvaluatorMetricOutputs(
 interface DeclaredOutputNode {
   type: PrimitiveValueType
   properties?: Record<string, DeclaredOutputNode>
+  /** Fields beyond `properties` are allowed: a reference to one checks like any `json` path. */
+  open?: true
   items?: DeclaredOutputNode
 }
 
@@ -449,6 +451,7 @@ function toOutputNode(shape: McpToolOutputShape): DeclaredOutputNode {
             properties: Object.fromEntries(
               Object.entries(shape.properties).map(([name, child]) => [name, toOutputNode(child)])
             ),
+            ...(shape.open && { open: true }),
           }
         : { type: 'json' }
     case 'array':

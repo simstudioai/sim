@@ -223,7 +223,7 @@ const executeQueuedResponseSchema = documentedSchema(
   v2ExecuteWorkflowQueuedResponseSchema,
   'ExecuteWorkflowQueuedResponse',
   'Queued workflow execution response',
-  'Receipt returned for an asynchronous workflow run.',
+  'Receipt returned for an asynchronous workflow run, or for a synchronous run still running when `waitTimeoutSeconds` elapsed.',
   [QUEUED_RUN_EXAMPLE]
 )
 
@@ -1194,7 +1194,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.execute,
       operationId: 'executeWorkflowV2',
       summary: 'Execute workflow',
-      description: `Run the active deployment, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
+      description: `Run the active deployment, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse \`async: true\` for a queue receipt, \`waitTimeoutSeconds\` to get one when a synchronous run outlasts the wait, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1218,7 +1218,8 @@ const declaredRoutes = [
             additionalContentTypes: ['application/x-ndjson', 'text/event-stream'],
           },
           202: {
-            description: 'The asynchronous run was queued.',
+            description:
+              'The asynchronous run was queued, or the synchronous run was still running when `waitTimeoutSeconds` elapsed and continues in the background.',
             headers: ['X-Run-Id', ...RATE_LIMIT_HEADERS],
           },
         },

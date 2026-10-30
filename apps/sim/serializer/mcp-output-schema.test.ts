@@ -82,8 +82,50 @@ describe('MCP block output typed from a declared output schema', () => {
     expect(resolve(declared, ['structuredContent', 'nickname'])).toBeUndefined()
   })
 
-  it('fails a reference to a field the schema does not declare', () => {
-    expect(() => resolve(declared, ['structuredContent', 'onCall'])).toThrow(InvalidFieldError)
+  it('fails a reference to a field a closed schema does not declare', () => {
+    const closed = createMcpToolOutputSnapshot('server-1', 'on_call', {
+      ...ON_CALL_SCHEMA,
+      additionalProperties: false,
+    })
+    expect(() => resolve(closed, ['structuredContent', 'onCall'])).toThrow(InvalidFieldError)
+    expect(resolve(closed, ['structuredContent', 'role'])).toBe('sales-ops')
+  })
+
+  it('resolves an undeclared field of an object that does not close itself to empty', () => {
+    expect(resolve(declared, ['structuredContent', 'onCall'])).toBeUndefined()
+    expect(resolve(declared, ['structuredContent', 'person', 'email'])).toBeUndefined()
+  })
+
+  it('keeps the declared fields of an explicitly open object and accepts others', () => {
+    const open = createMcpToolOutputSnapshot('server-1', 'on_call', {
+      ...ON_CALL_SCHEMA,
+      additionalProperties: { type: 'string' },
+    })
+    const schema = getBlockSchema(serializeMcpBlock(open))
+    expect(schema?.structuredContent).toMatchObject({
+      properties: { role: { type: 'string' }, person: { type: 'json' } },
+    })
+    expect(resolve(open, ['structuredContent', 'role'])).toBe('sales-ops')
+    expect(resolve(open, ['structuredContent', 'onCall'])).toBeUndefined()
+  })
+
+  it('resolves a path inside the elements of an array that declares no items', () => {
+    const untypedItems = createMcpToolOutputSnapshot('server-1', 'on_call', {
+      type: 'object',
+      properties: { rows: { type: 'array' } },
+      additionalProperties: false,
+    })
+    expect(resolve(untypedItems, ['structuredContent', 'rows', '0', 'id'])).toBeUndefined()
+  })
+
+  it('keeps a snapshot saved before openness was recorded closed until it is retaken', () => {
+    const legacy = {
+      server: 'server-1',
+      tool: 'on_call',
+      schema: { type: 'object', properties: { role: { type: 'string' } } },
+    }
+    expect(resolve(legacy, ['structuredContent', 'role'])).toBe('sales-ops')
+    expect(() => resolve(legacy, ['structuredContent', 'onCall'])).toThrow(InvalidFieldError)
   })
 
   it('keeps content as declared alongside the typed output', () => {

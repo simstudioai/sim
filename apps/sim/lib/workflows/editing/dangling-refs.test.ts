@@ -284,8 +284,13 @@ describe('collectDanglingBlockOutputReferences', () => {
       type: 'object' as const,
       properties: {
         role: { type: 'string' },
-        person: { type: 'object', properties: { id: { type: 'string' } } },
+        person: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          additionalProperties: false,
+        },
       },
+      additionalProperties: false,
     }
 
     function mcpGraph(
@@ -366,7 +371,11 @@ describe('collectDanglingBlockOutputReferences', () => {
             type: 'array',
             items: {
               type: 'array',
-              items: { type: 'object', properties: { id: { type: 'string' } } },
+              items: {
+                type: 'object',
+                properties: { id: { type: 'string' } },
+                additionalProperties: false,
+              },
             },
           },
         },
@@ -380,6 +389,35 @@ describe('collectDanglingBlockOutputReferences', () => {
         mcpGraph('<oncall.structuredContent.rows[0][1].nope>', grid)
       )
       expect(finding?.reason).toContain('Declared fields: structuredContent.rows.id')
+    })
+
+    it('accepts an undeclared field of an object the schema leaves open', () => {
+      const open = createMcpToolOutputSnapshot('server-1', 'on_call', {
+        type: 'object',
+        properties: {
+          role: { type: 'string' },
+          person: { type: 'object', properties: { id: { type: 'string' } } },
+        },
+        additionalProperties: false,
+      })
+      expect(
+        collectDanglingBlockOutputReferences(
+          mcpGraph('<oncall.structuredContent.person.email>', open)
+        )
+      ).toEqual([])
+    })
+
+    it('accepts a path inside the elements of an array that declares no items', () => {
+      const untypedItems = createMcpToolOutputSnapshot('server-1', 'on_call', {
+        type: 'object',
+        properties: { rows: { type: 'array' } },
+        additionalProperties: false,
+      })
+      expect(
+        collectDanglingBlockOutputReferences(
+          mcpGraph('<oncall.structuredContent.rows.0.id>', untypedItems)
+        )
+      ).toEqual([])
     })
 
     it('keeps flagging structuredContent when the operation declares no schema', () => {
