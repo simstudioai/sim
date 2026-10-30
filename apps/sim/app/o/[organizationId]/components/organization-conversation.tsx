@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { ChipModal, ChipModalHeader, cn, toast } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { createSerializer, useQueryStates } from 'nuqs'
@@ -18,6 +19,13 @@ import {
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
+import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
+import {
+  ASSISTANT_IMAGE_MAX_BYTES,
+  ASSISTANT_IMAGE_MAX_COUNT,
+  ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
+  isAssistantImageType,
+} from '@/lib/uploads/shared/assistant-images'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
@@ -113,7 +121,7 @@ export function OrganizationConversation(props: OrganizationConversationProps) {
     return <HomeFallback header={props.header} />
   return (
     <OrganizationConversationContent
-      key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.requestMode}`}
+      key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.panelOptions ? 'panel' : props.requestMode}`}
       {...props}
     />
   )
@@ -163,7 +171,7 @@ function OrganizationConversationContent({
       ? { projectsDesktopTabs: false, onChatIdResolved: panelOptions.onChatIdResolved }
       : {}),
   })
-  const newDraftId = destinationMode === 'assistant' ? 'search-assistant' : 'home'
+  const newDraftId = !compact && destinationMode === 'assistant' ? 'search-assistant' : 'home'
   const draftPrefix = panelOptions ? `${panelOptions.draftNamespace}:` : ''
   const initialDraftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chatId ?? newDraftId}`
   const draftKey = `${draftPrefix}${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? newDraftId}`
@@ -372,6 +380,22 @@ function OrganizationConversationContent({
   }
   const submit = (text: string, contexts?: ChatContext[]) => {
     if (files.attachedFiles.some((file) => file.uploading)) return false
+    if (requestMode === 'assistant') {
+      if (files.attachedFiles.some((file) => !isAssistantImageType(file.type))) {
+        toast.error('Remove unsupported files to use Assistant.')
+        return false
+      }
+      try {
+        assertMultiFileUploadAdmission(files.attachedFiles, {
+          maxFiles: ASSISTANT_IMAGE_MAX_COUNT,
+          maxFileBytes: ASSISTANT_IMAGE_MAX_BYTES,
+          maxTotalBytes: ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
+        })
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Check the attached images before sending.'))
+        return false
+      }
+    }
     const submission = panelOptions
       ? panelOptions.prepareSubmission(text.trim(), contexts)
       : { message: text.trim(), contexts }

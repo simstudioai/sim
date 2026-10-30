@@ -18,12 +18,14 @@ import {
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { generateRandomHex } from '@sim/utils/random'
 import postgres from 'postgres'
 import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
+import { MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 
 /** Authenticated packaged-browser acceptance against a real local Sim app and disposable Postgres. */
 const logger = createLogger('BrowserExtensionAppE2E')
@@ -62,7 +64,14 @@ const httpErrors: { path: string; status: number; injected: boolean }[] = []
 const injectedRequests = new WeakSet<Request>()
 const pendingRequests = new Set<Request>()
 const failedRequests: { path: string; error: string | null }[] = []
-let failureState: { path: string; text: string }[] = []
+const chatResponses: {
+  status: number
+  chatId: string | null
+  events: { type: string | null; seq: number | null }[]
+  error?: string
+}[] = []
+const responseDiagnostics: Promise<void>[] = []
+let failureState: { path: string; chatId: string | null; text: string }[] = []
 let pendingAtFailure: { path: string; method: string; resourceType: string }[] = []
 const uploadedPaths = new Set<string>()
 
@@ -82,6 +91,8 @@ const deniedId = generateId()
 const organizationId = generateId()
 const otherOrganizationId = generateId()
 const otherOrganizationChatId = generateId()
+const hostProjectId = generateId()
+const hostedWorkspaceId = generateId()
 const historyId = generateId()
 const historyMessageId = generateId()
 const historyRequestId = generateId()
@@ -180,6 +191,11 @@ async function seed() {
       [betaId, 'Extension QA beta'],
     ] as const) {
       await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${name}, ${owner}, ${owner})`
+      await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${owner}, 'workspace', ${id}, 'admin')`
+    }
+    for (let index = 0; index < 24; index++) {
+      const id = generateId()
+      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${`Extension QA workspace ${index + 1}`}, ${owner}, ${owner})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${owner}, 'workspace', ${id}, 'admin')`
     }
     await tx`insert into workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at) values (${workflowId}, ${owner}, ${alphaId}, 'Extension QA workflow', now(), now(), now())`
@@ -285,6 +301,31 @@ try {
   })
   panel.on('response', (response) => {
     const url = new URL(response.url())
+    if (url.origin === base.origin && url.pathname === '/api/mothership/chat') {
+      const entry: (typeof chatResponses)[number] = {
+        status: response.status(),
+        chatId: response.headers()[MOTHERSHIP_CHAT_ID_HEADER.toLowerCase()] ?? null,
+        events: [],
+      }
+      chatResponses.push(entry)
+      responseDiagnostics.push(
+        response
+          .text()
+          .then((body) => {
+            for (const line of body.split('\n')) {
+              if (!line.startsWith('data: ')) continue
+              const event = toRecord(JSON.parse(line.slice(6)))
+              entry.events.push({
+                type: toStringOrNull(event.type),
+                seq: toNumberOrNull(event.seq),
+              })
+            }
+          })
+          .catch((error) => {
+            entry.error = getErrorMessage(error)
+          })
+      )
+    }
     if (url.origin === base.origin && response.status() >= 400)
       httpErrors.push({
         path: url.pathname,
@@ -334,6 +375,16 @@ try {
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
     ).toBeVisible()
     await screenshot('workspace-picker')
+    const workspaceList = frame().getByRole('navigation', { name: 'Workspaces', exact: true })
+    assert(
+      await workspaceList.evaluate((list) => {
+        const scroll = list.closest('main')
+        return scroll !== null && scroll.scrollHeight > scroll.clientHeight
+      }),
+      'The workspace picker fixture does not overflow'
+    )
+    await workspaceList.getByRole('link').last().scrollIntoViewIfNeeded()
+    await screenshot('workspace-picker-end')
     await frame().getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible({
       timeout: 120_000,
@@ -906,6 +957,35 @@ try {
     })
     await shell.unroute('**/api/mothership/chat')
     await captureScreenshot('grounded-response')
+    if (scope.organizationId) {
+      assert(userId)
+      const permissionGroupId = generateId()
+      await shell.bringToFront()
+      await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
+        values (${permissionGroupId}, ${scope.organizationId}, 'Revoked Build access',
+        ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
+      try {
+        await expect(frame().getByText('This chat is unavailable.')).toBeVisible({
+          timeout: ACCESS_REVALIDATION_TIMEOUT_MS,
+        })
+        await expect(
+          frame().getByRole('textbox', { name: scope.inputLabel, exact: true })
+        ).toHaveCount(0)
+        await expect(attachments()).toHaveCount(0)
+        await captureScreenshot('admitted-build-access-revoked')
+        const [savedChat] = await sql`select config from copilot_chats where id=${chatId}`
+        assert.equal(toRecord(savedChat.config).conversationMode, 'agent')
+        await frame().getByRole('button', { name: 'Back to chat', exact: true }).click()
+        await expect(
+          frame().getByRole('button', { name: 'Attach image', exact: true })
+        ).toBeVisible()
+        await expect.poll(() => new URL(frame().url()).searchParams.get('chat')).toBeNull()
+        await expect(attachments()).toHaveCount(0)
+        await captureScreenshot('assistant-after-build-revocation')
+      } finally {
+        await sql`delete from permission_group where id=${permissionGroupId}`
+      }
+    }
     await navigate(`${scope.url}?chat=${chatId}`)
     await expect(frame().getByRole('textbox', { name: scope.inputLabel, exact: true })).toHaveValue(
       'FOLLOW_UP_DRAFT_SURVIVES_ADMISSION'
@@ -1035,6 +1115,34 @@ try {
       await screenshot('organization-wrong-scope-history')
     }
   )
+  await check('A shared workspace returns to the viewer’s own organization chat', async () => {
+    assert(userId)
+    await sql`insert into project (id, name, owner_id, organization_id) values (${hostProjectId}, 'Hosted QA project', ${otherUserId}, ${otherOrganizationId})`
+    await sql`insert into workspace (id, project_id, organization_id, name, owner_id, billed_account_user_id) values (${hostedWorkspaceId}, ${hostProjectId}, ${otherOrganizationId}, 'Hosted QA workspace', ${otherUserId}, ${otherUserId})`
+    await sql`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${userId}, 'workspace', ${hostedWorkspaceId}, 'admin')`
+    const active = await browserContext.request.post(
+      `${base.origin}/api/auth/organization/set-active`,
+      {
+        headers: { origin: base.origin },
+        data: { organizationId },
+      }
+    )
+    assert.equal(active.status(), 200)
+    await navigate(`${base.origin}/extension`)
+    await expect.poll(() => new URL(frame().url()).pathname).toBe(`/extension/o/${organizationId}`)
+    await navigate(`${base.origin}/extension/${hostedWorkspaceId}`)
+    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+    await capture()
+    await frame()
+      .getByRole('textbox', { name: 'Message', exact: true })
+      .fill('Workspace-specific draft')
+    await frame().getByRole('button', { name: 'Hosted QA workspace', exact: true }).click()
+    await frame().getByRole('menuitem', { name: 'Organization chat', exact: true }).click()
+    await expect.poll(() => new URL(frame().url()).pathname).toBe(`/extension/o/${organizationId}`)
+    await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toHaveValue('')
+    await expect(attachments()).toHaveCount(0)
+    await screenshot('shared-workspace-organization-navigation')
+  })
   await check(
     'A first-open toolbar capture survives authenticated organization landing',
     async () => {
@@ -1075,7 +1183,7 @@ try {
   )
   if (liveChat) {
     await check(
-      'Organization live admission preserves queued pages and files without a workspace',
+      'Organization live admission preserves queued pages, files, and the admitted conversation mode',
       () =>
         verifyLiveChat({
           name: 'organization',
@@ -1086,58 +1194,79 @@ try {
         })
     )
   }
-  await check('Search-only organization members can attach a page in Assistant', async () => {
-    assert(userId)
-    await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
+  await check(
+    'Organization permission changes switch a new chat to Assistant without losing its draft',
+    async () => {
+      assert(userId)
+      await navigate(`${base.origin}/extension/o/${organizationId}`)
+      const input = frame().getByRole('textbox', { name: 'Ask Sim', exact: true })
+      await expect(input).toBeVisible()
+      await expect(frame().getByRole('button', { name: 'Attach file', exact: true })).toBeVisible()
+      await capture()
+      await input.fill('Keep this draft when Build access changes.')
+      await attachFile()
+      await shell.bringToFront()
+      await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
       values (${generateId()}, ${organizationId}, 'Search only',
       ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
-    await navigate(`${base.origin}/extension`)
-    await expect.poll(() => new URL(frame().url()).pathname).toBe(`/extension/o/${organizationId}`)
-    await expect(frame().getByRole('button', { name: 'Attach image', exact: true })).toBeVisible()
-    await capture()
-    await screenshot('organization-assistant-page')
-    if (!liveChat)
-      await shell.route('**/api/mothership/chat', (route) =>
-        route.fulfill({ status: 403, json: { error: 'QA submission boundary' } })
+      await expect(frame().getByRole('button', { name: 'Attach image', exact: true })).toBeVisible({
+        timeout: ACCESS_REVALIDATION_TIMEOUT_MS,
+      })
+      await expect(input).toHaveValue('Keep this draft when Build access changes.')
+      await expect(attachments()).toHaveCount(1)
+      await input.press('Enter')
+      await expect(frame().getByText(/Remove unsupported files/)).toBeVisible()
+      await expect(input).toHaveValue('Keep this draft when Build access changes.')
+      await expect(attachments()).toHaveCount(1)
+      await screenshot('organization-mode-file-recovery')
+      await frame().getByRole('button', { name: 'Remove extension-notes.txt', exact: true }).click()
+      await expect(frame().getByText(/Remove unsupported files/)).not.toBeVisible()
+      await screenshot('organization-assistant-page')
+      if (!liveChat)
+        await shell.route('**/api/mothership/chat', (route) =>
+          route.fulfill({ status: 403, json: { error: 'QA submission boundary' } })
+        )
+      const submitted = shell.waitForRequest(
+        (request) =>
+          new URL(request.url()).pathname === '/api/mothership/chat' && request.method() === 'POST'
       )
-    const submitted = shell.waitForRequest(
-      (request) =>
-        new URL(request.url()).pathname === '/api/mothership/chat' && request.method() === 'POST'
-    )
-    const input = frame().getByRole('textbox', { name: 'Ask Sim', exact: true })
-    await input.fill(
-      'Using only the attached page, reply with the launch code and delivery day. Do not use tools.'
-    )
-    await input.press('Enter')
-    const body = toRecord((await submitted).postDataJSON())
-    assert.equal(body.mode, 'assistant')
-    assert.equal(body.organizationId, organizationId)
-    assert.equal(body.workspaceId, undefined)
-    assert(Array.isArray(body.contexts) && body.contexts.length === 1)
-    assert(
-      pageSnapshotSchema.parse(toRecord(body.contexts[0]).snapshot).text.includes('ORCHID-482')
-    )
-    if (liveChat) {
-      await expect(
-        frame()
-          .getByText(/ORCHID-482/)
-          .filter({ visible: true })
-      ).toBeVisible({ timeout: 120_000 })
-      await expect(
-        frame()
-          .getByText(/Friday/)
-          .filter({ visible: true })
-      ).toBeVisible({ timeout: 120_000 })
-      const chatId = new URL(frame().url()).searchParams.get('chat')
-      assert(chatId)
-      const [chat] =
-        await sql`select organization_id, workspace_id, config from copilot_chats where id=${chatId}`
-      assert.equal(chat.organization_id, organizationId)
-      assert.equal(chat.workspace_id, null)
-      assert.equal(toRecord(chat.config).conversationMode, 'assistant')
-      await screenshot('organization-assistant-response')
-    } else await shell.unroute('**/api/mothership/chat')
-  })
+      await input.fill(
+        'Using only the attached page, reply with the launch code and delivery day. Do not use tools.'
+      )
+      await input.press('Enter')
+      const body = toRecord((await submitted).postDataJSON())
+      assert.equal(body.mode, 'assistant')
+      assert.equal(body.organizationId, organizationId)
+      assert.equal(body.workspaceId, undefined)
+      assert(Array.isArray(body.contexts) && body.contexts.length === 1)
+      assert(
+        pageSnapshotSchema.parse(toRecord(body.contexts[0]).snapshot).text.includes('ORCHID-482')
+      )
+      if (liveChat) {
+        await expect
+          .poll(() => new URL(frame().url()).searchParams.get('chat'), { timeout: 120_000 })
+          .toBeTruthy()
+        await expect(
+          frame()
+            .getByText(/ORCHID-482/)
+            .filter({ visible: true })
+        ).toBeVisible({ timeout: 120_000 })
+        await expect(
+          frame()
+            .getByText(/Friday/)
+            .filter({ visible: true })
+        ).toBeVisible({ timeout: 120_000 })
+        const chatId = new URL(frame().url()).searchParams.get('chat')
+        assert(chatId)
+        const [chat] =
+          await sql`select organization_id, workspace_id, config from copilot_chats where id=${chatId}`
+        assert.equal(chat.organization_id, organizationId)
+        assert.equal(chat.workspace_id, null)
+        assert.equal(toRecord(chat.config).conversationMode, 'assistant')
+        await screenshot('organization-assistant-response')
+      } else await shell.unroute('**/api/mothership/chat')
+    }
+  )
   await check(
     'Revoking organization membership removes the live composer and pending captures',
     async () => {
@@ -1329,6 +1458,7 @@ try {
   failureState = await Promise.all(
     (panel?.frames() ?? []).map(async (frame) => ({
       path: new URL(frame.url()).pathname,
+      chatId: new URL(frame.url()).searchParams.get('chat'),
       text: await frame
         .locator('body')
         .innerText({ timeout: 1_000 })
@@ -1340,6 +1470,7 @@ try {
 } finally {
   releaseHeldRequest()
   await context?.close()
+  await Promise.all(responseDiagnostics)
   for (const path of uploadedPaths) await rm(path, { force: true })
   fixture.closeAllConnections()
   fixture.close()
@@ -1347,6 +1478,8 @@ try {
     if (!userId) return
     const owner = userId
     await sql.begin(async (tx) => {
+      await tx`delete from workspace where id=${hostedWorkspaceId}`
+      await tx`delete from project where id=${hostProjectId}`
       await tx`delete from organization where id in (${organizationId}, ${otherOrganizationId})`
       for (const id of [owner, otherUserId]) {
         await tx`delete from workspace where owner_id=${id}`
@@ -1374,6 +1507,7 @@ try {
         pendingRequests: pendingAtFailure,
         failureState,
         httpErrors,
+        chatResponses,
       },
       null,
       2

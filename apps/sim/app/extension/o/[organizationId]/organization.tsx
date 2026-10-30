@@ -32,7 +32,7 @@ export function ExtensionOrganization({ context }: ExtensionOrganizationProps) {
   )
   if (isApiClientError(denied) && denied.status === 401) return <ExtensionSignIn />
   if (access.isPending) return <ExtensionLoading />
-  if (denied || !access.data)
+  if (denied || !access.data?.chatAccess)
     return (
       <ExtensionUnavailable
         scope='organization'
@@ -42,10 +42,11 @@ export function ExtensionOrganization({ context }: ExtensionOrganizationProps) {
         }}
       />
     )
+  const refreshedContext = { ...context, ...access.data.chatAccess }
   return (
-    <OrganizationProvider context={context}>
+    <OrganizationProvider context={refreshedContext}>
       <SettingsLoader />
-      <ExtensionOrganizationChat context={context} history={history} />
+      <ExtensionOrganizationChat context={refreshedContext} history={history} />
     </OrganizationProvider>
   )
 }
@@ -65,11 +66,22 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
   )
   const [captureChatId, setCaptureChatId] = useState(selectedChatId)
   const [initialChatId, setInitialChatId] = useState(selectedChatId)
+  const [submittedMode, setSubmittedMode] = useState<ChatRequestMode | null>(null)
   const [composerKey, setComposerKey] = useState(generateId)
   if (captureChatId !== selectedChatId) {
     setCaptureChatId(selectedChatId)
     setInitialChatId(selectedChatId)
+    setSubmittedMode(null)
     setComposerKey(generateId())
+  }
+  const selectChat = (chatId: string | null) => {
+    if (chatId === selectedChatId) {
+      setInitialChatId(chatId)
+      setSubmittedMode(null)
+      setComposerKey(generateId())
+    }
+    void setResource(null)
+    void setSelectedChatId(chatId)
   }
   const selectedChat = initialChatId
     ? history.data?.find((chat) => chat.id === initialChatId)
@@ -77,15 +89,29 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
   if (initialChatId && !history.data && history.isPending) return <ExtensionLoading />
   if (initialChatId && !selectedChat)
     return <ExtensionUnavailable scope='chat' onRetry={() => void history.refetch()} />
-  const requestMode = initialChatId ? selectedChat?.mode : context.canBuild ? 'agent' : 'assistant'
+  const requestMode = initialChatId
+    ? selectedChat?.mode
+    : (submittedMode ?? (context.canBuild ? 'agent' : 'assistant'))
   if (!requestMode)
     return history.isFetching ? (
       <ExtensionLoading />
     ) : (
       <ExtensionUnavailable scope='chat' onRetry={() => void history.refetch()} />
     )
-  if (requestMode === 'assistant' ? !context.searchAccess.memberScoped : !context.canBuild)
-    return <ExtensionUnavailable scope='chat' />
+  if (
+    !context.mothershipAvailable ||
+    (requestMode === 'assistant' ? !context.searchAccess.memberScoped : !context.canBuild)
+  )
+    return (
+      <ExtensionUnavailable
+        scope='chat'
+        onBackToChat={
+          context.mothershipAvailable && (context.canBuild || context.searchAccess.memberScoped)
+            ? () => selectChat(null)
+            : undefined
+        }
+      />
+    )
   return (
     <ExtensionOrganizationConversation
       key={composerKey}
@@ -95,10 +121,8 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
       initialChatId={initialChatId ?? undefined}
       selectedChatId={selectedChatId ?? undefined}
       requestMode={requestMode}
-      onSelectChat={(chatId) => {
-        void setResource(null)
-        void setSelectedChatId(chatId)
-      }}
+      onSelectChat={selectChat}
+      onCommitMode={() => setSubmittedMode(requestMode)}
       onChatIdResolved={(chatId) => {
         setCaptureChatId(chatId)
         void setSelectedChatId(chatId)
@@ -113,6 +137,7 @@ interface ExtensionOrganizationConversationProps extends ExtensionOrganizationCh
   selectedChatId?: string
   requestMode: ChatRequestMode
   onSelectChat: (chatId: string | null) => void
+  onCommitMode: () => void
   onChatIdResolved: (chatId: string) => void
 }
 
@@ -124,6 +149,7 @@ function ExtensionOrganizationConversation({
   selectedChatId,
   requestMode,
   onSelectChat,
+  onCommitMode,
   onChatIdResolved,
 }: ExtensionOrganizationConversationProps) {
   const composer = useExtensionComposer(scopeKey)
@@ -141,6 +167,11 @@ function ExtensionOrganizationConversation({
       requestMode={requestMode}
       panelOptions={{
         ...composer,
+        prepareSubmission: (message, contexts) => {
+          const submission = composer.prepareSubmission(message, contexts)
+          if (submission !== false) onCommitMode()
+          return submission
+        },
         draftNamespace: 'extension',
         onChatIdResolved,
         onNavigateToChat: onSelectChat,

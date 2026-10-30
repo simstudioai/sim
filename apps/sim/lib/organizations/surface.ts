@@ -12,17 +12,17 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
+import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import {
-  type KnowledgeAccessAvailability,
-  resolveKnowledgeAccessAvailability,
-} from '@/lib/knowledge/access/availability'
+  type OrganizationChatAccess,
+  projectOrganizationChatAccess,
+} from '@/lib/organizations/chat-access'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import {
   getUserPermissionConfigForOrganization,
   isOrganizationPermissionRegimeActive,
 } from '@/lib/permission-groups/resolve.server'
-import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 export interface OrganizationSurfaceOrganization {
   id: string
@@ -48,13 +48,10 @@ interface OrganizationSurfaceViewer {
  * result is an explicit access denial — the viewer is not a member, or there is no
  * such organization.
  */
-export interface OrganizationSurfaceContext {
+export interface OrganizationSurfaceContext extends OrganizationChatAccess {
   organization: OrganizationSurfaceOrganization
   viewer: OrganizationSurfaceViewer
   connectedAccountsAvailable: boolean
-  mothershipAvailable: boolean
-  canBuild: boolean
-  searchAccess: KnowledgeAccessAvailability
   settingsFeatures: OrganizationSettingsFeatures
   deployment: DeploymentShape
 }
@@ -138,11 +135,7 @@ async function resolveOrganizationSurfaceContext(
         !capabilityDeniedBy('oauth_apps.use', config),
     },
     connectedAccountsAvailable,
-    mothershipAvailable: !capabilityDeniedBy('copilot.use', config),
-    canBuild:
-      !capabilityDeniedBy('copilot.use', config) &&
-      canCreateOrganizationWorkspace(access.role, config),
-    searchAccess,
+    ...projectOrganizationChatAccess({ role: access.role, config, searchAccess }),
     settingsFeatures: getOrganizationSettingsFeatures(
       hasEnterprisePlan,
       deployment,

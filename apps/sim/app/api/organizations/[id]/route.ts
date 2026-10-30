@@ -28,6 +28,7 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params, query }) => ({
     organizationId: params.id,
     includeSeats: query.include === 'seats',
+    includeChatAccess: query.include === 'chat-access',
   }),
   useCase: getOrganization,
   present: (result) => ({
@@ -45,6 +46,7 @@ export const GET = defineInternalJsonRoute({
     },
     userRole: organizationRoleSchema.parse(result.role),
     hasAdminAccess: result.hasAdminAccess,
+    ...(result.chatAccess ? { chatAccess: result.chatAccess } : {}),
   }),
 })
 

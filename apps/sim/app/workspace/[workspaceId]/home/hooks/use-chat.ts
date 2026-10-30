@@ -408,6 +408,27 @@ type ActiveTurn = {
   desktopScopeId: string
 }
 
+interface CompletedTurn {
+  chatId: string
+  userMessage: PersistedMessage
+  assistantMessage: PersistedMessage
+}
+
+function retainCompletedTurn(
+  messages: PersistedMessage[],
+  turn: CompletedTurn
+): PersistedMessage[] {
+  const withOwner = messages.some((message) => message.id === turn.userMessage.id)
+    ? messages
+    : [...messages, turn.userMessage]
+  return reconcileLiveAssistantTurn({
+    messages: withOwner,
+    streamId: turn.userMessage.id,
+    liveAssistant: turn.assistantMessage,
+    activeStreamId: null,
+  })
+}
+
 interface DetachedChatResolution {
   chatId?: string
   terminal: boolean
@@ -759,6 +780,13 @@ export function useChat(
   const router = useRouter()
   const queryClient = useQueryClient()
   const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
+  const [completedTurn, setCompletedTurn] = useState<CompletedTurn | null>(null)
+  const completedTurnRef = useRef<CompletedTurn | null>(null)
+  const updateCompletedTurn = useCallback((turn: CompletedTurn | null) => {
+    // A queued send can start before React commits the completed turn.
+    completedTurnRef.current = turn
+    setCompletedTurn(turn)
+  }, [])
   const [isSending, setIsSending] = useState(false)
   const [isReconnecting, setIsReconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1190,6 +1218,7 @@ export function useChat(
     chatIdRef.current = undefined
     lastCursorRef.current = '0'
     locallyTerminalStreamIdRef.current = undefined
+    updateCompletedTurn(null)
     clearActiveTurn()
     setResolvedChatId(undefined)
     appliedChatHistoryKeyRef.current = undefined
@@ -1218,6 +1247,7 @@ export function useChat(
     cancelActiveStreamRecovery,
     cancelActiveStreamReader,
     clearActiveTurn,
+    updateCompletedTurn,
     clearQueueDispatchState,
     resetEphemeralPreviewState,
     setTransportIdle,
@@ -1416,7 +1446,11 @@ export function useChat(
   const liveContent = streamingContentRef.current
   const liveBlocks = streamingBlocksRef.current
   const messages = useMemo(() => {
-    const source = chatHistory?.messages.map(toDisplayMessage) ?? [...pendingMessages]
+    const historyMessages =
+      chatHistory && completedTurn?.chatId === chatHistory.id
+        ? retainCompletedTurn(chatHistory.messages, completedTurn)
+        : chatHistory?.messages
+    const source = historyMessages?.map(toDisplayMessage) ?? [...pendingMessages]
     /** History reads can lag the live turn; retain both its owner and current response. */
     if (pendingTurn) {
       let ownerIndex = source.findIndex((message) => message.id === pendingTurn.userMessageId)
@@ -1440,7 +1474,7 @@ export function useChat(
       }
     }
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeys))
-  }, [chatHistory, pendingMessages, pendingTurn, liveContent, liveBlocks])
+  }, [chatHistory, pendingMessages, pendingTurn, liveContent, liveBlocks, completedTurn])
   const addResource = useCallback(
     (resourceUpdate: MothershipResourceUpdate): boolean => {
       // The single fan-in for tab creation, so the invariant lives here.
@@ -1959,6 +1993,7 @@ export function useChat(
     chatIdRef.current = initialChatId
     lastCursorRef.current = '0'
     locallyTerminalStreamIdRef.current = undefined
+    updateCompletedTurn(null)
     clearActiveTurn()
     setResolvedChatId(initialChatId)
     appliedChatHistoryKeyRef.current = undefined
@@ -2007,6 +2042,7 @@ export function useChat(
     resetEphemeralPreviewState,
     clearQueueDispatchState,
     clearActiveTurn,
+    updateCompletedTurn,
     setTransportIdle,
     cancelActiveStreamRecovery,
     cancelActiveStreamReader,
@@ -2029,18 +2065,14 @@ export function useChat(
   }, [isHomePage, resetHomeChatState])
 
   /**
-   * This tab finalizes on the stream's `complete` event, which the server sends
-   * before it saves the turn, so the transcript read right after can still be the
-   * in-flight copy: the stream listed as active and the answer under its live id.
-   * That copy matches the optimistic one, so nothing would read it again; re-read
-   * until the saved turn is there. The first pass joins finalize's own read; later
-   * passes poll only the chat's stream status and re-read the transcript once the
-   * stream is no longer listed (or the status read fails). The wait ends as soon
-   * as this chat moves on (another send, or another chat) or the chat view
-   * unmounts.
+   * A history read can lag a completed stream, including returning an older
+   * transcript with a newly cleared stream marker. Retain the completed output
+   * until its durable assistant is present. The first pass joins finalize's read;
+   * later passes poll stream status before re-reading the transcript. The bounded
+   * wait ends when this surface sends again, changes chats, or unmounts.
    */
   const awaitPersistedTurn = useCallback(
-    async (chatId: string, streamId: string) => {
+    async (chatId: string, streamId: string, expectsAssistant: boolean) => {
       if (persistedTurnWaitRef.current?.streamId === streamId) return
       persistedTurnWaitRef.current?.controller.abort('superseded:persisted_turn_wait')
       const wait = { streamId, controller: new AbortController() }
@@ -2075,13 +2107,26 @@ export function useChat(
           const history = queryClient.getQueryData<MothershipChatHistory>(
             mothershipChatKeys.detail(chatId)
           )
-          if (history?.activeStreamId !== streamId) return
+          if (
+            history &&
+            (hasTerminalPersistedAssistantForStream(
+              history.messages,
+              streamId,
+              getLiveAssistantMessageId(streamId)
+            ) ||
+              (!expectsAssistant && history.activeStreamId !== streamId))
+          ) {
+            if (completedTurnRef.current?.userMessage.id === streamId) {
+              updateCompletedTurn(null)
+            }
+            return
+          }
         }
       } finally {
         if (persistedTurnWaitRef.current === wait) persistedTurnWaitRef.current = null
       }
     },
-    [queryClient]
+    [queryClient, updateCompletedTurn]
   )
 
   useEffect(() => {
@@ -2108,8 +2153,22 @@ export function useChat(
       void cancelActiveBrowserTools([hydratedScopeId])
     }
 
-    if (!activeStreamId && locallyTerminalStreamIdRef.current) {
+    const terminalStreamId = locallyTerminalStreamIdRef.current
+    const completed = completedTurnRef.current
+    const terminalAssistantPersisted =
+      terminalStreamId &&
+      hasTerminalPersistedAssistantForStream(
+        chatHistory.messages,
+        terminalStreamId,
+        getLiveAssistantMessageId(terminalStreamId)
+      )
+    if (
+      terminalStreamId &&
+      (terminalAssistantPersisted ||
+        (!activeStreamId && completed?.userMessage.id !== terminalStreamId))
+    ) {
       locallyTerminalStreamIdRef.current = undefined
+      if (completed?.userMessage.id === terminalStreamId) updateCompletedTurn(null)
     }
 
     void recoverPendingClientWorkflowTools(mappedMessages)
@@ -2324,6 +2383,7 @@ export function useChat(
     seedPreviewSessions,
     setTransportIdle,
     setTransportReconnecting,
+    updateCompletedTurn,
   ])
 
   const processSSEStream = useCallback(
@@ -3546,6 +3606,35 @@ export function useChat(
       if (options?.streamTerminal !== false) {
         locallyTerminalStreamIdRef.current = terminalStreamId
       }
+      let completed: CompletedTurn | null = null
+      if (
+        terminalStreamId &&
+        completedChatId &&
+        (streamingContentRef.current || streamingBlocksRef.current.length > 0)
+      ) {
+        const userMessage =
+          pendingUserMsgRef.current?.id === terminalStreamId
+            ? pendingUserMsgRef.current
+            : queryClient
+                .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(completedChatId))
+                ?.messages.find(
+                  (message) => message.role === 'user' && message.id === terminalStreamId
+                )
+        if (userMessage) {
+          completed = {
+            chatId: completedChatId,
+            userMessage,
+            assistantMessage: buildAssistantSnapshotMessage({
+              id: getLiveAssistantMessageId(terminalStreamId),
+              streamId: terminalStreamId,
+              content: streamingContentRef.current,
+              contentBlocks: streamingBlocksRef.current,
+              ...(streamRequestIdRef.current ? { requestId: streamRequestIdRef.current } : {}),
+            }),
+          }
+        }
+      }
+      updateCompletedTurn(completed)
       clearActiveTurn()
       setTransportIdle()
       abortControllerRef.current = null
@@ -3553,8 +3642,8 @@ export function useChat(
         includeDetail: !hasQueuedFollowUp,
         ...(options?.targetChatId ? { targetChatId: options.targetChatId } : {}),
       })
-      if (terminalStreamId && completedChatId) {
-        void awaitPersistedTurn(completedChatId, terminalStreamId)
+      if (terminalStreamId && completedChatId && (!isError || completed)) {
+        void awaitPersistedTurn(completedChatId, terminalStreamId, completed !== null)
       }
       notifyTurnEnded({ error: isError })
     },
@@ -3566,7 +3655,9 @@ export function useChat(
       notifyTurnEnded,
       reconcileTerminalPreviewSessions,
       setTransportIdle,
+      updateCompletedTurn,
       upsertChatHistory,
+      queryClient,
       workspaceId,
     ]
   )
@@ -3746,6 +3837,7 @@ export function useChat(
         : Promise.resolve()
 
       const applyOptimisticSend = () => {
+        const completed = completedTurnRef.current
         const assistantSnapshot = buildAssistantSnapshotMessage({
           id: assistantId,
           streamId: userMessageId,
@@ -3757,7 +3849,10 @@ export function useChat(
             ...current,
             resources: current.resources.filter((resource) => resource.id !== 'streaming-file'),
             messages: [
-              ...current.messages.filter(
+              ...(completed && completed.chatId === requestChatId
+                ? retainCompletedTurn(current.messages, completed)
+                : current.messages
+              ).filter(
                 (persistedMessage) =>
                   persistedMessage.id !== userMessageId && persistedMessage.id !== assistantId
               ),
@@ -3767,6 +3862,7 @@ export function useChat(
             activeStreamId: userMessageId,
           }))
         }
+        updateCompletedTurn(null)
 
         setPendingMessages((prev) => {
           const nextMessages = prev.filter((m) => m.id !== userMessageId && m.id !== assistantId)
@@ -4305,6 +4401,7 @@ export function useChat(
       fetchStreamBatch,
       clearActiveTurn,
       resetStreamingBuffers,
+      updateCompletedTurn,
       resolveChatIdForStream,
       adoptResolvedChatId,
       setTransportIdle,
@@ -5429,6 +5526,7 @@ export function useChat(
       }
       detachedChatResolutionControllers.clear()
       persistedTurnWaitRef.current?.controller.abort('unmount:persisted_turn_wait')
+      completedTurnRef.current = null
       clearActiveTurn()
       sendingRef.current = false
       // Release the editing slot — the composer it binds to is unmounting.

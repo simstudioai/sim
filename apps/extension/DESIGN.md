@@ -6,18 +6,20 @@ Implementation scope and research, 2026-10-29.
 
 The extension is another surface of Sim. A native Chrome side panel hosts the actual
 Sim composer and transcript, using existing authenticated Mothership requests,
-conversation persistence, streaming recovery, model controls, tool permissions,
-and workspace authorization. A conversation can continue in the full app.
+conversation persistence, streaming recovery, tool permissions, and organization
+or workspace authorization. The panel keeps Fast mode and omits the model selector.
+A conversation can continue in the full app.
 
-The user signs in in a normal Sim tab, chooses a workspace, opens or creates a
-conversation, and explicitly attaches the current page or highlighted text.
+The user signs in in a normal Sim tab and lands in their organization chat. Choosing
+a workspace is optional; members without Build access use Assistant. They can open
+or create a conversation and explicitly attach the current page or highlighted text.
 The composer’s + menu offers Current page and Selected text. Pending snapshots sit
 inside the composer as compact removable chips alongside file attachments. Opening one
 shows the captured text, source, capture time, and conversation-retention disclosure.
 Partial captures remain labeled in the attachment row. Site access lives in the
 composer’s Site access action, which opens an extension-owned dialog; successful delivery adds no persistent status banner.
-They are immutable: navigating to another page cannot silently change an attached
-source. Removing an attachment, changing workspace, or starting a new conversation
+Snapshots are immutable: navigating to another page cannot silently change an attached
+source. Removing an attachment, changing organization or workspace, or starting a new conversation
 clears pending page context. Several explicitly attached pages can support comparison.
 Assistant accepts page snapshots while retaining its existing restriction on
 workspace-resource contexts.
@@ -35,7 +37,7 @@ Existing Sim server tools remain subject to their existing authorization and app
    extraction, per-site permission controls, build artifacts, browser verification.
 2. `packages/browser-extension-protocol`: versioned, strictly validated messages and
    immutable page snapshots shared by the extension, app, and server.
-3. `apps/sim/app/extension`: session gate, workspace picker, minimal app providers,
+3. `apps/sim/app/extension`: session gate, organization landing, optional workspace picker, app providers,
    real chat components, history and a narrow parent-window bridge.
 4. Existing chat context pipeline: `browser_page` input validation, durable message
    projection, restored context chips, untrusted-content formatting, Assistant admission.
@@ -102,10 +104,11 @@ report and screenshot/trace artifacts. Security-boundary tests may cover header
 isolation and durable-context semantics where the running app needs unavailable
 services. Do not replace real Chrome APIs with mocks and describe that as E2E.
 
-The authenticated live-app acceptance gate is: sign in, choose a permitted workspace,
-capture a real page, receive a grounded Mothership answer, reopen the conversation,
-stop/reconnect streaming, switch workspaces, and verify access denial. An absent
-backend or account is an unverified gate, not a pass.
+The authenticated live-app acceptance gate covers organization chat, Assistant, and
+permitted workspaces: capture a real page, receive a grounded Mothership answer,
+reopen the conversation, stop/reconnect streaming, and switch scopes. Verify revoked
+access, live policy changes, retained drafts, and late history reads after completion.
+An absent backend or account is an unverified gate, not a pass.
 
 ## Research and decisions
 
@@ -147,7 +150,7 @@ autonomous browser actions need a separate design and estimate.
 
 The first implementation targets Chrome MV3 and a configured Sim deployment. It
 includes the shared chat UI and engine, explicit page/selection context, Assistant
-context support, workspace/history navigation, permission controls and verification.
+context support, organization/workspace/history navigation, permission controls and verification.
 It does not constitute store publication or proof of every third-party site's DOM.
 
 Follow-on work: screenshot/image attachment through existing authorized upload paths;
