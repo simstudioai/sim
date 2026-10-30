@@ -119,6 +119,8 @@ These billing descriptions are current as of October 2026 and omit specific pric
 
 Sim can place Slack and Discord adapters around shared agent logic so teams can update the agent’s instructions, tools, and decision process without maintaining two independent agents. A [Sim workflow](https://docs.sim.ai/workflows) can have multiple triggers, with each run entering through one trigger.
 
+Sim does not currently provide a built-in Discord trigger. For real-time input, a custom Discord bot bridge must authenticate its [Discord Gateway](https://docs.discord.com/developers/events/gateway) connection, normalize each event, and call the [deployed Sim workflow API](https://docs.sim.ai/workflows/deployment/api). A polling alternative can run on a schedule, use the Discord integration to fetch messages, deduplicate them by message ID, and pass each new message to that same deployed workflow API.
+
 A practical design uses channel-specific entry and exit paths with a shared workflow for the agent core. Each adapter converts its incoming event into a common internal shape, such as:
 
 - source platform
