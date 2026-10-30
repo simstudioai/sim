@@ -1418,11 +1418,12 @@ try {
     }
   })
   await check(
-    'Transient session and workspace refetch failures preserve the mounted composer and page draft',
+    'Transient session, workspace, and permission-policy refetch failures preserve the mounted composer and page draft',
     async () => {
-      for (const [path, attempts] of [
-        ['/api/auth/get-session', 1],
-        [`/api/workspaces/${alphaId}/host-context`, 2],
+      for (const [path, attempts, scope] of [
+        ['/api/auth/get-session', 1, 'session'],
+        [`/api/workspaces/${alphaId}/host-context`, 2, 'workspace'],
+        ['/api/permission-groups/user', 4, 'permission-policy'],
       ] as const) {
         await navigate(`${base.origin}/extension/${alphaId}`)
         const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
@@ -1457,9 +1458,7 @@ try {
           )
           await expect(editor).toHaveValue('Keep this draft through a temporary network failure.')
           await expect(attachments()).toHaveCount(1)
-          await screenshot(
-            path.includes('get-session') ? 'session-refetch-outage' : 'workspace-refetch-outage'
-          )
+          await screenshot(`${scope}-refetch-outage`)
         } finally {
           await browserContext.unroute(`${endpoint}*`)
           await shell.clock.setFixedTime(Date.now())
@@ -1469,13 +1468,17 @@ try {
     }
   )
   await check(
-    'Explicit session and workspace access failures clear captured context after refetch',
+    'Explicit session, workspace, and permission-policy failures clear captured context after refetch',
     async () => {
-      for (const [path, status] of [
-        ['/api/auth/get-session', 401],
-        ['/api/auth/get-session', 403],
-        [`/api/workspaces/${alphaId}/host-context`, 403],
-        [`/api/workspaces/${alphaId}/host-context`, 404],
+      for (const [path, status, scope] of [
+        ['/api/auth/get-session', 401, 'session'],
+        ['/api/auth/get-session', 403, 'session'],
+        [`/api/workspaces/${alphaId}/host-context`, 403, 'workspace'],
+        [`/api/workspaces/${alphaId}/host-context`, 404, 'workspace'],
+        ['/api/permission-groups/user', 401, 'permission-policy'],
+        ['/api/permission-groups/user', 403, 'permission-policy'],
+        ['/api/permission-groups/user', 404, 'permission-policy'],
+        ['/api/permission-groups/user', 200, 'permission-policy'],
       ] as const) {
         await navigate(`${base.origin}/extension/${alphaId}`)
         await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
@@ -1491,16 +1494,17 @@ try {
         try {
           await shell.clock.setFixedTime(Date.now() + 360_000)
           await reconnect()
-          if (path.includes('get-session'))
+          if (scope === 'session')
             await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
-          else await expect(frame().getByText('This workspace is unavailable.')).toBeVisible()
+          else if (scope === 'workspace')
+            await expect(frame().getByText('This workspace is unavailable.')).toBeVisible()
+          else
+            await expect(frame().getByText('Unable to check access', { exact: true })).toBeVisible()
           await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(
             0
           )
           await expect(attachments()).toHaveCount(0)
-          await screenshot(
-            `${path.includes('get-session') ? 'session' : 'workspace'}-revoked-${status}`
-          )
+          await screenshot(`${scope}-revoked-${status}`)
         } finally {
           await browserContext.unroute(`${endpoint}*`)
           await shell.clock.setFixedTime(Date.now())
@@ -1510,6 +1514,23 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
+  await check('An initial permission-policy outage keeps chat inaccessible', async () => {
+    const endpoint = `${base.origin}/api/permission-groups/user*`
+    await browserContext.route(endpoint, async (route) => {
+      injectedRequests.add(route.request())
+      await route.fulfill({ status: 503, json: { error: 'QA initial policy outage' } })
+    })
+    try {
+      await navigate(`${base.origin}/extension/${alphaId}`)
+      await expect(frame().getByText('Unable to check access', { exact: true })).toBeVisible()
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0)
+      await screenshot('permission-policy-initial-outage')
+    } finally {
+      await browserContext.unroute(endpoint)
+    }
+    await navigate(`${base.origin}/extension/${alphaId}`)
+    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+  })
   await check('Signing out removes authenticated chat and captured page context', async () => {
     await capture()
     const response = await browserContext.request.post(`${base.origin}/api/auth/sign-out`, {

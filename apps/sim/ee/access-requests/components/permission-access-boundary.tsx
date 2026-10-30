@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Chip } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
 import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/files-empty-state'
 import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-empty-state'
@@ -53,7 +54,9 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
       <EmptyState title='Checking access' description='Loading your organization access policy.' />
     )
   }
-  if (policy.isError) {
+  const transientPolicyError =
+    !isApiClientError(policy.error) || (policy.error.status >= 500 && policy.error.status < 600)
+  if (policy.isError && (!policy.data || !transientPolicyError)) {
     return (
       <EmptyState
         title='Unable to check access'
