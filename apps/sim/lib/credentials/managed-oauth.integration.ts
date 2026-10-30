@@ -11,7 +11,7 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getPublicCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
+import { getAuthorizedPublicCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
 import type { CredentialGroupProviderPolicy } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
@@ -30,6 +30,14 @@ const groupId = generateId()
 const enrollmentId = generateId()
 const credentialId = generateId()
 const invitationToken = generateId()
+const enrollmentIdentity = {
+  userId,
+  enrollmentId,
+  credentialGroupId: groupId,
+  organizationId,
+  email: `${userId}@example.test`,
+  invitationTokenHash: sha256Hex(invitationToken),
+}
 const instanceUrl = 'https://managed-destination-fixture.my.salesforce.com'
 let policy: CredentialGroupProviderPolicy
 let accessToken: string
@@ -212,7 +220,7 @@ describe('managed Salesforce destination resolution', () => {
 
 describe('managed enrollment scope status', () => {
   it('keeps a fully granted account connected when only its stored scope fingerprint differs', async () => {
-    const enrollment = await getPublicCredentialGroupEnrollment(invitationToken)
+    const enrollment = await getAuthorizedPublicCredentialGroupEnrollment(enrollmentIdentity)
     expect(enrollment?.options[0]?.connections[0]?.status).toBe('connected')
   })
 
@@ -222,7 +230,7 @@ describe('managed enrollment scope status', () => {
       .update(credential)
       .set({ grantedScopes: ['api'] })
       .where(eq(credential.id, credentialId))
-    const enrollment = await getPublicCredentialGroupEnrollment(invitationToken)
+    const enrollment = await getAuthorizedPublicCredentialGroupEnrollment(enrollmentIdentity)
     expect(enrollment?.options[0]?.connections[0]?.status).toBe('needs_reauth')
     await expect(resolve()).resolves.toMatchObject({ instanceUrl })
   })

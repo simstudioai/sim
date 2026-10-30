@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipModalError } from '@sim/emcn'
+import { ChipConfirmModal, ChipModalError } from '@sim/emcn'
+import { type SettingsAction, SettingsActionChips } from '@/components/settings/settings-header'
 import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/connectors'
 import { useDisconnectPersonalOrganizationAccount } from '@/hooks/queries/organization-accounts'
 
@@ -32,48 +33,57 @@ export function AccountConnectionActions({
   const disconnect = useDisconnectPersonalOrganizationAccount(organizationId)
   const [confirming, setConfirming] = useState(false)
   const pending = connectionPending || disconnect.isPending
+  const actions: SettingsAction[] = []
+  if (account) {
+    actions.push({
+      id: 'reconnect',
+      text: 'Reconnect',
+      disabled: pending || !canReconnect,
+      onSelect: onReconnect,
+    })
+  }
+  if (onConnect) {
+    actions.push({
+      id: 'connect',
+      text: connectLabel,
+      disabled: pending || !canConnect,
+      onSelect: onConnect,
+    })
+  }
+  if (account) {
+    actions.push({
+      id: 'delete',
+      text: 'Disconnect',
+      textTone: 'error',
+      disabled: pending,
+      onSelect: () => {
+        disconnect.reset()
+        setConfirming(true)
+      },
+    })
+  }
   return (
     <>
+      <SettingsActionChips actions={actions} />
       {account && (
-        <Chip disabled={pending || !canReconnect} onClick={onReconnect}>
-          Reconnect
-        </Chip>
-      )}
-      {onConnect && (
-        <Chip disabled={pending || !canConnect} onClick={onConnect}>
-          {connectLabel}
-        </Chip>
-      )}
-      {account && (
-        <>
-          <Chip
-            disabled={pending}
-            onClick={() => {
-              disconnect.reset()
-              setConfirming(true)
-            }}
-          >
-            Disconnect
-          </Chip>
-          <ChipConfirmModal
-            open={confirming}
-            onOpenChange={(open) => {
-              if (!disconnect.isPending) setConfirming(open)
-            }}
-            title={`Disconnect ${integrationName}`}
-            text={`Disconnect ${account.displayName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
-            confirm={{
-              label: 'Disconnect',
-              pendingLabel: 'Disconnecting',
-              pending: disconnect.isPending,
-              disabled: disconnect.isPending,
-              onClick: () =>
-                disconnect.mutate(account.credentialId, { onSuccess: () => setConfirming(false) }),
-            }}
-          >
-            <ChipModalError>{disconnect.error?.message}</ChipModalError>
-          </ChipConfirmModal>
-        </>
+        <ChipConfirmModal
+          open={confirming}
+          onOpenChange={(open) => {
+            if (!disconnect.isPending) setConfirming(open)
+          }}
+          title={`Disconnect ${integrationName}`}
+          text={`Disconnect ${account.displayName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
+          confirm={{
+            label: 'Disconnect',
+            pendingLabel: 'Disconnecting',
+            pending: disconnect.isPending,
+            disabled: disconnect.isPending,
+            onClick: () =>
+              disconnect.mutate(account.credentialId, { onSuccess: () => setConfirming(false) }),
+          }}
+        >
+          <ChipModalError>{disconnect.error?.message}</ChipModalError>
+        </ChipConfirmModal>
       )}
     </>
   )

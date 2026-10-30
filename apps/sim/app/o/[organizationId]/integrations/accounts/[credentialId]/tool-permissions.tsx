@@ -206,31 +206,29 @@ function ToolPermissionGroup({
         />
       }
     >
-      <div className='divide-y divide-[var(--border)]'>
-        {visible.map((tool) => (
-          <div
-            key={tool.toolId}
-            className='flex flex-col items-start gap-3 py-3 sm:flex-row sm:items-center sm:justify-between'
-          >
-            <div className='min-w-0 flex-1'>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <span className='text-[var(--text-body)] text-small'>{tool.name}</span>
-                </Tooltip.Trigger>
-                <Tooltip.Content>{tool.description}</Tooltip.Content>
-              </Tooltip.Root>
-            </div>
-            <ChipSwitch
-              className='max-w-full shrink-0'
-              options={options}
-              value={tool.policy}
-              disabled={pending}
-              aria-label={`${tool.name} permission`}
-              onChange={(policy) => onChange({ kind: 'tool', toolId: tool.toolId, policy })}
-            />
+      {visible.map((tool) => (
+        <div
+          key={tool.toolId}
+          className='flex flex-col items-start gap-3 py-3 sm:flex-row sm:items-center sm:justify-between'
+        >
+          <div className='min-w-0 flex-1'>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='text-[var(--text-body)] text-small'>{tool.name}</span>
+              </Tooltip.Trigger>
+              <Tooltip.Content>{tool.description}</Tooltip.Content>
+            </Tooltip.Root>
           </div>
-        ))}
-      </div>
+          <ChipSwitch
+            className='max-w-full shrink-0'
+            options={options}
+            value={tool.policy}
+            disabled={pending}
+            aria-label={`${tool.name} permission`}
+            onChange={(policy) => onChange({ kind: 'tool', toolId: tool.toolId, policy })}
+          />
+        </div>
+      ))}
       {!visible.length && (
         <SettingsEmptyState variant='inline'>No matching tools</SettingsEmptyState>
       )}

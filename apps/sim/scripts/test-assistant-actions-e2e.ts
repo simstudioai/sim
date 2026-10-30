@@ -876,6 +876,8 @@ try {
       const editedBody = 'Please confirm the owner by Friday.\nThank you.'
       await plain.getByRole('textbox', { name: 'Message', exact: true }).fill(editedBody)
       await expect(plain.getByRole('textbox', { name: 'To', exact: true })).toHaveCount(0)
+      await plain.scrollIntoViewIfNeeded()
+      await capture('email-review-edit')
       await plain.getByRole('button', { name: 'Done', exact: true }).click()
       await expect(plain.getByRole('region', { name: 'Message preview', exact: true })).toHaveText(
         editedBody
@@ -1097,7 +1099,12 @@ try {
         .nth(0)
         .getByRole('textbox', { name: 'Summary', exact: true })
         .fill('Publish the reviewed launch checklist')
+      await reviewCards.nth(0).scrollIntoViewIfNeeded()
+      await capture('action-review-edit-mobile')
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await reviewCards.nth(0).scrollIntoViewIfNeeded()
       await capture('action-review-edit')
+      await page.setViewportSize({ width: 390, height: 844 })
       await reviewCards.nth(0).getByRole('button', { name: 'Done', exact: true }).click()
       await expect(
         reviewCards.nth(0).getByText('Publish the reviewed launch checklist', { exact: true })
