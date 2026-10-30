@@ -24,6 +24,7 @@ import { isFree } from '@/lib/billing/plan-helpers'
 import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 
 const logger = createLogger('MidRunUsage')
 
@@ -144,7 +145,10 @@ async function readGateVerdict(
   try {
     usage =
       options.uncachedForFreePayer && isFreeRunPayer(attribution)
-        ? await checkAttributedUsageLimits(attribution)
+        ? await withinDeadline(
+            () => checkAttributedUsageLimits(attribution),
+            Date.now() + USAGE_GATE_SETTLE_TIMEOUT_MS
+          )
         : await checkExecutionUsageLimits(attribution)
   } catch (error) {
     logger.warn('Mid-run usage read failed', {
@@ -278,7 +282,7 @@ export async function readMidRunAccountUsageVerdict(
       checkUsageStatus(decision.userId, usageSubscription, { billingEntity: payer, billingPeriod })
     // A shared in-flight read may have started before this caller's charge was recorded.
     const usage = uncached
-      ? await readUsage()
+      ? await withinDeadline(readUsage, Date.now() + USAGE_GATE_SETTLE_TIMEOUT_MS)
       : await coalesceLocally(
           `mid-run-account-usage:${key}`,
           readUsage,
