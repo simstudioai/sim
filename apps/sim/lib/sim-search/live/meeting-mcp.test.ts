@@ -158,29 +158,59 @@ describe('meeting MCP provider wire contracts', () => {
     await expect(searchFirefliesMcp(client, input)).rejects.toThrow('unsupported')
   })
 
-  it('diagnoses unsupported Fireflies envelopes without logging private values or arbitrary keys', async () => {
-    const privateMarker = 'PRIVATE_MEETING_OR_CREDENTIAL'
-    const client: ManagedSearchMcpClient = {
-      async call() {
-        return {
-          text: privateMarker.repeat(1000),
-          data: { error: privateMarker },
-          result: { items: [{ title: privateMarker }] },
-          ...Object.fromEntries(
-            Array.from({ length: 1000 }, (_, index) => [`${privateMarker}_${index}`, privateMarker])
-          ),
-        }
-      },
+  it.each(['text', 'json', 'code_fence', 'oversized'] as const)(
+    'diagnoses unsupported Fireflies %s envelopes without logging private values or arbitrary keys',
+    async (format) => {
+      const privateMarker = 'PRIVATE_MEETING_OR_CREDENTIAL'
+      const json = JSON.stringify({ items: [{ title: privateMarker }], [privateMarker]: 'secret' })
+      const text =
+        format === 'oversized'
+          ? JSON.stringify({ items: [privateMarker.repeat(3000)] })
+          : format === 'code_fence'
+            ? ['```json', json, '```'].join('\n')
+            : format === 'json'
+              ? json
+              : privateMarker.repeat(1000)
+      const client: ManagedSearchMcpClient = {
+        async call() {
+          return {
+            text,
+            data: { error: privateMarker },
+            result: { items: [{ title: privateMarker }] },
+            ...Object.fromEntries(
+              Array.from({ length: 1000 }, (_, index) => [
+                `${privateMarker}_${index}`,
+                privateMarker,
+              ])
+            ),
+          }
+        },
+      }
+      await expect(searchFirefliesMcp(client, { ...input, query: privateMarker })).rejects.toThrow(
+        'unsupported'
+      )
+      const warnings = getAllMockLoggers().flatMap((logger) => logger.warn.mock.calls)
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]?.[1]).toMatchObject({
+        response: { type: 'object', fields: { text: 'string', data: 'object', result: 'object' } },
+        data: { type: 'object', fields: { error: 'string' } },
+        result: { type: 'object', fields: { items: 'array' } },
+        text:
+          format === 'oversized'
+            ? { length: text.length, inspection: 'skipped_size_limit' }
+            : {
+                length: text.length,
+                format,
+                ...(format === 'text'
+                  ? {}
+                  : { jsonShape: { type: 'object', fields: { items: 'array' } } }),
+              },
+      })
+      const serialized = JSON.stringify(warnings)
+      expect(serialized).not.toContain(privateMarker)
+      expect(serialized.length).toBeLessThan(2000)
     }
-    await expect(searchFirefliesMcp(client, { ...input, query: privateMarker })).rejects.toThrow(
-      'unsupported'
-    )
-    const warnings = getAllMockLoggers().flatMap((logger) => logger.warn.mock.calls)
-    expect(warnings).toHaveLength(1)
-    const serialized = JSON.stringify(warnings)
-    expect(serialized).not.toContain(privateMarker)
-    expect(serialized.length).toBeLessThan(2000)
-  })
+  )
 
   it('rejects invalid continuation offsets before Fireflies receives a query', async () => {
     const client = {
