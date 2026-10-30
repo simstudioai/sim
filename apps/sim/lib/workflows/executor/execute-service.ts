@@ -11,6 +11,10 @@ import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { validateCallChain } from '@/lib/execution/call-chain'
+import {
+  registerManualExecutionAborter,
+  unregisterManualExecutionAborter,
+} from '@/lib/execution/manual-cancellation'
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -106,6 +110,15 @@ export interface ExecuteWorkflowServiceParams {
    * result so an HTTP surface can emit transport heartbeats while it runs.
    */
   mode?: 'sync' | 'async' | 'stream' | 'sync-result-stream'
+  /**
+   * The caller may stop waiting before the run settles, leaving it running in this
+   * process. Such a run is admitted like an async one (async rate bucket, reservation,
+   * and timeout), never ends with its caller (so it takes no `abortSignal`), and
+   * registers an in-process aborter so a run cancel reaches it without Redis. Its
+   * execution is otherwise the sync run's own, so a pause resumes as a sync run's does.
+   * Requires `sync-result-stream`, whose pending result the caller stops awaiting.
+   */
+  detachable?: boolean
   /** Original request headers — stream-protocol negotiation only. */
   requestHeaders?: Headers
   includeThinking?: boolean
@@ -284,6 +297,7 @@ export async function executeWorkflowService(
     triggerBlockId,
     runFromBlock,
     stopAfterBlockId,
+    detachable = false,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -307,6 +321,10 @@ export async function executeWorkflowService(
   if (draftState && !useDraftState) {
     throw new Error('A preloaded draft state requires manual execution state')
   }
+  if (detachable && (mode !== 'sync-result-stream' || abortSignal)) {
+    throw new Error('A detachable run returns its pending result and outlives its request')
+  }
+  const executionType = mode === 'async' || detachable ? 'async' : 'sync'
 
   if (callChain) {
     const chainError = validateCallChain(callChain)
@@ -396,12 +414,12 @@ export async function executeWorkflowService(
       executionId,
       requestId,
       checkDeployment: !useDraftState,
-      rateLimitCounter,
+      rateLimitCounter: detachable ? 'async' : rateLimitCounter,
       loggingSession,
       useAuthenticatedUserAsActor,
       workflowRecord,
       billingAttribution: upstreamBillingAttribution,
-      executionType: mode === 'async' ? 'async' : 'sync',
+      executionType,
       requestedTimeoutSeconds,
     })
 
@@ -670,7 +688,9 @@ export async function executeWorkflowService(
       executionMode: 'sync',
     }
 
-    const timeoutController = createTimeoutAbortController(preprocessResult.executionTimeout?.sync)
+    const timeoutController = createTimeoutAbortController(
+      preprocessResult.executionTimeout?.[executionType]
+    )
     let requestAborted = false
     const abortFromRequest = () => {
       requestAborted = true
@@ -692,6 +712,7 @@ export async function executeWorkflowService(
     }
 
     const runSynchronousWorkflow = async (): Promise<ExecuteWorkflowServiceTerminalResult> => {
+      if (detachable) registerManualExecutionAborter(executionId, timeoutController.abort)
       try {
         const snapshot = new ExecutionSnapshot(
           metadata,
@@ -898,6 +919,7 @@ export async function executeWorkflowService(
         }
       } finally {
         abortSignal?.removeEventListener('abort', abortFromRequest)
+        if (detachable) unregisterManualExecutionAborter(executionId, timeoutController.abort)
         timeoutController.cleanup()
         /**
          * The sync result is the run's receipt: callers read its log, state, and cost as

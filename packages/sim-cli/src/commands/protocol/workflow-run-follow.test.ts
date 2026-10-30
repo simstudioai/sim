@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { attachWorkflowRunFollow, renderRunStream } from './workflow-run-follow'
@@ -139,6 +139,133 @@ describe('renderRunStream', () => {
 
     expect(stderr.text).not.toContain('\u001b[2J')
     expect(stderr.text).toContain('oops')
+  })
+})
+
+describe('sim workflows run --wait-timeout', () => {
+  const receipt = {
+    runId: 'run-1',
+    statusUrl: `https://sim.example/api/v2/workflows/${WORKFLOW_ID}/runs/run-1`,
+  }
+  let logged: string[]
+  let errored: string[]
+
+  beforeEach(() => {
+    process.exitCode = undefined
+    logged = []
+    errored = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => {
+      logged.push(line)
+    })
+    vi.spyOn(console, 'error').mockImplementation((line: string) => {
+      errored.push(line)
+    })
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  function runRecord(status: string) {
+    return {
+      data: {
+        runId: 'run-1',
+        workflowId: WORKFLOW_ID,
+        status,
+        startedAt: '2026-08-17T00:00:00.000Z',
+        endedAt: null,
+        durationMs: null,
+        cost: null,
+        error: null,
+        paused: null,
+      },
+    }
+  }
+
+  it('asks the server to wait that long and prints a run that settled in time as before', async () => {
+    requestRaw.mockResolvedValue(
+      ndjsonResponse(
+        { type: 'heartbeat' },
+        {
+          type: 'final',
+          data: { runId: 'run-1', workflowId: WORKFLOW_ID, status: 'completed', output: { ok: 1 } },
+        }
+      )
+    )
+
+    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '240')
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      run: { source: 'manual' },
+      waitTimeoutSeconds: 240,
+    })
+    expect(request).not.toHaveBeenCalled()
+    expect(logged.join('\n')).toContain('"ok": 1')
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('prints the run record and exits 4 when the run outlasts the wait', async () => {
+    requestRaw.mockResolvedValue(
+      ndjsonResponse({ type: 'heartbeat' }, { type: 'detached', data: receipt })
+    )
+    request.mockResolvedValue(runRecord('running'))
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1', '--wait-timeout', '30')
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toBe(`/api/v2/workflows/${WORKFLOW_ID}/runs/run-1`)
+    expect(JSON.parse(logged.join('\n'))).toMatchObject({ runId: 'run-1', status: 'running' })
+    expect(errored.join('\n')).toContain(
+      `sim workflows runs wait run-1 --workflow ${WORKFLOW_ID} --wait-timeout`
+    )
+    expect(process.exitCode).toBe(4)
+  })
+
+  it('reports a run that settled between detaching and the read like runs wait does', async () => {
+    requestRaw.mockResolvedValue(ndjsonResponse({ type: 'detached', data: receipt }))
+    request.mockResolvedValue(runRecord('failed'))
+
+    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '30')
+
+    expect(JSON.parse(logged.join('\n'))).toMatchObject({ status: 'failed' })
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('treats a 202 receipt on the JSON transport as a detached run', async () => {
+    requestRaw.mockResolvedValue(
+      new Response(JSON.stringify({ data: receipt }), {
+        status: 202,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    request.mockResolvedValue(runRecord('running'))
+
+    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '30')
+
+    expect(process.exitCode).toBe(4)
+  })
+
+  it('rounds a fractional wait up to whole seconds, and 0 waits until the run settles', async () => {
+    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '1.5')
+    await run(WORKFLOW_ID, '--manual', '--wait-timeout', '0')
+
+    expect(requestRaw.mock.calls[0][1].body.waitTimeoutSeconds).toBe(2)
+    expect(requestRaw.mock.calls[1][1].body.waitTimeoutSeconds).toBe(0)
+  })
+
+  it('refuses a wait the run cannot honour before sending anything', async () => {
+    await expect(run(WORKFLOW_ID, '--wait-timeout', '-1')).rejects.toThrow('--wait-timeout')
+    await expect(run(WORKFLOW_ID, '--wait-timeout', '30', '--async')).rejects.toThrow(
+      '--wait-timeout'
+    )
+    await expect(run(WORKFLOW_ID, '--wait-timeout', '30', '--follow')).rejects.toThrow(
+      '--wait-timeout'
+    )
+    expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('points a manual --async at --wait-timeout', async () => {
+    await expect(run(WORKFLOW_ID, '--manual', '--async')).rejects.toThrow('--wait-timeout')
   })
 })
 

@@ -5547,6 +5547,7 @@ export type ExecuteWorkflowBody = {
       }
   async?: boolean
   executionTimeoutSeconds?: number
+  waitTimeoutSeconds?: number
   stream?: boolean
   selectedOutputs?: Array<string>
   includeThinking?: boolean
@@ -18439,7 +18440,7 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.',
+          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',
@@ -18450,7 +18451,12 @@ export const V2_OPERATIONS = {
       executionTimeoutSeconds: {
         kind: 'integer',
         describe:
-          "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`.",
+          "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true` or `waitTimeoutSeconds`; otherwise returns `400`.",
+      },
+      waitTimeoutSeconds: {
+        kind: 'integer',
+        describe:
+          'Wait at most this many seconds for a synchronous run, then answer `202` with the run receipt while it continues in the background; `0` waits until it settles. The run is admitted under asynchronous limits, a dropped connection no longer cancels it, and it can be watched or cancelled through the runs resource. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.',
       },
       stream: {
         kind: 'boolean',

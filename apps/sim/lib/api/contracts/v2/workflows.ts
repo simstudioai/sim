@@ -1357,7 +1357,8 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
  *
  * It deliberately does not enumerate the combinations the route rejects: a
  * caller reads a constraint where it applies, so each lives on `async`,
- * `stream`, `executionTimeoutSeconds`, `includeThinking`, or `includeToolCalls`.
+ * `stream`, `executionTimeoutSeconds`, `waitTimeoutSeconds`, `includeThinking`, or
+ * `includeToolCalls`.
  */
 export const EXECUTE_OPTION_CONSTRAINTS =
   'Input descriptions specify compatible modes; invalid combinations return `400`.'
@@ -1447,7 +1448,7 @@ export const v2ExecuteWorkflowBodySchema = z
     run: v2WorkflowRunSelectionSchema
       .optional()
       .describe(
-        'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.'
+        'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
       ),
     async: z
       .boolean()
@@ -1469,7 +1470,21 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
       .optional()
       .describe(
-        "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`."
+        "Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true` or `waitTimeoutSeconds`; otherwise returns `400`."
+      ),
+    /**
+     * Bounds how long the response waits, never the run: past it the run keeps
+     * going in this server process exactly as it started, so the draft state,
+     * entry point, and pause handling are the synchronous run's own.
+     */
+    waitTimeoutSeconds: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
+      .optional()
+      .describe(
+        'Wait at most this many seconds for a synchronous run, then answer `202` with the run receipt while it continues in the background; `0` waits until it settles. The run is admitted under asynchronous limits, a dropped connection no longer cancels it, and it can be watched or cancelled through the runs resource. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.'
       ),
     stream: z
       .boolean()
@@ -1531,6 +1546,7 @@ export const v2ExecuteWorkflowBodySchema = z
       { input: { ticketId: 'ticket_123' }, async: true },
       { input: { ticketId: 'ticket_123' }, stream: true },
       { run: { source: 'manual' } },
+      { run: { source: 'manual' }, waitTimeoutSeconds: 240 },
       {
         run: {
           source: 'manual',
@@ -1591,7 +1607,10 @@ export const v2ExecuteWorkflowDataSchema = z
   })
 export type V2ExecuteWorkflowData = z.output<typeof v2ExecuteWorkflowDataSchema>
 
-/** 202 receipt for `async: true` — poll `statusUrl` (the v2 runs resource). */
+/**
+ * 202 receipt for `async: true`, or for a run still going when `waitTimeoutSeconds`
+ * elapsed — poll `statusUrl` (the v2 runs resource).
+ */
 export const v2ExecuteWorkflowQueuedSchema = z
   .object({
     runId: v2WorkflowRunIdSchema,
@@ -1600,7 +1619,8 @@ export const v2ExecuteWorkflowQueuedSchema = z
   .meta({
     id: 'QueuedWorkflowRun',
     title: 'Queued workflow run',
-    description: 'Receipt returned when a workflow run is queued.',
+    description:
+      'Receipt returned when a workflow run is queued, or is still running when `waitTimeoutSeconds` elapsed.',
   })
 export type V2ExecuteWorkflowQueued = z.output<typeof v2ExecuteWorkflowQueuedSchema>
 
@@ -1612,7 +1632,8 @@ export const v2ExecuteWorkflowSuccessSchema = z
   .meta({
     id: 'ExecuteWorkflowResponse',
     title: 'Execute workflow response',
-    description: 'A completed synchronous run or an asynchronous queue receipt.',
+    description:
+      'A settled synchronous run, or the receipt of a run that continues in the background.',
   })
 
 export const v2ExecuteWorkflowContract = defineRouteContract({
