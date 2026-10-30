@@ -279,10 +279,47 @@ try {
             await figure.getByRole('button').click()
             const viewer = page.getByRole('dialog')
             await expect(viewer.getByRole('img')).toBeVisible()
+            await expect
+              .poll(() =>
+                viewer
+                  .getByRole('img')
+                  .evaluate(
+                    (element) =>
+                      element instanceof HTMLImageElement &&
+                      element.complete &&
+                      element.naturalWidth > 0
+                  )
+              )
+              .toBe(true)
+            const expandedImage = await viewer.getByRole('img').evaluate((element) => {
+              if (!(element instanceof HTMLImageElement)) throw new Error('Viewer image is missing')
+              const rect = element.getBoundingClientRect()
+              const style = getComputedStyle(element)
+              const width =
+                rect.width -
+                Number.parseFloat(style.borderLeftWidth) -
+                Number.parseFloat(style.borderRightWidth)
+              const height =
+                rect.height -
+                Number.parseFloat(style.borderTopWidth) -
+                Number.parseFloat(style.borderBottomWidth)
+              return {
+                ratio: width / height,
+                naturalRatio: element.naturalWidth / element.naturalHeight,
+                radius: Number.parseFloat(style.borderTopLeftRadius),
+              }
+            })
+            expect(Math.abs(expandedImage.ratio - expandedImage.naturalRatio)).toBeLessThan(0.01)
+            expect(expandedImage.radius).toBeGreaterThan(0)
             await expect(viewer.locator('img[aria-hidden="true"]')).toHaveAttribute(
               'src',
               new RegExp(`${scene.background}\\.webp`)
             )
+            if (scene.variant === 'hero')
+              await page.screenshot({
+                path: join(directory, `expanded-platform-${width}.png`),
+                animations: 'disabled',
+              })
             await page.keyboard.press('Escape')
             await expect(viewer).toHaveCount(0)
           } finally {
@@ -532,6 +569,20 @@ try {
             await expect(page.getByRole('dialog')).toBeVisible()
             await page.keyboard.press('Escape')
             await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeFocused()
+          }
+          if (width >= 1280) {
+            const outline = await page
+              .getByRole('navigation', { name: 'On this page', exact: true })
+              .filter({ visible: true })
+              .boundingBox()
+            const action = await page
+              .getByRole('link', { name: 'Try for free', exact: true })
+              .boundingBox()
+            const article = await page.getByRole('main').boundingBox()
+            if (!outline || !action || !article)
+              throw new Error('Desktop reading columns are missing')
+            expect(Math.abs(outline.x + outline.width - action.x - action.width)).toBeLessThan(1)
+            expect(article.width).toBeGreaterThan(680)
           }
           await page.screenshot({ path: join(directory, `responsive-${colorScheme}-${width}.png`) })
         })

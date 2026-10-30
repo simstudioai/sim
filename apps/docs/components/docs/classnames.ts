@@ -31,7 +31,7 @@ const merge = extendTailwindMerge({
   },
 })
 
-/** Extends Sim's class merging for the Paper docs typography without changing platform tokens. */
+/** Extends Sim's class merging for docs typography without changing platform tokens. */
 export function cn(...inputs: ClassValue[]) {
   return merge(clsx(inputs))
 }

@@ -27,7 +27,7 @@ export function Image({
   const imageSrc = optimizedAssets[original] ?? src
   const backgroundSrc = `/static/introduction/${background}.webp`
   const sizes =
-    '(max-width: 1023px) calc(100vw - 40px), (max-width: 1279px) calc(100vw - 296px), 680px'
+    '(max-width: 1023px) calc(100vw - 40px), (max-width: 1279px) calc(100vw - 296px), 728px'
   const image = (
     <ScreenshotFrame
       variant={variant}
@@ -47,7 +47,22 @@ export function Image({
   return (
     <figure className={cn('not-prose my-7 min-w-0', className)}>
       {enableLightbox ? (
-        <MediaViewer src={original} backgroundSrc={backgroundSrc} alt={alt} caption={caption}>
+        <MediaViewer
+          expandedImage={
+            <NextImage
+              src={src}
+              alt={alt}
+              width={props.width}
+              height={props.height}
+              unoptimized
+              loading='eager'
+              className='block h-auto max-h-full w-auto max-w-full object-contain'
+            />
+          }
+          backgroundSrc={backgroundSrc}
+          alt={alt}
+          caption={caption}
+        >
           {image}
         </MediaViewer>
       ) : (

@@ -17,7 +17,7 @@ Sim owns the content catalog, page rendering, navigation, search, and machine in
 | `lib/http/`, `app/api/` | Bounded public discovery, page retrieval, and MCP adapters |
 | `app/[[...slug]]/page.tsx` | Thin catalog-backed page, metadata, and static-parameter adapter |
 | `app/design-system/` | Local component gallery, excluded from indexing |
-| `migration/` | Baseline inventory, Paper measurements, parity matrix, and migration results |
+| `migration/` | Baseline inventory, design-system specification, parity matrix, and migration results |
 
 `app/` follows the App Router's file conventions. The root layout owns the persistent shell: navbar, sidebar, footer, search, and mobile navigation. Client navigation reads the current pathname without remounting the sidebar's scroll container. Only navigation metadata is shared with the client; document bodies and the complete catalog stay on the server. The single catch-all route loads that page's server-compiled MDX or specification reference into the shared article and page frame, which owns its responsive outline. Ordinary content does not create a React route or duplicate a layout. Promised route parameters and the Metadata API follow the installed Next.js 16 documentation.
 
@@ -33,11 +33,11 @@ The compiler records source hashes, heading IDs, code-fence hashes and media ref
 
 ## Extend the component library
 
-Paper is the visual source of truth. Exact board references, dimensions, tokens and intentional differences from platform components are in `migration/paper-design.md`.
+Shared dimensions, tokens, component ownership, and intentional differences from platform components are documented in `migration/design-system.md`.
 
 Keep reusable chrome in `components/docs/` and reusable reading components in `components/ui/`. Export Markdown element mappings from `getMDXComponents()` rather than styling each page. A new MDX component also needs an explicit compiler allowlist entry and a meaningful serializer in `lib/content/markdown.ts`. Add its states to `/design-system` and inspect its keyboard, touch, light and dark behavior.
 
-Use canonical `@sim/emcn/icons` glyphs. Docs tokens are scoped under `.docs-root`/`.docs-portal`; platform and landing styles are unchanged. The docs `cn` wrapper extends class merging for the Paper text-size tokens, so a color utility cannot erase a typography utility. Shared controls own hover, focus, pressed, disabled, loading, success, and error states.
+Use canonical `@sim/emcn/icons` glyphs. Docs tokens are scoped under `.docs-root`/`.docs-portal`; platform and landing styles are unchanged. The docs `cn` wrapper extends class merging for the named docs text-size tokens, so a color utility cannot erase a typography utility. Shared controls own hover, focus, pressed, disabled, loading, success, and error states.
 
 Default components to server rendering. Client islands are reserved for navigation, search, tabs, disclosure reveal, clipboard, media viewing, theme choice, and interactive workflow examples. Pass rendered server content into those islands. Never import the catalog, compiler, specifications, embedding credentials, or syntax highlighter into a client component.
 

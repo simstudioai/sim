@@ -1,6 +1,6 @@
 # Docs replacement verification
 
-The replacement was implemented from staging commit `01b236388a1fe4d9e609266d5acf265bef1b92c6`. The pre-update checkout was `31f75295216513bd89067a7b8b017cb3fa2be72c`. Paper source measurements and the complete board map are in [paper-design.md](paper-design.md); the behavior parity matrix is in [interfaces-research.md](interfaces-research.md).
+The replacement was implemented from staging commit `01b236388a1fe4d9e609266d5acf265bef1b92c6`. The pre-update checkout was `31f75295216513bd89067a7b8b017cb3fa2be72c`. The shared design-system specification is in [design-system.md](design-system.md); the behavior parity matrix is in [interfaces-research.md](interfaces-research.md).
 
 Before opening the draft PR, the branch was rebased onto staging `d444d58541`. The intervening changes were confined to platform workflow editing and a resource-sizing comment. The affected workflow-editing suite passed all 45 tests, and all 26 workspace type checks passed again after the rebase. A post-commit regeneration also verified that the migration report stays byte-identical to its formatted committed version.
 
@@ -24,7 +24,7 @@ The full machine-readable accounting is in [report.json](report.json), with the 
 | Root lint | 26 workspace tasks passed | `bun run lint` |
 | Root type check | 26 workspace tasks passed | `bun run type-check` |
 | Repository audits | All 61 passed | `bun run check:audits` |
-| Root tests | Original full run passed; latest run stopped on script timeouts. All four affected files passed in isolation (78 tests), and the docs workspace passed | `bun run test` with Node 24 |
+| Root tests | 634 script tests and 19 workspace tasks passed; the app suite passed 38,746 tests with 8 skipped and two executor timeouts, reproduced in isolation | `bun run test` with Node 24 |
 | Block registry | Canonical IDs, metadata coverage, replacements, and selector coercion passed | Base-sensitive check against staging |
 | Migration preservation | Zero lost routes/anchors or changed code-fence hashes | [Migration report](report.json) |
 | Complete corpus over HTTP | 2,996 passed | [Corpus report](verification/corpus.json) |
@@ -63,6 +63,20 @@ All eight new framing scenarios failed on the previous renderer ([report](verifi
 
 Production build, root lint, all 26 workspace type checks, all 61 audits, the docs unit suite, and the block registry check passed. The root test command stopped on six timeouts across four script files; rerunning those files after the other checks completed passed all 78 tests. The latest root invocation did not reach the workspace suites.
 
+### Reading width and expanded media
+
+The article now fills the remaining desktop grid space (728px at the 1280px shell width), and the outline’s right edge aligns with the header’s primary action. The [pre-fix width check](verification/reading-width-before-fix.json) measured 48px of unused space beside the outline. The shared image sizing hint and component gallery now match the wider article.
+
+The media viewer uses the original image’s intrinsic dimensions instead of a stretched, letterboxed image element. The shared screenshot frame applies rounded corners, border, and shadow directly to the image’s visible bounds. The [pre-fix viewer check](verification/viewer-corners-before-fix.json) reproduced the mismatch; all eight screenshot scenarios now check the image’s loaded state, intrinsic proportions, and rounded corners. See the expanded image on [desktop](verification/screenshots/expanded-platform-1440.png) and [mobile](verification/screenshots/expanded-platform-390.png).
+
+[Live asset hashes](verification/live-assets.json) confirm that all four photographic backgrounds and the platform screenshot match the current live deployment byte for byte. The user also confirmed that the landscape appears after reloading the old preview. No source screenshots, backgrounds, or authored content changed in this follow-up.
+
+Authoring-tool attributions, obsolete design exports, and an outdated gallery capture were removed. The shared design-system specification remains in [design-system.md](design-system.md). Client setup guides and product model identifiers remain unchanged.
+
+The production build, all 58 browser scenarios, root lint, all 26 workspace type checks, all 61 audits, the docs workspace test, and the block-registry check passed.
+
+The full repository run passed all 634 script tests and 19 workspace tasks. The app suite passed 38,746 tests with eight skipped; two unchanged executor tests timed out at ten seconds: the stale loop-branch scenario in `executor/execution/executor.test.ts` and the per-iteration hook scenario in `executor/execution/test-hooks.test.ts`. An isolated rerun passed the other 20 tests and reproduced both timeouts. No executor code or tests were changed. The initial desktop-suite startup failure came from missing headers in the local Node 24 runtime; temporarily linking its matching cached headers let the complete desktop suite pass, and the link was removed afterward.
+
 ### Performance evidence
 
 SSR-enabled dynamic boundaries keep the workflow renderer out of ordinary reading-page downloads. The introduction page's measured JavaScript fell from 628,703 to approximately 236,000 compressed bytes, a 62% reduction. All seven captured scenes have no document-level horizontal overflow. [Navigation timings and resource sizes](verification/performance.json) include the measurements and runtime context.
@@ -71,7 +85,7 @@ Precomputing search chunks moved Markdown parsing out of the request path. The s
 
 ### Visual review
 
-The [component gallery](../app/design-system/page.tsx) imports the same library as the docs. Representative screenshots are included for [introduction](verification/screenshots/introduction-desktop-light.png), [dark mode](verification/screenshots/introduction-desktop-dark.png), [mobile](verification/screenshots/introduction-mobile.png), [API reference](verification/screenshots/api-desktop.png), [Slack](verification/screenshots/slack-desktop.png), [SCIM](verification/screenshots/scim-desktop.png), and the [gallery](verification/screenshots/gallery-desktop.png). Additional captures show [320px](verification/screenshots/responsive-light-320.png), [1024px dark](verification/screenshots/responsive-dark-1024.png), and [1920px](verification/screenshots/responsive-light-1920.png).
+The [component gallery](../app/design-system/page.tsx) imports the same library as the docs. Representative screenshots are included for [introduction](verification/screenshots/introduction-desktop-light.png), [dark mode](verification/screenshots/introduction-desktop-dark.png), [mobile](verification/screenshots/introduction-mobile.png), [API reference](verification/screenshots/api-desktop.png), [Slack](verification/screenshots/slack-desktop.png), and [SCIM](verification/screenshots/scim-desktop.png). Additional captures show [320px](verification/screenshots/responsive-light-320.png), [1024px dark](verification/screenshots/responsive-dark-1024.png), and [1920px](verification/screenshots/responsive-light-1920.png).
 
 ## Repeat the checks
 

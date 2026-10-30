@@ -43,7 +43,7 @@ export function ScreenshotFrame({
       <span
         className={cn(
           variant === 'viewer'
-            ? 'relative block size-full'
+            ? 'relative flex size-full items-center justify-center [&>img]:rounded-lg [&>img]:border [&>img]:border-[var(--docs-border)] [&>img]:shadow-[var(--docs-shadow)]'
             : 'block overflow-hidden border border-[var(--docs-border)] bg-[var(--docs-canvas)] shadow-[var(--docs-shadow)]',
           variant === 'hero' &&
             'absolute top-[18.4%] left-[11%] w-[78%] rounded-t-lg max-sm:top-[14%] max-sm:left-[6%] max-sm:w-[88%]',

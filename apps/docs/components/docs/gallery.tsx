@@ -15,12 +15,12 @@ import { CLASSIFY_WORKFLOW, OutputBundle, WorkflowPreview } from '@/components/w
 /** A local, noindex gallery exercises the same component registry used by documentation. */
 export function DocsGallery() {
   return (
-    <div className='mx-auto max-w-[680px] py-10'>
+    <div className='mx-auto max-w-[728px] py-10'>
       <ContentInteractions />
       <Heading as='h1'>Docs component library</Heading>
       <p className='text-docs-body'>
-        The shared Paper system for authored pages, generated references, and interactive examples.
-        Change components here to change every page.
+        The shared Sim design system for authored pages, generated references, and interactive
+        examples. Update the shared components to change every page.
       </p>
       <Heading id='controls'>Controls and semantic labels</Heading>
       <div className='flex flex-wrap items-center gap-3'>

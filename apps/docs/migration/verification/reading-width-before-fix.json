@@ -1,0 +1,11 @@
+{
+  "origin": "http://localhost:3001",
+  "results": [
+    {
+      "name": "Responsive light at 1440px",
+      "status": "failed",
+      "durationMs": 303,
+      "error": "expect(received).toBeLessThan(expected)\n\nExpected: < 1\nReceived:   48"
+    }
+  ]
+}

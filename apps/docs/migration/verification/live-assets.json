@@ -1,0 +1,45 @@
+{
+  "liveDeployment": "dpl_2mHqqzBbvArhAsBPgiJkVEWjmKtL",
+  "assets": [
+    {
+      "asset": "san-francisco.webp",
+      "url": "https://docs.sim.ai/static/introduction/san-francisco.webp?dpl=dpl_2mHqqzBbvArhAsBPgiJkVEWjmKtL",
+      "bytes": 123410,
+      "liveSha256": "73ef858780ce93e40c778d880987e292b061a68d9a51c5daca408f92ed2832cf",
+      "localSha256": "73ef858780ce93e40c778d880987e292b061a68d9a51c5daca408f92ed2832cf",
+      "matches": true
+    },
+    {
+      "asset": "architecture.webp",
+      "url": "https://docs.sim.ai/static/introduction/architecture.webp?dpl=dpl_2mHqqzBbvArhAsBPgiJkVEWjmKtL",
+      "bytes": 65890,
+      "liveSha256": "4ceec82036664d9bf4bb509b9f3b92e462aebb4f910db7a5def1a3a513c4a73a",
+      "localSha256": "4ceec82036664d9bf4bb509b9f3b92e462aebb4f910db7a5def1a3a513c4a73a",
+      "matches": true
+    },
+    {
+      "asset": "ridges.webp",
+      "url": "https://docs.sim.ai/static/introduction/ridges.webp?dpl=dpl_2mHqqzBbvArhAsBPgiJkVEWjmKtL",
+      "bytes": 130274,
+      "liveSha256": "79b58ea7b4ae8a54baae4790d8ad5bdacdf31530472f7108c853b792253f1a20",
+      "localSha256": "79b58ea7b4ae8a54baae4790d8ad5bdacdf31530472f7108c853b792253f1a20",
+      "matches": true
+    },
+    {
+      "asset": "canyon.webp",
+      "url": "https://docs.sim.ai/static/introduction/canyon.webp?dpl=dpl_2mHqqzBbvArhAsBPgiJkVEWjmKtL",
+      "bytes": 155072,
+      "liveSha256": "64c010df69edc2db9b352c058ca6eab54101a44c979dc6ab4e98399370974108",
+      "localSha256": "64c010df69edc2db9b352c058ca6eab54101a44c979dc6ab4e98399370974108",
+      "matches": true
+    },
+    {
+      "asset": "platform.webp",
+      "url": "https://docs.sim.ai/static/introduction/platform.webp?dpl=dpl_2mHqqzBbvArhAsBPgiJkVEWjmKtL",
+      "bytes": 91962,
+      "liveSha256": "34942d0e8b23a3633faae627f3acafb9b78acca9bf8d1c2654be392844ce5f84",
+      "localSha256": "34942d0e8b23a3633faae627f3acafb9b78acca9bf8d1c2654be392844ce5f84",
+      "matches": true
+    }
+  ]
+}

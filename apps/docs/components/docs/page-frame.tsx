@@ -31,7 +31,7 @@ export function DocsPageFrame({ children, headings, api = false }: DocsPageFrame
       <div
         className={cn(
           'grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-x-12 px-5 pt-7 md:pt-10 lg:px-0 lg:pt-0',
-          !api && 'xl:grid-cols-[minmax(0,680px)_minmax(0,208px)]'
+          !api && 'xl:grid-cols-[minmax(0,1fr)_208px]'
         )}
       >
         <div className='min-w-0'>

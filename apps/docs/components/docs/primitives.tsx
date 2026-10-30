@@ -14,7 +14,7 @@ interface DocsButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconOnly?: boolean
 }
 
-/** Docs-scoped control geometry from the Paper component library. */
+/** Shared control geometry scoped to documentation. */
 export function DocsButton({ className, iconOnly, type = 'button', ...props }: DocsButtonProps) {
   return (
     <button
