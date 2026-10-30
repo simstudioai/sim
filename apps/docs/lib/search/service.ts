@@ -117,8 +117,15 @@ async function hybridSearch(query: string, limit: number, signal?: AbortSignal) 
   try {
     const lists = await Promise.allSettled([keyword, vector ?? Promise.resolve([])])
     const scores = new Map<string, { score: number; result: SearchResult }>()
-    for (const list of lists) {
-      if (list.status !== 'fulfilled') continue
+    for (const [source, list] of lists.entries()) {
+      if (list.status === 'rejected') {
+        if (!signal?.aborted)
+          logger.warn('Hybrid search query unavailable; serving remaining results', {
+            source: source === 0 ? 'keyword' : 'vector',
+            error: list.reason,
+          })
+        continue
+      }
       list.value.forEach((row, index) => {
         let citation: URL
         try {

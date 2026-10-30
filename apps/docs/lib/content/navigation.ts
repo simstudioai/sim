@@ -136,10 +136,11 @@ export function buildNavigation(
         parent.kind = 'group'
         parent.children = [...(parent.children ?? []), node]
         grouped.add(page.url)
-      } else if (!parentSlug) {
+      } else if (parentSlug === undefined) {
         shared.push(node)
         grouped.add(page.url)
-      }
+      } else
+        throw new Error(`Unknown integration parent ${parentSlug} for credential guide ${slug}`)
     }
     for (const guide of integrationNavigation.relatedPages) {
       const parent = children.find((child) => child.url === `/integrations/${guide.integration}`)
