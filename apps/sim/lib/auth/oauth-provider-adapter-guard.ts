@@ -20,8 +20,18 @@ interface OAuthConsentInsert {
   userId: string | null
   referenceId: string | null
   scopes: string[]
+  resources: string[] | null
+  requestedUserInfoClaims: string[] | null
   createdAt: Date
   updatedAt: Date
+}
+
+function isOptionalStringArray(value: unknown): value is string[] | null | undefined {
+  return (
+    value === undefined ||
+    value === null ||
+    (Array.isArray(value) && value.every((entry) => typeof entry === 'string'))
+  )
 }
 
 async function deleteTrackedFamilies(
@@ -33,7 +43,7 @@ async function deleteTrackedFamilies(
 }
 
 /**
- * Compensates for Better Auth 1.6's non-transactional authorization-code token issuance.
+ * Compensates for Better Auth's non-transactional authorization-code token issuance.
  * A failed response cannot expose the refresh secret, so its newly inserted family is deleted.
  */
 export async function withOAuthProviderIssuanceCompensation<T extends Response>(
@@ -56,6 +66,8 @@ function requireConsentInsert(data: Record<string, unknown>): OAuthConsentInsert
     typeof data.clientId !== 'string' ||
     !Array.isArray(data.scopes) ||
     !data.scopes.every((scope) => typeof scope === 'string') ||
+    !isOptionalStringArray(data.resources) ||
+    !isOptionalStringArray(data.requestedUserInfoClaims) ||
     !(data.createdAt instanceof Date) ||
     !(data.updatedAt instanceof Date) ||
     (data.id !== undefined && typeof data.id !== 'string') ||
@@ -72,6 +84,8 @@ function requireConsentInsert(data: Record<string, unknown>): OAuthConsentInsert
     userId: typeof data.userId === 'string' ? data.userId : null,
     referenceId: typeof data.referenceId === 'string' ? data.referenceId : null,
     scopes: data.scopes,
+    resources: data.resources ?? null,
+    requestedUserInfoClaims: data.requestedUserInfoClaims ?? null,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -80,7 +94,7 @@ function requireConsentInsert(data: Record<string, unknown>): OAuthConsentInsert
 /**
  * Makes the provider's read-then-create consent path atomic.
  *
- * Better Auth 1.6.27 first looks for a grant and then inserts one. Two consent
+ * Better Auth first looks for a grant and then inserts one. Two consent
  * submissions can therefore race. The database uniqueness constraint is the
  * integrity backstop; this adapter seam turns the losing insert into the same
  * scope update the provider would have made had its preceding read seen the
@@ -139,6 +153,8 @@ export function guardOAuthProviderWrites(
           userId: values.userId ?? null,
           referenceId: values.referenceId ?? null,
           scopes: values.scopes,
+          resources: values.resources,
+          requestedUserInfoClaims: values.requestedUserInfoClaims,
           createdAt: values.createdAt,
           updatedAt: values.updatedAt,
         })
@@ -146,6 +162,8 @@ export function guardOAuthProviderWrites(
           target: [oauthConsent.userId, oauthConsent.clientId, oauthConsent.referenceId],
           set: {
             scopes: values.scopes,
+            resources: values.resources,
+            requestedUserInfoClaims: values.requestedUserInfoClaims,
             updatedAt: values.updatedAt,
           },
         })

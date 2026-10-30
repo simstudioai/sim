@@ -14,18 +14,19 @@ interface OAuthErrorPageProps {
 }
 
 /**
- * Landing page for OAuth flows that end in an error before the flow state can
- * be parsed — most commonly the user clicking "Cancel"/"Deny" at the
- * provider's consent screen (`?error=access_denied`). Better Auth redirects
- * such errors to `onAPIError.errorURL` (this page) BEFORE it can honor a
- * per-flow `errorCallbackURL`, so the desktop handoff's loopback is never
+ * Landing page (`onAPIError.errorURL`) for OAuth flows that end in an error
+ * without a per-flow `errorCallbackURL` — most commonly the user clicking
+ * "Cancel"/"Deny" at the provider's consent screen (`?error=access_denied`) —
+ * or before the flow state can be read (`state_not_found`, `state_mismatch`),
+ * where no per-flow URL is known and the desktop handoff's loopback is never
  * pinged. Without this page those errors 404'd (a dead-end); here the user
  * gets a clear message and a way back. Re-initiating the sign-in/connect from
  * the app supersedes the idle handoff, so no explicit hand-back is needed.
  */
 const FRIENDLY: Record<string, string> = {
   access_denied: 'You declined the request at the provider, so nothing was connected.',
-  oAuth_code_missing: 'The provider didn’t return a valid response. Please try again.',
+  no_code: 'The provider didn’t return a valid response. Please try again.',
+  invalid_code: 'The provider didn’t return a valid response. Please try again.',
   /**
    * DISABLE_REGISTRATION rejecting a first-time social sign-in. Better Auth
    * reports this as `signup disabled`, which it slugs into the `error` param.

@@ -59,6 +59,18 @@ describe('OAuth login bridge', () => {
     expect(callback.searchParams.has('ba_iat')).toBe(false)
   })
 
+  it('restores the client resource the authorize route handed the provider', async () => {
+    const response = await GET(
+      request(
+        'client_id=mcp-client&scope=api%3Aread&sim_resource=https%3A%2F%2Fsim.test%2Fapi%2Fmcp&sig=signed'
+      )
+    )
+    const { callback } = redirectParts(response)
+
+    expect(callback.searchParams.get('resource')).toBe('https://sim.test/api/mcp')
+    expect(callback.searchParams.has('sim_resource')).toBe(false)
+  })
+
   it('uses the same redirect precedence as the form and requires authentication for OAuth', async () => {
     const destination = new URL('/login', 'https://sim.test')
     destination.searchParams.set('callbackUrl', '/api/auth/oauth2/authorize?client_id=sim-cli')

@@ -34,7 +34,7 @@ vi.mock('better-auth/next-js', () => ({
 
 vi.mock('@/lib/auth/auth', () => ({
   getSession: mocks.getSession,
-  auth: { handler: {}, api: { oAuth2LinkAccount: mocks.linkAccount } },
+  auth: { handler: {}, api: { linkSocialAccount: mocks.linkAccount } },
 }))
 vi.mock('@/lib/core/config/env-capabilities.server', () => ({
   requireConfiguredOAuthClient: mocks.requireClient,
@@ -156,10 +156,10 @@ describe('OAuth2 authorize route', () => {
     })
     expect((await GET(req)).status).toBe(302)
     const forwarded: Request = mocks.betterAuthGET.mock.calls[0][0]
-    expect(new URL(forwarded.url).searchParams.get('scope')).toBe('search:read offline_access')
-    expect(new URL(forwarded.url).searchParams.get('resource')).toBe(
-      req.nextUrl.searchParams.get('resource')
-    )
+    const forwardedParams = new URL(forwarded.url).searchParams
+    expect(forwardedParams.get('scope')).toBe('search:read offline_access')
+    expect(forwardedParams.has('resource')).toBe(false)
+    expect(forwardedParams.get('sim_resource')).toBe(req.nextUrl.searchParams.get('resource'))
     expect(req.nextUrl.searchParams.get('scope')).toContain('api:write')
   })
 
@@ -202,7 +202,27 @@ describe('OAuth2 authorize route', () => {
     expect(new URL(forwarded.url).searchParams.get('scope')).toBe(
       'api:read api:write offline_access'
     )
-    expect(new URL(forwarded.url).searchParams.get('resource')).toBe(`${BASE_URL}/api/mcp`)
+    expect(new URL(forwarded.url).searchParams.has('resource')).toBe(false)
+    expect(new URL(forwarded.url).searchParams.get('sim_resource')).toBe(`${BASE_URL}/api/mcp`)
+  })
+
+  it.each([
+    { sim_resource: `${BASE_URL}/api/mcp` },
+    { dpop_jkt: 'a'.repeat(43), resource: `${BASE_URL}/api/mcp` },
+  ])('refuses reserved or unsupported provider parameters: %o', async (extra) => {
+    const response = await GET(
+      request({
+        client_id: 'mcp-client',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        scope: 'api:read offline_access',
+        code_challenge: 'a'.repeat(43),
+        code_challenge_method: 'S256',
+        ...extra,
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(mocks.betterAuthGET).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -387,7 +407,8 @@ describe('OAuth2 authorize route', () => {
     )
 
     expect(accepted.status).toBe(302)
-    expect(mocks.betterAuthGET).toHaveBeenCalledWith(acceptedRequest)
+    const forwarded: Request = mocks.betterAuthGET.mock.calls[0][0]
+    expect(forwarded.url).toBe(acceptedRequest.url)
     expect(resource.status).toBe(400)
     await expect(resource.json()).resolves.toMatchObject({ error: 'invalid_request' })
   })

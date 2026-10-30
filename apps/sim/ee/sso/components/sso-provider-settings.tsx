@@ -36,9 +36,8 @@ import { useConfigureSSO } from '@/ee/sso/hooks/sso'
 const logger = createLogger('SSO')
 
 /** Claim names each protocol uses out of the box; shown as input placeholders. */
-const OIDC_DEFAULT_MAPPING = { id: 'sub', email: 'email', name: 'name', image: 'picture' } as const
+const OIDC_DEFAULT_MAPPING = { email: 'email', name: 'name', image: 'picture' } as const
 const SAML_DEFAULT_MAPPING = {
-  id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
   email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
   name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
 } as const
@@ -180,7 +179,6 @@ const DEFAULT_FORM_DATA = {
   audience: '',
   wantAssertionsSigned: true,
   idpMetadata: '',
-  mapId: '',
   mapEmail: '',
   mapName: '',
   identifierFormat: '',
@@ -365,7 +363,6 @@ export function SsoProviderSettings({
               orgId: organizationId,
               jitProvisioningEnabled: formData.jitProvisioningEnabled,
               mapping: {
-                id: formData.mapId.trim() || OIDC_DEFAULT_MAPPING.id,
                 email: formData.mapEmail.trim() || OIDC_DEFAULT_MAPPING.email,
                 name: formData.mapName.trim() || OIDC_DEFAULT_MAPPING.name,
                 image: OIDC_DEFAULT_MAPPING.image,
@@ -395,7 +392,6 @@ export function SsoProviderSettings({
               orgId: organizationId,
               jitProvisioningEnabled: formData.jitProvisioningEnabled,
               mapping: {
-                id: formData.mapId.trim() || SAML_DEFAULT_MAPPING.id,
                 email: formData.mapEmail.trim() || SAML_DEFAULT_MAPPING.email,
                 name: formData.mapName.trim() || SAML_DEFAULT_MAPPING.name,
               },
@@ -431,7 +427,6 @@ export function SsoProviderSettings({
     const next = { ...formData, [field]: value }
     /** Claim names are protocol-specific, so an override must not survive a switch. */
     if (field === 'providerType') {
-      next.mapId = ''
       next.mapEmail = ''
       next.mapName = ''
       setShowErrors(false)
@@ -449,7 +444,7 @@ export function SsoProviderSettings({
   const mappingDefaults = isSaml ? SAML_DEFAULT_MAPPING : OIDC_DEFAULT_MAPPING
   const callbackUrl =
     (isSaml && formData.callbackUrl) ||
-    `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
+    `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/sp/acs' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
   const handleEdit = () => {
     if (!existingProvider) return
@@ -465,7 +460,7 @@ export function SsoProviderSettings({
       let wantAssertionsSigned = true
       let idpMetadata = ''
       /** Blank means "use the protocol default", so only carry over a stored value that differs — otherwise editing rewrites a default as an explicit override. */
-      let mapping: { id?: string; email?: string; name?: string } = {}
+      let mapping: { email?: string; name?: string } = {}
       let identifierFormat = ''
       let authorizationEndpoint = ''
       let tokenEndpoint = ''
@@ -486,7 +481,7 @@ export function SsoProviderSettings({
         cert = config.cert || ''
         callbackUrl = config.callbackUrl || ''
         audience = config.audience || ''
-        wantAssertionsSigned = config.wantAssertionsSigned ?? true
+        wantAssertionsSigned = config.wantAssertionsSigned === true
         /** Two stored shapes: `{ metadata }` from the route, a bare string from older rows. Narrow on type, not truthiness — `{ metadata: '' }` is falsy at `.metadata` but truthy as an object, putting an object in a string field. */
         idpMetadata =
           typeof config.idpMetadata === 'string'
@@ -515,7 +510,6 @@ export function SsoProviderSettings({
         audience,
         wantAssertionsSigned,
         idpMetadata,
-        mapId: overrideOf(mapping.id, defaults.id),
         mapEmail: overrideOf(mapping.email, defaults.email),
         mapName: overrideOf(mapping.name, defaults.name),
         identifierFormat,
@@ -530,7 +524,7 @@ export function SsoProviderSettings({
       setShowErrors(false)
       setShowAdvanced(false)
       setIsReplacingClientSecret(false)
-      setShowMapping(Boolean(snapshot.mapId || snapshot.mapEmail || snapshot.mapName))
+      setShowMapping(Boolean(snapshot.mapEmail || snapshot.mapName))
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
       toast.error('Failed to load provider configuration')
@@ -552,7 +546,7 @@ export function SsoProviderSettings({
     const providerCallbackUrl =
       (existingProvider.providerType === 'saml' &&
         readProviderConfigString(existingProvider.samlConfig, 'callbackUrl')) ||
-      `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
+      `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/sp/acs' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
       <div className='flex flex-col gap-7'>
@@ -1047,7 +1041,7 @@ export function SsoProviderSettings({
                             <ChipInput
                               id='sso-callback-override'
                               type='url'
-                              placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
+                              placeholder={`${getBaseUrl()}/api/auth/sso/saml2/sp/acs/provider-id`}
                               value={formData.callbackUrl}
                               autoComplete='off'
                               autoCapitalize='none'
@@ -1168,22 +1162,6 @@ export function SsoProviderSettings({
                           spellCheck={false}
                           onChange={(e) => handleInputChange('mapName', e.target.value)}
                         />
-                      </SettingRow>
-
-                      <SettingRow label='User ID attribute' htmlFor='sso-id-attribute' optional>
-                        <ChipInput
-                          id='sso-id-attribute'
-                          type='text'
-                          placeholder={mappingDefaults.id}
-                          value={formData.mapId}
-                          autoComplete='off'
-                          autoCapitalize='none'
-                          spellCheck={false}
-                          onChange={(e) => handleInputChange('mapId', e.target.value)}
-                        />
-                        <p className='text-[var(--text-muted)] text-caption'>
-                          Must be stable and unique per user — changing it later re-links accounts.
-                        </p>
                       </SettingRow>
                     </div>
                   </ExpandableContent>

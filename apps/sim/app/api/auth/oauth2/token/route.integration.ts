@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { auth } from '@/lib/auth'
 import * as tokenStore from '@/lib/auth/oauth-access-token'
 import * as provider from '@/lib/auth/oauth-provider'
+import { OAUTH_AUTHORIZED_RESOURCE_PARAM } from '@/lib/auth/oauth-resource'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { POST as revokeRoute } from '@/app/api/auth/oauth2/revoke/route'
 import { POST as tokenRoute } from '@/app/api/auth/oauth2/token/route'
@@ -78,7 +79,8 @@ describe('OAuth token route in PostgreSQL', () => {
           scope: scopes.join(' '),
           code_challenge: Buffer.from(challenge).toString('base64url'),
           code_challenge_method: 'S256',
-          resource,
+          /** What the authorize route hands the provider for a validated `resource`. */
+          [OAUTH_AUTHORIZED_RESOURCE_PARAM]: resource,
           state: generateId(),
           prompt: 'consent',
         }).toString()
@@ -86,8 +88,10 @@ describe('OAuth token route in PostgreSQL', () => {
         expect(response.status).toBe(302)
         const consentLocation = new URL(response.headers.get('location') ?? '', baseUrl)
         expect(consentLocation.pathname).toBe('/oauth/consent')
-        expect(consentLocation.searchParams.get('resource')).toBe(resource)
-        expect(consentLocation.searchParams.getAll('ba_param')).toContain('resource')
+        expect(consentLocation.searchParams.get(OAUTH_AUTHORIZED_RESOURCE_PARAM)).toBe(resource)
+        expect(consentLocation.searchParams.getAll('ba_param')).toContain(
+          OAUTH_AUTHORIZED_RESOURCE_PARAM
+        )
         expect(consentLocation.searchParams.has('sig')).toBe(true)
         const signedQuery = consentLocation.search.slice(1)
         const submitConsent = (query: string) =>
@@ -100,8 +104,8 @@ describe('OAuth token route in PostgreSQL', () => {
           )
         for (const replacement of [null, otherResource]) {
           const tampered = new URLSearchParams(signedQuery)
-          if (replacement) tampered.set('resource', replacement)
-          else tampered.delete('resource')
+          if (replacement) tampered.set(OAUTH_AUTHORIZED_RESOURCE_PARAM, replacement)
+          else tampered.delete(OAUTH_AUTHORIZED_RESOURCE_PARAM)
           const rejected = await submitConsent(tampered.toString())
           expect(rejected.status).toBe(400)
           await expect(rejected.json()).resolves.toMatchObject({ error: 'invalid_signature' })

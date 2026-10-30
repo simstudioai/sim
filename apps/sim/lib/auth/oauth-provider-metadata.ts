@@ -9,31 +9,36 @@ const DISCOVERY_HEADERS = {
   'Access-Control-Allow-Origin': '*',
 } as const
 
+/** The client authentication Sim's own token and revocation routes implement. */
+const SIM_CLIENT_AUTH_METHODS = ['none', 'client_secret_basic', 'client_secret_post'] as const
+
 /**
- * OAuth authorization-server metadata with Sim's registered public-client
- * authentication method included.
+ * OAuth authorization-server metadata limited to what Sim's protocol routes
+ * serve.
  *
- * Public Search clients and the first-party CLI use `none` for token exchange
- * and revocation. Introspection is not exposed by Sim's protocol routes.
+ * Sim owns the token and revocation endpoints and accepts only the client
+ * authentication methods above, issues bearer tokens only, exposes no
+ * introspection, and runs without the JWT plugin. The provider's document also
+ * advertises `private_key_jwt`, DPoP, introspection, and back-channel logout,
+ * so only the fields Sim honors are copied.
  */
 export async function getOAuthProviderMetadata() {
   const metadata = await auth.api.getOAuthServerConfig()
-  const {
-    introspection_endpoint: _introspectionEndpoint,
-    introspection_endpoint_auth_methods_supported: _introspectionAuthMethods,
-    ...supportedMetadata
-  } = metadata
-  const publicClientAuthMethods = (methods: string[] | undefined) => [
-    ...new Set([...(methods ?? []), 'none']),
-  ]
   return {
-    ...supportedMetadata,
-    token_endpoint_auth_methods_supported: publicClientAuthMethods(
-      metadata.token_endpoint_auth_methods_supported
-    ),
-    revocation_endpoint_auth_methods_supported: publicClientAuthMethods(
-      metadata.revocation_endpoint_auth_methods_supported
-    ),
+    issuer: metadata.issuer,
+    authorization_endpoint: metadata.authorization_endpoint,
+    token_endpoint: metadata.token_endpoint,
+    registration_endpoint: metadata.registration_endpoint,
+    revocation_endpoint: metadata.revocation_endpoint,
+    scopes_supported: metadata.scopes_supported,
+    response_types_supported: metadata.response_types_supported,
+    response_modes_supported: metadata.response_modes_supported,
+    grant_types_supported: metadata.grant_types_supported,
+    code_challenge_methods_supported: metadata.code_challenge_methods_supported,
+    authorization_response_iss_parameter_supported:
+      metadata.authorization_response_iss_parameter_supported,
+    token_endpoint_auth_methods_supported: SIM_CLIENT_AUTH_METHODS,
+    revocation_endpoint_auth_methods_supported: SIM_CLIENT_AUTH_METHODS,
   }
 }
 

@@ -26,7 +26,6 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 const ORIGIN = 'http://localhost:3000'
 const PROVIDER_ID = 'google-drive'
-const DISCOVERY_URL = 'https://accounts.google.com/.well-known/openid-configuration'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo'
 const fixturePassword = 'Reconnect-conflict-fixture-password-36!'
@@ -88,14 +87,6 @@ describe('reconnecting a credential onto an account another credential uses', ()
 
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const target = typeof input === 'string' || input instanceof URL ? String(input) : input.url
-      if (target === DISCOVERY_URL) {
-        return jsonResponse({
-          issuer: 'https://accounts.google.com',
-          authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-          token_endpoint: TOKEN_URL,
-          userinfo_endpoint: USERINFO_URL,
-        })
-      }
       if (target === TOKEN_URL) {
         return jsonResponse({
           access_token: `fresh-access-${chosenSubject}`,
@@ -196,11 +187,11 @@ describe('reconnecting a credential onto an account another credential uses', ()
     const startedFrom = `${ORIGIN}/workspace/${workspaceId}/integrations/connected/${workCredentialId}`
 
     const link = await auth.handler(
-      new Request(`${ORIGIN}/api/auth/oauth2/link`, {
+      new Request(`${ORIGIN}/api/auth/link-social`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', origin: ORIGIN, cookie: sessionCookie },
         body: JSON.stringify({
-          providerId: PROVIDER_ID,
+          provider: PROVIDER_ID,
           callbackURL: `${startedFrom}?credentialDraftId=${draftId}`,
         }),
       })
@@ -212,7 +203,7 @@ describe('reconnecting a credential onto an account another credential uses', ()
 
     const callback = await auth.handler(
       new Request(
-        `${ORIGIN}/api/auth/oauth2/callback/${PROVIDER_ID}?code=fixture-code&state=${encodeURIComponent(state)}`,
+        `${ORIGIN}/api/auth/callback/${PROVIDER_ID}?code=fixture-code&state=${encodeURIComponent(state)}`,
         { headers: { cookie: cookieHeader(link, sessionCookie) } }
       )
     )

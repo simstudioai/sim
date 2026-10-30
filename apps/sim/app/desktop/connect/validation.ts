@@ -2,7 +2,7 @@ import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-c
 
 /**
  * OAuth providerIds are kebab-case service slugs (e.g. "google-email"). The
- * value is only used to start a better-auth oauth2.link flow, which validates
+ * value is only used to start a better-auth linkSocial flow, which validates
  * it against the configured providers — this pattern just keeps junk out of
  * URLs and logs.
  */

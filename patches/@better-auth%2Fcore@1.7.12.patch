@@ -1,0 +1,17 @@
+diff --git a/dist/utils/ip.mjs b/dist/utils/ip.mjs
+index 0c3dad186fa93f7466bde49e6b54fc6f9f6a2f64..ec3a21ebd977f4518fa2bbcd04279cb7102caaa9 100644
+--- a/dist/utils/ip.mjs
++++ b/dist/utils/ip.mjs
+@@ -10,10 +10,10 @@ function isValidIP(ip) {
+ 	return isIPv4(ip) || isIPv6(ip);
+ }
+ function isIPv4(ip) {
+-	return z.validate(ipv4Schema, ip);
++	return ipv4Schema.safeParse(ip).success;
+ }
+ function isIPv6(ip) {
+-	return z.validate(ipv6Schema, ip);
++	return ipv6Schema.safeParse(ip).success;
+ }
+ /**
+ * Converts IPv4-mapped IPv6 address to IPv4

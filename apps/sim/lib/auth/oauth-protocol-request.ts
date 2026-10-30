@@ -101,7 +101,7 @@ const DELEGATED_OAUTH_ERROR_CODES = new Set([
   'unsupported_grant_type',
 ])
 
-/** Normalizes Better Auth 1.6 token errors to RFC 6749 and RFC 7636 semantics. */
+/** Normalizes Better Auth token errors to RFC 6749 and RFC 7636 semantics. */
 export async function normalizeDelegatedOAuthTokenResponse(
   response: Response,
   method: OAuthClientCredentials['method']
@@ -231,9 +231,11 @@ async function readBoundedOAuthBody(request: Request): Promise<OAuthBodyReadResu
 }
 
 /**
- * Rebuilds the consumed request for Better Auth 1.6.
- * Its Basic parser omits RFC 6749 form-decoding, so already-authenticated Basic
- * credentials are passed through its body path using their decoded values.
+ * Rebuilds the consumed request for Better Auth.
+ * Already-authenticated Basic credentials are passed through its body path
+ * using their RFC 6749 form-decoded values. A DPoP proof is dropped: Sim's
+ * resource servers accept only bearer tokens, so a DPoP-bound token would be
+ * unusable.
  */
 export function buildDelegatedOAuthRequest(
   request: NextRequest,
@@ -249,6 +251,7 @@ export function buildDelegatedOAuthRequest(
     headers.delete('authorization')
   }
   headers.delete('content-length')
+  headers.delete('dpop')
   return new NextRequest(request.url, {
     method: request.method,
     headers,

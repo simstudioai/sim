@@ -51,6 +51,34 @@ async function isBlockedVerificationOtpSend(request: NextRequest, path: string):
   return (body as { type?: unknown } | null)?.type !== ALLOWED_VERIFICATION_OTP_TYPE
 }
 
+/**
+ * Email OTP sign-in. No Sim surface sends a sign-in OTP (see the sender guard above), and for a user
+ * whose email was never verified the plugin's sign-in deletes every linked account and session
+ * before signing in — integration credentials included. Unreachable rather than relying on no OTP
+ * of that type ever existing.
+ */
+const EMAIL_OTP_SIGN_IN_PATH = 'sign-in/email-otp'
+
+/**
+ * Better Auth 1.6 also served SAML responses at `sso/saml2/callback/:providerId`, and providers
+ * registered before 1.7 advertise that URL in their stored SP metadata and in their IdP's ACS
+ * configuration. 1.7 serves only `sso/saml2/sp/acs/:providerId`, which still accepts the legacy
+ * URL as a Destination/Recipient because the stored SP metadata names it.
+ */
+const LEGACY_SAML_CALLBACK_PATH = /^sso\/saml2\/callback\/([^/]+)$/
+
+/** The same request — method, headers, query, and streamed body — addressed to another auth path. */
+function forwardToAuthPath(request: NextRequest, authPath: string): Request {
+  const url = new URL(request.url)
+  url.pathname = `/api/auth/${authPath}`
+  return new Request(url, request)
+}
+
+function toSamlAcsRequest(request: NextRequest, path: string): Request | null {
+  const providerId = LEGACY_SAML_CALLBACK_PATH.exec(path)?.[1]
+  return providerId ? forwardToAuthPath(request, `sso/saml2/sp/acs/${providerId}`) : null
+}
+
 const OAUTH_CALLBACK_PATH_PREFIX = 'oauth2/callback/'
 const UNSUPPORTED_OIDC_PATHS = new Set([
   '.well-known/openid-configuration',
@@ -85,23 +113,27 @@ function isBlockedOrganizationMutationPath(path: string): boolean {
   return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
 }
 
-function getCredentialGroupCallbackProviderId(request: NextRequest, path: string): string | null {
-  const state = request.nextUrl.searchParams.get('state')
-  if (
-    !state ||
-    !isCredentialGroupOAuthState(state) ||
-    !path.startsWith(OAUTH_CALLBACK_PATH_PREFIX)
-  ) {
-    return null
-  }
+/**
+ * The provider id of a connector callback on the redirect URI registered with each provider
+ * (`/api/auth/oauth2/callback/:id`). Better Auth 1.7 serves it at core's `/callback/:id`; the
+ * registered URIs stay as they are, so these requests are forwarded there.
+ */
+function getConnectorCallbackProviderId(path: string): string | null {
+  if (!path.startsWith(OAUTH_CALLBACK_PATH_PREFIX)) return null
   const providerId = path.slice(OAUTH_CALLBACK_PATH_PREFIX.length)
   return providerId && !providerId.includes('/') ? providerId : null
+}
+
+function getCredentialGroupCallbackProviderId(request: NextRequest, path: string): string | null {
+  const state = request.nextUrl.searchParams.get('state')
+  if (!state || !isCredentialGroupOAuthState(state)) return null
+  return getConnectorCallbackProviderId(path)
 }
 
 /**
  * SSO provider configuration is owned by `/api/auth/sso/register`, which proves
  * domain ownership before granting trust and restricts the attribute mapping to
- * `id`/`email`/`name`/`image`. The plugin's own `sso/update-provider` bypasses
+ * `email`/`name`/`image`. The plugin's own `sso/update-provider` bypasses
  * both: it is gated only on provider ownership and merges the caller's config,
  * so a provider owner could add `mapping.emailVerified` — a change the plugin's
  * identity-boundary guard does not consider, so it never trips the linked-account
@@ -136,17 +168,11 @@ function isBlockedSsoMutationPath(path: string): boolean {
  * granting or revoking it, never by editing the row.
  *
  * Deny-by-default, like the SSO block above, so a future plugin version cannot
- * introduce another unshadowed mutation endpoint. `oauth2/link` and
- * `oauth2/callback/` belong to the existing generic OAuth connector client.
+ * introduce another unshadowed mutation endpoint. Connectors link through core's
+ * `/link-social` and return on GET, so no `oauth2/` POST belongs to them.
  */
 function isBlockedOAuthProviderMutationPath(path: string): boolean {
-  if (
-    !path.startsWith('oauth2/') ||
-    path === 'oauth2/link' ||
-    path.startsWith('oauth2/callback/')
-  ) {
-    return false
-  }
+  if (!path.startsWith('oauth2/')) return false
   return !OAUTH_PROVIDER_PROTOCOL_POST_PATHS.has(path)
 }
 
@@ -189,6 +215,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
   }
 
+  const connectorCallbackProviderId = getConnectorCallbackProviderId(path)
+  if (connectorCallbackProviderId) {
+    return betterAuthGET(
+      forwardToAuthPath(request, `callback/${encodeURIComponent(connectorCallbackProviderId)}`)
+    )
+  }
+
+  const samlAcsRequest = toSamlAcsRequest(request, path)
+  if (samlAcsRequest) return betterAuthGET(samlAcsRequest)
+
   if (path === 'get-session' && isAuthDisabled) {
     await ensureAnonymousUserExists()
     return NextResponse.json(createAnonymousSession())
@@ -222,6 +258,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
+  if (path === EMAIL_OTP_SIGN_IN_PATH) {
+    return NextResponse.json({ error: 'Email code sign-in is not available.' }, { status: 404 })
+  }
+
   if (isBlockedOAuthProviderMutationPath(path)) {
     return NextResponse.json(
       { error: 'OAuth client registration is not available.' },
@@ -236,5 +276,5 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  return betterAuthPOST(request)
+  return betterAuthPOST(toSamlAcsRequest(request, path) ?? request)
 })

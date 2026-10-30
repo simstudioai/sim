@@ -33,12 +33,22 @@ describe('OAuth provider metadata', () => {
       issuer: 'https://sim.test/api/auth',
       authorization_endpoint: 'https://sim.test/api/auth/oauth2/authorize',
       token_endpoint: 'https://sim.test/api/auth/oauth2/token',
+      registration_endpoint: 'https://sim.test/api/auth/oauth2/register',
       revocation_endpoint: 'https://sim.test/api/auth/oauth2/revoke',
       introspection_endpoint: 'https://sim.test/api/auth/oauth2/introspect',
-      introspection_endpoint_auth_methods_supported: ['client_secret_post'],
-      token_endpoint_auth_methods_supported: ['client_secret_post'],
-      revocation_endpoint_auth_methods_supported: ['none', 'client_secret_post'],
+      introspection_endpoint_auth_methods_supported: ['client_secret_basic', 'private_key_jwt'],
+      token_endpoint_auth_methods_supported: [
+        'none',
+        'client_secret_basic',
+        'client_secret_post',
+        'private_key_jwt',
+      ],
+      token_endpoint_auth_signing_alg_values_supported: ['ES256'],
+      revocation_endpoint_auth_methods_supported: ['client_secret_basic', 'private_key_jwt'],
+      dpop_signing_alg_values_supported: ['ES256'],
+      backchannel_logout_supported: false,
       scopes_supported: ['offline_access', 'api:read', 'api:write'],
+      code_challenge_methods_supported: ['S256'],
     })
   })
 
@@ -49,22 +59,21 @@ describe('OAuth provider metadata', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('access-control-allow-origin')).toBe('*')
     expect(response.headers.get('cache-control')).toBe('public, max-age=300')
-    expect(metadata).toMatchObject({
+    expect(metadata).toEqual({
       issuer: 'https://sim.test/api/auth',
       authorization_endpoint: 'https://sim.test/api/auth/oauth2/authorize',
       token_endpoint: 'https://sim.test/api/auth/oauth2/token',
+      registration_endpoint: 'https://sim.test/api/auth/oauth2/register',
       revocation_endpoint: 'https://sim.test/api/auth/oauth2/revoke',
+      scopes_supported: ['offline_access', 'api:read', 'api:write'],
+      code_challenge_methods_supported: ['S256'],
+      token_endpoint_auth_methods_supported: ['none', 'client_secret_basic', 'client_secret_post'],
+      revocation_endpoint_auth_methods_supported: [
+        'none',
+        'client_secret_basic',
+        'client_secret_post',
+      ],
     })
-    expect(metadata.token_endpoint_auth_methods_supported).toEqual(['client_secret_post', 'none'])
-    expect(metadata.revocation_endpoint_auth_methods_supported).toEqual([
-      'none',
-      'client_secret_post',
-    ])
-    expect(metadata.introspection_endpoint).toBeUndefined()
-    expect(metadata.introspection_endpoint_auth_methods_supported).toBeUndefined()
-    expect(metadata.scopes_supported).toEqual(['offline_access', 'api:read', 'api:write'])
-    expect(metadata.userinfo_endpoint).toBeUndefined()
-    expect(metadata.jwks_uri).toBeUndefined()
   })
 
   it.each(routes)(

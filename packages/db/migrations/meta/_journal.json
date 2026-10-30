@@ -3130,6 +3130,20 @@
       "when": 1793401421656,
       "tag": "0447_sim_links",
       "breakpoints": true
+    },
+    {
+      "idx": 448,
+      "version": "7",
+      "when": 1793415528535,
+      "tag": "0448_oauth_provider_better_auth_1_7",
+      "breakpoints": true
+    },
+    {
+      "idx": 449,
+      "version": "7",
+      "when": 1793415547934,
+      "tag": "0449_sso_saml_signin_authority",
+      "breakpoints": true
     }
   ]
 }

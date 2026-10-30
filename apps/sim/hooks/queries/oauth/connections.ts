@@ -205,8 +205,8 @@ export function useConnectOAuthService() {
       }
 
       const scopes = getPerRequestOAuthLinkScopes(providerId)
-      await client.oauth2.link({
-        providerId,
+      await client.linkSocial({
+        provider: providerId,
         callbackURL: stateCallbackUrl.toString(),
         ...(scopes && { scopes }),
       })

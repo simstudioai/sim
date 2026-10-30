@@ -49,11 +49,11 @@ Use OIDC when your provider supports OpenID Connect, or SAML 2.0 for a SAML conn
 | **Domain** | The verified email domain served by this connection, such as `acme.com` |
 | **On first SSO sign-in** | **Automatic** adds new organization members; **Invite only** authenticates without adding membership. See [membership behavior](#membership-and-account-linking). |
 
-For OIDC, also enter **Client ID** and **Client secret**. Sim discovers authorization, token, UserInfo, and JWKS endpoints from `{issuer}/.well-known/openid-configuration`. Under **Advanced options**, you can set **Scopes** (default `openid,profile,email`) and override authorization, token, or JWKS endpoints if discovery does not supply usable values.
+For OIDC, also enter **Client ID** and **Client secret**. Sim discovers authorization, token, UserInfo, and JWKS endpoints from `{issuer}/.well-known/openid-configuration`. The issuer must match the `iss` claim of the provider's ID tokens exactly. Under **Advanced options**, you can set **Scopes** (default `openid,profile,email`) and override authorization, token, or JWKS endpoints if discovery does not supply usable values.
 
-For SAML, also enter **Entry point URL**, the provider's SSO service URL, and **Identity provider certificate**, its Base64 X.509 certificate. Under **Advanced options**, you can configure Audience, Callback URL override, signed-assertion requirements, NameID format, and IdP metadata XML. Metadata does not replace the required certificate.
+For SAML, also enter **Entry point URL**, the provider's SSO service URL, and **Identity provider certificate**, its Base64 X.509 certificate. Under **Advanced options**, you can configure Audience, Callback URL override, signed-assertion requirements, NameID format, and IdP metadata XML. Metadata does not replace the required certificate. When signed assertions are required, the identity provider must sign the assertion itself; a signature on the response alone is rejected.
 
-**Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
+**Attribute mapping** lets either protocol override the email and name claim names. Leave a mapping blank to use the protocol default. Sim identifies each user by the OIDC `sub` claim or the SAML NameID, so choose a NameID format that stays stable for each person.
 
 ### Register the callback URL
 
@@ -62,9 +62,9 @@ Copy **Callback URL** for OIDC or **ACS URL (Reply URL)** for SAML, then registe
 | Protocol | Callback format |
 | --- | --- |
 | OIDC | `https://<your-sim-domain>/api/auth/sso/callback/{provider-id}` |
-| SAML | `https://<your-sim-domain>/api/auth/sso/saml2/callback/{provider-id}` |
+| SAML | `https://<your-sim-domain>/api/auth/sso/saml2/sp/acs/{provider-id}` |
 
-Sim Cloud uses `www.sim.ai`; self-hosted deployments use their public domain. Use your chosen **Provider ID** in both systems. For SAML, register the **SP Entity ID** as the provider's audience/Entity ID. If you set a **Callback URL override**, Sim's copyable ACS URL uses that override.
+Sim Cloud uses `www.sim.ai`; self-hosted deployments use their public domain. SAML providers saved before the ACS URL changed keep `/api/auth/sso/saml2/callback/{provider-id}`, which still works, so their identity provider needs no change. Use your chosen **Provider ID** in both systems. For SAML, register the **SP Entity ID** as the provider's audience/Entity ID. If you set a **Callback URL override**, Sim's copyable ACS URL uses that override.
 
 ## Provider guides
 
@@ -186,7 +186,7 @@ See [Microsoft SAML setup](https://learn.microsoft.com/en-us/entra/identity/ente
 3. Set **Relying party identifier** to Sim's **SP Entity ID**. Sim Cloud normally shows `https://www.sim.ai`; copy the value from your own deployment.
 4. Add a **SAML Assertion Consumer Service** endpoint with HTTP POST binding:
    ```
-   https://<your-sim-domain>/api/auth/sso/saml2/callback/acme-adfs
+   https://<your-sim-domain>/api/auth/sso/saml2/sp/acs/acme-adfs
    ```
 5. Under **Certificates**, export the **Token-signing certificate** using **View Certificate → Details → Copy to File → Base-64 encoded X.509 (.CER)**. Paste the text, including its header and footer, into Sim.
 6. Copy the **Federation Service identifier** from **Service → Federation Service Properties**, and the SSO endpoint, such as `https://adfs.acme.com/adfs/ls`.

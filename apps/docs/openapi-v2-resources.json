@@ -23552,7 +23552,6 @@
               },
               "mapping": {
                 "default": {
-                  "id": "sub",
                   "email": "email",
                   "name": "name",
                   "image": "picture"
@@ -23561,8 +23560,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "default": "sub",
-                    "description": "Claim holding the stable identity identifier.",
+                    "description": "Deprecated and ignored: users are identified by the OIDC sub claim or the SAML NameID.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 255
@@ -23583,7 +23581,7 @@
                   },
                   "image": {
                     "default": "picture",
-                    "description": "Claim holding the avatar URL.",
+                    "description": "Claim holding the avatar URL; OIDC only.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 255
@@ -23693,7 +23691,6 @@
               },
               "mapping": {
                 "default": {
-                  "id": "sub",
                   "email": "email",
                   "name": "name",
                   "image": "picture"
@@ -23702,8 +23699,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "default": "sub",
-                    "description": "Claim holding the stable identity identifier.",
+                    "description": "Deprecated and ignored: users are identified by the OIDC sub claim or the SAML NameID.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 255
@@ -23724,7 +23720,7 @@
                   },
                   "image": {
                     "default": "picture",
-                    "description": "Claim holding the avatar URL.",
+                    "description": "Claim holding the avatar URL; OIDC only.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 255
@@ -23745,7 +23741,7 @@
                 "description": "Identity provider signing certificate."
               },
               "callbackUrl": {
-                "description": "SAML callback URL; defaults to this provider’s Sim callback.",
+                "description": "SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL.",
                 "type": "string",
                 "maxLength": 2048,
                 "format": "uri"

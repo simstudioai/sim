@@ -35,14 +35,7 @@ function authenticationMethod(path: string): AuthenticationMethod | null {
   if (path === '/sign-in/email' || path === '/sign-up/email') return 'email_password'
   if (path === '/sign-in/email-otp') return 'email_otp'
   if (isSsoCallbackPath(path) || path === '/sign-in/sso') return 'sso'
-  if (
-    path === '/sign-in/social' ||
-    path === '/sign-in/oauth2' ||
-    path.startsWith('/callback/') ||
-    path.startsWith('/oauth2/callback/')
-  ) {
-    return 'social'
-  }
+  if (path === '/sign-in/social' || path.startsWith('/callback/')) return 'social'
   return null
 }
 

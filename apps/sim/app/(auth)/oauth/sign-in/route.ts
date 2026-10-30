@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { OAUTH_AUTHORIZED_RESOURCE_PARAM } from '@/lib/auth/oauth-resource'
 import { isAuthDisabled, isRegistrationDisabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -45,6 +46,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const params = new URLSearchParams(request.nextUrl.search)
   for (const name of SIGNED_QUERY_PARAMS) params.delete(name)
+  /**
+   * The authorize route renamed the client's `resource` for the provider;
+   * restore it so the resumed request is validated again.
+   */
+  const authorizedResource = params.get(OAUTH_AUTHORIZED_RESOURCE_PARAM)
+  params.delete(OAUTH_AUTHORIZED_RESOURCE_PARAM)
+  if (authorizedResource !== null) params.set('resource', authorizedResource)
   const requiresLogin = consumeInteractivePrompt(params)
 
   const authorizeUrl = `/api/auth/oauth2/authorize?${params.toString()}`

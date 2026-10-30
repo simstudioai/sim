@@ -25,14 +25,13 @@ function sanitizeLocalPart(value: string): string {
  *
  * Many connector providers either never expose an email (X, Slack bot tokens,
  * TikTok, Reddit, Webflow) or expose one only when an optional scope was
- * granted. Better Auth still demands one: in `better-auth@1.6.23`,
- * `dist/plugins/generic-oauth/routes.mjs` hard-rejects a falsy `email` returned
- * from `getUserInfo` by throwing a redirect to `?error=email_is_missing`. There
- * is no option to disable that guard, so every `getUserInfo` must return a
- * truthy address or the connect flow dies at the callback.
+ * granted. Better Auth 1.6's generic OAuth callback hard-rejected a falsy
+ * `email` returned from `getUserInfo` with `?error=email_is_missing`, so every
+ * `getUserInfo` returned a truthy address. Better Auth 1.7's link path no
+ * longer requires one.
  *
  * The value is never persisted. Sim's connectors go through the session-bound
- * `oauth2.link` path, the `account` table has no email column, and
+ * `/link-social` path, the `account` table has no email column, and
  * `updateUserInfoOnLink` is unset — so Better Auth reads the address, satisfies
  * its own guard, and discards it. It is never shown to a user, never mailed to,
  * and never matched against a real account.
@@ -42,9 +41,6 @@ function sanitizeLocalPart(value: string): string {
  * third-party domains (`@x.com`, `@salesforce.com`, `@atlassian.com`, …), which
  * are owned by other companies and could in principle resolve to a real
  * mailbox.
- *
- * Delete this helper and return the upstream email directly once Better Auth
- * relaxes the guard (tracked in better-auth issue #9124, slated for v2).
  *
  * @param providerId - Connector provider id, e.g. `'attio'`. Namespaces the
  *   address so two providers reporting the same external id do not collide.

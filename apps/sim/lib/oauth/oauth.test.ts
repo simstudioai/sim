@@ -1,6 +1,13 @@
 import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
 import { getOAuth2Tokens } from 'better-auth/oauth2'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetOAuthState } = vi.hoisted(() => ({ mockGetOAuthState: vi.fn() }))
+
+vi.mock('better-auth/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('better-auth/api')>()),
+  getOAuthState: mockGetOAuthState,
+}))
 
 beforeAll(() => {
   setEnv({
@@ -34,6 +41,28 @@ beforeAll(() => {
 })
 
 afterAll(resetEnvMock)
+
+beforeEach(() => {
+  mockGetOAuthState.mockResolvedValue({
+    link: { userId: 'user-1', email: 'user@example.com' },
+  })
+})
+
+describe('connector callbacks without an account link', () => {
+  it('yields no profile when the OAuth state does not come from /link-social', async () => {
+    mockGetOAuthState.mockResolvedValue({ callbackURL: '/' })
+    const fetchMock = createMockFetch({ json: { account_id: 'account-123' } })
+
+    const profile = await withMockFetch(fetchMock, () =>
+      getBitbucketConnector().getUserInfo?.(
+        getOAuth2Tokens({ access_token: 'bitbucket_access_token' })
+      )
+    )
+
+    expect(profile).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
 
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
@@ -111,22 +140,46 @@ describe('Monday OAuth connector', () => {
   })
 })
 
+function getPowerBIConnector() {
+  const connector = buildConnectorProviders().find(
+    (item) => item.providerId === 'microsoft-powerbi'
+  )
+  if (!connector?.getToken || !connector.getUserInfo) {
+    throw new Error('Power BI OAuth connector is not configured')
+  }
+  return { getToken: connector.getToken, getUserInfo: connector.getUserInfo }
+}
+
+function exchangePowerBICode(scope: string) {
+  const { getToken } = getPowerBIConnector()
+  return withMockFetch(
+    createMockFetch({
+      json: {
+        access_token: 'powerbi-access',
+        token_type: 'Bearer',
+        expires_in: 3600,
+        scope,
+        id_token: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
+      },
+    }),
+    () =>
+      getToken({
+        code: 'authorization_code',
+        redirectURI: 'http://localhost:3000/api/auth/callback/microsoft-powerbi',
+      })
+  )
+}
+
 describe('Power BI OAuth callback scope compatibility', () => {
   it('preserves identity while making bare Power BI grants usable by the block', async () => {
-    const connector = buildConnectorProviders().find(
-      (item) => item.providerId === 'microsoft-powerbi'
+    const tokens = await exchangePowerBICode(
+      'Workspace.Read.All Report.Read.All Dataset.ReadWrite.All'
     )
-    if (!connector?.getUserInfo) throw new Error('Power BI OAuth connector is not configured')
-    const tokens = {
-      accessToken: 'powerbi-access',
-      idToken: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
-      scopes: ['Workspace.Read.All', 'Report.Read.All', 'Dataset.ReadWrite.All'],
-    }
     const requiredScopes = PowerBIBlock.subBlocks.find(
       (subBlock) => subBlock.id === 'credential'
     )?.requiredScopes
     if (!requiredScopes) throw new Error('Power BI credential requirements are missing')
-    const profile = await connector.getUserInfo(tokens)
+    const profile = await getPowerBIConnector().getUserInfo(tokens)
     expect(profile).toMatchObject({ email: 'fixture@example.invalid' })
     expect(getMissingRequiredScopes(tokens, requiredScopes)).toEqual([])
     expect(
@@ -138,16 +191,7 @@ describe('Power BI OAuth callback scope compatibility', () => {
   })
 
   it('does not promote a Graph-qualified lookalike into a Power BI grant', async () => {
-    const connector = buildConnectorProviders().find(
-      (item) => item.providerId === 'microsoft-powerbi'
-    )
-    if (!connector?.getUserInfo) throw new Error('Power BI OAuth connector is not configured')
-    const tokens = {
-      accessToken: 'powerbi-access',
-      idToken: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
-      scopes: ['https://graph.microsoft.com/Report.Read.All'],
-    }
-    await connector.getUserInfo(tokens)
+    const tokens = await exchangePowerBICode('https://graph.microsoft.com/Report.Read.All')
     expect(
       getMissingRequiredScopes(tokens, ['https://analysis.windows.net/powerbi/api/Report.Read.All'])
     ).toEqual(['https://analysis.windows.net/powerbi/api/Report.Read.All'])

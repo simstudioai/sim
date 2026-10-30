@@ -9,6 +9,7 @@ import {
   registerOAuthClientResponseSchema,
 } from '@/lib/api/contracts/oauth-provider'
 import { OAUTH_PUBLIC_REGISTRATION_SCOPES, OAUTH_SCOPES } from '@/lib/auth/oauth-provider'
+import { OAUTH_AUTHORIZED_RESOURCE_PARAM } from '@/lib/auth/oauth-resource'
 
 const BASE_URL = 'https://sim.test'
 const AUTH_SECRET = 'isolated-oauth-registration-test-secret-123456789'
@@ -25,7 +26,10 @@ const claudeMetadata = {
   application_type: 'web',
 }
 
-function createProvider(database: Record<string, Record<string, unknown>[]>) {
+function createProvider(
+  database: Record<string, Record<string, unknown>[]>,
+  issuedQueries: unknown[]
+) {
   return betterAuth({
     baseURL: BASE_URL,
     secret: AUTH_SECRET,
@@ -41,9 +45,14 @@ function createProvider(database: Record<string, Record<string, unknown>[]>) {
         grantTypes: ['authorization_code', 'refresh_token'],
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
+        clientRegistrationDefaultApplicationType: 'infer',
         clientRegistrationAllowedScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
         clientRegistrationDefaultScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
         clientPrivileges: () => false,
+        customTokenResponseFields: ({ verificationValue }) => {
+          issuedQueries.push(verificationValue?.query)
+          return {}
+        },
         silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
       }),
     ],
@@ -53,6 +62,7 @@ function createProvider(database: Record<string, Record<string, unknown>[]>) {
 describe('MCP client registration with the installed OAuth provider', () => {
   let database: Record<string, Record<string, unknown>[]>
   let provider: ReturnType<typeof createProvider>
+  let issuedQueries: unknown[]
 
   beforeEach(() => {
     database = {
@@ -65,7 +75,8 @@ describe('MCP client registration with the installed OAuth provider', () => {
       oauthAccessToken: [],
       oauthRefreshToken: [],
     }
-    provider = createProvider(database)
+    issuedQueries = []
+    provider = createProvider(database, issuedQueries)
   })
 
   async function register(metadata: object = claudeMetadata) {
@@ -98,9 +109,15 @@ describe('MCP client registration with the installed OAuth provider', () => {
       .join('; ')
   }
 
-  async function authorize(clientId: string, cookie: string, scope = 'search:read offline_access') {
+  async function requestConsent(
+    clientId: string,
+    cookie: string,
+    scope: string,
+    extra: Record<string, string> = {}
+  ) {
     const url = new URL(`${BASE_URL}/api/auth/oauth2/authorize`)
     url.search = new URLSearchParams({
+      ...extra,
       client_id: clientId,
       redirect_uri: REDIRECT_URI,
       response_type: 'code',
@@ -113,13 +130,27 @@ describe('MCP client registration with the installed OAuth provider', () => {
     const response = await provider.handler(new Request(url, { headers: { Cookie: cookie } }))
     const consentUrl = new URL(response.headers.get('location')!, BASE_URL)
     expect(consentUrl.pathname).toBe('/oauth/consent')
-    const consentResponse = await provider.handler(
+    return new URLSearchParams(consentUrl.search)
+  }
+
+  function submitConsent(oauthQuery: URLSearchParams, cookie: string) {
+    return provider.handler(
       new Request(`${BASE_URL}/api/auth/oauth2/consent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: BASE_URL },
-        body: JSON.stringify({ accept: true, oauth_query: consentUrl.search.slice(1) }),
+        body: JSON.stringify({ accept: true, oauth_query: oauthQuery.toString() }),
       })
     )
+  }
+
+  async function authorize(
+    clientId: string,
+    cookie: string,
+    scope = 'search:read offline_access',
+    extra: Record<string, string> = {}
+  ) {
+    const oauthQuery = await requestConsent(clientId, cookie, scope, extra)
+    const consentResponse = await submitConsent(oauthQuery, cookie)
     expect(consentResponse.ok).toBe(true)
     const consent = await consentResponse.json()
     const callback = new URL(consent.url)
@@ -154,18 +185,25 @@ describe('MCP client registration with the installed OAuth provider', () => {
         client_name: 'Claude',
         redirect_uris: [REDIRECT_URI],
         token_endpoint_auth_method: 'none',
-        scope: 'search:read offline_access',
       })
       expect(body).not.toHaveProperty('client_secret')
       expect(database.oauthClient).toHaveLength(1)
-      expect(database.oauthClient[0]).toMatchObject({
-        public: true,
-        tokenEndpointAuthMethod: 'none',
-        scopes: ['search:read', 'offline_access'],
-      })
+      expect(database.oauthClient[0]).toMatchObject({ tokenEndpointAuthMethod: 'none' })
       expect(database.oauthClient[0].clientSecret).toBeFalsy()
       expect(database.oauthClient[0].skipConsent).toBeFalsy()
       expect(database.oauthClient[0].userId).toBeFalsy()
+    }
+  )
+
+  it.each(['http://127.0.0.1:43123/callback', 'cursor://anysphere.cursor-mcp/oauth/callback'])(
+    'registers native MCP clients with the %s callback',
+    async (redirectUri) => {
+      const response = await register({ client_name: 'Native', redirect_uris: [redirectUri] })
+      expect(response.status).toBe(201)
+      expect(database.oauthClient[0]).toMatchObject({
+        redirectUris: [redirectUri],
+        tokenEndpointAuthMethod: 'none',
+      })
     }
   )
 
@@ -181,7 +219,7 @@ describe('MCP client registration with the installed OAuth provider', () => {
     })
     expect(response.ok).toBe(true)
     expect(database.oauthClient[0]).toMatchObject({
-      public: true,
+      tokenEndpointAuthMethod: 'none',
       scopes: ['api:read', 'api:write', 'offline_access', 'search:read'],
     })
     expect(database.oauthClient[0].clientSecret).toBeFalsy()
@@ -189,7 +227,7 @@ describe('MCP client registration with the installed OAuth provider', () => {
     expect(database.oauthClient[0].metadata).toBeFalsy()
   })
 
-  it.each([undefined, 'api:write'])(
+  it.each([undefined, 'openid'])(
     'rejects authorization without PKCE or with unregistered scope %s',
     async (scope) => {
       const registered = await register()
@@ -301,6 +339,48 @@ describe('MCP client registration with the installed OAuth provider', () => {
     }
   )
 
+  it('carries the authorized resource through signed consent to the code exchange', async () => {
+    const resource = `${BASE_URL}/api/mcp/search/organizations/org-one`
+    const registered = await register()
+    const client = registerOAuthClientResponseSchema.parse(await registered.json())
+    const cookie = await signIn()
+    const code = await authorize(client.client_id, cookie, 'search:read offline_access', {
+      [OAUTH_AUTHORIZED_RESOURCE_PARAM]: resource,
+    })
+    const tokenResponse = await requestToken({
+      grant_type: 'authorization_code',
+      client_id: client.client_id,
+      redirect_uri: REDIRECT_URI,
+      code,
+      code_verifier: CODE_VERIFIER,
+    })
+    expect(tokenResponse.ok).toBe(true)
+    expect(issuedQueries).toEqual([
+      expect.objectContaining({ [OAUTH_AUTHORIZED_RESOURCE_PARAM]: resource }),
+    ])
+  })
+
+  it('refuses consent when the signed authorized resource is altered', async () => {
+    const registered = await register()
+    const client = registerOAuthClientResponseSchema.parse(await registered.json())
+    const cookie = await signIn()
+    const oauthQuery = await requestConsent(
+      client.client_id,
+      cookie,
+      'search:read offline_access',
+      {
+        [OAUTH_AUTHORIZED_RESOURCE_PARAM]: `${BASE_URL}/api/mcp/search/organizations/org-one`,
+      }
+    )
+    oauthQuery.set(
+      OAUTH_AUTHORIZED_RESOURCE_PARAM,
+      `${BASE_URL}/api/mcp/search/organizations/org-two`
+    )
+    const consentResponse = await submitConsent(oauthQuery, cookie)
+    expect(consentResponse.ok).toBe(false)
+    expect(database.verification.some((row) => String(row.value).includes('org-two'))).toBe(false)
+  })
+
   it('preserves operator-created confidential clients and their API grants', async () => {
     const clientId = generateId()
     const clientSecret = 'isolated-confidential-client-secret'
@@ -351,7 +431,6 @@ describe('MCP client registration with the installed OAuth provider', () => {
     expect(missingSecret.ok).toBe(false)
     expect(await missingSecret.json()).not.toHaveProperty('access_token')
     expect(database.oauthClient.find((client) => client.clientId === clientId)).toMatchObject({
-      public: false,
       tokenEndpointAuthMethod: 'client_secret_basic',
       scopes: ['api:read', 'offline_access'],
     })

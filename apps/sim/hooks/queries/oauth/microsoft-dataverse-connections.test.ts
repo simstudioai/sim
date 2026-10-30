@@ -21,7 +21,7 @@ import {
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
 
 const mockBeginOAuthConnect = vi.fn()
-const mockLink = authClientMockFns.mockClient.oauth2.link
+const mockLink = authClientMockFns.mockClient.linkSocial
 libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
   mockBeginOAuthConnect.getMockName() === 'desktop'
     ? { beginOAuthConnect: mockBeginOAuthConnect }

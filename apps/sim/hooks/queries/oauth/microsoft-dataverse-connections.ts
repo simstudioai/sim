@@ -22,7 +22,7 @@ interface ConnectMicrosoftDataverseOAuthParams {
 }
 
 interface MicrosoftDataverseOAuthLinkRequest {
-  providerId: typeof MICROSOFT_DATAVERSE_PROVIDER_ID
+  provider: typeof MICROSOFT_DATAVERSE_PROVIDER_ID
   callbackURL: string
   scopes: string[]
 }
@@ -38,7 +38,7 @@ export function buildMicrosoftDataverseOAuthLinkRequest({
     stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
   }
   return {
-    providerId: MICROSOFT_DATAVERSE_PROVIDER_ID,
+    provider: MICROSOFT_DATAVERSE_PROVIDER_ID,
     callbackURL: bindMicrosoftDataverseEnvironmentToOAuthCallback(
       stateCallbackUrl.toString(),
       environment
@@ -84,7 +84,7 @@ export function useConnectMicrosoftDataverseOAuthService() {
       assertMicrosoftDataverseWebOAuthAvailable()
       const request = buildMicrosoftDataverseOAuthLinkRequest(params)
 
-      const result = await client.oauth2.link(request)
+      const result = await client.linkSocial(request)
       if (result.error) {
         throw new Error(
           getErrorMessage(

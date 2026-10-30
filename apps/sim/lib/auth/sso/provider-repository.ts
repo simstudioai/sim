@@ -1,13 +1,15 @@
 import {
   DEFAULT_MAX_SAML_METADATA_SIZE,
   DigestAlgorithm,
+  deriveSAMLServiceProviderPolicy,
   SignatureAlgorithm,
   type sso,
 } from '@better-auth/sso'
 import { account, db, ssoProvider, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { generateId } from '@sim/utils/id'
-import { filterUndefined, sortObjectKeysDeep, toRecord } from '@sim/utils/object'
+import { filterUndefined, omit, sortObjectKeysDeep, toRecord } from '@sim/utils/object'
 import { APIError } from 'better-auth/api'
 import { and, count, eq } from 'drizzle-orm'
 import type { auth } from '@/lib/auth'
@@ -32,9 +34,15 @@ const OIDC_IDENTITY_FIELDS = [
   'tokenEndpoint',
   'userInfoEndpoint',
 ] as const
+/**
+ * `callbackUrl` stays an identity field: Sim writes the ACS URL there and into the SP metadata
+ * `Location`, which decides where the IdP posts assertions and which Recipient Better Auth
+ * accepts. Better Auth 1.7 itself treats SP ACS URLs as part of the identity boundary.
+ */
 const SAML_IDENTITY_FIELDS = ['audience', 'callbackUrl', 'entryPoint', 'identifierFormat'] as const
 const SAML_IDP_IDENTITY_FIELDS = ['metadata', 'entityID', 'singleSignOnService'] as const
 const SAML_SP_IDENTITY_FIELDS = ['metadata', 'entityID'] as const
+const WANT_ASSERTIONS_SIGNED_ATTRIBUTE = /\sWantAssertionsSigned="[^"]*"/
 
 interface RepositoryConfiguration {
   reservedProviderIds: readonly string[]
@@ -85,6 +93,57 @@ function normalizeAlgorithm(value: string, algorithms: Record<string, string>, s
 
 function samlMetadata(value: unknown): Record<string, unknown> {
   return typeof value === 'string' ? { metadata: value } : toRecord(value)
+}
+
+/** Issuers compare without trailing slashes, which identity providers add or drop freely. */
+function normalizeIssuer(issuer: string): string {
+  return issuer.trim().replace(/\/+$/, '')
+}
+
+/**
+ * The IdP authority Better Auth signs users in against: the metadata document when present,
+ * otherwise the declared entity ID, which Better Auth 1.6 defaulted to the configured issuer.
+ */
+function samlIdentityProvider(config: Record<string, unknown>): Record<string, unknown> {
+  const idp = samlMetadata(config.idpMetadata)
+  return idp.metadata
+    ? { metadata: idp.metadata, singleSignOnService: idp.singleSignOnService }
+    : { entityID: idp.entityID || config.issuer, singleSignOnService: idp.singleSignOnService }
+}
+
+/** The assertion-signing policy is a security setting, not part of who the SP is. */
+function samlServiceProvider(config: Record<string, unknown>): Record<string, unknown> {
+  const sp = samlMetadata(config.spMetadata)
+  return {
+    ...sp,
+    metadata:
+      typeof sp.metadata === 'string'
+        ? sp.metadata.replace(WANT_ASSERTIONS_SIGNED_ATTRIBUTE, '')
+        : sp.metadata,
+  }
+}
+
+/**
+ * Rejects configurations Better Auth 1.7 refuses at sign-in, so a save fails instead of the next
+ * login: a manual IdP must name its entity ID, SP metadata must be usable, and it must not
+ * advertise weaker assertion signing than `wantAssertionsSigned` requires.
+ */
+function assertSamlSignInPolicy(config: Record<string, unknown>) {
+  const idp = toRecord(config.idpMetadata)
+  if (!idp.metadata && !idp.entityID)
+    throw new APIError('BAD_REQUEST', {
+      message: 'SAML configuration requires IdP metadata or an IdP entity ID',
+    })
+  const wantAssertionsSigned = config.wantAssertionsSigned === true
+  const metadata = toStringOrNull(toRecord(config.spMetadata).metadata) ?? undefined
+  const policy = deriveSAMLServiceProviderPolicy({
+    spMetadata: { metadata },
+    wantAssertionsSigned,
+  })
+  if (wantAssertionsSigned && !policy.wantAssertionsSigned)
+    throw new APIError('BAD_REQUEST', {
+      message: 'SAML service provider metadata must require signed assertions',
+    })
 }
 
 /** Persists authorized provider changes through the caller's database transaction. */
@@ -143,13 +202,14 @@ export function createSsoProviderRepository(
   }
 
   return {
-    async register(input: SsoProviderConfig) {
-      const body = plugin.endpoints.registerSSOProvider.options.body.parse(input)
+    async register(body: SsoProviderConfig) {
+      plugin.endpoints.registerSSOProvider.options.body.parse(body)
       if (body.organizationId !== organizationId)
         throw new APIError('BAD_REQUEST', {
           message: 'Provider organization does not match its authorized scope',
         })
       validateConfig(body)
+      if (body.samlConfig) assertSamlSignInPolicy({ ...body.samlConfig, issuer: body.issuer })
       const reserved = new Set<string>([
         ...BUILT_IN_PROVIDER_IDS,
         ...configuration.reservedProviderIds,
@@ -234,7 +294,7 @@ export function createSsoProviderRepository(
             ? { domainVerified: false }
             : {}),
         }
-        let identityChanged = issuer !== existing.issuer
+        let identityChanged = normalizeIssuer(issuer) !== normalizeIssuer(existing.issuer)
         for (const protocol of ['oidc', 'saml'] as const) {
           const key = protocol === 'oidc' ? 'oidcConfig' : 'samlConfig'
           const config = body[key]
@@ -256,30 +316,44 @@ export function createSsoProviderRepository(
             if (options.clearUserInfoEndpoint) updated.userInfoEndpoint = undefined
             identityChanged ||= changedFields(current, updated, OIDC_IDENTITY_FIELDS)
           } else {
-            for (const metadataKey of ['idpMetadata', 'spMetadata'] as const) {
-              const incoming = body.samlConfig?.[metadataKey]
-              if (current[metadataKey] !== undefined || incoming !== undefined)
-                updated[metadataKey] = {
-                  ...samlMetadata(current[metadataKey]),
-                  ...filterUndefined(incoming ?? {}),
-                }
+            const incomingSp = body.samlConfig?.spMetadata
+            if (current.spMetadata !== undefined || incomingSp !== undefined)
+              updated.spMetadata = {
+                ...samlMetadata(current.spMetadata),
+                ...filterUndefined(incomingSp ?? {}),
+              }
+            const currentIdp = samlMetadata(current.idpMetadata)
+            const incomingIdp = body.samlConfig?.idpMetadata
+            if (incomingIdp) {
+              /**
+               * The caller states the IdP authority in full, so omitting `metadata` clears a stored
+               * document. An entity ID an operator set apart from the issuer survives a re-save.
+               */
+              const idp: Record<string, unknown> = {
+                ...omit(currentIdp, ['metadata', 'entityID']),
+                ...filterUndefined(incomingIdp),
+              }
+              const currentIssuer = toStringOrNull(current.issuer) ?? existing.issuer
+              if (!idp.metadata && currentIdp.entityID && currentIdp.entityID !== currentIssuer)
+                idp.entityID = currentIdp.entityID
+              updated.idpMetadata = idp
+            } else if (current.idpMetadata !== undefined) {
+              updated.idpMetadata = currentIdp
             }
+            assertSamlSignInPolicy(updated)
             identityChanged ||=
               changedFields(current, updated, SAML_IDENTITY_FIELDS) ||
               changedFields(
-                samlMetadata(current.idpMetadata),
-                samlMetadata(updated.idpMetadata),
+                samlIdentityProvider(current),
+                samlIdentityProvider(updated),
                 SAML_IDP_IDENTITY_FIELDS
               ) ||
               changedFields(
-                samlMetadata(current.spMetadata),
-                samlMetadata(updated.spMetadata),
+                samlServiceProvider(current),
+                samlServiceProvider(updated),
                 SAML_SP_IDENTITY_FIELDS
               )
           }
-          identityChanged ||= changedFields(toRecord(current.mapping), toRecord(updated.mapping), [
-            'id',
-          ])
           changes[key] = JSON.stringify(updated)
         }
         if (identityChanged) {

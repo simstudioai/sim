@@ -1,4 +1,5 @@
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlerMocks = vi.hoisted(() => ({
@@ -91,21 +92,26 @@ describe('auth catch-all route managed OAuth callbacks', () => {
   })
 
   it.each([true, false])(
-    'preserves connector callbacks with authentication disabled=%s',
+    'forwards registered connector callbacks to the core callback with authentication disabled=%s',
     async (authDisabled) => {
       setEnvFlags({ isAuthDisabled: authDisabled })
       handlerMocks.betterAuthGET.mockResolvedValueOnce(new Response(null, { status: 204 }))
       const request = createMockRequest(
         'GET',
         undefined,
-        {},
+        { cookie: 'better-auth.state=signed-state' },
         'http://localhost:3000/api/auth/oauth2/callback/jira?state=better-auth-state&code=code-1'
       )
 
       const response = await GET(request)
 
       expect(response.status).toBe(204)
-      expect(handlerMocks.betterAuthGET).toHaveBeenCalledWith(request)
+      expect(handlerMocks.betterAuthGET).toHaveBeenCalledOnce()
+      const [forwarded] = handlerMocks.betterAuthGET.mock.calls[0] as [Request]
+      expect(forwarded.url).toBe(
+        'http://localhost:3000/api/auth/callback/jira?state=better-auth-state&code=code-1'
+      )
+      expect(forwarded.headers.get('cookie')).toBe('better-auth.state=signed-state')
       expect(handlerMocks.credentialGroupCallback).not.toHaveBeenCalled()
     }
   )
@@ -208,6 +214,59 @@ describe('auth catch-all route password-reset mail', () => {
   })
 })
 
+describe('auth catch-all route email OTP sign-in', () => {
+  /**
+   * Sign-in OTP removes every linked account of an unverified user, integration credentials
+   * included. No Sim surface sends a sign-in OTP, so the endpoint must stay unreachable.
+   */
+  it('refuses email OTP sign-in', async () => {
+    const req = createMockRequest(
+      'POST',
+      { email: 'victim@example.com', otp: '123456' },
+      {},
+      'http://localhost:3000/api/auth/sign-in/email-otp'
+    )
+
+    expect((await POST(req)).status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+})
+
+describe('auth catch-all route legacy SAML ACS path', () => {
+  it('serves a response posted to the legacy callback URL through the ACS endpoint', async () => {
+    handlerMocks.betterAuthPOST.mockResolvedValueOnce(new Response(null, { status: 302 }))
+    const form = 'SAMLResponse=PHNhbWw%2B&RelayState=state-1'
+    const req = new NextRequest('https://sim.test/api/auth/sso/saml2/callback/acme-saml?x=1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://idp.test' },
+      body: form,
+    })
+
+    const res = await POST(req)
+
+    expect(res.status).toBe(302)
+    const forwarded: Request = handlerMocks.betterAuthPOST.mock.calls[0][0]
+    expect(new URL(forwarded.url).pathname).toBe('/api/auth/sso/saml2/sp/acs/acme-saml')
+    expect(new URL(forwarded.url).search).toBe('?x=1')
+    expect(forwarded.method).toBe('POST')
+    expect(forwarded.headers.get('content-type')).toBe('application/x-www-form-urlencoded')
+    expect(forwarded.headers.get('origin')).toBe('https://idp.test')
+    await expect(forwarded.text()).resolves.toBe(form)
+  })
+
+  it('serves a GET on the legacy callback URL through the ACS endpoint', async () => {
+    handlerMocks.betterAuthGET.mockResolvedValueOnce(new Response(null, { status: 302 }))
+    const req = new NextRequest('https://sim.test/api/auth/sso/saml2/callback/acme-saml', {
+      headers: { cookie: 'session=1' },
+    })
+
+    expect((await GET(req)).status).toBe(302)
+    const forwarded: Request = handlerMocks.betterAuthGET.mock.calls[0][0]
+    expect(new URL(forwarded.url).pathname).toBe('/api/auth/sso/saml2/sp/acs/acme-saml')
+    expect(forwarded.headers.get('cookie')).toBe('session=1')
+  })
+})
+
 describe('auth catch-all route organization mutations', () => {
   it('blocks Better Auth organization mutation endpoints that bypass app lifecycle rules', async () => {
     const req = createMockRequest(
@@ -298,29 +357,14 @@ describe('OAuth provider client endpoints', () => {
   })
 
   it.each([true, false])(
-    'preserves connector POST callbacks with authentication disabled=%s',
-    async (authDisabled) => {
-      setEnvFlags({ isAuthDisabled: authDisabled })
-      const request = createMockRequest(
-        'POST',
-        {},
-        {},
-        'http://localhost:3000/api/auth/oauth2/callback/jira'
-      )
-      expect((await POST(request)).status).toBe(200)
-      expect(handlerMocks.betterAuthPOST).toHaveBeenCalledExactlyOnceWith(request)
-    }
-  )
-
-  it.each([true, false])(
     'preserves authenticated connector linking with authentication disabled=%s',
     async (authDisabled) => {
       setEnvFlags({ isAuthDisabled: authDisabled })
       const request = createMockRequest(
         'POST',
-        { providerId: 'google-email', callbackURL: 'http://localhost:3000/workspace' },
+        { provider: 'google-email', callbackURL: 'http://localhost:3000/workspace' },
         { cookie: 'better-auth.session_token=existing-session' },
-        'http://localhost:3000/api/auth/oauth2/link'
+        'http://localhost:3000/api/auth/link-social'
       )
 
       const response = await POST(request)

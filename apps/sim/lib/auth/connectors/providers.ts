@@ -2,9 +2,9 @@ import { createHash } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { getOAuthState } from 'better-auth/api'
-import { getOAuth2Tokens } from 'better-auth/oauth2'
+import { getOAuth2Tokens, type OAuth2Tokens, validateAuthorizationCode } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
@@ -55,6 +55,136 @@ import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlis
  * log query and alert that matches on it.
  */
 const logger = createLogger('Auth')
+
+/**
+ * Google's OAuth endpoints, named explicitly rather than discovered. Better Auth 1.7 treats a
+ * `discoveryUrl` provider as OpenID Connect: it keys the account on the profile's `sub`, forces the
+ * `openid` scope and an ID-token nonce, and fetches the discovery document at startup. The Google
+ * connectors are plain OAuth grants keyed on the generated `id` their `getUserInfo` returns.
+ */
+const GOOGLE_AUTHORIZATION_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+
+/**
+ * Runs the standard authorization-code exchange for a connector whose stored scopes must be
+ * derived from something other than the token response. Better Auth persists `tokens.scopes` from
+ * the exchange and hands `getUserInfo` a copy, so the scopes can only be rewritten here.
+ * `resolveScopes` returning `undefined` keeps the scopes the token response reported.
+ */
+function withGrantedScopes(
+  config: GenericOAuthConfig,
+  resolveScopes: (tokens: OAuth2Tokens) => Promise<string[] | undefined>
+): GenericOAuthConfig {
+  const { tokenUrl } = config
+  if (!tokenUrl) throw new Error(`${config.providerId} connector requires a token URL`)
+  return {
+    ...config,
+    getToken: async ({ code, codeVerifier, redirectURI }) => {
+      const tokens = await validateAuthorizationCode({
+        headers: config.authorizationHeaders,
+        code,
+        codeVerifier: (config.pkce ?? true) ? codeVerifier : undefined,
+        redirectURI,
+        options: {
+          clientId: config.clientId,
+          clientSecret: config.clientSecret,
+          redirectURI: config.redirectURI,
+        },
+        tokenEndpoint: tokenUrl,
+        authentication: config.authentication,
+        additionalParams: config.tokenUrlParams,
+      })
+      return { ...tokens, scopes: (await resolveScopes(tokens)) ?? tokens.scopes }
+    },
+  }
+}
+
+/**
+ * HubSpot's token response omits the granted scopes; the access-token metadata endpoint lists
+ * them. A failed lookup keeps the token response's scopes rather than failing the connection.
+ * @see https://developers.hubspot.com/docs/api/oauth/tokens
+ */
+async function fetchHubSpotGrantedScopes(tokens: OAuth2Tokens): Promise<string[] | undefined> {
+  try {
+    const response = await fetch(
+      `https://api.hubapi.com/oauth/v1/access-tokens/${tokens.accessToken}`
+    )
+    if (!response.ok) {
+      await response.text().catch(() => {})
+      logger.warn('Failed to fetch HubSpot granted scopes', { status: response.status })
+      return undefined
+    }
+    const data = toRecord(await response.json())
+    if (Array.isArray(data.scopes) && data.scopes.length > 0) {
+      return data.scopes.filter((scope): scope is string => typeof scope === 'string')
+    }
+    if (typeof data.scope === 'string') return data.scope.split(/\s+/).filter(Boolean)
+    return undefined
+  } catch (error) {
+    logger.warn('Failed to fetch HubSpot granted scopes', { error })
+    return undefined
+  }
+}
+
+/**
+ * DocuSign reports the granted scopes on userinfo rather than on the token response. A failed
+ * lookup keeps the token response's scopes rather than failing the connection.
+ */
+async function fetchDocusignGrantedScopes(tokens: OAuth2Tokens): Promise<string[] | undefined> {
+  try {
+    const response = await fetch(getDocusignOAuthUrl('/oauth/userinfo'), {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    })
+    if (!response.ok) {
+      await response.text().catch(() => {})
+      logger.warn('Failed to fetch DocuSign granted scopes', { status: response.status })
+      return undefined
+    }
+    const { scope } = toRecord(await response.json())
+    return typeof scope === 'string' && scope ? scope.split(/\s+/).filter(Boolean) : undefined
+  } catch (error) {
+    logger.warn('Failed to fetch DocuSign granted scopes', { error })
+    return undefined
+  }
+}
+
+/**
+ * Adapts a connector to Better Auth 1.7, which serves generic OAuth providers through the core
+ * `/link-social` and `/callback/:id` routes instead of the plugin's own `/oauth2/*` routes.
+ *
+ * - A custom `getToken` is handed core's `/callback/:id` URI, but the provider only accepts the
+ *   registered `redirectURI` (`/api/auth/oauth2/callback/:id`) that the authorize request sent.
+ * - Connectors only ever link to the signed-in user. Core's callback does not bind its state to a
+ *   provider, so a sign-in state (no `link`) replayed on a connector's callback would otherwise
+ *   sign in whichever user owns the email the connector reports — and many report it as verified
+ *   without proof. A connector therefore yields no profile unless the state carries a `link`,
+ *   which only the authenticated `/link-social` sets, and never creates a user.
+ * - Core now refuses to link a provider that is neither in `trustedProviders` nor asserting a
+ *   verified email, which most connectors cannot. Connector linking was session-bound and checked
+ *   neither in 1.6, so the profile counts as verified while linking. Connectors stay out of
+ *   `trustedProviders`, so no path can attach one to an existing user by email.
+ */
+function adaptConnectorToCoreOAuthRoutes(config: GenericOAuthConfig): GenericOAuthConfig {
+  const { getToken, getUserInfo, redirectURI, providerId } = config
+  const adapted: GenericOAuthConfig = { ...config, disableSignUp: true }
+  if (getToken) {
+    adapted.getToken = (data) => getToken({ ...data, redirectURI: redirectURI ?? data.redirectURI })
+  }
+  adapted.getUserInfo = async (tokens) => {
+    const oauthState = await getOAuthState().catch(() => null)
+    if (!oauthState?.link) {
+      logger.warn('Refused a connector callback without an account link', { providerId })
+      return null
+    }
+    if (!getUserInfo) {
+      logger.error('Connector has no getUserInfo', { providerId })
+      return null
+    }
+    const profile = await getUserInfo(tokens)
+    return profile ? { ...profile, emailVerified: true } : profile
+  }
+  return adapted
+}
 
 /**
  * Shape of `GET https://api.notion.com/v1/users/me` for an OAuth integration token.
@@ -210,11 +340,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-email',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-email'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-email`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -246,11 +378,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-calendar',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-calendar'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-calendar`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -282,11 +416,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-drive',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-drive'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-drive`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -318,11 +454,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-docs',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-docs'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-docs`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -354,11 +492,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-sheets',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-sheets'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-sheets`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -391,11 +531,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-contacts',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-contacts'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-contacts`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -427,11 +569,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-forms',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-forms'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-forms`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -463,11 +607,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-ads',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-ads'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-ads`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -498,11 +644,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-bigquery',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-bigquery'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-bigquery`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -535,11 +683,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-vault',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-vault'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-vault`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -572,11 +722,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-groups',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-groups'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-groups`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -609,11 +761,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-chat',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-chat'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-chat`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -646,11 +800,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-meet',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-meet'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-meet`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -682,11 +838,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'google-tasks',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('google-tasks'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-tasks`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -719,11 +877,13 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'vertex-ai',
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+      authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+      tokenUrl: GOOGLE_TOKEN_URL,
       accessType: 'offline',
       scopes: getCanonicalScopesForProvider('vertex-ai'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/vertex-ai`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -822,43 +982,43 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
         return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-word')
       },
     },
-    {
-      providerId: 'microsoft-dataverse',
-      clientId: env.MICROSOFT_CLIENT_ID as string,
-      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
-      authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-      tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-      userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
-      /**
-       * Better Auth appends connector scopes to link-request scopes. Dataverse audiences are
-       * request-specific, so every allowed link supplies its exact grant and this base stays empty.
-       */
-      scopes: [],
-      responseType: 'code',
-      accessType: 'offline',
-      authentication: 'basic',
-      pkce: true,
-      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-dataverse`,
-      getUserInfo: async (tokens) => {
+    withGrantedScopes(
+      {
+        providerId: 'microsoft-dataverse',
+        clientId: env.MICROSOFT_CLIENT_ID as string,
+        clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+        authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+        tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+        /**
+         * Better Auth appends connector scopes to link-request scopes. Dataverse audiences are
+         * request-specific, so every allowed link supplies its exact grant and this base stays empty.
+         */
+        scopes: [],
+        responseType: 'code',
+        accessType: 'offline',
+        authentication: 'basic',
+        pkce: true,
+        redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-dataverse`,
+        getUserInfo: async (tokens) => {
+          const oauthState = await getOAuthState()
+          const userInfo = getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse')
+          if (!getBoundMicrosoftDataverseEnvironment(oauthState?.callbackURL)) return userInfo
+          return bindMicrosoftDataverseEnvironmentToUserInfo(userInfo, tokens.scopes)
+        },
+      },
+      async (tokens) => {
         const oauthState = await getOAuthState()
-        const environmentUrl = getBoundMicrosoftDataverseEnvironment(oauthState?.callbackURL)
-        if (!environmentUrl) {
+        if (!getBoundMicrosoftDataverseEnvironment(oauthState?.callbackURL)) {
           assertMicrosoftDataverseLegacyOAuthCallbackScopes(
             tokens.scopes,
             getCanonicalScopesForProvider('microsoft-dataverse')
           )
-          return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse')
+          return undefined
         }
-        tokens.scopes = resolveMicrosoftDataverseOAuthCallbackScopes(
-          oauthState?.callbackURL,
-          tokens.scopes
-        )
-        return bindMicrosoftDataverseEnvironmentToUserInfo(
-          getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse'),
-          tokens.scopes
-        )
-      },
-    },
+        return resolveMicrosoftDataverseOAuthCallbackScopes(oauthState?.callbackURL, tokens.scopes)
+      }
+    ),
     {
       providerId: 'microsoft-intune',
       clientId: env.MICROSOFT_CLIENT_ID as string,
@@ -893,27 +1053,31 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
 
-    {
-      providerId: 'microsoft-powerbi',
-      clientId: env.MICROSOFT_CLIENT_ID as string,
-      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
-      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
-      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
-      scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
-      responseType: 'code',
-      accessType: 'offline',
-      authentication: 'basic',
-      pkce: true,
-      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
-      getUserInfo: async (tokens) => {
+    withGrantedScopes(
+      {
+        providerId: 'microsoft-powerbi',
+        clientId: env.MICROSOFT_CLIENT_ID as string,
+        clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+        authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+        tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+        scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
+        responseType: 'code',
+        accessType: 'offline',
+        authentication: 'basic',
+        pkce: true,
+        redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
+        getUserInfo: async (tokens) => {
+          return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
+        },
+      },
+      async (tokens) => {
         const canonicalScopes = getCanonicalScopesForProvider('microsoft-powerbi')
-        tokens.scopes = tokens.scopes?.map((scope) => {
+        return tokens.scopes?.map((scope) => {
           const qualified = `https://analysis.windows.net/powerbi/api/${scope}`
           return canonicalScopes.includes(qualified) ? qualified : scope
         })
-        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
-      },
-    },
+      }
+    ),
 
     {
       providerId: 'outlook',
@@ -979,6 +1143,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       scopes: getCanonicalScopesForProvider('wealthbox'),
       responseType: 'code',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wealthbox`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           logger.info('Fetching Wealthbox user profile')
@@ -1053,6 +1218,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       scopes: getCanonicalScopesForProvider('pipedrive'),
       responseType: 'code',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/pipedrive`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           logger.info('Fetching Pipedrive user profile')
@@ -1090,76 +1256,70 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
 
-    {
-      providerId: 'hubspot',
-      clientId: env.HUBSPOT_CLIENT_ID as string,
-      clientSecret: env.HUBSPOT_CLIENT_SECRET as string,
-      authorizationUrl: 'https://app.hubspot.com/oauth/authorize',
-      tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
-      userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
-      prompt: 'consent',
-      scopes: getCanonicalScopesForProvider('hubspot'),
-      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/hubspot`,
-      getUserInfo: async (tokens) => {
-        try {
-          logger.info('Fetching HubSpot user profile')
+    withGrantedScopes(
+      {
+        providerId: 'hubspot',
+        clientId: env.HUBSPOT_CLIENT_ID as string,
+        clientSecret: env.HUBSPOT_CLIENT_SECRET as string,
+        authorizationUrl: 'https://app.hubspot.com/oauth/authorize',
+        tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
+        userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
+        prompt: 'consent',
+        scopes: getCanonicalScopesForProvider('hubspot'),
+        redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/hubspot`,
+        pkce: false,
+        getUserInfo: async (tokens) => {
+          try {
+            logger.info('Fetching HubSpot user profile')
 
-          const response = await fetch(
-            `https://api.hubapi.com/oauth/v1/access-tokens/${tokens.accessToken}`
-          )
+            const response = await fetch(
+              `https://api.hubapi.com/oauth/v1/access-tokens/${tokens.accessToken}`
+            )
 
-          if (!response.ok) {
-            let errorBody: string | undefined
-            try {
-              errorBody = await response.text()
-            } catch {
-              // ignore
+            if (!response.ok) {
+              let errorBody: string | undefined
+              try {
+                errorBody = await response.text()
+              } catch {
+                // ignore
+              }
+              logger.error('Failed to fetch HubSpot user info', {
+                status: response.status,
+                statusText: response.statusText,
+                body: errorBody?.slice(0, 500),
+              })
+              throw new Error('Failed to fetch user info')
             }
-            logger.error('Failed to fetch HubSpot user info', {
-              status: response.status,
-              statusText: response.statusText,
-              body: errorBody?.slice(0, 500),
+
+            const rawText = await response.text()
+            const data = JSON.parse(rawText)
+
+            logger.info('HubSpot token metadata response:', {
+              hubId: data.hub_id,
+              hubDomain: data.hub_domain,
+              userId: data.user_id,
+              hasScopes: !!data.scopes,
+              scopesType: typeof data.scopes,
+              scopesIsArray: Array.isArray(data.scopes),
             })
-            throw new Error('Failed to fetch user info')
+
+            return {
+              id: `${(data.user_id || data.hub_id).toString()}-${generateId()}`,
+              name: data.user || 'HubSpot User',
+              email: data.user || syntheticConnectorEmail('hubspot', data.hub_id),
+              emailVerified: true,
+              image: undefined,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
+          } catch (error) {
+            logger.error('Error creating HubSpot user profile:', { error })
+            return null
           }
-
-          const rawText = await response.text()
-          const data = JSON.parse(rawText)
-
-          const scopesArray = Array.isArray((data as any)?.scopes) ? (data as any).scopes : []
-          if (Array.isArray(scopesArray) && scopesArray.length > 0) {
-            tokens.scopes = scopesArray
-          } else if (typeof (data as any)?.scope === 'string') {
-            tokens.scopes = (data as any).scope.split(/\s+/).filter(Boolean)
-          }
-
-          logger.info('HubSpot token metadata response:', {
-            hubId: data.hub_id,
-            hubDomain: data.hub_domain,
-            userId: data.user_id,
-            hasScopes: !!data.scopes,
-            scopesType: typeof data.scopes,
-            scopesIsArray: Array.isArray(data.scopes),
-          })
-
-          return {
-            id: `${(data.user_id || data.hub_id).toString()}-${generateId()}`,
-            name: data.user || 'HubSpot User',
-            email: data.user || syntheticConnectorEmail('hubspot', data.hub_id),
-            emailVerified: true,
-            image: undefined,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            // Extract scopes from HubSpot's response and convert array to space-delimited string
-            // Use 'scope' (singular) as that's what better-auth expects for the account table
-            ...(data.scopes && Array.isArray(data.scopes) ? { scope: data.scopes.join(' ') } : {}),
-          }
-        } catch (error) {
-          logger.error('Error creating HubSpot user profile:', { error })
-          return null
-        }
+        },
       },
-    },
+      fetchHubSpotGrantedScopes
+    ),
 
     ...Object.entries(SALESFORCE_LOGIN_HOSTS).map(([providerId, loginHost]) =>
       salesforceConnector(providerId, loginHost)
@@ -1171,19 +1331,21 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       clientSecret: env.ZOHO_CLIENT_SECRET as string,
       authorizationUrl: 'https://accounts.zoho.com/oauth/v2/auth',
       tokenUrl: 'https://accounts.zoho.com/oauth/v2/token',
-      scopes: getCanonicalScopesForProvider('zoho-desk'),
+      /**
+       * Zoho expects comma-separated scopes, and Better Auth joins the list with spaces and
+       * refuses `scope` in `authorizationUrlParams`, so the list goes in pre-joined.
+       */
+      scopes: [getCanonicalScopesForProvider('zoho-desk').join(',')],
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/zoho-desk`,
       // Zoho only issues a refresh token when access_type=offline AND
-      // prompt=consent are present on the authorize request, and it expects
-      // comma-separated scopes rather than the default space-delimited list.
+      // prompt=consent are present on the authorize request.
       authorizationUrlParams: {
         access_type: 'offline',
         prompt: 'consent',
-        scope: getCanonicalScopesForProvider('zoho-desk').join(','),
       },
       getToken: async ({ code, redirectURI, codeVerifier }) => {
         const tokenParams = new URLSearchParams({
@@ -1320,19 +1482,21 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       clientSecret: env.ZOHO_CLIENT_SECRET as string,
       authorizationUrl: 'https://accounts.zoho.com/oauth/v2/auth',
       tokenUrl: 'https://accounts.zoho.com/oauth/v2/token',
-      scopes: getCanonicalScopesForProvider('manageengine-sdp'),
+      /**
+       * Zoho expects comma-separated scopes, and Better Auth joins the list with spaces and
+       * refuses `scope` in `authorizationUrlParams`, so the list goes in pre-joined.
+       */
+      scopes: [getCanonicalScopesForProvider('manageengine-sdp').join(',')],
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/manageengine-sdp`,
       // Zoho only issues a refresh token when access_type=offline AND
-      // prompt=consent are present on the authorize request, and it expects
-      // comma-separated scopes rather than the default space-delimited list.
+      // prompt=consent are present on the authorize request.
       authorizationUrlParams: {
         access_type: 'offline',
         prompt: 'consent',
-        scope: getCanonicalScopesForProvider('manageengine-sdp').join(','),
       },
       getToken: async ({ code, redirectURI, codeVerifier }) => {
         const tokenParams = new URLSearchParams({
@@ -1512,12 +1676,16 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       clientSecret: env.TIKTOK_CLIENT_SECRET as string,
       authorizationUrl: 'https://www.tiktok.com/v2/auth/authorize/',
       tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
-      scopes: getCanonicalScopesForProvider('tiktok'),
+      /**
+       * TikTok expects comma-separated scopes, and Better Auth joins the list with spaces and
+       * refuses `scope` in `authorizationUrlParams`, so the list goes in pre-joined.
+       */
+      scopes: [getCanonicalScopesForProvider('tiktok').join(',')],
       responseType: 'code',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/tiktok`,
+      pkce: false,
       authorizationUrlParams: {
         client_key: env.TIKTOK_CLIENT_ID as string,
-        scope: getCanonicalScopesForProvider('tiktok').join(','),
       },
       getToken: async ({ code, redirectURI }) => {
         const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
@@ -2218,6 +2386,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       scopes: getCanonicalScopesForProvider('attio'),
       responseType: 'code',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/attio`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           /**
@@ -2297,10 +2466,10 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           /**
-           * Return null rather than rethrowing: Better Auth's `handleUserInfo`
-           * does not wrap `getUserInfo`, so a throw escapes the callback route
-           * as a raw 500 with no way back into the app, while null redirects
-           * with `user_info_is_missing`.
+           * Return null rather than rethrowing: Better Auth's callback does not
+           * wrap `getUserInfo`, so a throw escapes the callback route as a raw
+           * 500 with no way back into the app, while null redirects with
+           * `unable_to_get_user_info`.
            */
           logger.error('Error in Attio getUserInfo:', error)
           return null
@@ -2317,6 +2486,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       scopes: getCanonicalScopesForProvider('box'),
       responseType: 'code',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/box`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.box.com/2.0/users/me', {
@@ -2469,6 +2639,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       accessType: 'offline',
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/slack`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://slack.com/api/auth.test', {
@@ -2546,6 +2717,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       scopes: getCanonicalScopesForProvider('webflow'),
       responseType: 'code',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/webflow`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           logger.info('Fetching Webflow user info')
@@ -2597,6 +2769,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       accessType: 'offline',
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/linkedin`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           logger.info('Fetching LinkedIn user profile')
@@ -2647,6 +2820,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       authentication: 'basic',
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/zoom`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           logger.info('Fetching Zoom user profile')
@@ -2695,6 +2869,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       authentication: 'basic',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/spotify`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           logger.info('Fetching Spotify user profile')
@@ -2743,6 +2918,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wordpress`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         try {
           logger.info('Fetching WordPress.com user profile')
@@ -2782,63 +2958,62 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
 
-    // DocuSign provider
-    {
-      providerId: 'docusign',
-      clientId: env.DOCUSIGN_CLIENT_ID as string,
-      clientSecret: env.DOCUSIGN_CLIENT_SECRET as string,
-      authorizationUrl: getDocusignOAuthUrl('/oauth/auth'),
-      tokenUrl: getDocusignOAuthUrl('/oauth/token'),
-      userInfoUrl: getDocusignOAuthUrl('/oauth/userinfo'),
-      scopes: getCanonicalScopesForProvider('docusign'),
-      responseType: 'code',
-      accessType: 'offline',
-      prompt: 'consent',
-      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/docusign`,
-      getUserInfo: async (tokens) => {
-        try {
-          logger.info('Fetching DocuSign user profile')
+    withGrantedScopes(
+      {
+        providerId: 'docusign',
+        clientId: env.DOCUSIGN_CLIENT_ID as string,
+        clientSecret: env.DOCUSIGN_CLIENT_SECRET as string,
+        authorizationUrl: getDocusignOAuthUrl('/oauth/auth'),
+        tokenUrl: getDocusignOAuthUrl('/oauth/token'),
+        userInfoUrl: getDocusignOAuthUrl('/oauth/userinfo'),
+        scopes: getCanonicalScopesForProvider('docusign'),
+        responseType: 'code',
+        accessType: 'offline',
+        prompt: 'consent',
+        redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/docusign`,
+        pkce: false,
+        getUserInfo: async (tokens) => {
+          try {
+            logger.info('Fetching DocuSign user profile')
 
-          const response = await fetch(getDocusignOAuthUrl('/oauth/userinfo'), {
-            headers: {
-              Authorization: `Bearer ${tokens.accessToken}`,
-            },
-          })
-
-          if (!response.ok) {
-            await response.text().catch(() => {})
-            logger.error('Failed to fetch DocuSign user info', {
-              status: response.status,
-              statusText: response.statusText,
+            const response = await fetch(getDocusignOAuthUrl('/oauth/userinfo'), {
+              headers: {
+                Authorization: `Bearer ${tokens.accessToken}`,
+              },
             })
-            throw new Error('Failed to fetch user info')
-          }
 
-          const data = await response.json()
-          const accounts = data.accounts ?? []
-          const defaultAccount =
-            accounts.find((a: { is_default: boolean }) => a.is_default) ?? accounts[0]
-          const accountName = defaultAccount?.account_name || 'DocuSign Account'
+            if (!response.ok) {
+              await response.text().catch(() => {})
+              logger.error('Failed to fetch DocuSign user info', {
+                status: response.status,
+                statusText: response.statusText,
+              })
+              throw new Error('Failed to fetch user info')
+            }
 
-          if (data.scope) {
-            tokens.scopes = data.scope.split(/\s+/).filter(Boolean)
-          }
+            const data = await response.json()
+            const accounts = data.accounts ?? []
+            const defaultAccount =
+              accounts.find((a: { is_default: boolean }) => a.is_default) ?? accounts[0]
+            const accountName = defaultAccount?.account_name || 'DocuSign Account'
 
-          return {
-            id: `${data.sub}-${generateId()}`,
-            name: data.name || accountName,
-            email: data.email || syntheticConnectorEmail('docusign', data.sub),
-            emailVerified: true,
-            image: undefined,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            return {
+              id: `${data.sub}-${generateId()}`,
+              name: data.name || accountName,
+              email: data.email || syntheticConnectorEmail('docusign', data.sub),
+              emailVerified: true,
+              image: undefined,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
+          } catch (error) {
+            logger.error('Error in DocuSign getUserInfo:', { error })
+            return null
           }
-        } catch (error) {
-          logger.error('Error in DocuSign getUserInfo:', { error })
-          return null
-        }
+        },
       },
-    },
+      fetchDocusignGrantedScopes
+    ),
 
     {
       providerId: 'ramp',
@@ -2851,6 +3026,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       authentication: 'basic',
       accessTokenExpiresIn: 3600,
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/ramp`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         if (!tokens.accessToken) return null
 
@@ -2909,6 +3085,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       authentication: 'post',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/helpscout`,
+      pkce: false,
       getUserInfo: async (tokens) => {
         if (!tokens.accessToken) return null
 
@@ -3010,7 +3187,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
   ]
 
-  return providers.filter(
-    ({ providerId }) => inspectConfiguredOAuthClient(providerId).state === 'ready'
-  )
+  return providers
+    .filter(({ providerId }) => inspectConfiguredOAuthClient(providerId).state === 'ready')
+    .map(adaptConnectorToCoreOAuthRoutes)
 }

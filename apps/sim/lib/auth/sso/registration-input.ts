@@ -1,18 +1,23 @@
 import { z } from 'zod'
 
-const ssoMappingSchema = z
+/**
+ * Claim names Better Auth reads from the provider. The account identifier is not mappable: OIDC
+ * accounts are keyed by `sub` and SAML accounts by the NameID, so a legacy `id` key is dropped.
+ */
+const oidcMappingSchema = z
   .object({
-    id: z.string().min(1).max(255).default('sub'),
     email: z.string().min(1).max(255).default('email'),
     name: z.string().min(1).max(255).default('name'),
     image: z.string().min(1).max(255).default('picture'),
   })
-  .default({
-    id: 'sub',
-    email: 'email',
-    name: 'name',
-    image: 'picture',
+  .default({ email: 'email', name: 'name', image: 'picture' })
+
+const samlMappingSchema = z
+  .object({
+    email: z.string().min(1).max(255).default('email'),
+    name: z.string().min(1).max(255).default('name'),
   })
+  .default({ email: 'email', name: 'name' })
 
 export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
   z.object({
@@ -22,7 +27,7 @@ export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
     domain: z.string().min(1, 'Domain is required'),
     organizationId: z.string().min(1).max(255),
     jitProvisioningEnabled: z.boolean().default(true),
-    mapping: ssoMappingSchema,
+    mapping: oidcMappingSchema,
     clientId: z.string().min(1, 'Client ID is required for OIDC'),
     clientSecret: z.string().min(1, 'Client Secret is required for OIDC'),
     scopes: z
@@ -50,7 +55,7 @@ export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
     domain: z.string().min(1, 'Domain is required'),
     organizationId: z.string().min(1).max(255),
     jitProvisioningEnabled: z.boolean().default(true),
-    mapping: ssoMappingSchema,
+    mapping: samlMappingSchema,
     entryPoint: z.string().url('Entry point must be a valid URL for SAML'),
     cert: z.string().min(1, 'Certificate is required for SAML'),
     callbackUrl: z.string().url().optional(),

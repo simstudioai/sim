@@ -220,7 +220,7 @@ describe('OAuth token route', () => {
       const form = new URLSearchParams(await request.text())
       expect(form.has('resource')).toBe(false)
       bindOAuthIssuedResource({
-        verificationValue: { query: { resource } },
+        verificationValue: { query: { sim_resource: resource } },
         scopes: ['search:read'],
       })
       expect(getOAuthIssuedResource(['search:read'])).toBe(resource)

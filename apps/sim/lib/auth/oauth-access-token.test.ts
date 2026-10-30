@@ -19,6 +19,7 @@ function row(overrides: Record<string, unknown> = {}) {
     scopes: ['offline_access', 'api:read'],
     resource: null,
     expiresAt: new Date(Date.now() + 60_000),
+    revoked: null,
     clientDisabled: false,
     userBanned: false,
     userBanExpires: null,
@@ -104,11 +105,14 @@ describe('verifyOAuthAccessToken', () => {
     expect(vi.mocked(setRequestAuth)).not.toHaveBeenCalled()
   })
 
-  it('refuses an unknown, expired, disabled-client, orphaned, or banned token', async () => {
+  it('refuses an unknown, expired, revoked, disabled-client, orphaned, or banned token', async () => {
     expect(await reason('sim_oat_unknown')).toBe('unknown')
 
     queueTableRows(schemaMock.oauthAccessToken, [row({ expiresAt: new Date(Date.now() - 1) })])
     expect(await reason('sim_oat_x')).toBe('expired')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ revoked: new Date() })])
+    expect(await reason('sim_oat_x')).toBe('revoked')
 
     queueTableRows(schemaMock.oauthAccessToken, [row({ clientDisabled: true })])
     expect(await reason('sim_oat_x')).toBe('client_disabled')

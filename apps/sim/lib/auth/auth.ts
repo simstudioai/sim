@@ -227,6 +227,20 @@ const additionalTrustedSsoProviders = isSsoEnabled
       .filter((id): id is string => Boolean(id))
   : []
 
+const connectorProviders = buildConnectorProviders()
+const connectorProviderIds: ReadonlySet<string> = new Set(
+  connectorProviders.map(({ providerId }) => providerId)
+)
+
+/**
+ * Whether an account write comes from an integration connector's OAuth callback. Connectors share
+ * core's `/callback/:id` with the Google/GitHub/Microsoft sign-in providers, and hook contexts carry
+ * the route pattern rather than the concrete path, so the account's provider tells them apart.
+ */
+function isConnectorCallback(path: string | undefined, providerId: string): boolean {
+  return path?.startsWith('/callback/') === true && connectorProviderIds.has(providerId)
+}
+
 if (env.NODE_ENV === 'production') {
   const baseUrl = getBaseUrl()
   if (isLocalhostUrl(baseUrl)) {
@@ -336,6 +350,12 @@ export const auth = betterAuth({
     ipAddress: {
       ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
     },
+    /**
+     * The check compares Drizzle tables to Better Auth's models and would flag
+     * Sim's own NOT NULL columns the models omit, such as the refresh-token
+     * `family_id` and `generation` a trigger fills. Migrations own the schema.
+     */
+    database: { validateSchema: false },
   },
   user: {
     /**
@@ -506,7 +526,7 @@ export const auth = betterAuth({
           const modifiedAccount = { ...account }
           let reconnectDraftId: string | undefined
 
-          if (context?.path.startsWith('/oauth2/callback/')) {
+          if (context && isConnectorCallback(context.path, account.providerId)) {
             let draftId: string | undefined
             try {
               draftId = await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
@@ -624,12 +644,11 @@ export const auth = betterAuth({
 
           await propagateFreshSlackConnect(account)
 
-          const isOAuth2Callback = context?.path.startsWith('/oauth2/callback/') === true
           const credentialDraftBinding = context
             ? consumeOAuthCredentialDraftBinding(context)
             : undefined
 
-          if (isOAuth2Callback && !credentialDraftBinding) {
+          if (isConnectorCallback(context?.path, account.providerId) && !credentialDraftBinding) {
             throw new Error(
               'OAuth credential draft binding was not captured before account creation'
             )
@@ -771,8 +790,7 @@ export const auth = betterAuth({
          * authorization has to clear the failures recorded against the old grant explicitly.
          */
         after: async (account, context) => {
-          const path = context?.path
-          if (!path?.startsWith('/oauth2/callback/') && !path?.startsWith('/callback/')) return
+          if (!context?.path?.startsWith('/callback/')) return
           // Fails the callback only if this statement fails, so a reconnect never reports
           // success while the old revocation still blocks the credential.
           await clearRecordedRevocation(account.id)
@@ -814,8 +832,9 @@ export const auth = betterAuth({
       /**
        * Only providers that verify email ownership may auto-link to an existing
        * account during sign-in. Integration connectors are deliberately absent:
-       * they connect through the authenticated `/oauth2/link` flow, which binds
-       * to the current session user and never consults this list. `microsoft` is
+       * they connect through the authenticated `/link-social` flow, which binds
+       * to the current session user and is trusted by the connector adapter in
+       * `connectors/providers.ts` instead of this list. `microsoft` is
        * also excluded because it authenticates against the multi-tenant
        * `/common/` endpoint where the email claim is attacker-controllable;
        * leaving it trusted would bypass the email-verified check and allow
@@ -1022,9 +1041,7 @@ export const auth = betterAuth({
       try {
         /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
         if (
-          ((ctx.path.startsWith('/oauth2/') &&
-            ctx.path !== '/oauth2/link' &&
-            !ctx.path.startsWith('/oauth2/callback/')) ||
+          (ctx.path.startsWith('/oauth2/') ||
             ctx.path === '/.well-known/oauth-authorization-server') &&
           isAuthDisabled
         ) {
@@ -1032,7 +1049,7 @@ export const auth = betterAuth({
         }
 
         /**
-         * Better Auth 1.6.27 re-enters OAuth authorization when its own session
+         * Better Auth re-enters OAuth authorization when its own session
          * refresh sets a cookie, issuing a second code that is never returned.
          * Suppressing sliding renewal only for this request prevents the orphan;
          * the next ordinary session request can still renew the same session.
@@ -1044,11 +1061,11 @@ export const auth = betterAuth({
          * providers. Better Auth registers every generic-OAuth integration
          * connector as a social provider, so without this guard `microsoft-ad`,
          * `salesforce`, `jira`, and the rest are reachable through
-         * `/sign-in/social` and `/sign-in/oauth2` and can mint a session for any
-         * user by email (nOAuth account takeover). Connectors are connected only
-         * through the authenticated `/oauth2/link` flow, which is unaffected.
+         * `/sign-in/social` and can mint a session for any user by email (nOAuth
+         * account takeover). Connectors are connected only through the
+         * authenticated `/link-social` flow, which is unaffected.
          */
-        if (ctx.path === '/sign-in/social' || ctx.path === '/sign-in/oauth2') {
+        if (ctx.path === '/sign-in/social') {
           const requestedProviderId = getRequestedSignInProviderId(ctx.path, ctx.body)
           if (!isSignInProviderAllowed(requestedProviderId)) {
             throw new APIError('FORBIDDEN', {
@@ -1091,10 +1108,7 @@ export const auth = betterAuth({
           }
         }
 
-        if (
-          ctx.path === '/oauth2/link' &&
-          ctx.body?.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID
-        ) {
+        if (ctx.path === '/link-social' && ctx.body?.provider === MICROSOFT_DATAVERSE_PROVIDER_ID) {
           try {
             assertMicrosoftDataverseOAuthLinkRequest(
               ctx.body.callbackURL,
@@ -1483,7 +1497,7 @@ export const auth = betterAuth({
       overrideDefaultEmailVerification: true,
     }),
     genericOAuth({
-      config: buildConnectorProviders(),
+      config: connectorProviders,
     }),
     /**
      * Sim as an OAuth 2.0 authorization server (auth-code + PKCE, refresh
@@ -1514,6 +1528,11 @@ export const auth = betterAuth({
             allowPublicClientPrelogin: true,
             allowDynamicClientRegistration: true,
             allowUnauthenticatedClientRegistration: true,
+            /**
+             * MCP clients register loopback and private-scheme callbacks; the
+             * `web` default would refuse them. HTTPS-only clients stay `web`.
+             */
+            clientRegistrationDefaultApplicationType: 'infer',
             clientRegistrationAllowedScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
             clientRegistrationDefaultScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
             customTokenResponseFields: bindOAuthIssuedResource,
@@ -1527,6 +1546,8 @@ export const auth = betterAuth({
              * requires the signed authorization query.
              */
             clientPrivileges: () => false,
+            /** Sim registers no provider resources; see `oauth-resource.ts`. */
+            resourcePrivileges: () => false,
             /**
              * Opaque access tokens let Settings revoke every token for an app
              * on the next request and let `sim logout` revoke one independent

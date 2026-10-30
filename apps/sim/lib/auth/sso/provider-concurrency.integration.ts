@@ -266,9 +266,8 @@ describe('SSO account link concurrency', () => {
           samlConfig: {
             entryPoint: 'https://original.example.com/sso',
             cert: 'fixture certificate',
-            callbackUrl: 'https://app.example.com/api/auth/sso/saml2/callback',
-            spMetadata: { metadata: '' },
-            mapping: { id: 'sub', email: 'email', name: 'name' },
+            idpMetadata: { entityID: issuer },
+            mapping: { email: 'email', name: 'name' },
           },
         })
         await db.execute(sql`CREATE FUNCTION ${sql.identifier(fixture)}()

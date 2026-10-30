@@ -79,7 +79,12 @@ describe('guardOAuthProviderWrites', () => {
     expect(chain.onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         target: ['oauthConsent.userId', 'oauthConsent.clientId', 'oauthConsent.referenceId'],
-        set: { scopes: ['api:read'], updatedAt: consentData().updatedAt },
+        set: {
+          scopes: ['api:read'],
+          resources: null,
+          requestedUserInfoClaims: null,
+          updatedAt: consentData().updatedAt,
+        },
       })
     )
   })
@@ -115,7 +120,7 @@ describe('guardOAuthProviderWrites', () => {
       const guarded = guardOAuthProviderWrites(base)
       await withOAuthResourceIssuance(resource, async () => {
         bindOAuthIssuedResource({
-          verificationValue: { query: { resource } },
+          verificationValue: { query: { sim_resource: resource } },
           scopes: ['search:read'],
         })
         await guarded.create({

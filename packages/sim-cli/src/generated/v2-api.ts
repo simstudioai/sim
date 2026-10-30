@@ -23462,7 +23462,7 @@ export const V2_OPERATIONS = {
       },
       mapping: {
         kind: 'object',
-        default: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+        default: { email: 'email', name: 'name', image: 'picture' },
         describe: 'Identity-provider claims mapped to user fields.',
       },
       clientId: {
@@ -23523,7 +23523,7 @@ export const V2_OPERATIONS = {
       callbackUrl: {
         kind: 'string',
         describe:
-          'SAML callback URL; defaults to this provider’s Sim callback. Available when providerType is saml.',
+          'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL. Available when providerType is saml.',
       },
       audience: {
         kind: 'string',
@@ -23585,7 +23585,7 @@ export const V2_OPERATIONS = {
           },
           mapping: {
             kind: 'object',
-            default: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+            default: { email: 'email', name: 'name', image: 'picture' },
             describe: 'Identity-provider claims mapped to user fields.',
           },
           clientId: {
@@ -23655,7 +23655,7 @@ export const V2_OPERATIONS = {
           },
           mapping: {
             kind: 'object',
-            default: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+            default: { email: 'email', name: 'name', image: 'picture' },
             describe: 'Identity-provider claims mapped to user fields.',
           },
           entryPoint: {
@@ -23670,7 +23670,8 @@ export const V2_OPERATIONS = {
           },
           callbackUrl: {
             kind: 'string',
-            describe: 'SAML callback URL; defaults to this provider’s Sim callback.',
+            describe:
+              'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL.',
           },
           audience: {
             kind: 'string',

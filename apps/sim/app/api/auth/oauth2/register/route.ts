@@ -64,7 +64,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   )
   if (!response.ok) return response
+  const { scope } = parsed.data.body
   const body = registerOAuthClientContract.response.schema.parse(await response.json())
-  await markPubliclyRegisteredOAuthClient(body.client_id)
-  return NextResponse.json(body, { status: 201, headers: HEADERS })
+  await markPubliclyRegisteredOAuthClient(body.client_id, scope.split(' '))
+  return NextResponse.json({ ...body, scope }, { status: 201, headers: HEADERS })
 })

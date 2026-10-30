@@ -5616,11 +5616,13 @@ export const oauthClient = pgTable(
     id: text('id').primaryKey(),
     clientId: text('client_id').notNull().unique(),
     clientSecret: text('client_secret'),
+    clientDiscoveryId: text('client_discovery_id'),
     disabled: boolean('disabled').notNull().default(false),
     skipConsent: boolean('skip_consent'),
     enableEndSession: boolean('enable_end_session'),
     subjectType: text('subject_type'),
     scopes: text('scopes').array(),
+    clientCredentialsScopes: text('client_credentials_scopes').array().default(sql`'{}'::text[]`),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at'),
     updatedAt: timestamp('updated_at'),
@@ -5635,12 +5637,23 @@ export const oauthClient = pgTable(
     softwareStatement: text('software_statement'),
     redirectUris: text('redirect_uris').array().notNull(),
     postLogoutRedirectUris: text('post_logout_redirect_uris').array(),
+    backchannelLogoutUri: text('backchannel_logout_uri'),
+    backchannelLogoutSessionRequired: boolean('backchannel_logout_session_required'),
     tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    applicationType: text('application_type'),
+    jwks: text('jwks'),
+    jwksUri: text('jwks_uri'),
     grantTypes: text('grant_types').array(),
     responseTypes: text('response_types').array(),
+    /**
+     * contract-pending(after the Better Auth 1.7 release is fully deployed and no 1.6 pod remains): retire public and type — stop writing them in create-oauth-client.ts, oauth-client-registration.ts and the lifecycle seed, then schedule their removal; 1.7 neither reads nor writes them, and Sim reads `public` only as a fallback for clients registered before `none` alone meant public.
+     * @deprecated Public means `tokenEndpointAuthMethod === 'none'`.
+     */
     public: boolean('public'),
+    /** @deprecated Replaced by `applicationType`; retired with `public`. */
     type: text('type'),
     requirePKCE: boolean('require_pkce'),
+    dpopBoundAccessTokens: boolean('dpop_bound_access_tokens').default(false),
     referenceId: text('reference_id'),
     metadata: jsonb('metadata'),
   },
@@ -5660,6 +5673,8 @@ export const oauthConsent = pgTable(
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     referenceId: text('reference_id'),
     scopes: text('scopes').array().notNull(),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
   },
@@ -5671,6 +5686,59 @@ export const oauthConsent = pgTable(
       .nullsNotDistinct(),
   })
 )
+
+/**
+ * A protected resource Better Auth 1.7 can issue tokens for (RFC 8707). Sim's MCP
+ * resources are per organization and per workflow server, so Sim binds them itself
+ * (`oauth-resource.ts`) and leaves this table empty; it exists because the provider
+ * reads it whenever a request names a `resource`.
+ */
+export const oauthResource = pgTable('oauth_resource', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull().unique(),
+  name: text('name').notNull(),
+  accessTokenTtl: integer('access_token_ttl'),
+  refreshTokenTtl: integer('refresh_token_ttl'),
+  signingAlgorithm: text('signing_algorithm'),
+  signingKeyId: text('signing_key_id'),
+  allowedScopes: text('allowed_scopes').array(),
+  customClaims: jsonb('custom_claims'),
+  dpopBoundAccessTokensRequired: boolean('dpop_bound_access_tokens_required').default(false),
+  disabled: boolean('disabled').default(false),
+  createdAt: timestamp('created_at'),
+  updatedAt: timestamp('updated_at'),
+  policyVersion: integer('policy_version').default(1),
+  metadata: jsonb('metadata'),
+})
+
+/** Which clients may request which {@link oauthResource}; one row per pair. */
+export const oauthClientResource = pgTable(
+  'oauth_client_resource',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => oauthResource.identifier, { onDelete: 'cascade' }),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at'),
+  },
+  (table) => ({
+    clientResourceUnique: unique('oauth_client_resource_client_resource_unique').on(
+      table.clientId,
+      table.resourceId
+    ),
+    resourceIdIdx: index('oauth_client_resource_resource_id_idx').on(table.resourceId),
+  })
+)
+
+/** Single-use `private_key_jwt` assertion ids; the id is a digest, so a replay collides on it. */
+export const oauthClientAssertion = pgTable('oauth_client_assertion', {
+  id: text('id').primaryKey(),
+  expiresAt: timestamp('expires_at').notNull(),
+})
 
 /**
  * One independently revocable login. Every rotating refresh token belongs to
@@ -5726,6 +5794,13 @@ export const oauthRefreshToken = pgTable(
     authTime: timestamp('auth_time'),
     scopes: text('scopes').array().notNull(),
     resource: text('resource'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    rotatedAt: timestamp('rotated_at'),
+    rotationReplayResponse: text('rotation_replay_response'),
+    rotationReplayExpiresAt: timestamp('rotation_replay_expires_at'),
+    confirmation: jsonb('confirmation'),
     familyId: text('family_id')
       .notNull()
       .references(() => oauthTokenFamily.id, { onDelete: 'cascade' }),
@@ -5735,6 +5810,10 @@ export const oauthRefreshToken = pgTable(
     clientIdIdx: index('oauth_refresh_token_client_id_idx').on(table.clientId),
     sessionIdIdx: index('oauth_refresh_token_session_id_idx').on(table.sessionId),
     userClientIdx: index('oauth_refresh_token_user_client_idx').on(table.userId, table.clientId),
+    /** Code replay revokes every token the code issued. */
+    authorizationCodeIdIdx: index('oauth_refresh_token_authorization_code_id_idx').on(
+      table.authorizationCodeId
+    ),
     /** Drives the cleanup pass; nothing else reads tokens by expiry. */
     expiresAtIdx: index('oauth_refresh_token_expires_at_idx').on(table.expiresAt),
     familyGenerationUnique: unique('oauth_refresh_token_family_generation_unique').on(
@@ -5770,14 +5849,23 @@ export const oauthAccessToken = pgTable(
     }),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').notNull(),
+    revoked: timestamp('revoked'),
     scopes: text('scopes').array().notNull(),
     resource: text('resource'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    confirmation: jsonb('confirmation'),
   },
   (table) => ({
     clientIdIdx: index('oauth_access_token_client_id_idx').on(table.clientId),
     sessionIdIdx: index('oauth_access_token_session_id_idx').on(table.sessionId),
     refreshIdIdx: index('oauth_access_token_refresh_id_idx').on(table.refreshId),
     userClientIdx: index('oauth_access_token_user_client_idx').on(table.userId, table.clientId),
+    /** Code replay revokes every token the code issued. */
+    authorizationCodeIdIdx: index('oauth_access_token_authorization_code_id_idx').on(
+      table.authorizationCodeId
+    ),
     /** Drives the cleanup pass; nothing else reads tokens by expiry. */
     expiresAtIdx: index('oauth_access_token_expires_at_idx').on(table.expiresAt),
     /** contract-pending(after #7613 is fully deployed): validate oauth_access_token_search_resource_check separately so rollout avoids a token-table scan. */
