@@ -18456,7 +18456,7 @@ export const V2_OPERATIONS = {
       waitTimeoutSeconds: {
         kind: 'integer',
         describe:
-          'Wait at most this many seconds for a synchronous run, then answer `202` with the run receipt while it continues in the background; `0` waits until it settles. The run is admitted under asynchronous limits, a dropped connection no longer cancels it, and it can be watched or cancelled through the runs resource. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.',
+          'Wait at most this many seconds for a synchronous run; `0` waits until it settles. A run still going then continues in the background and the response carries its run receipt instead of its result: `202` on a JSON response, or a closing `detached` frame on an `application/x-ndjson` result stream, which keeps its `200`. The receipt is sent only once the run can be read on the runs resource, where it can also be cancelled. The run is admitted under asynchronous limits, and a dropped connection no longer cancels it. Requires an API key or OAuth access token. Cannot be combined with `async` or `stream`.',
       },
       stream: {
         kind: 'boolean',

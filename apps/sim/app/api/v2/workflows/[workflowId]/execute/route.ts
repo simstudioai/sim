@@ -156,21 +156,27 @@ function terminalRunResponse(result: ExecuteWorkflowServiceTerminalResult): Resp
   })
 }
 
-/** The pending run's result, or null when `afterMs` passes first; the run is never cancelled here. */
-async function settledWithin(
-  pending: Promise<ExecuteWorkflowServiceTerminalResult>,
+/**
+ * The run's result, or null once it may detach: `afterMs` has passed (never, when null)
+ * and the run can be found by its id, so the receipt handed out always resolves. The run
+ * itself is never cancelled here.
+ */
+async function settledBeforeDetach(
+  run: ExecuteWorkflowServicePendingRun,
   afterMs: number | null
 ): Promise<ExecuteWorkflowServiceTerminalResult | null> {
-  if (afterMs === null) return pending
+  if (afterMs === null) return run.pending
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), afterMs)
   })
   try {
-    return await Promise.race([pending, deadline])
+    const settled = await Promise.race([run.pending, deadline])
+    if (settled) return settled
   } finally {
     clearTimeout(timer)
   }
+  return Promise.race([run.pending, run.logged.then(() => null)])
 }
 
 /**
@@ -189,12 +195,9 @@ function streamPendingRun(
 ): Response {
   let closed = false
   let heartbeatId: ReturnType<typeof setInterval> | undefined
-  let detachId: ReturnType<typeof setTimeout> | undefined
   const stopTimers = () => {
     clearInterval(heartbeatId)
-    clearTimeout(detachId)
     heartbeatId = undefined
-    detachId = undefined
   }
   const abandon = () => {
     if (closed) return
@@ -226,12 +229,16 @@ function streamPendingRun(
         heartbeatId = setInterval(() => {
           send({ type: 'heartbeat', timestamp: new Date().toISOString() })
         }, WORKFLOW_RESULT_HEARTBEAT_INTERVAL_MS)
-        if (detachment?.afterMs != null) {
+        if (detachment) {
           const { receipt } = detachment
-          detachId = setTimeout(() => {
-            send({ type: 'detached', data: receipt })
-            finish()
-          }, detachment.afterMs)
+          void settledBeforeDetach(pendingRun, detachment.afterMs).then(
+            (settled) => {
+              if (settled) return
+              send({ type: 'detached', data: receipt })
+              finish()
+            },
+            () => {}
+          )
         }
       }
 
@@ -618,7 +625,7 @@ export const POST = withRouteHandler(
         /** The ticket holds this server's capacity for as long as the run, not the response. */
         ticketTransferred = true
         void result.pending.then(ticket.release, ticket.release)
-        const settled = await settledWithin(result.pending, detachment.afterMs)
+        const settled = await settledBeforeDetach(result, detachment.afterMs)
         if (settled) return terminalRunResponse(settled)
         return v2Data(detachment.receipt, {
           status: 202,

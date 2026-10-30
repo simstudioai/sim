@@ -216,7 +216,7 @@ describe('sim workflows run --wait-timeout', () => {
     expect(request.mock.calls[0][0]).toBe(`/api/v2/workflows/${WORKFLOW_ID}/runs/run-1`)
     expect(JSON.parse(logged.join('\n'))).toMatchObject({ runId: 'run-1', status: 'running' })
     expect(errored.join('\n')).toContain(
-      `sim workflows runs wait run-1 --workflow ${WORKFLOW_ID} --wait-timeout`
+      `sim workflows runs wait run-1 --workflow ${WORKFLOW_ID} --wait-timeout 30`
     )
     expect(process.exitCode).toBe(4)
   })

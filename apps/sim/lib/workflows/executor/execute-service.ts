@@ -195,6 +195,8 @@ export interface ExecuteWorkflowServicePendingRun {
   ok: true
   executionId: string
   pending: Promise<ExecuteWorkflowServiceTerminalResult>
+  /** Resolves once the run can be found by its id; never, when its log could not start. */
+  logged: Promise<void>
   cancel: () => void
 }
 
@@ -938,6 +940,7 @@ export async function executeWorkflowService(
         ok: true,
         executionId,
         pending: pending.finally(settleExecutionIdClaim),
+        logged: loggingSession.whenLogStarted(),
         cancel: abortFromRequest,
       }
     }

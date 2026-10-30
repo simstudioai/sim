@@ -209,7 +209,7 @@ function runSpec(): CommandSpec {
   return CLI_CONTRACT.getWorkflowRun ?? {}
 }
 
-export interface RunWait {
+interface RunWait {
   runId: string
   workflowId: string
   /** When the wait began, for the progress line. */

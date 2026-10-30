@@ -200,7 +200,7 @@ function withEmbeddedFileReferences(
 /** What a run still going when `--wait-timeout` elapsed says beside its record. */
 function stillRunning(runId: string, workflowId: string, waitedSeconds: number) {
   return (snapshot: RunSnapshot) =>
-    `Run ${runId} is still ${snapshot.status} after ${waitedSeconds}s and continues in the background. Keep waiting: sim workflows runs wait ${runId} --workflow ${workflowId} ${WAIT_TIMEOUT_FLAG}. Stop it: sim workflows runs cancel ${runId} --workflow ${workflowId}`
+    `Run ${runId} is still ${snapshot.status} after ${waitedSeconds}s and continues in the background. Keep waiting: sim workflows runs wait ${runId} --workflow ${workflowId} --wait-timeout ${waitedSeconds}. Stop it: sim workflows runs cancel ${runId} --workflow ${workflowId}`
 }
 
 /**

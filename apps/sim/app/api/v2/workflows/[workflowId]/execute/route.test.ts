@@ -4,6 +4,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
+  loggingSessionMockFns,
   resetDbChainMock,
   setEnv,
   workflowAuthzMockFns,
@@ -417,6 +418,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       ok: true,
       executionId: 'execution-123',
       pending,
+      logged: Promise.resolve(),
       cancel: vi.fn(),
     })
 
@@ -1224,6 +1226,35 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
         held.finish(settledCore)
         await vi.advanceTimersByTimeAsync(0)
         expect(mockAdmissionRelease).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('withholds the receipt until the run can be found by its id', async () => {
+      vi.useFakeTimers()
+      try {
+        let logStarted!: () => void
+        loggingSessionMockFns.mockWhenLogStarted.mockReturnValueOnce(
+          new Promise<void>((resolve) => {
+            logStarted = resolve
+          })
+        )
+        const held = holdRun()
+        const pending = Promise.resolve(callExecute({ input: {}, waitTimeoutSeconds: 1 }))
+        await vi.advanceTimersByTimeAsync(5_000)
+        let answered = false
+        void pending.then(() => {
+          answered = true
+        })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(answered).toBe(false)
+
+        logStarted()
+        const response = await pending
+        expect(response.status).toBe(202)
+        expect((await response.json()).data).toEqual(receipt)
+        held.finish(settledCore)
       } finally {
         vi.useRealTimers()
       }
