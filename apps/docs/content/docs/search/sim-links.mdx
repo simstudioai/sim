@@ -1,0 +1,65 @@
+---
+title: Sim Links
+description: Short sim/ links that take everyone in your organization to the right page
+---
+
+Sim Links are short, memorable names for the pages your team opens often, like `sim/handbook` for the employee handbook or `sim/okta` for your sign-in portal. Anyone in the organization can open them, with or without a Search seat. They work like go links in other tools.
+
+Open **Sim Links** in the organization sidebar to see every link in your organization, with who created it, how often it's opened, and when it last changed. Search by name, destination, or description, and select **Most used** to see the 50 links your team opens most.
+
+## Open a link
+
+Go to `https://sim.ai/sim/<name>`, for example `https://sim.ai/sim/handbook`. On a self-hosted deployment, use your Sim address instead of `sim.ai`. Sim sends you to the link's destination. If you aren't signed in, Sim asks you to sign in first, then continues to the link.
+
+Names ignore case and punctuation, so `sim/Team-Handbook`, `sim/team_handbook`, and `sim/teamhandbook` all open the same link. The destination still applies its own permissions.
+
+If nobody has created the link yet, Sim offers to create it with that name.
+
+## Open links from the address bar
+
+Add Sim as a site search shortcut in Chrome so you can type `sim handbook` instead of the full address:
+
+1. Open Chrome **Settings → Search engine → Manage search engines and site search**.
+2. Next to **Site search**, select **Add**.
+3. Enter `Sim` as the name, `sim` as the shortcut, and `https://sim.ai/sim/%s` as the URL.
+
+Type `sim`, press **Space** or **Tab**, then type a link name such as `handbook` or `jira/123` and press **Enter**.
+
+Chrome administrators can add this shortcut for everyone with the `SiteSearchSettings` policy, using the same shortcut and URL.
+
+## Create a link
+
+1. Open **Sim Links** and select **New link**.
+2. Enter the **Destination URL**, a full `https://` address.
+3. Enter a **Name**. Use letters, numbers, and `. : @ & ~ - _`.
+4. Optionally add a **Description** so teammates know what the link is for.
+5. Select **Create**.
+
+Select **Copy link** from a link's menu to share it.
+
+## Add values to a link
+
+Anything after the name is added to the destination. If `sim/docs` opens `https://docs.example.com`, then `sim/docs/billing/invoices` opens `https://docs.example.com/billing/invoices`.
+
+To place a value somewhere else, put `{*}` in the destination URL:
+
+| Destination URL | You open | Sim opens |
+| --- | --- | --- |
+| `https://jira.example.com/browse/PROD-{*}` | `sim/jira/123` | `https://jira.example.com/browse/PROD-123` |
+| `https://wiki.example.com/search?q={*}` | `sim/wiki/expense policy` | `https://wiki.example.com/search?q=expense%20policy` |
+| `https://github.com/acme/{*}/issues/{*}` | `sim/issues/api/42` | `https://github.com/acme/api/issues/42` |
+
+Each value fills the next `{*}` in order, and the last `{*}` takes everything that remains. A link with `{*}` can also have a **Default destination** on the same site, which opens when you use the link without a value. `{*}` can't replace the domain, and values can't be `.` or `..`.
+
+## Control access
+
+Under **Access**, the creator of a link can choose:
+
+- **Unlist**: hides the link from the Sim Links page for everyone except the creator and organization admins. Anyone who knows the name can still open it.
+- **Restrict editing**: only the creator and organization admins can edit or delete the link. Everyone can still open it.
+
+Without restrictions, any member can edit or delete a link. Only the creator and organization admins can change its access settings. Creating, editing, and deleting links is recorded in your organization's [audit logs](/platform/enterprise/audit-logs).
+
+## Related docs
+
+- [Find content](/search/find-content)

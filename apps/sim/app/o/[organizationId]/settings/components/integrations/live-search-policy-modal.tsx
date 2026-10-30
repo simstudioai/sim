@@ -27,7 +27,7 @@ import {
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
 import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/params'
-import { SearchSourcePagination } from '@/app/o/[organizationId]/settings/components/integrations/search-source-pagination'
+import { SettingsListPagination } from '@/app/workspace/[workspaceId]/settings/components/settings-list-pagination'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'
 
@@ -263,7 +263,7 @@ function ServiceAccountSource({
             </Chip>
           </>
         )}
-        <SearchSourcePagination {...sources} />
+        <SettingsListPagination {...sources} fallback='Could not load more connections' />
         {sourceId && (
           <div className='flex flex-wrap gap-2'>
             {canManage && (

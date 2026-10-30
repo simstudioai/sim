@@ -13,6 +13,7 @@ import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
+import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -75,6 +76,7 @@ export default async function OrganizationLayout({
     workflowTestsEnabled,
     changelogEnabled,
     projectsEnabled,
+    simLinksEnabled,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -92,6 +94,7 @@ export default async function OrganizationLayout({
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
+    isSimLinksEnabled(organizationId),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -116,7 +119,12 @@ export default async function OrganizationLayout({
               <SessionExpired />
               <SettingsNavigationProvider>
                 <WorkspaceChrome
-                  sidebar={<OrganizationSidebar benchmarkEnabled={benchmarkEnabled} />}
+                  sidebar={
+                    <OrganizationSidebar
+                      benchmarkEnabled={benchmarkEnabled}
+                      simLinksEnabled={simLinksEnabled}
+                    />
+                  }
                   initialSidebarCollapsed={initialSidebarCollapsed}
                 >
                   {children}

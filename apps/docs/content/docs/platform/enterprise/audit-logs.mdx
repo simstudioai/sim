@@ -101,6 +101,7 @@ Events use identifiers such as `resource.action`. These categories are represent
 | API keys | `api_key.created`, `api_key.revoked` |
 | Credentials | `credential.created`, `credential.deleted`, `oauth.disconnected` |
 | Organization | `organization.updated`, `org_member.added`, `org_member.role_changed`, `organization.sso_provider.updated` |
+| Sim links | `sim_link.created`, `sim_link.updated`, `sim_link.deleted` |
 | Exports and drains | `audit_logs.exported`, `data_drain.created`, `data_drain.updated`, `data_drain.ran`, `data_drain.tested` |
 
 Authentication failures and password-reset requests use an anonymous actor and record the target account separately. Impersonation and administrative session revocations identify the operator and target organization. Table-row mutations record summaries and counts without copying row contents.

@@ -222,8 +222,6 @@
   "apps/sim/app/cli/auth/cli-auth-request.ts#CliAuthRequest",
   "apps/sim/app/cli/auth/search-params.ts#CLI_AUTH_SCOPES",
   "apps/sim/app/invite/components/index.ts#InvitationWorkspaceAccess",
-  "apps/sim/app/o/[organizationId]/components/organization-page/index.ts#OrganizationPageTab",
-  "apps/sim/app/o/[organizationId]/components/organization-page/organization-page.tsx#OrganizationPageTab",
   "apps/sim/app/o/[organizationId]/components/organization-sidebar/hooks/index.ts#useOrganizationWorkspaces",
   "apps/sim/app/o/[organizationId]/integrations/search-params.ts#integrationConnectionParams",
   "apps/sim/app/o/[organizationId]/settings/components/integrations/search-params.ts#organizationIntegrationsTabParam",
