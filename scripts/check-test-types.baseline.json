@@ -1719,9 +1719,6 @@
   "apps/sim/lib/knowledge/reranker.test.ts": {
     "TS2540": 2
   },
-  "apps/sim/lib/knowledge/search/diagnostics.test.ts": {
-    "TS2345": 2
-  },
   "apps/sim/lib/knowledge/search/prewarm.test.ts": {
     "TS2345": 4
   },

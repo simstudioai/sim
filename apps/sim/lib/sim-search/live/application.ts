@@ -33,7 +33,15 @@ import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/avail
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
+import type { SearchKnowledgeInput } from '@/lib/knowledge/application/search'
+import { instrumentSearchUseCase } from '@/lib/knowledge/application/search-diagnostics'
+import {
+  annotateSearchDiagnostics,
+  measureSearchStage,
+  recordSearchProviderResult,
+  withSearchProviderDiagnostics,
+  withSearchQueryDiagnostics,
+} from '@/lib/knowledge/search/diagnostics'
 import { RRF_K } from '@/lib/knowledge/search/recency'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
@@ -163,6 +171,7 @@ export function decodeLiveReference(value: string): Reference {
 }
 
 interface LiveSearchOptions {
+  surface?: SearchKnowledgeInput['surface']
   query: string
   topK: number
   filters?: WorkspaceSearchFilters
@@ -389,7 +398,7 @@ function compareAccounts(left: LiveAccount, right: LiveAccount): number {
   )
 }
 
-export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
+const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: LiveSearchInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }): Promise<WorkspaceKnowledgeSearchData> {
@@ -452,6 +461,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       )
       .sort(compareAccounts)
     const selected = eligible.slice(0, MAX_ACCOUNTS)
+    annotateSearchDiagnostics({
+      operation: 'search_workspace',
+      accountCount: eligible.length,
+      searchedAccountCount: selected.length,
+      nativeQueryCount: queries?.length ?? 0,
+    })
     const direction = dateSortDirection(filters)
     const dateSorted = Boolean(direction)
     const pool = createPinnedConnectionPool()
@@ -573,7 +588,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         moreUnsorted ||
         moreUnreachable ||
         emptyContinuable
-      return {
+      const searched: SearchedQuery = {
         status: {
           ...status,
           status: degraded ? 'partial' : 'ok',
@@ -636,6 +651,27 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           }
         }),
       }
+      recordSearchProviderResult({
+        queryIndex: status.queryIndex,
+        status: searched.status.status,
+        resultCount: searched.results.length,
+        ...(degraded
+          ? {
+              coverage: {
+                unverified,
+                verificationRateLimited: rateLimited,
+                servicePartial: Boolean(session.servicePartial),
+                providerPartial: Boolean(page.partial),
+                undatedExcluded,
+                undatedUnsorted,
+                moreUnsorted,
+                moreUnreachable,
+                emptyContinuable,
+              },
+            }
+          : {}),
+      })
+      return searched
     }
     /** One session per account serves each of its native queries, each reported on its own. */
     const searchAccount = async (account: LiveAccount): Promise<SearchedQuery[]> => {
@@ -663,6 +699,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                   'unavailable',
                   'This account could not be searched. Check the connection and try again.'
                 )
+        recordSearchProviderResult(
+          { queryIndex: target.queryIndex, status: failure.status, resultCount: 0 },
+          error
+        )
         return {
           status: {
             ...statusFor(target),
@@ -693,9 +733,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         const currentSession = session
         return await Promise.all(
           natives.map((target) =>
-            searchQuery(account, resolved, currentSession, target.native, statusFor(target)).catch(
-              (error) => failed(error, target)
-            )
+            withSearchQueryDiagnostics(target.queryIndex, () =>
+              searchQuery(account, resolved, currentSession, target.native, statusFor(target))
+            ).catch((error) => failed(error, target))
           )
         )
       } catch (error) {
@@ -707,7 +747,13 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     }
     let searched: SearchedQuery[]
     try {
-      searched = (await mapWithConcurrency(selected, ACCOUNT_CONCURRENCY, searchAccount)).flat()
+      searched = (
+        await mapWithConcurrency(selected, ACCOUNT_CONCURRENCY, (account, accountIndex) =>
+          withSearchProviderDiagnostics({ provider: account.provider, accountIndex }, () =>
+            searchAccount(account)
+          )
+        )
+      ).flat()
     } finally {
       pool.destroy()
     }
@@ -782,14 +828,19 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           message: 'No connection with this provider is configured and approved in this scope.',
         })
     }
+    const retrievalStatus =
+      accounts.some((account) => account.status !== 'ok') || eligible.length > selected.length
+        ? 'partial'
+        : 'complete'
+    annotateSearchDiagnostics({
+      resultCount: Math.min(ranked.length, input.topK),
+      retrievalStatus,
+    })
     return {
       query: input.query,
       results: ranked.slice(0, input.topK).map(({ result }) => result),
       retrieval: {
-        status:
-          accounts.some((account) => account.status !== 'ok') || eligible.length > selected.length
-            ? 'partial'
-            : 'complete',
+        status: retrievalStatus,
         timedOutLegs: [],
       },
       live: {
@@ -804,6 +855,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     }
   },
 })
+export const searchLiveKnowledge = instrumentSearchUseCase(
+  'knowledge_application',
+  liveKnowledgeSearch
+)
 
 export type LiveReadInput = ResourceOwner & {
   documentId: string
