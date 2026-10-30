@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-28",
+  "updatedAt": "2026-10-30",
   "integrations": [
     {
       "type": "onepassword",
@@ -6527,6 +6527,38 @@
       "integrationType": "devops",
       "tags": ["cloud", "ci-cd"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "companyenrich",
+      "slug": "companyenrich",
+      "name": "CompanyEnrich",
+      "description": "Enrich, search, and discover similar companies",
+      "longDescription": "Look up company profiles by domain, search company names and domains, and discover lookalike accounts. Enrichment costs 1 credit per call; search costs 1 credit per result (1 minimum); similar-company discovery costs 5 per result (5 minimum).",
+      "bgColor": "#1488CC",
+      "iconName": "CompanyEnrichIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/companyenrich",
+      "operations": [
+        {
+          "name": "Enrich Company",
+          "description": "Enrich one company by domain. Costs 1 CompanyEnrich credit per call."
+        },
+        {
+          "name": "Search Companies",
+          "description": "Search company names and domains. Costs 1 credit per result, with a 1-credit minimum per request."
+        },
+        {
+          "name": "Find Similar Companies",
+          "description": "Find lookalike companies from a seed domain. Costs 5 credits per result, with a 5-credit minimum per request."
+        }
+      ],
+      "operationCount": 3,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"],
+      "updatedAt": "2026-10-30"
     },
     {
       "type": "confluence_v2",

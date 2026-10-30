@@ -1,0 +1,121 @@
+---
+title: CompanyEnrich
+description: Enrich, search, and discover similar companies
+integration:
+  type: "companyenrich"
+  color: "#1488CC"
+---
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[CompanyEnrich](https://companyenrich.com/) provides company profiles, company search, and lookalike discovery.
+
+Obtain an API key from the [CompanyEnrich dashboard](https://app.companyenrich.com/) and enter it in **API Key** without the `Bearer` prefix. Choose **Enrich Company** and enter a domain such as `example.com` to retrieve its profile. A missing record produces an HTTP 404 error.
+
+Search and lookalike operations return one page per execution. **Page Size** defaults to 10 and supports 1–100 companies; increment **Page** to retrieve more. The page number multiplied by page size cannot exceed 10,000. Every additional page can consume credits. Similar-company results include a `scores` object keyed by company UUID.
+
+Profiles expose name, domain, website, description, industry, employee and revenue ranges, founding year, and technologies. Unknown scalar fields remain null; missing technology lists become empty arrays. These operations do not request workforce expansions or provide people/contact data.
+
+See the official [enrichment](https://docs.companyenrich.com/reference/get_companies-enrich), [search](https://docs.companyenrich.com/reference/post_companies-search), and [similar-company](https://docs.companyenrich.com/reference/post_companies-similar) references for credit costs and account requirements.
+{/* MANUAL-CONTENT-END */}
+
+
+## Use the block [#usage-instructions]
+
+Look up company profiles by domain, search company names and domains, and discover lookalike accounts. Enrichment costs 1 credit per call; search costs 1 credit per result (1 minimum); similar-company discovery costs 5 per result (5 minimum).
+
+## Actions
+
+### CompanyEnrich Enrich Company
+
+Enrich one company by domain. Costs 1 CompanyEnrich credit per call.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `domain` | string | Yes | Company domain, for example example.com |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | Enriched company profile |
+|   ↳ `id` | string | Company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Primary company domain |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Primary industry |
+|   ↳ `employees` | string | Employee count range |
+|   ↳ `revenue` | string | Annual revenue range in USD |
+|   ↳ `founded_year` | number | Year founded |
+|   ↳ `technologies` | array | Technologies used |
+
+### CompanyEnrich Search Companies
+
+Search company names and domains. Costs 1 credit per result, with a 1-credit minimum per request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `query` | string | Yes | Search query applied to company names and domains |
+| `page` | number | No | One-based page number \(default 1\) |
+| `pageSize` | number | No | Companies per page, 1–100 \(default 10\). Each result consumes credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Matching companies |
+|   ↳ `id` | string | Company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Primary company domain |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Primary industry |
+|   ↳ `employees` | string | Employee count range |
+|   ↳ `revenue` | string | Annual revenue range in USD |
+|   ↳ `founded_year` | number | Year founded |
+|   ↳ `technologies` | array | Technologies used |
+| `page` | number | Current page number |
+| `totalPages` | number | Total available pages |
+| `totalItems` | number | Total matching companies |
+
+### CompanyEnrich Find Similar Companies
+
+Find lookalike companies from a seed domain. Costs 5 credits per result, with a 5-credit minimum per request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `domain` | string | Yes | Company domain, for example example.com |
+| `page` | number | No | One-based page number \(default 1\) |
+| `pageSize` | number | No | Companies per page, 1–100 \(default 10\). Each result consumes credits. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Matching companies |
+|   ↳ `id` | string | Company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Primary company domain |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Primary industry |
+|   ↳ `employees` | string | Employee count range |
+|   ↳ `revenue` | string | Annual revenue range in USD |
+|   ↳ `founded_year` | number | Year founded |
+|   ↳ `technologies` | array | Technologies used |
+| `page` | number | Current page number |
+| `totalPages` | number | Total available pages |
+| `totalItems` | number | Total matching companies |
+| `scores` | json | Similarity scores keyed by company UUID, from 0 to 1 |
+
+

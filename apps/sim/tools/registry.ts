@@ -1022,6 +1022,11 @@ import {
   codepipelineStopExecutionTool,
 } from '@/tools/codepipeline'
 import {
+  companyenrichEnrichTool,
+  companyenrichSearchTool,
+  companyenrichSimilarTool,
+} from '@/tools/companyenrich'
+import {
   confluenceAddLabelTool,
   confluenceCreateBlogPostTool,
   confluenceCreateCommentTool,
@@ -9083,6 +9088,9 @@ export const tools: Record<string, ExecutableToolConfig> = {
   codepipeline_retry_stage_execution: codepipelineRetryStageExecutionTool,
   codepipeline_start_execution: codepipelineStartExecutionTool,
   codepipeline_stop_execution: codepipelineStopExecutionTool,
+  companyenrich_enrich: companyenrichEnrichTool,
+  companyenrich_search: companyenrichSearchTool,
+  companyenrich_similar: companyenrichSimilarTool,
   convex_query: convexQueryTool,
   convex_mutation: convexMutationTool,
   convex_action: convexActionTool,
