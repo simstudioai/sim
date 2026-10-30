@@ -63,6 +63,7 @@ import {
 } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { authMockFns, envFlagsMock, setEnvFlags } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, is, SQL, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
@@ -3705,6 +3706,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           })
         })
         const workerRequests: Array<{ path: string; at: number }> = []
+        const startupTimeout = setTimeout(() => child.kill(), 10_000)
         try {
           fixture.workerUrl = await Promise.race([
             ready,
@@ -3712,6 +3714,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               throw new Error(`Worker probe exited before readiness: ${diagnostics}`)
             }),
           ])
+          clearTimeout(startupTimeout)
           vi.stubEnv('COPILOT_API_KEY', 'local-controller-probe-key')
           vi.unstubAllGlobals()
           const nativeFetch = globalThis.fetch
@@ -3832,7 +3835,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             expect(seen).toContain('"exitCode":4')
             expect(seen).toMatch(/"status": ?"running"/)
             expect(seen).toContain('sim workflows runs wait')
-            await new Promise((resolve) => setTimeout(resolve, 35_000))
+            await sleep(35_000)
             return
           }
           // Sim #9469: a still-running (exit 4) slice settles as done, not failed.
@@ -3885,7 +3888,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               ])
               expect(outcome(call).exitCode).toBe(index === waits.length - 1 ? 0 : 4)
             }
-            expect(JSON.parse(outcome(waits.at(-1)!).stdout)).toMatchObject({
+            const settledWait = waits.at(-1)
+            if (!settledWait) throw new Error('The run never settled through a wait slice')
+            expect(JSON.parse(outcome(settledWait).stdout)).toMatchObject({
               runId,
               status: 'completed',
             })
@@ -3913,6 +3918,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           }
           expect(endedAt - startedAt).toBeGreaterThan(waitSeconds * 1000)
         } finally {
+          clearTimeout(startupTimeout)
           fixture.executionTimeoutMs = 20_000
           child.kill()
           await exited
