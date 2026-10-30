@@ -63,7 +63,7 @@
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types.ts": 2,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils.ts": 2,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block.tsx": 1,
-    "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields.ts": 7,
+    "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields.ts": 6,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities.ts": 1,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-scroll-management.ts": 1,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand.ts": 1,

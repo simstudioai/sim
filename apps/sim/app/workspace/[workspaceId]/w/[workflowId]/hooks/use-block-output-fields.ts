@@ -12,7 +12,8 @@ const RESERVED_KEYS = new Set(['type', 'description'])
 /**
  * Checks if a property is an object type
  */
-const isObject = (prop: any): boolean => prop && typeof prop === 'object'
+const isObject = (prop: unknown): prop is Record<string, any> =>
+  prop !== null && typeof prop === 'object'
 
 /**
  * Gets a subblock value from the store
@@ -33,6 +34,11 @@ const extractChildFields = (prop: any): SchemaField[] | undefined => {
 
   if (prop.items?.properties && isObject(prop.items.properties)) {
     return extractNestedFields(prop.items.properties)
+  }
+
+  /** Typed elements without `properties` (strings, `any`) have no fields to reference. */
+  if (prop.type === 'array' && isObject(prop.items) && typeof prop.items.type === 'string') {
+    return undefined
   }
 
   if (!('type' in prop)) {
@@ -71,7 +77,7 @@ const extractNestedFields = (properties: Record<string, any>): SchemaField[] => 
 /**
  * Creates a schema field from an output definition
  */
-const createFieldFromOutput = (name: string, output: any): SchemaField => {
+export const createFieldFromOutput = (name: string, output: unknown): SchemaField => {
   const hasExplicitType = isObject(output) && typeof output.type === 'string'
   const type = hasExplicitType ? output.type : isObject(output) ? 'object' : 'string'
 

@@ -3701,7 +3701,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute workflow",
-        "description": "Run the active deployment, or set `run.source: \"manual\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
+        "description": "Run the active deployment, or set `run.source: \"manual\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -3891,7 +3891,7 @@
             }
           },
           "202": {
-            "description": "The asynchronous run was queued.",
+            "description": "The asynchronous run was queued, or the synchronous run was still running when `waitTimeoutSeconds` elapsed and continues in the background.",
             "headers": {
               "X-Run-Id": {
                 "$ref": "#/components/headers/X-Run-Id"
@@ -14267,7 +14267,7 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Queued workflow execution response",
-        "description": "Receipt returned for an asynchronous workflow run.",
+        "description": "Receipt returned for an asynchronous workflow run, or for a synchronous run still running when `waitTimeoutSeconds` elapsed.",
         "examples": [
           {
             "data": {

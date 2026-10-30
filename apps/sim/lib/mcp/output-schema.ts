@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { McpToolSchema } from '@/lib/mcp/types'
 
 /**
@@ -15,15 +15,21 @@ const MAX_SHAPE_DEPTH = 8
 const MAX_SHAPE_NODES = 500
 
 /**
- * The structure of a declared output schema: types, properties and array items
- * only. Descriptions, enums and examples are dropped because the snapshot is a
- * block input, and the executor and lint read every string in a block's inputs
- * as a possible `<block.path>` reference.
+ * The structure of a declared output schema: types, properties, openness and
+ * array items only. Descriptions, enums and examples are dropped because the
+ * snapshot is a block input, and the executor and lint read every string in a
+ * block's inputs as a possible `<block.path>` reference.
  */
 export interface McpToolOutputShape {
   type: 'object' | 'array' | 'string' | 'number' | 'boolean' | 'any'
-  /** Declared fields of a closed object; absent when the object is open or undeclared. */
+  /** Declared fields of an object; absent when it declares none, which leaves every field allowed. */
   properties?: Record<string, McpToolOutputShape>
+  /**
+   * The object allows fields beyond `properties`, as JSON Schema reads any object
+   * not declaring `additionalProperties: false`. A snapshot saved before this was
+   * recorded lacks it and stays closed until the operation is picked again.
+   */
+  open?: true
   items?: McpToolOutputShape
 }
 
@@ -67,23 +73,28 @@ function reduceNode(node: unknown, depth: number, budget: { nodes: number }): Mc
 
   switch (declaredType(node)) {
     case 'object': {
-      const open =
-        (node.additionalProperties !== undefined && node.additionalProperties !== false) ||
-        node.patternProperties !== undefined
-      if (open || !isRecordLike(node.properties)) return { type: 'object' }
+      const closed = node.additionalProperties === false && node.patternProperties === undefined
+      if (!closed && !isRecordLike(node.properties)) return { type: 'object' }
       const entries: [string, McpToolOutputShape][] = []
-      for (const [name, child] of Object.entries(node.properties)) {
-        /** Past the budget the object stays open: any field resolves, none is saved. */
+      for (const [name, child] of Object.entries(toRecord(node.properties))) {
+        /** Past the budget the object is saved untyped: any field resolves, none is declared. */
         if (budget.nodes <= 0) return { type: 'object' }
         entries.push([name, reduceNode(child, depth + 1, budget)])
       }
-      /** `fromEntries` keeps every declared name, `__proto__` included, as an own field. */
-      return { type: 'object', properties: Object.fromEntries(entries) }
+      return {
+        type: 'object',
+        /** `fromEntries` keeps every declared name, `__proto__` included, as an own field. */
+        properties: Object.fromEntries(entries),
+        ...(!closed && { open: true }),
+      }
     }
     case 'array':
-      return isRecordLike(node.items)
-        ? { type: 'array', items: reduceNode(node.items, depth + 1, budget) }
-        : { type: 'array' }
+      return {
+        type: 'array',
+        items: isRecordLike(node.items)
+          ? reduceNode(node.items, depth + 1, budget)
+          : { type: 'any' },
+      }
     case 'string':
       return { type: 'string' }
     case 'number':
@@ -139,6 +150,7 @@ function isShape(value: unknown, depth = 0): value is McpToolOutputShape {
     return false
   }
   if (depth > MAX_SHAPE_DEPTH + 1) return false
+  if (value.open !== undefined && value.open !== true) return false
   if (value.items !== undefined && !isShape(value.items, depth + 1)) return false
   if (value.properties === undefined) return true
   return (
