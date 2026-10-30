@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
 import { resolveSimLink } from '@/lib/sim-links/application/use-cases'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
@@ -32,7 +32,7 @@ export default async function SimLinkPage({ params }: SimLinkPageProps) {
   if (!session?.user)
     redirect(
       buildAuthCrossLink('/login', {
-        callbackUrl: `/sim${path.map((segment) => `/${encodeURIComponent(segment)}`).join('')}`,
+        callbackUrl: simLinkPath(...path),
         isInviteFlow: false,
       })
     )

@@ -57,6 +57,11 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
+/** Where `sim/<name>/<values…>` resolves in this app: the address a member types, kept verbatim. */
+export function simLinkPath(...segments: string[]): string {
+  return ['/sim', ...segments.map(encodeURIComponent)].join('/')
+}
+
 /** Whether `pathname` is `root` itself or a route beneath it. */
 export function isPathOrDescendant(pathname: string, root: string): boolean {
   return pathname === root || pathname.startsWith(`${root}/`)

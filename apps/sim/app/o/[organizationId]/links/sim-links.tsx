@@ -11,10 +11,13 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  writeTextToClipboard,
 } from '@sim/emcn'
 import { Link, MoreHorizontal, Plus } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
+import { simLinkPath } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   OrganizationPage,
@@ -26,6 +29,7 @@ import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsListPagination } from '@/app/workspace/[workspaceId]/settings/components/settings-list-pagination'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
@@ -33,12 +37,18 @@ import {
 import { useDeleteSimLink, useSimLinks } from '@/hooks/queries/sim-links'
 import { useDebounce } from '@/hooks/use-debounce'
 
-interface SimLinksProps {
-  organizationId: string
+const logger = createLogger('SimLinks')
+
+async function copyLink(name: string) {
+  try {
+    await writeTextToClipboard(new URL(simLinkPath(name), window.location.origin).href)
+  } catch (error) {
+    logger.error('Failed to copy Sim link', { error })
+  }
 }
 
-function simLinkPath(name: string): string {
-  return `/sim/${encodeURIComponent(name)}`
+interface SimLinksProps {
+  organizationId: string
 }
 
 /** Every Sim link the viewer may browse, with create, edit, and delete in place. */
@@ -95,13 +105,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
                     <Chip leftIcon={MoreHorizontal} aria-label={`sim/${link.name} actions`} />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align='end'>
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        void navigator.clipboard.writeText(
-                          new URL(simLinkPath(link.name), window.location.origin).href
-                        )
-                      }
-                    >
+                    <DropdownMenuItem onSelect={() => void copyLink(link.name)}>
                       Copy link
                     </DropdownMenuItem>
                     {link.canEdit && (
@@ -125,15 +129,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
             />
           ))
         )}
-        {links.hasNextPage && (
-          <Chip
-            className='mt-2 self-center'
-            disabled={links.isFetchingNextPage}
-            onClick={() => void links.fetchNextPage()}
-          >
-            {links.isFetchingNextPage ? 'Loading' : 'Load more'}
-          </Chip>
-        )}
+        <SettingsListPagination {...links} fallback='Could not load more Sim links' />
       </div>
       {create !== null && (
         <SimLinkModal

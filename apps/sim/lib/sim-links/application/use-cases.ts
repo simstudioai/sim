@@ -6,6 +6,7 @@ import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
 } from '@/lib/core/application/authorized-organization-use-case'
+import type { WorkspaceUseCaseAuditEntry } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OrganizationMembershipContext } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
@@ -28,7 +29,7 @@ export interface SimLinkView extends SimLinkRecord {
   canManage: boolean
 }
 
-export type SimLinkResolution = SimLinkTarget | { kind: 'not_found' }
+type SimLinkResolution = SimLinkTarget | { kind: 'not_found' }
 
 const rollout = {
   authorizeResource: ({ context }: OrganizationUseCaseContext<OrganizationInput>) =>
@@ -44,15 +45,15 @@ function canManage(createdBy: string | null, viewer: SimLinkViewer): boolean {
   return viewer.isAdmin || createdBy === viewer.userId
 }
 
-function canEdit(link: Pick<SimLinkAccess, 'createdBy' | 'restrictEdit'>, viewer: SimLinkViewer) {
-  return !link.restrictEdit || canManage(link.createdBy, viewer)
+function canEdit(restrictEdit: boolean, createdBy: string | null, viewer: SimLinkViewer) {
+  return !restrictEdit || canManage(createdBy, viewer)
 }
 
 function toView(record: SimLinkRecord, viewer: SimLinkViewer): SimLinkView {
   const createdBy = record.createdBy?.id ?? null
   return {
     ...record,
-    canEdit: canEdit({ createdBy, restrictEdit: record.restrictEdit }, viewer),
+    canEdit: canEdit(record.restrictEdit, createdBy, viewer),
     canManage: canManage(createdBy, viewer),
   }
 }
@@ -65,7 +66,7 @@ async function lockEditableSimLink(
 ): Promise<SimLinkAccess> {
   const access = await repository.lockSimLinkAccess(tx, organizationId, linkId)
   if (!access) throw new OrchestrationError('not_found', 'Sim link not found')
-  if (!canEdit(access, viewer)) {
+  if (!canEdit(access.restrictEdit, access.createdBy, viewer)) {
     throw new OrchestrationError(
       'forbidden',
       'Only the creator or an organization admin can edit this Sim link'
@@ -86,6 +87,24 @@ async function withUniqueName<T>(
     if (getPostgresErrorCode(error) !== '23505') throw error
     const existing = await repository.findSimLinkDestination(organizationId, name)
     throw new OrchestrationError('conflict', `sim/${existing?.name ?? name} already exists`)
+  }
+}
+
+/** The audit entry for a link `verb`ed by this operation, named as members type it. */
+function auditOf(
+  action: WorkspaceUseCaseAuditEntry['action'],
+  verb: string,
+  link: Pick<SimLinkRecord, 'id' | 'name'> & Partial<SimLinkRecord>
+): WorkspaceUseCaseAuditEntry {
+  return {
+    action,
+    resourceType: AuditResourceType.SIM_LINK,
+    resourceId: link.id,
+    resourceName: `sim/${link.name}`,
+    description: `${verb} sim/${link.name}`,
+    ...(link.url !== undefined && {
+      metadata: { url: link.url, unlisted: link.unlisted, restrictEdit: link.restrictEdit },
+    }),
   }
 }
 
@@ -121,14 +140,7 @@ export const createSimLink = defineAuthorizedOrganizationUseCase({
     )
     return readView(organizationId, linkId, viewerOf(context))
   },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.SIM_LINK_CREATED,
-    resourceType: AuditResourceType.SIM_LINK,
-    resourceId: result.id,
-    resourceName: `sim/${result.name}`,
-    description: `Created sim/${result.name}`,
-    metadata: { url: result.url, unlisted: result.unlisted, restrictEdit: result.restrictEdit },
-  }),
+  projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_CREATED, 'Created', result),
 })
 
 export const updateSimLink = defineAuthorizedOrganizationUseCase({
@@ -154,34 +166,20 @@ export const updateSimLink = defineAuthorizedOrganizationUseCase({
     )
     return readView(organizationId, linkId, viewer)
   },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.SIM_LINK_UPDATED,
-    resourceType: AuditResourceType.SIM_LINK,
-    resourceId: result.id,
-    resourceName: `sim/${result.name}`,
-    description: `Updated sim/${result.name}`,
-    metadata: { url: result.url, unlisted: result.unlisted, restrictEdit: result.restrictEdit },
-  }),
+  projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_UPDATED, 'Updated', result),
 })
 
 export const deleteSimLink = defineAuthorizedOrganizationUseCase({
   operation: simLinkOperations.delete,
   ...rollout,
   async execute({ input, context }: OrganizationUseCaseContext<LinkInput>) {
-    const { name } = await db.transaction(async (tx) => {
-      const access = await lockEditableSimLink(tx, input, viewerOf(context))
+    return db.transaction(async (tx) => {
+      const { name } = await lockEditableSimLink(tx, input, viewerOf(context))
       await repository.deleteSimLink(tx, input.organizationId, input.linkId)
-      return access
+      return { id: input.linkId, name }
     })
-    return { id: input.linkId, name }
   },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.SIM_LINK_DELETED,
-    resourceType: AuditResourceType.SIM_LINK,
-    resourceId: result.id,
-    resourceName: `sim/${result.name}`,
-    description: `Deleted sim/${result.name}`,
-  }),
+  projectAudit: ({ result }) => auditOf(AuditAction.SIM_LINK_DELETED, 'Deleted', result),
 })
 
 /** Unlisted links resolve for every member: unlisting hides a link from browsing, not from use. */

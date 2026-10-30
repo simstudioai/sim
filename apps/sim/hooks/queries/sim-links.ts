@@ -13,9 +13,9 @@ import {
   updateSimLinkContract,
 } from '@/lib/api/contracts/sim-links'
 
-export const SIM_LINKS_STALE_TIME = 30 * 1000
+const SIM_LINKS_STALE_TIME = 30 * 1000
 
-export const simLinkKeys = {
+const simLinkKeys = {
   all: ['sim-links'] as const,
   lists: (organizationId: string) => [...simLinkKeys.all, 'list', organizationId] as const,
   list: (organizationId: string, search: string) =>
@@ -43,20 +43,14 @@ function useInvalidateSimLinks(organizationId: string) {
   return () => queryClient.invalidateQueries({ queryKey: simLinkKeys.lists(organizationId) })
 }
 
-export function useCreateSimLink(organizationId: string) {
+/** Creates a link, or replaces the fields of `linkId` when given. */
+export function useSaveSimLink(organizationId: string) {
   const invalidate = useInvalidateSimLinks(organizationId)
   return useMutation({
-    mutationFn: (body: SimLinkBody) =>
-      requestJson(createSimLinkContract, { params: { id: organizationId }, body }),
-    onSettled: invalidate,
-  })
-}
-
-export function useUpdateSimLink(organizationId: string) {
-  const invalidate = useInvalidateSimLinks(organizationId)
-  return useMutation({
-    mutationFn: ({ linkId, body }: { linkId: string; body: SimLinkBody }) =>
-      requestJson(updateSimLinkContract, { params: { id: organizationId, linkId }, body }),
+    mutationFn: ({ linkId, body }: { linkId?: string; body: SimLinkBody }) =>
+      linkId
+        ? requestJson(updateSimLinkContract, { params: { id: organizationId, linkId }, body })
+        : requestJson(createSimLinkContract, { params: { id: organizationId }, body }),
     onSettled: invalidate,
   })
 }

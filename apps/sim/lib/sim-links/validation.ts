@@ -45,7 +45,7 @@ const destinationSchema = z
   .min(1, 'Enter a destination URL')
   .max(URL_MAX_LENGTH, `Use at most ${URL_MAX_LENGTH} characters`)
 
-export const simLinkUrlSchema = destinationSchema.refine(
+const simLinkUrlSchema = destinationSchema.refine(
   hasFixedHttpOrigin,
   `Enter a full http:// or https:// URL. ${SIM_LINK_VARIABLE} can't replace the domain.`
 )

@@ -6,7 +6,7 @@ import { and, asc, eq, gt, ilike, or, type SQL } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { normalizeSimLinkName, type SimLinkFields } from '@/lib/sim-links/validation'
 
-export const SIM_LINK_PAGE_SIZE = 50
+const PAGE_SIZE = 50
 
 export interface SimLinkRecord {
   id: string
@@ -28,7 +28,6 @@ export interface SimLinkAccess {
   restrictEdit: boolean
 }
 
-/** Who is looking: unlisted links are listed only to their creator and organization admins. */
 export interface SimLinkViewer {
   userId: string
   isAdmin: boolean
@@ -66,7 +65,10 @@ function toRecord({
   }
 }
 
-/** One page of the links `viewer` may browse, in name order; `cursor` is the last normalized name. */
+/**
+ * One page of the links `viewer` may browse, in name order; `cursor` is the last normalized name.
+ * Unlisted links are listed only to their creator and organization admins.
+ */
 export async function listSimLinks(
   organizationId: string,
   viewer: SimLinkViewer,
@@ -82,7 +84,6 @@ export async function listSimLinks(
     const normalized = normalizeSimLinkName(query)
     conditions.push(
       or(
-        ilike(simLink.name, pattern),
         ilike(simLink.url, pattern),
         ilike(simLink.description, pattern),
         normalized ? ilike(simLink.normalizedName, `%${escapeLikePattern(normalized)}%`) : undefined
@@ -93,11 +94,11 @@ export async function listSimLinks(
   const rows = await selectRecords(db)
     .where(and(...conditions))
     .orderBy(asc(simLink.normalizedName))
-    .limit(SIM_LINK_PAGE_SIZE + 1)
-  const links = rows.slice(0, SIM_LINK_PAGE_SIZE).map(toRecord)
+    .limit(PAGE_SIZE + 1)
+  const links = rows.slice(0, PAGE_SIZE).map(toRecord)
   return {
     links,
-    nextCursor: rows.length > SIM_LINK_PAGE_SIZE ? (links.at(-1)?.normalizedName ?? null) : null,
+    nextCursor: rows.length > PAGE_SIZE ? (links.at(-1)?.normalizedName ?? null) : null,
   }
 }
 
