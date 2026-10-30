@@ -70,7 +70,7 @@ export function Tabs({
     if (!panel) return child
     const value = child.props.value ?? items?.[index] ?? String(index)
     index++
-    panelIds.set(value, child.props.id ?? `${baseId}-${value}`)
+    panelIds.set(value, child.props.id ?? `${baseId}-${encodeURIComponent(value)}`)
     return cloneElement(child, { value })
   })
   const first = defaultValue ?? items?.[defaultIndex] ?? panelIds.keys().next().value ?? ''
@@ -97,12 +97,15 @@ export function Tabs({
         if (persist) localStorage.setItem(`docs-tab:${groupId}`, preference)
       } catch {}
       window.dispatchEvent(
-        new CustomEvent(GROUP_CHANGE_EVENT, { detail: { groupId, value: preference } })
+        new CustomEvent(GROUP_CHANGE_EVENT, {
+          detail: { groupId, value: preference, sourceId: baseId },
+        })
       )
     }
   }
 
   const restorePreference = useEffectEvent((preference: string) => {
+    if ((groupValues?.[value] ?? value) === preference) return
     const available = [...panelIds.keys()].find(
       (candidate) => (groupValues?.[candidate] ?? candidate) === preference
     )
@@ -138,8 +141,9 @@ export function Tabs({
       revealPanel(event.target)
     }
     function groupChanged(event: Event) {
-      const detail = (event as CustomEvent<{ groupId: string; value: string }>).detail
-      if (detail?.groupId === groupId) restorePreference(detail.value)
+      const detail = (event as CustomEvent<{ groupId: string; value: string; sourceId: string }>)
+        .detail
+      if (detail?.groupId === groupId && detail.sourceId !== baseId) restorePreference(detail.value)
     }
     if (groupId) {
       try {
@@ -158,7 +162,7 @@ export function Tabs({
       element.removeEventListener('beforematch', revealMatch)
       window.removeEventListener(GROUP_CHANGE_EVENT, groupChanged)
     }
-  }, [groupId, persist, groupOptions])
+  }, [baseId, groupId, persist, groupOptions])
 
   return (
     <TabContext.Provider value={{ baseId, value, select, panelIds }}>
@@ -280,8 +284,12 @@ export function TabsTrigger({
     <RadixTabs.Trigger
       {...props}
       value={value}
-      id={id ?? `${context?.baseId}-${value}-trigger`}
-      aria-controls={controls ?? context?.panelIds.get(value) ?? `${context?.baseId}-${value}`}
+      id={id ?? `${context?.baseId}-${encodeURIComponent(value)}-trigger`}
+      aria-controls={
+        controls ??
+        context?.panelIds.get(value) ??
+        `${context?.baseId}-${encodeURIComponent(value)}`
+      }
       className={cn(
         'pointer-coarse:before:-inset-y-2 relative inline-flex min-h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-transparent px-3 text-[var(--docs-segment-text)] text-docs-control leading-4 transition-colors pointer-coarse:before:absolute pointer-coarse:before:inset-x-0 hover:bg-[var(--docs-hover)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 disabled:opacity-40 data-[state=active]:border-[var(--docs-segment-border)] data-[state=active]:bg-[var(--docs-segment-fill)] data-[state=active]:text-[var(--docs-text)] data-[state=active]:shadow-[var(--docs-segment-shadow)] motion-reduce:transition-none dark:disabled:text-[var(--docs-disabled)] dark:disabled:opacity-100',
         className
@@ -306,8 +314,8 @@ export function Tab({
       {...props}
       forceMount
       value={value}
-      id={id ?? context?.panelIds.get(value) ?? `${context?.baseId}-${value}`}
-      aria-labelledby={labelledBy ?? `${context?.baseId}-${value}-trigger`}
+      id={id ?? context?.panelIds.get(value) ?? `${context?.baseId}-${encodeURIComponent(value)}`}
+      aria-labelledby={labelledBy ?? `${context?.baseId}-${encodeURIComponent(value)}-trigger`}
       hidden={!active}
       ref={(node) => {
         if (!active) node?.setAttribute('hidden', 'until-found')

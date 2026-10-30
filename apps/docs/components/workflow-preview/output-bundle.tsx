@@ -5,16 +5,8 @@ import { cn } from '@/components/docs/classnames'
 import { DocsButton } from '@/components/docs/primitives'
 import { CopyButton } from '@/components/ui/copy-button'
 import { DocsBlockTile } from '@/components/workflow-preview/docs-block-tile'
+import { decodeOutputValues, type OutputNode } from '@/lib/content/output'
 
-type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'
-interface OutputNode {
-  key: string
-  type?: ValueType
-  value?: string
-  children?: OutputNode[]
-  expanded?: boolean
-  highlight?: boolean
-}
 interface LogRow {
   name: string
   type?: string
@@ -35,7 +27,7 @@ interface TreeNodeProps {
 }
 
 function TreeNode({ node }: TreeNodeProps) {
-  const hasValue = Boolean(node.children?.length) || node.value !== undefined
+  const hasValue = node.children !== undefined || node.type === 'null' || node.value !== undefined
   return (
     <details
       open={node.expanded ?? hasValue}
@@ -58,6 +50,11 @@ function TreeNode({ node }: TreeNodeProps) {
         {node.value !== undefined && (
           <div className='whitespace-pre-wrap break-words text-docs-table'>{node.value}</div>
         )}
+        {node.value === undefined && (node.type === 'null' || node.children?.length === 0) && (
+          <div className='font-mono text-docs-table'>
+            {node.type === 'null' ? 'null' : node.type === 'array' ? '[]' : '{}'}
+          </div>
+        )}
         {!hasValue && <span className='text-[var(--docs-muted)] text-docs-caption'>No value</span>}
       </div>
     </details>
@@ -77,7 +74,7 @@ export function OutputBundle({
     { name: 'Start', type: 'start_trigger', color: '#2FB3FF', duration: '9ms' },
     { name: blockName, type: blockType, color: blockColor, duration, selected: true },
   ]
-  const serialized = JSON.stringify({ blockName, values }, null, 2)
+  const serialized = JSON.stringify(decodeOutputValues(values), null, 2)
   function download() {
     const url = URL.createObjectURL(new Blob([serialized], { type: 'application/json' }))
     const link = document.createElement('a')

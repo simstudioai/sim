@@ -38,7 +38,9 @@ function SectionTabs({ pathname, mobile = false }: SectionTabsProps) {
           key={tab.slug}
           href={tab.href}
           draggable={false}
-          aria-current={tab.slug === section ? 'page' : undefined}
+          aria-current={
+            pathname === tab.href ? 'page' : tab.slug === section ? 'location' : undefined
+          }
           className={cn(
             'flex h-full shrink-0 items-center rounded-sm font-normal transition-colors hover:text-[var(--docs-heading)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-4',
             tab.slug === section && 'text-[var(--docs-heading)]'

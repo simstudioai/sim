@@ -6,6 +6,7 @@ import { useCopyToClipboard } from '@sim/emcn'
 import { Check, ChevronDown, Duplicate, SquareArrowUpRight } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
 import { docsControlClass, docsMenuClass, docsMenuItemClass } from '@/components/docs/primitives'
+import { getMarkdownPath } from '@/lib/urls'
 
 interface PageActionsProps {
   url: string
@@ -15,12 +16,14 @@ export function PageActions({ url }: PageActionsProps) {
   const { copied, copy } = useCopyToClipboard()
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const prepared = useRef<string | null>(null)
-  const markdownUrl = `${url === '/' ? '/index' : url}.md`
+  const markdownUrl = getMarkdownPath(url)
   const showCopied = copied && status === 'idle'
   async function copyPage() {
     setStatus('loading')
     const prepare = async () => {
-      const response = await fetch(markdownUrl, { signal: AbortSignal.timeout(10000) })
+      const signal =
+        typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10000) : undefined
+      const response = await fetch(markdownUrl, { signal })
       if (!response.ok) throw new Error('Page could not be loaded')
       const markdown = await response.text()
       if (!markdown.trim()) throw new Error('Page is empty')

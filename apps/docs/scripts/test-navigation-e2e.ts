@@ -882,7 +882,14 @@ try {
           }
           await page.getByRole('button', { name: 'Copy full output', exact: true }).click()
           await expect
-            .poll(async () => JSON.parse(await page.evaluate(() => navigator.clipboard.readText())))
+            .poll(async () => {
+              const text = await page.evaluate(() => navigator.clipboard.readText())
+              try {
+                return JSON.parse(text)
+              } catch {
+                return text
+              }
+            })
             .toEqual(expected)
           const pending = page.waitForEvent('download')
           await page.getByRole('button', { name: 'Download full output', exact: true }).click()

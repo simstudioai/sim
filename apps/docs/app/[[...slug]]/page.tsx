@@ -6,7 +6,7 @@ import { getMDXComponents } from '@/components/docs/mdx'
 import { DocsPageFrame } from '@/components/docs/page-frame'
 import { StructuredData } from '@/components/structured-data'
 import { getPage, getPages } from '@/lib/content/catalog'
-import { DOCS_BASE_URL } from '@/lib/urls'
+import { DOCS_BASE_URL, getMarkdownPath } from '@/lib/urls'
 import { loadPage } from '@/.content/registry'
 
 interface PageProps {
@@ -30,7 +30,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     alternates: {
       canonical: url,
       types: {
-        'text/markdown': `${url === `${DOCS_BASE_URL}/` ? `${DOCS_BASE_URL}/index` : url}.md`,
+        'text/markdown': `${DOCS_BASE_URL}${getMarkdownPath(page.url)}`,
+        'text/plain': `${DOCS_BASE_URL}/llms.txt`,
       },
     },
     openGraph: {

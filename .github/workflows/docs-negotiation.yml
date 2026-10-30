@@ -45,7 +45,7 @@ permissions:
 
 concurrency:
   group: docs-negotiation-${{ github.ref }}-${{ inputs.benchmark && 'benchmark' || 'verification' }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !inputs.benchmark }}
 
 jobs:
   benchmark:
@@ -89,7 +89,8 @@ jobs:
           cp .readiness-harness/apps/docs/scripts/benchmark-readiness.ts apps/docs/scripts/benchmark-readiness.ts
           if [ "$MEASURED_TARGET" = production ]; then
             gh api "repos/$GITHUB_REPOSITORY/deployments?environment=Production&per_page=1" >test-results/benchmark/deployment.json
-            REVISION=$(jq -r '.[0].sha' test-results/benchmark/deployment.json)
+            # Candidate deployments do not establish which revision owns the public alias.
+            REVISION=unverified-public-origin
           else
             REVISION=$(git rev-parse HEAD)
           fi

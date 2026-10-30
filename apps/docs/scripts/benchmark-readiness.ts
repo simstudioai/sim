@@ -87,7 +87,10 @@ const repetitions = Number(process.env.DOCS_BENCHMARK_REPETITIONS ?? 3)
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 5)
   throw new Error('Repetitions must be an integer from 1 through 5')
 const routes = process.env.DOCS_BENCHMARK_ROUTES?.split(',') ?? [...DEFAULT_ROUTES]
-if (routes.length > 8 || routes.some((route) => !route.startsWith('/') || route.startsWith('//')))
+if (
+  routes.length > 8 ||
+  routes.some((route) => !route.startsWith('/') || new URL(route, base).origin !== base.origin)
+)
   throw new Error('Provide at most eight same-origin route paths')
 const profiles = PROFILES.filter((profile) =>
   (process.env.DOCS_BENCHMARK_PROFILES?.split(',') ?? ['desktop', 'mobile']).includes(profile.name)

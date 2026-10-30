@@ -1158,7 +1158,7 @@ jobs:
               - 'apps/docs/lib/search/**'
               - 'apps/docs/lib/openapi-specs.ts'
               - 'apps/docs/lib/urls.ts'
-              - 'apps/docs/public/openapi*.json'
+              - 'apps/docs/openapi*.json'
               - 'apps/docs/package.json'
               - 'bun.lock'
               - '.github/workflows/docs.yml'

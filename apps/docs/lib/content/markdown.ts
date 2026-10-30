@@ -6,6 +6,7 @@ import { toString as mdastToString } from 'mdast-util-to-string'
 import { SKIP, visit } from 'unist-util-visit'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import * as workflowExamples from '@/components/workflow-preview/examples'
+import { decodeOutputValues } from '@/lib/content/output'
 
 const examples: Record<string, unknown> = workflowExamples
 
@@ -122,7 +123,10 @@ export function serializeMarkdown(tree: Root): string {
             json(BLOCK_DISPLAY_WORKFLOWS[String(props.type)]),
           ]
         case 'OutputBundle':
-          return [paragraph(`Output from ${String(props.blockName)}`), json(props.values)]
+          return [
+            paragraph(`Output from ${String(props.blockName)}`),
+            json(decodeOutputValues(props.values)),
+          ]
         case 'Image':
         case 'img':
           return [
@@ -245,7 +249,10 @@ export function serializeMarkdown(tree: Root): string {
       return [
         {
           ...node,
-          children: [...node.children, { type: 'text', value: ` [#${node.data.hProperties.id}]` }],
+          children: [
+            ...inlineContent(node.children.flatMap((child) => convert(child))),
+            { type: 'text', value: ` [#${node.data.hProperties.id}]` },
+          ],
         },
       ]
     if ('children' in node)

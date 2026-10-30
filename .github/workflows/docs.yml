@@ -7,7 +7,25 @@ on:
         required: false
       OPENAI_API_KEY:
         required: false
-  workflow_dispatch: # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: I verified the matching docs deployment and a restorable index backup
+        type: boolean
+        required: true
+        default: false
+      deployed_revision:
+        description: Full source SHA of the verified serving docs deployment
+        type: string
+        required: true
+      deployment_id:
+        description: Verified serving docs deployment ID
+        type: string
+        required: true
+      backup_reference:
+        description: Restorable docs_embeddings backup identifier (no credentials)
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -18,16 +36,30 @@ jobs:
     # Network-bound on the embeddings API: ~9% CPU and ~3% peak memory on 8 vCPU.
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish
     concurrency:
       group: docs-search-index-production
       cancel-in-progress: false
 
     steps:
+      - name: Record verified deployment and backup
+        env:
+          DEPLOYED_REVISION: ${{ inputs.deployed_revision }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          BACKUP_REFERENCE: ${{ inputs.backup_reference }}
+        run: |
+          test "$DEPLOYED_REVISION" = "$GITHUB_SHA"
+          test -n "$DEPLOYMENT_ID"
+          test -n "$BACKUP_REFERENCE"
+          jq -n --arg revision "$DEPLOYED_REVISION" --arg deployment "$DEPLOYMENT_ID" \
+            --arg backup "$BACKUP_REFERENCE" --arg actor "$GITHUB_ACTOR" \
+            '{revision: $revision, deploymentId: $deployment, backupReference: $backup, verifiedBy: $actor}' \
+            > "$RUNNER_TEMP/docs-search-authorization.json"
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
-          ref: main
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Setup workspace
@@ -51,4 +83,6 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-search-index
-          path: apps/docs/test-results/docs-search-*.json
+          path: |
+            apps/docs/test-results/docs-search-*.json
+            ${{ runner.temp }}/docs-search-authorization.json

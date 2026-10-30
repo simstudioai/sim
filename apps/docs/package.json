@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "bun run content:generate && bunx concurrently --kill-others --names Next,Content \"next dev --port 3001\" \"bun scripts/compile-content.ts --watch\"",
+    "dev": "bun run dev:cache:cap && bun run content:generate && bunx concurrently --kill-others --names Next,Content \"next dev --port 3001\" \"bun scripts/compile-content.ts --watch\"",
     "dev:cache:cap": "bun run ../../scripts/prune-turbopack-cache.ts",
     "dev:clean": "rm -rf .next/dev/cache",
     "build": "bun scripts/fetch-git-history.ts && bun run content:generate && NODE_OPTIONS='--max-old-space-size=8192' next build",

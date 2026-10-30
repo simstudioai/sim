@@ -8,7 +8,10 @@ export const pagePathSchema = z
   .string()
   .min(1)
   .max(1024)
-  .regex(/^\/(?:[A-Za-z0-9_-]+\/?)*$/, 'Use a canonical documentation path beginning with /')
+  .regex(
+    /^\/(?:[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\/?)?$/,
+    'Use a canonical documentation path beginning with /'
+  )
 
 export const listPagesSchema = z.object({
   section: z.enum(['docs', 'api', 'cli', 'mcp']).optional(),
@@ -29,6 +32,8 @@ function pageMetadata(page: DocsPage) {
   }
 }
 
+export class UnknownPageCursorError extends Error {}
+
 /** Pages are ordered by canonical path; cursors name the last returned page. */
 export function listPages(input: z.input<typeof listPagesSchema>) {
   const { section, cursor, limit } = listPagesSchema.parse(input)
@@ -36,7 +41,7 @@ export function listPages(input: z.input<typeof listPagesSchema>) {
     .filter((page) => page.url !== '/' && (!section || page.section === section))
     .sort((left, right) => compareStrings(left.url, right.url))
   const cursorIndex = cursor ? pages.findIndex((page) => page.id === cursor) : -1
-  if (cursor && cursorIndex === -1) throw new Error('Unknown page cursor')
+  if (cursor && cursorIndex === -1) throw new UnknownPageCursorError('Unknown page cursor')
   const selected = pages.slice(cursorIndex + 1, cursorIndex + 1 + limit)
   return {
     pages: selected.map(pageMetadata),

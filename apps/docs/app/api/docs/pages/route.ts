@@ -1,4 +1,4 @@
-import { listPages, listPagesSchema } from '@/lib/http/pages'
+import { listPages, listPagesSchema, UnknownPageCursorError } from '@/lib/http/pages'
 
 export function GET(request: Request) {
   const params = new URL(request.url).searchParams
@@ -14,7 +14,9 @@ export function GET(request: Request) {
     return Response.json(listPages(parsed.data), {
       headers: { 'Cache-Control': 'public, max-age=60, s-maxage=3600' },
     })
-  } catch {
-    return Response.json({ error: 'Unknown page cursor' }, { status: 400 })
+  } catch (error) {
+    if (error instanceof UnknownPageCursorError)
+      return Response.json({ error: error.message }, { status: 400 })
+    throw error
   }
 }

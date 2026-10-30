@@ -145,8 +145,8 @@ export function* pageSearchChunks(page: DocsPage): Generator<SearchChunk> {
     siblings.push(heading)
     headingsByTitle.set(heading.title, siblings)
   }
-  const sections: Array<{ heading: DocsHeading; offset: number }> = [
-    { heading: { id: '', title: page.title, depth: 1 }, offset: 0 },
+  const sections: Array<{ heading: DocsHeading; offset: number; key: string }> = [
+    { heading: { id: '', title: page.title, depth: 1 }, offset: 0, key: '' },
   ]
   visit(parser.parse(page.markdown), 'heading', (node) => {
     const rawTitle = markdownToString(node)
@@ -155,15 +155,23 @@ export function* pageSearchChunks(page: DocsPage): Generator<SearchChunk> {
     const heading = explicitId
       ? page.headings.find((item) => item.id === explicitId)
       : headingsByTitle.get(title)?.shift()
-    if (heading && node.position?.start.offset !== undefined) {
-      sections.push({ heading, offset: node.position.start.offset })
+    const offset = node.position?.start.offset
+    if (offset === undefined) return
+    if (heading) {
+      sections.push({ heading, offset, key: heading.id })
+    } else if (page.operation && node.depth > 1) {
+      sections.push({
+        heading: { id: '', title, depth: node.depth },
+        offset,
+        key: `markdown:${offset}`,
+      })
     }
   })
   for (const [index, section] of sections.entries()) {
     const text = page.markdown.slice(section.offset, sections[index + 1]?.offset).trim()
     for (const [chunkIndex, chunk] of sectionChunks(text, page, section.heading).entries()) {
       yield {
-        id: `${page.id}:${section.heading.id}:${chunkIndex}`,
+        id: `${page.id}:${section.key}:${chunkIndex}`,
         pageId: page.id,
         sourceDocument: page.operation
           ? `${page.url.slice(1)}.mdx`

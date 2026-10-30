@@ -6,12 +6,12 @@ import { DocsButton } from '@/components/docs/primitives'
 
 interface CopyButtonProps {
   text?: string
-  getText?: () => string | Promise<string>
+  getText?: () => string
   label?: string
   className?: string
 }
 
-/** Starts the clipboard write in the user gesture, including asynchronously loaded Markdown. */
+/** Starts the clipboard write in the user gesture, using the currently displayed text. */
 export function CopyButton({ text, getText, label = 'Copy code', className }: CopyButtonProps) {
   const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -26,18 +26,7 @@ export function CopyButton({ text, getText, label = 'Copy code', className }: Co
   async function copy() {
     if (timer.current) clearTimeout(timer.current)
     try {
-      const value = getText ? getText() : (text ?? '')
-      if (typeof value === 'string') {
-        await navigator.clipboard.writeText(value)
-      } else if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/plain': value.then((content) => new Blob([content], { type: 'text/plain' })),
-          }),
-        ])
-      } else {
-        await navigator.clipboard.writeText(await value)
-      }
+      await navigator.clipboard.writeText(getText ? getText() : (text ?? ''))
       setStatus('copied')
     } catch {
       setStatus('error')

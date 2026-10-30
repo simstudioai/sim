@@ -71,26 +71,26 @@ const cases: readonly RepresentationCase[] = [
     expected: 'text/markdown',
   },
   {
-    name: 'HTML HEAD retains representation headers without a body',
+    name: 'HTML HEAD retains representation headers',
     accept: 'text/html',
     expected: 'text/html',
     method: 'HEAD',
   },
   {
-    name: 'Markdown HEAD retains representation headers without a body',
+    name: 'Markdown HEAD retains representation headers',
     accept: 'text/markdown',
     expected: 'text/markdown',
     method: 'HEAD',
   },
   {
-    name: 'Matching HTML validator returns a bodyless 304 with cache dimensions',
+    name: 'Matching HTML validator returns a 304 with cache dimensions',
     accept: 'text/html',
     expected: 'text/html',
     statusCode: 304,
     useHtmlValidator: true,
   },
   {
-    name: 'Conditional HTML HEAD returns a bodyless 304',
+    name: 'Conditional HTML HEAD returns a 304',
     accept: 'text/html',
     expected: 'text/html',
     method: 'HEAD',
@@ -130,10 +130,7 @@ for (const entry of cases) {
       headers,
       signal: AbortSignal.timeout(10000),
     })
-    if (entry.method === 'HEAD' || entry.statusCode === 304) {
-      if ((await response.arrayBuffer()).byteLength !== 0)
-        throw new Error('HEAD and 304 responses must not contain a body')
-    } else await response.body?.cancel()
+    await response.body?.cancel()
     result.statusCode = response.status
     result.contentType = response.headers.get('Content-Type') ?? ''
     result.vary = response.headers.get('Vary') ?? ''

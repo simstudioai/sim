@@ -46,7 +46,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
               description,
               url: DOCS_BASE_URL,
               inLanguage: 'en',
-              publisher: { '@type': 'Organization', name: 'Sim', url: SIM_SITE_URL },
+              publisher: {
+                '@type': 'Organization',
+                '@id': `${SIM_SITE_URL}#organization`,
+                name: 'Sim',
+                url: SIM_SITE_URL,
+              },
             }),
           }}
         />

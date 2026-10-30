@@ -186,6 +186,7 @@ async function generate() {
     import.meta.filename,
     path.join(DOCS_ROOT, 'lib/content/compile.ts'),
     path.join(DOCS_ROOT, 'lib/content/markdown.ts'),
+    path.join(DOCS_ROOT, 'lib/content/output.ts'),
     path.join(DOCS_ROOT, 'lib/shiki-theme.ts'),
     path.join(DOCS_ROOT, 'components/workflow-preview/examples.ts'),
     path.join(DOCS_ROOT, 'components/workflow-preview/block-display-workflows.ts'),
