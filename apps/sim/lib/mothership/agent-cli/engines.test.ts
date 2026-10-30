@@ -340,6 +340,19 @@ describe('workflows deps', () => {
       ).toEqual({ structuredContent: { person: { id: null }, onCall: null }, content: null })
     })
 
+    it('keeps the declared fields of a whole read beside a nested one', async () => {
+      expect(
+        await depsMock('<oncall.structuredContent> <oncall.structuredContent.onCall>')
+      ).toEqual({
+        structuredContent: {
+          role: null,
+          person: { id: null },
+          shifts: [{ start: null }],
+          onCall: null,
+        },
+      })
+    })
+
     it('keeps the read-path skeleton when the operation declares no schema', async () => {
       expect(
         await depsMock('return <oncall.structuredContent>', { server: 'server-1', tool: 'on_call' })
