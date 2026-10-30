@@ -43,7 +43,7 @@ export function ActionPreview({ action, account, full = false }: ActionPreviewPr
         </div>
       )}
       {primary.length > 0 && (
-        <div className='flex min-w-0 flex-col gap-2 border-[var(--border)] border-t pt-2'>
+        <div className='flex min-w-0 flex-col gap-1 border-[var(--border)] border-t pt-2'>
           {primary.map((field, index) => (
             <PreviewField
               key={field.name}

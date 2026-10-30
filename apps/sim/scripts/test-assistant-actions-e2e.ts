@@ -598,7 +598,7 @@ try {
     await capture('integrations-desktop')
   })
   await check(
-    'Multiple accounts isolate permissions and disconnect the selected account only',
+    'A synthetic duplicate-provider fixture isolates permissions and disconnects only the selected account',
     async () => {
       await page.goto(`${baseUrl.origin}${root}/integrations`)
       await page.getByRole('link', { name: 'Open Jira integration', exact: true }).click()
@@ -1037,6 +1037,16 @@ try {
           .getByRole('region', { name: 'Create Jira issue receipt' })
           .filter({ hasText: 'Approved historical title' })
       ).toBeAttached()
+      const historicalReceipt = page
+        .getByRole('region', { name: 'Create Jira issue receipt' })
+        .filter({ hasText: 'Approved historical title' })
+      await historicalReceipt
+        .getByRole('button', { name: 'View Create Jira issue receipt: Completed', exact: true })
+        .click()
+      await capture('action-receipt-completed-expanded')
+      await historicalReceipt
+        .getByRole('button', { name: 'Hide Create Jira issue receipt: Completed', exact: true })
+        .click()
       await reviewCards.last().scrollIntoViewIfNeeded()
       await capture('assistant-actions-desktop')
       await capture('action-review-desktop')
@@ -1068,6 +1078,8 @@ try {
         await expect(
           page.getByRole('button', { name: 'Allow 2 shown', exact: true })
         ).toBeDisabled()
+        await reviewCards.nth(0).scrollIntoViewIfNeeded()
+        await capture('action-review-account-unavailable')
       } finally {
         await sql`update credential set managed_oauth_status = 'active' where id = ${credentialId}`
       }
@@ -1112,6 +1124,8 @@ try {
           exact: true,
         })
       ).toBeVisible()
+      await approvedReceipt.scrollIntoViewIfNeeded()
+      await capture('action-review-approved-and-pending')
       await approvedReceipt.getByRole('button', { name: 'View Create Jira issue receipt' }).click()
       await expect(approvedReceipt.getByRole('textbox')).toHaveCount(0)
       await expect(approvedReceipt.getByText('acme.atlassian.net', { exact: true })).toBeVisible()
@@ -1195,6 +1209,7 @@ try {
           timeout: 15_000,
         })
         await expect(reviewCards).toHaveCount(0)
+        await capture('action-review-unavailable-retry')
       } finally {
         await page.unroute(reviewUrl)
       }
@@ -1236,6 +1251,7 @@ try {
       try {
         await page.getByRole('button', { name: 'Allow 2 shown', exact: true }).click()
         await expect.poll(() => firstDecisionRequested).toBe(true)
+        await capture('action-review-bulk-saving')
         await insertProposal(lagRunId, lateCallId, 'A later proposal that was never approved')
         await appendStreamEvents(lagChatId, lagStreamId, [
           pendingToolEvent(lateCallId, 'A later proposal that was never approved'),
@@ -1311,6 +1327,7 @@ try {
       await expect(reviewCards.nth(0).getByRole('alert')).toBeVisible()
       await expect(allow).toBeEnabled()
       await expect(allow).toBeFocused()
+      await capture('action-review-decision-error')
       const [row] =
         await sql`select permission_decision, execution_started_at from copilot_async_tool_calls where tool_call_id = ${keyboardCallId}`
       assert.equal(row?.permission_decision, null)
@@ -1619,6 +1636,54 @@ try {
             .getByRole('region', { name: 'Create Jira issue receipt' })
             .filter({ hasText: fixture.summary })
         ).toContainText(fixture.state)
+      }
+      const [savedExecution] =
+        await sql`select status, execution_started_at, execution_settled_at, execution_owner_token, execution_lease_expires_at, completed_at, result, assistant_action from copilot_async_tool_calls where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
+      assert(savedExecution)
+      try {
+        for (const fixture of [
+          { status: 'running', label: 'Running', settled: false, unknown: false },
+          { status: 'failed', label: 'Failed', settled: true, unknown: false },
+          { status: 'completed', label: 'Outcome unknown', settled: true, unknown: true },
+        ] as const) {
+          const settledAt = fixture.settled ? new Date() : null
+          const leaseExpiresAt = fixture.settled ? null : new Date(Date.now() + 3_600_000)
+          await sql`update copilot_async_tool_calls set status = ${fixture.status}, execution_started_at = now(), execution_settled_at = ${settledAt}, execution_owner_token = ${generateId()}, execution_lease_expires_at = ${leaseExpiresAt}, completed_at = ${settledAt}, result = ${sql.json({ outcomeUnknown: fixture.unknown })} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
+          await page.reload()
+          const receipt = page
+            .getByRole('region', { name: 'Create Jira issue receipt' })
+            .filter({ hasText: 'Batch issue 62' })
+          await receipt
+            .getByRole('button', {
+              name: `View Create Jira issue receipt: ${fixture.label}`,
+              exact: true,
+            })
+            .click()
+          await capture(`action-receipt-${fixture.label.toLowerCase().replaceAll(' ', '-')}`)
+        }
+        const incompatibleBinding = {
+          ...toRecord(savedExecution.assistant_action),
+          operationVersion: 2,
+        }
+        for (const fixture of [
+          { name: 'details-unavailable', binding: incompatibleBinding },
+          {
+            name: 'account-unavailable',
+            binding: { ...incompatibleBinding, credentialId: generateId() },
+          },
+        ]) {
+          await sql`update copilot_async_tool_calls set assistant_action = ${sql.json(fixture.binding)} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
+          await page.reload()
+          await page
+            .getByRole('button', {
+              name: 'View Create Jira issue receipt: Outcome unknown',
+              exact: true,
+            })
+            .click()
+          await capture(`action-receipt-${fixture.name}`)
+        }
+      } finally {
+        await sql`update copilot_async_tool_calls set status = ${savedExecution.status}, execution_started_at = ${savedExecution.execution_started_at}, execution_settled_at = ${savedExecution.execution_settled_at}, execution_owner_token = ${savedExecution.execution_owner_token}, execution_lease_expires_at = ${savedExecution.execution_lease_expires_at}, completed_at = ${savedExecution.completed_at}, result = ${savedExecution.result === null ? null : sql.json(savedExecution.result)}, assistant_action = ${sql.json(savedExecution.assistant_action)} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
       }
     }
   )

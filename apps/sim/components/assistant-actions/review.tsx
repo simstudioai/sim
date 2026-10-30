@@ -654,7 +654,7 @@ function ActionReview({ action, review }: ActionReviewProps) {
           ) : undefined
         }
       >
-        <div className='flex flex-col gap-3 px-2 pb-2'>
+        <div className='flex flex-col gap-2 px-2 pb-2'>
           {editing ? (
             <div className='grid gap-3 sm:grid-cols-2'>
               <p className='col-span-full break-words text-[var(--text-body)] text-small'>
