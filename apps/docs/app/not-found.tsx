@@ -1,10 +1,9 @@
 import Link from 'next/link'
-import { DocsShell } from '@/components/docs/shell'
-import { getNavigation } from '@/lib/content/catalog'
+import { DocsPageFrame } from '@/components/docs/page-frame'
 
 export default function NotFound() {
   return (
-    <DocsShell navigation={getNavigation('docs')} pathname='' headings={[]}>
+    <DocsPageFrame headings={[]}>
       <main id='main-content' tabIndex={-1} className='py-16'>
         <p className='mb-3 text-[var(--docs-muted)] text-docs-control'>404</p>
         <h1 className='mb-4 font-medium text-[var(--docs-heading)] text-docs-title'>
@@ -17,6 +16,6 @@ export default function NotFound() {
           Read the introduction
         </Link>
       </main>
-    </DocsShell>
+    </DocsPageFrame>
   )
 }

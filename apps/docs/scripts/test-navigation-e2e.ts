@@ -98,6 +98,86 @@ async function verifyClipboard(
 let browser: Browser | undefined
 try {
   browser = await chromium.launch()
+  const sidebarContext = await browser.newContext({
+    viewport: { width: 1440, height: 640 },
+    reducedMotion: 'reduce',
+  })
+  try {
+    await check(
+      'Sidebar keeps its scroll position when opening Logs and navigating back',
+      async () => {
+        const page = await sidebarContext.newPage()
+        await open(page, '/introduction')
+        await page
+          .getByRole('heading', { name: /^Models and integrations/ })
+          .scrollIntoViewIfNeeded()
+        expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+        const navigation = page.getByRole('navigation', { name: 'Documentation sidebar' })
+        const logs = navigation.getByRole('link', { name: 'Logs and debugging', exact: true })
+        await logs.scrollIntoViewIfNeeded()
+        const scrollPosition = () =>
+          navigation.evaluate((element) => element.closest('aside')?.scrollTop ?? 0)
+        const before = await scrollPosition()
+        expect(before).toBeGreaterThan(0)
+        await logs.click()
+        await expect(page).toHaveURL(new URL('/logs-debugging', target).href)
+        await expect(logs).toHaveAttribute('aria-current', 'page')
+        await expect.poll(scrollPosition).toBeCloseTo(before, 0)
+        await expect(logs).toBeInViewport()
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Logs', exact: true })
+        ).toBeInViewport()
+        const runLogs = navigation.getByRole('link', { name: 'Run logs', exact: true })
+        await runLogs.scrollIntoViewIfNeeded()
+        const nestedBefore = await scrollPosition()
+        await runLogs.click()
+        await expect(page).toHaveURL(new URL('/logs-debugging/logging', target).href)
+        await expect(runLogs).toHaveAttribute('aria-current', 'page')
+        await expect.poll(scrollPosition).toBeCloseTo(nestedBefore, 0)
+        await expect(runLogs).toBeInViewport()
+        await page.goBack()
+        await expect(logs).toHaveAttribute('aria-current', 'page')
+        await expect.poll(scrollPosition).toBeCloseTo(nestedBefore, 0)
+        await page.mouse.move(720, 80)
+        await page.screenshot({
+          path: join(directory, 'sidebar-preserved.png'),
+          animations: 'disabled',
+        })
+      }
+    )
+  } finally {
+    await sidebarContext.close()
+  }
+  const drawerContext = await browser.newContext({ viewport: { width: 390, height: 640 } })
+  try {
+    await check(
+      'Mobile sidebar keeps its scroll position when reopened after navigation',
+      async () => {
+        const page = await drawerContext.newPage()
+        await open(page, '/introduction')
+        await page.getByRole('button', { name: 'Menu', exact: true }).click()
+        const navigation = page.getByRole('navigation', { name: 'Documentation sidebar' })
+        await navigation.getByRole('button', { name: 'Expand Overview', exact: true }).click()
+        const logs = navigation.getByRole('link', { name: 'Logs and debugging', exact: true })
+        await logs.scrollIntoViewIfNeeded()
+        const scrollPosition = () =>
+          navigation.evaluate((element) => element.parentElement?.scrollTop ?? 0)
+        const before = await scrollPosition()
+        expect(before).toBeGreaterThan(0)
+        await logs.click()
+        await expect(page).toHaveURL(new URL('/logs-debugging', target).href)
+        await expect(page.getByRole('dialog')).toBeHidden()
+        await page.getByRole('button', { name: 'Menu', exact: true }).click()
+        await expect(logs).toHaveAttribute('aria-current', 'page')
+        await expect.poll(scrollPosition).toBeCloseTo(before, 0)
+        await expect(logs).toBeInViewport()
+        await page.getByRole('button', { name: 'Close navigation' }).click()
+        await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeFocused()
+      }
+    )
+  } finally {
+    await drawerContext.close()
+  }
   const scenarios = [
     { path: '/introduction', title: 'Introduction', content: '## Models and integrations' },
     { path: '/getting-started', title: 'Getting started', content: '## Start in Chat' },
@@ -370,8 +450,11 @@ try {
             }
             const heading = await page.locator('#create-a-workflow').boundingBox()
             const header = await page.getByRole('banner').boundingBox()
-            expect(heading?.y).toBeGreaterThan((header?.height ?? 0) + 8)
-            expect(heading?.y).toBeLessThan((header?.height ?? 0) + 40)
+            const menu = page.getByRole('button', { name: 'Menu', exact: true })
+            const toolbar = (await menu.isVisible()) ? await menu.boundingBox() : null
+            const chromeBottom = toolbar ? toolbar.y + toolbar.height : (header?.height ?? 0)
+            expect(heading?.y).toBeGreaterThan(chromeBottom + 8)
+            expect(heading?.y).toBeLessThan(chromeBottom + 40)
             await page.screenshot({
               path: join(directory, `toc-anchor-${width}.png`),
               animations: 'disabled',

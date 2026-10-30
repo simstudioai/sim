@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
+import { DocsShell } from '@/components/docs/shell'
 import { DocsThemeProvider } from '@/components/docs/theme'
+import { getNavigation } from '@/lib/content/catalog'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 import './global.css'
@@ -54,7 +56,18 @@ export default function RootLayout({ children }: RootLayoutProps) {
         >
           Skip to content
         </a>
-        <DocsThemeProvider>{children}</DocsThemeProvider>
+        <DocsThemeProvider>
+          <DocsShell
+            navigationBySection={{
+              docs: getNavigation('docs'),
+              api: getNavigation('api'),
+              cli: getNavigation('cli'),
+              mcp: getNavigation('mcp'),
+            }}
+          >
+            {children}
+          </DocsShell>
+        </DocsThemeProvider>
       </body>
     </html>
   )

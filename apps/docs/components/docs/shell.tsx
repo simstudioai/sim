@@ -1,27 +1,22 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useState } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
-import { Menu, X } from '@sim/emcn/icons'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/components/docs/classnames'
 import { SidebarNavigation } from '@/components/docs/navigation'
+import { DocsNavigationContext } from '@/components/docs/navigation-context'
+import { DocsNavigationDrawer } from '@/components/docs/navigation-drawer'
 import { DocsSearchProvider, DocsSearchTrigger } from '@/components/docs/search'
-import { TableOfContents } from '@/components/docs/table-of-contents'
 import { ThemeSwitch } from '@/components/docs/theme'
 import { SimWordmark } from '@/components/ui/sim-logo'
-import type { DocsHeading, NavNode } from '@/lib/content/types'
+import type { DocsSection, NavNode } from '@/lib/content/types'
 import { DOCS_SECTIONS, getDocsSection } from '@/lib/navigation'
 import { SIM_SITE_URL } from '@/lib/urls'
-import { useActiveHeading } from '@/hooks/use-active-heading'
 
 interface DocsShellProps {
   children: ReactNode
-  navigation: NavNode[]
-  pathname: string
-  headings: DocsHeading[]
-  api?: boolean
+  navigationBySection: Record<DocsSection, NavNode[]>
 }
 interface SectionTabsProps {
   pathname: string
@@ -57,148 +52,95 @@ function SectionTabs({ pathname, mobile = false }: SectionTabsProps) {
 }
 
 /** Shared responsive reading frame; article children remain server-rendered. */
-export function DocsShell({
-  children,
-  navigation,
-  pathname,
-  headings,
-  api = false,
-}: DocsShellProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const activeHeading = useActiveHeading(headings)
+export function DocsShell({ children, navigationBySection }: DocsShellProps) {
+  const pathname = usePathname()
+  const section = getDocsSection(pathname)
+  const navigation = navigationBySection[section === 'api-reference' ? 'api' : section]
   return (
-    <DocsSearchProvider navigation={navigation} section={getDocsSection(pathname)}>
-      <header className='sticky top-0 z-40 select-none bg-[var(--docs-glass)] backdrop-blur-[20px]'>
-        <div className='mx-auto flex h-14 max-w-[1280px] items-center gap-10 px-5 lg:px-4'>
-          <Link
-            href='/introduction'
-            draggable={false}
-            aria-label='Sim documentation home'
-            className='inline-flex h-8 shrink-0 items-center focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-4'
-          >
-            <SimWordmark />
-          </Link>
-          <SectionTabs pathname={pathname} />
-          <div className='ml-auto flex items-center gap-2 font-[450] text-docs-header'>
-            <a
-              href={`${SIM_SITE_URL}/contact`}
-              draggable={false}
-              className='hidden rounded-full bg-[var(--docs-surface)] px-4 py-1.5 text-[var(--docs-heading)] transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] sm:block'
-            >
-              Contact sales
-            </a>
-            <a
-              href={`${SIM_SITE_URL}/signup`}
-              draggable={false}
-              className='rounded-full bg-[var(--docs-heading)] px-4 py-1.5 text-[var(--docs-canvas)] transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
-            >
-              Try for free
-            </a>
-          </div>
-        </div>
-        <SectionTabs pathname={pathname} mobile />
-        <div className='flex h-11 items-center justify-between border-[var(--docs-border)] border-y px-5 lg:hidden'>
-          <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
-            <Dialog.Trigger className='flex min-h-11 items-center gap-2 text-docs-control'>
-              <Menu className='size-4' />
-              Menu
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay className='fixed inset-0 z-50 bg-black/20 backdrop-blur-sm' />
-              <Dialog.Content className='docs-root fixed inset-y-0 left-0 z-50 flex w-[min(340px,100vw-32px)] flex-col border-[var(--docs-border)] border-r bg-[var(--docs-canvas)] p-5 shadow-xl'>
-                <div className='mb-5 flex items-center justify-between'>
-                  <Dialog.Title className='text-docs-nav'>Documentation</Dialog.Title>
-                  <Dialog.Close
-                    aria-label='Close navigation'
-                    className='flex size-11 items-center justify-center rounded-lg hover:bg-[var(--docs-hover)]'
-                  >
-                    <X className='size-4' />
-                  </Dialog.Close>
-                </div>
-                <Dialog.Description className='sr-only'>
-                  Browse the current documentation section.
-                </Dialog.Description>
-                <DocsSearchTrigger />
-                <div className='mt-5 min-h-0 flex-1 overflow-y-auto pb-6'>
-                  <SidebarNavigation
-                    nodes={navigation}
-                    pathname={pathname}
-                    onNavigate={() => setDrawerOpen(false)}
-                  />
-                </div>
-                <ThemeSwitch />
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-          <DocsSearchTrigger compact />
-          <TableOfContents headings={headings} active={activeHeading} compact />
-        </div>
-      </header>
-      <div
-        className={cn(
-          'mx-auto grid w-full max-w-[1280px] flex-1 grid-cols-[minmax(0,1fr)] items-start gap-x-12 px-5 pt-7 pb-16 md:pt-10 lg:grid-cols-[216px_minmax(0,1fr)] lg:px-4',
-          api
-            ? 'xl:grid-cols-[216px_minmax(0,1fr)]'
-            : 'xl:grid-cols-[216px_minmax(0,680px)_minmax(0,208px)]'
-        )}
-      >
-        <aside className='sticky top-24 hidden max-h-[calc(100dvh-120px)] min-w-0 space-y-5 overflow-y-auto overscroll-contain pb-5 lg:block'>
-          <DocsSearchTrigger />
-          <SidebarNavigation nodes={navigation} pathname={pathname} />
-        </aside>
-        <div className='min-w-0'>
-          {!api && (
-            <div className='mb-4 hidden justify-end lg:flex xl:hidden'>
-              <TableOfContents headings={headings} active={activeHeading} compact />
-            </div>
-          )}
-          {children}
-        </div>
-        {!api && (
-          <aside className='sticky top-24 hidden max-h-[calc(100dvh-120px)] overflow-y-auto pb-5 xl:block'>
-            <TableOfContents headings={headings} active={activeHeading} />
-          </aside>
-        )}
-      </div>
-      <footer className='mx-auto w-full max-w-[1280px] select-none px-5 pt-10 pb-8 lg:px-4'>
-        <div className='flex flex-wrap items-center justify-between gap-x-10 gap-y-5'>
-          <a
-            href={SIM_SITE_URL}
-            aria-label='Sim home'
-            draggable={false}
-            className='inline-flex h-8 items-center'
-          >
-            <SimWordmark />
-          </a>
-          <nav
-            aria-label='Footer navigation'
-            className='flex flex-wrap gap-x-6 gap-y-1 text-docs-control leading-[1.625]'
-          >
-            {[
-              { label: 'Documentation', href: '/introduction' },
-              { label: 'Changelog', href: `${SIM_SITE_URL}/changelog` },
-              { label: 'GitHub', href: 'https://github.com/simstudioai/sim' },
-              { label: 'Status', href: 'https://status.sim.ai' },
-              { label: 'Contact', href: `${SIM_SITE_URL}/contact` },
-              { label: 'Privacy', href: `${SIM_SITE_URL}/privacy` },
-              { label: 'Terms', href: `${SIM_SITE_URL}/terms` },
-            ].map(({ label, href }) => (
-              <a
-                key={label}
-                href={href}
+    <DocsNavigationContext value={{ navigation, pathname }}>
+      <DocsSearchProvider navigation={navigation} section={section}>
+        <DocsNavigationDrawer>
+          <header className='sticky top-0 z-40 select-none bg-[var(--docs-glass)] backdrop-blur-[20px]'>
+            <div className='mx-auto flex h-14 max-w-[1280px] items-center gap-10 px-5 lg:px-4'>
+              <Link
+                href='/introduction'
                 draggable={false}
-                className='flex min-h-11 items-center hover:underline focus-visible:outline-2 focus-visible:outline-[var(--docs-link)]'
+                aria-label='Sim documentation home'
+                className='inline-flex h-8 shrink-0 items-center focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-4'
               >
-                {label}
+                <SimWordmark />
+              </Link>
+              <SectionTabs pathname={pathname} />
+              <div className='ml-auto flex items-center gap-2 font-[450] text-docs-header'>
+                <a
+                  href={`${SIM_SITE_URL}/contact`}
+                  draggable={false}
+                  className='hidden rounded-full bg-[var(--docs-surface)] px-4 py-1.5 text-[var(--docs-heading)] transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] sm:block'
+                >
+                  Contact sales
+                </a>
+                <a
+                  href={`${SIM_SITE_URL}/signup`}
+                  draggable={false}
+                  className='rounded-full bg-[var(--docs-heading)] px-4 py-1.5 text-[var(--docs-canvas)] transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
+                >
+                  Try for free
+                </a>
+              </div>
+            </div>
+            <SectionTabs pathname={pathname} mobile />
+          </header>
+          <div className='mx-auto grid w-full max-w-[1280px] flex-1 grid-cols-[minmax(0,1fr)] items-start gap-x-12 pb-16 lg:grid-cols-[216px_minmax(0,1fr)] lg:px-4 lg:pt-10'>
+            <aside
+              key={section}
+              className='sticky top-24 hidden max-h-[calc(100dvh-120px)] min-w-0 space-y-5 overflow-y-auto overscroll-contain pb-5 lg:block'
+            >
+              <DocsSearchTrigger />
+              <SidebarNavigation nodes={navigation} pathname={pathname} />
+            </aside>
+            {children}
+          </div>
+          <footer className='mx-auto w-full max-w-[1280px] select-none px-5 pt-10 pb-8 lg:px-4'>
+            <div className='flex flex-wrap items-center justify-between gap-x-10 gap-y-5'>
+              <a
+                href={SIM_SITE_URL}
+                aria-label='Sim home'
+                draggable={false}
+                className='inline-flex h-8 items-center'
+              >
+                <SimWordmark />
               </a>
-            ))}
-          </nav>
-        </div>
-        <div className='mt-7 flex flex-wrap items-center justify-between gap-4 text-[var(--docs-muted)] text-docs-control leading-5'>
-          <p>© {new Date().getFullYear()} Sim</p>
-          <ThemeSwitch />
-        </div>
-      </footer>
-    </DocsSearchProvider>
+              <nav
+                aria-label='Footer navigation'
+                className='flex flex-wrap gap-x-6 gap-y-1 text-docs-control leading-[1.625]'
+              >
+                {[
+                  { label: 'Documentation', href: '/introduction' },
+                  { label: 'Changelog', href: `${SIM_SITE_URL}/changelog` },
+                  { label: 'GitHub', href: 'https://github.com/simstudioai/sim' },
+                  { label: 'Status', href: 'https://status.sim.ai' },
+                  { label: 'Contact', href: `${SIM_SITE_URL}/contact` },
+                  { label: 'Privacy', href: `${SIM_SITE_URL}/privacy` },
+                  { label: 'Terms', href: `${SIM_SITE_URL}/terms` },
+                ].map(({ label, href }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    draggable={false}
+                    className='flex min-h-11 items-center hover:underline focus-visible:outline-2 focus-visible:outline-[var(--docs-link)]'
+                  >
+                    {label}
+                  </a>
+                ))}
+              </nav>
+            </div>
+            <div className='mt-7 flex flex-wrap items-center justify-between gap-4 text-[var(--docs-muted)] text-docs-control leading-5'>
+              <p>© {new Date().getFullYear()} Sim</p>
+              <ThemeSwitch />
+            </div>
+          </footer>
+        </DocsNavigationDrawer>
+      </DocsSearchProvider>
+    </DocsNavigationContext>
   )
 }

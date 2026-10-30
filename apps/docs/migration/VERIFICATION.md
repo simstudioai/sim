@@ -31,7 +31,7 @@ The full machine-readable accounting is in [report.json](report.json), with the 
 | HTTP and real MCP client | 15 passed | [Interface report](verification/interfaces.json) |
 | Content negotiation | 7 passed | [Negotiation report](verification/negotiation.json) |
 | Native header merger | 16 passed | [Header report](verification/headers.json) |
-| Browser behavior and responsive layouts | 48 passed | [Browser report](verification/browser.json) |
+| Browser behavior and responsive layouts | 50 passed | [Browser report](verification/browser.json) |
 | Isolated PostgreSQL search and publication | 7 passed | [Database report](verification/search-postgres.json) |
 | Workflow SSR and hydrated inspector | Authored node text in initial HTML; inspector, Escape, focus restoration, and zero browser errors passed | [SSR report](verification/workflow-ssr.json), [interaction report](verification/workflow-inspector.json) |
 
@@ -45,9 +45,15 @@ The first PR CI run exposed two setup differences from the local verification: t
 
 The production build passes 48 browser scenarios, 2,996 corpus/asset checks, and 15 machine-interface checks after the shared styling review. Six new browser regressions failed before the fixes: nested TOC selection, shortcut dismissal focus, and empty-search navigation in Documentation, API, CLI, and MCP. The TOC scenario checks desktop, tablet, and mobile header clearance; the search scenarios also verify that clearing a failed query restores section defaults. The [pre-fix report](verification/navigation-before-polish.json) records those failures.
 
-The TOC scenario also checks every responsive copy and the final section when scrolling reaches the document's end. Its [pre-fix failure](verification/toc-end-before-fix.json) demonstrates the viewport-clamping case. One shell-owned subscription now drives the outline, including this end-of-document state.
+The TOC scenario also checks every responsive copy and the final section when scrolling reaches the document's end. Its [pre-fix failure](verification/toc-end-before-fix.json) demonstrates the viewport-clamping case. One page-frame subscription drives the outline, including this end-of-document state.
 
 Root lint and all 26 workspace type checks passed. All 61 audit checks passed after deleting the unused legacy class-helper re-export and rerunning the dead-code check. The docs workspace test and block-registry checks passed. The latest full repository test command stopped at a five-second timeout in `scripts/desktop-e2e.test.ts` (633 other script tests passed); the isolated rerun also timed out. The earlier full application-test result in the table remains historical, not a claim about this latest run.
+
+### Persistent sidebar layout
+
+The root App Router layout owns the navbar, sidebar, footer, search provider, and mobile drawer. Each page supplies its server-rendered article and page-specific outline through the shared page frame. The desktop sidebar keeps the same DOM scroll container across document navigation; changing documentation sections selects the corresponding navigation tree. Only navigation metadata crosses the shared client boundary, not the content catalog or every page's headings.
+
+The [pre-fix browser report](verification/sidebar-before-fix.json) reproduces the desktop reset from 277px to 0 and the mobile drawer reset from 258px to 0. The new browser checks cover opening Logs from a scrolled article, nested Run logs navigation, browser Back, and reopening the mobile menu with another long branch expanded. The mobile drawer restores its offset after branch expansion and closes when search navigates to another document. The production build passes all 50 browser scenarios, [2,996 corpus/asset checks](verification/sidebar-corpus-summary.json), and 15 machine-interface checks. Root lint, all 26 workspace type checks, all 61 audits, the docs unit suite, and the block registry check passed. The root test rerun again passed 633 script tests and timed out in the unchanged desktop script test; it did not reach the workspace suites. [The Logs screenshot](verification/screenshots/sidebar-preserved.png) shows the retained sidebar position.
 
 ### Performance evidence
 

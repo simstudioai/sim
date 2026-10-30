@@ -2,84 +2,94 @@
   "origin": "http://localhost:3001",
   "results": [
     {
+      "name": "Sidebar keeps its scroll position when opening Logs and navigating back",
+      "status": "passed",
+      "durationMs": 2341
+    },
+    {
+      "name": "Mobile sidebar keeps its scroll position when reopened after navigation",
+      "status": "passed",
+      "durationMs": 396
+    },
+    {
       "name": "desktop: navigation and complete copy for /introduction",
       "status": "passed",
-      "durationMs": 2831
+      "durationMs": 981
     },
     {
       "name": "desktop: navigation and complete copy for /getting-started",
       "status": "passed",
-      "durationMs": 494
+      "durationMs": 514
     },
     {
       "name": "desktop: navigation and complete copy for /files",
       "status": "passed",
-      "durationMs": 506
+      "durationMs": 520
     },
     {
       "name": "desktop: navigation and complete copy for /integrations/apollo",
       "status": "passed",
-      "durationMs": 669
+      "durationMs": 727
     },
     {
       "name": "desktop: navigation and complete copy for /api-reference/workflows/listWorkflows",
       "status": "passed",
-      "durationMs": 669
+      "durationMs": 714
     },
     {
       "name": "mobile: navigation and complete copy for /introduction",
       "status": "passed",
-      "durationMs": 382
+      "durationMs": 393
     },
     {
       "name": "mobile: navigation and complete copy for /getting-started",
       "status": "passed",
-      "durationMs": 133
+      "durationMs": 142
     },
     {
       "name": "mobile: navigation and complete copy for /files",
       "status": "passed",
-      "durationMs": 147
+      "durationMs": 152
     },
     {
       "name": "mobile: navigation and complete copy for /integrations/apollo",
       "status": "passed",
-      "durationMs": 186
+      "durationMs": 184
     },
     {
       "name": "mobile: navigation and complete copy for /api-reference/workflows/listWorkflows",
       "status": "passed",
-      "durationMs": 307
+      "durationMs": 269
     },
     {
       "name": "Nested response tabs reveal their ancestors through fragment",
       "status": "passed",
-      "durationMs": 353
+      "durationMs": 287
     },
     {
       "name": "Nested response tabs reveal their ancestors through beforematch",
       "status": "passed",
-      "durationMs": 346
+      "durationMs": 296
     },
     {
       "name": "Legacy clipboard preserves activation and invalidates prepared content after navigation",
       "status": "passed",
-      "durationMs": 10519
+      "durationMs": 10484
     },
     {
       "name": "Responsive light at 320px",
       "status": "passed",
-      "durationMs": 226
+      "durationMs": 219
     },
     {
       "name": "Responsive light at 390px",
       "status": "passed",
-      "durationMs": 216
+      "durationMs": 207
     },
     {
       "name": "Responsive light at 639px",
       "status": "passed",
-      "durationMs": 244
+      "durationMs": 210
     },
     {
       "name": "Responsive light at 640px",
@@ -89,62 +99,62 @@
     {
       "name": "Responsive light at 767px",
       "status": "passed",
-      "durationMs": 232
+      "durationMs": 241
     },
     {
       "name": "Responsive light at 768px",
       "status": "passed",
-      "durationMs": 223
+      "durationMs": 230
     },
     {
       "name": "Responsive light at 1023px",
       "status": "passed",
-      "durationMs": 242
+      "durationMs": 250
     },
     {
       "name": "Responsive light at 1024px",
       "status": "passed",
-      "durationMs": 152
+      "durationMs": 149
     },
     {
       "name": "Responsive light at 1279px",
       "status": "passed",
-      "durationMs": 149
+      "durationMs": 150
     },
     {
       "name": "Responsive light at 1280px",
       "status": "passed",
-      "durationMs": 149
+      "durationMs": 154
     },
     {
       "name": "Responsive light at 1440px",
       "status": "passed",
-      "durationMs": 156
+      "durationMs": 157
     },
     {
       "name": "Responsive light at 1920px",
       "status": "passed",
-      "durationMs": 159
+      "durationMs": 166
     },
     {
       "name": "Responsive dark at 320px",
       "status": "passed",
-      "durationMs": 220
+      "durationMs": 223
     },
     {
       "name": "Responsive dark at 390px",
       "status": "passed",
-      "durationMs": 223
+      "durationMs": 216
     },
     {
       "name": "Responsive dark at 639px",
       "status": "passed",
-      "durationMs": 228
+      "durationMs": 226
     },
     {
       "name": "Responsive dark at 640px",
       "status": "passed",
-      "durationMs": 230
+      "durationMs": 223
     },
     {
       "name": "Responsive dark at 767px",
@@ -154,92 +164,92 @@
     {
       "name": "Responsive dark at 768px",
       "status": "passed",
-      "durationMs": 230
+      "durationMs": 220
     },
     {
       "name": "Responsive dark at 1023px",
       "status": "passed",
-      "durationMs": 242
+      "durationMs": 250
     },
     {
       "name": "Responsive dark at 1024px",
       "status": "passed",
-      "durationMs": 150
+      "durationMs": 151
     },
     {
       "name": "Responsive dark at 1279px",
       "status": "passed",
-      "durationMs": 150
+      "durationMs": 148
     },
     {
       "name": "Responsive dark at 1280px",
       "status": "passed",
-      "durationMs": 157
+      "durationMs": 150
     },
     {
       "name": "Responsive dark at 1440px",
       "status": "passed",
-      "durationMs": 157
+      "durationMs": 158
     },
     {
       "name": "Responsive dark at 1920px",
       "status": "passed",
-      "durationMs": 159
+      "durationMs": 157
     },
     {
       "name": "Docs polish: nested TOC anchors track the selected section across breakpoints",
       "status": "passed",
-      "durationMs": 871
+      "durationMs": 931
     },
     {
       "name": "Docs polish: shortcut dismissal restores the opening trigger",
       "status": "passed",
-      "durationMs": 217
+      "durationMs": 239
     },
     {
       "name": "Docs polish: empty search navigates within /introduction",
       "status": "passed",
-      "durationMs": 532
+      "durationMs": 543
     },
     {
       "name": "Docs polish: empty search navigates within /api-reference/getting-started",
       "status": "passed",
-      "durationMs": 581
+      "durationMs": 483
     },
     {
       "name": "Docs polish: empty search navigates within /cli",
       "status": "passed",
-      "durationMs": 525
+      "durationMs": 552
     },
     {
       "name": "Docs polish: empty search navigates within /mcp/overview",
       "status": "passed",
-      "durationMs": 510
+      "durationMs": 545
     },
     {
       "name": "Search keyboard navigation, empty/error states and focus restoration",
       "status": "passed",
-      "durationMs": 1253
+      "durationMs": 1274
     },
     {
       "name": "Closing search aborts a pending request",
       "status": "passed",
-      "durationMs": 368
+      "durationMs": 372
     },
     {
       "name": "Explicit theme choice survives reload",
       "status": "passed",
-      "durationMs": 232
+      "durationMs": 237
     },
     {
       "name": "Mobile navigation search opens its result and dismisses both dialogs",
       "status": "passed",
-      "durationMs": 732
+      "durationMs": 740
     },
     {
       "name": "Large Cloudflare reference remains responsive with contained tables and keyboard search",
       "status": "passed",
-      "durationMs": 1561
+      "durationMs": 1626
     }
   ]
 }

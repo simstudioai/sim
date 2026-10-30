@@ -19,7 +19,7 @@ Sim owns the content catalog, page rendering, navigation, search, and machine in
 | `app/design-system/` | Local component gallery, excluded from indexing |
 | `migration/` | Baseline inventory, Paper measurements, parity matrix, and migration results |
 
-`app/` follows the App Router's file conventions. Ordinary content does not create a React route or duplicate a layout. The single catch-all route imports a shared article and shell, then loads that page's server-compiled MDX or specification reference. Promised route parameters and the Metadata API follow the installed Next.js 16 documentation.
+`app/` follows the App Router's file conventions. The root layout owns the persistent shell: navbar, sidebar, footer, search, and mobile navigation. Client navigation reads the current pathname without remounting the sidebar's scroll container. Only navigation metadata is shared with the client; document bodies and the complete catalog stay on the server. The single catch-all route loads that page's server-compiled MDX or specification reference into the shared article and page frame, which owns its responsive outline. Ordinary content does not create a React route or duplicate a layout. Promised route parameters and the Metadata API follow the installed Next.js 16 documentation.
 
 ## Add or change a page
 

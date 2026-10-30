@@ -3,9 +3,9 @@ import { notFound } from 'next/navigation'
 import { ApiExamples, ApiReference } from '@/components/docs/api-reference'
 import { Article } from '@/components/docs/article'
 import { getMDXComponents } from '@/components/docs/mdx'
-import { DocsShell } from '@/components/docs/shell'
+import { DocsPageFrame } from '@/components/docs/page-frame'
 import { StructuredData } from '@/components/structured-data'
-import { getNavigation, getPage, getPages } from '@/lib/content/catalog'
+import { getPage, getPages } from '@/lib/content/catalog'
 import { DOCS_BASE_URL } from '@/lib/urls'
 import { loadPage } from '@/.content/registry'
 
@@ -62,9 +62,7 @@ export default async function Page({ params }: PageProps) {
       breadcrumb.push({ name: ancestor.title, url: `${DOCS_BASE_URL}${ancestor.url}` })
   }
   return (
-    <DocsShell
-      pathname={page.url}
-      navigation={getNavigation(page.section)}
+    <DocsPageFrame
       headings={page.headings.filter((heading) => heading.depth <= 3)}
       api={Boolean(page.operation)}
     >
@@ -85,6 +83,6 @@ export default async function Page({ params }: PageProps) {
           <MDX components={getMDXComponents()} />
         ) : null}
       </Article>
-    </DocsShell>
+    </DocsPageFrame>
   )
 }
