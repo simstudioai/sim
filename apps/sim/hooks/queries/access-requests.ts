@@ -41,7 +41,7 @@ export function useDiscoverAccessRequests(query: DiscoverAccessRequestsQuery, en
     queryKey: accessRequestKeys.discovery(query),
     queryFn: async ({ signal }) => {
       const result = await requestJson(discoverAccessRequestsContract, { query, signal })
-      if (result.enabled && query.kind === 'workspace') {
+      if (query.kind === 'workspace') {
         void queryClient.refetchQueries(
           {
             queryKey: permissionGroupKeys.userConfig(query.workspaceId),
@@ -73,8 +73,7 @@ export function useDiscoverAccessRequests(query: DiscoverAccessRequestsQuery, en
     enabled:
       Boolean(query.kind === 'workspace' ? query.workspaceId : query.organizationId) && enabled,
     staleTime: ACCESS_REQUESTS_STALE_TIME,
-    refetchInterval: (query) =>
-      query.state.data?.enabled === false ? false : ACCESS_REQUESTS_POLL_INTERVAL,
+    refetchInterval: ACCESS_REQUESTS_POLL_INTERVAL,
   })
 }
 

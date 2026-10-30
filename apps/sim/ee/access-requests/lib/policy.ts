@@ -13,7 +13,7 @@ import {
   type AccessRequestCatalog,
   buildAccessRequestPolicyDelta,
   describeAccessRequestTarget,
-  isAccessRequestTargetDenied,
+  getPermissionGroupAccessState,
   isAccessRequestTargetInScope,
   validateAccessRequestTarget,
 } from '@/ee/access-requests/lib/targets'
@@ -105,13 +105,15 @@ export async function evaluateAccessRequestTarget(
   const group = policy.group
   if (!group)
     return { state: 'allowed' as const, reason: null, group: null, delta: null, limit: null }
-  const denied = isAccessRequestTargetDenied(canonical, group.config, catalog)
+  const state = getPermissionGroupAccessState(canonical, group.config, catalog)
+  if (state === 'unavailable')
+    return unavailable('Your organization does not allow requests for this item.')
   const delta = includeDelta
     ? buildAccessRequestPolicyDelta(canonical, group.config, catalog)
     : null
   return {
-    state: denied ? ('requestable' as const) : ('allowed' as const),
-    reason: denied ? 'Restricted by your permission group.' : null,
+    state,
+    reason: state === 'requestable' ? 'Restricted by your permission group.' : null,
     group,
     delta,
     limit: null,

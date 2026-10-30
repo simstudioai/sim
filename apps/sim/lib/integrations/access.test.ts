@@ -5,6 +5,10 @@ import {
   type IntegrationAccess,
   resolveIntegrationAccess,
 } from '@/lib/integrations/access'
+import {
+  DEFAULT_PERMISSION_GROUP_CONFIG,
+  type PermissionGroupConfig,
+} from '@/lib/permission-groups/fields'
 
 function accessOf(
   blockType: string,
@@ -13,6 +17,7 @@ function accessOf(
     deploymentAllowlist?: string[] | null
     availability?: IntegrationAvailabilityResponse[]
     credentialGroupsEnabled?: boolean
+    groupConfig?: PermissionGroupConfig
   }
 ): IntegrationAccess {
   return resolveIntegrationAccess(
@@ -23,6 +28,7 @@ function accessOf(
       availability: policy.availability ?? [],
       visibility: null,
       credentialGroupsEnabled: policy.credentialGroupsEnabled ?? true,
+      groupConfig: policy.groupConfig,
     })
   )
 }
@@ -57,7 +63,11 @@ describe('resolveIntegrationAccess', () => {
   })
 
   it('keeps the universal entry point available under an empty allowlist', () => {
-    expect(accessOf('start_trigger', { groupAllowlist: [] })).toBe('available')
+    const policy = {
+      groupAllowlist: [],
+      groupConfig: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: [] },
+    }
+    expect(accessOf('start_trigger', policy)).toBe('available')
   })
 
   it('denies credential groups where the feature is off, even when unrestricted', () => {

@@ -102,7 +102,9 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
       description={
         requestable
           ? 'Ask an administrator for access.'
-          : 'Your organization restricts this integration.'
+          : access === 'requestable' && accessRequests.data?.enabled === false
+            ? 'Access requests are paused for your organization.'
+            : 'Your organization restricts this integration.'
       }
       action={
         requestable ? (

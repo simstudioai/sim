@@ -18,6 +18,7 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  *   operation-level gate can express.
  * - `ui-only`: the key hides a surface without withholding it, so a caller that
  *   skips the UI still reaches the API.
+ * - `request`: controls access-request admission and approval, without granting use.
  * - `default`: a preference used when initializing a resource, without restricting access.
  *
  * Declared rather than inferred, because `ui-only` is the value an admin is
@@ -32,7 +33,7 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  * they share, and `check:permission-group-enforcement` is what keeps it honest
  * in both directions.
  */
-type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only' | 'default'
+type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only' | 'default' | 'request'
 
 /**
  * Which group a key's capability is actually read from when it is enforced.
@@ -193,11 +194,11 @@ function allowlist<TItem extends z.ZodType>(
   }
 }
 
-function denylist<TItem extends z.ZodType>(
+function denylist<TItem extends z.ZodType, TEnforcement extends PermissionGroupEnforcement>(
   item: TItem,
-  enforcement: PermissionGroupEnforcement,
+  enforcement: TEnforcement,
   phrasing: string
-): DenylistField<TItem> {
+): DenylistField<TItem> & { readonly enforcement: TEnforcement } {
   const schema = z.array(item).describe(phrasing.replace(/effectiveConfig\.\w+/g, 'this list'))
   return {
     kind: 'denylist',
@@ -527,20 +528,31 @@ export const PERMISSION_GROUP_FIELDS = {
     default: null,
     enforcement: 'default',
   },
+  deniedAccessRequests: denylist(
+    z.string().min(1).max(1024),
+    'request',
+    'Access requests are unavailable for the listed canonical target keys when access is restricted.'
+  ),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS
 export type PermissionGroupConfigKey = keyof PermissionGroupFields
 
 export type PermissionGroupRestrictionKey = {
-  [K in PermissionGroupConfigKey]: PermissionGroupFields[K]['kind'] extends 'preference' ? never : K
+  [K in PermissionGroupConfigKey]: PermissionGroupFields[K]['enforcement'] extends
+    | 'default'
+    | 'request'
+    ? never
+    : K
 }[PermissionGroupConfigKey]
 
 /** Restriction fields that access-request approvals may change. */
 export const PERMISSION_GROUP_RESTRICTION_KEYS = (
   Object.keys(PERMISSION_GROUP_FIELDS) as PermissionGroupConfigKey[]
 ).filter(
-  (key): key is PermissionGroupRestrictionKey => PERMISSION_GROUP_FIELDS[key].kind !== 'preference'
+  (key): key is PermissionGroupRestrictionKey =>
+    PERMISSION_GROUP_FIELDS[key].enforcement !== 'default' &&
+    PERMISSION_GROUP_FIELDS[key].enforcement !== 'request'
 )
 
 type DerivedPermissionGroupConfig = {

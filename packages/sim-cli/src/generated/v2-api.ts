@@ -2978,6 +2978,7 @@ export type CreatePermissionGroupBody = {
     disableKnowledgeBaseExport?: boolean
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
+    deniedAccessRequests?: Array<string>
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -3033,6 +3034,7 @@ type CreatePermissionGroupResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -6852,6 +6854,7 @@ type GetPermissionGroupResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -8217,6 +8220,7 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   } | null
   entitled: boolean
   organizationId: string | null
@@ -9954,6 +9958,7 @@ type ListPermissionGroupsResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string
@@ -14786,6 +14791,7 @@ export type UpdatePermissionGroupBody = {
     disableKnowledgeBaseExport?: boolean
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
+    deniedAccessRequests?: Array<string>
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -14841,6 +14847,7 @@ type UpdatePermissionGroupResponseRef0 = {
     disableKnowledgeBaseExport: boolean
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
+    deniedAccessRequests: Array<string>
   }
   isDefault: boolean
   membershipMode: string

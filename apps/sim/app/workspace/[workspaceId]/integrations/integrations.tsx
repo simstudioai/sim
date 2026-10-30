@@ -80,6 +80,7 @@ interface IntegrationItemProps {
   description?: string | null
   icon: ComponentType<{ className?: string }>
   unavailable?: boolean
+  restricted?: boolean
   /** Set for an integration the viewer's policy restricts but lets them request. */
   onRequestAccess?: () => void
 }
@@ -92,9 +93,9 @@ function IntegrationItem({
   description,
   icon: Icon,
   unavailable = false,
+  restricted = false,
   onRequestAccess,
 }: IntegrationItemProps) {
-  const restricted = onRequestAccess !== undefined
   return (
     <SettingsResourceRow
       iconVariant='custom'
@@ -110,9 +111,9 @@ function IntegrationItem({
           <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden />
         ) : undefined
       }
-      href={restricted ? undefined : `/workspace/${workspaceId}/integrations/${slug}`}
+      href={onRequestAccess ? undefined : `/workspace/${workspaceId}/integrations/${slug}`}
       onClick={onRequestAccess}
-      clickLabel={restricted ? `Request access to ${name}` : `Open ${name}`}
+      clickLabel={onRequestAccess ? `Request access to ${name}` : `Open ${name}`}
       navigable={!unavailable && !restricted}
       disabled={unavailable}
     />
@@ -248,15 +249,15 @@ function IntegrationsContent() {
 
   /**
    * Usable and unconfigured integrations are listed, the latter as unavailable;
-   * a requestable one is listed as a locked row while access requests are on.
+   * a requestable one stays listed as a locked row while requests are paused.
    * Nothing is listed until the access policy has loaded.
    */
   const isListed = useCallback(
     (blockType: string) => {
       const access = getAccess(blockType)
-      return isIntegrationPermitted(access) || (access === 'requestable' && accessRequestsEnabled)
+      return isIntegrationPermitted(access) || access === 'requestable'
     },
-    [getAccess, accessRequestsEnabled]
+    [getAccess]
   )
 
   const listedFeatured = useMemo(
@@ -469,8 +470,9 @@ function IntegrationsContent() {
                       description={integration.description}
                       icon={Icon}
                       unavailable={access === 'unconfigured'}
+                      restricted={access === 'requestable'}
                       onRequestAccess={
-                        access === 'requestable'
+                        access === 'requestable' && accessRequestsEnabled
                           ? () => setRequestedIntegration(integration)
                           : undefined
                       }

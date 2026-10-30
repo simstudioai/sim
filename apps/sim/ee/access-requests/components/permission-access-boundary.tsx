@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { Chip } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/empty-state/empty-state'
@@ -20,10 +20,22 @@ const PERMISSION_POLICY_REFRESH_INTERVAL = 30_000
 export function useWorkspaceAccessRequestFeatures() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
-  return useDiscoverAccessRequests(
+  const discovery = useDiscoverAccessRequests(
     workspaceFeatureDiscoveryQuery(workspaceId),
     Boolean(workspaceId)
   )
+  const requestableFeatureKeys = useMemo(
+    () =>
+      new Set(
+        discovery.data?.entries.flatMap((entry) =>
+          entry.target.kind === 'feature' && entry.state === 'requestable'
+            ? [entry.target.configKey]
+            : []
+        )
+      ),
+    [discovery.data?.entries]
+  )
+  return { ...discovery, requestableFeatureKeys }
 }
 
 interface PermissionAccessBoundaryProps {
@@ -142,7 +154,9 @@ export function PermissionAccessBoundary({
           ? entry.pendingRequestId
             ? 'Your request is pending.'
             : 'Ask an administrator for access.'
-          : (entry?.reason ?? 'Your organization restricts this feature.')
+          : entry?.state === 'requestable' && !discovery.data.enabled
+            ? 'Access requests are paused for your organization.'
+            : (entry?.reason ?? 'Your organization restricts this feature.')
       }
       action={withNavigationAction(
         discovery.data.enabled && entry?.state === 'requestable' ? (

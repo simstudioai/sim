@@ -5,11 +5,16 @@ import {
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
   intersectAccessControlAllowlists,
   resolveAccessControlBlockType,
   toAccessControlAllowlist,
 } from '@/lib/permission-groups/integration-allowlist'
+import {
+  createAccessRequestCatalog,
+  getPermissionGroupAccessState,
+} from '@/ee/access-requests/lib/targets'
 
 /**
  * What a viewer can do with an integration in one workspace — the single
@@ -47,6 +52,7 @@ export interface IntegrationAccessPolicy {
   /** Deployment availability by lowercased block type, projected through the viewer's visibility. */
   availability: ReadonlyMap<string, IntegrationAvailabilityResponse>
   credentialGroupsEnabled: boolean
+  groupConfig?: PermissionGroupConfig | null
 }
 
 interface IntegrationAccessPolicyInput {
@@ -55,6 +61,7 @@ interface IntegrationAccessPolicyInput {
   availability: readonly IntegrationAvailabilityResponse[]
   visibility: BlockVisibilityState | null
   credentialGroupsEnabled: boolean
+  groupConfig?: PermissionGroupConfig | null
 }
 
 export function createIntegrationAccessPolicy({
@@ -63,6 +70,7 @@ export function createIntegrationAccessPolicy({
   availability,
   visibility,
   credentialGroupsEnabled,
+  groupConfig,
 }: IntegrationAccessPolicyInput): IntegrationAccessPolicy {
   return {
     allowlist: intersectAccessControlAllowlists(groupAllowlist, deploymentAllowlist),
@@ -74,8 +82,17 @@ export function createIntegrationAccessPolicy({
       ])
     ),
     credentialGroupsEnabled,
+    groupConfig,
   }
 }
+
+const INTEGRATION_REQUEST_CATALOG = createAccessRequestCatalog({
+  integrations: [],
+  providers: [],
+  models: [],
+  tools: [],
+  knowledgeConnectors: [],
+})
 
 /**
  * The policy is judged before deployment configuration, so an integration the
@@ -94,7 +111,16 @@ export function resolveIntegrationAccess(
     isDeploymentGatedIntegrationType(normalizedBlockType) &&
     (state === 'unavailable' || state === 'misconfigured')
 
-  if (isPermittedBy(policy.allowlist, blockType)) {
+  const groupState =
+    policy.groupConfig && !isBlockTypeAccessControlExempt(normalizedBlockType)
+      ? getPermissionGroupAccessState(
+          { kind: 'integration', id: resolveAccessControlBlockType(normalizedBlockType) },
+          policy.groupConfig,
+          INTEGRATION_REQUEST_CATALOG
+        )
+      : 'allowed'
+  if (groupState === 'unavailable') return 'denied'
+  if (groupState === 'allowed' && isPermittedBy(policy.allowlist, blockType)) {
     return unconfigured ? 'unconfigured' : 'available'
   }
   if (unconfigured) return 'denied'
