@@ -20,4 +20,12 @@ describe('createFieldFromOutput', () => {
     })
     expect(field.children?.map((child) => child.name)).toEqual(['id'])
   })
+
+  it('keeps the fields of an untyped object that has a field named items', () => {
+    const field = createFieldFromOutput('page', {
+      items: { type: 'string' },
+      total: { type: 'number' },
+    })
+    expect(field.children?.map((child) => child.name)).toEqual(['items', 'total'])
+  })
 })
