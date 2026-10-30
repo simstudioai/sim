@@ -1,6 +1,6 @@
 {
   "startingCommit": "01b236388a1fe4d9e609266d5acf265bef1b92c6",
-  "compatibilityCommit": "5facc5f2656fdc2c09b5a5e3b39476ad60f6cb49",
+  "compatibilityCommit": "3175daab84bfc2d7dfc8d924d55313190c280476",
   "originalEvidenceCommit": "3bd99767ac5a4c2ea86c060120e62b063c84c474",
   "originalEvidenceSha256": "98e626c34a19bfba17240f79853a77af457887f58954ccd307e8665406aa71df",
   "origin": "https://docs.sim.ai",
@@ -177184,8 +177184,8 @@
     {
       "source": "search/connect-your-account.mdx",
       "url": "/search/connect-your-account",
-      "sha256": "7cdef05cc19c9b079b0e533c2b028f19f5b578ea5118c607459c20922f027eb2",
-      "bytes": 6138,
+      "sha256": "6c24a9d0078f8aa1d3327ae21f76b6b49d73548d29714c9c1ba883d9993d71ae",
+      "bytes": 6231,
       "frontmatter": {
         "title": "Connect your account",
         "description": "Authorize your provider accounts and manage their Search connections"
@@ -233151,13 +233151,13 @@
     },
     {
       "path": "static/search/assistant-action-review.png",
-      "bytes": 100970,
-      "sha256": "28b0c80bca1b5dbca39e5d14da6a5047a5020ff037976c360bc9ca61a540a88d"
+      "bytes": 78318,
+      "sha256": "1f357d6cee078af3bc3eaf7159c0a2f4b3a1a525c36228a803f53883fad9da49"
     },
     {
       "path": "static/search/assistant-tool-permissions.png",
-      "bytes": 77113,
-      "sha256": "c63f5a29316784022dadba929b1a885a2d33f1bdecf5feef4df9c32e734c8abd"
+      "bytes": 72055,
+      "sha256": "4f7942e3706dcd00fd7328168d99b32b8a25d5ab5a0f0c65d372abc3fa210790"
     },
     {
       "path": "static/search/atlas-readiness-brief.webp",
@@ -233311,8 +233311,8 @@
     },
     {
       "path": "static/search/organization-search.png",
-      "bytes": 35867,
-      "sha256": "f541c4eb9a37dbbbd2183dd3fba7ca7cd75bc57aca5a461ea2b218c21c0a5d3c"
+      "bytes": 51203,
+      "sha256": "1163667b92af5e265d38efc4b0591cd1787f8eb780d8176da31f08589f0eaaf7"
     },
     {
       "path": "static/search/request-connections.jpg",
