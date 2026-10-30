@@ -10,11 +10,10 @@ export const docsMenuClass =
 export const docsDialogClass =
   'docs-portal rounded-2xl border border-[var(--docs-border)] bg-[var(--docs-overlay)] text-[var(--docs-text)] shadow-[var(--docs-dialog-shadow)] backdrop-blur-[var(--docs-chrome-blur)]'
 
-export const docsScrollAreaClass =
-  '[scrollbar-width:thin] [scrollbar-color:var(--docs-muted)_transparent] [&::-webkit-scrollbar]:size-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--docs-muted)] [&::-webkit-scrollbar-track]:bg-transparent'
+export const docsScrollAreaClass = '[scrollbar-width:thin]'
 
 export const docsInlineLinkClass =
-  'rounded-sm font-semibold text-[var(--docs-link)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
+  'rounded-sm text-[var(--docs-prose-link)] underline decoration-current underline-offset-4 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 dark:underline-offset-[3px]'
 
 export const docsMenuItemClass =
   'flex min-h-[30px] cursor-pointer items-center gap-2 rounded-md px-2 outline-none data-[highlighted]:bg-[var(--docs-hover)] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 dark:data-[disabled]:text-[var(--docs-disabled)] dark:data-[disabled]:opacity-100'

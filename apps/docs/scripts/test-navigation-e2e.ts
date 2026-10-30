@@ -1602,6 +1602,13 @@ try {
   })
 } finally {
   await browser?.close()
+  if (!results.length)
+    results.push({
+      name: 'Check selection',
+      status: 'failed',
+      durationMs: 0,
+      error: `No checks matched DOCS_NAVIGATION_FILTER=${process.env.DOCS_NAVIGATION_FILTER ?? ''}`,
+    })
   await writeFile(
     reportPath,
     `${JSON.stringify({ origin: target.origin, engine, limitations: engine === 'webkit' ? ['Clipboard readback, reduced-transparency emulation and controlled network throttling remain Chromium-only; this is Playwright WebKit, not native Safari.'] : [], results }, null, 2)}\n`

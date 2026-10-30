@@ -98,7 +98,7 @@ export function DocsShell({ children, navigationBySection }: DocsShellProps) {
               key={section}
               className={cn(
                 docsScrollAreaClass,
-                'sticky top-24 hidden max-h-[calc(100dvh-120px)] min-w-0 space-y-5 overflow-y-auto overscroll-contain pb-5 lg:block'
+                '-mx-1 sticky top-24 hidden max-h-[calc(100dvh-120px)] min-w-0 space-y-5 overflow-y-auto overscroll-contain px-1 pb-5 lg:block'
               )}
             >
               <DocsSearchTrigger />

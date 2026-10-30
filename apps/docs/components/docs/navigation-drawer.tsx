@@ -54,7 +54,7 @@ export function DocsNavigationDrawer({ children }: DocsNavigationDrawerProps) {
             }}
             className={cn(
               docsScrollAreaClass,
-              'mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6'
+              '-mx-1 mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-6'
             )}
           >
             <SidebarNavigation

@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 
 /** Bounded production measurements: no builds, writes to services, or corpus crawling. */
 const logger = createLogger('DocsReadinessBenchmark', { logLevel: 'INFO' })
@@ -1014,17 +1015,35 @@ async function tabControl(
   control: { scenario: string; label: string; choice: RegExp }
 ) {
   await measure(profile, route, repetition, control.scenario, async () => {
-    const list = run.page.getByRole('tablist', { name: control.label, exact: true })
-    const tab = list.getByRole('tab', { name: control.choice }).filter({ visible: true }).first()
+    const list = run.page.getByRole('tablist', {
+      name: control.label,
+      exact: true,
+      includeHidden: true,
+    })
+    const tab = list.getByRole('tab', { name: control.choice, includeHidden: true }).first()
     if (!(await tab.count()))
       return {
         status: 'unavailable',
         error: `No matching ${control.label} tab on this baseline.`,
       }
-    const choices = await list.getByRole('tab').count()
-    await tab.scrollIntoViewIfNeeded()
+    const choices = await list.getByRole('tab', { includeHidden: true }).count()
+    const presentation = (await tab.isVisible()) ? 'tabs' : 'menu'
+    let trigger = tab
+    if (presentation === 'menu') {
+      const picker = run.page.getByRole('button', {
+        name: new RegExp(`^${escapeRegExp(control.label)}:`),
+      })
+      if (!(await picker.isVisible()))
+        return {
+          status: 'unavailable',
+          error: `No visible ${control.label} control on this baseline.`,
+        }
+      await picker.click()
+      trigger = run.page.getByRole('menuitemradio', { name: control.choice }).first()
+    }
+    await trigger.scrollIntoViewIfNeeded()
     const start = performance.now()
-    await tab.click()
+    await trigger.click()
     await expect(tab).toHaveAttribute('aria-selected', 'true')
     const id = await tab.getAttribute('aria-controls')
     if (!id) throw new Error('Tab has no linked content')
@@ -1036,6 +1055,7 @@ async function tabControl(
       feedbackMs: choices > 1 ? performance.now() - start : undefined,
       data: {
         choices,
+        presentation,
         selected: await tab.textContent(),
         contentLength: (await panel.textContent())?.length,
         applicableTransition: choices > 1,
@@ -1117,11 +1137,13 @@ async function apiControls(
     if (!(await button.count()))
       return { status: 'unavailable', error: 'No named request-copy button on this baseline.' }
     const selected = run.page
-      .getByRole('tablist', { name: 'Request language', exact: true })
-      .getByRole('tab', { selected: true })
+      .getByRole('tablist', { name: 'Request language', exact: true, includeHidden: true })
+      .getByRole('tab', { selected: true, includeHidden: true })
     const id = await selected.getAttribute('aria-controls')
     if (!id) throw new Error('Selected request has no panel')
-    const expected = await run.page.locator(`[id="${id}"] code`).textContent()
+    const panel = run.page.locator(`[id="${id}"]`)
+    await panel.waitFor({ state: 'visible' })
+    const expected = await panel.locator('code').textContent()
     await button.scrollIntoViewIfNeeded()
     const start = performance.now()
     await button.click()

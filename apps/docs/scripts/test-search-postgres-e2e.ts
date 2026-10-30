@@ -296,6 +296,33 @@ async function verifyDatabase() {
     assert.equal(results[0]?.id, probe)
     assert.equal(results[0]?.url, 'https://docs.sim.ai/introduction')
   })
+  await check('Repeated lower-ranked chunks do not outrank a stronger page match', async () => {
+    const otherPage = getPage('/getting-started')
+    assert(otherPage)
+    const rankingQuery = 'simrankingprobe'
+    try {
+      for (const candidate of [page, otherPage])
+        await sql`
+          INSERT INTO docs_embeddings (chunk_id, chunk_text, source_document, source_link, header_text, header_level, token_count, embedding, metadata)
+          VALUES (${generateId()}, ${candidate === page ? `${rankingQuery} ${rankingQuery}` : rankingQuery}, ${candidate.sourcePath}, ${`https://docs.sim.ai${candidate.url}`}, ${candidate.title}, 1, 2, ${vector}::vector, ${sql.json({ contentHash: candidate.contentHash })})
+        `
+      const expected = ['https://docs.sim.ai/introduction', 'https://docs.sim.ai/getting-started']
+      assert.deepEqual(
+        (await searchDocs(rankingQuery)).map((result) => result.url),
+        expected
+      )
+      await sql`
+        INSERT INTO docs_embeddings (chunk_id, chunk_text, source_document, source_link, header_text, header_level, token_count, embedding, metadata)
+        VALUES (${generateId()}, ${rankingQuery}, ${otherPage.sourcePath}, 'https://docs.sim.ai/getting-started', ${otherPage.title}, 1, 1, ${vector}::vector, ${sql.json({ contentHash: otherPage.contentHash })})
+      `
+      assert.deepEqual(
+        (await searchDocs(rankingQuery)).map((result) => result.url),
+        expected
+      )
+    } finally {
+      await sql`DELETE FROM docs_embeddings WHERE chunk_text_tsv @@ plainto_tsquery('english', ${rankingQuery})`
+    }
+  })
   await check('Stale index hashes cannot supply search citations', async () => {
     await sql`UPDATE docs_embeddings SET metadata = '{"contentHash":"stale"}' WHERE chunk_id = ${probe}`
     assert.deepEqual(await searchDocs(query), [])

@@ -17,7 +17,7 @@ interface NavigationItemProps extends Omit<SidebarNavigationProps, 'nodes'> {
 }
 
 const rowClass =
-  'group flex min-h-[30px] w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-docs-nav text-[var(--docs-text)] transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-muted)] focus-visible:-outline-offset-2'
+  'group flex min-h-[30px] w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-docs-nav text-[var(--docs-text)] transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
 
 function containsPath(node: NavNode, pathname: string): boolean {
   return (
@@ -68,7 +68,8 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
         <div
           className={cn(
             'group/branch flex min-h-[30px] items-center rounded-lg transition-colors hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)]',
-            isCurrent && 'bg-[var(--docs-selected)] hover:bg-[var(--docs-selected-hover)]'
+            isCurrent &&
+              'bg-[var(--docs-selected)] shadow-[var(--docs-current-edge)] hover:bg-[var(--docs-selected-hover)]'
           )}
         >
           <Link
@@ -89,7 +90,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
               aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.title}`}
               aria-expanded={expanded}
               onClick={toggle}
-              className='focus-visible:-outline-offset-2 mr-0.5 flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--docs-muted)] group-focus-within/branch:opacity-100 group-hover/branch:opacity-100 [@media(hover:none)]:opacity-100'
+              className='mr-0.5 flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] group-focus-within/branch:opacity-100 group-hover/branch:opacity-100 [@media(hover:none)]:opacity-100'
             >
               <ChevronDown
                 className={cn('size-4 transition-transform', !expanded && '-rotate-90')}
