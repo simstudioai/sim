@@ -56,6 +56,21 @@ function setWorkflowVariableProvenance(
   })
 }
 
+function resolveAssignmentName(
+  assignment: any,
+  workflowVariables: Record<string, any>
+): string | undefined {
+  const named = typeof assignment?.variableName === 'string' ? assignment.variableName.trim() : ''
+  if (named) return named
+  const selected = getWorkflowVariableEntry(workflowVariables, assignment?.variableId)?.[1]?.name
+  return typeof selected === 'string' && selected.trim() ? selected.trim() : undefined
+}
+
+function hasAssignedValue(value: unknown): boolean {
+  if (value === undefined || value === null) return false
+  return typeof value !== 'string' || value.trim() !== ''
+}
+
 export class VariablesBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     const canHandle = block.metadata?.id === BlockType.VARIABLES
@@ -72,7 +87,7 @@ export class VariablesBlockHandler implements BlockHandler {
         ctx.workflowVariables = {}
       }
 
-      const assignments = this.parseAssignments(inputs.variables)
+      const assignments = this.parseAssignments(inputs.variables, ctx.workflowVariables)
 
       const output: Record<string, any> = {}
 
@@ -127,8 +142,15 @@ export class VariablesBlockHandler implements BlockHandler {
     })
   }
 
+  /**
+   * Reads the block's assignment rows. A row targets the variable it names, or the one its
+   * `variableId` selects. A row with neither is skipped while it is blank (the editor's empty
+   * row), and fails the block when it carries a value, since that update would otherwise be
+   * dropped without a trace.
+   */
   private parseAssignments(
-    assignmentsInput: any
+    assignmentsInput: any,
+    workflowVariables: Record<string, any>
   ): Array<{ variableId?: string; variableName: string; type: string; value: any }> {
     const result: Array<{ variableId?: string; variableName: string; type: string; value: any }> =
       []
@@ -137,19 +159,25 @@ export class VariablesBlockHandler implements BlockHandler {
       return result
     }
 
-    for (const assignment of assignmentsInput) {
-      if (assignment?.variableName?.trim()) {
-        const name = assignment.variableName.trim()
-        const type = assignment.type || 'string'
-        const value = this.parseValueByType(assignment.value, type, name)
-
-        result.push({
-          variableId: assignment.variableId,
-          variableName: name,
-          type,
-          value,
-        })
+    for (const [index, assignment] of assignmentsInput.entries()) {
+      const name = resolveAssignmentName(assignment, workflowVariables)
+      if (!name) {
+        if (hasAssignedValue(assignment?.value)) {
+          throw new Error(
+            `Assignment ${index + 1} sets a value but names no variable. Select a workflow variable for it (variableName), or remove the row.`
+          )
+        }
+        continue
       }
+      const type = assignment.type || 'string'
+      const value = this.parseValueByType(assignment.value, type, name)
+
+      result.push({
+        variableId: assignment.variableId,
+        variableName: name,
+        type,
+        value,
+      })
     }
 
     return result

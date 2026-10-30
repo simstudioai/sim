@@ -27,7 +27,7 @@ Then select `retryCount` in a Variables block and set its value to `<increment.r
 
 **Variable Assignments** contains the variables to update and their new values. Select an existing variable, then enter a literal value or an earlier output, such as `<api.data.email>`.
 
-The block converts each value to the selected variable's type. It does not evaluate JavaScript arithmetic. Use a Function for calculations, then assign its result.
+The block converts each value to the selected variable's type. It does not evaluate JavaScript arithmetic. Use a Function for calculations, then assign its result. A row with a value but no selected variable fails the block; empty rows are ignored.
 
 Assignments are written in order, but all references are resolved before the assignments run. A later row in the same block does not read a value just written by an earlier row.
 

@@ -61,7 +61,7 @@ For uses the configured count; For Each uses the collection length. `1,000` is a
 
 An empty array skips the body and returns empty results. Missing, null, or empty-string collection configuration is an error rather than an empty iteration set.
 
-While and conditional Do While have no fixed iteration ceiling. Ensure the condition eventually becomes false. Iterations add sequential execution time; connect error paths inside the loop when an item failure should be handled.
+While and conditional Do While stop after `10,000` iterations if the condition is still true, and the run fails with an error on the loop. Ensure the condition eventually becomes false. Iterations add sequential execution time; connect error paths inside the loop when an item failure should be handled.
 
 Loops and Parallel containers can nest in either direction. Use the reference picker for the appropriate container scope in a nested flow.
 
