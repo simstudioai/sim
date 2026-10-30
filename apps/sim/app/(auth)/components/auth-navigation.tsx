@@ -6,7 +6,7 @@ import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { buildAuthCrossLink, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 
-/** Preserves return and invitation context in the Paper header cross-link. */
+/** Preserves return and invitation context in the Auth header cross-link. */
 export function AuthNavigation({ registrationDisabled }: { registrationDisabled: boolean }) {
   const pathname = usePathname()
   const params = useSearchParams()

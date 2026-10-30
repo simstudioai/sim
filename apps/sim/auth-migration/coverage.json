@@ -1,13 +1,10 @@
 {
-  "source": "https://app.paper.design/file/01M4HT6VGW45G238N4V86KKMG7/p-B-0",
-  "tokenRevision": "ebe83397",
   "scope": "Auth presentation only; existing authentication handlers, resource authorization, cookies, redirects and external providers remain authoritative.",
   "routes": [
     {
       "file": "apps/sim/app/(auth)/login/page.tsx",
       "url": "/login",
       "entry": "page.tsx",
-      "paper": "1U0R-0",
       "states": [
         "email-password",
         "recovery",
@@ -30,7 +27,6 @@
       "file": "apps/sim/app/(auth)/oauth/consent/page.tsx",
       "url": "/oauth/consent",
       "entry": "page.tsx",
-      "paper": "1V38-0",
       "states": [
         "loading",
         "trusted client",
@@ -46,7 +42,6 @@
       "file": "apps/sim/app/(auth)/oauth/sign-in/route.ts",
       "url": "/oauth/sign-in",
       "entry": "route.ts",
-      "paper": "1ZEQ-0",
       "states": ["signed OAuth request redirect"],
       "actions": []
     },
@@ -54,7 +49,6 @@
       "file": "apps/sim/app/(auth)/reset-password/page.tsx",
       "url": "/reset-password",
       "entry": "page.tsx",
-      "paper": "1USK-0",
       "states": [
         "missing token",
         "invalid token",
@@ -69,7 +63,6 @@
       "file": "apps/sim/app/(auth)/signup/page.tsx",
       "url": "/signup",
       "entry": "page.tsx",
-      "paper": "1UI9-0",
       "states": [
         "default",
         "all validation messages",
@@ -84,7 +77,6 @@
       "file": "apps/sim/app/(auth)/sso/launch/[providerId]/route.ts",
       "url": "/sso/launch/[providerId]",
       "entry": "route.ts",
-      "paper": "1ZEQ-0",
       "states": ["SSO provider redirect"],
       "actions": []
     },
@@ -92,7 +84,6 @@
       "file": "apps/sim/app/(auth)/sso/page.tsx",
       "url": "/sso",
       "entry": "page.tsx",
-      "paper": "1UQ5-0",
       "states": [
         "idle",
         "invalid email",
@@ -108,7 +99,6 @@
       "file": "apps/sim/app/(auth)/verify/page.tsx",
       "url": "/verify",
       "entry": "page.tsx",
-      "paper": "1URA-0",
       "states": [
         "idle",
         "auto-submit",
@@ -125,7 +115,6 @@
       "file": "apps/sim/app/(interfaces)/chat/[identifier]/page.tsx",
       "url": "/chat/[identifier]",
       "entry": "page.tsx",
-      "paper": "1W6F-0",
       "states": [
         "password gate",
         "email entry",
@@ -142,7 +131,6 @@
       "file": "apps/sim/app/cli/auth/done/page.tsx",
       "url": "/cli/auth/done",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["complete", "cancelled", "invalid outcome"],
       "actions": []
     },
@@ -150,7 +138,6 @@
       "file": "apps/sim/app/cli/auth/page.tsx",
       "url": "/cli/auth",
       "entry": "page.tsx",
-      "paper": "1V4Q-0",
       "states": [
         "invalid request",
         "signed out redirect",
@@ -167,7 +154,6 @@
       "file": "apps/sim/app/credential-groups/complete/page.tsx",
       "url": "/credential-groups/complete",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["complete"],
       "actions": []
     },
@@ -175,7 +161,6 @@
       "file": "apps/sim/app/credential-groups/enroll/[token]/page.tsx",
       "url": "/credential-groups/enroll/[token]",
       "entry": "page.tsx",
-      "paper": "1YP4-0",
       "states": [
         "full enrollment",
         "focused reconnect",
@@ -191,7 +176,6 @@
       "file": "apps/sim/app/credential-groups/slack-complete/page.tsx",
       "url": "/credential-groups/slack-complete",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["complete", "failure"],
       "actions": []
     },
@@ -199,7 +183,6 @@
       "file": "apps/sim/app/desktop/auth/page.tsx",
       "url": "/desktop/auth",
       "entry": "page.tsx",
-      "paper": "1V8Y-0",
       "states": ["signed out redirect", "approval", "pending", "refused", "failure", "handoff"],
       "actions": ["continue to desktop", "retry"]
     },
@@ -207,7 +190,6 @@
       "file": "apps/sim/app/desktop/connect/complete/page.tsx",
       "url": "/desktop/connect/complete",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["complete", "failure"],
       "actions": []
     },
@@ -215,7 +197,6 @@
       "file": "apps/sim/app/desktop/connect/page.tsx",
       "url": "/desktop/connect",
       "entry": "page.tsx",
-      "paper": "1V7U-0",
       "states": [
         "browser waiting",
         "authenticated launch",
@@ -229,7 +210,6 @@
       "file": "apps/sim/app/desktop/done/page.tsx",
       "url": "/desktop/done",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["complete"],
       "actions": []
     },
@@ -237,7 +217,6 @@
       "file": "apps/sim/app/f/[token]/page.tsx",
       "url": "/f/[token]",
       "entry": "page.tsx",
-      "paper": "1W6F-0",
       "states": [
         "password gate",
         "email entry",
@@ -254,7 +233,6 @@
       "file": "apps/sim/app/invite/[id]/page.tsx",
       "url": "/invite/[id]",
       "entry": "page.tsx",
-      "paper": "1V1L-0",
       "states": [
         "signed out",
         "registration disabled",
@@ -282,7 +260,6 @@
       "file": "apps/sim/app/knowledge/github/setup/page.tsx",
       "url": "/knowledge/github/setup",
       "entry": "page.tsx",
-      "paper": "1YP4-0",
       "states": ["loading", "available accounts", "pending", "error", "complete"],
       "actions": ["select installation", "connect"]
     },
@@ -290,7 +267,6 @@
       "file": "apps/sim/app/oauth-error/page.tsx",
       "url": "/oauth-error",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["callback failure"],
       "actions": ["close window"]
     },
@@ -298,7 +274,6 @@
       "file": "apps/sim/app/oauth/chat-complete/page.tsx",
       "url": "/oauth/chat-complete",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["callback processing", "handoff"],
       "actions": []
     },
@@ -306,7 +281,6 @@
       "file": "apps/sim/app/oauth/credential-connected/page.tsx",
       "url": "/oauth/credential-connected",
       "entry": "page.tsx",
-      "paper": "1V9Z-0",
       "states": ["connected"],
       "actions": ["close window"]
     },
@@ -314,7 +288,6 @@
       "file": "apps/sim/app/slack-search/connect/[token]/page.tsx",
       "url": "/slack-search/connect/[token]",
       "entry": "page.tsx",
-      "paper": "1YP4-0",
       "states": ["invitation unavailable", "workspace choice", "connecting", "error", "complete"],
       "actions": ["connect Slack", "choose workspace"]
     },
@@ -322,7 +295,6 @@
       "file": "apps/sim/app/slack-search/install/[teamId]/page.tsx",
       "url": "/slack-search/install/[teamId]",
       "entry": "page.tsx",
-      "paper": "1YP4-0",
       "states": ["signed out", "unavailable", "install confirmation"],
       "actions": ["install Slack", "return"]
     }
@@ -330,13 +302,11 @@
   "native": [
     {
       "surface": "offline",
-      "paper": "1VHW-0",
       "states": ["offline", "DNS", "TLS", "timeout", "unreachable", "cloud status", "self-hosted"],
       "actions": ["retry", "check status on Sim Cloud", "change server", "support"]
     },
     {
       "surface": "server",
-      "paper": "1VIV-0",
       "states": ["current server", "invalid URL", "pending", "unchanged server", "failure"],
       "actions": ["connect", "cancel", "Escape/window close"]
     }

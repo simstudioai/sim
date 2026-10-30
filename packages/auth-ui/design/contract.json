@@ -1,14 +1,7 @@
 {
-  "source": "https://app.paper.design/file/01M4HT6VGW45G238N4V86KKMG7/p-B-0",
-  "revision": "ebe83397",
-  "foundations": ["142-0", "146-0", "14A-0"],
-  "handoff": "2ERC-0",
-  "coverage": "1XN0-0",
-  "componentMap": "1ZB3-0",
-  "routeContract": "1ZEQ-0",
   "runtimeOwner": "@sim/auth-ui",
   "styleOwner": "src/styles.module.css",
-  "snapshot": "design/paper-tokens.json",
+  "snapshot": "design/tokens.json",
   "architecture": {
     "static": ["primitives.tsx", "compositions.tsx", "icons.tsx", "wordmark.tsx"],
     "interactive": ["controls.tsx", "code-entry.tsx"],

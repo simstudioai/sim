@@ -26,7 +26,7 @@ export interface AuthButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   loadingLabel?: string
 }
 
-/** Paper's 32px action inside a separate mobile touch target. */
+/** A compact 32px action inside a separate mobile touch target. */
 export function AuthButton({
   children,
   className,

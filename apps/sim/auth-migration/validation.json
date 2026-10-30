@@ -207,12 +207,12 @@
     ],
     "productionVisualAndIsolation": [
       {
-        "name": "Mobile uses the Paper text navigation and support follows the form",
+        "name": "Mobile uses text navigation and support follows the form",
         "status": "pass",
         "durationMs": 759
       },
       {
-        "name": "Desktop uses the Paper pill navigation, 400px form and flow footer",
+        "name": "Desktop uses pill navigation, 400px form and flow footer",
         "status": "pass",
         "durationMs": 653
       },
@@ -249,7 +249,7 @@
         "durationMs": 4535
       },
       {
-        "name": "All-provider configuration matches Paper ordering and mobile two-column layout",
+        "name": "All-provider configuration matches the specified ordering and mobile two-column layout",
         "status": "pass",
         "durationMs": 4603
       }

@@ -4,7 +4,7 @@ interface AuthIconProps extends SVGProps<SVGSVGElement> {
   name: 'eye' | 'eye-off' | 'copy' | 'check' | 'chevron' | 'lock' | 'error'
 }
 
-/** Paper Auth glyphs; Auth owns their outlines, dimensions, and treatment. */
+/** Auth glyphs with locally owned outlines, dimensions, and treatment. */
 export function AuthIcon({ name, ...props }: AuthIconProps) {
   const views = {
     eye: '0 0 24 24',
