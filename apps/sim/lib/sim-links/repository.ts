@@ -2,8 +2,7 @@ import { db } from '@sim/db'
 import { simLink, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, desc, eq, gt, ilike, lt, or, type SQL, sql } from 'drizzle-orm'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { and, asc, desc, eq, gt, ilike, or, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   normalizeSimLinkName,
@@ -73,30 +72,9 @@ function toRecord({
 }
 
 /**
- * A keyset position: the last row's normalized name, preceded by its visit count when sorting
- * by use. Normalized names never contain `:`, so the first one separates the two.
- */
-function cursorOf(sort: SimLinkSort, row: SimLinkRecord): string {
-  return sort === 'popular' ? `${row.visitCount}:${row.normalizedName}` : row.normalizedName
-}
-
-function afterCursor(sort: SimLinkSort, cursor: string): SQL | undefined {
-  if (sort === 'name') return gt(simLink.normalizedName, cursor)
-  const separator = cursor.indexOf(':')
-  const visits = Number(cursor.slice(0, separator))
-  if (separator < 1 || !Number.isSafeInteger(visits)) {
-    throw new OrchestrationError('validation', 'Invalid cursor')
-  }
-  const name = cursor.slice(separator + 1)
-  return or(
-    lt(simLink.visitCount, visits),
-    and(eq(simLink.visitCount, visits), gt(simLink.normalizedName, name))
-  )
-}
-
-/**
- * One page of the links `viewer` may browse, by name or by most visited. Unlisted links are
- * listed only to their creator and organization admins.
+ * The links `viewer` may browse: pages by name, or the most visited as a single page, since a
+ * cursor over live visit counts would skip links that gain visits between pages. Unlisted links
+ * are listed only to their creator and organization admins.
  */
 export async function listSimLinks(
   organizationId: string,
@@ -119,18 +97,23 @@ export async function listSimLinks(
       )
     )
   }
-  if (cursor) conditions.push(afterCursor(sort, cursor))
-  const order =
-    sort === 'popular'
-      ? [desc(simLink.visitCount), asc(simLink.normalizedName)]
-      : [asc(simLink.normalizedName)]
+  if (sort === 'popular') {
+    const rows = await selectRecords(db)
+      .where(and(...conditions))
+      .orderBy(desc(simLink.visitCount), asc(simLink.normalizedName))
+      .limit(PAGE_SIZE)
+    return { links: rows.map(toRecord), nextCursor: null }
+  }
+  if (cursor) conditions.push(gt(simLink.normalizedName, cursor))
   const rows = await selectRecords(db)
     .where(and(...conditions))
-    .orderBy(...order)
+    .orderBy(asc(simLink.normalizedName))
     .limit(PAGE_SIZE + 1)
   const links = rows.slice(0, PAGE_SIZE).map(toRecord)
-  const last = links.at(-1)
-  return { links, nextCursor: rows.length > PAGE_SIZE && last ? cursorOf(sort, last) : null }
+  return {
+    links,
+    nextCursor: rows.length > PAGE_SIZE ? (links.at(-1)?.normalizedName ?? null) : null,
+  }
 }
 
 export async function getSimLink(

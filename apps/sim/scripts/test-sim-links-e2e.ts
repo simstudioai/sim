@@ -218,6 +218,11 @@ async function run() {
       (await open(member, 'jira%2F123')).location,
       'https://jira.example.com/browse/PROD-123'
     )
+    await create(owner, { name: 'go', url: 'https://redirect.example.com/?to={*}' })
+    assert.equal(
+      (await open(member, 'go/https%3A%2F%2Fexample.com%2Fa')).location,
+      'https://redirect.example.com/?to=https%3A%2F%2Fexample.com%2Fa'
+    )
     assert.equal((await open(member, 'jira')).location, 'https://jira.example.com/')
     const hostile = new URL((await open(member, 'jira/%2F%2Fevil.example.org')).location ?? '')
     assert.equal(hostile.origin, 'https://jira.example.com')
@@ -326,7 +331,7 @@ async function run() {
     )
     assert.equal(visits.get('jira'), 4, 'Each jira redirect counts once')
     assert.equal(visits.get('gh'), 0, 'A link opened without its values is not a visit')
-    await api(member, '?sort=popular&cursor=not-a-cursor', { expected: 400 })
+    await api(member, '?sort=popular&cursor=jira', { expected: 400 })
   })
 
   await check('deleting a link stops it resolving and every change is audited', async () => {

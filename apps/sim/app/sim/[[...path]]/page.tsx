@@ -23,11 +23,13 @@ interface SimLinkPageProps {
 
 /**
  * The typed `sim/<name>/<values…>` path as plain text. Next passes catch-all segments still
- * percent-encoded (it already rejects malformed escapes with a 400), and a browser site-search
- * shortcut encodes `/` inside a single segment.
+ * percent-encoded (it already rejects malformed escapes with a 400). A browser site-search
+ * shortcut sends `sim jira/123` as one segment with its `/` encoded, so only a lone segment is
+ * split; separately typed values keep any `/` they contain.
  */
 function decodeSimLinkPath(path: string[]): string[] {
-  return path.flatMap((segment) => decodeURIComponent(segment).split('/')).filter(Boolean)
+  const segments = path.map(decodeURIComponent)
+  return segments.length === 1 ? segments[0].split('/').filter(Boolean) : segments
 }
 
 /**
