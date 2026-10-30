@@ -174,6 +174,8 @@ async function save() {
             'Visible article images have decoded; measured separately from useful article paint.',
           navigation:
             'Existing site links only. No-hover case aborts prefetch requests and has HTTP cache disabled by Playwright routing. Intent case preserves normal caching and allows 500ms hover/focus dwell.',
+          documentLcp:
+            'LCP entries belong to their recorded document URL, not a subsequent client-side destination. Use meaningfulPaintMs for client-side navigation.',
           mobileNetwork:
             'Chromium CDP: 150ms latency, 1.6Mbps download, 750Kbps upload, 4x CPU slowdown.',
           lighthouse:
@@ -340,11 +342,17 @@ async function contextFor(browser: Browser, profile: Profile, disablePrefetch = 
     network.push(record)
   })
   page.on('response', (response) => {
-    if (response.status() === 403 && new URL(response.url()).origin === base.origin) {
+    const request = response.request()
+    if (
+      response.status() === 403 &&
+      new URL(response.url()).origin === base.origin &&
+      request.isNavigationRequest() &&
+      request.frame() === page.mainFrame()
+    ) {
       originBlocked = { url: response.url(), status: 403, observedAt: new Date().toISOString() }
       void context.close().catch(() => {})
     }
-    const record = requests.get(response.request())
+    const record = requests.get(request)
     if (!record) return
     record.status = response.status()
     const headers = response.headers()
@@ -467,7 +475,10 @@ async function snapshot(page: Page, since = 0) {
       longTasks: state?.longTasks.filter((entry) => entry.startTime >= start),
       eventTimings: state?.events.filter((entry) => entry.startTime >= start),
       layoutShifts: state?.shifts.filter((entry) => entry.startTime >= start),
-      lcp: state?.lcp,
+      documentLcp: {
+        url: performance.getEntriesByType('navigation')[0]?.name,
+        entries: state?.lcp,
+      },
       images: [...document.images].slice(0, 100).map((image) => {
         const bounds = image.getBoundingClientRect()
         return {
