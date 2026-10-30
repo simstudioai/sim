@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Menu } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
+import { docsScrollAreaClass } from '@/components/docs/primitives'
 import { DocsSearchTrigger } from '@/components/docs/search'
 import { TableOfContents } from '@/components/docs/table-of-contents'
 import type { DocsHeading } from '@/lib/content/types'
@@ -43,7 +44,12 @@ export function DocsPageFrame({ children, headings, api = false }: DocsPageFrame
           {children}
         </div>
         {!api && (
-          <aside className='sticky top-24 hidden max-h-[calc(100dvh-120px)] overflow-y-auto pb-5 xl:block'>
+          <aside
+            className={cn(
+              docsScrollAreaClass,
+              'sticky top-24 hidden max-h-[calc(100dvh-120px)] overflow-y-auto pb-5 xl:block'
+            )}
+          >
             <TableOfContents headings={headings} active={activeHeading} />
           </aside>
         )}

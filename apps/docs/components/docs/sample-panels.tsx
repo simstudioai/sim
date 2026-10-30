@@ -47,20 +47,32 @@ export function SamplePanels({
         items.map((item) => [item.value, item.groupValue ?? item.value])
       )}
       aria-label={label}
-      className={cn('my-0 overflow-hidden rounded-lg bg-[var(--docs-surface)]', className)}
+      className={cn(
+        '@container/sample my-0 overflow-hidden rounded-lg bg-[var(--docs-surface)]',
+        className
+      )}
     >
       <div className='flex min-h-11 items-center gap-2 px-3'>
         <span id={selectorId} className='shrink-0 font-medium text-docs-control'>
           {label}
         </span>
         {presentation === 'tabs' ? (
-          <TabsList aria-label={`${label} language`}>
-            {items.map((item) => (
-              <TabsTrigger key={item.value} value={item.value}>
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <>
+            <div className='@[480px]/sample:block hidden min-w-0'>
+              <TabsList aria-label={`${label} language`}>
+                {items.map((item) => (
+                  <TabsTrigger key={item.value} value={item.value}>
+                    {item.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+            <TabsSelect
+              label={`${label} language`}
+              items={items}
+              className='@[480px]/sample:hidden'
+            />
+          </>
         ) : (
           <TabsSelect label={`${label} example`} items={items} />
         )}

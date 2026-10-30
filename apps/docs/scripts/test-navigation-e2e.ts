@@ -65,6 +65,20 @@ async function check(name: string, action: () => Promise<void>, unavailable?: st
   )
 }
 
+async function selectRequestLanguage(page: Page, name: string | RegExp): Promise<Locator> {
+  const tab = page
+    .getByRole('tablist', { name: 'Request language', exact: true, includeHidden: true })
+    .getByRole('tab', { name, exact: true, includeHidden: true })
+  if (await tab.isVisible()) {
+    await tab.click()
+  } else {
+    await page.getByRole('button', { name: /^Request language:/ }).click()
+    await page.getByRole('menuitemradio', { name, exact: true }).click()
+  }
+  await expect(tab).toHaveAttribute('aria-selected', 'true')
+  return tab
+}
+
 async function open(page: Page, path: string) {
   const response = await page.goto(new URL(path, target).href, { waitUntil: 'domcontentloaded' })
   expect(response?.ok() || response?.status() === 304).toBe(true)
@@ -623,10 +637,12 @@ try {
               : undefined
             expect(markdownRequests).toEqual([])
             if (scenario.path.startsWith('/api-reference/')) {
-              const tabs = page.getByRole('tablist', { name: 'Request language' }).getByRole('tab')
+              const tabs = page
+                .getByRole('tablist', { name: 'Request language', includeHidden: true })
+                .getByRole('tab', { includeHidden: true })
               expect(await tabs.count()).toBeGreaterThan(1)
               for (let index = 0; index < (await tabs.count()); index += 1) {
-                await tabs.nth(index).click()
+                await selectRequestLanguage(page, (await tabs.nth(index).innerText()).trim())
                 await expect(tabs.nth(index)).toHaveAttribute('aria-selected', 'true')
                 const panelId = await tabs.nth(index).getAttribute('aria-controls')
                 expect(panelId).toBeTruthy()
@@ -920,9 +936,7 @@ try {
         'List workflows'
       )
       const sourceTimeOrigin = await page.evaluate(() => performance.timeOrigin)
-      const languages = page.getByRole('tablist', { name: 'Request language', exact: true })
-      const javascript = languages.getByRole('tab', { name: /^(JavaScript|TypeScript)$/ })
-      await javascript.click()
+      const javascript = await selectRequestLanguage(page, /^(JavaScript|TypeScript)$/)
       await expect(javascript).toHaveAttribute('aria-selected', 'true')
       const navigation = page.getByRole('navigation', { name: 'Documentation sidebar' })
       const destination = navigation.locator('a[href="/api-reference/logs/getLog"]')
@@ -1026,28 +1040,29 @@ try {
       await open(page, '/api-reference/logs/getLog')
       await page.evaluate(() => sessionStorage.setItem('docs-tab:api-request-language', 'rust'))
       await page.reload()
-      const languages = page.getByRole('tablist', { name: 'Request language', exact: true })
-      await expect(languages.getByRole('tab', { name: 'cURL', exact: true })).toHaveAttribute(
-        'aria-selected',
-        'true'
-      )
+      const languages = page.getByRole('tablist', {
+        name: 'Request language',
+        exact: true,
+        includeHidden: true,
+      })
+      await expect(
+        languages.getByRole('tab', { name: 'cURL', exact: true, includeHidden: true })
+      ).toHaveAttribute('aria-selected', 'true')
       expect(
         await page.evaluate(() => sessionStorage.getItem('docs-tab:api-request-language'))
       ).toBe('rust')
-      await languages.getByRole('tab', { name: 'Python', exact: true }).click()
-      await expect(languages.getByRole('tab', { name: 'Python', exact: true })).toHaveAttribute(
-        'aria-selected',
-        'true'
-      )
+      await selectRequestLanguage(page, 'Python')
+      await expect(
+        languages.getByRole('tab', { name: 'Python', exact: true, includeHidden: true })
+      ).toHaveAttribute('aria-selected', 'true')
       await page.screenshot({ path: join(directory, 'api-language-unavailable-fallback.png') })
       expect(
         await page.evaluate(() => sessionStorage.getItem('docs-tab:api-request-language'))
       ).toBe('python')
       await page.reload()
-      await expect(languages.getByRole('tab', { name: 'Python', exact: true })).toHaveAttribute(
-        'aria-selected',
-        'true'
-      )
+      await expect(
+        languages.getByRole('tab', { name: 'Python', exact: true, includeHidden: true })
+      ).toHaveAttribute('aria-selected', 'true')
     })
   } finally {
     await languageContext.close()

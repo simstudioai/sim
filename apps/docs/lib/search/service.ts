@@ -45,9 +45,18 @@ function resultFor(page: DocsPage, id: string, url: string, heading: string): Se
 
 function lexicalSearch(query: string, limit: number): SearchResult[] {
   const phrase = normalizeSearchText(query)
-  const tokens = [...new Set(phrase.split(/[^\p{L}\p{N}_-]+/u).filter(Boolean))]
-  const significant = tokens.filter((token) => !STOP_WORDS.has(token))
-  const terms = significant.length ? significant : tokens
+  const tokens = query
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .split(/[^\p{L}\p{N}_-]+/u)
+    .filter(Boolean)
+  const significant = tokens.filter(
+    (token) =>
+      !STOP_WORDS.has(token.toLowerCase()) || (token.length === 2 && token === token.toUpperCase())
+  )
+  const terms = [
+    ...new Set((significant.length ? significant : tokens).map((token) => token.toLowerCase())),
+  ]
   if (!terms.length) return []
   const scores = new Map<string, { score: number; result: SearchResult }>()
   for (const { chunk, body, heading, title } of getSearchIndex()) {

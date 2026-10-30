@@ -17,7 +17,12 @@ import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import * as RadixTabs from '@radix-ui/react-tabs'
 import { Check, ChevronDown } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
-import { docsControlClass, docsMenuClass, docsMenuItemClass } from '@/components/docs/primitives'
+import {
+  docsControlClass,
+  docsMenuClass,
+  docsMenuItemClass,
+  docsScrollAreaClass,
+} from '@/components/docs/primitives'
 
 interface TabContextValue {
   baseId: string
@@ -229,7 +234,8 @@ export function TabsSelect({ items, label, className, ...props }: TabsSelectProp
           collisionPadding={12}
           className={cn(
             'docs-root z-[100] max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[min(28rem,var(--radix-dropdown-menu-content-available-width))] overflow-y-auto overscroll-contain',
-            docsMenuClass
+            docsMenuClass,
+            docsScrollAreaClass
           )}
         >
           <Dropdown.RadioGroup value={context.value} onValueChange={context.select}>
@@ -256,7 +262,7 @@ export function TabsSelect({ items, label, className, ...props }: TabsSelectProp
 
 export function TabsList({ className, children, ...props }: TabsListProps) {
   return (
-    <div className='-m-1 min-w-0 max-w-full overflow-x-auto p-1 [scrollbar-width:thin]'>
+    <div className={cn(docsScrollAreaClass, '-m-1 min-w-0 max-w-full overflow-x-auto p-1')}>
       <RadixTabs.List
         className={cn(
           'inline-flex min-h-7 w-max items-center gap-px rounded-full bg-[var(--docs-surface)]',

@@ -4,8 +4,10 @@ import type { ReactNode } from 'react'
 import { useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from '@sim/emcn/icons'
+import { cn } from '@/components/docs/classnames'
 import { SidebarNavigation } from '@/components/docs/navigation'
 import { useDocsNavigation } from '@/components/docs/navigation-context'
+import { docsScrollAreaClass } from '@/components/docs/primitives'
 import { DocsSearchTrigger } from '@/components/docs/search'
 import { ThemeSwitch } from '@/components/docs/theme'
 
@@ -50,7 +52,10 @@ export function DocsNavigationDrawer({ children }: DocsNavigationDrawerProps) {
             onScroll={(event) => {
               position.current = { navigation, top: event.currentTarget.scrollTop }
             }}
-            className='mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6'
+            className={cn(
+              docsScrollAreaClass,
+              'mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6'
+            )}
           >
             <SidebarNavigation
               nodes={navigation}

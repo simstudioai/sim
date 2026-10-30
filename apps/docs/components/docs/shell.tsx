@@ -7,6 +7,7 @@ import { cn } from '@/components/docs/classnames'
 import { SidebarNavigation } from '@/components/docs/navigation'
 import { DocsNavigationContext } from '@/components/docs/navigation-context'
 import { DocsNavigationDrawer } from '@/components/docs/navigation-drawer'
+import { docsScrollAreaClass } from '@/components/docs/primitives'
 import { DocsSearchProvider, DocsSearchTrigger } from '@/components/docs/search'
 import { ThemeSwitch } from '@/components/docs/theme'
 import { SimWordmark } from '@/components/ui/sim-logo'
@@ -95,7 +96,10 @@ export function DocsShell({ children, navigationBySection }: DocsShellProps) {
           <div className='mx-auto grid w-full max-w-[1280px] flex-1 grid-cols-[minmax(0,1fr)] items-start gap-x-12 pb-16 lg:grid-cols-[216px_minmax(0,1fr)] lg:px-4 lg:pt-10'>
             <aside
               key={section}
-              className='sticky top-24 hidden max-h-[calc(100dvh-120px)] min-w-0 space-y-5 overflow-y-auto overscroll-contain pb-5 lg:block'
+              className={cn(
+                docsScrollAreaClass,
+                'sticky top-24 hidden max-h-[calc(100dvh-120px)] min-w-0 space-y-5 overflow-y-auto overscroll-contain pb-5 lg:block'
+              )}
             >
               <DocsSearchTrigger />
               <SidebarNavigation nodes={navigation} pathname={pathname} />

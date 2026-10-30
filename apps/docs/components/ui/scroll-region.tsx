@@ -2,6 +2,7 @@
 
 import { type HTMLAttributes, useEffect, useRef } from 'react'
 import { cn } from '@/components/docs/classnames'
+import { docsScrollAreaClass } from '@/components/docs/primitives'
 
 interface ScrollRegionProps extends HTMLAttributes<HTMLDivElement> {
   label: string
@@ -28,7 +29,8 @@ export function ScrollRegion({ label, className, children, ...props }: ScrollReg
       role='region'
       aria-label={label}
       className={cn(
-        'min-w-0 overflow-x-auto [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
+        docsScrollAreaClass,
+        'min-w-0 overflow-x-auto focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
         className
       )}
     >

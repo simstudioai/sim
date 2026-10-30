@@ -15,7 +15,7 @@ import { ArrowRight, Search, X } from '@sim/emcn/icons'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/components/docs/classnames'
-import { docsDialogClass } from '@/components/docs/primitives'
+import { docsDialogClass, docsScrollAreaClass } from '@/components/docs/primitives'
 import type { NavNode } from '@/lib/content/types'
 import { DOCS_SECTIONS } from '@/lib/navigation'
 import { useDocsSearch } from '@/hooks/queries/search'
@@ -215,7 +215,12 @@ function SearchContents({ close, navigation, sectionLabel }: SearchContentsProps
           <X className='size-4' aria-hidden />
         </Dialog.Close>
       </div>
-      <div className='h-80 min-h-0 overflow-y-auto overscroll-contain p-2 sm:h-96'>
+      <div
+        className={cn(
+          docsScrollAreaClass,
+          'h-80 min-h-0 overflow-y-auto overscroll-contain p-2 sm:h-96'
+        )}
+      >
         {!hasQuery && (
           <p className='px-3 py-2 text-[var(--docs-muted)] text-docs-caption'>
             Quick links · {sectionLabel}
