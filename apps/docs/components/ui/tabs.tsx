@@ -138,7 +138,7 @@ export function Tabs({
         value={value}
         onValueChange={select}
         aria-label={label}
-        className={cn('not-prose my-6 min-w-0 scroll-mt-[var(--docs-sticky-offset)]', className)}
+        className={cn('not-prose my-6 min-w-0', className)}
         {...props}
         data-docs-tabs-root=''
       >
@@ -161,7 +161,7 @@ interface TabsListProps extends ComponentPropsWithoutRef<typeof RadixTabs.List> 
 
 export function TabsList({ className, children, ...props }: TabsListProps) {
   return (
-    <div className='max-w-full overflow-x-auto py-1 [scrollbar-width:thin]'>
+    <div className='-m-1 min-w-0 max-w-full overflow-x-auto p-1 [scrollbar-width:thin]'>
       <RadixTabs.List
         className={cn(
           'inline-flex min-h-7 w-max items-center gap-px rounded-full bg-[var(--docs-surface)]',
@@ -192,7 +192,7 @@ export function TabsTrigger({
       id={id ?? `${context?.baseId}-${value}-trigger`}
       aria-controls={controls ?? context?.panelIds.get(value) ?? `${context?.baseId}-${value}`}
       className={cn(
-        'pointer-coarse:before:-inset-y-2 relative inline-flex min-h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-transparent px-3 text-[var(--docs-muted)] text-docs-control leading-4 transition-colors pointer-coarse:before:absolute pointer-coarse:before:inset-x-0 hover:bg-[var(--docs-hover)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 disabled:opacity-40 data-[state=active]:border-[var(--docs-border)] data-[state=active]:bg-[var(--docs-canvas)] data-[state=active]:text-[var(--docs-text)] data-[state=active]:shadow-sm motion-reduce:transition-none',
+        'pointer-coarse:before:-inset-y-2 relative inline-flex min-h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-transparent px-3 text-[var(--docs-muted)] text-docs-control leading-4 transition-colors pointer-coarse:before:absolute pointer-coarse:before:inset-x-0 hover:bg-[var(--docs-hover)] focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 disabled:opacity-40 data-[state=active]:border-[var(--docs-border)] data-[state=active]:bg-[var(--docs-canvas)] data-[state=active]:text-[var(--docs-text)] data-[state=active]:shadow-[var(--docs-segment-shadow)] motion-reduce:transition-none',
         className
       )}
     />
@@ -223,7 +223,7 @@ export function Tab({
       data-docs-tab-panel=''
       data-docs-tab-value={value}
       className={cn(
-        'min-w-0 scroll-mt-[var(--docs-sticky-offset)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
+        'min-w-0 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
         className
       )}
     >

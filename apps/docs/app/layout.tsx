@@ -28,7 +28,11 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang='en' className={`${geist.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html
+      lang='en'
+      className={`${geist.variable} ${mono.variable} docs-root scroll-pt-[var(--docs-sticky-offset)] overscroll-y-none`}
+      suppressHydrationWarning
+    >
       <body className='docs-root flex min-h-dvh flex-col bg-[var(--docs-canvas)] font-sans antialiased'>
         <script
           type='application/ld+json'

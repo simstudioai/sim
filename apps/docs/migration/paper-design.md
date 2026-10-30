@@ -61,6 +61,10 @@ Three-column reading begins at 1280px. At 1024–1279px the TOC becomes a compac
 
 Paper's marketing CTA uses variable weight 450. This is a deliberate docs-only exception to the app's usual weight scale, authorized by the user's instruction that Paper is the source of truth. Heading weight remains 500; selection in the sidebar uses surface alone rather than adding color and weight changes.
 
+The header keeps weight 400 in every navigation state at the user's request, matching the landing navigation and preventing label widths from shifting. Current-section ink changes without changing geometry. The shared wordmark uses the landing's visible SVG overflow and optical offset; header and footer links do not initiate native drag operations. Root vertical overscroll is disabled while normal page and contained reference scrolling remain available.
+
+The root scroll container uses `--docs-sticky-offset` once for every anchor: 80px on desktop and 172px below 1024px, where all three header rows occupy 148px. Individual headings, tabs, and API sections add no second offset. The TOC reads the root scroll padding when tracking scroll and resize. Sidebar rows have one owner for hover and selection surfaces; flex gaps preserve section-label padding and nested group spacing.
+
 ## Materials and states
 
 Light heading ink is `#0a0a0a`; body ink is 80% of that color and muted ink is 60%. Neutral panels use ink at 4%, hairlines black at 6%, hover ink at 6%, selected black at 8%, and pressed black at 12%. Glass header is white 80%; floating panels are white 88% with 20px blur; reading surfaces are white 96% without blur. Keyboard focus is a 2px blue outline. Default radius is 8px, screenshot outer radius 16px, screenshot inner radius 8px.
@@ -70,6 +74,8 @@ Dark canvas is `#1b1b1b`, reading surface `#1f1f1f`, text `#e6e6e6`, muted text 
 GET is blue `#0066cc`, POST green `#15803d`, PUT purple `#7c3aed`, PATCH orange `#c2410c`, DELETE red `#c83232`. Their light badge backgrounds are respectively `#bfdbfe`, `#bbf7d0`, `#e9d5ff`, `#fed7aa`, and `#fecaca` at 35%. Full method badges are 24px high, 8px horizontal padding, 6px radius, and centered mono labels. MCP capabilities use neutral badges rather than invented semantic colors.
 
 Compact controls are 28px high with 10px horizontal padding, 6px gap, 8px radius, and 13/18 labels. They have separate hover, pressed, focused, disabled, and loading behavior. Copy replaces the glyph for two seconds without moving surrounding content and reports actual clipboard failures. Code is a neutral 4% surface with an 8px radius, 44px toolbar, and 16px content inset. Provider tabs use a 28px segmented pill, 12px horizontal label inset, and a white selected surface with a hairline and small shadow.
+
+Selected segments share a shadow token and retain scroll-container clearance for their shadows and focus outlines. Compact API sample toolbars use 12px horizontal insets and 8px gaps; ordinary code toolbars use 16px and 12px. The Copy page trigger is 32px high. Floating menus share the Paper 10px outer radius, 6px item radius, 30px rows, inset highlight, and floating shadow. Route collections own straight separators; their rows use square edges and 16px padding. Empty search derives quick links from the current section's canonical navigation, with a bounded scrolling result area and one close control.
 
 Disclosures use a 16px chevron, 8px label gap, a 38px desktop summary (44px touch), and content inset 24px left / 4px top / 12px bottom. Most callouts are open icon/text rows: 16px glyph in a 22px lane, 12px gap, 4px vertical padding, and 14/22 medium title. “Before you begin” alone uses the neutral inset with 16px padding and 8px radius.
 

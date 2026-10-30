@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
+import { docsMenuClass } from '@/components/docs/primitives'
 import type { DocsHeading } from '@/lib/content/types'
 
 interface TableOfContentsProps {
@@ -21,19 +22,24 @@ export function TableOfContents({ headings, compact = false }: TableOfContentsPr
     const update = () => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
-        const offset = window.innerWidth < 1024 ? 176 : 96
         const visible = elements.filter((element) => element.getClientRects().length > 0)
-        const previous = visible.filter((element) => element.getBoundingClientRect().top <= offset)
+        const offset =
+          Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0
+        const previous = visible.filter(
+          (element) => element.getBoundingClientRect().top <= offset + 1
+        )
         setActive((previous.at(-1) ?? visible[0])?.id)
       })
     }
     update()
     window.addEventListener('scroll', update, { passive: true })
     window.addEventListener('hashchange', update)
+    window.addEventListener('resize', update)
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('scroll', update)
       window.removeEventListener('hashchange', update)
+      window.removeEventListener('resize', update)
     }
   }, [headings])
   if (!headings.length) return null
@@ -68,7 +74,10 @@ export function TableOfContents({ headings, compact = false }: TableOfContentsPr
       </summary>
       <nav
         aria-label='On this page'
-        className='absolute top-full right-0 z-40 max-h-[60dvh] w-[min(320px,calc(100vw-40px))] overflow-y-auto rounded-xl border border-[var(--docs-border)] bg-[var(--docs-overlay)] p-4 shadow-lg backdrop-blur-xl'
+        className={cn(
+          docsMenuClass,
+          'absolute top-full right-0 z-40 max-h-[60dvh] w-[min(320px,calc(100vw-40px))] overflow-y-auto overscroll-contain p-4'
+        )}
       >
         {links}
       </nav>

@@ -41,10 +41,11 @@ function SectionTabs({ pathname, mobile = false }: SectionTabsProps) {
         <Link
           key={tab.slug}
           href={tab.href}
+          draggable={false}
           aria-current={tab.slug === section ? 'page' : undefined}
           className={cn(
-            'flex h-full shrink-0 items-center rounded-sm transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-4',
-            tab.slug === section && 'font-medium'
+            'flex h-full shrink-0 items-center rounded-sm font-normal transition-colors hover:text-[var(--docs-heading)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-4',
+            tab.slug === section && 'text-[var(--docs-heading)]'
           )}
         >
           {mobile ? tab.compactLabel : tab.label}
@@ -64,26 +65,29 @@ export function DocsShell({
 }: DocsShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   return (
-    <DocsSearchProvider>
-      <header className='sticky top-0 z-40 bg-[var(--docs-glass)] backdrop-blur-[20px]'>
+    <DocsSearchProvider navigation={navigation} section={getDocsSection(pathname)}>
+      <header className='sticky top-0 z-40 select-none bg-[var(--docs-glass)] backdrop-blur-[20px]'>
         <div className='mx-auto flex h-14 max-w-[1280px] items-center gap-10 px-5 lg:px-4'>
           <Link
             href='/introduction'
+            draggable={false}
             aria-label='Sim documentation home'
-            className='shrink-0 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-4'
+            className='inline-flex h-8 shrink-0 items-center focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-4'
           >
-            <SimWordmark className='-translate-y-0.5 h-auto w-10' />
+            <SimWordmark />
           </Link>
           <SectionTabs pathname={pathname} />
           <div className='ml-auto flex items-center gap-2 font-[450] text-docs-header'>
             <a
               href={`${SIM_SITE_URL}/contact`}
+              draggable={false}
               className='hidden rounded-full bg-[var(--docs-surface)] px-4 py-1.5 text-[var(--docs-heading)] transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] sm:block'
             >
               Contact sales
             </a>
             <a
               href={`${SIM_SITE_URL}/signup`}
+              draggable={false}
               className='rounded-full bg-[var(--docs-heading)] px-4 py-1.5 text-[var(--docs-canvas)] transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
             >
               Try for free
@@ -154,10 +158,15 @@ export function DocsShell({
           </aside>
         )}
       </div>
-      <footer className='mx-auto w-full max-w-[1280px] px-5 pt-10 pb-8 lg:px-4'>
+      <footer className='mx-auto w-full max-w-[1280px] select-none px-5 pt-10 pb-8 lg:px-4'>
         <div className='flex flex-wrap items-center justify-between gap-x-10 gap-y-5'>
-          <a href={SIM_SITE_URL} aria-label='Sim home'>
-            <SimWordmark className='h-auto w-10' />
+          <a
+            href={SIM_SITE_URL}
+            aria-label='Sim home'
+            draggable={false}
+            className='inline-flex h-8 items-center'
+          >
+            <SimWordmark />
           </a>
           <nav
             aria-label='Footer navigation'
@@ -175,6 +184,7 @@ export function DocsShell({
               <a
                 key={label}
                 href={href}
+                draggable={false}
                 className='flex min-h-11 items-center hover:underline focus-visible:outline-2 focus-visible:outline-[var(--docs-link)]'
               >
                 {label}

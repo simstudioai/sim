@@ -27,7 +27,7 @@ export function Card({ href, title, children, icon, className }: CardProps) {
     <Link
       href={href}
       className={cn(
-        'group/card flex min-w-0 items-center gap-4 rounded-lg py-4 text-[var(--docs-text)] text-docs-table transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
+        'group/card flex min-w-0 items-center gap-4 px-4 py-4 text-[var(--docs-text)] text-docs-table transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
         className
       )}
     >

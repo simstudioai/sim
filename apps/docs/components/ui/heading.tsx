@@ -23,7 +23,7 @@ export function Heading({ as: Tag = 'h2', className, children, id, ...props }: H
       {...props}
       id={id}
       className={cn(
-        'group/heading scroll-mt-[var(--docs-sticky-offset)] font-medium text-[var(--docs-heading)]',
+        'group/heading font-medium text-[var(--docs-heading)] [&+p]:mt-3',
         SIZES[Tag],
         className
       )}

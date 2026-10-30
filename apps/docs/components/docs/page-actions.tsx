@@ -4,7 +4,8 @@ import { useRef, useState } from 'react'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { useCopyToClipboard } from '@sim/emcn'
 import { Check, ChevronDown, Duplicate, SquareArrowUpRight } from '@sim/emcn/icons'
-import { docsControlClass } from '@/components/docs/primitives'
+import { cn } from '@/components/docs/classnames'
+import { docsControlClass, docsMenuClass, docsMenuItemClass } from '@/components/docs/primitives'
 
 interface PageActionsProps {
   url: string
@@ -44,7 +45,7 @@ export function PageActions({ url }: PageActionsProps) {
   return (
     <div className='relative'>
       <Dropdown.Root modal={false}>
-        <Dropdown.Trigger className={docsControlClass} aria-label='Page actions'>
+        <Dropdown.Trigger className={cn(docsControlClass, 'h-8')} aria-label='Page actions'>
           {showCopied ? <Check className='size-4' /> : null}
           {showCopied ? 'Copied' : 'Copy page'}
           <ChevronDown className='size-4' />
@@ -53,7 +54,7 @@ export function PageActions({ url }: PageActionsProps) {
           <Dropdown.Content
             align='end'
             sideOffset={6}
-            className='docs-root z-[100] min-w-52 rounded-xl border border-[var(--docs-border)] bg-[var(--docs-overlay)] p-1 text-docs-control shadow-lg backdrop-blur-xl'
+            className={cn('docs-root z-[100] min-w-52', docsMenuClass)}
           >
             <Dropdown.Item
               disabled={status === 'loading'}
@@ -61,7 +62,7 @@ export function PageActions({ url }: PageActionsProps) {
                 event.preventDefault()
                 void copyPage()
               }}
-              className='flex min-h-8 items-center gap-2 rounded-lg px-2 outline-none data-[highlighted]:bg-[var(--docs-hover)] data-[disabled]:opacity-50'
+              className={docsMenuItemClass}
             >
               <Duplicate className='size-4' />
               {status === 'loading'
@@ -73,12 +74,7 @@ export function PageActions({ url }: PageActionsProps) {
                     : 'Copy Markdown'}
             </Dropdown.Item>
             <Dropdown.Item asChild>
-              <a
-                href={markdownUrl}
-                target='_blank'
-                rel='noreferrer'
-                className='flex min-h-8 items-center gap-2 rounded-lg px-2 outline-none data-[highlighted]:bg-[var(--docs-hover)]'
-              >
+              <a href={markdownUrl} target='_blank' rel='noreferrer' className={docsMenuItemClass}>
                 <SquareArrowUpRight className='size-4' />
                 View Markdown
               </a>

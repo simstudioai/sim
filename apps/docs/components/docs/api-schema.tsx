@@ -89,7 +89,7 @@ export function ApiSchema({ schema: raw, document, name, required, ancestors = [
   return (
     <div className='min-w-0 py-4'>
       {name && (
-        <div className='mb-2 flex flex-wrap items-baseline gap-2 font-mono text-docs-control'>
+        <div className='mb-2 flex flex-wrap items-baseline gap-2.5 font-mono text-docs-control leading-5'>
           <span className='break-all text-[var(--docs-heading)]'>{name}</span>
           <span className='text-[var(--docs-muted)]'>{type}</span>
           {required && <span className='ml-auto text-[var(--docs-muted)]'>Required</span>}
@@ -97,20 +97,20 @@ export function ApiSchema({ schema: raw, document, name, required, ancestors = [
         </div>
       )}
       {typeof schema.description === 'string' && (
-        <div className='text-[var(--docs-muted)] text-docs-table [&>p]:my-0 [&>p]:text-docs-table'>
+        <div className='text-[var(--docs-muted)] text-docs-table [&_p]:my-0 [&_p]:text-docs-table [&_p]:text-inherit'>
           <Markdown>{schema.description}</Markdown>
         </div>
       )}
       <SchemaConstraints schema={schema} />
       {nested ? (
         <details open={!name} className='mt-3 [&[open]>summary>svg]:rotate-90'>
-          <summary className='flex w-fit list-none items-center gap-2 rounded-md py-1 text-[var(--docs-muted)] text-docs-control focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] [&::-webkit-details-marker]:hidden'>
+          <summary className='flex min-h-7 pointer-coarse:min-h-11 w-fit list-none items-center gap-2 rounded-md py-1 text-[var(--docs-muted)] text-docs-control focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] [&::-webkit-details-marker]:hidden'>
             <ChevronRight className='size-4 transition-transform' />
             {properties.length
               ? `${properties.length} ${properties.length === 1 ? 'field' : 'fields'}`
               : 'Schema details'}
           </summary>
-          <div className='mt-1 min-w-0 border-[var(--docs-border)] border-l pl-4'>
+          <div className='mt-1 min-w-0 pl-6'>
             <div className='divide-y divide-[var(--docs-border)]'>
               {properties.map(([key, value]) => (
                 <ApiSchema

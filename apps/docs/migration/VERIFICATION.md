@@ -31,7 +31,7 @@ The full machine-readable accounting is in [report.json](report.json), with the 
 | HTTP and real MCP client | 15 passed | [Interface report](verification/interfaces.json) |
 | Content negotiation | 7 passed | [Negotiation report](verification/negotiation.json) |
 | Native header merger | 16 passed | [Header report](verification/headers.json) |
-| Browser behavior and responsive layouts | 42 passed | [Browser report](verification/browser.json) |
+| Browser behavior and responsive layouts | 48 passed | [Browser report](verification/browser.json) |
 | Isolated PostgreSQL search and publication | 7 passed | [Database report](verification/search-postgres.json) |
 | Workflow SSR and hydrated inspector | Authored node text in initial HTML; inspector, Escape, focus restoration, and zero browser errors passed | [SSR report](verification/workflow-ssr.json), [interaction report](verification/workflow-inspector.json) |
 
@@ -40,6 +40,12 @@ The corpus suite found duplicate React Flow accessibility IDs on 15 pages and un
 A subsequent production-browser review reproduced nested API tabs selecting a media type as the outer response status, hiding the response panels. Both fragment navigation and `beforematch` failed before ownership-aware ancestor selection was added; the complete 42-check browser suite passes afterward. The [pre-fix report](verification/nested-tabs-before-fix.json) records both failures.
 
 The first PR CI run exposed two setup differences from the local verification: the PostgreSQL package command omitted Bun's `react-server` condition, and import audits ran before the ignored MDX registry was generated. The package command now matches the documented local invocation, and CI generates documentation modules before auditing imports. The exact PostgreSQL package command passed all seven checks against a fresh disposable database. Normal content builds no longer load the historical migration inventory or rewrite its report; explicit migration verification still passes and reproduces the report byte-for-byte.
+
+### Navigation and component review
+
+The production build passes 48 browser scenarios, 2,996 corpus/asset checks, and 15 machine-interface checks after the shared styling review. Six new browser regressions failed before the fixes: nested TOC selection, shortcut dismissal focus, and empty-search navigation in Documentation, API, CLI, and MCP. The TOC scenario checks desktop, tablet, and mobile header clearance; the search scenarios also verify that clearing a failed query restores section defaults. The [pre-fix report](verification/navigation-before-polish.json) records those failures.
+
+Root lint and all 26 workspace type checks passed. All 61 audit checks passed after deleting the unused legacy class-helper re-export and rerunning the dead-code check. The docs workspace test and block-registry checks passed. The latest full repository test command stopped at a five-second timeout in `scripts/desktop-e2e.test.ts` (633 other script tests passed); the isolated rerun also timed out. The earlier full application-test result in the table remains historical, not a claim about this latest run.
 
 ### Performance evidence
 

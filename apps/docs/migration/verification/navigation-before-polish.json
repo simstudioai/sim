@@ -1,0 +1,41 @@
+{
+  "origin": "http://localhost:3001",
+  "results": [
+    {
+      "name": "Docs polish: nested TOC anchors track the selected section across breakpoints",
+      "status": "failed",
+      "durationMs": 10551,
+      "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: \"#create-a-workflow\"\nReceived: \"#build-it-in-the-workflow-builder\"\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate"
+    },
+    {
+      "name": "Docs polish: shortcut dismissal restores the opening trigger",
+      "status": "failed",
+      "durationMs": 6229,
+      "error": "expect(locator).toBeFocused() failed\n\nLocator:  getByRole('button', { name: 'Search documentation', exact: true })\nExpected: focused\nReceived: inactive\nTimeout:  5000ms\n\nCall log:\n  - Expect \"to.be.focused\" with timeout 5000ms\n  - waiting for getByRole('button', { name: 'Search documentation', exact: true })\n    13 × locator resolved to <button type=\"button\" aria-haspopup=\"dialog\" aria-label=\"Search documentation\" class=\"flex items-center gap-1.5 rounded-lg text-[var(--docs-muted)] text-docs-nav transition-colors hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 active:bg-[var(--docs-pressed)] h-[30px] w-full border border-[var(--docs-border)] bg-[var(--docs-reading)] px-[7px]\">…</button>\n       - unexpected value \"inactive\"\n"
+    },
+    {
+      "name": "Docs polish: empty search navigates within /introduction",
+      "status": "failed",
+      "durationMs": 6659,
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('option').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByRole('option').first()\n"
+    },
+    {
+      "name": "Docs polish: empty search navigates within /api-reference/getting-started",
+      "status": "failed",
+      "durationMs": 5940,
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('option').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByRole('option').first()\n"
+    },
+    {
+      "name": "Docs polish: empty search navigates within /cli",
+      "status": "failed",
+      "durationMs": 5755,
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('option').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByRole('option').first()\n"
+    },
+    {
+      "name": "Docs polish: empty search navigates within /mcp/overview",
+      "status": "failed",
+      "durationMs": 6033,
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('option').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByRole('option').first()\n"
+    }
+  ]
+}

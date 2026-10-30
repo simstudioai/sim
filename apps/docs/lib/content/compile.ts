@@ -15,6 +15,7 @@ import { simShikiOptions } from '@/lib/shiki-theme'
 
 const COMPONENT_IMPORTS: Record<string, readonly string[]> = {
   '@/components/ui/callout': ['Callout'],
+  '@/components/ui/cards': ['Cards', 'Card'],
   '@/components/ui/steps': ['Steps', 'Step'],
   '@/components/ui/tabs': ['Tabs', 'Tab', 'TabsList', 'TabsTrigger'],
   '@/components/ui/image': ['Image'],

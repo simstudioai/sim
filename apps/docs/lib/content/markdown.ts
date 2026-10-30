@@ -114,6 +114,7 @@ export function serializeMarkdown(tree: Root): string {
               alt: String(props.alt ?? 'Sim workspace'),
             },
           ]
+        case 'Card':
         case 'IntroductionLink':
           return [
             {

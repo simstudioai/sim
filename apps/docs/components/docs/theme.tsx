@@ -54,7 +54,7 @@ export function ThemeSwitch() {
             'before:-inset-y-2 relative flex h-7 items-center justify-center gap-1.5 rounded-full border border-transparent px-3 text-[var(--docs-muted)] transition-colors before:absolute before:inset-x-0 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2',
             mounted &&
               resolvedTheme === value &&
-              'border-[var(--docs-border)] bg-[var(--docs-canvas)] text-[var(--docs-heading)] shadow-[0_1px_2px_#0000000d]'
+              'border-[var(--docs-border)] bg-[var(--docs-canvas)] text-[var(--docs-heading)] shadow-[var(--docs-segment-shadow)]'
           )}
         >
           <Icon className='size-4' />

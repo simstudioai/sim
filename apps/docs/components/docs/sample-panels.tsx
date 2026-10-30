@@ -43,10 +43,10 @@ export function SamplePanels({
       aria-label={label}
       className={cn('my-0 overflow-hidden rounded-lg bg-[var(--docs-surface)]', className)}
     >
-      <div className='flex min-h-11 items-center gap-3 px-4'>
-        <span className='shrink-0 text-docs-control'>{label}</span>
+      <div className='flex min-h-11 items-center gap-2 px-3'>
+        <span className='shrink-0 font-medium text-docs-control'>{label}</span>
         {presentation === 'tabs' ? (
-          <TabsList aria-label={`${label} language`} className='bg-transparent'>
+          <TabsList aria-label={`${label} language`}>
             {items.map((item) => (
               <TabsTrigger key={item.value} value={item.value}>
                 {item.label}
@@ -61,7 +61,7 @@ export function SamplePanels({
               onChange={(event) => setSelected(event.target.value)}
               aria-label={`${label} status`}
               aria-controls={current.id ?? `${selectorId}-${current.value}`}
-              className='h-7 pointer-coarse:min-h-11 w-full appearance-none rounded-lg bg-transparent py-1 pr-6 pl-2 text-docs-control hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
+              className='h-7 pointer-coarse:min-h-11 w-full cursor-pointer appearance-none rounded-lg bg-transparent py-1 pr-6 pl-2 text-docs-control hover:bg-[var(--docs-hover)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
             >
               {items.map((item) => (
                 <option key={item.value} value={item.value}>
@@ -72,7 +72,7 @@ export function SamplePanels({
             <ChevronDown className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-1 size-4 text-[var(--docs-muted)]' />
           </div>
         )}
-        <div className='ml-auto'>
+        <div className='ml-auto shrink-0'>
           <CopyButton text={current.copyText} label={`Copy ${label.toLowerCase()}`} />
         </div>
       </div>

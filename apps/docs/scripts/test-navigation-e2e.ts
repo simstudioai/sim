@@ -348,6 +348,89 @@ try {
   const interactive = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
   try {
     await check(
+      'Docs polish: nested TOC anchors track the selected section across breakpoints',
+      async () => {
+        const page = await interactive.newPage()
+        try {
+          for (const width of [1440, 1024, 768, 390]) {
+            await page.setViewportSize({ width, height: 900 })
+            await open(page, '/getting-started')
+            if (width < 1280)
+              await page
+                .getByText('On this page', { exact: true })
+                .filter({ visible: true })
+                .click()
+            const link = page.getByRole('link', { name: 'Create a workflow', exact: true })
+            await link.click()
+            await expect(page).toHaveURL(/#create-a-workflow$/)
+            await expect
+              .poll(() =>
+                page
+                  .locator('nav[aria-label="On this page"] a[aria-current="location"]')
+                  .first()
+                  .getAttribute('href')
+              )
+              .toBe('#create-a-workflow')
+            const heading = await page.locator('#create-a-workflow').boundingBox()
+            const header = await page.getByRole('banner').boundingBox()
+            expect(heading?.y).toBeGreaterThan((header?.height ?? 0) + 8)
+            expect(heading?.y).toBeLessThan((header?.height ?? 0) + 40)
+            await page.screenshot({ path: join(directory, `toc-anchor-${width}.png`) })
+          }
+        } finally {
+          await page.close()
+        }
+      }
+    )
+    await check('Docs polish: shortcut dismissal restores the opening trigger', async () => {
+      const page = await interactive.newPage()
+      try {
+        await open(page, '/introduction')
+        const trigger = page.getByRole('button', { name: 'Search documentation', exact: true })
+        await trigger.click()
+        await page.getByRole('combobox').press('Control+k')
+        await expect(page.getByRole('dialog')).toHaveCount(0)
+        await expect(trigger).toBeFocused()
+      } finally {
+        await page.close()
+      }
+    })
+    for (const path of [
+      '/introduction',
+      '/api-reference/getting-started',
+      '/cli',
+      '/mcp/overview',
+    ]) {
+      await check(`Docs polish: empty search navigates within ${path}`, async () => {
+        const page = await interactive.newPage()
+        try {
+          await open(page, path)
+          const sidebarLinks = page
+            .getByRole('navigation', { name: 'Documentation sidebar' })
+            .getByRole('link')
+          const destinations = await sidebarLinks.evaluateAll((links) =>
+            links.map((link) => link.getAttribute('href'))
+          )
+          await page.getByRole('button', { name: 'Search documentation', exact: true }).click()
+          const search = page.getByRole('combobox')
+          await expect(page.getByRole('option').first()).toBeVisible()
+          await page.route('**/api/search?*', (route) => route.fulfill({ status: 503, body: '{}' }))
+          await search.fill('failure-case')
+          await expect(page.getByRole('status')).toContainText('Search is unavailable')
+          await search.fill('')
+          await expect(page.getByRole('option').first()).toBeVisible()
+          await expect(page.getByRole('button', { name: 'Try again', exact: true })).toHaveCount(0)
+          await search.press('ArrowDown')
+          await search.press('Enter')
+          await expect(page.getByRole('dialog')).toHaveCount(0)
+          await expect(page).not.toHaveURL(new URL(path, target).href)
+          expect(destinations).toContain(new URL(page.url()).pathname)
+        } finally {
+          await page.close()
+        }
+      })
+    }
+    await check(
       'Search keyboard navigation, empty/error states and focus restoration',
       async () => {
         const page = await interactive.newPage()

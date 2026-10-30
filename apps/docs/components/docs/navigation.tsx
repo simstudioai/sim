@@ -17,7 +17,7 @@ interface NavigationItemProps extends Omit<SidebarNavigationProps, 'nodes'> {
 }
 
 const rowClass =
-  'group flex min-h-[30px] w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-docs-nav text-[var(--docs-text)] transition-colors hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
+  'group flex min-h-[30px] w-full items-center gap-1.5 rounded-lg px-2 py-[5px] text-docs-nav text-[var(--docs-text)] transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2'
 
 function containsPath(node: NavNode, pathname: string): boolean {
   return (
@@ -50,7 +50,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
 
   if (node.kind === 'label')
     return (
-      <li className='mt-5 px-2 pb-1.5 text-[var(--docs-muted)] text-docs-caption first:mt-0'>
+      <li className='px-2 pt-4 pb-1.5 text-[var(--docs-muted)] text-docs-caption first:pt-0'>
         {node.title}
       </li>
     )
@@ -66,7 +66,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
       {node.url ? (
         <div
           className={cn(
-            'group/branch flex min-h-[30px] items-center rounded-lg pr-2 hover:bg-[var(--docs-hover)]',
+            'group/branch flex min-h-[30px] items-center rounded-lg transition-colors hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)]',
             isCurrent && 'bg-[var(--docs-selected)] hover:bg-[var(--docs-selected)]'
           )}
         >
@@ -75,11 +75,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
             prefetch={false}
             aria-current={isCurrent ? 'page' : undefined}
             onClick={onNavigate}
-            className={cn(
-              rowClass,
-              isBranch ? 'w-auto min-w-0 pr-0 hover:bg-transparent' : 'flex-1',
-              isCurrent && 'hover:bg-[var(--docs-selected)]'
-            )}
+            className={cn(rowClass, 'min-w-0 flex-1', isBranch && 'pr-0')}
           >
             {label}
           </Link>
@@ -89,7 +85,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
               aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.title}`}
               aria-expanded={expanded}
               onClick={toggle}
-              className='ml-2 flex size-4 shrink-0 items-center opacity-0 focus-visible:opacity-100 group-focus-within/branch:opacity-100 group-hover/branch:opacity-100 [@media(hover:none)]:opacity-100'
+              className='mr-0.5 flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] group-focus-within/branch:opacity-100 group-hover/branch:opacity-100 [@media(hover:none)]:opacity-100'
             >
               <ChevronDown
                 className={cn('size-4 transition-transform', !expanded && '-rotate-90')}
@@ -98,7 +94,12 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
           )}
         </div>
       ) : (
-        <button type='button' onClick={toggle} aria-expanded={expanded} className={rowClass}>
+        <button
+          type='button'
+          onClick={toggle}
+          aria-expanded={expanded}
+          className={cn(rowClass, 'hover:bg-[var(--docs-hover)] active:bg-[var(--docs-pressed)]')}
+        >
           {label}
           <ChevronDown
             className={cn(
@@ -109,7 +110,10 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
         </button>
       )}
       {isBranch && (
-        <ul hidden={!expanded} className='mt-0.5 ml-3 space-y-0.5 pl-2'>
+        <ul
+          hidden={!expanded}
+          className={cn('my-2 ml-3 flex flex-col gap-0.5 pl-2', !expanded && 'hidden')}
+        >
           {node.children?.map((child) => (
             <NavigationItem
               key={child.id}
@@ -127,7 +131,7 @@ function NavigationItem({ node, pathname, onNavigate }: NavigationItemProps) {
 export function SidebarNavigation({ nodes, pathname, onNavigate }: SidebarNavigationProps) {
   return (
     <nav aria-label='Documentation sidebar'>
-      <ul className='space-y-0.5'>
+      <ul className='flex flex-col gap-0.5'>
         {nodes.map((node) => (
           <NavigationItem key={node.id} node={node} pathname={pathname} onNavigate={onNavigate} />
         ))}

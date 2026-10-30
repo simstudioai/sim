@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useEffectEvent,
   useId,
   useRef,
   useState,
@@ -14,19 +15,23 @@ import { ArrowRight, Search, X } from '@sim/emcn/icons'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/components/docs/classnames'
+import type { NavNode } from '@/lib/content/types'
+import { DOCS_SECTIONS } from '@/lib/navigation'
 import { useDocsSearch } from '@/hooks/queries/search'
 
 const SearchContext = createContext<((trigger?: HTMLElement) => void) | null>(null)
 
 interface DocsSearchProviderProps {
   children: ReactNode
+  navigation: NavNode[]
+  section: (typeof DOCS_SECTIONS)[number]['slug']
 }
 interface DocsSearchTriggerProps {
   compact?: boolean
 }
 
 /** One dialog and shortcut serve every responsive trigger in the docs shell. */
-export function DocsSearchProvider({ children }: DocsSearchProviderProps) {
+export function DocsSearchProvider({ children, navigation, section }: DocsSearchProviderProps) {
   const [client] = useState(() => new QueryClient())
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLElement | null>(null)
@@ -35,14 +40,16 @@ export function DocsSearchProvider({ children }: DocsSearchProviderProps) {
       element ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     setOpen(true)
   }
+  const toggle = useEffectEvent(() => {
+    if (open) setOpen(false)
+    else show()
+  })
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        trigger.current =
-          document.activeElement instanceof HTMLElement ? document.activeElement : null
-        setOpen((current) => !current)
+        toggle()
       }
     }
     document.addEventListener('keydown', handleKey)
@@ -57,7 +64,7 @@ export function DocsSearchProvider({ children }: DocsSearchProviderProps) {
           <Dialog.Portal>
             <Dialog.Overlay className='docs-root fixed inset-0 z-50 bg-[var(--docs-overlay)] backdrop-blur-sm' />
             <Dialog.Content
-              className='docs-root -translate-x-1/2 fixed top-[10vh] left-1/2 z-50 flex max-h-[80dvh] w-[calc(100%-32px)] max-w-[640px] flex-col overflow-hidden rounded-xl border border-[var(--docs-border)] bg-[var(--docs-canvas)] text-[var(--docs-text)] shadow-2xl outline-none'
+              className='docs-root -translate-x-1/2 fixed top-[10dvh] left-1/2 z-50 flex max-h-[80dvh] w-[calc(100%_-_32px)] max-w-[640px] flex-col overflow-hidden rounded-xl border border-[var(--docs-border)] bg-[var(--docs-canvas)] text-[var(--docs-text)] shadow-[var(--docs-shadow)] outline-none'
               onCloseAutoFocus={(event) => {
                 event.preventDefault()
                 trigger.current?.focus()
@@ -67,7 +74,15 @@ export function DocsSearchProvider({ children }: DocsSearchProviderProps) {
               <Dialog.Description className='sr-only'>
                 Search guides, API references, CLI commands and MCP documentation.
               </Dialog.Description>
-              {open && <SearchContents close={() => setOpen(false)} />}
+              {open && (
+                <SearchContents
+                  navigation={navigation}
+                  sectionLabel={
+                    DOCS_SECTIONS.find((tab) => tab.slug === section)?.label ?? 'Documentation'
+                  }
+                  close={() => setOpen(false)}
+                />
+              )}
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
@@ -94,8 +109,10 @@ export function DocsSearchTrigger({ compact = false }: DocsSearchTriggerProps) {
       <Search className='size-4 shrink-0' aria-hidden />
       {!compact && (
         <>
-          <span>Search docs…</span>
-          <kbd className='ml-auto w-7 shrink-0 text-center font-mono text-docs-keyboard'>⌘K</kbd>
+          <span className='min-w-0 truncate'>Search docs…</span>
+          <kbd className='ml-auto inline-flex h-5 shrink-0 items-center justify-center whitespace-nowrap px-1 font-sans text-docs-keyboard'>
+            ⌘ K
+          </kbd>
         </>
       )}
     </button>
@@ -104,9 +121,11 @@ export function DocsSearchTrigger({ compact = false }: DocsSearchTriggerProps) {
 
 interface SearchContentsProps {
   close: () => void
+  navigation: NavNode[]
+  sectionLabel: string
 }
 
-function SearchContents({ close }: SearchContentsProps) {
+function SearchContents({ close, navigation, sectionLabel }: SearchContentsProps) {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
   const [selected, setSelected] = useState(0)
@@ -118,8 +137,24 @@ function SearchContents({ close }: SearchContentsProps) {
     return () => clearTimeout(timer)
   }, [query])
   const search = useDocsSearch(debounced)
-  const results = query.trim() === debounced ? (search.data ?? []) : []
-  const loading = query.trim() !== debounced || (Boolean(debounced) && search.isPending)
+  const hasQuery = Boolean(query.trim())
+  const suggestions = navigation
+    .flatMap((node) =>
+      node.url
+        ? [
+            {
+              id: node.id,
+              url: node.url,
+              content: node.title,
+              breadcrumbs: [sectionLabel],
+            },
+          ]
+        : []
+    )
+    .slice(0, 8)
+  const results = !hasQuery ? suggestions : query.trim() === debounced ? (search.data ?? []) : []
+  const loading = hasQuery && (query.trim() !== debounced || search.isPending)
+  const failed = hasQuery && !loading && search.isError
   const selectedIndex = Math.min(selected, Math.max(0, results.length - 1))
   useEffect(() => {
     document.getElementById(`${listId}-${selectedIndex}`)?.scrollIntoView({ block: 'nearest' })
@@ -134,11 +169,11 @@ function SearchContents({ close }: SearchContentsProps) {
 
   return (
     <>
-      <div className='flex items-center gap-3 border-[var(--docs-border)] border-b px-4 py-3'>
+      <div className='flex shrink-0 items-center gap-3 border-[var(--docs-border)] border-b px-4 py-3'>
         <Search className='size-4 shrink-0 text-[var(--docs-muted)]' aria-hidden />
         <input
           ref={inputRef}
-          type='search'
+          type='text'
           role='combobox'
           aria-label='Search documentation'
           aria-controls={listId}
@@ -175,25 +210,30 @@ function SearchContents({ close }: SearchContentsProps) {
           <X className='size-4' aria-hidden />
         </Dialog.Close>
       </div>
-      <div className='min-h-36 overflow-y-auto p-2'>
+      <div className='h-80 min-h-0 overflow-y-auto overscroll-contain p-2 sm:h-96'>
+        {!hasQuery && (
+          <p className='px-3 py-2 text-[var(--docs-muted)] text-docs-caption'>
+            Quick links · {sectionLabel}
+          </p>
+        )}
         <div
           role='status'
           aria-live='polite'
           className={cn(
             'p-6 text-center text-[var(--docs-muted)] text-docs-nav',
-            results.length > 0 && !search.isError && 'sr-only'
+            results.length > 0 && !failed && 'sr-only'
           )}
         >
           {!query.trim()
             ? 'Search guides, API reference, CLI, and MCP.'
             : loading
               ? 'Searching…'
-              : search.isError
+              : failed
                 ? 'Search is unavailable. Try again.'
                 : results.length
                   ? `${results.length} results`
                   : `No results for “${query.trim()}”.`}
-          {search.isError && !loading && (
+          {failed && (
             <button
               type='button'
               className='mt-3 block w-full text-[var(--docs-link)]'
@@ -235,7 +275,7 @@ function SearchContents({ close }: SearchContentsProps) {
           ))}
         </div>
       </div>
-      <div className='flex gap-4 border-[var(--docs-border)] border-t px-4 py-3 text-[var(--docs-muted)] text-docs-control'>
+      <div className='flex shrink-0 gap-4 border-[var(--docs-border)] border-t px-4 py-3 text-[var(--docs-muted)] text-docs-caption'>
         <span>↑ ↓ Navigate</span>
         <span>Enter Open</span>
         <span className='ml-auto'>Esc Close</span>

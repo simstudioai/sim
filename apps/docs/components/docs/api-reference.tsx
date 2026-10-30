@@ -111,8 +111,8 @@ export function ApiReference({ reference }: ApiReferenceProps) {
         operation.description !== operation['x-sim-docs-intro'] && (
           <Markdown>{operation.description}</Markdown>
         )}
-      <span id='authorization' className='block scroll-mt-[var(--docs-sticky-offset)]' />
-      <section id='authentication' className='scroll-mt-[var(--docs-sticky-offset)]'>
+      <span id='authorization' className='block' />
+      <section id='authentication'>
         <h2 className='mb-3 font-medium text-[var(--docs-heading)] text-docs-h3'>Authentication</h2>
         {security.length ? (
           <div className='space-y-3'>
@@ -182,15 +182,8 @@ export function ApiReference({ reference }: ApiReferenceProps) {
       {['path', 'query', 'header', 'cookie'].map((location) => {
         const fields = parameters.filter((parameter) => parameter.in === location)
         return fields.length ? (
-          <section
-            key={location}
-            id={`${location}-parameters`}
-            className='scroll-mt-[var(--docs-sticky-offset)]'
-          >
-            <span
-              id={`parameters-${location}`}
-              className='block scroll-mt-[var(--docs-sticky-offset)]'
-            />
+          <section key={location} id={`${location}-parameters`}>
+            <span id={`parameters-${location}`} className='block' />
             <h2 className='mb-3 font-medium text-[var(--docs-heading)] text-docs-h2'>
               {location[0].toUpperCase() + location.slice(1)} parameters
             </h2>
@@ -224,7 +217,7 @@ export function ApiReference({ reference }: ApiReferenceProps) {
         ) : null
       })}
       {operation.requestBody !== undefined && (
-        <section id='request-body' className='scroll-mt-[var(--docs-sticky-offset)]'>
+        <section id='request-body'>
           <h2 className='mb-3 font-medium text-[var(--docs-heading)] text-docs-h2'>Request body</h2>
           {request.required === true && <NeutralBadge>Required</NeutralBadge>}
           {typeof request.description === 'string' && <Markdown>{request.description}</Markdown>}
@@ -232,13 +225,13 @@ export function ApiReference({ reference }: ApiReferenceProps) {
         </section>
       )}
       {typeof operation['x-sim-docs-details'] === 'string' && (
-        <section id='behavior' className='scroll-mt-[var(--docs-sticky-offset)]'>
+        <section id='behavior'>
           <h2 className='mb-3 font-medium text-[var(--docs-heading)] text-docs-h2'>Behavior</h2>
           <Markdown>{operation['x-sim-docs-details']}</Markdown>
         </section>
       )}
-      <span id='response-body' className='block scroll-mt-[var(--docs-sticky-offset)]' />
-      <section id='responses' className='scroll-mt-[var(--docs-sticky-offset)]'>
+      <span id='response-body' className='block' />
+      <section id='responses'>
         <h2 className='mb-3 font-medium text-[var(--docs-heading)] text-docs-h2'>Responses</h2>
         <Tabs items={statuses.map(([status]) => status)} aria-label='Response status'>
           {statuses.map(([status, value]) => {

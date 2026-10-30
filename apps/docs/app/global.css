@@ -10,9 +10,6 @@
 }
 
 @layer base {
-  html {
-    scroll-padding-top: 80px;
-  }
   body {
     margin: 0;
   }
@@ -22,11 +19,6 @@
   }
   button:disabled {
     cursor: not-allowed;
-  }
-  @media (max-width: 1023px) {
-    html {
-      scroll-padding-top: 168px;
-    }
   }
   @media (prefers-reduced-motion: reduce) {
     *,

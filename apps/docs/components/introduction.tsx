@@ -35,12 +35,7 @@ export function IntroductionHero({ alt }: IntroductionHeroProps) {
 export function IntroductionLink({ href, title, icon, children }: IntroductionLinkProps) {
   const Icon = BUILD_PATH_ICONS[icon]
   return (
-    <Card
-      href={href}
-      title={title}
-      icon={<Icon />}
-      className='border-[var(--docs-border)] border-b last:border-b-0'
-    >
+    <Card href={href} title={title} icon={<Icon />}>
       {children}
     </Card>
   )
