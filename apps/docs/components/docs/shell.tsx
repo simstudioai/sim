@@ -14,6 +14,7 @@ import { SimWordmark } from '@/components/ui/sim-logo'
 import type { DocsHeading, NavNode } from '@/lib/content/types'
 import { DOCS_SECTIONS, getDocsSection } from '@/lib/navigation'
 import { SIM_SITE_URL } from '@/lib/urls'
+import { useActiveHeading } from '@/hooks/use-active-heading'
 
 interface DocsShellProps {
   children: ReactNode
@@ -64,6 +65,7 @@ export function DocsShell({
   api = false,
 }: DocsShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const activeHeading = useActiveHeading(headings)
   return (
     <DocsSearchProvider navigation={navigation} section={getDocsSection(pathname)}>
       <header className='sticky top-0 z-40 select-none bg-[var(--docs-glass)] backdrop-blur-[20px]'>
@@ -129,7 +131,7 @@ export function DocsShell({
             </Dialog.Portal>
           </Dialog.Root>
           <DocsSearchTrigger compact />
-          <TableOfContents headings={headings} compact />
+          <TableOfContents headings={headings} active={activeHeading} compact />
         </div>
       </header>
       <div
@@ -147,14 +149,14 @@ export function DocsShell({
         <div className='min-w-0'>
           {!api && (
             <div className='mb-4 hidden justify-end lg:flex xl:hidden'>
-              <TableOfContents headings={headings} compact />
+              <TableOfContents headings={headings} active={activeHeading} compact />
             </div>
           )}
           {children}
         </div>
         {!api && (
           <aside className='sticky top-24 hidden max-h-[calc(100dvh-120px)] overflow-y-auto pb-5 xl:block'>
-            <TableOfContents headings={headings} />
+            <TableOfContents headings={headings} active={activeHeading} />
           </aside>
         )}
       </div>

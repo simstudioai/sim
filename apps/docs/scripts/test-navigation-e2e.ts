@@ -363,19 +363,19 @@ try {
             const link = page.getByRole('link', { name: 'Create a workflow', exact: true })
             await link.click()
             await expect(page).toHaveURL(/#create-a-workflow$/)
-            await expect
-              .poll(() =>
-                page
-                  .locator('nav[aria-label="On this page"] a[aria-current="location"]')
-                  .first()
-                  .getAttribute('href')
-              )
-              .toBe('#create-a-workflow')
+            for (const currentLink of await page
+              .locator('nav[aria-label="On this page"] a[href="#create-a-workflow"]')
+              .all()) {
+              await expect(currentLink).toHaveAttribute('aria-current', 'location')
+            }
             const heading = await page.locator('#create-a-workflow').boundingBox()
             const header = await page.getByRole('banner').boundingBox()
             expect(heading?.y).toBeGreaterThan((header?.height ?? 0) + 8)
             expect(heading?.y).toBeLessThan((header?.height ?? 0) + 40)
-            await page.screenshot({ path: join(directory, `toc-anchor-${width}.png`) })
+            await page.screenshot({
+              path: join(directory, `toc-anchor-${width}.png`),
+              animations: 'disabled',
+            })
           }
         } finally {
           await page.close()

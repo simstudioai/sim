@@ -63,7 +63,7 @@ Paper's marketing CTA uses variable weight 450. This is a deliberate docs-only e
 
 The header keeps weight 400 in every navigation state at the user's request, matching the landing navigation and preventing label widths from shifting. Current-section ink changes without changing geometry. The shared wordmark uses the landing's visible SVG overflow and optical offset; header and footer links do not initiate native drag operations. Root vertical overscroll is disabled while normal page and contained reference scrolling remain available.
 
-The root scroll container uses `--docs-sticky-offset` once for every anchor: 80px on desktop and 172px below 1024px, where all three header rows occupy 148px. Individual headings, tabs, and API sections add no second offset. The TOC reads the root scroll padding when tracking scroll and resize. Sidebar rows have one owner for hover and selection surfaces; flex gaps preserve section-label padding and nested group spacing.
+The root scroll container uses `--docs-sticky-offset` once for every anchor: 80px on desktop and 172px below 1024px, where all three header rows occupy 148px. Individual headings, tabs, and API sections add no second offset. One shell-owned active-heading subscription reads the root scroll padding and drives every responsive TOC; selected links retain their accent on hover. Sidebar rows have one owner for hover and selection surfaces; flex gaps preserve section-label padding and nested group spacing.
 
 ## Materials and states
 

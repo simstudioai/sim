@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { ChevronDown } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
 import { docsMenuClass } from '@/components/docs/primitives'
@@ -8,40 +7,12 @@ import type { DocsHeading } from '@/lib/content/types'
 
 interface TableOfContentsProps {
   headings: DocsHeading[]
+  active: string | undefined
   compact?: boolean
 }
 
-/** Tracks visible headings while retaining native anchor navigation and browser history. */
-export function TableOfContents({ headings, compact = false }: TableOfContentsProps) {
-  const [active, setActive] = useState(headings[0]?.id)
-  useEffect(() => {
-    const elements = headings
-      .map(({ id }) => document.getElementById(id))
-      .filter((element): element is HTMLElement => element !== null)
-    let frame = 0
-    const update = () => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
-        const visible = elements.filter((element) => element.getClientRects().length > 0)
-        const offset =
-          Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0
-        const previous = visible.filter(
-          (element) => element.getBoundingClientRect().top <= offset + 1
-        )
-        setActive((previous.at(-1) ?? visible[0])?.id)
-      })
-    }
-    update()
-    window.addEventListener('scroll', update, { passive: true })
-    window.addEventListener('hashchange', update)
-    window.addEventListener('resize', update)
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', update)
-      window.removeEventListener('hashchange', update)
-      window.removeEventListener('resize', update)
-    }
-  }, [headings])
+/** Native anchor navigation with one shared active section across responsive layouts. */
+export function TableOfContents({ headings, active, compact = false }: TableOfContentsProps) {
   if (!headings.length) return null
   const links = (
     <ul className='space-y-4'>
@@ -55,9 +26,11 @@ export function TableOfContents({ headings, compact = false }: TableOfContentsPr
               if (details) details.open = false
             }}
             className={cn(
-              'block rounded-md pointer-coarse:py-3 text-docs-control leading-5 transition-colors hover:text-[var(--docs-heading)] focus-visible:outline-2 focus-visible:outline-[var(--docs-link)]',
+              'block rounded-md pointer-coarse:py-3 text-docs-control leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)]',
               depth > 2 && 'pl-3',
-              active === id ? 'text-[var(--docs-link)]' : 'text-[var(--docs-muted)]'
+              active === id
+                ? 'text-[var(--docs-link)]'
+                : 'text-[var(--docs-muted)] hover:text-[var(--docs-heading)]'
             )}
           >
             {title}
