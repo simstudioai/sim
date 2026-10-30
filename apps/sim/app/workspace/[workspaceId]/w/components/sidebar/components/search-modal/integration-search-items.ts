@@ -40,19 +40,20 @@ const INTEGRATION_BASES: readonly {
 })
 
 /**
- * Builds the full integration catalog as search items for a given workspace.
- * OAuth integrations link directly to the detail page with `?connect=oauth` so
- * the connect modal auto-opens (via the detail page's `useEffect` on
- * `CONNECT_QUERY_PARAM`). Non-OAuth integrations link to the plain detail page.
+ * Builds the integrations the viewer can use as search items for a given
+ * workspace. `isUsable` is required, not defaulted, so a caller cannot list the
+ * whole catalog by omission; pass the `useIntegrationAccess` verdict. OAuth
+ * integrations link to the detail page with `?connect=oauth` so the connect
+ * modal auto-opens; non-OAuth integrations link to the plain detail page.
  */
 export function buildIntegrationSearchItems(
   workspaceId: string,
-  isBlockAllowed: (blockType: string) => boolean = () => true,
+  isUsable: (blockType: string) => boolean,
   getConnectMode: (
     blockType: string
   ) => (typeof CONNECT_MODE)[keyof typeof CONNECT_MODE] | null = () => CONNECT_MODE.oauth
 ): IntegrationSearchItem[] {
-  return INTEGRATION_BASES.filter((base) => isBlockAllowed(base.blockType)).map((base) => {
+  return INTEGRATION_BASES.filter((base) => isUsable(base.blockType)).map((base) => {
     const connectMode = base.authType === 'oauth' ? getConnectMode(base.blockType) : null
     const connectSuffix = connectMode ? `?${CONNECT_QUERY_PARAM}=${connectMode}` : ''
     return {

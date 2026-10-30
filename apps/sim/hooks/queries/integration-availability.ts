@@ -6,10 +6,11 @@ import {
   integrationAvailabilityKeys,
 } from '@/hooks/queries/utils/integration-availability-keys'
 
-export function useIntegrationAvailability() {
+export function useIntegrationAvailability(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: integrationAvailabilityKeys.environments(),
     queryFn: ({ signal }) => requestJson(getAllowedIntegrationsContract, { signal }),
     staleTime: INTEGRATION_AVAILABILITY_STALE_TIME,
+    enabled: options?.enabled ?? true,
   })
 }
