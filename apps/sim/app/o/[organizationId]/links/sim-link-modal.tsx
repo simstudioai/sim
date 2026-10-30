@@ -80,6 +80,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
   }
 
   const title = link ? `Edit sim/${link.name}` : 'New Sim link'
+  const [actionLabel, pendingLabel] = link ? ['Save', 'Saving'] : ['Create', 'Creating']
 
   return (
     <ChipModal
@@ -184,9 +185,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
       <ChipModalFooter
         onCancel={onClose}
         primaryAction={{
-          label: link ? 'Save' : 'Create',
-          pendingLabel: link ? 'Saving' : 'Creating',
-          pending: mutation.isPending,
+          label: mutation.isPending ? pendingLabel : actionLabel,
           disabled: mutation.isPending,
           onClick: save,
         }}

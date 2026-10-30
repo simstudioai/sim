@@ -32,7 +32,7 @@ export interface SimLinkView extends SimLinkRecord {
 type SimLinkResolution = SimLinkTarget | { kind: 'not_found' }
 
 const rollout = {
-  authorizeResource: ({ context }: OrganizationUseCaseContext<OrganizationInput>) =>
+  authorizeResource: ({ context }: { context: OrganizationMembershipContext }) =>
     requireSimLinksEnabled(context.organizationId),
 }
 
