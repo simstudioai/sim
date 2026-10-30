@@ -237,6 +237,7 @@ export function projectIntegrationCatalog(
       description: tool.description,
       ...(tool.assistant ? { assistant: tool.assistant } : {}),
       ...(targeted ? { inputSchema: tool.input_schema } : {}),
+      ...(targeted && tool.output_schema ? { outputSchema: tool.output_schema } : {}),
     })),
   }
 }

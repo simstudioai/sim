@@ -745,7 +745,6 @@
   "apps/sim/blocks/integration-matcher.ts#byIntegrationPopularity",
   "apps/sim/blocks/types.ts#ExtractToolOutput",
   "apps/sim/blocks/types.ts#INTEGRATION_TYPE_LABELS",
-  "apps/sim/blocks/types.ts#PrimitiveValueType",
   "apps/sim/blocks/types.ts#TemplateCategory",
   "apps/sim/blocks/types.ts#ToolOutputToValueType",
   "apps/sim/blocks/utils.ts#AZURE_MODELS",

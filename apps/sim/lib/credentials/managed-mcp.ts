@@ -323,7 +323,7 @@ export async function persistManagedMcpCredential(params: {
   mcpServerId: string
   mcpServerName: string
   tokens: OAuthTokens
-  tools: Array<{ name: string; description?: string; inputSchema: Record<string, unknown> }>
+  tools: ManagedMcpToolSnapshot[]
 }): Promise<{
   connectionId: string
   created: boolean

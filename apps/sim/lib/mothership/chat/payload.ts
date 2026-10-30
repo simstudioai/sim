@@ -113,6 +113,8 @@ export interface ToolSchema {
   name: string
   description: string
   input_schema: Record<string, unknown>
+  /** JSON Schema of the structured reply, for an MCP operation that declares one. */
+  output_schema?: Record<string, unknown>
   outputs?: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean

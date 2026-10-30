@@ -101,7 +101,8 @@ function isOpaqueSchemaNode(value: unknown): boolean {
   return false
 }
 
-function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): boolean {
+/** Whether `pathParts` names a field the declared output schema has, the check a run makes. */
+export function isPathInSchema(schema: OutputSchema | undefined, pathParts: string[]): boolean {
   if (!schema || pathParts.length === 0) {
     return true
   }

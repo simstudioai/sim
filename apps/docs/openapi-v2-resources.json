@@ -15190,6 +15190,39 @@
             },
             "description": "JSON Schema for the tool's arguments, as reported by the server."
           },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "object",
+                "description": "JSON Schema type of the structured result. MCP requires `object`."
+              },
+              "properties": {
+                "description": "Result field schemas keyed by field name.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Server-defined JSON Schema for one result field."
+                }
+              },
+              "required": {
+                "description": "Names of the fields every result carries.",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Name of a field every result carries."
+                }
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": {
+              "description": "Additional JSON Schema keyword reported by the server."
+            },
+            "description": "JSON Schema for the tool's `structuredContent`, as reported by the server. Absent when the tool declares none."
+          },
           "serverId": {
             "type": "string",
             "description": "Identifier of the MCP server exposing the tool."
