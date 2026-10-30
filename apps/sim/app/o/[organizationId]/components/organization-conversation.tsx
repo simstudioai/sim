@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
@@ -57,10 +57,20 @@ import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
+export interface OrganizationSummaryRequest {
+  id: string
+  message: string
+  assistantSearch: WorkspaceSearchFilters
+}
+
 interface OrganizationConversationProps {
+  active?: boolean
+  summaryRequest?: OrganizationSummaryRequest
+  onSummaryConsumed?: (id: string) => void
   userName?: string
   chatId?: string
   requestMode: ChatRequestMode
+  header?: ReactNode
 }
 
 /** Shared conversation surface; the destination fixes its intent before the first turn. */
@@ -74,7 +84,8 @@ export function OrganizationConversation(props: OrganizationConversationProps) {
     (props.requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
   )
     return null
-  if (isRestoredChatEntry || !isClient || !session?.user?.id) return <HomeFallback />
+  if (isRestoredChatEntry || !isClient || !session?.user?.id)
+    return <HomeFallback header={props.header} />
   return (
     <OrganizationConversationContent
       key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.requestMode}`}
@@ -87,6 +98,10 @@ function OrganizationConversationContent({
   userName,
   chatId,
   requestMode: destinationMode,
+  header,
+  active = true,
+  summaryRequest,
+  onSummaryConsumed,
 }: OrganizationConversationProps) {
   const { organization, canBuild } = useOrganizationContext()
   const { data: session } = useSession()
@@ -240,9 +255,21 @@ function OrganizationConversationContent({
   const firstName = userName?.split(' ')[0] ?? ''
 
   useEffect(() => {
-    if (chat.resolvedChatId && !chat.isSending && !chat.isReconnecting)
+    if (active && chat.resolvedChatId && !chat.isSending && !chat.isReconnecting)
       markRead(chat.resolvedChatId)
-  }, [chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
+  }, [active, chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
+
+  const consumedSummary = useRef<string | null>(null)
+  useEffect(() => {
+    if (!active || !summaryRequest || consumedSummary.current === summaryRequest.id) return
+    consumedSummary.current = summaryRequest.id
+    onSummaryConsumed?.(summaryRequest.id)
+    void sendMessage(summaryRequest.message, undefined, undefined, {
+      requestMode: 'assistant',
+      assistantSearchLevel,
+      assistantSearch: summaryRequest.assistantSearch,
+    })
+  }, [active, summaryRequest, onSummaryConsumed, sendMessage])
 
   useEffect(() => {
     if (chatId) return
@@ -370,6 +397,7 @@ function OrganizationConversationContent({
           enabled={requestMode === 'assistant'}
         >
           <MothershipChat
+            reserveResourceHeader={!header}
             onViewSources={(messageId, requestId) =>
               addResource({
                 type: 'sources',
@@ -428,6 +456,7 @@ function OrganizationConversationContent({
   )
   return (
     <ChatResourcePanel
+      header={header}
       allowBuildControls={requestMode !== 'assistant' && canBuild}
       organizationId={organization.id}
       chat={chat}

@@ -127,12 +127,19 @@ export async function loadCopilotChatMessages(
   const rows = await db
     .select({
       content: options?.projection === 'display' ? displayMessageContent : copilotMessages.content,
+      streamId: copilotMessages.streamId,
     })
     .from(copilotMessages)
     .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
     .orderBy(...TRANSCRIPT_ORDER)
   // Also strip on read: rows written before the backfill still carry outputs.
-  return rows.map((row) => stripToolResultOutput(row.content as PersistedMessage))
+  return rows.map((row) =>
+    stripToolResultOutput(
+      options?.projection === 'display'
+        ? { ...(row.content as PersistedMessage), streamId: row.streamId ?? undefined }
+        : (row.content as PersistedMessage)
+    )
+  )
 }
 
 /** Messages in the newest window the chat UI opens on. */
@@ -178,9 +185,10 @@ async function loadCopilotChatTranscriptPage(
     createdAt: preciseTimestampText(copilotMessages.createdAt),
     role: copilotMessages.role,
     content: displayMessageContent,
+    streamId: copilotMessages.streamId,
   }
 
-  let rows: Array<TranscriptPosition & { role: string; content: unknown }>
+  let rows: Array<TranscriptPosition & { role: string; content: unknown; streamId: string | null }>
   let hasOlder: boolean
   if (window.kind === 'from') {
     const [page, older] = await Promise.all([
@@ -219,7 +227,12 @@ async function loadCopilotChatTranscriptPage(
       : window.position
   const windowStartCursor = windowStart ? encodeTranscriptCursor(windowStart) : null
   return {
-    messages: rows.map((row) => stripToolResultOutput(row.content as PersistedMessage)),
+    messages: rows.map((row) =>
+      stripToolResultOutput({
+        ...(row.content as PersistedMessage),
+        streamId: row.streamId ?? undefined,
+      })
+    ),
     olderCursor: hasOlder ? windowStartCursor : null,
     windowStartCursor,
   }

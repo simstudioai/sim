@@ -103,6 +103,7 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
         const tool = getToolMetadata(record.executableName ?? '')
         return {
           toolCallId: record.toolCallId,
+          sequence: record.persistSeq,
           runId: record.runId,
           toolId: record.executableName ?? record.toolName,
           name: tool?.name ?? record.toolName,

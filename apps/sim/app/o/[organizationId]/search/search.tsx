@@ -1,16 +1,17 @@
 'use client'
 
-import { lazy, Suspense, useEffect, useRef } from 'react'
-import { Chip, ChipSwitch, ComposerActionButton } from '@sim/emcn'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { Chip, ComposerActionButton, cn } from '@sim/emcn'
 import { ArrowUp, Plus, Search, Sparkles, StopFilled } from '@sim/emcn/icons'
+import { generateId } from '@sim/utils/id'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { HEADER_ACTION_CLUSTER } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/organization-conversation'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
 import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -20,6 +21,7 @@ import {
 } from '@/app/o/[organizationId]/search/search-params'
 import { SearchResultsView } from '@/app/o/[organizationId]/search/search-results-view'
 import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
+import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
@@ -167,24 +169,43 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
     organizationSearchUrlKeys
   )
   const activeMode =
-    mothershipAvailable && (hasConversation || mode === 'assistant') ? 'assistant' : 'search'
+    mothershipAvailable && (mode ?? (hasConversation ? 'assistant' : 'search')) === 'assistant'
+      ? 'assistant'
+      : 'search'
+  const [assistantOpened, setAssistantOpened] = useState(activeMode === 'assistant')
+  const [conversationInstance, setConversationInstance] = useState(0)
+  const [isStartingNew, startNewTransition] = useTransition()
+  const [summaries, setSummaries] = useState<OrganizationSummaryRequest[]>([])
+  const consumeSummary = useCallback(
+    (id: string) => setSummaries((current) => current.filter((request) => request.id !== id)),
+    []
+  )
   const changeMode = (next: 'search' | 'assistant') => {
-    if (hasConversation) {
-      const params = new URLSearchParams()
-      if (next === 'assistant') params.set('mode', 'assistant')
-      if (q) params.set('q', q)
-      router.push(`${routes.search}${params.size ? `?${params}` : ''}`)
+    if (next === 'assistant') setAssistantOpened(true)
+    void setParams({ mode: next }, { history: 'push' })
+  }
+  const startNew = () => {
+    setSummaries([])
+    const { clearDraft } = useMothershipDraftsStore.getState()
+    const scope = `${userId}:organization:${organization.id}`
+    if (activeMode === 'assistant') {
+      clearDraft(`${scope}:search-assistant`)
     } else {
-      void setParams({ mode: next })
+      clearDraft(`${scope}:search`)
+      clearDraft(`${scope}:search:query:`)
     }
+    startNewTransition(() => {
+      setConversationInstance((current) => current + 1)
+      router.push(activeMode === 'assistant' ? `${routes.search}?mode=assistant` : routes.search, {
+        scroll: false,
+      })
+    })
   }
   const summarize = (message: string, assistantSearch: WorkspaceSearchFilters) => {
-    const stored = MothershipHandoffStorage.store(
-      { message, requestMode: 'assistant', assistantSearch },
-      { organizationId: organization.id }
-    )
-    if (stored) void setParams({ mode: 'assistant' })
+    setSummaries((current) => [...current, { id: generateId(), message, assistantSearch }])
+    changeMode('assistant')
   }
+
   const submit = (draft: string) => {
     const next = draft.trim()
     if (!next) return
@@ -201,38 +222,79 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
       void setParams({ q: next })
     }
   }
-  return (
-    <div className='flex h-full min-h-0 min-w-0 flex-col bg-[var(--bg)]'>
-      <div className={PAGE_HEADER_BAR}>
-        <div className={HEADER_ACTION_CLUSTER}>
-          {mothershipAvailable ? (
-            <ChipSwitch
-              aria-label='Search mode'
-              options={SEARCH_MODES}
-              value={activeMode}
-              onChange={changeMode}
-            />
-          ) : (
-            <span className='text-[var(--text-body)] text-sm'>Search</span>
-          )}
-        </div>
-        {hasConversation && (
-          <Chip leftIcon={Plus} onClick={() => changeMode('search')}>
-            New search
-          </Chip>
+  const newLabel = activeMode === 'assistant' ? 'New chat' : 'New search'
+  const header = (
+    <>
+      <nav aria-label='Search views' className={HEADER_ACTION_CLUSTER}>
+        {SEARCH_MODES.filter((entry) => mothershipAvailable || entry.value === 'search').map(
+          (entry) => (
+            <Chip
+              key={entry.value}
+              active={activeMode === entry.value}
+              aria-current={activeMode === entry.value ? 'page' : undefined}
+              leftIcon={entry.icon}
+              mobileCompact
+              onClick={() => changeMode(entry.value)}
+            >
+              {entry.label}
+            </Chip>
+          )
         )}
-      </div>
-      <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
-        {activeMode === 'assistant' ? (
-          <Suspense fallback={<HomeFallback />}>
-            <OrganizationConversation requestMode='assistant' chatId={chatId} />
-          </Suspense>
-        ) : (
-          <SearchResultsView
-            composer={<SearchField key={q} userId={userId} initialValue={q} onSubmit={submit} />}
-            query={q.trim()}
-            onSummarize={mothershipAvailable ? summarize : undefined}
-          />
+      </nav>
+      {(hasConversation || (activeMode === 'search' && q.trim())) && (
+        <Chip
+          rightIcon={Plus}
+          aria-label={newLabel}
+          onClick={startNew}
+          disabled={isStartingNew}
+          mobileCompact
+        >
+          <span className='hidden md:inline'>{newLabel}</span>
+          <span className='md:hidden'>New</span>
+        </Chip>
+      )}
+    </>
+  )
+  return (
+    <div className='h-full min-h-0 min-w-0 bg-[var(--bg)] pt-[var(--workspace-content-title-bar-inset)]'>
+      <div className='flex h-full min-h-0 min-w-0 flex-col [--workspace-content-title-bar-inset:0px]'>
+        {(assistantOpened || hasConversation || activeMode === 'assistant') &&
+          mothershipAvailable && (
+            <div
+              inert={activeMode !== 'assistant'}
+              className={cn(
+                'min-h-0 min-w-0 flex-1 flex-col',
+                activeMode === 'assistant' ? 'flex' : 'hidden'
+              )}
+            >
+              <Suspense fallback={<HomeFallback header={header} />}>
+                <OrganizationConversation
+                  key={conversationInstance}
+                  requestMode='assistant'
+                  chatId={chatId}
+                  header={header}
+                  active={activeMode === 'assistant'}
+                  summaryRequest={summaries[0]}
+                  onSummaryConsumed={consumeSummary}
+                />
+              </Suspense>
+            </div>
+          )}
+        {activeMode === 'search' && (
+          <>
+            <div className={cn(RESOURCE_HEADER_CLASSES.layout, RESOURCE_HEADER_CLASSES.content)}>
+              {header}
+            </div>
+            <div className='flex min-h-0 min-w-0 flex-1 flex-col'>
+              <SearchResultsView
+                composer={
+                  <SearchField key={q} userId={userId} initialValue={q} onSubmit={submit} />
+                }
+                query={q.trim()}
+                onSummarize={mothershipAvailable ? summarize : undefined}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

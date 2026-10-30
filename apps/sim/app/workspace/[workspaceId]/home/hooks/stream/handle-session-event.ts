@@ -41,6 +41,7 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
       const activeStreamId = deps.streamIdRef.current
       if (userMsg && activeStreamId) {
         const assistantMessage = deps.buildAssistantSnapshotMessage({
+          streamId: activeStreamId,
           id:
             deps.activeTurnRef.current?.assistantMessageId ??
             getLiveAssistantMessageId(activeStreamId),

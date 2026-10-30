@@ -3489,6 +3489,7 @@ export function useChat(
           if (assistantId && activeChatId) {
             const snapshot = buildAssistantSnapshotMessage({
               id: assistantId,
+              ...(streamIdRef.current ? { streamId: streamIdRef.current } : {}),
               content: streamingContentRef.current,
               contentBlocks: blocks,
               ...(streamRequestIdRef.current ? { requestId: streamRequestIdRef.current } : {}),
@@ -3690,6 +3691,7 @@ export function useChat(
       }))
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,
+        streamId: userMessageId,
         role: 'user' as const,
         requestMode: options?.requestMode ?? 'agent',
         content: message,
@@ -3709,6 +3711,7 @@ export function useChat(
 
       const optimisticUserMessage: ChatMessage = {
         id: userMessageId,
+        streamId: userMessageId,
         role: 'user',
         requestMode: options?.requestMode ?? 'agent',
         content: message,
@@ -3718,6 +3721,7 @@ export function useChat(
       }
       const optimisticAssistantMessage: ChatMessage = {
         id: assistantId,
+        streamId: userMessageId,
         role: 'assistant',
         requestMode: options?.requestMode ?? 'agent',
         content: '',
@@ -3731,6 +3735,7 @@ export function useChat(
       const applyOptimisticSend = () => {
         const assistantSnapshot = buildAssistantSnapshotMessage({
           id: assistantId,
+          streamId: userMessageId,
           content: '',
           contentBlocks: [],
         })

@@ -158,6 +158,7 @@ export interface StreamLoopDeps {
 
   buildAssistantSnapshotMessage: (params: {
     id: string
+    streamId?: string
     content: string
     contentBlocks: ContentBlock[]
     requestId?: string
@@ -292,6 +293,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       const snapshot: Partial<ChatMessage> = {
         content: modelContent,
         contentBlocks: modelBlocks,
+        ...(deps.streamIdRef.current ? { streamId: deps.streamIdRef.current } : {}),
       }
       if (state.streamRequestId) snapshot.requestId = state.streamRequestId
       deps.setPendingMessages((prev) => {
@@ -312,6 +314,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
 
     const assistantMessage = deps.buildAssistantSnapshotMessage({
       id: deps.assistantId,
+      ...(deps.streamIdRef.current ? { streamId: deps.streamIdRef.current } : {}),
       content: modelContent,
       contentBlocks: modelBlocks,
       ...(state.streamRequestId ? { requestId: state.streamRequestId } : {}),

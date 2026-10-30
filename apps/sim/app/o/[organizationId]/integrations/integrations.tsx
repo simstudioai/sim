@@ -2,8 +2,7 @@
 
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
-import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page/use-organization-page-filters'
+import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page'
 import { LiveMemberIntegrations } from '@/app/o/[organizationId]/integrations/live-member-integrations'
 import { SlackSearchActions } from '@/app/o/[organizationId]/integrations/slack-search-actions'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
@@ -27,24 +26,24 @@ export function OrganizationIntegrations({
   const sourceSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
 
   return (
-    <OrganizationPage
-      title='Integrations'
-      searchMode='expanded'
-      searchPlaceholder='Search integrations'
+    <LiveMemberIntegrations
+      organizationId={organization.id}
+      search={sourceSearch}
+      navigationSearch={search}
       action={
         slackOnboarding && (
           <SlackSearchActions organizationId={organization.id} {...slackOnboarding} />
         )
       }
-    >
-      {connectionRequest && (
-        <SearchIntegrationConnection
-          organizationId={organization.id}
-          {...connectionRequest}
-          controlId='integrations-link'
-        />
-      )}
-      <LiveMemberIntegrations organizationId={organization.id} search={sourceSearch} />
-    </OrganizationPage>
+      intro={
+        connectionRequest && (
+          <SearchIntegrationConnection
+            organizationId={organization.id}
+            {...connectionRequest}
+            controlId='integrations-link'
+          />
+        )
+      }
+    />
   )
 }

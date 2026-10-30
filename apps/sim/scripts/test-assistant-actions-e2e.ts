@@ -7,13 +7,15 @@ import { createLogger } from '@sim/logger'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { toRecord } from '@sim/utils/object'
+import { toArray, toRecord } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import {
+  listAssistantActionReceiptsContract,
   listAssistantActionsContract,
   readAssistantToolPermissionsContract,
 } from '@/lib/api/contracts/assistant-actions'
+import { getOrganizationAccountsContract } from '@/lib/api/contracts/organization-accounts'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import {
   acquirePendingChatStream,
@@ -59,6 +61,10 @@ const organizationId = generateId()
 const otherOrganizationId = generateId()
 const assistantId = generateId()
 const credentialId = generateId()
+const secondCredentialId = generateId()
+const codaServerId = generateId()
+const firefliesServerId = generateId()
+const firefliesCredentialId = `mcp-cg-${generateId()}`
 const nativeCredentialId = generateId()
 const groupId = generateId()
 const enrollmentId = generateId()
@@ -73,6 +79,9 @@ const lagStreamId = generateId()
 const lagFirstCallId = generateId()
 const lagSecondCallId = generateId()
 const lateCallId = generateId()
+const bulkChatId = generateId()
+const bulkStreamId = generateId()
+const bulkRunId = generateId()
 const reviewChatId = generateId()
 const reviewRunId = generateId()
 const reviewStreamId = generateId()
@@ -87,6 +96,7 @@ const requestId = generateId()
 const firstCallId = generateId()
 const secondCallId = generateId()
 const fixtureStreams = [
+  { chatId: bulkChatId, streamId: bulkStreamId },
   { chatId: assistantId, streamId },
   { chatId: lagChatId, streamId: lagStreamId },
   { chatId: reviewChatId, streamId: reviewStreamId },
@@ -119,13 +129,18 @@ const answer = 'Review the two Jira issues before I create them.'
 const reviewAnswer = 'Review these keyboard and batch proposals.'
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
+const browserMessages: { type: string; text: string }[] = []
 const browserErrors: string[] = []
 const serverErrors: { path: string; status: number }[] = []
 const httpResponses: { method: string; path: string; status: number }[] = []
 const browser = await chromium.launch()
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
 const page = await context.newPage()
-const reviewCards = page.getByRole('region', { name: 'Review Jira Write', exact: true })
+const reviewCards = page.getByRole('region', { name: 'Review Create Jira issue', exact: true })
+page.on('console', (message) => {
+  if (browserMessages.length < 40)
+    browserMessages.push({ type: message.type(), text: message.text().slice(0, 1000) })
+})
 page.on('pageerror', (error) => browserErrors.push(error.message))
 page.on('response', (response) => {
   const url = new URL(response.url())
@@ -233,13 +248,37 @@ try {
     await tx`insert into session (id, token, user_id, expires_at, created_at, updated_at)
       values (${generateId()}, ${token}, ${userId}, now() + interval '1 day', now(), now())`
     await tx`insert into credential_group (id, organization_id, public_id, name, options)
-      values (${groupId}, ${organizationId}, ${generateId()}, 'Personal Jira', ${tx.json(['jira', 'salesforce', ...catalogAccounts.map((account) => account.option)].map((provider) => ({ id: provider, provider, label: provider, authorizationAppId: 'fixture', requiredScopes: [], scopeVersion: 1, required: false, status: 'active' })))})`
+      values (${groupId}, ${organizationId}, ${generateId()}, 'Personal Jira', ${tx.json([{ id: 'jira', provider: 'jira' }, { id: 'jira-team', provider: 'jira' }, { id: 'salesforce', provider: 'salesforce' }, ...catalogAccounts.map((account) => ({ id: account.option, provider: account.option }))].map(({ id, provider }) => ({ id, provider, label: id, authorizationAppId: 'fixture', requiredScopes: [], scopeVersion: 1, required: false, status: 'active' })))})`
     await tx`insert into resource_policy (id, organization_id, resource_type, resource_id, document, created_by, updated_by)
       values (${generateId()}, ${organizationId}, 'credential_group', ${groupId}, ${tx.json({ version: 2, resource: { type: 'credential_group', id: groupId }, statements: [] })}, ${userId}, ${userId})`
     await tx`insert into credential_group_enrollment (id, credential_group_id, user_id, email, status, invitation_token_hash, invitation_expires_at, invited_at)
       values (${enrollmentId}, ${groupId}, ${userId}, ${email}, 'completed', ${enrollmentId.replaceAll('-', '').repeat(2)}, now() + interval '1 day', now())`
+    for (const [id, provider] of [
+      [codaServerId, 'coda'],
+      [firefliesServerId, 'fireflies'],
+    ] as const) {
+      await tx`insert into mcp_servers (id, organization_id, credential_group_id, managed_connector_id, name, transport, auth_type, url)
+        values (${id}, ${organizationId}, ${groupId}, ${provider}, ${provider}, 'streamable-http', 'oauth', 'https://example.invalid/mcp')`
+    }
+    await tx`insert into credential (id, organization_id, type, display_name, credential_group_enrollment_id, mcp_server_id, managed_oauth_status, encrypted_oauth_token_set, mcp_tools, granted_at)
+      values (${firefliesCredentialId}, ${organizationId}, 'managed_mcp', 'meetings@acme.example', ${enrollmentId}, ${firefliesServerId}, 'active', 'fixture-not-a-provider-token', '[]'::jsonb, now())`
+    for (const source of [
+      'coda',
+      'jira',
+      'gmail',
+      'google_calendar',
+      'google_drive',
+      'confluence',
+      'github',
+      'google_meet',
+    ]) {
+      await tx`insert into organization_search_integration (organization_id, connector_type, approved)
+        values (${organizationId}, ${source}, true)`
+    }
     await tx`insert into credential (id, organization_id, type, created_by, display_name, provider_id, credential_group_enrollment_id, credential_group_option_id, managed_oauth_status, managed_oauth_scope_version, granted_scopes, provider_subject_id, authorization_app_id, encrypted_oauth_token_set, granted_at)
       values (${credentialId}, ${organizationId}, 'managed_oauth', ${userId}, 'taylor@acme.example', 'jira', ${enrollmentId}, 'jira', 'active', 1, '{}'::text[], ${userId}, 'fixture', 'fixture-not-a-provider-token', now())`
+    await tx`insert into credential (id, organization_id, type, created_by, display_name, provider_id, credential_group_enrollment_id, credential_group_option_id, managed_oauth_status, managed_oauth_scope_version, granted_scopes, provider_subject_id, authorization_app_id, encrypted_oauth_token_set, granted_at)
+      values (${secondCredentialId}, ${organizationId}, 'managed_oauth', ${userId}, 'launch-team@acme.example', 'jira', ${enrollmentId}, 'jira-team', 'active', 1, '{}'::text[], ${secondCredentialId}, 'fixture', 'fixture-not-a-provider-token', now())`
     await tx`insert into credential (id, organization_id, type, created_by, display_name, provider_id, credential_group_enrollment_id, credential_group_option_id, managed_oauth_status, managed_oauth_scope_version, granted_scopes, provider_subject_id, authorization_app_id, encrypted_oauth_token_set, granted_at)
       values (${nativeCredentialId}, ${organizationId}, 'managed_oauth', ${userId}, 'taylor@acme.example', 'salesforce', ${enrollmentId}, 'salesforce', 'active', 1, '{}'::text[], ${userId}, 'fixture', 'fixture-not-a-provider-token', now())`
     for (const account of catalogAccounts) {
@@ -247,7 +286,8 @@ try {
         values (${account.credentialId}, ${organizationId}, 'managed_oauth', ${userId}, 'taylor@acme.example', ${account.provider}, ${enrollmentId}, ${account.option}, 'active', 1, '{}'::text[], ${userId}, 'fixture', 'fixture-not-a-provider-token', now())`
     }
     await tx`insert into copilot_chats (id, user_id, organization_id, type, title, conversation_id, config)
-      values (${assistantId}, ${userId}, ${organizationId}, 'mothership', 'Launch follow-up', ${streamId}, ${tx.json({ conversationMode: 'assistant' })}),
+      values (${bulkChatId}, ${userId}, ${organizationId}, 'mothership', 'Paginated action review', ${bulkStreamId}, ${tx.json({ conversationMode: 'assistant' })}),
+      (${assistantId}, ${userId}, ${organizationId}, 'mothership', 'Launch follow-up', ${streamId}, ${tx.json({ conversationMode: 'assistant' })}),
       (${lagChatId}, ${userId}, ${organizationId}, 'mothership', 'Delayed action transcript', ${lagStreamId}, ${tx.json({ conversationMode: 'assistant' })}),
       (${reviewChatId}, ${userId}, ${organizationId}, 'mothership', 'Keyboard and batch review', ${reviewStreamId}, ${tx.json({ conversationMode: 'assistant' })})`
     const oldResponseId = generateId()
@@ -286,12 +326,14 @@ try {
         values (${generateId()}, ${assistantId}, ${data.id}, ${data.role}, ${stream}, ${tx.json({ ...content, requestId, timestamp: new Date().toISOString() })}, ${index + 1})`
     }
     await tx`insert into copilot_messages (id, chat_id, message_id, role, stream_id, content, seq)
-      values (${generateId()}, ${lagChatId}, ${lagStreamId}, 'user', ${lagStreamId}, ${tx.json({ id: lagStreamId, role: 'user', content: 'Create two more Jira issues.', requestId, timestamp: new Date().toISOString() })}, 1),
+      values (${generateId()}, ${bulkChatId}, ${bulkStreamId}, 'user', ${bulkStreamId}, ${tx.json({ id: bulkStreamId, role: 'user', content: 'Review this batch of Jira issues.', requestId, timestamp: new Date().toISOString() })}, 1),
+      (${generateId()}, ${lagChatId}, ${lagStreamId}, 'user', ${lagStreamId}, ${tx.json({ id: lagStreamId, role: 'user', content: 'Create two more Jira issues.', requestId, timestamp: new Date().toISOString() })}, 1),
       (${generateId()}, ${reviewChatId}, ${reviewStreamId}, 'user', ${reviewStreamId}, ${tx.json({ id: reviewStreamId, role: 'user', content: 'Prepare follow-up actions for review.', requestId, timestamp: new Date().toISOString() })}, 1)`
     await tx`insert into copilot_runs (id, chat_id, user_id, organization_id, execution_id, stream_id, tool_execution_version, status, started_at, completed_at, tool_admission_closed_at)
       values (${previousRunId}, ${assistantId}, ${userId}, ${organizationId}, ${generateId()}, ${previousStreamId}, 3, 'complete', now() - interval '1 hour', now() - interval '59 minutes', now() - interval '59 minutes')`
     await tx`insert into copilot_runs (id, chat_id, user_id, organization_id, execution_id, stream_id, tool_execution_version, status)
-      values (${runId}, ${assistantId}, ${userId}, ${organizationId}, ${generateId()}, ${streamId}, 3, 'paused_waiting_for_tool'),
+      values (${bulkRunId}, ${bulkChatId}, ${userId}, ${organizationId}, ${generateId()}, ${bulkStreamId}, 3, 'paused_waiting_for_tool'),
+      (${runId}, ${assistantId}, ${userId}, ${organizationId}, ${generateId()}, ${streamId}, 3, 'paused_waiting_for_tool'),
       (${lagRunId}, ${lagChatId}, ${userId}, ${organizationId}, ${generateId()}, ${lagStreamId}, 3, 'paused_waiting_for_tool'),
       (${reviewRunId}, ${reviewChatId}, ${userId}, ${organizationId}, ${generateId()}, ${reviewStreamId}, 3, 'paused_waiting_for_tool')`
   })
@@ -329,26 +371,199 @@ try {
       sameSite: 'Lax',
     },
   ])
+  await check(
+    'Receipts restore actions before the transcript arrives and conceal foreign turns',
+    async () => {
+      const url = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${assistantId}/actions/receipts`
+      const response = await context.request.get(url, { params: { streamId } })
+      assert.equal(response.status(), 200, await response.text())
+      const result = listAssistantActionReceiptsContract.response.schema.parse(
+        await response.json()
+      )
+      assert.deepEqual(
+        result.receipts.map((receipt) => receipt.toolCallId),
+        [firstCallId, secondCallId]
+      )
+      assert(result.receipts.every((receipt) => receipt.state === 'pending'))
+      assert(
+        result.receipts.every((receipt) =>
+          receipt.fields.every((field) => field.name !== 'credential')
+        )
+      )
+      const foreign = await context.request.get(url, { params: { streamId: lagStreamId } })
+      assert.equal(foreign.status(), 200)
+      assert.deepEqual(
+        listAssistantActionReceiptsContract.response.schema.parse(await foreign.json()).receipts,
+        []
+      )
+      const overflow = new URL(url)
+      for (let i = 0; i < 33; i++) overflow.searchParams.append('toolCallIds', `call-${i}`)
+      assert.equal((await context.request.get(overflow.toString())).status(), 400)
+    }
+  )
+  await check(
+    'Historical receipts distinguish approval, completion, cancellation, and uncertain outcomes',
+    async () => {
+      await insertProposal(previousRunId, previousCallId, 'Original historical title')
+      await sql`update copilot_async_tool_calls set status = 'completed', permission_decision = 'allow', permission_decided_at = now(), approved_args = ${sql.json(proposalArguments('Approved historical title'))}, execution_started_at = now(), execution_settled_at = now(), completed_at = now(), result = ${sql.json({ output: { warning: 'Issue created; assignment needs attention. Do not recreate the issue.', privatePayload: 'not-for-the-receipt'.repeat(20_000) } })} where tool_call_id = ${previousCallId}`
+      const url = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${assistantId}/actions/receipts`
+      const response = await context.request.get(url, { params: { toolCallIds: previousCallId } })
+      assert.equal(response.status(), 200, await response.text())
+      const result = listAssistantActionReceiptsContract.response.schema.parse(
+        await response.json()
+      )
+      const receipt = result.receipts[0]
+      assert(receipt)
+      assert.equal(receipt.state, 'succeeded')
+      assert.equal(
+        receipt.fields.find((field) => field.name === 'summary')?.value,
+        'Approved historical title'
+      )
+      assert.equal(
+        receipt.warning,
+        'Issue created; assignment needs attention. Do not recreate the issue.'
+      )
+      assert(!JSON.stringify(result).includes('privatePayload'))
+      const cases = [
+        {
+          status: 'pending',
+          decision: 'skip',
+          started: false,
+          revoked: false,
+          unknown: false,
+          expected: 'cancelled',
+        },
+        {
+          status: 'cancelled',
+          decision: 'allow',
+          started: true,
+          revoked: false,
+          unknown: false,
+          expected: 'uncertain',
+        },
+        {
+          status: 'failed',
+          decision: 'allow',
+          started: true,
+          revoked: true,
+          unknown: true,
+          expected: 'uncertain',
+        },
+        {
+          status: 'failed',
+          decision: 'allow',
+          started: true,
+          revoked: false,
+          unknown: false,
+          expected: 'failed',
+        },
+        {
+          status: 'failed',
+          decision: 'allow',
+          started: false,
+          revoked: false,
+          unknown: false,
+          expected: 'failed',
+        },
+        {
+          status: 'pending',
+          decision: 'allow',
+          started: false,
+          revoked: false,
+          unknown: false,
+          expected: 'cancelled',
+        },
+      ] as const
+      for (const fixture of cases) {
+        const id = generateId()
+        await insertProposal(previousRunId, id, 'Historical outcome fixture')
+        await sql`update copilot_async_tool_calls set status = ${fixture.status}, permission_decision = ${fixture.decision}, execution_started_at = ${fixture.started ? new Date() : null}, execution_settled_at = ${fixture.started ? new Date() : null}, execution_revoked_at = ${fixture.revoked ? new Date() : null}, result = ${sql.json({ outcomeUnknown: fixture.unknown, notStarted: !fixture.started })} where tool_call_id = ${id}`
+        const stateResponse = await context.request.get(url, { params: { toolCallIds: id } })
+        assert.equal(stateResponse.status(), 200)
+        const state = listAssistantActionReceiptsContract.response.schema.parse(
+          await stateResponse.json()
+        ).receipts[0]
+        assert.equal(state?.state, fixture.expected)
+        assert.equal(state?.unsettled, false)
+        await sql`delete from copilot_async_tool_calls where tool_call_id = ${id}`
+      }
+      await sql`update copilot_async_tool_calls set result = ${sql.json({ output: { warning: '😀'.repeat(1400) } })} where tool_call_id = ${previousCallId}`
+      const unicodeResponse = await context.request.get(url, {
+        params: { toolCallIds: previousCallId },
+      })
+      assert.equal(unicodeResponse.status(), 200)
+      assert.equal(
+        listAssistantActionReceiptsContract.response.schema.parse(await unicodeResponse.json())
+          .receipts[0]?.warning,
+        '😀'.repeat(1024)
+      )
+      await sql`update copilot_async_tool_calls set result = ${sql.json({ output: { warning: receipt.warning } })} where tool_call_id = ${previousCallId}`
+      const scoped = await context.request.get(
+        `${baseUrl.origin}/api/organizations/${organizationId}/chats/${lagChatId}/actions/receipts`,
+        { params: { toolCallIds: previousCallId } }
+      )
+      assert.equal(scoped.status(), 200)
+      assert.deepEqual(
+        listAssistantActionReceiptsContract.response.schema.parse(await scoped.json()).receipts,
+        []
+      )
+    }
+  )
+  await check(
+    'Display history carries the canonical turn identity and clears copied identities',
+    async () => {
+      for (const suffix of ['', '?window=latest']) {
+        const response = await context.request.get(
+          `${baseUrl.origin}/api/mothership/chats/${assistantId}${suffix}`
+        )
+        assert.equal(response.status(), 200)
+        const messages = toArray(toRecord(toRecord(await response.json()).chat).messages).map(
+          toRecord
+        )
+        assert.equal(
+          messages.find((message) => message.id === previousStreamId)?.streamId,
+          previousStreamId
+        )
+      }
+      const copiedId = generateId()
+      await sql`insert into copilot_messages (id, chat_id, message_id, role, content, seq) values (${copiedId}, ${lagChatId}, ${copiedId}, 'assistant', ${sql.json({ id: copiedId, role: 'assistant', content: 'Copied history', timestamp: new Date().toISOString(), streamId: previousStreamId })}, 2)`
+      try {
+        const response = await context.request.get(
+          `${baseUrl.origin}/api/mothership/chats/${lagChatId}`
+        )
+        assert.equal(response.status(), 200)
+        const messages = toArray(toRecord(toRecord(await response.json()).chat).messages).map(
+          toRecord
+        )
+        const copied = messages.find((message) => message.id === copiedId)
+        assert(copied)
+        assert.equal(copied.streamId, undefined)
+      } finally {
+        await sql`delete from copilot_messages where id = ${copiedId}`
+      }
+    }
+  )
   await check('A native Assistant account exposes its own tool permissions', async () => {
     await page.goto(`${baseUrl.origin}${root}/integrations`, {
       waitUntil: 'domcontentloaded',
       timeout: 180_000,
     })
-    await page.getByRole('button', { name: 'Salesforce integration actions', exact: true }).click()
-    await expect(page.getByRole('menuitem', { name: 'Add account', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('menuitem', { name: 'Reconnect', exact: true })).toBeVisible()
-    const permissions = page.locator(
-      `a[href="${root}/integrations/accounts/${nativeCredentialId}"]`
-    )
-    await expect(permissions).toBeVisible({ timeout: 180_000 })
-    await permissions.click()
+    await page.getByRole('link', { name: 'Open Salesforce integration', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
+    await capture('integration-account-actions')
+    await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'Disconnect Salesforce' })).toBeVisible()
+    await capture('integration-disconnect-confirmation')
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
     const policy = page.getByRole('radiogroup', { name: 'Create Task in Salesforce permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
+    await capture('integration-detail-salesforce')
   })
-  await check('Connected app menus agree with the real Assistant tool catalog', async () => {
-    await page.goto(`${baseUrl.origin}${root}/integrations`, { waitUntil: 'domcontentloaded' })
+  await check('Integration details agree with the real Assistant tool catalog', async () => {
     for (const account of catalogAccounts) {
+      await page.goto(`${baseUrl.origin}${root}/integrations`, { waitUntil: 'domcontentloaded' })
       const response = await context.request.get(
         `${baseUrl.origin}/api/organizations/${organizationId}/connected-accounts/personal/${account.credentialId}/tool-permissions`
       )
@@ -356,26 +571,175 @@ try {
       const data = readAssistantToolPermissionsContract.response.schema.parse(await response.json())
       assert.equal(data.account.credentialId, account.credentialId)
       assert.equal(data.tools.length > 0, account.supported, account.name)
-      const menu = page.getByRole('button', {
-        name: `${account.name} integration actions`,
-        exact: true,
-      })
-      await expect(menu).toHaveCount(1)
-      await menu.click()
-      const permissions = page.getByRole('menu').locator('a[href*="/integrations/accounts/"]')
-      await expect(permissions).toHaveCount(account.supported ? 1 : 0)
+      await page
+        .getByRole('link', { name: `Open ${account.name} integration`, exact: true })
+        .click()
+      const permissions = page.getByRole('textbox', { name: 'Search tools', exact: true })
       if (account.supported) {
-        await expect(permissions).toHaveAttribute(
-          'href',
-          `${root}/integrations/accounts/${account.credentialId}`
-        )
+        await expect(permissions).toBeVisible()
+        await expect(page.getByRole('radiogroup').first()).toBeVisible()
       } else {
         await expect(permissions).toHaveCount(0)
       }
-      await page.keyboard.press('Escape')
+      await capture(`integration-detail-${account.name.toLowerCase().replaceAll(' ', '-')}`)
     }
+    await page.goto(`${baseUrl.origin}${root}/integrations`)
+    await expect(
+      page.getByRole('link', { name: 'Open Salesforce integration', exact: true })
+    ).toBeVisible()
     await capture('integrations-desktop')
   })
+  await check(
+    'Multiple accounts isolate permissions and disconnect the selected account only',
+    async () => {
+      await page.goto(`${baseUrl.origin}${root}/integrations`)
+      await page.getByRole('link', { name: 'Open Jira integration', exact: true }).click()
+      await expect(page).toHaveURL((url) => url.searchParams.get('integration') === 'source:jira')
+      const accountsUrl = page.url()
+      const firstAccount = page.getByRole('link', {
+        name: 'Open taylor@acme.example account',
+        exact: true,
+      })
+      const secondAccount = page.getByRole('link', {
+        name: 'Open launch-team@acme.example account',
+        exact: true,
+      })
+      await expect(firstAccount).toBeVisible()
+      await expect(secondAccount).toBeVisible()
+      await expect(page.getByRole('textbox', { name: 'Search tools', exact: true })).toHaveCount(0)
+      await capture('integration-multiple-accounts')
+      await expect(
+        page.getByRole('button', { name: 'Jira integration actions', exact: true })
+      ).toHaveCount(0)
+      await page.setViewportSize({ width: 390, height: 844 })
+      await capture('integration-multiple-accounts-mobile')
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await secondAccount.click()
+      await expect(page).toHaveURL((url) => url.searchParams.get('account') === secondCredentialId)
+      const selectedUrl = page.url()
+      const policy = page.getByRole('radiogroup', { name: 'Jira Write permission' })
+      await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
+      await capture('integration-selected-account')
+      await policy.getByRole('radio', { name: 'Block', exact: true }).click()
+      await expect(policy.getByRole('radio', { name: 'Block', exact: true })).toBeChecked()
+      await page.reload()
+      await expect(policy.getByRole('radio', { name: 'Block', exact: true })).toBeChecked()
+      for (const [id, expected] of [
+        [credentialId, 'ask'],
+        [secondCredentialId, 'block'],
+      ] as const) {
+        const response = await context.request.get(
+          `${baseUrl.origin}/api/organizations/${organizationId}/connected-accounts/personal/${id}/tool-permissions`
+        )
+        assert.equal(response.status(), 200)
+        const permissions = readAssistantToolPermissionsContract.response.schema.parse(
+          await response.json()
+        )
+        assert.equal(
+          permissions.tools.find((tool) => tool.toolId === 'jira_write')?.policy,
+          expected
+        )
+      }
+      await page.getByRole('link', { name: 'Jira', exact: true }).click()
+      await expect(firstAccount).toBeVisible()
+      await firstAccount.click()
+      await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
+      await page.goto(selectedUrl)
+      await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
+      await expect(policy.getByRole('radio', { name: 'Block', exact: true })).toBeChecked()
+      await capture('integration-selected-account-actions')
+      await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+      const confirmation = page.getByRole('dialog', { name: 'Disconnect Jira', exact: true })
+      await expect(confirmation).toContainText('launch-team@acme.example')
+      await expect(confirmation).not.toContainText('taylor@acme.example')
+      await capture('integration-selected-account-disconnect')
+      const disconnected = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'DELETE' &&
+          new URL(response.url()).pathname ===
+            `/api/users/me/organization-accounts/${secondCredentialId}`
+      )
+      await confirmation.getByRole('button', { name: 'Disconnect', exact: true }).click()
+      assert.equal((await disconnected).status(), 200)
+      await expect(confirmation).toBeHidden()
+      await expect(
+        page.getByText('This account is no longer connected.', { exact: true })
+      ).toBeVisible()
+      await expect(page.getByRole('textbox', { name: 'Search tools', exact: true })).toHaveCount(0)
+      const states =
+        await sql`select id, managed_oauth_status from credential where id in (${credentialId}, ${secondCredentialId})`
+      assert.equal(
+        states.find((account) => account.id === credentialId)?.managed_oauth_status,
+        'active'
+      )
+      assert.equal(
+        states.find((account) => account.id === secondCredentialId)?.managed_oauth_status,
+        'revoked'
+      )
+      await page.goto(accountsUrl)
+      await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
+    }
+  )
+  await check(
+    'Enabled, disabled and paused empty integrations preserve MCP account isolation',
+    async () => {
+      const inventoryResponse = await context.request.get(
+        `${baseUrl.origin}/api/organizations/${organizationId}/connected-accounts`
+      )
+      assert.equal(inventoryResponse.status(), 200)
+      const inventory = getOrganizationAccountsContract.response.schema.parse(
+        await inventoryResponse.json()
+      )
+      assert(
+        inventory.viewerMcpAccounts?.some(
+          (account) => account.credentialId === firefliesCredentialId
+        )
+      )
+      await page.goto(`${baseUrl.origin}${root}/integrations`)
+      await page.getByRole('link', { name: 'Open Coda integration', exact: true }).click()
+      await expect(page).toHaveURL((url) => url.searchParams.get('integration') === 'source:coda')
+      const detailUrl = page.url()
+      const connect = page.getByRole('button', { name: 'Connect', exact: true })
+      await expect(connect).toBeEnabled()
+      await expect(page.getByText('No account connected', { exact: true })).toBeVisible()
+      await expect(page.getByText('meetings@acme.example', { exact: true })).toHaveCount(0)
+      await capture('integration-enabled-empty')
+      const forgedUrl = new URL(detailUrl)
+      forgedUrl.searchParams.set('account', firefliesCredentialId)
+      await page.goto(forgedUrl.toString())
+      await expect(
+        page.getByText('This account is no longer connected.', { exact: true })
+      ).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Disconnect', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('textbox', { name: 'Search tools', exact: true })).toHaveCount(0)
+      await sql`update organization_search_integration set approved = false where organization_id = ${organizationId} and connector_type = 'coda'`
+      try {
+        await page.goto(`${baseUrl.origin}${root}/integrations`)
+        await expect(
+          page.getByRole('link', { name: 'Open Coda integration', exact: true })
+        ).toBeVisible()
+        await page.getByRole('link', { name: 'Open Coda integration', exact: true }).click()
+        await expect(page).toHaveURL((url) => url.searchParams.get('integration') === 'source:coda')
+        await expect(page.getByText('Disabled by your organization', { exact: true })).toBeVisible()
+        await expect(connect).toBeDisabled()
+        await capture('integration-disabled-empty')
+      } finally {
+        await sql`update organization_search_integration set approved = true where organization_id = ${organizationId} and connector_type = 'coda'`
+      }
+      await sql`update credential_group set status = 'disabled' where id = ${groupId}`
+      try {
+        await page.reload()
+        await expect(
+          page.getByText('Connections are paused by your organization', { exact: true })
+        ).toBeVisible()
+        await expect(connect).toBeDisabled()
+        await capture('integration-paused-empty')
+      } finally {
+        await sql`update credential_group set status = 'active' where id = ${groupId}`
+      }
+    }
+  )
   await check('Personal permissions persist through the real settings route', async () => {
     await page.goto(`${baseUrl.origin}${root}/integrations/accounts/${credentialId}`, {
       waitUntil: 'domcontentloaded',
@@ -402,6 +766,15 @@ try {
     'A live Assistant turn restores exact inline actions without duplicating older rows',
     async () => {
       await page.setViewportSize({ width: 1440, height: 1000 })
+      const reviewUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${assistantId}/actions`
+      await page.route(reviewUrl, async (route) => {
+        const response = await route.fetch()
+        const review = listAssistantActionsContract.response.schema.parse(await response.json())
+        await route.fulfill({
+          response,
+          json: { ...review, actions: review.actions.map(({ sequence, ...action }) => action) },
+        })
+      })
       const streamResponse = page.waitForResponse(
         (response) =>
           new URL(response.url()).pathname === '/api/mothership/chat/stream' &&
@@ -413,15 +786,35 @@ try {
         timeout: 180_000,
       })
       assert.equal((await streamResponse).status(), 200)
-      await expect(reviewCards).toHaveCount(2, { timeout: 180_000 })
-      await expect(page.getByText('Earlier Jira proposal', { exact: false })).toBeAttached()
+      const reviewResponse = await context.request.get(
+        `${baseUrl.origin}/api/organizations/${organizationId}/chats/${assistantId}/actions`
+      )
+      assert.equal(reviewResponse.status(), 200, await reviewResponse.text())
+      const restoredReview = listAssistantActionsContract.response.schema.parse(
+        await reviewResponse.json()
+      )
+      assert.equal(restoredReview.actions.length, 2)
+      await expect(reviewCards).toHaveCount(2)
+      await page.unroute(reviewUrl)
+      await expect(
+        page
+          .getByRole('region', { name: 'Create Jira issue receipt' })
+          .filter({ hasText: 'Approved historical title' })
+      ).toBeAttached()
       await expect(page.getByRole('button', { name: 'Allow', exact: true })).toHaveCount(2)
+      await expect(reviewCards.getByRole('textbox')).toHaveCount(0)
+      await expect(reviewCards.getByText('Priority', { exact: true })).toHaveCount(0)
+      const previewBounds = await reviewCards.nth(0).boundingBox()
+      assert(
+        previewBounds && previewBounds.height < 310,
+        'The default review should fit in a compact preview'
+      )
       await expect(
-        reviewCards.nth(0).getByRole('textbox', { name: 'Summary', exact: true })
-      ).toHaveValue('Publish the launch checklist')
+        reviewCards.nth(0).getByText('Publish the launch checklist', { exact: true })
+      ).toBeVisible()
       await expect(
-        reviewCards.nth(1).getByRole('textbox', { name: 'Summary', exact: true })
-      ).toHaveValue('Confirm the rollout owners')
+        reviewCards.nth(1).getByText('Confirm the rollout owners', { exact: true })
+      ).toBeVisible()
       const prompt = await page.getByText(question, { exact: true }).elementHandle()
       assert(prompt, 'The current user turn must be restored')
       assert(
@@ -456,11 +849,15 @@ try {
       await page.reload()
       await expect(reviewCards).toHaveCount(2)
       await expect(
-        reviewCards.nth(0).getByRole('textbox', { name: 'Summary', exact: true })
-      ).toHaveValue('Publish the launch checklist')
-      await page.getByText(question, { exact: true }).scrollIntoViewIfNeeded()
+        reviewCards.nth(0).getByText('Publish the launch checklist', { exact: true })
+      ).toBeVisible()
+      await expect(
+        page
+          .getByRole('region', { name: 'Create Jira issue receipt' })
+          .filter({ hasText: 'Approved historical title' })
+      ).toBeAttached()
+      await reviewCards.last().scrollIntoViewIfNeeded()
       await capture('assistant-actions-desktop')
-      await reviewCards.nth(0).scrollIntoViewIfNeeded()
       await capture('action-review-desktop')
       await page.setViewportSize({ width: 390, height: 844 })
       await reviewCards.nth(0).scrollIntoViewIfNeeded()
@@ -502,10 +899,16 @@ try {
   await check(
     'An edited approval and a cancellation affect only their saved proposals',
     async () => {
+      await reviewCards.nth(0).getByRole('button', { name: 'Edit', exact: true }).click()
       await reviewCards
         .nth(0)
         .getByRole('textbox', { name: 'Summary', exact: true })
         .fill('Publish the reviewed launch checklist')
+      await capture('action-review-edit')
+      await reviewCards.nth(0).getByRole('button', { name: 'Done', exact: true }).click()
+      await expect(
+        reviewCards.nth(0).getByText('Publish the reviewed launch checklist', { exact: true })
+      ).toBeVisible()
       const approval = page.waitForResponse(
         (response) =>
           response.request().method() === 'PATCH' &&
@@ -516,12 +919,17 @@ try {
       const approvalResponse = await approval
       assert.equal(approvalResponse.status(), 200, await approvalResponse.text())
       await expect(reviewCards).toHaveCount(1)
-      await expect(reviewCards.getByRole('textbox', { name: 'Summary', exact: true })).toHaveValue(
-        'Confirm the rollout owners'
-      )
       await expect(
-        page.getByText('No longer waiting for review', { exact: false }).first()
+        reviewCards.getByText('Confirm the rollout owners', { exact: true })
       ).toBeVisible()
+      const approvedReceipt = page
+        .getByRole('region', { name: 'Create Jira issue receipt' })
+        .filter({ hasText: 'Publish the reviewed launch checklist' })
+      await expect(approvedReceipt.getByText('Approved', { exact: true })).toBeVisible()
+      await approvedReceipt.getByRole('button', { name: 'View Create Jira issue receipt' }).click()
+      await expect(approvedReceipt.getByRole('textbox')).toHaveCount(0)
+      await expect(approvedReceipt.getByText('acme.atlassian.net', { exact: true })).toBeVisible()
+      await approvedReceipt.getByRole('button', { name: 'Hide Create Jira issue receipt' }).click()
       const cancellation = page.waitForResponse(
         (response) =>
           response.request().method() === 'PATCH' &&
@@ -532,6 +940,16 @@ try {
       const cancellationResponse = await cancellation
       assert.equal(cancellationResponse.status(), 200, await cancellationResponse.text())
       await expect(reviewCards).toHaveCount(0)
+      const cancelledReceipt = page
+        .getByRole('region', { name: 'Create Jira issue receipt' })
+        .filter({ hasText: 'Confirm the rollout owners' })
+      await expect(cancelledReceipt.getByText('Cancelled', { exact: true })).toBeVisible()
+      await capture('action-receipts-mobile')
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await capture('action-receipts-desktop')
+      await page.reload()
+      await expect(approvedReceipt.getByText('Approved', { exact: true })).toBeVisible()
+      await expect(cancelledReceipt.getByText('Cancelled', { exact: true })).toBeVisible()
       const rows =
         await sql`select tool_call_id, permission_decision, args, approved_args, execution_started_at from copilot_async_tool_calls where run_id = ${runId} order by persist_seq`
       assert.equal(rows[0]?.permission_decision, 'allow')
@@ -568,7 +986,7 @@ try {
       assert.deepEqual(initialData.actions, [])
       await insertProposal(lagRunId, lagFirstCallId, 'Review the support handoff')
       await insertProposal(lagRunId, lagSecondCallId, 'Prepare the launch announcement')
-      await page.route(`${reviewUrl}*`, (route) =>
+      await page.route(reviewUrl, (route) =>
         route.request().method() === 'GET' ? route.abort('failed') : route.continue()
       )
       try {
@@ -577,16 +995,16 @@ try {
         })
         await expect(reviewCards).toHaveCount(0)
       } finally {
-        await page.unroute(`${reviewUrl}*`)
+        await page.unroute(reviewUrl)
       }
       await page.getByRole('button', { name: 'Retry', exact: true }).click()
       await expect(reviewCards).toHaveCount(2)
       await expect(
-        reviewCards.nth(0).getByRole('textbox', { name: 'Summary', exact: true })
-      ).toHaveValue('Review the support handoff')
+        reviewCards.nth(0).getByText('Review the support handoff', { exact: true })
+      ).toBeVisible()
       await expect(
-        reviewCards.nth(1).getByRole('textbox', { name: 'Summary', exact: true })
-      ).toHaveValue('Prepare the launch announcement')
+        reviewCards.nth(1).getByText('Prepare the launch announcement', { exact: true })
+      ).toBeVisible()
       await appendStreamEvents(lagChatId, lagStreamId, [
         pendingToolEvent(lagFirstCallId, 'Review the support handoff'),
         pendingToolEvent(lagSecondCallId, 'Prepare the launch announcement'),
@@ -636,8 +1054,8 @@ try {
           ])
         await expect(reviewCards).toHaveCount(1)
         await expect(
-          reviewCards.getByRole('textbox', { name: 'Summary', exact: true })
-        ).toHaveValue('A later proposal that was never approved')
+          reviewCards.getByText('A later proposal that was never approved', { exact: true })
+        ).toBeVisible()
         const cancellation = page.waitForResponse(
           (response) =>
             response.request().method() === 'PATCH' &&
@@ -814,6 +1232,7 @@ try {
         }
       })
       try {
+        await expect(reviewCards.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled()
         await reviewCards.getByRole('button', { name: 'Cancel', exact: true }).focus()
         await page.keyboard.press('Enter')
         await expect.poll(() => decisionPersisted).toBe(true)
@@ -907,11 +1326,130 @@ try {
     )
     assert.equal(response.status(), 404)
   })
+  await check(
+    'A 64-action recovery preserves sequence, pagination and receipts with bounded requests',
+    async () => {
+      const batchIds = Array.from({ length: 64 }, () => generateId())
+      for (const [index, id] of batchIds.entries()) {
+        await insertProposal(bulkRunId, id, `Batch issue ${index + 1}`)
+        if (index % 2 === 0) {
+          await sql`update copilot_async_tool_calls set status = 'delivered', permission_decision = 'skip', permission_decided_at = now() where run_id = ${bulkRunId} and tool_call_id = ${id}`
+        }
+      }
+      await appendStreamEvents(bulkChatId, bulkStreamId, [
+        { type: 'session', payload: { kind: 'start' } },
+        { type: 'text', payload: { channel: 'assistant', text: 'Review the remaining actions.' } },
+      ])
+      const responsesBefore = httpResponses.length
+      await page.goto(`${baseUrl.origin}/o/${organizationId}/chat/${bulkChatId}?mode=assistant`)
+      const cards = page.locator(
+        'section[aria-label="Review Create Jira issue"], section[aria-label="Create Jira issue receipt"]'
+      )
+      await expect(cards).toHaveCount(48)
+      await expect(cards.nth(0)).toContainText('Batch issue 1')
+      await expect(cards.nth(0)).toContainText('Cancelled')
+      await expect(cards.nth(1)).toContainText('Batch issue 2')
+      const initialReceiptRequests = httpResponses
+        .slice(responsesBefore)
+        .filter((response) => response.path.endsWith('/actions/receipts'))
+      assert(
+        initialReceiptRequests.length <= 6,
+        `Recovery made ${initialReceiptRequests.length} receipt requests`
+      )
+      await cards.nth(1).getByRole('button', { name: 'Allow', exact: true }).click()
+      await expect(cards.nth(1)).toContainText('Approved')
+      await expect(cards.nth(1)).toContainText('Batch issue 2')
+      await expect(cards.last()).toContainText('Batch issue 64')
+      await cards.last().getByRole('button', { name: 'Allow', exact: true }).click()
+      await expect(cards.last()).toContainText('Approved')
+      await expect(cards).toHaveCount(48)
+      await page.getByRole('button', { name: 'More action history', exact: true }).click()
+      await expect(cards).toHaveCount(64)
+      await page.reload()
+      await page.getByRole('button', { name: 'More action history', exact: true }).click()
+      await expect(cards).toHaveCount(64)
+      await expect(cards.nth(1)).toContainText('Approved')
+      await expect(cards.last()).toContainText('Approved')
+      await expect(cards.last()).toContainText('Batch issue 64')
+      await capture('approval-paginated-receipts')
+      const lastCallId = batchIds.at(-1)
+      const precedingCallId = batchIds.at(-3)
+      assert(lastCallId && precedingCallId)
+      await cards.nth(61).getByRole('button', { name: 'Allow', exact: true }).click()
+      await expect(cards.nth(61)).toContainText('Approved')
+      await sql`update copilot_async_tool_calls set status = 'completed', execution_started_at = now(), execution_settled_at = now(), completed_at = now(), result = ${sql.json({ success: true })} where run_id = ${bulkRunId} and tool_call_id = ${lastCallId}`
+      const receiptsUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${bulkChatId}/actions/receipts`
+      for (const [index, fixture] of [
+        { id: lastCallId, summary: 'Batch issue 64', state: 'Completed' },
+        { id: precedingCallId, summary: 'Batch issue 62', state: 'Approved' },
+      ].entries()) {
+        const events = [pendingToolEvent(fixture.id, fixture.summary)]
+        if (fixture.state === 'Completed')
+          events.push({
+            type: 'tool',
+            payload: {
+              phase: 'result',
+              executor: 'sim',
+              mode: 'async',
+              toolCallId: fixture.id,
+              toolName: 'jira_write',
+              success: true,
+              status: 'success',
+              output: { success: true },
+            },
+          })
+        await appendStreamEvents(bulkChatId, bulkStreamId, events)
+        await page.route(`${receiptsUrl}*`, (route) => {
+          const ids = new URL(route.request().url()).searchParams.getAll('toolCallIds')
+          return ids.includes(fixture.id) ? route.abort('failed') : route.continue()
+        })
+        try {
+          await page.reload()
+          await expect(
+            page.getByText('Could not load action history', { exact: true })
+          ).toHaveCount(index + 1, { timeout: 15_000 })
+          await capture(`receipt-history-${fixture.state.toLowerCase()}-retry`)
+        } finally {
+          await page.unroute(`${receiptsUrl}*`)
+        }
+        await page.getByRole('button', { name: 'Retry', exact: true }).first().click()
+        await expect(
+          page
+            .getByRole('region', { name: 'Create Jira issue receipt' })
+            .filter({ hasText: fixture.summary })
+        ).toContainText(fixture.state)
+      }
+    }
+  )
+  await check(
+    'Automatically allowed writes wait for execution, not a second approval',
+    async () => {
+      const autoCallId = generateId()
+      await insertProposal(runId, autoCallId, 'Automatically allowed issue')
+      await sql`update copilot_async_tool_calls set permission_requested_at = null where run_id = ${runId} and tool_call_id = ${autoCallId}`
+      try {
+        const response = await context.request.get(
+          `${baseUrl.origin}/api/organizations/${organizationId}/chats/${assistantId}/actions/receipts`,
+          { params: { toolCallIds: autoCallId } }
+        )
+        assert.equal(response.status(), 200, await response.text())
+        const result = listAssistantActionReceiptsContract.response.schema.parse(
+          await response.json()
+        )
+        assert.equal(result.receipts[0]?.state, 'approved')
+      } finally {
+        await sql`delete from copilot_async_tool_calls where run_id = ${runId} and tool_call_id = ${autoCallId}`
+      }
+    }
+  )
   await check('Browser runtime and HTTP responses', async () => {
     assert.deepEqual(browserErrors, [])
     assert.deepEqual(serverErrors, [])
   })
 } catch (error) {
+  await writeFile(`${artifactDirectory}/failure.txt`, await page.locator('body').innerText()).catch(
+    () => undefined
+  )
   logger.error('Assistant actions E2E failed', { error: getErrorMessage(error) })
   await page.screenshot({ path: resolve(artifactDirectory, 'failure.png') }).catch(() => undefined)
   process.exitCode = 1
@@ -942,7 +1480,7 @@ try {
   await writeFile(
     reportPath,
     JSON.stringify(
-      { checks, browserErrors, serverErrors, httpResponses, artifactDirectory },
+      { checks, browserErrors, browserMessages, serverErrors, httpResponses, artifactDirectory },
       null,
       2
     )

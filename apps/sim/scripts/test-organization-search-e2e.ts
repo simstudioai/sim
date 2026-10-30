@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { type BrowserContext, chromium, expect } from '@playwright/test'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
@@ -11,6 +12,8 @@ import { toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import { searchWorkspaceKnowledgeContract } from '@/lib/api/contracts/knowledge/search'
+import { type CreateEventInput, createEvent } from '@/lib/mothership/request/session/event'
 
 /**
  * Runs against a local app and disposable PostgreSQL with member Search and Access Control enabled.
@@ -362,29 +365,49 @@ try {
     'Search and Assistant preserve independent drafts across tabs and reloads',
     async () => {
       await page.goto(`${baseUrl.origin}${root}/search`)
-      await expect(page.getByRole('radio', { name: 'Search', exact: true })).toBeChecked()
+      await expect(
+        page
+          .getByRole('navigation', { name: 'Search views' })
+          .getByRole('button', { name: 'Search', exact: true })
+      ).toHaveAttribute('aria-current', 'page')
       const searchInput = page.getByRole('textbox', { name: 'Search your sources' })
       await searchInput.fill('Launch notes')
-      await page.getByRole('radio', { name: 'Assistant', exact: true }).click()
+      await page
+        .getByRole('navigation', { name: 'Search views' })
+        .getByRole('button', { name: 'Assistant', exact: true })
+        .click()
       const assistantInput = page.getByRole('textbox', { name: 'Ask Sim' })
       await expect(assistantInput).toHaveValue('')
       await assistantInput.fill('Summarize launch readiness')
-      await page.getByRole('radio', { name: 'Search', exact: true }).click()
+      await page
+        .getByRole('navigation', { name: 'Search views' })
+        .getByRole('button', { name: 'Search', exact: true })
+        .click()
       await expect(searchInput).toHaveValue('Launch notes')
-      await page.getByRole('radio', { name: 'Assistant', exact: true }).click()
+      await page
+        .getByRole('navigation', { name: 'Search views' })
+        .getByRole('button', { name: 'Assistant', exact: true })
+        .click()
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
       await expect(page).toHaveURL(
         (url) => url.pathname === `${root}/search` && url.searchParams.get('mode') === 'assistant'
       )
       await page.reload()
-      await expect(page.getByRole('radio', { name: 'Assistant', exact: true })).toBeChecked()
+      await expect(
+        page
+          .getByRole('navigation', { name: 'Search views' })
+          .getByRole('button', { name: 'Assistant', exact: true })
+      ).toHaveAttribute('aria-current', 'page')
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
     }
   )
   await check(
     'Traditional search submits the organization query and keeps results in Search',
     async () => {
-      await page.getByRole('radio', { name: 'Search', exact: true }).click()
+      await page
+        .getByRole('navigation', { name: 'Search views' })
+        .getByRole('button', { name: 'Search', exact: true })
+        .click()
       const responsePromise = page.waitForResponse(
         (response) =>
           new URL(response.url()).pathname === '/api/knowledge/search' &&
@@ -414,24 +437,258 @@ try {
       'Summarize launch readiness'
     )
   })
-  await check('Saved assistant history opens inside Search and starts a fresh search', async () => {
+  await check('Changing Search views preserves the conversation, filters, and draft', async () => {
+    const path = `${root}/search/chat/${assistantId}`
+    await page.goto(`${baseUrl.origin}${path}?q=Launch&source=slack&updated=7d`)
+    const input = page.getByRole('textbox', { name: 'Ask Sim' })
+    await input.fill('Which owners still need to reply?')
+    await page
+      .getByRole('navigation', { name: 'Search views' })
+      .getByRole('button', { name: 'Search', exact: true })
+      .click()
+    await expect(page).toHaveURL(
+      (url) => url.pathname === path && url.searchParams.get('mode') === 'search'
+    )
+    await page.reload()
+    await page
+      .getByRole('navigation', { name: 'Search views' })
+      .getByRole('button', { name: 'Assistant', exact: true })
+      .click()
+    await expect(page.getByText(answer, { exact: true })).toBeVisible()
+    await expect(input).toHaveValue('Which owners still need to reply?')
+    const restored = new URL(page.url())
+    assert.equal(restored.pathname, path)
+    assert.equal(restored.searchParams.get('q'), 'Launch')
+    assert.equal(restored.searchParams.get('source'), 'slack')
+    assert.equal(restored.searchParams.get('updated'), '7d')
+  })
+  await check('New chat stays in Assistant and starts with a fresh draft', async () => {
     await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
-    await expect(page.getByRole('radio', { name: 'Assistant', exact: true })).toBeChecked()
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Search views' })
+        .getByRole('button', { name: 'Assistant', exact: true })
+    ).toHaveAttribute('aria-current', 'page')
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
     await capture('assistant-conversation-desktop')
-    await page.getByRole('button', { name: 'New search', exact: true }).click()
-    await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
-    await expect(page.getByRole('radio', { name: 'Search', exact: true })).toBeChecked()
+    await page.getByRole('button', { name: 'New chat', exact: true }).click()
+    await expect(page).toHaveURL(`${baseUrl.origin}${root}/search?mode=assistant`)
+    await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toHaveValue('')
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Search views' })
+        .getByRole('button', { name: 'Assistant', exact: true })
+    ).toHaveAttribute('aria-current', 'page')
   })
+  await check(
+    'Admission, New chat and repeated summaries preserve mode, context and drafts',
+    async () => {
+      const releaseAdmission = createDeferred<void>()
+      const posts: Record<string, unknown>[] = []
+      const createdChatIds: string[] = []
+      const chatEndpoint = `${baseUrl.origin}/api/mothership/chat`
+      const searchEndpoint = `${baseUrl.origin}/api/knowledge/search`
+      const documentId = generateId()
+      const searchRequests: Record<string, unknown>[] = []
+      const searchBody = searchWorkspaceKnowledgeContract.body
+      assert(searchBody)
+      await page.route(searchEndpoint, async (route) => {
+        const body = searchBody.parse(route.request().postDataJSON())
+        searchRequests.push(body)
+        await route.fulfill({
+          json: searchWorkspaceKnowledgeContract.response.schema.parse({
+            success: true,
+            data: {
+              query: body.query,
+              retrieval: { status: 'complete', timedOutLegs: [] },
+              results: [
+                {
+                  documentId,
+                  knowledgeBaseId: generateId(),
+                  knowledgeBaseName: 'Team documents',
+                  documentName: 'Launch checklist',
+                  sourceUrl: 'https://example.invalid/launch',
+                  connectorType: 'slack',
+                  sourceModifiedAt: new Date().toISOString(),
+                  author: null,
+                  content: 'The launch checklist is ready for review.',
+                  chunkIndex: 0,
+                  similarity: 1,
+                },
+              ],
+            },
+          }),
+        })
+      })
+      await page.route(chatEndpoint, async (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        const body = toRecord(route.request().postDataJSON())
+        const number = posts.push(body)
+        if (number === 1) await releaseAdmission.promise
+        const chatId = toStringOrNull(body.chatId) ?? generateId()
+        const streamId = toStringOrNull(body.userMessageId)
+        assert(streamId)
+        assert.equal(body.organizationId, organizationId)
+        assert.equal(body.mode, 'assistant')
+        createdChatIds.push(chatId)
+        const responseText = `Deterministic assistant response ${number}.`
+        const requestId = generateId()
+        await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config)
+        values (${chatId}, ${userId}, ${organizationId}, 'mothership', 'Navigation test', ${sql.json({ conversationMode: 'assistant' })}) on conflict (id) do nothing`
+        for (const message of [
+          { id: streamId, role: 'user', content: String(body.message) },
+          { id: generateId(), role: 'assistant', content: responseText },
+        ]) {
+          await sql`insert into copilot_messages (id, chat_id, message_id, role, stream_id, content, seq)
+          values (${generateId()}, ${chatId}, ${message.id}, ${message.role}, ${streamId}, ${sql.json({ ...message, requestId, timestamp: new Date().toISOString() })}, (select coalesce(max(seq), 0) + 1 from copilot_messages where chat_id = ${chatId}))`
+        }
+        const base = { chatId, streamId, requestId }
+        const events: CreateEventInput[] = [
+          { ...base, cursor: '1', seq: 1, type: 'session', payload: { kind: 'chat', chatId } },
+          {
+            ...base,
+            cursor: '2',
+            seq: 2,
+            type: 'text',
+            payload: { channel: 'assistant', text: responseText, textOffset: 0 },
+          },
+          {
+            ...base,
+            cursor: '3',
+            seq: 3,
+            type: 'complete',
+            payload: { status: 'complete', textLength: responseText.length },
+          },
+        ]
+        await route.fulfill({
+          status: 200,
+          headers: { 'content-type': 'text/event-stream', 'x-mothership-chat-id': chatId },
+          body: `${events.map((event) => `data: ${JSON.stringify(createEvent(event))}\n\n`).join('')}data: [DONE]\n\n`,
+        })
+      })
+      try {
+        await page.goto(`${baseUrl.origin}${root}/search?q=Launch&source=slack&updated=7d`)
+        const navigation = page.getByRole('navigation', { name: 'Search views' })
+        await navigation.getByRole('button', { name: 'Assistant', exact: true }).click()
+        const composer = page.getByRole('textbox', { name: 'Ask Sim' })
+        await composer.fill('A new conversation before admission')
+        await composer.press('Enter')
+        await expect.poll(() => posts.length).toBe(1)
+        await page.goBack()
+        await expect(
+          navigation.getByRole('button', { name: 'Search', exact: true })
+        ).toHaveAttribute('aria-current', 'page')
+        releaseAdmission.resolve()
+        await expect(page).toHaveURL(
+          (url) =>
+            url.pathname === `${root}/search/chat/${createdChatIds[0]}` &&
+            url.searchParams.get('mode') === 'search'
+        )
+        assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch')
+        assert.equal(new URL(page.url()).searchParams.get('source'), 'slack')
+        assert.equal(new URL(page.url()).searchParams.get('updated'), '7d')
+        await expect(
+          page.getByText('Deterministic assistant response 1.', { exact: true })
+        ).not.toBeVisible()
+        await navigation.getByRole('button', { name: 'Assistant', exact: true }).click()
+        await expect(
+          page.getByText('Deterministic assistant response 1.', { exact: true })
+        ).toBeVisible()
+        await composer.fill('An unsent follow-up')
+        await page.getByRole('button', { name: 'New chat', exact: true }).click()
+        await expect(page).toHaveURL(`${baseUrl.origin}${root}/search?mode=assistant`)
+        await expect(composer).toHaveValue('')
+        await composer.fill('A distinct new conversation')
+        await composer.press('Enter')
+        await expect(
+          page.getByText('Deterministic assistant response 2.', { exact: true })
+        ).toBeVisible()
+        assert.equal(posts.length, 2)
+        assert.equal(posts[1]?.createNewChat, true)
+        assert.equal(posts[1]?.chatId, undefined)
+        assert.notEqual(createdChatIds[0], createdChatIds[1])
+        await expect(page).toHaveURL(
+          (url) => url.pathname === `${root}/search/chat/${createdChatIds[1]}`
+        )
+        await page.reload()
+        await expect(
+          page.getByText('Deterministic assistant response 2.', { exact: true })
+        ).toBeVisible()
+        await expect(
+          page.getByText('Deterministic assistant response 1.', { exact: true })
+        ).toHaveCount(0)
+        await capture('assistant-new-chat-after-admission')
+        const summaryStartedAt = Date.now()
+        await page.goto(`${baseUrl.origin}${root}/search?q=Launch&source=slack&updated=7d`)
+        await page
+          .getByRole('button', { name: 'Actions for Launch checklist', exact: true })
+          .click()
+        await page.getByRole('menuitem', { name: 'Summarize', exact: true }).click()
+        await expect(
+          page.getByText('Deterministic assistant response 3.', { exact: true })
+        ).toBeVisible()
+        const summaryChatId = createdChatIds[2]
+        assert.equal(posts[2]?.createNewChat, true)
+        assert.equal(posts[2]?.assistantSearchLevel, 'fast')
+        const { modifiedAfter: firstCutoff, ...firstSummaryFilters } = toRecord(
+          posts[2]?.assistantSearch
+        )
+        const { modifiedAfter: searchCutoff, ...searchFilters } = toRecord(
+          searchRequests.at(-1)?.filters
+        )
+        assert.equal(searchFilters.source, 'slack')
+        assert.deepEqual(firstSummaryFilters, { ...searchFilters, documentIds: [documentId] })
+        assert.equal(typeof firstCutoff, 'string')
+        assert(Date.parse(String(firstCutoff)) >= summaryStartedAt - 7 * 24 * 60 * 60 * 1000)
+        assert(Date.parse(String(firstCutoff)) <= Date.now() - 7 * 24 * 60 * 60 * 1000)
+        await composer.fill('Keep this unsent draft')
+        await navigation.getByRole('button', { name: 'Search', exact: true }).click()
+        await page
+          .getByRole('button', { name: 'Actions for Launch checklist', exact: true })
+          .click()
+        await page.getByRole('menuitem', { name: 'Summarize', exact: true }).click()
+        await expect(
+          page.getByText('Deterministic assistant response 4.', { exact: true })
+        ).toBeVisible()
+        assert.equal(posts.length, 4)
+        assert.equal(posts[3]?.chatId, summaryChatId)
+        assert.equal(posts[3]?.createNewChat, false)
+        const { modifiedAfter: repeatedCutoff, ...repeatedSummaryFilters } = toRecord(
+          posts[3]?.assistantSearch
+        )
+        assert.deepEqual(repeatedSummaryFilters, firstSummaryFilters)
+        assert.equal(typeof repeatedCutoff, 'string')
+        assert(Date.parse(String(repeatedCutoff)) >= Date.parse(String(firstCutoff)))
+        assert(Date.parse(String(repeatedCutoff)) <= Date.now() - 7 * 24 * 60 * 60 * 1000)
+        await expect(composer).toHaveValue('Keep this unsent draft')
+        await capture('assistant-repeat-summary-preserves-draft')
+      } finally {
+        releaseAdmission.resolve()
+        await page.unroute(chatEndpoint)
+        await page.unroute(searchEndpoint)
+      }
+    }
+  )
   await check('Existing assistant bookmarks redirect into Search', async () => {
     await page.goto(`${baseUrl.origin}${root}/chat/${assistantId}`)
     await expect(page).toHaveURL(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
   })
+  await check('New search clears its draft while Back restores the prior query draft', async () => {
+    await page.goto(`${baseUrl.origin}${root}/search?q=Launch`)
+    const input = page.getByRole('textbox', { name: 'Search your sources' })
+    await input.fill('Edited launch query')
+    await page.getByRole('button', { name: 'New search', exact: true }).click()
+    await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
+    await expect(input).toHaveValue('')
+    await page.goBack()
+    await expect(input).toHaveValue('Edited launch query')
+    assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch')
+  })
   await check('Search URLs cannot change an agent conversation into an assistant', async () => {
     await page.goto(`${baseUrl.origin}${root}/search/chat/${agentId}`)
     await expect(page).toHaveURL(`${baseUrl.origin}${root}/chat/${agentId}`)
-    await expect(page.getByRole('radiogroup', { name: 'Search mode' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Search views' })).toHaveCount(0)
   })
   await check('Assistant history rejects a chat from another organization', async () => {
     await page.goto(`${baseUrl.origin}${root}/search/chat/${deniedChatId}`)
@@ -447,8 +704,10 @@ try {
       for (const mode of ['search', 'assistant'] as const) {
         await page.goto(`${baseUrl.origin}${root}/search?mode=${mode}`)
         await expect(
-          page.getByRole('radio', { name: mode === 'search' ? 'Search' : 'Assistant', exact: true })
-        ).toBeChecked()
+          page
+            .getByRole('navigation', { name: 'Search views' })
+            .getByRole('button', { name: mode === 'search' ? 'Search' : 'Assistant', exact: true })
+        ).toHaveAttribute('aria-current', 'page')
         await expect(
           page.getByRole('textbox', { name: mode === 'search' ? 'Search your sources' : 'Ask Sim' })
         ).toBeVisible()

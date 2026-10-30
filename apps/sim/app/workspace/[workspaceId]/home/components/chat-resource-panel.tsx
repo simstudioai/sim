@@ -22,6 +22,7 @@ interface ChatResourcePanelProps {
   chat: ReturnType<typeof useChat>
   panel: ReturnType<typeof useChatResourcePanel>
   children: ReactNode
+  header?: ReactNode
   onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
 }
 
@@ -33,6 +34,7 @@ export function ChatResourcePanel({
   chat,
   panel,
   children,
+  header,
   onSummarize,
 }: ChatResourcePanelProps) {
   useBrowserTabResources(panel.desktopTabResourceOptions)
@@ -71,6 +73,7 @@ export function ChatResourcePanel({
   )
   return (
     <ChatPanelLayout
+      header={header}
       collapsed={isResourceCollapsed}
       label='resource view'
       activityCount={resourceActivityIds.size}
