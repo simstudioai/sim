@@ -159,6 +159,7 @@ jobs:
       DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-headers.json
       DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/navigation/docs.json
       DOCS_GENERATORS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/generators/report.json
+      DOCS_MIGRATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/migration.json
       DOCS_SAMPLES_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/samples/report.json
       DOCS_SAMPLES_SYNTAX_LANGUAGES: javascript,python,bash,go,java,csharp
       DOCS_SAMPLES_HTTP_BASE_URL: http://127.0.0.1:3001
@@ -180,27 +181,37 @@ jobs:
         run: bun run --cwd apps/docs build
       - name: Verify generator idempotence and authored regions
         run: bun run --cwd apps/docs scripts/test-generators-e2e.ts
+      - name: Verify preserved routes, anchors and examples
+        if: always() && steps.build.outcome == 'success'
+        run: bun run --cwd apps/docs content:verify-migration
       - name: Verify native header edge cases
+        if: always() && steps.build.outcome == 'success'
         run: bun run --cwd apps/docs test:headers:e2e
       - name: Verify isolated PostgreSQL search and index lifecycle
+        if: always() && steps.build.outcome == 'success'
         run: bun run --cwd apps/docs test:search:postgres:e2e
       - name: Set up Java for copied request examples
+        if: always() && steps.build.outcome == 'success'
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Set up .NET for copied request examples
+        if: always() && steps.build.outcome == 'success'
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: '8.0.x'
       - name: Set up Go for copied request examples
+        if: always() && steps.build.outcome == 'success'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: '1.25.x'
           cache: false
       - name: Install browser for navigation checks
+        if: always() && steps.build.outcome == 'success'
         run: bunx --no-install playwright install --with-deps chromium webkit
       - name: Verify HTTP content negotiation
+        if: always() && steps.build.outcome == 'success'
         run: |
           mkdir -p apps/docs/test-results
           bun run --cwd apps/docs start --port 3001 >apps/docs/test-results/docs-server.log 2>&1 &

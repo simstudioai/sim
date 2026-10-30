@@ -38,6 +38,7 @@ interface TabsProps extends Omit<ComponentPropsWithoutRef<typeof RadixTabs.Root>
 
 interface TabProps extends Omit<ComponentPropsWithoutRef<typeof RadixTabs.Content>, 'value'> {
   value?: string
+  label?: string
 }
 
 /** Accessible provider tabs retain every panel in HTML for search and deep links. */
@@ -167,6 +168,14 @@ export function Tabs({
         {...props}
         data-docs-tabs-root=''
       >
+        <noscript>
+          <style>{`
+            .docs-root [data-docs-tab-panel][hidden] { display: block; }
+            .docs-root [data-docs-tabs-root] [role="tablist"],
+            .docs-root [data-docs-tabs-root] select,
+            .docs-root [data-docs-tabs-root] button { display: none; }
+          `}</style>
+        </noscript>
         {items && (
           <TabsList aria-label={label}>
             {items.map((item) => (
@@ -243,6 +252,7 @@ export function TabsTrigger({
 
 export function Tab({
   value = '',
+  label,
   id,
   className,
   children,
@@ -269,6 +279,9 @@ export function Tab({
         className
       )}
     >
+      <noscript>
+        <p className='px-3 pt-4 font-medium text-docs-caption'>{label ?? value}</p>
+      </noscript>
       <div className='pt-4 [&>:first-child]:mt-0 [&>:last-child]:mb-0'>{children}</div>
     </RadixTabs.Content>
   )

@@ -102,6 +102,7 @@ const scenarios = new Set(
   process.env.DOCS_BENCHMARK_SCENARIOS?.split(',') ?? ['cold', 'warm', 'navigation', 'interactions']
 )
 await mkdir(directory, { recursive: true })
+const nodeRuntime = (await exec('node', ['--version'], { timeout: 5000 })).stdout.trim()
 
 function stats(values: number[]) {
   if (!values.length) return { count: 0, median: null, min: null, max: null, raw: values }
@@ -149,7 +150,8 @@ async function save() {
         mode,
         originBlocked,
         runtime: {
-          node: process.version,
+          node: nodeRuntime,
+          bunNodeCompatibilityVersion: process.version,
           bun: process.versions.bun,
           platform: process.platform,
           architecture: process.arch,

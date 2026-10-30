@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { createServer, type Server } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { type Server, serve } from 'bun'
 import postgres from 'postgres'
 import { z } from 'zod'
 
@@ -37,10 +37,12 @@ assert(
 )
 const systemVariables = new Set(['PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'USER'])
 for (const key of Object.keys(process.env)) if (!systemVariables.has(key)) delete process.env[key]
-process.env.DATABASE_URL = databaseUrl.href
-process.env.OPENAI_API_KEY = live ? (providerKey ?? '') : ''
-process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-process.env.NODE_ENV = 'test'
+Object.assign(process.env, {
+  DATABASE_URL: databaseUrl.href,
+  OPENAI_API_KEY: live ? (providerKey ?? '') : '',
+  NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+  NODE_ENV: 'test',
+})
 const reportPath: string = reportSetting
 const directory = dirname(reportPath)
 const docsWorkspace = resolve(import.meta.dirname, '../../docs')
@@ -62,7 +64,8 @@ const reportSchema = z.object({
 let created = false
 let providerRequests = 0
 let fixtureRequests = 0
-let fixture: Server<undefined> | undefined
+let fixture: Server | undefined
+let fixtureOrigin: string | undefined
 let publisherRequests = 0
 let publisherTokens = 0
 let queryTokens = 0
@@ -191,31 +194,54 @@ try {
     )
   }
   if (!live) {
-    fixture = serve({
-      hostname: '127.0.0.1',
-      port: 0,
-      async fetch(request) {
+    const server = createServer(async (request, response) => {
+      try {
         assert.equal(
-          new URL(request.url).pathname,
+          new URL(request.url ?? '/', 'http://127.0.0.1').pathname,
           '/openai/deployments/text-embedding-3-small/embeddings'
         )
+        const chunks: Buffer[] = []
+        let bytes = 0
+        for await (const chunk of request) {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+          bytes += buffer.length
+          assert(bytes <= 8192, 'Local fixture request body exceeded its limit')
+          chunks.push(buffer)
+        }
         const body = z
           .object({
             input: z.array(z.string().max(256)).length(1),
             dimensions: z.literal(1536),
             encoding_format: z.literal('float'),
           })
-          .parse(await request.json())
+          .parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
         assert(body.input[0])
         fixtureRequests += 1
         assert(fixtureRequests <= 3, 'Local fixture request budget exceeded')
-        return Response.json({
-          data: [{ index: 0, embedding: [1, ...Array.from({ length: 1535 }, () => 0)] }],
-          usage: { total_tokens: 1 },
-        })
-      },
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            data: [{ index: 0, embedding: [1, ...Array.from({ length: 1535 }, () => 0)] }],
+            usage: { total_tokens: 1 },
+          })
+        )
+      } catch (error) {
+        response.writeHead(500, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify({ error: getErrorMessage(error) }))
+      }
     })
-    process.env.AZURE_OPENAI_ENDPOINT = fixture.url.origin
+    fixture = server
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => {
+        server.removeListener('error', reject)
+        resolve()
+      })
+    })
+    const address = server.address()
+    assert(address && typeof address !== 'string')
+    fixtureOrigin = `http://127.0.0.1:${address.port}`
+    process.env.AZURE_OPENAI_ENDPOINT = fixtureOrigin
     process.env.AZURE_OPENAI_API_KEY = 'isolated-fixture'
     process.env.AZURE_OPENAI_API_VERSION = '2024-10-21'
   }
@@ -226,7 +252,7 @@ try {
     if (url.origin === 'https://api.openai.com' && url.pathname === '/v1/embeddings') {
       assert(live && providerRequests < 1, 'Live query embedding request budget exceeded')
       providerRequests += 1
-    } else if (fixture && url.origin === fixture.url.origin) {
+    } else if (url.origin === fixtureOrigin) {
       assert(!live)
     } else if (url.origin === 'https://docs.sim.ai') {
       destination = new URL(`${url.pathname}${url.search}`, docsOrigin)
@@ -384,12 +410,18 @@ try {
 } finally {
   globalThis.fetch = nativeFetch
   await closePlatform?.()
-  await fixture?.stop(true)
+  if (fixture?.listening) {
+    const server = fixture
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()))
+    })
+  }
   if (created) await sql`DROP TABLE IF EXISTS docs_embeddings, rate_limit_bucket`
   await sql.end({ timeout: 1 })
   await writeFile(
     reportPath,
-    `${JSON.stringify({ checks, requests, provider: { mode: live ? 'live' : 'local-http-fixture-contract-only', model: 'text-embedding-3-small', maxRequests: live ? 2 : 0, requests: publisherRequests + providerRequests, fixtureRequests, publisherTokens, queryTokens, totalTokens: publisherTokens + queryTokens }, docsTransport: 'Public docs origin forwarded to the loopback production build; real HTTP responses preserved', database: 'isolated loopback; table removed' }, null, 2)}\n`
+    `${JSON.stringify({ checks, requests, provider: { mode: live ? 'live' : 'local-http-fixture-contract-only', model: 'text-embedding-3-small', maxRequests: live ? 4 : 0, requests: publisherRequests + providerRequests, fixtureRequests, publisherTokens, queryTokens, totalTokens: publisherTokens + queryTokens }, docsTransport: 'Public docs origin forwarded to the loopback production build; real HTTP responses preserved', database: 'isolated loopback; table removed' }, null, 2)}\n`
   )
 }
 logger.info('Verified docs provider and platform boundary', { reportPath, checks: checks.length })

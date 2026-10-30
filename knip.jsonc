@@ -129,8 +129,13 @@
     },
     "apps/docs": {
       "includeEntryExports": false,
-      // The docs compiler discovers MDX by filesystem path and emits ignored page modules.
-      "entry": ["content/docs/**/*.mdx"],
+      // The compiler discovers MDX by path; the docs CI workflow invokes these scripts directly.
+      "entry": [
+        "content/docs/**/*.mdx",
+        "scripts/benchmark-readiness.ts",
+        "scripts/test-generators-e2e.ts",
+        "scripts/verify-api-samples.ts"
+      ],
       // scripts/generate-docs.ts copies this verbatim from apps/sim/components/icons.tsx, whose
       // export surface is already ratcheted there; docs consumes only the icons it maps.
       "ignoreIssues": { "components/icons.tsx": ["exports", "types", "duplicates"] }

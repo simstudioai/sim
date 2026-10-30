@@ -355,7 +355,8 @@ async function generate() {
         headings: page.headings.map((heading) => heading.id),
       })),
     }
-    const reportPath = path.join(DOCS_ROOT, 'migration/report.json')
+    const reportPath =
+      process.env.DOCS_MIGRATION_REPORT_PATH ?? path.join(DOCS_ROOT, 'migration/report.json')
     const formattedReport = execFileSync(
       'bun',
       [
@@ -375,6 +376,7 @@ async function generate() {
       }
     )
     if (!formattedReport.trim()) throw new Error('Migration report formatter returned empty output')
+    await mkdir(path.dirname(reportPath), { recursive: true })
     await writeFile(reportPath, formattedReport)
     if (lostRoutes.length || lostAnchors.length || changedCodeFences.length)
       throw new Error(

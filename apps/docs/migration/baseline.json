@@ -1,10 +1,10 @@
 {
   "startingCommit": "01b236388a1fe4d9e609266d5acf265bef1b92c6",
-  "compatibilityCommit": "a0f47b1e87b0a26d9071cad1ce592666b7e7de07",
+  "compatibilityCommit": "5facc5f2656fdc2c09b5a5e3b39476ad60f6cb49",
   "originalEvidenceCommit": "3bd99767ac5a4c2ea86c060120e62b063c84c474",
   "originalEvidenceSha256": "98e626c34a19bfba17240f79853a77af457887f58954ccd307e8665406aa71df",
   "origin": "https://docs.sim.ai",
-  "scope": "Compatibility inventory independently read from compatibilityCommit before replacement. Original inventory is retained at originalEvidenceCommit. Headings use the baseline Fumadocs transform on the MDX AST; explicit JSX IDs are separate. Assets include tracked files only.",
+  "scope": "Compatibility inventory independently reconstructed from the Git tree at compatibilityCommit using the Fumadocs 16.8.5 heading transform on the MDX AST; explicit JSX IDs are separate. Original inventory is retained at originalEvidenceCommit. Assets include tracked files only.",
   "summary": {
     "authoredPages": 495,
     "operations": 308,
@@ -7420,8 +7420,8 @@
     {
       "source": "cli/reference.mdx",
       "url": "/cli/reference",
-      "sha256": "0fc74351547c8a8ae6b897fae7c022fec54a8fc3da5f67238ec1ec31daa71848",
-      "bytes": 286408,
+      "sha256": "bfafb40b8375026620d8186b30fc12c23cea9dfb93401559b8f8eac67fe72f16",
+      "bytes": 286694,
       "frontmatter": {
         "title": "Complete reference",
         "description": "Every sim command, argument, and flag on a single page"
@@ -11274,252 +11274,252 @@
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 7942
+          "line": 7943
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 7952
+          "line": 7953
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 7974
+          "line": 7975
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 7994
+          "line": 7995
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8014
+          "line": 8015
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8024
+          "line": 8025
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8044
+          "line": 8045
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8066
+          "line": 8067
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8076
+          "line": 8077
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8103
+          "line": 8104
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8133
+          "line": 8134
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8160
+          "line": 8161
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8181
+          "line": 8182
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8207
+          "line": 8208
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8229
+          "line": 8230
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8240
+          "line": 8241
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8262
+          "line": 8263
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8272
+          "line": 8273
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8295
+          "line": 8296
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8305
+          "line": 8306
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8325
+          "line": 8326
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8335
+          "line": 8336
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8357
+          "line": 8358
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8378
+          "line": 8379
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8388
+          "line": 8389
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8409
+          "line": 8410
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8435
+          "line": 8436
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8455
+          "line": 8456
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8476
+          "line": 8477
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8502
+          "line": 8503
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8526
+          "line": 8527
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8548
+          "line": 8549
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8603
+          "line": 8604
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8628
+          "line": 8629
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8650
+          "line": 8651
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8670
+          "line": 8671
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8692
+          "line": 8693
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8702
+          "line": 8703
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8734
+          "line": 8735
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8757
+          "line": 8758
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8781
+          "line": 8782
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8801
+          "line": 8802
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8823
+          "line": 8824
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8844
+          "line": 8845
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8869
+          "line": 8870
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8896
+          "line": 8897
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8928
+          "line": 8929
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8960
+          "line": 8961
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 8983
+          "line": 8984
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 9004
+          "line": 9005
         }
       ],
       "expressions": [],
@@ -13489,315 +13489,315 @@
           "meta": null,
           "sha256": "b5dc1e771889fb1bf5f4d81d340cfd35d3a2263c87a725341d1d5c70405eb78d",
           "bytes": 43,
-          "line": 7936
+          "line": 7937
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "736889b5b5a59bc4fe7965922999b5cbec295acad8313c1e486d5668c7da961e",
           "bytes": 30,
-          "line": 7968
+          "line": 7969
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "4d6c0bc0130fd4a83c7b2fcac6f5b4b7bc2f275c05fa6101551ac61ce1405aca",
           "bytes": 44,
-          "line": 7988
+          "line": 7989
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "62d28b9be74c32c4ba00fefe878c492a6a5c671cc4a500373d7f2bdba9f7ef79",
           "bytes": 54,
-          "line": 8008
+          "line": 8009
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "7115696baaba8ca1ecd8f7cb22f215b7a53bf13d5757bd6932267644a0377807",
           "bytes": 36,
-          "line": 8038
+          "line": 8039
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "10330e610f59c2fb169fcff11cb8147563efbcc109f875222ecbfaaa48c05f31",
           "bytes": 50,
-          "line": 8060
+          "line": 8061
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "e88ab81833a4d529271c80e2cdf0e7ff5037a60066a918a9702a28ceca73a846",
           "bytes": 30,
-          "line": 8097
+          "line": 8098
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "f094df6732656b52792e5e766a69079c3e8bd929326bda7284e0bcb760bedd79",
           "bytes": 28,
-          "line": 8127
+          "line": 8128
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "52be4758f4289e9f75875d8401cf57fda54283b2df00e413921d07303e728638",
           "bytes": 28,
-          "line": 8154
+          "line": 8155
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "4c51312bac2ca9ea2dba0e7cf27f06d5e99502bab35ab569064057a85514cc38",
           "bytes": 38,
-          "line": 8175
+          "line": 8176
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "2b26aa6f404ab19bda2d846871eb04b732f6397d1899fc28d89a29706fc0a670",
           "bytes": 34,
-          "line": 8201
+          "line": 8202
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "47af2a240e0fa4bca92d786d1fea2d4b6cd7ee8810c4540b619271457739f829",
           "bytes": 60,
-          "line": 8223
+          "line": 8224
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "f4a5d9b54707e03cc845a3ffc99493f9990d7c0a0aa96a48a492b303ef1959b4",
           "bytes": 45,
-          "line": 8256
+          "line": 8257
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "4a4ff033e75c32373422638e4f8079487d9cc37fa2b250cc2907584e690e2699",
           "bytes": 45,
-          "line": 8289
+          "line": 8290
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "66d1f7b4fc772fcb1ac84bcba2c1aa0e1a26105dda64b564c40dec35fc5fdaf2",
           "bytes": 43,
-          "line": 8319
+          "line": 8320
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "5fc8d60c19e8e3fc1c640ea87e091d0b95642a210a7e1a7d9d19e527b6f11207",
           "bytes": 38,
-          "line": 8351
+          "line": 8352
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "a7acb92552eae9b29dd7b973751bb7f3c2f7eb1dc00f36e84c594cb88dd9fc1c",
           "bytes": 33,
-          "line": 8372
+          "line": 8373
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "bb84857c237d2bfae0c6f63653597fe55263147428a5e8d36ceacfcda6bd6246",
           "bytes": 26,
-          "line": 8403
+          "line": 8404
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "3e634421662d08fe73882dd6a0d428545c33597790333f83b4c5086c8d494a1e",
           "bytes": 49,
-          "line": 8429
+          "line": 8430
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "c48dfec9df0cebb16aa976f859770a8b5beb67e2cf01dc5472dd8b3727ea164d",
           "bytes": 47,
-          "line": 8449
+          "line": 8450
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "8fd3a890425cf05e630bcd969b2aff57b3993d6632d905cab5b23cfce60e425c",
           "bytes": 49,
-          "line": 8470
+          "line": 8471
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "bd32d826b077176044eabbf175d64a747ba1a826bb36c95efb46925525f75ba9",
           "bytes": 45,
-          "line": 8496
+          "line": 8497
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "ee94be8e7fcb3c1bdb0abd6991992563371ba113b80b433cce0c71ac499f1d48",
           "bytes": 43,
-          "line": 8520
+          "line": 8521
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "bbaecaea783d60d4e8cbaad1c6951d2aa5fde5772f050166a24415162d9de3bc",
           "bytes": 29,
-          "line": 8542
+          "line": 8543
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "627ab83bbee7d7a608e8771c98556a00cb9df200a40fe9b68d79f93c322de59d",
           "bytes": 18,
-          "line": 8567
+          "line": 8568
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "9396c5d2aba2c0ff0d484a0a778dc38368154eb19edca9372cf576f8abedac90",
           "bytes": 32,
-          "line": 8577
+          "line": 8578
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "456a3638df3f1208cc5620fe2f7744e60215930e90cdada8c6d3f3041844b81c",
           "bytes": 22,
-          "line": 8587
+          "line": 8588
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "80c6f38f04b6c653c8de67e79ba7b6ca1a5ec208e8765a036048fd0adc4b4522",
           "bytes": 37,
-          "line": 8597
+          "line": 8598
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "3be0a5bf2f996779b39f57c35c08a046709ad91ffbb1ecd700c2d0f8a1c9b554",
           "bytes": 40,
-          "line": 8622
+          "line": 8623
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "94cdaecf523029bf20f25cf278f76142041e4ad9ce6980a0de225f6dd0b93a8f",
           "bytes": 43,
-          "line": 8644
+          "line": 8645
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "1731734821194e9c9ab5d0e866031dff102eab3c67b81c83780dce706461c802",
           "bytes": 40,
-          "line": 8664
+          "line": 8665
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "466187fc1a5788ab09d7700cf7cd19c9c541a571d0bc86d70fe52a1eb831b851",
           "bytes": 54,
-          "line": 8686
+          "line": 8687
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "e10bc7e084ad3b9231262208e0ac216aee47dc0ec7b1507214690ea9c098d5c9",
           "bytes": 32,
-          "line": 8718
+          "line": 8719
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "6bb0cf09f6bd8ba02e1f24a5eed89b35c0226ec7eefce07502015a455520fd0f",
           "bytes": 33,
-          "line": 8728
+          "line": 8729
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "23acce8016e243ab651bcc860cd8f1b1d236e6a5b7951abc76282cd674b2a25e",
           "bytes": 39,
-          "line": 8751
+          "line": 8752
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "ea1cc85c4e5a1b39b5b26bca357d22583d993fbd321ba62dc529b811a553b050",
           "bytes": 32,
-          "line": 8775
+          "line": 8776
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "f6340c3d5dc4eedb98435df593ff277d0e44fbcb4c61e71a05123267b5352e78",
           "bytes": 29,
-          "line": 8795
+          "line": 8796
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "ca6e405dc70365db67ec66e6c2499fedf89ae3d7a90f4b5d044a2aab13bb8f37",
           "bytes": 37,
-          "line": 8817
+          "line": 8818
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "52918df5b4d4003d22322d5785d8a0202a2b66d39a3c71171f92a65545e28788",
           "bytes": 37,
-          "line": 8838
+          "line": 8839
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "28e77f2a35930390cc7de2fc5abdce7809311c33b10eb749941d5c44b9de0cfa",
           "bytes": 37,
-          "line": 8863
+          "line": 8864
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "088f9018d5639eac73c710bf1ef4fd134b0cd4c290587a161af1322b415a013f",
           "bytes": 29,
-          "line": 8890
+          "line": 8891
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "67384a12d7642ea8a82e807a58e42f921ea37cb496e2315ac87368ae0e297e4d",
           "bytes": 29,
-          "line": 8922
+          "line": 8923
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "4c9e46c0b1c48cb348bfb37e4c705e4dfe1cd5f221d667ebd02dd7325fce7e29",
           "bytes": 38,
-          "line": 8954
+          "line": 8955
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "20fbb381c0b4ef786f755f485789ecb9e76538ec6394956bb6153ee4a79547ca",
           "bytes": 31,
-          "line": 8977
+          "line": 8978
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "54ffdfd98a1fc3aad38e602c1d02336a81fe97d48e6732402a7980d0f55cb20d",
           "bytes": 40,
-          "line": 8998
+          "line": 8999
         }
       ],
       "links": [
@@ -16992,8 +16992,8 @@
     {
       "source": "cli/workflows.mdx",
       "url": "/cli/workflows",
-      "sha256": "67c1df7c1ed1e5d4566b4e1115647988bfa79a5c50098775ca4a9ed96f73f5f9",
-      "bytes": 38762,
+      "sha256": "5de6cef405fbbe338f35e067786bb1e8a15335a3f7e2b1b6a8611e87ab1b46c9",
+      "bytes": 39048,
       "frontmatter": {
         "title": "Workflows",
         "description": "Build, deploy, run, and inspect workflows from the terminal."
@@ -17471,132 +17471,132 @@
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 722
+          "line": 723
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 749
+          "line": 750
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 759
+          "line": 760
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 782
+          "line": 783
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 792
+          "line": 793
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 815
+          "line": 816
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 825
+          "line": 826
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 847
+          "line": 848
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 857
+          "line": 858
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 879
+          "line": 880
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 903
+          "line": 904
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 913
+          "line": 914
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 947
+          "line": 948
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 957
+          "line": 958
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 979
+          "line": 980
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 989
+          "line": 990
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1009
+          "line": 1010
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1033
+          "line": 1034
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1063
+          "line": 1064
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1073
+          "line": 1074
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1094
+          "line": 1095
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1115
+          "line": 1116
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1135
+          "line": 1136
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1145
+          "line": 1146
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1166
+          "line": 1167
         },
         {
           "name": "CommandTable",
           "attributes": {},
-          "line": 1185
+          "line": 1186
         }
       ],
       "expressions": [],
@@ -17781,119 +17781,119 @@
           "meta": null,
           "sha256": "d683e8c6e5a1d063ea9f6c74fd9020d48aede0d5af7031f6f48bd5a173ad2d3d",
           "bytes": 33,
-          "line": 716
+          "line": 717
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "bfb90a10455a59ef26068d176221816b9c374c4001d386ffdbb0140c4cfe40ca",
           "bytes": 40,
-          "line": 743
+          "line": 744
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "d63bf37625acc32ec1ee6e59a56f57469b9cb4dab03e23067a54d2f7d8abd3a3",
           "bytes": 41,
-          "line": 776
+          "line": 777
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "96abc89ee23cb4a7e2fc3caca2afbd2dd57d2734ca9e73816c412a71c5c5eb9d",
           "bytes": 43,
-          "line": 809
+          "line": 810
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "653a412a8eeaffac8afbbbb2533375f02df67fe7ef882ca53fc7ca2755d0bcec",
           "bytes": 43,
-          "line": 841
+          "line": 842
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "b130d4ed01c735074275b1505e7959e6dd3ae89c6b7ac159d17ccd495bec8f38",
           "bytes": 38,
-          "line": 873
+          "line": 874
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "32709306f0caabb4378fce9efba6b9c60a3985bb3500402d9a7f9e89fe35e00e",
           "bytes": 49,
-          "line": 897
+          "line": 898
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "e63db5a4bab57e3229127bb086d0c5429dfe20de83eaf5097e8943f90520b9b3",
           "bytes": 51,
-          "line": 941
+          "line": 942
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "b5dc1e771889fb1bf5f4d81d340cfd35d3a2263c87a725341d1d5c70405eb78d",
           "bytes": 43,
-          "line": 973
+          "line": 974
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "4c51312bac2ca9ea2dba0e7cf27f06d5e99502bab35ab569064057a85514cc38",
           "bytes": 38,
-          "line": 1003
+          "line": 1004
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "e88ab81833a4d529271c80e2cdf0e7ff5037a60066a918a9702a28ceca73a846",
           "bytes": 30,
-          "line": 1027
+          "line": 1028
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "a7acb92552eae9b29dd7b973751bb7f3c2f7eb1dc00f36e84c594cb88dd9fc1c",
           "bytes": 33,
-          "line": 1057
+          "line": 1058
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "2fc4fd97c2a62f635b42d646e481b18b0402ec0d051e7532988c026d838f0534",
           "bytes": 36,
-          "line": 1086
+          "line": 1087
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "432348582be57741628ca2b6a762c385ed57bbbfd4e4794b914409b7a89db582",
           "bytes": 35,
-          "line": 1109
+          "line": 1110
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "25d75743717b8e1c96f6b78e334e3e3cbc6dac5e395068308a4e358e06a0bac6",
           "bytes": 45,
-          "line": 1129
+          "line": 1130
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "3da31453cf86b97920f8d013f00122dee830af847c064e30ed3e158bd8f642cb",
           "bytes": 47,
-          "line": 1158
+          "line": 1159
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "bb84857c237d2bfae0c6f63653597fe55263147428a5e8d36ceacfcda6bd6246",
           "bytes": 26,
-          "line": 1179
+          "line": 1180
         }
       ],
       "links": [
@@ -168672,8 +168672,8 @@
     {
       "source": "platform/costs.mdx",
       "url": "/platform/costs",
-      "sha256": "de98e726ac21a701597747b20087698414084c3fe7bf21322da463a761c54b08",
-      "bytes": 18995,
+      "sha256": "491c50d8172eeab3ad178a687f1d1864f873f4a7699cedce9ed511b3c62a55d8",
+      "bytes": 18994,
       "frontmatter": {
         "title": "Credits, billing and limits",
         "description": "Understand Cloud usage charges, BYOK, subscriptions, spend controls, and execution limits."
@@ -173216,8 +173216,8 @@
     {
       "source": "platform/self-hosting/environment-variables.mdx",
       "url": "/platform/self-hosting/environment-variables",
-      "sha256": "03bebc5b17d0562695188361c76d5ba23873071f94321f6397a1821828df4a10",
-      "bytes": 28101,
+      "sha256": "68a08be87454e11abbe92f1691c131972bb5aaeb597ccda48c1f339ad1d8b6bd",
+      "bytes": 27659,
       "frontmatter": {
         "title": "Environment variables",
         "description": "Deployment configuration, feature prerequisites, and limits"
@@ -173379,21 +173379,21 @@
           "meta": null,
           "sha256": "8212e97007004681330f0d78618939abbc4d7a29283580552542a576245c0826",
           "bytes": 79,
-          "line": 273
+          "line": 272
         },
         {
           "lang": "bash",
           "meta": null,
           "sha256": "0e794f3491fc1402990b65869622ebe68febe19c0331544891e8eeb01e8249f3",
           "bytes": 129,
-          "line": 284
+          "line": 283
         },
         {
           "lang": "text",
           "meta": null,
           "sha256": "a45ddc97179f78324455bd2d0f25917282f721b3962c68e7455d9917e32379f5",
           "bytes": 852,
-          "line": 307
+          "line": 306
         }
       ],
       "links": [
@@ -173412,7 +173412,6 @@
         "/platform/enterprise/self-hosted",
         "/platform/self-hosting/sandboxes",
         "/platform/self-hosting/security",
-        "/search/connect-your-account",
         "/platform/enterprise/self-hosted",
         "/platform/self-hosting/authentication#sso-saml-and-oidc",
         "/platform/enterprise/verified-domains#skip-dns-verification",
@@ -176865,8 +176864,8 @@
     {
       "source": "search/ask-questions.mdx",
       "url": "/search/ask-questions",
-      "sha256": "f6c253e0650657d7358bf0a4847551498d0c9c2fdfb1f7dcdd469f55eedf943d",
-      "bytes": 10131,
+      "sha256": "202bfb68ec25ba7dcb4ac4e648dba85c4277a9add4190a62df8bdf030a3d3040",
+      "bytes": 10364,
       "frontmatter": {
         "title": "Ask questions",
         "description": "Get answers from your connected apps, check the sources, and ask follow-up questions."
@@ -176983,12 +176982,12 @@
           "name": "Image",
           "attributes": {
             "src": "/static/search/assistant-action-review.png",
-            "alt": "Inline Assistant action review showing the connected Jira account, exact site and project, editable issue summary and description, and Allow or Cancel controls",
+            "alt": "Compact inline Jira proposals showing the account, destination, proposed content, Edit, Allow, and Cancel",
             "width": {
-              "expression": "705"
+              "expression": "1440"
             },
             "height": {
-              "expression": "489"
+              "expression": "1000"
             },
             "variant": "detail"
           },
@@ -177048,12 +177047,12 @@
         {
           "type": "Image",
           "src": "/static/search/assistant-action-review.png",
-          "alt": "Inline Assistant action review showing the connected Jira account, exact site and project, editable issue summary and description, and Allow or Cancel controls",
+          "alt": "Compact inline Jira proposals showing the account, destination, proposed content, Edit, Allow, and Cancel",
           "width": {
-            "expression": "705"
+            "expression": "1440"
           },
           "height": {
-            "expression": "489"
+            "expression": "1000"
           },
           "variant": "detail"
         }
@@ -177185,8 +177184,8 @@
     {
       "source": "search/connect-your-account.mdx",
       "url": "/search/connect-your-account",
-      "sha256": "c74f654e41e451a4c0299ea696672e6606606e234b15cb6e0649ef6e669a3f3a",
-      "bytes": 5967,
+      "sha256": "7cdef05cc19c9b079b0e533c2b028f19f5b578ea5118c607459c20922f027eb2",
+      "bytes": 6138,
       "frontmatter": {
         "title": "Connect your account",
         "description": "Authorize your provider accounts and manage their Search connections"
@@ -177239,8 +177238,8 @@
         {
           "name": "Image",
           "attributes": {
-            "src": "/static/search/connect-account-menu.png",
-            "alt": "The Confluence menu in Integrations with Connect available before an account has been authorized",
+            "src": "/static/search/connect-account-details.png",
+            "alt": "Coda integration details with Connect in the resource header and no account connected",
             "width": {
               "expression": "1440"
             },
@@ -177277,8 +177276,8 @@
       "media": [
         {
           "type": "Image",
-          "src": "/static/search/connect-account-menu.png",
-          "alt": "The Confluence menu in Integrations with Connect available before an account has been authorized",
+          "src": "/static/search/connect-account-details.png",
+          "alt": "Coda integration details with Connect in the resource header and no account connected",
           "width": {
             "expression": "1440"
           },
@@ -180474,8 +180473,8 @@
     {
       "source": "workflows/blocks/loop.mdx",
       "url": "/workflows/blocks/loop",
-      "sha256": "9991921a3aa1f4b604dcc6683855f793f9435717edf323e27a3d672c6e0f09ce",
-      "bytes": 3790,
+      "sha256": "e9c907c4739ec2cd956cc971f4755d2c01b8968dedbad7eb3d38ce0f1ec7d07e",
+      "bytes": 3865,
       "frontmatter": {
         "title": "Loop",
         "description": "Run blocks sequentially over a collection, a count, or a condition."
@@ -181159,8 +181158,8 @@
     {
       "source": "workflows/blocks/variables.mdx",
       "url": "/workflows/blocks/variables",
-      "sha256": "91247546b86062dffa94591f8f81dd5ee2fd421920fc0e07f1262efce36460c0",
-      "bytes": 2517,
+      "sha256": "b646fc20654d843c59cfa8a80d57e5c0fdaaa240b9e122ca38c0652537ca011e",
+      "bytes": 2602,
       "frontmatter": {
         "title": "Variables",
         "description": "Update typed workflow variables during a run."
@@ -188229,7 +188228,7 @@
       "urls": [
         "/api-reference/workflows/executeWorkflowV2"
       ],
-      "sha256": "c1e6c76924bc5e9df988d54c1de9ef4f378250512e0b48d26b6d2b1fdc791733",
+      "sha256": "d3ddb1304e0ca1db6acceaefae560947fdb83f5c1ab483c6a66b3b11b19a3496",
       "security": [
         {
           "apiKey": []
@@ -188350,6 +188349,15 @@
                   "summary": "Request example 5",
                   "value": {
                     "run": {
+                      "source": "manual"
+                    },
+                    "waitTimeoutSeconds": 240
+                  }
+                },
+                "example6": {
+                  "summary": "Request example 6",
+                  "value": {
+                    "run": {
                       "source": "manual",
                       "entry": {
                         "type": "block",
@@ -188359,8 +188367,8 @@
                     }
                   }
                 },
-                "example6": {
-                  "summary": "Request example 6",
+                "example7": {
+                  "summary": "Request example 7",
                   "value": {
                     "run": {
                       "source": "manual",
@@ -230200,7 +230208,7 @@
   "specifications": [
     {
       "file": "openapi-v2-workflows.json",
-      "sha256": "7b05fc016e970f077989f5e0a7d36273de77f2915693c39109b8a3e36317552d",
+      "sha256": "0e7b9a32825512a6a3e625a0907b71b87880c720beb10018c44c7da9d70e88a6",
       "openapi": "3.1.0",
       "info": {
         "title": "Sim API v2 — Workflows",
@@ -231253,7 +231261,7 @@
     },
     {
       "file": "openapi-v2-resources.json",
-      "sha256": "1750e34bb240996dc32e43b506f96bbff8a16ba0024c88a5bba5bbe6f6942472",
+      "sha256": "5085959ed50505aeb344f65034a7549c4b43eee6163f160d133f30bda573df1f",
       "openapi": "3.1.0",
       "info": {
         "title": "Sim API v2 — resources",
@@ -233143,13 +233151,13 @@
     },
     {
       "path": "static/search/assistant-action-review.png",
-      "bytes": 25461,
-      "sha256": "a024fcc90f80eb82ecdd2e5cf9464f07cfaae6a73214a93333de4b3f2686630b"
+      "bytes": 100970,
+      "sha256": "28b0c80bca1b5dbca39e5d14da6a5047a5020ff037976c360bc9ca61a540a88d"
     },
     {
       "path": "static/search/assistant-tool-permissions.png",
-      "bytes": 73507,
-      "sha256": "c8899c29ce679138d6f3174f02512ee84c6142c396aada0ef095aea1de12c81c"
+      "bytes": 77113,
+      "sha256": "c63f5a29316784022dadba929b1a885a2d33f1bdecf5feef4df9c32e734c8abd"
     },
     {
       "path": "static/search/atlas-readiness-brief.webp",
@@ -233182,9 +233190,9 @@
       "sha256": "88d0a3be505095ea80146f52cd922dc695f50ac8aead717ae0078b622a0643a4"
     },
     {
-      "path": "static/search/connect-account-menu.png",
-      "bytes": 82707,
-      "sha256": "e2b2ff1b2ac10ca3293c1d869ba11fea3e7a7ad9e175188f513cd046b9bda829"
+      "path": "static/search/connect-account-details.png",
+      "bytes": 39639,
+      "sha256": "37a97cb1ecbbe493bcc87f791d9ea1be067311bfca126d74a87e087fe9f28c57"
     },
     {
       "path": "static/search/connect-account.png",

@@ -7,10 +7,12 @@ import {
   expect,
   type Locator,
   type Page,
+  type Video,
   webkit,
 } from '@playwright/test'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 
 const logger = createLogger('DocsNavigationE2E', { logLevel: 'INFO' })
 const origin = process.env.DOCS_E2E_BASE_URL
@@ -22,6 +24,7 @@ const target = new URL(origin)
 if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname))
   throw new Error('Only a loopback docs server may be tested')
 const directory = dirname(reportPath)
+const canonicalOrigin = new URL(process.env.NEXT_PUBLIC_DOCS_URL ?? 'https://docs.sim.ai').origin
 const engine = process.env.DOCS_NAVIGATION_BROWSER ?? 'chromium'
 if (engine !== 'chromium' && engine !== 'webkit')
   throw new Error('DOCS_NAVIGATION_BROWSER must be chromium or webkit')
@@ -71,6 +74,28 @@ async function open(page: Page, path: string) {
   ).toHaveCount(1)
 }
 
+async function verifyClientMetadata(page: Page, path: string, title: string) {
+  const description = (await page.locator('main > div > header > p').textContent())?.trim()
+  expect(description).toBeTruthy()
+  await expect(page).toHaveTitle(`${title} | Sim Docs`)
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(1)
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    `${canonicalOrigin}${path}`
+  )
+  await expect(page.locator('meta[name="description"]')).toHaveCount(1)
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    description ?? ''
+  )
+  return {
+    path,
+    title: await page.title(),
+    canonical: await page.locator('link[rel="canonical"]').getAttribute('href'),
+    description,
+  }
+}
+
 async function copyMenu(page: Page) {
   const item = page.getByRole('menuitem', {
     name: /^(Copy Markdown|Copied|Copy prepared Markdown)$/,
@@ -118,6 +143,76 @@ async function verifyClipboard(
 let browser: Browser | undefined
 try {
   browser = await (engine === 'webkit' ? webkit : chromium).launch()
+  const noScript = await browser.newContext({
+    javaScriptEnabled: false,
+    viewport: { width: 1440, height: 1000 },
+  })
+  try {
+    for (const scenario of [
+      { path: '/getting-started', title: 'Getting started', tabbed: false },
+      { path: '/mcp/overview', title: 'Sim MCP', tabbed: true },
+      { path: '/api-reference/logs/getLog', title: 'Get log', tabbed: true },
+    ]) {
+      await check(`JavaScript-disabled reading: ${scenario.path}`, async () => {
+        const page = await noScript.newPage()
+        try {
+          const response = await page.goto(new URL(scenario.path, target).href, {
+            waitUntil: 'load',
+          })
+          expect(response?.ok()).toBe(true)
+          await expect(
+            page.getByRole('heading', { level: 1, name: scenario.title, exact: true })
+          ).toBeVisible()
+          const article = page.locator('main article')
+          await expect(article).toBeVisible()
+          expect((await article.innerText()).trim().length).toBeGreaterThan(100)
+          const panels = page
+            .getByRole('tabpanel', { includeHidden: true })
+            .or(page.locator('[id^="response-example-"]'))
+          const observations = []
+          for (const panel of await panels.all()) {
+            observations.push({
+              id: await panel.getAttribute('id'),
+              visible: await panel.isVisible(),
+              contentLength: (await panel.textContent())?.trim().length ?? 0,
+            })
+          }
+          const stem = scenario.path.replaceAll('/', '-')
+          await writeFile(
+            join(directory, `no-javascript${stem}.json`),
+            `${JSON.stringify({ path: scenario.path, javaScriptEnabled: false, panels: observations }, null, 2)}\n`
+          )
+          await page.screenshot({ path: join(directory, `no-javascript${stem}.png`) })
+          if (scenario.tabbed) {
+            expect(observations.length).toBeGreaterThan(1)
+            for (const panel of await panels.all()) {
+              await expect(panel).toBeVisible()
+              expect((await panel.innerText()).trim().length).toBeGreaterThan(0)
+            }
+          } else {
+            const next = article.getByRole('link', { name: 'Build a research agent', exact: true })
+            await next.click()
+            await expect(page).toHaveURL(new URL('/getting-started/research-agent', target).href)
+            await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+          }
+          const disclosure = page
+            .locator('main details:not([open])')
+            .filter({ visible: true })
+            .first()
+          if (await disclosure.count()) {
+            const element = await disclosure.elementHandle()
+            if (!element) throw new Error('Native reference disclosure disappeared')
+            await disclosure.locator('summary').first().click()
+            await expect.poll(() => element.getAttribute('open')).toBe('')
+          }
+        } finally {
+          await page.close()
+        }
+      })
+    }
+  } finally {
+    await noScript.close()
+  }
   const sidebarContext = await browser.newContext({
     viewport: { width: 1440, height: 640 },
     reducedMotion: 'reduce',
@@ -240,7 +335,7 @@ try {
             await open(page, scene.path)
             const figure = page
               .locator('figure')
-              .filter({ has: page.locator(`img[src*="${scene.image}"]`) })
+              .filter({ has: page.locator(`img[src*="${scene.image.replace('.webp', '')}"]`) })
             const screenshot = figure.getByRole('img')
             await figure.scrollIntoViewIfNeeded()
             await expect
@@ -265,7 +360,10 @@ try {
                 )
               )
               .toBe(true)
-            expect(await background.getAttribute('src')).toContain(`${scene.background}.webp`)
+            await expect(background).toHaveAttribute(
+              'src',
+              new RegExp(`${scene.background}(?:\\.[a-zA-Z0-9_-]+)?\\.webp`)
+            )
             const delivery = await screenshot.evaluate((element) => {
               if (!(element instanceof HTMLImageElement)) throw new Error('Screenshot is missing')
               const source = new URL(element.currentSrc)
@@ -364,7 +462,7 @@ try {
             expect(expandedImage.radius).toBeGreaterThan(0)
             await expect(viewer.locator('img[aria-hidden="true"]')).toHaveAttribute(
               'src',
-              new RegExp(`${scene.background}\\.webp`)
+              new RegExp(`${scene.background}(?:\\.[a-zA-Z0-9_-]+)?\\.webp`)
             )
             if (scene.variant === 'hero')
               await page.screenshot({
@@ -401,7 +499,7 @@ try {
       const context = await browser.newContext({ viewport, reducedMotion: 'reduce' })
       try {
         await check(
-          `${viewport.name}: navigation${engine === 'chromium' ? ' and complete copy' : ''} for ${scenario.path}`,
+          `${viewport.name}: navigation${engine === 'chromium' ? ' and complete copy' : ''}${viewport.name === 'desktop' && scenario.path === '/introduction' ? ' and client metadata' : ''} for ${scenario.path}`,
           async () => {
             const page = await context.newPage()
             const errors: string[] = []
@@ -412,6 +510,13 @@ try {
                 markdownRequests.push(request.url())
             })
             await open(page, scenario.path)
+            const checkMetadata = viewport.name === 'desktop' && scenario.path === '/introduction'
+            const sourceMetadata = checkMetadata
+              ? await verifyClientMetadata(page, scenario.path, scenario.title)
+              : undefined
+            const sourceTimeOrigin = checkMetadata
+              ? await page.evaluate(() => performance.timeOrigin)
+              : undefined
             expect(markdownRequests).toEqual([])
             if (scenario.path.startsWith('/api-reference/')) {
               const tabs = page.getByRole('tablist', { name: 'Request language' }).getByRole('tab')
@@ -458,6 +563,19 @@ try {
                   exact: true,
                 })
               ).toBeVisible()
+              if (checkMetadata) {
+                const destinationMetadata = await verifyClientMetadata(
+                  page,
+                  '/platform/costs',
+                  'Credits, billing and limits'
+                )
+                expect(await page.evaluate(() => performance.timeOrigin)).toBe(sourceTimeOrigin)
+                expect(destinationMetadata.description).not.toBe(sourceMetadata?.description)
+                await writeFile(
+                  join(directory, 'metadata-after-client-navigation.json'),
+                  `${JSON.stringify({ source: sourceMetadata, destination: destinationMetadata, sameDocument: true }, null, 2)}\n`
+                )
+              }
               if (viewport.name === 'mobile') {
                 await expect(page.getByRole('dialog')).not.toBeVisible()
                 await page.getByRole('button', { name: 'Menu', exact: true }).click()
@@ -530,6 +648,12 @@ try {
     await check('API language preference survives navigation and reload', async () => {
       const page = await languageContext.newPage()
       await open(page, '/api-reference/workflows/listWorkflows')
+      const sourceMetadata = await verifyClientMetadata(
+        page,
+        '/api-reference/workflows/listWorkflows',
+        'List workflows'
+      )
+      const sourceTimeOrigin = await page.evaluate(() => performance.timeOrigin)
       const languages = page.getByRole('tablist', { name: 'Request language', exact: true })
       const javascript = languages.getByRole('tab', { name: /^(JavaScript|TypeScript)$/ })
       await javascript.click()
@@ -540,6 +664,19 @@ try {
         await navigation.getByRole('button', { name: /^(Expand |Collapse )?Logs$/ }).click()
       await destination.click()
       await expect(page).toHaveURL(new URL('/api-reference/logs/getLog', target).href)
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'Get log', exact: true })
+      ).toBeVisible()
+      const destinationMetadata = await verifyClientMetadata(
+        page,
+        '/api-reference/logs/getLog',
+        'Get log'
+      )
+      expect(await page.evaluate(() => performance.timeOrigin)).toBe(sourceTimeOrigin)
+      await writeFile(
+        join(directory, 'api-metadata-after-client-navigation.json'),
+        `${JSON.stringify({ source: sourceMetadata, destination: destinationMetadata, sameDocument: true }, null, 2)}\n`
+      )
       await page.screenshot({ path: join(directory, 'api-language-after-navigation.png') })
       await expect(javascript).toHaveAttribute('aria-selected', 'true')
       await page.reload()
@@ -927,14 +1064,26 @@ try {
   } finally {
     await interactive.close()
   }
-  const mobileSearch = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const interactionRecording: { video: Video | null } = { video: null }
+  const mobileSearch = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    recordVideo:
+      engine === 'chromium'
+        ? { dir: join(directory, 'recording'), size: { width: 390, height: 844 } }
+        : undefined,
+  })
   try {
     await check(
       'Mobile navigation search opens its result and dismisses both dialogs',
       async () => {
         const page = await mobileSearch.newPage()
+        interactionRecording.video = page.video()
         await open(page, '/introduction')
+        // Hold verified states for the review recording, outside performance measurements.
+        if (interactionRecording.video) await sleep(600)
         await page.getByRole('button', { name: 'Menu', exact: true }).click()
+        await expect(page.getByRole('dialog', { name: 'Documentation', exact: true })).toBeVisible()
+        if (interactionRecording.video) await sleep(600)
         await page
           .getByRole('dialog', { name: 'Documentation', exact: true })
           .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
@@ -943,6 +1092,7 @@ try {
         await search.fill('Slack')
         await expect(page.getByRole('option').first()).toBeVisible()
         await page.screenshot({ path: join(directory, 'mobile-search-results.png') })
+        if (interactionRecording.video) await sleep(600)
         await search.press('Enter')
         await expect(page).toHaveURL(new URL('/integrations/slack', target).href)
         await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -950,10 +1100,17 @@ try {
           page.getByRole('heading', { level: 1, name: 'Slack', exact: true })
         ).toBeVisible()
         await page.screenshot({ path: join(directory, 'mobile-search-navigation.png') })
+        if (interactionRecording.video) await sleep(600)
       }
     )
   } finally {
     await mobileSearch.close()
+    if (interactionRecording.video) {
+      await interactionRecording.video.saveAs(
+        join(directory, 'mobile-drawer-search-navigation.webm')
+      )
+      await interactionRecording.video.delete()
+    }
   }
   const darkSurfaces = await browser.newContext({
     colorScheme: 'dark',

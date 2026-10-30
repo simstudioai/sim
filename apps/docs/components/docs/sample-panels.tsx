@@ -85,6 +85,7 @@ export function SamplePanels({
         <Tab
           key={item.value}
           value={item.value}
+          label={item.label}
           id={item.id ?? `${selectorId}-${item.value}`}
           {...(presentation === 'select' ? { role: 'region', 'aria-labelledby': selectorId } : {})}
           className='[&>div]:pt-0'
