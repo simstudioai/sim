@@ -27,8 +27,10 @@ import type { DbClient } from '@/lib/db/types'
  * and the member/source breakdowns are index-only. `workspace_id`, `workflow_id`,
  * `description`, `metadata`, and `execution_id` are NOT in it, so the remaining
  * reads heap-fetch per row — which is why they are issued only for the dimension
- * actually being viewed. A read narrowed to one workspace runs on
- * `usage_log_workspace_created_at_cost_idx` instead, which also covers `workflow_id`.
+ * actually being viewed. A read narrowed to one workspace over a `created_at` window
+ * (a range or a reporting period) is index-only on
+ * `usage_log_workspace_created_at_cost_idx` instead, which also covers `workflow_id`;
+ * a Stripe-period drill-down matches the period stamps, which that index does not carry.
  */
 
 export interface UsageTimeSeriesRow {
