@@ -57,7 +57,7 @@ export function applyAssistantReviewEdits(
 }
 
 /** Every supplied non-authentication argument remains visible, even without a custom review label. */
-export function assistantReviewFields(record: ActionRecord) {
+export function assistantReviewFields(record: Pick<ActionRecord, 'args' | 'executableName'>) {
   const tool = getToolMetadata(record.executableName ?? '')
   const args = toRecord(record.args)
   const declared = tool?.assistant?.reviewFields ?? []

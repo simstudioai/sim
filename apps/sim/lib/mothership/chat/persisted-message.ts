@@ -133,6 +133,8 @@ export function copyPersistedMessageContext(c: PersistedMessageContext): Persist
 
 export interface PersistedMessage {
   id: string
+  /** Server-owned turn association for display; never persisted in message content. */
+  streamId?: string
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
@@ -896,6 +898,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
   if (raw.requestId && typeof raw.requestId === 'string') {
     msg.requestId = raw.requestId
   }
+  if (typeof raw.streamId === 'string') msg.streamId = raw.streamId
   const origin = TurnOrigin.safeParse(raw.origin)
   if (origin.success) msg.origin = origin.data
 

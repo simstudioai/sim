@@ -1,7 +1,6 @@
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { MothershipStreamV1SessionKind } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
@@ -24,7 +23,7 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
       // This synchronously migrates provisional browser/terminal ownership
       // before writing chatIdRef. Assigning the ref here first would make the
       // adoption path believe there was no provisional scope to move.
-      deps.adoptResolvedChatId(payloadChatId)
+      deps.adoptResolvedChatId(payloadChatId, { replaceHomeHistory: true })
     } else {
       deps.chatIdRef.current = payloadChatId
       if (payloadChatId === selected) {
@@ -41,6 +40,7 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
       const activeStreamId = deps.streamIdRef.current
       if (userMsg && activeStreamId) {
         const assistantMessage = deps.buildAssistantSnapshotMessage({
+          streamId: activeStreamId,
           id:
             deps.activeTurnRef.current?.assistantMessageId ??
             getLiveAssistantMessageId(activeStreamId),
@@ -60,17 +60,6 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
         )
       }
       deps.setPendingMessages([])
-      if (!deps.workflowIdRef.current) {
-        window.history.replaceState(
-          null,
-          '',
-          chatUrl(
-            deps.organizationId ? { organizationId: deps.organizationId } : deps.workspaceId!,
-            payloadChatId,
-            deps.requestMode
-          )
-        )
-      }
     }
   }
 

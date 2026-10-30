@@ -2,13 +2,14 @@
 
 import { Chip, ChipInput, ChipLink, ChipSelect, ChipSwitch, Tooltip, toast } from '@sim/emcn'
 import { ArrowLeft, Search } from '@sim/emcn/icons'
+import { useQueryStates } from 'nuqs'
 import type {
   AssistantToolPermissionsResponse,
   UpdateAssistantToolPermissionsBody,
 } from '@/lib/api/contracts/assistant-actions'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { useOrganizationPageFilters } from '@/app/o/[organizationId]/components/organization-page'
+import { integrationViewParsers } from '@/app/o/[organizationId]/integrations/search-params'
 import {
   CredentialDetailHeading,
   CredentialDetailLayout,
@@ -23,6 +24,7 @@ import {
   useAssistantToolPermissions,
   useUpdateAssistantToolPermissions,
 } from '@/hooks/queries/assistant-actions'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 const POLICY_OPTIONS = [
   { value: 'allow', label: 'Allow' },
@@ -43,9 +45,38 @@ export function AccountToolPermissions({
   organizationId,
   credentialId,
 }: AccountToolPermissionsProps) {
+  return (
+    <CredentialDetailLayout
+      back={
+        <ChipLink href={organizationRoutes(organizationId).integrations} leftIcon={ArrowLeft}>
+          Integrations
+        </ChipLink>
+      }
+    >
+      <AccountToolPermissionsContent
+        organizationId={organizationId}
+        credentialId={credentialId}
+        showHeading
+      />
+    </CredentialDetailLayout>
+  )
+}
+
+interface AccountToolPermissionsContentProps extends AccountToolPermissionsProps {
+  showHeading?: boolean
+}
+
+export function AccountToolPermissionsContent({
+  organizationId,
+  credentialId,
+  showHeading = false,
+}: AccountToolPermissionsContentProps) {
   const query = useAssistantToolPermissions(organizationId, credentialId)
   const update = useUpdateAssistantToolPermissions(organizationId, credentialId)
-  const { search, setSearch } = useOrganizationPageFilters()
+  const [{ tools: search }, setParams] = useQueryStates(integrationViewParsers)
+  const setSearch = useDebouncedSearchSetter((value, options) =>
+    setParams({ tools: value }, options)
+  )
   const data = query.data
   const display = data
     ? resolveCredentialDisplay({ ...data.account, type: 'managed_oauth' })
@@ -59,13 +90,7 @@ export function AccountToolPermissions({
   }
 
   return (
-    <CredentialDetailLayout
-      back={
-        <ChipLink href={organizationRoutes(organizationId).integrations} leftIcon={ArrowLeft}>
-          Integrations
-        </ChipLink>
-      }
-    >
+    <>
       {query.error ? (
         <SettingsQueryErrorState
           error={query.error}
@@ -78,28 +103,32 @@ export function AccountToolPermissions({
         <SettingsEmptyState variant='inline'>Loading tool permissions</SettingsEmptyState>
       ) : (
         <div className='flex flex-col gap-7'>
-          <div className='flex flex-col gap-3'>
-            <CredentialDetailHeading
-              title={display?.detailTitle ?? data.account.providerId}
-              subtitle={data.account.displayName}
-              leading={
-                display?.icon ? (
-                  <IntegrationTile blockType={display.blockType} icon={display.icon} />
-                ) : undefined
-              }
-            />
-            {!data.canAutoApprove && (
-              <p className='text-[var(--text-muted)] text-small'>
-                Your organization requires approval before tools run.
-              </p>
-            )}
-            {!data.account.active && (
-              <p className='text-[var(--text-muted)] text-small'>
-                This account is disconnected or paused. Reconnect it before allowing tools
-                automatically.
-              </p>
-            )}
-          </div>
+          {(showHeading || !data.canAutoApprove || !data.account.active) && (
+            <div className='flex flex-col gap-3'>
+              {showHeading && (
+                <CredentialDetailHeading
+                  title={display?.detailTitle ?? data.account.providerId}
+                  subtitle={data.account.displayName}
+                  leading={
+                    display?.icon ? (
+                      <IntegrationTile blockType={display.blockType} icon={display.icon} />
+                    ) : undefined
+                  }
+                />
+              )}
+              {!data.canAutoApprove && (
+                <p className='text-[var(--text-muted)] text-small'>
+                  Your organization requires approval before tools run.
+                </p>
+              )}
+              {!data.account.active && (
+                <p className='text-[var(--text-muted)] text-small'>
+                  This account is disconnected or paused. Reconnect it before allowing tools
+                  automatically.
+                </p>
+              )}
+            </div>
+          )}
           {data.tools.length > 0 && (
             <ChipInput
               icon={Search}
@@ -126,7 +155,7 @@ export function AccountToolPermissions({
           )}
         </div>
       )}
-    </CredentialDetailLayout>
+    </>
   )
 }
 

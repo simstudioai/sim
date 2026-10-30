@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import { useQueryStates } from 'nuqs'
+import { createSerializer, useQueryStates } from 'nuqs'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -16,6 +16,7 @@ import {
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
@@ -41,6 +42,7 @@ import {
 import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
+  resourceParam,
   searchFilterParsers,
   searchFiltersFromParams,
 } from '@/app/workspace/[workspaceId]/home/search-params'
@@ -57,10 +59,26 @@ import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
+export interface OrganizationSummaryRequest {
+  id: string
+  message: string
+  assistantSearch: WorkspaceSearchFilters
+}
+
+const serializeSearchConversation = createSerializer({
+  ...organizationSearchParsers,
+  ...searchFilterParsers,
+  [resourceParam.key]: resourceParam.parser,
+})
+
 interface OrganizationConversationProps {
+  active?: boolean
+  summaryRequest?: OrganizationSummaryRequest
+  onSummaryConsumed?: (id: string) => void
   userName?: string
   chatId?: string
   requestMode: ChatRequestMode
+  header?: ReactNode
 }
 
 /** Shared conversation surface; the destination fixes its intent before the first turn. */
@@ -74,7 +92,8 @@ export function OrganizationConversation(props: OrganizationConversationProps) {
     (props.requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
   )
     return null
-  if (isRestoredChatEntry || !isClient || !session?.user?.id) return <HomeFallback />
+  if (isRestoredChatEntry || !isClient || !session?.user?.id)
+    return <HomeFallback header={props.header} />
   return (
     <OrganizationConversationContent
       key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}:${props.requestMode}`}
@@ -87,6 +106,10 @@ function OrganizationConversationContent({
   userName,
   chatId,
   requestMode: destinationMode,
+  header,
+  active = true,
+  summaryRequest,
+  onSummaryConsumed,
 }: OrganizationConversationProps) {
   const { organization, canBuild } = useOrganizationContext()
   const { data: session } = useSession()
@@ -95,10 +118,11 @@ function OrganizationConversationContent({
   const [planning, setPlanning] = useState(false)
   const requestMode =
     destinationMode === 'agent' && !chatId && planEnabled && planning ? 'plan' : destinationMode
-  const [{ q, source, updated, from, to }] = useQueryStates(
+  const [searchParams] = useQueryStates(
     { ...organizationSearchParsers, ...searchFilterParsers },
     organizationSearchUrlKeys
   )
+  const { q, source, updated, from, to } = searchParams
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
   const chat = useChat(
@@ -106,6 +130,15 @@ function OrganizationConversationContent({
     chatId,
     getMothershipUseChatOptions({
       requestMode,
+      getChatUrl:
+        destinationMode === 'assistant'
+          ? (id) =>
+              serializeSearchConversation(organizationRoutes(organization.id).searchChat(id), {
+                ...searchParams,
+                mode: active ? 'assistant' : 'search',
+                resource: controller.activeResourceState[0],
+              })
+          : undefined,
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,
     })
@@ -240,9 +273,21 @@ function OrganizationConversationContent({
   const firstName = userName?.split(' ')[0] ?? ''
 
   useEffect(() => {
-    if (chat.resolvedChatId && !chat.isSending && !chat.isReconnecting)
+    if (active && chat.resolvedChatId && !chat.isSending && !chat.isReconnecting)
       markRead(chat.resolvedChatId)
-  }, [chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
+  }, [active, chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
+
+  const consumedSummary = useRef<string | null>(null)
+  useEffect(() => {
+    if (!active || !summaryRequest || consumedSummary.current === summaryRequest.id) return
+    consumedSummary.current = summaryRequest.id
+    onSummaryConsumed?.(summaryRequest.id)
+    void sendMessage(summaryRequest.message, undefined, undefined, {
+      requestMode: 'assistant',
+      assistantSearchLevel,
+      assistantSearch: summaryRequest.assistantSearch,
+    })
+  }, [active, summaryRequest, onSummaryConsumed, sendMessage])
 
   useEffect(() => {
     if (chatId) return
@@ -370,6 +415,7 @@ function OrganizationConversationContent({
           enabled={requestMode === 'assistant'}
         >
           <MothershipChat
+            reserveResourceHeader={!header}
             onViewSources={(messageId, requestId) =>
               addResource({
                 type: 'sources',
@@ -428,6 +474,7 @@ function OrganizationConversationContent({
   )
   return (
     <ChatResourcePanel
+      header={header}
       allowBuildControls={requestMode !== 'assistant' && canBuild}
       organizationId={organization.id}
       chat={chat}

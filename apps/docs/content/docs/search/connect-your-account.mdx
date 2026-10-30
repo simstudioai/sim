@@ -10,19 +10,19 @@ After your admin adds a source in **Settings → Sources**, connect your own acc
 ## Connect and verify
 
 1. Join the Sim organization through its invitation or SSO. Use the verified email required by the provider connection.
-2. Open **Integrations**, find the provider, and choose **Connect** from its **⋯** menu.
+2. Open **Integrations**, select the app, and choose **Connect** in its header.
 3. Complete authorization in the new tab. If the popup is blocked, allow it and select **Connect** again.
 4. Return to **Search** or **Search → Assistant** and search for content your account can open. Read a result and follow its source link.
 
 <Image
-  src="/static/search/connect-account-menu.png"
-  alt="The Confluence menu in Integrations with Connect available before an account has been authorized"
+  src="/static/search/connect-account-details.png"
+  alt="Coda integration details with Connect in the resource header and no account connected"
   width={1440}
   height={1000}
   variant="overview"
 />
 
-If your organization makes another connection available, choose **Add account** from the same menu.
+If your organization makes another connection available, choose **Add account** in the header. When several accounts are connected, select an account to see its permissions and connection actions.
 
 The connection is usable when authorization completes; no initial indexing run is required. If a provider is missing, ask an admin to add it in **Sources**. `Not configured` means its app or deployment setup needs an admin's attention.
 
@@ -38,7 +38,7 @@ You do not choose repositories, channels, labels, or an indexing method during p
 | Confluence service account | Connect Confluence. Both your account and the service connection must read the selected content. |
 | Coda | Connect personal Coda MCP. Service mode also verifies the parent document with its REST token. |
 | GitLab | No personal connection. Your verified Sim email must match current GitLab identity and permissions, or the admin's CSV mapping and project grant. |
-| [Generic Secrets, Member mode](/search/generic-secrets) | Select **Manage secrets** in Integrations and save your own values for organization Home conversations. |
+| [Generic Secrets, Member mode](/search/generic-secrets) | Open **Generic Secrets** in Integrations and save your own values for organization Home conversations. |
 
 Gmail, Calendar, and Drive have separate grants. Connecting one does not authorize the others. Except for GitLab's permission model, a service account restricts resources rather than replacing your personal connection.
 
@@ -46,7 +46,7 @@ Creating Jira sprints requires the Jira sprint permission. If your account was c
 
 ## Tool permissions
 
-When Assistant integration actions are enabled, open the app’s **⋯** menu in **Integrations** and select **Tool permissions** for your connected account. This option appears when the app has supported Assistant tools available to you. Set a preference for each operation or use the **Read-only tools** and **Write tools** group controls:
+When Assistant integration actions are enabled, open the app in **Integrations** and select your account. Tool permissions appear in its details when the app has supported Assistant tools available to you. Set a preference for each operation or use the **Read-only tools** and **Write tools** group controls:
 
 | Preference | Behavior |
 | --- | --- |
@@ -66,13 +66,13 @@ These preferences belong to your account. They cannot grant access to another pe
   variant="overview"
 />
 
-Apps used only for actions appear under **Assistant apps**. An admin makes the app available in organization source settings, then each member connects their own account in Integrations.
+Search sources and apps used for actions share the same Integrations list. An admin makes the app available in organization source settings, then each member connects their own account. Configured apps remain visible when disabled; their connection actions are unavailable, and existing accounts can still be inspected or disconnected.
 
 ## Reconnect or disconnect
 
-Choose **Reconnect** from the app’s **⋯** menu when a grant expires, is revoked, or needs more scopes. A temporary provider outage does not necessarily require reconnecting.
+Open the app and select the account, then choose **Reconnect** in the header when a grant expires, is revoked, or needs more scopes. A temporary provider outage does not necessarily require reconnecting.
 
-Choose **Disconnect** from the same menu to stop future use of the grant. This can affect workflows sharing the account. Review the confirmation before removing it. Disconnecting does not remove your Sim membership.
+Choose **Disconnect** in the same header to stop future use of the grant. This can affect workflows sharing the account. Review the confirmation before removing it. Disconnecting does not remove your Sim membership.
 
 For an account-connection request, sign in as the verified Sim user associated with the requested email, then authorize the provider. The request does not invite you into the organization; membership and Search access are still required.
 

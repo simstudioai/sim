@@ -115,7 +115,7 @@ export interface StreamLoopDeps {
   setPendingMessages: Dispatch<SetStateAction<ChatMessage[]>>
   setResolvedChatId: Dispatch<SetStateAction<string | undefined>>
   /** Adopts a server-created chat before any event handler mutates chatIdRef. */
-  adoptResolvedChatId: (chatId: string) => void
+  adoptResolvedChatId: (chatId: string, options?: { replaceHomeHistory?: boolean }) => void
   setResources: Dispatch<SetStateAction<MothershipResource[]>>
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 
@@ -158,6 +158,7 @@ export interface StreamLoopDeps {
 
   buildAssistantSnapshotMessage: (params: {
     id: string
+    streamId?: string
     content: string
     contentBlocks: ContentBlock[]
     requestId?: string
@@ -184,7 +185,6 @@ export interface StreamLoopDeps {
   pendingUserMsgRef: MutableRefObject<PersistedMessage | null>
   activeTurnRef: MutableRefObject<ActiveTurn | null>
   resourcesRef: MutableRefObject<MothershipResource[]>
-  workflowIdRef: MutableRefObject<string | undefined>
   activeResourceIdRef: MutableRefObject<string | null>
   onTitleUpdateRef: MutableRefObject<(() => void) | undefined>
   onToolResultRef: MutableRefObject<
@@ -292,6 +292,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       const snapshot: Partial<ChatMessage> = {
         content: modelContent,
         contentBlocks: modelBlocks,
+        ...(deps.streamIdRef.current ? { streamId: deps.streamIdRef.current } : {}),
       }
       if (state.streamRequestId) snapshot.requestId = state.streamRequestId
       deps.setPendingMessages((prev) => {
@@ -312,6 +313,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
 
     const assistantMessage = deps.buildAssistantSnapshotMessage({
       id: deps.assistantId,
+      ...(deps.streamIdRef.current ? { streamId: deps.streamIdRef.current } : {}),
       content: modelContent,
       contentBlocks: modelBlocks,
       ...(state.streamRequestId ? { requestId: state.streamRequestId } : {}),

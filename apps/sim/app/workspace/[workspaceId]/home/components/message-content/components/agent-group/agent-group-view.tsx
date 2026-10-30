@@ -98,6 +98,8 @@ function hasNestedBrowserTakeover(items: AgentGroupItem[]): boolean {
 }
 
 interface AgentGroupViewProps extends AgentGroupProps {
+  standaloneToolIds?: ReadonlySet<string>
+  reviewedToolIds?: ReadonlySet<string>
   /** Supplies tool behavior without coupling the group layout to the block registry. */
   ToolCallComponent: ComponentType<ToolCallItemProps>
   renderBrowserTakeover?: (reason: string) => ReactNode
@@ -117,6 +119,8 @@ export function AgentGroupView({
   ToolCallComponent,
   renderBrowserTakeover,
   liveIndicator,
+  standaloneToolIds,
+  reviewedToolIds,
 }: AgentGroupViewProps) {
   const AgentIcon = getAgentIcon(agentName)
   const isMainAgent = agentName === 'mothership'
@@ -148,7 +152,7 @@ export function AgentGroupView({
 
   const [manualExpanded, setManualExpanded] = useState(defaultExpanded)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
-  const pendingInteraction = hasPendingInteraction(items)
+  const pendingInteraction = hasPendingInteraction(items, false, reviewedToolIds)
   /** Blocking interactions override manual collapse so the user can resume the turn. */
   const expanded =
     pendingInteraction ||
@@ -161,12 +165,16 @@ export function AgentGroupView({
       : getLaneLiveIndicator(
           isMainAgent
             ? {
+                standaloneToolIds,
+                reviewedToolIds,
                 kind: 'main',
                 parts: [items],
                 isActive: isStreaming,
                 isOpen: isStreaming && isLaneOpen,
               }
             : {
+                standaloneToolIds,
+                reviewedToolIds,
                 kind: 'subagent',
                 parts: [items],
                 isActive: isStreaming && isWorking,
@@ -246,6 +254,8 @@ export function AgentGroupView({
       return (
         <ActivityTextColumn key={item.group.id}>
           <AgentGroupView
+            standaloneToolIds={standaloneToolIds}
+            reviewedToolIds={reviewedToolIds}
             ToolCallComponent={ToolCallComponent}
             renderBrowserTakeover={renderBrowserTakeover}
             agentName={item.group.agentName}
@@ -274,6 +284,7 @@ export function AgentGroupView({
 
   const activity = isMainAgent ? (
     <MainAgentActivity
+      standaloneToolIds={standaloneToolIds}
       activity={groupActivity}
       items={items}
       ToolCallComponent={ToolCallComponent}

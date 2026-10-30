@@ -194,6 +194,7 @@ export interface ChatMessageContext {
 
 export interface ChatMessage {
   id: string
+  streamId?: string
   role: 'user' | 'assistant'
   requestMode?: 'agent' | 'assistant' | 'plan'
   content: string
