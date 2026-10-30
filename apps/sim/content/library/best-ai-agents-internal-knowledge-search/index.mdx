@@ -22,7 +22,7 @@ faq:
   - q: "What is the best AI agent platform for HR teams automating employee questions?"
     a: "Sim fits HR teams that need custom policy retrieval, escalation, approvals, and service actions. Glean and Microsoft Copilot Studio fit turnkey deployments when HR knowledge and employee permissions already live in their connected ecosystems."
   - q: "Can an AI agent search Google Drive, Confluence, Notion, Slack, and SharePoint?"
-    a: "Sim can orchestrate retrieval across these sources when each source is connected through an available integration, API, or MCP path and the workflow enforces authorization. Glean, Dust, Microsoft Copilot Studio, and n8n cover different subsets through their documented connectors and integration mechanisms."
+    a: "Sim can orchestrate retrieval across these sources when each source is connected through an available integration, API, or Model Context Protocol (MCP) connection that lets an agent use another tool, and the workflow enforces authorization. Glean, Dust, Microsoft Copilot Studio, and n8n cover different subsets through their documented connectors and integration mechanisms."
   - q: "Can an internal knowledge agent search private documents and the public web in one answer?"
     a: "Sim can combine authorized private-document retrieval and public web search in one workflow, then label or cite the evidence used for the answer. The workflow should keep internal and public sources distinguishable so employees can assess freshness and authority."
   - q: "How do AI agents search internal company documents?"
@@ -137,7 +137,7 @@ This option may require more connector and governance design when authoritative 
 
 ## When does n8n fit internal knowledge search?
 
-n8n fits technical teams that want to assemble document ingestion, vector retrieval, web search, and answer delivery from workflow nodes. Engineers remain responsible for storage, embeddings, vector databases, identity checks, citation behavior, and error handling.
+n8n fits technical teams that want to assemble document ingestion, vector retrieval, web search, and answer delivery from workflow nodes. Engineers remain responsible for storage, embeddings, specialized databases that retrieve information by semantic similarity (vector databases), identity checks, citation behavior, and error handling.
 
 n8n can be self-hosted, but its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) is source-available rather than OSI-approved open source.
 
