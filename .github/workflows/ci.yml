@@ -287,7 +287,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.7.6 deploy "${TARGET_ARGS[@]}" --skip-promotion
+          bunx trigger.dev@4.8.2 deploy "${TARGET_ARGS[@]}" --skip-promotion
 
       - name: Validate deployment version output
         env:
@@ -638,7 +638,7 @@ jobs:
           if [ -n "$TRIGGER_BRANCH" ]; then
             TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
           fi
-          bunx trigger.dev@4.7.6 promote "$VERSION" "${TARGET_ARGS[@]}"
+          bunx trigger.dev@4.8.2 promote "$VERSION" "${TARGET_ARGS[@]}"
 
   # Production only, once the new app serves traffic: submit the library and comparison URLs this
   # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
