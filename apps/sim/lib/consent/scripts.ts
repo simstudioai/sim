@@ -3,6 +3,7 @@ import { gtag } from '@c15t/scripts/google-tag'
 import { xPixel } from '@c15t/scripts/x-pixel'
 import { FREEBUFF_TAG_SRC, installFreebuffStub } from '@/lib/analytics/freebuff'
 import { getGooglePageLocation, updateGooglePageContext } from '@/lib/consent/google-context'
+import { isPathOrDescendant } from '@/lib/navigation/paths'
 
 export const GOOGLE_ANALYTICS_ID = 'G-QB9D67TBHR' as const
 
@@ -67,8 +68,15 @@ const GLOBAL_CONSENT_SCRIPTS = [
   },
 ] as const
 
-/** Registers Google's shared destination only on Sim's actual production origins. */
+/** Excludes embedded extension pages and restricts Google's loader to production origins. */
 export function getGlobalConsentScripts() {
+  if (typeof window !== 'undefined') {
+    try {
+      if (isPathOrDescendant(decodeURIComponent(window.location.pathname), '/extension')) return []
+    } catch {
+      return []
+    }
+  }
   const googleEnabled =
     typeof window !== 'undefined' && getGooglePageLocation(window.location.href) !== undefined
   return GLOBAL_CONSENT_SCRIPTS.filter((script) => script.id !== 'gtag' || googleEnabled)
