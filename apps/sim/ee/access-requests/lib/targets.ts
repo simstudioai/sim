@@ -308,6 +308,7 @@ function integrationDenied(config: PermissionGroupConfig, integrationId: string)
   )
 }
 
+/** Group policy state before applying deployment availability, workspace roles, and scope. */
 export type PermissionGroupAccessState = 'allowed' | 'requestable' | 'unavailable'
 
 /** Prerequisites whose restrictions an approval would also have to lift. */

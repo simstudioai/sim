@@ -5,7 +5,7 @@ const ACCESS_OPTIONS = [
   { value: 'allowed', label: 'Allowed' },
   { value: 'requestable', label: 'Can request' },
   { value: 'unavailable', label: 'Unavailable' },
-]
+] as const
 
 interface AccessStateSelectProps {
   label: string
@@ -15,6 +15,7 @@ interface AccessStateSelectProps {
   canRequest?: boolean
 }
 
+/** Selects a group policy state, retaining unsupported inherited values while disabled. */
 export function AccessStateSelect({
   label,
   value,
@@ -47,6 +48,7 @@ interface BulkAccessSelectProps {
   canRequest?: boolean
 }
 
+/** Emits a bulk policy choice; the caller selects targets and whether they support requests. */
 export function BulkAccessSelect({ onChange, disabled, canRequest = true }: BulkAccessSelectProps) {
   return (
     <ChipDropdown

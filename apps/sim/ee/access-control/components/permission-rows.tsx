@@ -39,6 +39,7 @@ import type { ProviderId } from '@/providers/types'
 import type { ProviderName } from '@/stores/providers'
 import { getToolMetadata } from '@/tools/metadata'
 
+/** Resolves draft policy and inheritance, checks request support, and stages edits without saving. */
 export interface PermissionEditorControls {
   getState: (target: AccessRequestTarget) => PermissionGroupAccessState
   isInherited: (target: AccessRequestTarget) => boolean
@@ -75,6 +76,7 @@ interface PermissionBulkSelectProps extends PermissionEditorControls {
   targets: AccessRequestTarget[]
 }
 
+/** Edits non-inherited targets, offering requests only when every editable target supports them. */
 export function PermissionBulkSelect({ targets, ...controls }: PermissionBulkSelectProps) {
   const editable = targets.filter((target) => !controls.isInherited(target))
   return (
@@ -118,6 +120,7 @@ interface PlatformPermissionRowProps extends PermissionEditorControls {
   children?: ReactNode
 }
 
+/** Edits a platform feature with optional child controls; inert organization-only rows stay disabled. */
 export function PlatformPermissionRow({
   feature,
   inert,
@@ -182,6 +185,7 @@ interface PermissionGridProps extends PermissionEditorControls {
   emptyLabel: string
 }
 
+/** Searches items of one target kind and limits bulk edits to the visible, editable rows. */
 export function PermissionGrid({
   items,
   kind,
@@ -279,6 +283,7 @@ interface ProviderRowProps extends PermissionEditorControls {
   workspaceId?: string
 }
 
+/** Edits a provider and its inherited model choices, using workspace-scoped dynamic models when needed. */
 export function ProviderRow({ providerId, workspaceId, ...controls }: ProviderRowProps) {
   const [expanded, setExpanded] = useState(false)
   const definition = PROVIDER_DEFINITIONS[providerId]
@@ -341,6 +346,7 @@ interface BlockToolRowProps extends PermissionEditorControls {
   block: BlockConfig
 }
 
+/** Edits a block and its tool operations, preserving child choices while a parent restricts access. */
 export function BlockToolRow({ block, ...controls }: BlockToolRowProps) {
   const [expanded, setExpanded] = useState(false)
   const childControls = inheritedControls({ kind: 'integration', id: block.type }, controls)
