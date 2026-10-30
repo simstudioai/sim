@@ -144,6 +144,7 @@ case "$group" in
     export INTERNAL_API_SECRET=scim-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
+    export SIM_LINKS=true
     start_app scim 3017 SCIM record-http-status
     SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
@@ -155,6 +156,11 @@ case "$group" in
     VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
       bun run test:workflow-version-compare:e2e
+    SIM_LINKS_E2E_BASE_URL="$local_app_url" \
+    SIM_LINKS_E2E_DATABASE_URL="$DATABASE_URL" \
+    SIM_LINKS_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    SIM_LINKS_E2E_REPORT_PATH="$report_dir/sim-links-e2e-report.json" \
+      bun run test:sim-links:e2e
     ;;
 
   # The search suites serve their own fixtures in-process and need no app. They share this group

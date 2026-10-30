@@ -65,7 +65,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   return (
     <OrganizationPage
       title='Sim Links'
-      description='Short links for your organization. Open sim/name in your browser to go to its destination.'
+      description='Short, shareable links that take your organization straight to the right page.'
       searchMode='expanded'
       searchPlaceholder='Search Sim links'
       action={

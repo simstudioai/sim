@@ -10,6 +10,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import {
   isVariableSimLinkUrl,
@@ -45,6 +46,7 @@ function draftOf(link: SimLink | undefined, initialName = ''): SimLinkBody {
 /** Mount per link (keyed) so each open starts from that link's saved fields. */
 export function SimLinkModal({ organizationId, onClose, link, initialName }: SimLinkModalProps) {
   const mutation = useSaveSimLink(organizationId)
+  const nameTaken = isApiClientError(mutation.error) && mutation.error.status === 409
   const [draft, setDraft] = useState(() => draftOf(link, initialName))
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
   const variable = isVariableSimLinkUrl(draft.url)
@@ -55,6 +57,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
   const change = <K extends keyof SimLinkBody>(field: K, value: SimLinkBody[K]) => {
     setDraft((current) => ({ ...current, [field]: value }))
     setErrors((current) => ({ ...current, [field]: undefined }))
+    if (mutation.isError) mutation.reset()
   }
 
   const save = () => {
@@ -119,7 +122,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
           maxLength={SIM_LINK_NAME_MAX_LENGTH}
           value={draft.name}
           onChange={(value) => change('name', value)}
-          error={errors.name}
+          error={errors.name ?? (nameTaken ? mutation.error?.message : undefined)}
           hint='Letters, numbers, and . : @ & ~ - _. Case and punctuation are ignored, so sim/Q4-goals is sim/q4goals.'
         />
         <ChipModalField
@@ -165,7 +168,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
             </label>
           </div>
         </ChipModalField>
-        <ChipModalError>{mutation.error?.message}</ChipModalError>
+        <ChipModalError>{nameTaken ? undefined : mutation.error?.message}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
