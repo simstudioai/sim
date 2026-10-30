@@ -67,7 +67,7 @@ export function recordModelStepCost(
  * and a free plan's spend past its limit is never billed. A paid payer's overshoot is billed as
  * overage, so its runs are left to admission and never read here.
  *
- * Reads nothing until the run has spent, then the cached execution gate. A gate that cannot
+ * Reads nothing until the run has spent, then the payer's ledger. A gate that cannot
  * answer stops the run as if the limit were spent. A blocked account lets the run continue and
  * is not read again for {@link NEAR_LIMIT_USAGE_GATE_TTL_MS}: the next admission refuses it with
  * blocked-account copy rather than the upgrade card. The stop is not retried,
@@ -92,7 +92,9 @@ export async function assertRunWithinUsageLimit(
     return
   }
 
-  const verdict = await readMidRunUsageVerdict(attribution, unrecorded.total)
+  const verdict = await readMidRunUsageVerdict(attribution, unrecorded.total, {
+    uncachedForFreePayer: true,
+  })
   // A run cancelled during the read keeps its cancellation; the provider call then aborts.
   if (verdict.status === 'within' || executionContext.abortSignal?.aborted) return
   if (verdict.status === 'blocked') {

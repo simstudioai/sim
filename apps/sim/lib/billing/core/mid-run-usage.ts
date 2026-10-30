@@ -217,8 +217,8 @@ const accountVerdictCache = new LRUCache<string, MidRunUsageVerdict>({
  * payer, in the gate's order: a blocked actor or payer first, then the payer's spend. The payer
  * is the one saved in the decision at admission, never re-selected from the actor's current
  * memberships, and the period judged is the one its charges land in, as for attributed runs.
- * Whether {@link MidRunUsageReadOptions.uncachedForFreePayer} applies is judged by the payer's
- * current subscription.
+ * Whether {@link MidRunUsageReadOptions.uncachedForFreePayer} applies is judged by the plan the
+ * run was admitted with, as {@link isFreeRunPayer} judges it.
  */
 export async function readMidRunAccountUsageVerdict(
   decision: AccountBillingDecision,
@@ -253,7 +253,7 @@ export async function readMidRunAccountUsageVerdict(
       subscription?.status ?? '',
       subscription?.seats ?? '',
     ].join(':')
-    const uncached = options.uncachedForFreePayer === true && isFree(subscription?.plan)
+    const uncached = options.uncachedForFreePayer === true && isFreeRunPayer(decision)
     const cached = uncached ? undefined : accountVerdictCache.get(key)
     if (cached) return cached
     const block = await checkAccountBillingBlocks(decision)

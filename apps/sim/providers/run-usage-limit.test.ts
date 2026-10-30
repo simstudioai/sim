@@ -2,6 +2,10 @@
  * @vitest-environment node
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { billingCoreMock } from '@sim/testing/mocks/billing-core.mock'
 import {
   billingUsageGateCacheMock,
@@ -17,6 +21,7 @@ vi.mock('@/providers/registry', () => ({
   getProviderExecutor: async () => ({ executeRequest: mockExecuteRequest }),
 }))
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/providers/cost-policy', async (importOriginal) => ({
@@ -60,6 +65,7 @@ import { providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
 import { ProviderError, type ProviderRequest, type ProviderToolConfig } from '@/providers/types'
 
 const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
+const { mockCheckAttributedUsageLimits } = billingAttributionMockFns
 const { mockExecuteTool } = toolsMockFns
 
 const attribution: BillingAttributionSnapshot = {
@@ -105,6 +111,11 @@ async function modelStep(request: ProviderRequest, input: number, output: number
 beforeEach(() => {
   setEnvFlags({ isHosted: true, isBillingEnabled: true })
   mockCheckExecutionUsageLimits.mockReset()
+  // A free payer's mid-run read skips the cached gate; both answer from the same ledger.
+  mockCheckAttributedUsageLimits.mockReset()
+  mockCheckAttributedUsageLimits.mockImplementation((attribution) =>
+    mockCheckExecutionUsageLimits(attribution)
+  )
   mockCheckExecutionUsageLimits.mockResolvedValue({
     isExceeded: false,
     payerUsage: { currentUsage: 3, limit: 5 },

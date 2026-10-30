@@ -1027,10 +1027,10 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
 
   it('reads a free payer standing past its cached admission after every charge', async () => {
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
-    expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(false)
+    expect((await (await POST(attributedCallback(), {})).json()).usageExceeded).toBe(false)
 
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true, scope: 'payer' })
-    await expect((await POST(attributedCallback())).json()).resolves.toMatchObject({
+    await expect((await POST(attributedCallback(), {})).json()).resolves.toMatchObject({
       usageExceeded: true,
       usageUpgrade: { action: 'upgrade_plan' },
     })
@@ -1249,7 +1249,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
   ])('pauses a free run for %s, keeping the recorded charge', async (_case, answer) => {
     answer()
 
-    const res = await POST(attributedCallback())
+    const res = await POST(attributedCallback(), {})
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({
@@ -1266,7 +1266,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
       scope: 'payer',
     })
 
-    expect((await (await POST(attributedCallback())).json()).usageExceeded).toBe(false)
+    expect((await (await POST(attributedCallback(), {})).json()).usageExceeded).toBe(false)
   })
 
   it('tells a member over the cap their organization set who can raise it', async () => {
@@ -1370,7 +1370,7 @@ describe('POST /api/billing/update-cost — mid-run usage gate', () => {
           return { isExceeded: false }
         })
 
-        const pending = POST(attributedCallback())
+        const pending = POST(attributedCallback(), {})
         await vi.advanceTimersByTimeAsync(1000)
         const res = await pending
 

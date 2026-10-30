@@ -466,7 +466,9 @@ export const POST = withRouteHandler((req: NextRequest) =>
                 ? billing.attribution
                 : verdict?.status === 'exceeded'
                   ? verdict.payer
-                  : undefined,
+                  : billing
+                    ? { billingEntity: billing.decision.billingEntity, payerSubscription: null }
+                    : undefined,
               verdict?.status === 'exceeded' ? verdict.scope : undefined
             )
             return NextResponse.json<ValidateCopilotApiKeyUsageExceeded>(

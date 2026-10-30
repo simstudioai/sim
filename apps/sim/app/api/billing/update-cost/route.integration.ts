@@ -195,7 +195,7 @@ function attributedCallback(
   })
 }
 
-async function usageExceeded(response: Promise<Response>): Promise<boolean> {
+async function usageExceeded(response: ReturnType<typeof POST>): Promise<boolean> {
   const res = await response
   expect(res.status).toBe(200)
   return (await res.json()).usageExceeded
