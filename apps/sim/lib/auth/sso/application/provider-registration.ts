@@ -64,9 +64,9 @@ function trimTrailingSlashes(url: string): string {
  */
 function selectTokenEndpointAuthMethod(
   supportedMethods: unknown,
-  existing?: TokenEndpointAuthMethod
+  existing?: string
 ): TokenEndpointAuthMethod {
-  if (existing) return existing
+  if (existing === 'client_secret_basic' || existing === 'client_secret_post') return existing
   if (!Array.isArray(supportedMethods) || supportedMethods.length === 0) {
     return 'client_secret_post'
   }

@@ -63,7 +63,8 @@ describe('OAuth login bridge', () => {
     const response = await GET(
       request(
         'client_id=mcp-client&scope=api%3Aread&sim_resource=https%3A%2F%2Fsim.test%2Fapi%2Fmcp&sig=signed'
-      )
+      ),
+      { params: Promise.resolve({}) }
     )
     const { callback } = redirectParts(response)
 

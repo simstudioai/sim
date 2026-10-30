@@ -110,7 +110,9 @@ describe('MCP public client registration', () => {
         { status: 201 }
       )
     )
-    const response = await POST(request({ ...client, scope: 'search:read offline_access' }))
+    const response = await POST(request({ ...client, scope: 'search:read offline_access' }), {
+      params: Promise.resolve({}),
+    })
     expect(response.status).toBe(201)
     expect(await response.json()).toMatchObject({ scope: 'search:read offline_access' })
     expect(mocks.markPublic).toHaveBeenCalledWith('client-1', ['search:read', 'offline_access'])

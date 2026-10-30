@@ -227,7 +227,7 @@ describe('auth catch-all route email OTP sign-in', () => {
       'http://localhost:3000/api/auth/sign-in/email-otp'
     )
 
-    expect((await POST(req)).status).toBe(404)
+    expect((await POST(req, { params: Promise.resolve({}) })).status).toBe(404)
     expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
   })
 })
@@ -242,7 +242,7 @@ describe('auth catch-all route legacy SAML ACS path', () => {
       body: form,
     })
 
-    const res = await POST(req)
+    const res = await POST(req, { params: Promise.resolve({}) })
 
     expect(res.status).toBe(302)
     const forwarded: Request = handlerMocks.betterAuthPOST.mock.calls[0][0]
@@ -260,7 +260,7 @@ describe('auth catch-all route legacy SAML ACS path', () => {
       headers: { cookie: 'session=1' },
     })
 
-    expect((await GET(req)).status).toBe(302)
+    expect((await GET(req, { params: Promise.resolve({}) })).status).toBe(302)
     const forwarded: Request = handlerMocks.betterAuthGET.mock.calls[0][0]
     expect(new URL(forwarded.url).pathname).toBe('/api/auth/sso/saml2/sp/acs/acme-saml')
     expect(forwarded.headers.get('cookie')).toBe('session=1')

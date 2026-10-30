@@ -206,7 +206,7 @@ describe('OAuth2 authorize route', () => {
     expect(new URL(forwarded.url).searchParams.get('sim_resource')).toBe(`${BASE_URL}/api/mcp`)
   })
 
-  it.each([
+  it.each<Record<string, string>>([
     { sim_resource: `${BASE_URL}/api/mcp` },
     { dpop_jkt: 'a'.repeat(43), resource: `${BASE_URL}/api/mcp` },
   ])('refuses reserved or unsupported provider parameters: %o', async (extra) => {
@@ -219,7 +219,8 @@ describe('OAuth2 authorize route', () => {
         code_challenge: 'a'.repeat(43),
         code_challenge_method: 'S256',
         ...extra,
-      })
+      }),
+      { params: Promise.resolve({}) }
     )
     expect(response.status).toBe(400)
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()

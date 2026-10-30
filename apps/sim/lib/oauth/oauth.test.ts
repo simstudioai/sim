@@ -52,11 +52,11 @@ describe('connector callbacks without an account link', () => {
   it('yields no profile when the OAuth state does not come from /link-social', async () => {
     mockGetOAuthState.mockResolvedValue({ callbackURL: '/' })
     const fetchMock = createMockFetch({ json: { account_id: 'account-123' } })
+    const getUserInfo = getBitbucketConnector().getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
 
     const profile = await withMockFetch(fetchMock, () =>
-      getBitbucketConnector().getUserInfo?.(
-        getOAuth2Tokens({ access_token: 'bitbucket_access_token' })
-      )
+      getUserInfo(getOAuth2Tokens({ access_token: 'bitbucket_access_token' }))
     )
 
     expect(profile).toBeNull()
