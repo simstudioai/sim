@@ -17,7 +17,7 @@ export async function loadAssistantIntegrationTools(
   executor?: DbOrTx
 ) {
   const [visibility, config] = await Promise.all([
-    getBlockVisibility({ userId: scope.userId, orgId: scope.organizationId }),
+    getBlockVisibility({ userId: scope.userId, orgId: scope.organizationId }, executor),
     getUserPermissionConfigForOrganization(scope.organizationId, executor),
   ])
   const tools = projectIntegrationToolsForViewer(visibility, config)

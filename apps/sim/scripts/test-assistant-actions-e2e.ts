@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { chromium, expect } from '@playwright/test'
+import { chromium, expect, type Locator } from '@playwright/test'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { createDeferred } from '@sim/testing/helpers/deferred'
@@ -186,6 +186,16 @@ async function capture(name: string) {
       )
     )
   await page.screenshot({ path: resolve(artifactDirectory, `${name}.png`), animations: 'disabled' })
+}
+
+async function captureExpandedReceipt(name: string, disclosure: Locator) {
+  await disclosure.hover()
+  await page.mouse.wheel(0, -1000)
+  await disclosure.click()
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+  await expect(disclosure).toBeInViewport({ ratio: 1 })
+  await capture(name)
+  await expect(disclosure).toBeInViewport({ ratio: 1 })
 }
 
 function proposalArguments(summary: string) {
@@ -598,7 +608,7 @@ try {
     await capture('integrations-desktop')
   })
   await check(
-    'Multiple accounts isolate permissions and disconnect the selected account only',
+    'A synthetic duplicate-provider fixture isolates permissions and disconnects only the selected account',
     async () => {
       await page.goto(`${baseUrl.origin}${root}/integrations`)
       await page.getByRole('link', { name: 'Open Jira integration', exact: true }).click()
@@ -769,6 +779,160 @@ try {
       }
     }
   )
+  await check(
+    'Email review keeps recipients and exact content safe through editing and receipts',
+    async () => {
+      const gmail = catalogAccounts.find((account) => account.option === 'gmail')
+      assert(gmail)
+      const emailChatId = generateId()
+      const emailRunId = generateId()
+      const emailStreamId = generateId()
+      const messages = [
+        {
+          callId: generateId(),
+          subject: 'Launch update',
+          contentType: 'text',
+          body: 'The launch checklist is ready. Please confirm the final owner.',
+        },
+        {
+          callId: generateId(),
+          subject: 'HTML launch update',
+          contentType: 'html',
+          body: `<p>Review the launch checklist.</p><img src="${baseUrl.origin}/assistant-preview-probe" onerror="document.body.dataset.previewExecuted='true'">`,
+        },
+      ]
+      const argsFor = (message: (typeof messages)[number]) => ({
+        credential: gmail.credentialId,
+        to: 'launch-team@example.test',
+        cc: 'reviewer@example.test',
+        bcc: 'archive@example.test',
+        subject: message.subject,
+        body: message.body,
+        contentType: message.contentType,
+      })
+      await sql.begin(async (tx) => {
+        await tx`insert into copilot_chats (id, user_id, organization_id, type, title, conversation_id, config)
+        values (${emailChatId}, ${userId}, ${organizationId}, 'mothership', 'Email review', ${emailStreamId}, ${tx.json({ conversationMode: 'assistant' })})`
+        await tx`insert into copilot_messages (id, chat_id, message_id, role, stream_id, content, seq)
+        values (${generateId()}, ${emailChatId}, ${emailStreamId}, 'user', ${emailStreamId}, ${tx.json({ id: emailStreamId, role: 'user', content: 'Prepare the launch update emails.', requestId, timestamp: new Date().toISOString() })}, 1)`
+        await tx`insert into copilot_runs (id, chat_id, user_id, organization_id, execution_id, stream_id, tool_execution_version, status)
+        values (${emailRunId}, ${emailChatId}, ${userId}, ${organizationId}, ${generateId()}, ${emailStreamId}, 3, 'paused_waiting_for_tool')`
+        for (const message of messages) {
+          await tx`insert into copilot_async_tool_calls (run_id, tool_call_id, tool_name, executable_name, args, assistant_action, execution_retryable, permission_requested_at)
+          values (${emailRunId}, ${message.callId}, 'gmail_send_v2', 'gmail_send_v2', ${tx.json(argsFor(message))}, ${tx.json({ credentialId: gmail.credentialId, operationVersion: 1, effect: 'write' })}, false, now())`
+        }
+      })
+      fixtureStreams.push({ chatId: emailChatId, streamId: emailStreamId })
+      assert(await acquirePendingChatStream(emailChatId, emailStreamId, 0))
+      streamPollers.push(
+        startAbortPoller(emailStreamId, new AbortController(), { chatId: emailChatId })
+      )
+      await appendStreamEvents(emailChatId, emailStreamId, [
+        { type: 'session', payload: { kind: 'start' } },
+        {
+          type: 'text',
+          payload: { channel: 'assistant', text: 'Review these emails before sending.' },
+        },
+        ...messages.map((message) => ({
+          type: 'tool' as const,
+          payload: {
+            phase: 'call' as const,
+            executor: 'sim' as const,
+            mode: 'async' as const,
+            toolCallId: message.callId,
+            toolName: 'gmail_send_v2',
+            status: 'awaiting_approval' as const,
+            arguments: argsFor(message),
+          },
+        })),
+      ])
+      let contentRequested = false
+      await page.route('**/assistant-preview-probe', async (route) => {
+        contentRequested = true
+        await route.abort()
+      })
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await page.emulateMedia({ colorScheme: 'dark' })
+      await page.goto(`${baseUrl.origin}${root}/search/chat/${emailChatId}`)
+      const emails = page.getByRole('region', { name: 'Review Send email', exact: true })
+      await expect(emails).toHaveCount(2)
+      for (const message of messages) {
+        const email = emails.filter({ hasText: message.subject }).filter({
+          has: page
+            .getByRole('region', { name: 'Message preview', exact: true })
+            .filter({ hasText: message.body }),
+        })
+        await expect(email).toHaveCount(1)
+        for (const address of [
+          'launch-team@example.test',
+          'reviewer@example.test',
+          'archive@example.test',
+        ]) {
+          await expect(email.getByText(address, { exact: true })).toBeVisible()
+        }
+        assert.equal(
+          await email.getByRole('region', { name: 'Message preview', exact: true }).textContent(),
+          message.body
+        )
+        await email.getByRole('button', { name: 'Details', exact: true }).click()
+      }
+      await capture('email-review-desktop')
+      const plainIndex = (await emails.allTextContents()).findIndex((content) =>
+        content.includes(messages[0].body)
+      )
+      assert(plainIndex >= 0)
+      const plain = emails.nth(plainIndex)
+      await plain.getByRole('button', { name: 'Edit', exact: true }).click()
+      const editedBody = 'Please confirm the owner by Friday.\nThank you.'
+      await plain.getByRole('textbox', { name: 'Message', exact: true }).fill(editedBody)
+      await expect(plain.getByRole('textbox', { name: 'To', exact: true })).toHaveCount(0)
+      await plain.scrollIntoViewIfNeeded()
+      await capture('email-review-edit')
+      await plain.getByRole('button', { name: 'Done', exact: true }).click()
+      await expect(plain.getByRole('region', { name: 'Message preview', exact: true })).toHaveText(
+        editedBody
+      )
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 })
+        await emails.first().scrollIntoViewIfNeeded()
+        await capture(`email-review-${width}`)
+        assert(
+          await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+          'Email review overflows horizontally'
+        )
+      }
+      await page.getByRole('button', { name: 'Cancel 2 shown', exact: true }).click()
+      await expect(emails).toHaveCount(0)
+      const receipts = page.getByRole('region', { name: 'Send email receipt', exact: true })
+      await expect(receipts).toHaveCount(2)
+      for (const receipt of await receipts.all()) {
+        await receipt
+          .getByRole('button', { name: 'View Send email receipt: Cancelled', exact: true })
+          .click()
+      }
+      await capture('email-receipts-mobile')
+      const response = await context.request.get(
+        `${baseUrl.origin}/api/organizations/${organizationId}/chats/${emailChatId}/actions/receipts`,
+        { params: { streamId: emailStreamId } }
+      )
+      assert.equal(response.status(), 200, await response.text())
+      const saved = listAssistantActionReceiptsContract.response.schema.parse(await response.json())
+      for (const message of messages) {
+        const receipt = saved.receipts.find((entry) => entry.toolCallId === message.callId)
+        assert(receipt)
+        assert.equal(receipt.state, 'cancelled')
+        for (const [name, value] of Object.entries(argsFor(message))) {
+          if (name !== 'credential')
+            assert.equal(receipt.fields.find((field) => field.name === name)?.value, value)
+        }
+      }
+      assert.equal(contentRequested, false, 'Email markup fetched a resource')
+      assert.equal(await page.evaluate(() => document.body.dataset.previewExecuted), undefined)
+      await page.unroute('**/assistant-preview-probe')
+      await page.emulateMedia({ colorScheme: 'light' })
+      await page.setViewportSize({ width: 1440, height: 1000 })
+    }
+  )
   await check('Personal permissions persist through the real settings route', async () => {
     await page.goto(`${baseUrl.origin}${root}/integrations/accounts/${credentialId}`, {
       waitUntil: 'domcontentloaded',
@@ -784,6 +948,21 @@ try {
     await policy.getByRole('radio', { name: 'Ask', exact: true }).click()
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
     await capture('tool-permissions-desktop')
+    const toolDescription = page
+      .getByRole('button', { name: 'More information', exact: true })
+      .first()
+    await toolDescription.hover()
+    await expect(page.getByRole('tooltip')).toBeVisible()
+    await capture('tool-permission-description')
+    await page.mouse.move(0, 0)
+    await expect(page.getByRole('tooltip')).toBeHidden()
+    await toolDescription.focus()
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Shift+Tab')
+    await expect(toolDescription).toBeFocused()
+    await expect(page.getByRole('tooltip')).toBeVisible()
+    await page.keyboard.press('Tab')
+    await expect(page.getByRole('tooltip')).toBeHidden()
     await page.setViewportSize({ width: 390, height: 844 })
     await capture('tool-permissions-mobile')
     assert(
@@ -885,6 +1064,18 @@ try {
           .getByRole('region', { name: 'Create Jira issue receipt' })
           .filter({ hasText: 'Approved historical title' })
       ).toBeAttached()
+      const historicalReceipt = page
+        .getByRole('region', { name: 'Create Jira issue receipt' })
+        .filter({ hasText: 'Approved historical title' })
+      await captureExpandedReceipt(
+        'action-receipt-completed-expanded',
+        historicalReceipt.getByRole('button', {
+          name: /^(View|Hide) Create Jira issue receipt: Completed$/,
+        })
+      )
+      await historicalReceipt
+        .getByRole('button', { name: 'Hide Create Jira issue receipt: Completed', exact: true })
+        .click()
       await reviewCards.last().scrollIntoViewIfNeeded()
       await capture('assistant-actions-desktop')
       await capture('action-review-desktop')
@@ -916,6 +1107,8 @@ try {
         await expect(
           page.getByRole('button', { name: 'Allow 2 shown', exact: true })
         ).toBeDisabled()
+        await reviewCards.nth(0).scrollIntoViewIfNeeded()
+        await capture('action-review-account-unavailable')
       } finally {
         await sql`update credential set managed_oauth_status = 'active' where id = ${credentialId}`
       }
@@ -933,7 +1126,12 @@ try {
         .nth(0)
         .getByRole('textbox', { name: 'Summary', exact: true })
         .fill('Publish the reviewed launch checklist')
+      await reviewCards.nth(0).scrollIntoViewIfNeeded()
+      await capture('action-review-edit-mobile')
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await reviewCards.nth(0).scrollIntoViewIfNeeded()
       await capture('action-review-edit')
+      await page.setViewportSize({ width: 390, height: 844 })
       await reviewCards.nth(0).getByRole('button', { name: 'Done', exact: true }).click()
       await expect(
         reviewCards.nth(0).getByText('Publish the reviewed launch checklist', { exact: true })
@@ -954,7 +1152,14 @@ try {
       const approvedReceipt = page
         .getByRole('region', { name: 'Create Jira issue receipt' })
         .filter({ hasText: 'Publish the reviewed launch checklist' })
-      await expect(approvedReceipt.getByText('Approved', { exact: true })).toBeVisible()
+      await expect(
+        approvedReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Approved',
+          exact: true,
+        })
+      ).toBeVisible()
+      await approvedReceipt.scrollIntoViewIfNeeded()
+      await capture('action-review-approved-and-pending')
       await approvedReceipt.getByRole('button', { name: 'View Create Jira issue receipt' }).click()
       await expect(approvedReceipt.getByRole('textbox')).toHaveCount(0)
       await expect(approvedReceipt.getByText('acme.atlassian.net', { exact: true })).toBeVisible()
@@ -972,13 +1177,28 @@ try {
       const cancelledReceipt = page
         .getByRole('region', { name: 'Create Jira issue receipt' })
         .filter({ hasText: 'Confirm the rollout owners' })
-      await expect(cancelledReceipt.getByText('Cancelled', { exact: true })).toBeVisible()
+      await expect(
+        cancelledReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Cancelled',
+          exact: true,
+        })
+      ).toBeVisible()
       await capture('action-receipts-mobile')
       await page.setViewportSize({ width: 1440, height: 1000 })
       await capture('action-receipts-desktop')
       await page.reload()
-      await expect(approvedReceipt.getByText('Approved', { exact: true })).toBeVisible()
-      await expect(cancelledReceipt.getByText('Cancelled', { exact: true })).toBeVisible()
+      await expect(
+        approvedReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Approved',
+          exact: true,
+        })
+      ).toBeVisible()
+      await expect(
+        cancelledReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Cancelled',
+          exact: true,
+        })
+      ).toBeVisible()
       const rows =
         await sql`select tool_call_id, permission_decision, args, approved_args, execution_started_at from copilot_async_tool_calls where run_id = ${runId} order by persist_seq`
       assert.equal(rows[0]?.permission_decision, 'allow')
@@ -1023,6 +1243,7 @@ try {
           timeout: 15_000,
         })
         await expect(reviewCards).toHaveCount(0)
+        await capture('action-review-unavailable-retry')
       } finally {
         await page.unroute(reviewUrl)
       }
@@ -1064,6 +1285,7 @@ try {
       try {
         await page.getByRole('button', { name: 'Allow 2 shown', exact: true }).click()
         await expect.poll(() => firstDecisionRequested).toBe(true)
+        await capture('action-review-bulk-saving')
         await insertProposal(lagRunId, lateCallId, 'A later proposal that was never approved')
         await appendStreamEvents(lagChatId, lagStreamId, [
           pendingToolEvent(lateCallId, 'A later proposal that was never approved'),
@@ -1139,6 +1361,7 @@ try {
       await expect(reviewCards.nth(0).getByRole('alert')).toBeVisible()
       await expect(allow).toBeEnabled()
       await expect(allow).toBeFocused()
+      await capture('action-review-decision-error')
       const [row] =
         await sql`select permission_decision, execution_started_at from copilot_async_tool_calls where tool_call_id = ${keyboardCallId}`
       assert.equal(row?.permission_decision, null)
@@ -1437,7 +1660,15 @@ try {
           await expect(
             page.getByText('Could not load action history', { exact: true })
           ).toHaveCount(index + 1, { timeout: 15_000 })
+          const historyError = page
+            .getByText('Could not load action history', { exact: true })
+            .last()
+          await historyError.hover()
+          await page.mouse.wheel(0, -1000)
+          await historyError.scrollIntoViewIfNeeded()
+          await expect(historyError).toBeInViewport({ ratio: 1 })
           await capture(`receipt-history-${fixture.state.toLowerCase()}-retry`)
+          await expect(historyError).toBeInViewport({ ratio: 1 })
         } finally {
           await page.unroute(`${receiptsUrl}*`)
         }
@@ -1447,6 +1678,52 @@ try {
             .getByRole('region', { name: 'Create Jira issue receipt' })
             .filter({ hasText: fixture.summary })
         ).toContainText(fixture.state)
+      }
+      const [savedExecution] =
+        await sql`select status, execution_started_at, execution_settled_at, execution_owner_token, execution_lease_expires_at, completed_at, result, assistant_action from copilot_async_tool_calls where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
+      assert(savedExecution)
+      try {
+        for (const fixture of [
+          { status: 'running', label: 'Running', settled: false, unknown: false },
+          { status: 'failed', label: 'Failed', settled: true, unknown: false },
+          { status: 'completed', label: 'Outcome unknown', settled: true, unknown: true },
+        ] as const) {
+          const settledAt = fixture.settled ? new Date() : null
+          const leaseExpiresAt = fixture.settled ? null : new Date(Date.now() + 3_600_000)
+          await sql`update copilot_async_tool_calls set status = ${fixture.status}, execution_started_at = now(), execution_settled_at = ${settledAt}, execution_owner_token = ${generateId()}, execution_lease_expires_at = ${leaseExpiresAt}, completed_at = ${settledAt}, result = ${sql.json({ outcomeUnknown: fixture.unknown })} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
+          await page.reload()
+          const receipt = page
+            .getByRole('region', { name: 'Create Jira issue receipt' })
+            .filter({ hasText: 'Batch issue 62' })
+          await captureExpandedReceipt(
+            `action-receipt-${fixture.label.toLowerCase().replaceAll(' ', '-')}`,
+            receipt.getByRole('button', {
+              name: new RegExp(`^(View|Hide) Create Jira issue receipt: ${fixture.label}$`),
+            })
+          )
+        }
+        const incompatibleBinding = {
+          ...toRecord(savedExecution.assistant_action),
+          operationVersion: 2,
+        }
+        for (const fixture of [
+          { name: 'details-unavailable', binding: incompatibleBinding },
+          {
+            name: 'account-unavailable',
+            binding: { ...incompatibleBinding, credentialId: generateId() },
+          },
+        ]) {
+          await sql`update copilot_async_tool_calls set assistant_action = ${sql.json(fixture.binding)} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
+          await page.reload()
+          await captureExpandedReceipt(
+            `action-receipt-${fixture.name}`,
+            page.getByRole('button', {
+              name: /^(View|Hide) Create Jira issue receipt: Outcome unknown$/,
+            })
+          )
+        }
+      } finally {
+        await sql`update copilot_async_tool_calls set status = ${savedExecution.status}, execution_started_at = ${savedExecution.execution_started_at}, execution_settled_at = ${savedExecution.execution_settled_at}, execution_owner_token = ${savedExecution.execution_owner_token}, execution_lease_expires_at = ${savedExecution.execution_lease_expires_at}, completed_at = ${savedExecution.completed_at}, result = ${savedExecution.result === null ? null : sql.json(savedExecution.result)}, assistant_action = ${sql.json(savedExecution.assistant_action)} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
       }
     }
   )

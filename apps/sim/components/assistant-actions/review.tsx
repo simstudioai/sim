@@ -15,7 +15,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { ActionPreview } from '@/components/assistant-actions/action-preview'
 import { AssistantActionReceipt } from '@/components/assistant-actions/action-receipt'
-import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
+import {
+  assistantActionFieldPresentation,
+  assistantActionPresentation,
+} from '@/components/assistant-actions/presentation'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type {
   AssistantActionReceiptsResponse,
@@ -652,11 +655,12 @@ function ActionReview({ action, review }: ActionReviewProps) {
         }
       >
         <div className='flex flex-col gap-2 px-2 pb-2'>
-          <p className='break-words text-[var(--text-muted)] text-small'>
-            {action.account?.displayName ?? 'Account unavailable'}
-          </p>
           {editing ? (
             <div className='grid gap-3 sm:grid-cols-2'>
+              <p className='col-span-full break-words text-[var(--text-body)] text-small'>
+                <span className='mr-3 text-[var(--text-muted)] text-caption'>Account</span>
+                {action.account?.displayName ?? 'Account unavailable'}
+              </p>
               {action.fields
                 .filter((field) => field.value || field.editable)
                 .map((field) => (
@@ -672,6 +676,7 @@ function ActionReview({ action, review }: ActionReviewProps) {
             </div>
           ) : (
             <ActionPreview
+              account={action.account?.displayName ?? 'Account unavailable'}
               action={{
                 ...action,
                 fields: action.fields.map((field) => ({
@@ -694,7 +699,7 @@ function ActionReview({ action, review }: ActionReviewProps) {
               {error.message}
             </p>
           )}
-          <div className='flex flex-wrap items-center gap-2'>
+          <div className='flex flex-wrap items-center gap-2 border-[var(--border)] border-t pt-2'>
             <Chip
               variant='primary'
               disabled={disabled || !action.account?.active}
@@ -763,10 +768,11 @@ interface ActionReviewFieldProps {
 
 function ActionReviewField({ field, actionId, value, disabled, onEdit }: ActionReviewFieldProps) {
   const id = `assistant-action-${actionId}-${field.name}`
+  const display = assistantActionFieldPresentation({ ...field, value })
   return field.editable ? (
     <div className='col-span-full flex flex-col gap-[9px]'>
       <label htmlFor={id} className='text-[var(--text-muted)] text-small'>
-        {field.label}
+        {display.label}
       </label>
       {field.format === 'text' ? (
         <ChipInput
@@ -790,9 +796,9 @@ function ActionReviewField({ field, actionId, value, disabled, onEdit }: ActionR
     </div>
   ) : (
     <dl className={cn('flex min-w-0 flex-col gap-1', field.format !== 'text' && 'col-span-full')}>
-      <dt className='text-[var(--text-muted)] text-small'>{field.label}</dt>
+      <dt className='text-[var(--text-muted)] text-small'>{display.label}</dt>
       <dd className='whitespace-pre-wrap break-words text-[var(--text-body)] text-small'>
-        {value}
+        {display.value}
       </dd>
     </dl>
   )

@@ -2,6 +2,10 @@
  * Real authorization and persistence boundary: account/tenant isolation, session-only grants,
  * lost updates, absent defaults, revocation, and unsupported operation escalation.
  */
+import {
+  AppConfigDataClient,
+  StartConfigurationSessionCommand,
+} from '@aws-sdk/client-appconfigdata'
 import type { OrganizationDelegatedPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
@@ -19,13 +23,17 @@ import {
   resourcePolicy,
   user,
 } from '@sim/db/schema'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
+import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
+import { toArray, toRecord } from '@sim/utils/object'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   claimOrganizationAssistantAction,
   prepareOrganizationAssistantAction,
 } from '@/lib/assistant-actions/application/admission'
+import { listOrganizationAssistantActionReceipts } from '@/lib/assistant-actions/application/receipts'
 import {
   decideOrganizationAssistantAction,
   listOrganizationAssistantActions,
@@ -34,6 +42,7 @@ import {
   readOrganizationToolPermissions,
   updateOrganizationToolPermissions,
 } from '@/lib/assistant-actions/application/tool-permissions'
+import { loadAssistantIntegrationTools } from '@/lib/assistant-actions/catalog'
 import {
   requireAssistantActionExecution,
   withAssistantActionExecution,
@@ -42,7 +51,17 @@ import {
   loadAssistantToolPermissions,
   resolveAssistantToolPolicy,
 } from '@/lib/assistant-actions/tool-permissions'
+import { env } from '@/lib/core/config/env'
+import * as envFlags from '@/lib/core/config/env-flags'
+import { closeRedisConnection } from '@/lib/core/config/redis'
 import * as providerTransport from '@/lib/core/security/input-validation.server'
+import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
+import {
+  completeCredentialGroupOAuth,
+  startCredentialGroupOAuth,
+} from '@/lib/credential-groups/oauth'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
+import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
@@ -50,6 +69,7 @@ import {
   encryptManagedOAuthTokenSet,
   rejectManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
+import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import {
   claimAssistantToolExecution,
   claimToolExecution,
@@ -426,6 +446,129 @@ describe('Assistant discovery for legacy account setup', () => {
     expect(
       await db.select().from(resourcePolicy).where(eq(resourcePolicy.resourceId, groupId))
     ).toEqual([])
+  })
+})
+
+describe('Assistant account and tool discovery', () => {
+  it('evaluates admin-gated tools using the current transaction', async () => {
+    const originalConfig = {
+      APPCONFIG_APPLICATION: env.APPCONFIG_APPLICATION,
+      APPCONFIG_ENVIRONMENT: env.APPCONFIG_ENVIRONMENT,
+      AWS_REGION: env.AWS_REGION,
+    }
+    Object.assign(env, {
+      APPCONFIG_APPLICATION: generateId(),
+      APPCONFIG_ENVIRONMENT: 'assistant-integration',
+      AWS_REGION: 'us-east-1',
+    })
+    const appConfigEnabled = vi.spyOn(envFlags, 'isAppConfigEnabled', 'get').mockReturnValue(true)
+    const transport = vi
+      .spyOn(AppConfigDataClient.prototype, 'send')
+      .mockImplementation(async (command) =>
+        command instanceof StartConfigurationSessionCommand
+          ? { $metadata: {}, InitialConfigurationToken: 'assistant-fixture' }
+          : {
+              $metadata: {},
+              Configuration: new TextEncoder().encode(
+                JSON.stringify({ gmail_v2: { adminEnabled: true } })
+              ),
+              NextPollConfigurationToken: 'assistant-fixture-next',
+            }
+      )
+    try {
+      const [viewer] = await db.select({ role: user.role }).from(user).where(eq(user.id, ownerId))
+      if (!viewer) throw new Error('Assistant fixture user is missing')
+      const scope = { organizationId, userId: ownerId }
+      const before = await loadAssistantIntegrationTools(scope)
+      expect(before.tools.some(({ toolId }) => toolId === 'gmail_list_labels_v2')).toBe(false)
+
+      await db.transaction(async (tx) => {
+        await tx.update(user).set({ role: 'admin' }).where(eq(user.id, ownerId))
+        const during = await loadAssistantIntegrationTools(scope, tx)
+        expect(during.tools.some(({ toolId }) => toolId === 'gmail_list_labels_v2')).toBe(true)
+        await tx.update(user).set({ role: viewer.role }).where(eq(user.id, ownerId))
+      })
+
+      const after = await loadAssistantIntegrationTools(scope)
+      expect(after.tools.some(({ toolId }) => toolId === 'gmail_list_labels_v2')).toBe(false)
+    } finally {
+      transport.mockRestore()
+      appConfigEnabled.mockRestore()
+      Object.assign(env, originalConfig)
+    }
+  })
+
+  it('keeps reconnectable accounts but withdraws disabled group accounts from the action inventory', async () => {
+    const policyId = generateId()
+    await db.insert(resourcePolicy).values({
+      id: policyId,
+      organizationId,
+      resourceType: 'credential_group',
+      resourceId: groupId,
+      document: {
+        version: 2,
+        resource: { type: 'credential_group', id: groupId },
+        statements: [],
+      },
+    })
+    const inventory = async () =>
+      toRecord(
+        JSON.parse(
+          await loadCopilotSearchIntegrations({
+            organizationId,
+            userId: ownerId,
+            chatId,
+            messageId: generateId(),
+          })
+        )
+      )
+    try {
+      expect((await inventory()).actionAccounts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ credentialId: jiraCredentialId, status: 'connected' }),
+        ])
+      )
+      await db
+        .update(credential)
+        .set({ managedOauthStatus: 'needs_reauth' })
+        .where(eq(credential.id, jiraCredentialId))
+      expect((await inventory()).actionAccounts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ credentialId: jiraCredentialId, status: 'reconnect_needed' }),
+        ])
+      )
+
+      await db
+        .update(credentialGroup)
+        .set({ status: 'disabled' })
+        .where(eq(credentialGroup.id, groupId))
+      const disabled = await inventory()
+      expect(disabled.actionAccounts).toEqual([])
+      expect(toArray(disabled.connections).map(toRecord)).toContainEqual(
+        expect.objectContaining({
+          providerId: 'jira',
+          connectionStatus: 'unavailable',
+          action: null,
+          accounts: expect.arrayContaining([
+            expect.objectContaining({
+              credentialId: jiraCredentialId,
+              status: 'reconnect_needed',
+              action: null,
+            }),
+          ]),
+        })
+      )
+    } finally {
+      await db
+        .update(credentialGroup)
+        .set({ status: 'active' })
+        .where(eq(credentialGroup.id, groupId))
+      await db
+        .update(credential)
+        .set({ managedOauthStatus: 'active' })
+        .where(eq(credential.id, jiraCredentialId))
+      await db.delete(resourcePolicy).where(eq(resourcePolicy.id, policyId))
+    }
   })
 })
 
@@ -858,6 +1001,375 @@ function deliver(call: Awaited<ReturnType<typeof prepare>>, options?: Orchestrat
     options
   )
 }
+
+describe('Managed account identity across Assistant approvals', () => {
+  const originalRedisUrl = env.REDIS_URL
+
+  beforeAll(() => {
+    const redisUrl = readTestRedisUrl()
+    if (!redisUrl) throw new Error('Set TEST_REDIS_URL to a disposable local Redis')
+    Object.assign(env, { REDIS_URL: redisUrl })
+  })
+
+  afterAll(async () => {
+    await closeRedisConnection()
+    Object.assign(env, { REDIS_URL: originalRedisUrl })
+  })
+
+  it.each([
+    {
+      name: 'reconnect refuses another subject',
+      provider: 'jira',
+      mode: 'reconnect',
+      changedSubject: true,
+      storedTenant: null,
+      returnedTenant: null,
+      accepted: false,
+    },
+    {
+      name: 'reconnect permits an email rename for the same subject',
+      provider: 'jira',
+      mode: 'reconnect',
+      changedSubject: false,
+      storedTenant: null,
+      returnedTenant: null,
+      accepted: true,
+    },
+    {
+      name: 'legacy enrollment refuses another subject before approval',
+      provider: 'jira',
+      mode: 'legacy',
+      changedSubject: true,
+      storedTenant: null,
+      returnedTenant: null,
+      accepted: false,
+    },
+    {
+      name: 'create refuses another subject in a disconnected account slot',
+      provider: 'jira',
+      mode: 'restore',
+      changedSubject: true,
+      storedTenant: null,
+      returnedTenant: null,
+      accepted: false,
+    },
+    {
+      name: 'create restores the same disconnected account',
+      provider: 'jira',
+      mode: 'restore',
+      changedSubject: false,
+      storedTenant: null,
+      returnedTenant: null,
+      accepted: true,
+    },
+    {
+      name: 'another unused option creates a separate account without moving an approval',
+      provider: 'jira',
+      mode: 'new',
+      changedSubject: true,
+      storedTenant: null,
+      returnedTenant: null,
+      accepted: true,
+    },
+    {
+      name: 'reconnect refuses another tenant for the same subject',
+      provider: 'salesforce',
+      mode: 'reconnect',
+      changedSubject: false,
+      storedTenant: 'fixture-tenant',
+      returnedTenant: 'another-tenant',
+      accepted: false,
+    },
+    {
+      name: 'legacy enrollment does not treat a null tenant as a wildcard',
+      provider: 'salesforce',
+      mode: 'legacy',
+      changedSubject: false,
+      storedTenant: null,
+      returnedTenant: 'another-tenant',
+      accepted: false,
+    },
+    {
+      name: 'reconnect refuses removal of the bound tenant',
+      provider: 'salesforce',
+      mode: 'reconnect',
+      changedSubject: false,
+      storedTenant: 'fixture-tenant',
+      returnedTenant: null,
+      accepted: false,
+    },
+    {
+      name: 'reconnect permits an email rename within the same tenant',
+      provider: 'salesforce',
+      mode: 'reconnect',
+      changedSubject: false,
+      storedTenant: 'fixture-tenant',
+      returnedTenant: 'fixture-tenant',
+      accepted: true,
+    },
+  ] as const)('$name', async (scenario) => {
+    const selectedCredentialId =
+      scenario.provider === 'jira' ? jiraCredentialId : salesforceCredentialId
+    const [originalCredential] = await db
+      .select()
+      .from(credential)
+      .where(eq(credential.id, selectedCredentialId))
+    const [originalEnrollment] = await db
+      .select()
+      .from(credentialGroupEnrollment)
+      .where(eq(credentialGroupEnrollment.id, enrollmentId))
+    const [group] = await db.select().from(credentialGroup).where(eq(credentialGroup.id, groupId))
+    const configuredOption = group?.options.find((option) => option.id === scenario.provider)
+    if (!originalCredential || !originalEnrollment || !group || !configuredOption)
+      throw new Error('Managed account fixture is incomplete')
+
+    const option =
+      scenario.mode === 'new'
+        ? { ...configuredOption, id: generateId(), label: 'Second Jira account' }
+        : configuredOption
+    const options = scenario.mode === 'new' ? [...group.options, option] : group.options
+    const policy = await getCredentialGroupProviderAdapter(scenario.provider).getPolicy(
+      undefined,
+      {}
+    )
+    const invitationToken = generateId()
+    const chosenSubject = scenario.changedSubject
+      ? `another-subject-${generateId()}`
+      : selectedCredentialId
+    const chosenEmail = 'renamed-account@example.test'
+    const freshToken = `fresh-account-token-${generateId()}`
+    const requests: Array<{ authorization: string | null; body: unknown }> = []
+    const originalFetch = globalThis.fetch
+    const provider = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const request = new Request(input, init)
+      if (
+        request.url === 'https://auth.atlassian.com/oauth/token' ||
+        request.url === 'https://login.salesforce.com/services/oauth2/token'
+      ) {
+        return Response.json({
+          access_token: freshToken,
+          refresh_token: 'fresh-fixture-refresh-token',
+          token_type: 'Bearer',
+          scope: policy.requiredScopes.join(' '),
+          expires_in: 3600,
+        })
+      }
+      if (request.url === 'https://api.atlassian.com/me') {
+        return Response.json({
+          account_type: 'atlassian',
+          account_id: chosenSubject,
+          account_status: 'active',
+          email: chosenEmail,
+        })
+      }
+      if (request.url === 'https://login.salesforce.com/services/oauth2/userinfo') {
+        return Response.json({
+          user_id: chosenSubject,
+          email: chosenEmail,
+          email_verified: true,
+          organization_id: scenario.returnedTenant,
+        })
+      }
+      if (request.url === 'https://api.atlassian.com/oauth/token/accessible-resources') {
+        return Response.json([
+          { id: '11111111-1111-4111-8111-111111111111', url: 'https://fixture.atlassian.net' },
+        ])
+      }
+      if (
+        request.url ===
+        'https://api.atlassian.com/ex/jira/11111111-1111-4111-8111-111111111111/rest/api/3/issue'
+      ) {
+        requests.push({
+          authorization: request.headers.get('authorization'),
+          body: await request.json(),
+        })
+        return Response.json({ id: '10001', key: 'SIM-1', self: request.url }, { status: 201 })
+      }
+      const hostname = new URL(request.url).hostname
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1')
+        throw new Error(`Unexpected external fixture request: ${request.url}`)
+      return originalFetch(input, init)
+    })
+
+    try {
+      await db
+        .update(credential)
+        .set({
+          providerSubjectId: selectedCredentialId,
+          providerTenantId: scenario.storedTenant,
+          managedOauthStatus: 'active',
+          revokedAt: null,
+        })
+        .where(eq(credential.id, selectedCredentialId))
+      await db
+        .update(credentialGroupEnrollment)
+        .set({ invitationTokenHash: sha256Hex(invitationToken) })
+        .where(eq(credentialGroupEnrollment.id, enrollmentId))
+      if (scenario.mode === 'new') {
+        await db.update(credentialGroup).set({ options }).where(eq(credentialGroup.id, groupId))
+      }
+
+      let pending:
+        | { call: Awaited<ReturnType<typeof prepare>>; proposalVersion: string }
+        | undefined
+      if (scenario.provider === 'jira') {
+        const call = await prepare('jira_write', {
+          credential: jiraCredentialId,
+          domain: 'fixture.atlassian.net',
+          projectId: 'SIM',
+          issueType: 'Task',
+          summary: 'Original proposal',
+        })
+        const proposal = (await review()).actions.find(
+          (action) => action.toolCallId === call.toolCallId
+        )
+        if (!proposal) throw new Error('Expected a pending action review')
+        pending = { call, proposalVersion: proposal.proposalVersion }
+        if (scenario.mode !== 'legacy') {
+          await decide(call.toolCallId, proposal.proposalVersion, 'allow', {
+            summary: 'Reviewed summary',
+          })
+        }
+      }
+
+      if (scenario.mode === 'restore') {
+        await db
+          .update(credential)
+          .set({ managedOauthStatus: 'revoked', revokedAt: new Date() })
+          .where(eq(credential.id, selectedCredentialId))
+      }
+      const [beforeOAuth] = await db
+        .select()
+        .from(credential)
+        .where(eq(credential.id, selectedCredentialId))
+      if (!beforeOAuth?.encryptedOauthTokenSet)
+        throw new Error('Managed credential token envelope disappeared')
+      const context: CredentialGroupOAuthContext = {
+        organizationId,
+        enrollmentId,
+        credentialGroupId: groupId,
+        credentialGroupName: group.name,
+        workspaceName: 'Assistant permission fixture',
+        workspaceOwnerId: null,
+        credentialOwnerId: ownerId,
+        email: originalEnrollment.email,
+        enrollmentStatus: originalEnrollment.status,
+        option,
+        options,
+      }
+      const connectionIntent: CredentialGroupConnectionIntent | undefined =
+        scenario.mode === 'legacy'
+          ? undefined
+          : scenario.mode === 'restore' || scenario.mode === 'new'
+            ? { kind: 'create' }
+            : { kind: 'reconnect', credentialId: selectedCredentialId }
+      const authorizationUrl = await startCredentialGroupOAuth(context, invitationToken, {
+        connectionIntent,
+      })
+      const state = new URL(authorizationUrl).searchParams.get('state')
+      if (!state) throw new Error('Fixture authorization did not return state')
+      const attempt = await consumeCredentialGroupOAuthAttempt(state)
+      if (!attempt) throw new Error('Fixture authorization state was unavailable')
+      expect(await consumeCredentialGroupOAuthAttempt(state)).toBeNull()
+      const completion = completeCredentialGroupOAuth(context, attempt, 'fixture-code')
+
+      if (scenario.accepted) {
+        const result = await completion
+        expect(result).toMatchObject({
+          created: scenario.mode === 'new',
+          displayName: chosenEmail,
+        })
+        if (scenario.mode === 'new') expect(result.credentialId).not.toBe(selectedCredentialId)
+        else expect(result.credentialId).toBe(selectedCredentialId)
+        const [connected] = await db
+          .select()
+          .from(credential)
+          .where(eq(credential.id, result.credentialId))
+        expect(connected).toMatchObject({
+          credentialGroupEnrollmentId: enrollmentId,
+          credentialGroupOptionId: option.id,
+          providerSubjectId: chosenSubject,
+          providerTenantId: scenario.returnedTenant,
+          displayName: chosenEmail,
+          managedOauthStatus: 'active',
+          revokedAt: null,
+        })
+        if (!connected?.encryptedOauthTokenSet)
+          throw new Error('Connected account has no token envelope')
+        expect(await decryptManagedOAuthTokenSet(connected.encryptedOauthTokenSet)).toMatchObject({
+          accessToken: freshToken,
+        })
+      } else {
+        await expect(completion).rejects.toMatchObject({ statusCode: 409 })
+      }
+
+      if (!scenario.accepted || scenario.mode === 'new') {
+        const [unchanged] = await db
+          .select()
+          .from(credential)
+          .where(eq(credential.id, selectedCredentialId))
+        expect(unchanged).toEqual(beforeOAuth)
+      }
+
+      if (pending) {
+        if (scenario.mode === 'restore' && !scenario.accepted) {
+          await expect(claim(pending.call)).rejects.toThrow()
+          expect(requests).toEqual([])
+        } else {
+          if (scenario.mode === 'legacy') {
+            await decide(pending.call.toolCallId, pending.proposalVersion, 'allow', {
+              summary: 'Reviewed summary',
+            })
+          }
+          const delivered = await deliver(pending.call)
+          expect(delivered.status, JSON.stringify(delivered)).toBe('success')
+          const originalToken = await decryptManagedOAuthTokenSet(
+            beforeOAuth.encryptedOauthTokenSet
+          )
+          expect(requests).toHaveLength(1)
+          expect(requests[0]).toMatchObject({
+            authorization: `Bearer ${
+              scenario.accepted && scenario.mode !== 'new' ? freshToken : originalToken.accessToken
+            }`,
+            body: {
+              fields: {
+                project: { key: 'SIM' },
+                summary: 'Reviewed summary',
+                issuetype: { name: 'Task' },
+              },
+            },
+          })
+        }
+        const receipts = await listOrganizationAssistantActionReceipts.execute({
+          principal,
+          input: { organizationId, chatId, toolCallIds: [pending.call.toolCallId] },
+        })
+        expect(receipts.receipts[0]?.account).toMatchObject({
+          credentialId: selectedCredentialId,
+          displayName:
+            scenario.accepted && scenario.mode !== 'new' ? chosenEmail : beforeOAuth.displayName,
+        })
+      }
+    } finally {
+      provider.mockRestore()
+      if (scenario.mode === 'new') {
+        await db.delete(credential).where(eq(credential.credentialGroupOptionId, option.id))
+        await db
+          .update(credentialGroup)
+          .set({ options: group.options })
+          .where(eq(credentialGroup.id, groupId))
+      }
+      await db
+        .update(credential)
+        .set(originalCredential)
+        .where(eq(credential.id, selectedCredentialId))
+      await db
+        .update(credentialGroupEnrollment)
+        .set(originalEnrollment)
+        .where(eq(credentialGroupEnrollment.id, enrollmentId))
+    }
+  })
+})
 
 describe('Assistant action delivery through the durable executor', () => {
   it.each([

@@ -299,6 +299,7 @@ jobs:
           path: |
             ${{ runner.temp }}/e2e/**/*.json
             ${{ runner.temp }}/e2e/browser-extension/**/*.png
+            ${{ runner.temp }}/e2e/*-ui-report.json.artifacts/*.png
           if-no-files-found: ignore
           retention-days: 7
 
