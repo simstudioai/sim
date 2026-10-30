@@ -1,7 +1,7 @@
 /**
  * vCPU and RAM for the Pi sandbox, shared by both provider builds and by sandbox
- * pricing, so the provider Pi fails over to gives it the same machine as the one it
- * normally runs on. A template built without explicit sizes gets E2B's build default
+ * pricing, so Pi gets the same machine on the provider it fails over to as on the one
+ * it normally runs on. A template built without explicit sizes gets E2B's build default
  * of 2 vCPU / 1 GiB, an eighth of the memory Pi gets on Daytona.
  *
  * Memory is the dimension that matters: the Pi CLI is a Node process holding an LLM
