@@ -4,6 +4,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { createLogger } from '@sim/logger'
 import { distrustCompromisedRoots } from '@sim/security/tls-trust'
+import type { BuildExtension } from '@trigger.dev/build'
 import {
   additionalFiles,
   additionalPackages,
@@ -65,6 +66,42 @@ function getFunctionExecutionEnvVars() {
   })
 }
 
+/**
+ * Node.js version copied into the task image, in lockstep with `NODE_VERSION`
+ * in `docker/app.Dockerfile`: `isolated-vm` 6.x loads its Node 24 (ABI 137)
+ * prebuild. The image is pinned by its multi-arch index digest.
+ */
+const NODE_VERSION = '24.22.1'
+const NODE_IMAGE = `node:${NODE_VERSION}-bookworm-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c`
+
+/**
+ * Tasks run on Bun, but the `bun-1.4` image ships no `node`, and the
+ * isolated-vm sandbox worker and the Oracle Database worker are spawned as
+ * `node` child processes, the same split as the app image. Adding image
+ * instructions also builds the install stage from this base, so `bun install`
+ * runs `isolated-vm`'s install script against the same Node. Deploy only:
+ * `trigger dev` spawns the developer's own `node`.
+ *
+ * @see https://trigger.dev/docs/guides/frameworks/bun#choosing-a-bun-runtime
+ */
+function nodeBinary(): BuildExtension {
+  return {
+    name: 'node-binary',
+    onBuildComplete(context) {
+      if (context.target === 'dev') return
+      context.addLayer({
+        id: 'node-binary',
+        image: {
+          instructions: [
+            `COPY --from=${NODE_IMAGE} /usr/local/bin/node /usr/local/bin/node`,
+            `RUN [ "$(node --version)" = "v${NODE_VERSION}" ]`,
+          ],
+        },
+      })
+    },
+  }
+}
+
 const grafanaTelemetry = grafanaFullyConfigured
   ? (() => {
       const baseUrl = grafanaEndpoint!.replace(/\/+$/, '')
@@ -88,7 +125,7 @@ const grafanaTelemetry = grafanaFullyConfigured
 
 export default defineConfig({
   project: env.TRIGGER_PROJECT_ID!,
-  runtime: 'node-24',
+  runtime: 'bun-1.4',
   logLevel: 'info',
   maxDuration: 5400,
   retries: {
@@ -159,6 +196,7 @@ export default defineConfig({
       'sharp',
     ],
     extensions: [
+      nodeBinary(),
       syncEnvVars(() => [
         { name: 'DB_APP_NAME', value: 'sim-trigger' },
         /**
