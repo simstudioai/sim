@@ -1129,7 +1129,6 @@ async function buildPublicCredentialGroupEnrollment(
       .select({
         optionId: credential.credentialGroupOptionId,
         status: credential.managedOauthStatus,
-        scopeVersion: credential.managedOauthScopeVersion,
         authorizationAppId: credential.authorizationAppId,
         grantedScopes: credential.grantedScopes,
         displayName: credential.displayName,
@@ -1217,7 +1216,6 @@ async function buildPublicCredentialGroupEnrollment(
                   ? ('revoked' as const)
                   : connection.status !== 'active' ||
                       connection.authorizationAppId !== policy.authorizationAppId ||
-                      connection.scopeVersion !== policy.scopeVersion ||
                       !adapter.hasRequiredScopes(
                         connection.grantedScopes ?? [],
                         policy.requiredScopes

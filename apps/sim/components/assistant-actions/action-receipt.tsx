@@ -46,7 +46,7 @@ export function AssistantActionReceipt({ receipt }: AssistantActionReceiptProps)
         }
         actions={
           <Chip
-            aria-label={`${expanded ? 'Hide' : 'View'} ${presentation.title} receipt`}
+            aria-label={`${expanded ? 'Hide' : 'View'} ${presentation.title} receipt: ${STATE_LABELS[receipt.state]}`}
             aria-expanded={expanded}
             rightIcon={expanded ? ChevronDown : ChevronRight}
             onClick={() => setExpanded(!expanded)}
@@ -77,15 +77,17 @@ export function AssistantActionReceipt({ receipt }: AssistantActionReceiptProps)
           )}
           {expanded && (
             <>
-              <p className='break-words text-[var(--text-muted)] text-small'>
-                {receipt.account?.displayName ?? 'Account unavailable'}
-              </p>
               {receipt.detailsAvailable ? (
-                <ActionPreview action={receipt} full />
+                <ActionPreview
+                  action={receipt}
+                  account={receipt.account?.displayName ?? 'Account unavailable'}
+                  full
+                />
               ) : (
-                <p className='text-[var(--text-muted)] text-small'>
-                  Details are no longer available for this action.
-                </p>
+                <div className='flex flex-col gap-1 break-words text-[var(--text-muted)] text-small'>
+                  {receipt.account && <p>{receipt.account.displayName}</p>}
+                  <p>Details are no longer available for this action.</p>
+                </div>
               )}
             </>
           )}

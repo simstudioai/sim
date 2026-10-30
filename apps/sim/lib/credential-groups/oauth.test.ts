@@ -337,6 +337,7 @@ describe('credential group OAuth persistence', () => {
       {
         id: 'credential-1',
         providerSubjectId: 'google-subject-1',
+        providerTenantId: null,
         encryptedOauthTokenSet: null,
         refreshTokenExpiresAt: null,
       },
@@ -391,6 +392,7 @@ describe('credential group OAuth persistence', () => {
       {
         id: 'credential-1',
         providerSubjectId: 'google-subject-1',
+        providerTenantId: null,
         encryptedOauthTokenSet: null,
         refreshTokenExpiresAt: null,
       },
@@ -536,6 +538,7 @@ describe('credential group OAuth persistence', () => {
         id: 'credential-1',
         revokedAt: new Date(),
         providerSubjectId: 'google-subject-1',
+        providerTenantId: null,
         encryptedOauthTokenSet: null,
         refreshTokenExpiresAt: null,
       },

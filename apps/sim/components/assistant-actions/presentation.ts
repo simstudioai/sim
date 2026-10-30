@@ -1,9 +1,30 @@
 import type { AssistantActionsResponse } from '@/lib/api/contracts/assistant-actions'
+import { humanizeDisplayIdentifier } from '@/lib/mothership/tools/display'
 
 type PresentedAction = Pick<
   AssistantActionsResponse['actions'][number],
   'toolId' | 'name' | 'fields'
 >
+
+const CONTENT_TYPE_LABELS = new Map([
+  ['text', 'Plain text'],
+  ['html', 'HTML'],
+])
+
+/** Readable labels and enum text leave the reviewed invocation unchanged. */
+export function assistantActionFieldPresentation(field: PresentedAction['fields'][number]) {
+  const identifier = field.name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
+  return {
+    label:
+      field.label === field.name ? humanizeDisplayIdentifier(identifier, 'sentence') : field.label,
+    value:
+      field.name === 'contentType'
+        ? (CONTENT_TYPE_LABELS.get(field.value) ?? field.value)
+        : field.value,
+  }
+}
 
 /** Display labels and preview fields only; model-facing tool definitions remain unchanged. */
 const PRESENTATIONS: Record<string, { title: string; primary: string[] }> = {

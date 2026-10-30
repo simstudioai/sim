@@ -769,6 +769,157 @@ try {
       }
     }
   )
+  await check(
+    'Email review keeps recipients and exact content safe through editing and receipts',
+    async () => {
+      const gmail = catalogAccounts.find((account) => account.option === 'gmail')
+      assert(gmail)
+      const emailChatId = generateId()
+      const emailRunId = generateId()
+      const emailStreamId = generateId()
+      const messages = [
+        {
+          callId: generateId(),
+          subject: 'Launch update',
+          contentType: 'text',
+          body: 'The launch checklist is ready. Please confirm the final owner.',
+        },
+        {
+          callId: generateId(),
+          subject: 'HTML launch update',
+          contentType: 'html',
+          body: `<p>Review the launch checklist.</p><img src="${baseUrl.origin}/assistant-preview-probe" onerror="document.body.dataset.previewExecuted='true'">`,
+        },
+      ]
+      const argsFor = (message: (typeof messages)[number]) => ({
+        credential: gmail.credentialId,
+        to: 'launch-team@example.test',
+        cc: 'reviewer@example.test',
+        bcc: 'archive@example.test',
+        subject: message.subject,
+        body: message.body,
+        contentType: message.contentType,
+      })
+      await sql.begin(async (tx) => {
+        await tx`insert into copilot_chats (id, user_id, organization_id, type, title, conversation_id, config)
+        values (${emailChatId}, ${userId}, ${organizationId}, 'mothership', 'Email review', ${emailStreamId}, ${tx.json({ conversationMode: 'assistant' })})`
+        await tx`insert into copilot_messages (id, chat_id, message_id, role, stream_id, content, seq)
+        values (${generateId()}, ${emailChatId}, ${emailStreamId}, 'user', ${emailStreamId}, ${tx.json({ id: emailStreamId, role: 'user', content: 'Prepare the launch update emails.', requestId, timestamp: new Date().toISOString() })}, 1)`
+        await tx`insert into copilot_runs (id, chat_id, user_id, organization_id, execution_id, stream_id, tool_execution_version, status)
+        values (${emailRunId}, ${emailChatId}, ${userId}, ${organizationId}, ${generateId()}, ${emailStreamId}, 3, 'paused_waiting_for_tool')`
+        for (const message of messages) {
+          await tx`insert into copilot_async_tool_calls (run_id, tool_call_id, tool_name, executable_name, args, assistant_action, execution_retryable, permission_requested_at)
+          values (${emailRunId}, ${message.callId}, 'gmail_send_v2', 'gmail_send_v2', ${tx.json(argsFor(message))}, ${tx.json({ credentialId: gmail.credentialId, operationVersion: 1, effect: 'write' })}, false, now())`
+        }
+      })
+      fixtureStreams.push({ chatId: emailChatId, streamId: emailStreamId })
+      assert(await acquirePendingChatStream(emailChatId, emailStreamId, 0))
+      streamPollers.push(
+        startAbortPoller(emailStreamId, new AbortController(), { chatId: emailChatId })
+      )
+      await appendStreamEvents(emailChatId, emailStreamId, [
+        { type: 'session', payload: { kind: 'start' } },
+        {
+          type: 'text',
+          payload: { channel: 'assistant', text: 'Review these emails before sending.' },
+        },
+        ...messages.map((message) => ({
+          type: 'tool' as const,
+          payload: {
+            phase: 'call' as const,
+            executor: 'sim' as const,
+            mode: 'async' as const,
+            toolCallId: message.callId,
+            toolName: 'gmail_send_v2',
+            status: 'awaiting_approval' as const,
+            arguments: argsFor(message),
+          },
+        })),
+      ])
+      let contentRequested = false
+      await page.route('**/assistant-preview-probe', async (route) => {
+        contentRequested = true
+        await route.abort()
+      })
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await page.emulateMedia({ colorScheme: 'dark' })
+      await page.goto(`${baseUrl.origin}${root}/search/chat/${emailChatId}`)
+      const emails = page.getByRole('region', { name: 'Review Send email', exact: true })
+      await expect(emails).toHaveCount(2)
+      for (const message of messages) {
+        const email = emails.filter({ hasText: message.subject }).filter({
+          has: page
+            .getByRole('region', { name: 'Message preview', exact: true })
+            .filter({ hasText: message.body }),
+        })
+        await expect(email).toHaveCount(1)
+        for (const address of [
+          'launch-team@example.test',
+          'reviewer@example.test',
+          'archive@example.test',
+        ]) {
+          await expect(email.getByText(address, { exact: true })).toBeVisible()
+        }
+        assert.equal(
+          await email.getByRole('region', { name: 'Message preview', exact: true }).textContent(),
+          message.body
+        )
+        await email.getByRole('button', { name: 'Details', exact: true }).click()
+      }
+      await capture('email-review-desktop')
+      const plainIndex = (await emails.allTextContents()).findIndex((content) =>
+        content.includes(messages[0].body)
+      )
+      assert(plainIndex >= 0)
+      const plain = emails.nth(plainIndex)
+      await plain.getByRole('button', { name: 'Edit', exact: true }).click()
+      const editedBody = 'Please confirm the owner by Friday.\nThank you.'
+      await plain.getByRole('textbox', { name: 'Message', exact: true }).fill(editedBody)
+      await expect(plain.getByRole('textbox', { name: 'To', exact: true })).toHaveCount(0)
+      await plain.getByRole('button', { name: 'Done', exact: true }).click()
+      await expect(plain.getByRole('region', { name: 'Message preview', exact: true })).toHaveText(
+        editedBody
+      )
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 })
+        await emails.first().scrollIntoViewIfNeeded()
+        await capture(`email-review-${width}`)
+        assert(
+          await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+          'Email review overflows horizontally'
+        )
+      }
+      await page.getByRole('button', { name: 'Cancel 2 shown', exact: true }).click()
+      await expect(emails).toHaveCount(0)
+      const receipts = page.getByRole('region', { name: 'Send email receipt', exact: true })
+      await expect(receipts).toHaveCount(2)
+      for (const receipt of await receipts.all()) {
+        await receipt
+          .getByRole('button', { name: 'View Send email receipt: Cancelled', exact: true })
+          .click()
+      }
+      await capture('email-receipts-mobile')
+      const response = await context.request.get(
+        `${baseUrl.origin}/api/organizations/${organizationId}/chats/${emailChatId}/actions/receipts`
+      )
+      assert.equal(response.status(), 200, await response.text())
+      const saved = listAssistantActionReceiptsContract.response.schema.parse(await response.json())
+      for (const message of messages) {
+        const receipt = saved.receipts.find((entry) => entry.toolCallId === message.callId)
+        assert(receipt)
+        assert.equal(receipt.state, 'cancelled')
+        for (const [name, value] of Object.entries(argsFor(message))) {
+          if (name !== 'credential')
+            assert.equal(receipt.fields.find((field) => field.name === name)?.value, value)
+        }
+      }
+      assert.equal(contentRequested, false, 'Email markup fetched a resource')
+      assert.equal(await page.evaluate(() => document.body.dataset.previewExecuted), undefined)
+      await page.unroute('**/assistant-preview-probe')
+      await page.emulateMedia({ colorScheme: 'light' })
+      await page.setViewportSize({ width: 1440, height: 1000 })
+    }
+  )
   await check('Personal permissions persist through the real settings route', async () => {
     await page.goto(`${baseUrl.origin}${root}/integrations/accounts/${credentialId}`, {
       waitUntil: 'domcontentloaded',
@@ -954,7 +1105,12 @@ try {
       const approvedReceipt = page
         .getByRole('region', { name: 'Create Jira issue receipt' })
         .filter({ hasText: 'Publish the reviewed launch checklist' })
-      await expect(approvedReceipt.getByText('Approved', { exact: true })).toBeVisible()
+      await expect(
+        approvedReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Approved',
+          exact: true,
+        })
+      ).toBeVisible()
       await approvedReceipt.getByRole('button', { name: 'View Create Jira issue receipt' }).click()
       await expect(approvedReceipt.getByRole('textbox')).toHaveCount(0)
       await expect(approvedReceipt.getByText('acme.atlassian.net', { exact: true })).toBeVisible()
@@ -972,13 +1128,28 @@ try {
       const cancelledReceipt = page
         .getByRole('region', { name: 'Create Jira issue receipt' })
         .filter({ hasText: 'Confirm the rollout owners' })
-      await expect(cancelledReceipt.getByText('Cancelled', { exact: true })).toBeVisible()
+      await expect(
+        cancelledReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Cancelled',
+          exact: true,
+        })
+      ).toBeVisible()
       await capture('action-receipts-mobile')
       await page.setViewportSize({ width: 1440, height: 1000 })
       await capture('action-receipts-desktop')
       await page.reload()
-      await expect(approvedReceipt.getByText('Approved', { exact: true })).toBeVisible()
-      await expect(cancelledReceipt.getByText('Cancelled', { exact: true })).toBeVisible()
+      await expect(
+        approvedReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Approved',
+          exact: true,
+        })
+      ).toBeVisible()
+      await expect(
+        cancelledReceipt.getByRole('button', {
+          name: 'View Create Jira issue receipt: Cancelled',
+          exact: true,
+        })
+      ).toBeVisible()
       const rows =
         await sql`select tool_call_id, permission_decision, args, approved_args, execution_started_at from copilot_async_tool_calls where run_id = ${runId} order by persist_seq`
       assert.equal(rows[0]?.permission_decision, 'allow')
