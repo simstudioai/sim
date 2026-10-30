@@ -75,12 +75,22 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         },
       },
       {
-        name: 'LangGraph or CrewAI',
+        name: 'LangGraph',
         fitsWhen:
-          'Your developers want to own orchestration in open-source code and move between model providers, and accept building the hosting, monitoring, and interface around it.',
+          'Your developers want low-level control of a stateful agent graph in open-source code, mixing hand-coded and model-driven steps, and accept building the hosting, monitoring, and interface around it.',
         source: {
           url: 'https://docs.langchain.com/oss/python/langgraph/overview',
           label: 'LangGraph overview',
+          asOf: '2026-10-29',
+        },
+      },
+      {
+        name: 'CrewAI',
+        fitsWhen:
+          'Your developers want an open-source framework for teams of collaborating agents in code, and accept building the hosting, monitoring, and interface around it.',
+        source: {
+          url: 'https://docs.crewai.com/en/introduction',
+          label: 'CrewAI introduction',
           asOf: '2026-10-29',
         },
       },
