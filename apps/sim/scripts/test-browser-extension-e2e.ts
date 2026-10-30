@@ -1263,6 +1263,9 @@ try {
         assert.equal(chat.organization_id, organizationId)
         assert.equal(chat.workspace_id, null)
         assert.equal(toRecord(chat.config).conversationMode, 'assistant')
+        await expect(
+          frame().getByRole('button', { name: 'Copy message', exact: true })
+        ).toBeVisible({ timeout: 120_000 })
         await screenshot('organization-assistant-response')
       } else await shell.unroute('**/api/mothership/chat')
     }
