@@ -9319,6 +9319,11 @@ type ListMcpServerToolsResponseRef0 = {
     properties?: Record<string, unknown>
     required?: Array<string>
   }
+  outputSchema?: {
+    type: 'object'
+    properties?: Record<string, unknown>
+    required?: Array<string>
+  }
   serverId: string
   serverName: string
 }

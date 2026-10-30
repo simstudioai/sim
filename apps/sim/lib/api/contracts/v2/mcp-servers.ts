@@ -332,12 +332,38 @@ const v2McpToolInputSchema = z
   .catchall(z.unknown().describe('Additional JSON Schema keyword reported by the server.'))
   .describe("JSON Schema for the tool's arguments, as reported by the server.")
 
+/**
+ * The shape of a tool's `structuredContent`, as the MCP server reports it.
+ * Published open below the `object` wrapper for the reasons given for
+ * {@link v2McpToolInputSchema}; the SDK's `ToolSchema.outputSchema` pins the same
+ * three keys.
+ */
+const v2McpToolOutputSchema = z
+  .object({
+    type: z
+      .literal('object')
+      .describe('JSON Schema type of the structured result. MCP requires `object`.'),
+    properties: z
+      .record(z.string(), z.unknown().describe('Server-defined JSON Schema for one result field.'))
+      .optional()
+      .describe('Result field schemas keyed by field name.'),
+    required: z
+      .array(z.string().describe('Name of a field every result carries.'))
+      .optional()
+      .describe('Names of the fields every result carries.'),
+  })
+  .catchall(z.unknown().describe('Additional JSON Schema keyword reported by the server.'))
+  .describe(
+    "JSON Schema for the tool's `structuredContent`, as reported by the server. Absent when the tool declares none."
+  )
+
 /** One tool exposed by a registered MCP server. */
 export const v2McpToolSchema = z
   .object({
     name: z.string().describe('Tool name, as the MCP server reports it.'),
     description: z.string().optional().describe('Tool description reported by the server.'),
     inputSchema: v2McpToolInputSchema,
+    outputSchema: v2McpToolOutputSchema.optional(),
     serverId: z.string().describe('Identifier of the MCP server exposing the tool.'),
     serverName: z.string().describe('Display name of the MCP server exposing the tool.'),
   })

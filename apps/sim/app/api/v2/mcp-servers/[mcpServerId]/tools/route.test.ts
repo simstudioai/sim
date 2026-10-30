@@ -233,6 +233,34 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
   })
 
   /**
+   * The v2 tool shape is strict, so a discovered field the contract does not
+   * declare turns discovery into a 500 rather than being dropped. A declared
+   * `outputSchema` is server-authored below its `object` wrapper, like
+   * `inputSchema`, and passes through untouched.
+   */
+  it('publishes the output schema a tool declares', async () => {
+    const outputSchema = {
+      type: 'object' as const,
+      description: null,
+      properties: { hits: { type: 'array', items: { type: 'string' } } },
+      required: ['hits'],
+    }
+    mockDiscoverMcpServerToolsUseCase.mockResolvedValueOnce({
+      tools: [
+        { ...TOOL, outputSchema },
+        { ...TOOL, name: 'ping' },
+      ],
+    })
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0].outputSchema).toEqual(outputSchema)
+    expect(body.data[1]).not.toHaveProperty('outputSchema')
+  })
+
+  /**
    * `McpConnectionError` interpolates the server's display name into its
    * message, so selecting the 503 wording by searching that message for
    * `cooldown` hands a server named after the word the negative-cache wording

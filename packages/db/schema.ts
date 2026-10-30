@@ -6170,6 +6170,8 @@ export interface ManagedMcpToolSnapshot {
   name: string
   description?: string
   inputSchema: Record<string, unknown>
+  /** Absent when the tool declares no output schema, and on snapshots taken before it was kept. */
+  outputSchema?: Record<string, unknown>
 }
 
 /** contract-pending(after all GitLab tokens migrate and workspace-token writers are retired): drop credential_personal_token_identity_unique; only the index is retired. */

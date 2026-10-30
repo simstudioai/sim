@@ -1,13 +1,15 @@
 import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
+import { createMcpToolOutputSnapshot } from '@/lib/mcp/output-schema'
 import { collectDanglingBlockOutputReferences } from '@/lib/workflows/editing/lint'
+import { McpBlock } from '@/blocks/blocks/mcp'
 import { getAllBlocks, getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
 
 const mockGetBlock = getBlock as Mock
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockGetBlockRegistry = getBlockRegistry as Mock
 const mockGetBlockByToolName = getBlockByToolName as Mock
-mockGetBlock.mockImplementation((type: string) => MOCK_BLOCKS[type])
+mockGetBlock.mockImplementation((type: string) => (type === 'mcp' ? McpBlock : MOCK_BLOCKS[type]))
 mockGetAllBlocks.mockImplementation(() => Object.values(MOCK_BLOCKS))
 mockGetBlockRegistry.mockImplementation(() => MOCK_BLOCKS)
 mockGetBlockByToolName.mockImplementation(() => undefined)
@@ -274,6 +276,80 @@ describe('collectDanglingBlockOutputReferences', () => {
         })
       )
       expect(findings).toHaveLength(0)
+    })
+  })
+  describe('MCP structured replies', () => {
+    const ON_CALL_SCHEMA = {
+      type: 'object' as const,
+      properties: {
+        role: { type: 'string' },
+        person: { type: 'object', properties: { id: { type: 'string' } } },
+      },
+    }
+
+    function mcpGraph(reference: string, snapshot?: unknown) {
+      return graph({
+        oncall: {
+          type: 'mcp',
+          name: 'On call',
+          subBlocks: {
+            operation: { value: 'run' },
+            serverSelector: { value: 'server-1' },
+            toolSelector: { value: 'on_call' },
+            ...(snapshot === undefined ? {} : { toolOutputSchema: { value: snapshot } }),
+          },
+        },
+        fn: {
+          type: 'function',
+          name: 'Parse',
+          subBlocks: { code: { value: `return ${reference}` } },
+        },
+      })
+    }
+
+    const declared = createMcpToolOutputSnapshot('server-1', 'on_call', ON_CALL_SCHEMA)
+
+    it('accepts a path the declared output schema has', () => {
+      expect(
+        collectDanglingBlockOutputReferences(
+          mcpGraph('<oncall.structuredContent.person.id>', declared)
+        )
+      ).toEqual([])
+      expect(collectDanglingBlockOutputReferences(mcpGraph('<oncall.content>', declared))).toEqual(
+        []
+      )
+    })
+
+    it('flags a structuredContent field the declared schema does not have, naming the declared ones', () => {
+      const [finding, ...rest] = collectDanglingBlockOutputReferences(
+        mcpGraph('<oncall.structuredContent.onCall>', declared)
+      )
+      expect(rest).toEqual([])
+      expect(finding).toMatchObject({ blockId: 'fn', value: ['<oncall.structuredContent.onCall>'] })
+      expect(finding?.reason).toMatch(
+        /^unknown-field: "On call" \(mcp\) has no output field "structuredContent.onCall"/
+      )
+      expect(finding?.reason).toContain('structuredContent.role, structuredContent.person')
+    })
+
+    it('flags a nested field under a declared object', () => {
+      const [finding] = collectDanglingBlockOutputReferences(
+        mcpGraph('<oncall.structuredContent.person.email>', declared)
+      )
+      expect(finding?.reason).toContain('"structuredContent.person.email"')
+      expect(finding?.reason).toContain('structuredContent.person.id')
+    })
+
+    it('keeps flagging structuredContent when the operation declares no schema', () => {
+      for (const snapshot of [
+        undefined,
+        createMcpToolOutputSnapshot('server-1', 'on_call', undefined),
+      ]) {
+        const [finding] = collectDanglingBlockOutputReferences(
+          mcpGraph('<oncall.structuredContent.role>', snapshot)
+        )
+        expect(finding?.reason).toMatch(/has no output field "structuredContent"/)
+      }
     })
   })
 })

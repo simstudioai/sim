@@ -85,12 +85,14 @@ function toMothershipMcpTool(tool: {
   name: string
   description?: string
   inputSchema: McpToolSchema | Record<string, unknown>
+  outputSchema?: McpToolSchema
 }): ToolSchema {
   return {
     name: createMcpToolId(tool.serverId, tool.name),
     description:
       tool.description || `MCP tool ${tool.name} from ${tool.serverName || tool.serverId}`,
     input_schema: tool.inputSchema,
+    ...(tool.outputSchema ? { output_schema: tool.outputSchema } : {}),
     service: `mcp:${tool.serverId}`,
   }
 }
