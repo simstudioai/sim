@@ -253,6 +253,8 @@ Most `/api` routes also pass through Next.js Proxy, which buffers only the first
 
 With `BILLING_ENABLED` disabled, hosted-plan execution rates/timeouts and table/storage quotas are not enforced unless you set their free-tier variables. Independent protocol, body-size, concurrency, and security rate limits still apply. Billing-enabled deployments enforce their plan limits. Keep `BILLING_ENABLED` and `NEXT_PUBLIC_BILLING_ENABLED` consistent so enforcement and the UI agree.
 
+One of those security limits is easy to hit from scripts: the v2 API (`/api/v2/...`) allows each client IP a burst of 600 requests, then 300 per minute, checked before authentication. With Docker Compose, requests from the host share the bridge gateway IP and one budget. Behind a reverse proxy, set `AUTH_TRUSTED_PROXIES` so each client is counted by its own address.
+
 Retention cleanup is separately opt-in through `DATA_RETENTION_ENABLED` or the enterprise suite. A configured retention policy still applies without billing; see [Data retention](/platform/enterprise/data-retention).
 
 | Variable | Opts in | Suggested value |
