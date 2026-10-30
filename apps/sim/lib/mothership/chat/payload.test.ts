@@ -30,7 +30,11 @@ import {
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
-import { ChatPayloadSchema, TOOL_DEADLINE_CAPABILITY } from '@/lib/mothership/generated/protocol'
+import {
+  ChatPayloadSchema,
+  TOOL_DEADLINE_CAPABILITY,
+  WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+} from '@/lib/mothership/generated/protocol'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { gmailListLabelsV2Tool } from '@/tools/gmail/list_labels'
 import { getToolMetadata } from '@/tools/metadata'
@@ -430,7 +434,11 @@ describe('buildCopilotRequestPayload', () => {
         model: '',
       })
       expect(payload.entitlements).toEqual(enabled ? ['dashboards'] : [])
-      expect(payload.clientCapabilities).toEqual(['workflow-tool-pickup', TOOL_DEADLINE_CAPABILITY])
+      expect(payload.clientCapabilities).toEqual([
+        'workflow-tool-pickup',
+        TOOL_DEADLINE_CAPABILITY,
+        WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+      ])
     }
   )
 
@@ -507,7 +515,10 @@ describe('buildCopilotRequestPayload', () => {
         'mothershipTools',
       ])
         expect(payload).not.toHaveProperty(key)
-      expect(payload.clientCapabilities).toEqual([TOOL_DEADLINE_CAPABILITY])
+      expect(payload.clientCapabilities).toEqual([
+        TOOL_DEADLINE_CAPABILITY,
+        WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+      ])
       if (owner === 'organization') expect(payload).not.toHaveProperty('integrationTools')
     }
   )
@@ -844,7 +855,10 @@ describe('Assistant payload', () => {
       terminalCapable: true,
     })
     expect(payload).not.toHaveProperty('desktop')
-    expect(payload.clientCapabilities).toEqual([TOOL_DEADLINE_CAPABILITY])
+    expect(payload.clientCapabilities).toEqual([
+      TOOL_DEADLINE_CAPABILITY,
+      WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+    ])
     expect(payload.mode).toBe('assistant')
     expect(payload.assistantSearch).toEqual({ source: 'slack', documentIds: ['document-1'] })
     for (const field of ['context', 'commands', 'mothershipTools', 'workflowId']) {
