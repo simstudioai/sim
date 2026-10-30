@@ -153,18 +153,20 @@ function fillDeclaredStructuredContent(
   if (!declared) return
   const readWhole = new Set(paths.map((path) => pathSegments(path).join('.')))
 
-  const fill = (value: unknown, node: unknown, at: string): unknown => {
+  /** `within` holds once a value at or above `at` is read whole: then every declared field below it belongs in the mock. */
+  const fill = (value: unknown, node: unknown, at: string, within: boolean): unknown => {
     if (value === null) return skeletonFromDeclaredOutput(node)
     if (!isRecordLike(node)) return value
+    const whole = within || readWhole.has(at)
     if (Array.isArray(value))
-      return value.map((item, index) => fill(item, node.items, `${at}.${index}`))
+      return value.map((item, index) => fill(item, node.items, `${at}.${index}`, whole))
     if (!isRecordLike(value) || !isRecordLike(node.properties)) return value
     const properties = node.properties
     const read = Object.entries(value).map(([key, child]): [string, unknown] => [
       key,
-      Object.hasOwn(properties, key) ? fill(child, properties[key], `${at}.${key}`) : child,
+      Object.hasOwn(properties, key) ? fill(child, properties[key], `${at}.${key}`, whole) : child,
     ])
-    const added = readWhole.has(at)
+    const added = whole
       ? Object.entries(properties)
           .filter(([key]) => !Object.hasOwn(value, key))
           .map(([key, child]): [string, unknown] => [key, skeletonFromDeclaredOutput(child)])
@@ -174,7 +176,8 @@ function fillDeclaredStructuredContent(
   mock[MCP_STRUCTURED_CONTENT_OUTPUT] = fill(
     mock[MCP_STRUCTURED_CONTENT_OUTPUT],
     declared,
-    MCP_STRUCTURED_CONTENT_OUTPUT
+    MCP_STRUCTURED_CONTENT_OUTPUT,
+    false
   )
 }
 

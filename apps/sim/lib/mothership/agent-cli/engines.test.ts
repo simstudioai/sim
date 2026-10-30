@@ -353,6 +353,40 @@ describe('workflows deps', () => {
       })
     })
 
+    it('keeps every declared field below a whole read, through objects and array items', async () => {
+      expect(
+        await depsMock(
+          '<oncall.structuredContent> <oncall.structuredContent.person.id> <oncall.structuredContent.shifts.0.start>',
+          {
+            ...snapshot,
+            schema: {
+              ...snapshot.schema,
+              properties: {
+                ...snapshot.schema.properties,
+                person: {
+                  type: 'object',
+                  properties: { id: { type: 'string' }, name: { type: 'string' } },
+                },
+                shifts: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: { start: { type: 'string' }, end: { type: 'string' } },
+                  },
+                },
+              },
+            },
+          }
+        )
+      ).toEqual({
+        structuredContent: {
+          role: null,
+          person: { id: null, name: null },
+          shifts: [{ start: null, end: null }],
+        },
+      })
+    })
+
     it('keeps the read-path skeleton when the operation declares no schema', async () => {
       expect(
         await depsMock('return <oncall.structuredContent>', { server: 'server-1', tool: 'on_call' })
