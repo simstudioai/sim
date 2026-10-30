@@ -71,7 +71,7 @@
     "TS2554": 1
   },
   "apps/sim/app/api/billing/update-cost/route.test.ts": {
-    "TS2554": 51
+    "TS2554": 50
   },
   "apps/sim/app/api/billing/update-cost/worker.live.test.ts": {
     "TS2554": 1
@@ -98,7 +98,7 @@
     "TS2554": 1
   },
   "apps/sim/app/api/copilot/api-keys/validate/route.test.ts": {
-    "TS2554": 55
+    "TS2554": 52
   },
   "apps/sim/app/api/copilot/chat/stop/route.test.ts": {
     "TS18046": 2,
