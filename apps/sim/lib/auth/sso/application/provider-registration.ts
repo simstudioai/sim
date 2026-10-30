@@ -9,6 +9,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, eq, sql } from 'drizzle-orm'
 import { ssoProviderOperations } from '@/lib/auth/sso/application/operations'
+import { normalizeIssuer } from '@/lib/auth/sso/issuer'
 import { type SsoProviderConfig, ssoProviderWriter } from '@/lib/auth/sso/provider-adapter'
 import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
 import type { SsoRegistrationInput } from '@/lib/auth/sso/registration-input'
@@ -51,10 +52,6 @@ function failSsoProvider(status: number, message: string, reason?: string): neve
 }
 
 type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post'
-
-function trimTrailingSlashes(url: string): string {
-  return url.replace(/\/+$/, '')
-}
 
 /**
  * Prefers client_secret_post over client_secret_basic when an IdP supports both:
@@ -524,7 +521,7 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
       if (
         discoveredIssuer &&
         discoveredIssuer !== issuer &&
-        trimTrailingSlashes(discoveredIssuer) === trimTrailingSlashes(issuer)
+        normalizeIssuer(discoveredIssuer) === normalizeIssuer(issuer)
       )
         providerConfig.issuer = discoveredIssuer
 

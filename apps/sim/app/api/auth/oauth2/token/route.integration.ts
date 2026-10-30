@@ -4,7 +4,7 @@ import * as schema from '@sim/db/schema'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
 import { generateId } from '@sim/utils/id'
-import { makeSignature } from 'better-auth/crypto'
+import { makeSignature, symmetricEncrypt } from 'better-auth/crypto'
 import { eq, inArray, like, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -251,6 +251,129 @@ describe('OAuth token route in PostgreSQL', () => {
         await expect(
           tokenStore.verifyOAuthAccessToken(next.access_token, { resource })
         ).rejects.toMatchObject({ reason: 'unknown' })
+      } finally {
+        await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
+        await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId))
+        await db.delete(schema.user).where(eq(schema.user.id, userId))
+        await db
+          .delete(schema.rateLimitBucket)
+          .where(eq(schema.rateLimitBucket.key, `route:oauth-provider-token:ip:${clientIp}`))
+        requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
+      }
+    },
+    30_000
+  )
+
+  it.each(['client_secret_basic', 'client_secret_post'] as const)(
+    'exchanges a code and refreshes for a confidential client registered for %s',
+    async (method) => {
+      const POST = (request: NextRequest) => tokenRoute(request, {})
+      const clientIp = `203.0.113.${(randomBytes(1)[0] % 254) + 1}`
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue(clientIp)
+      const baseUrl = 'https://test.sim.ai'
+      const redirectUri = 'https://client.example/callback'
+      const userId = generateId()
+      const sessionToken = generateId()
+      const clientId = `confidential+${generateId()}`
+      const clientSecret = `s:${generateId()}`
+      const scopes = ['api:read', 'offline_access']
+      const now = new Date()
+      const signature = await makeSignature(sessionToken, authSecret)
+      const cookie = `__Secure-better-auth.session_token=${encodeURIComponent(`${sessionToken}.${signature}`)}`
+
+      /** RFC 6749 §2.3.1 form-encodes each half before Basic encoding. */
+      const authenticate = (values: Record<string, string>) => {
+        const form = new URLSearchParams(values)
+        const headers: Record<string, string> = {
+          'content-type': 'application/x-www-form-urlencoded',
+        }
+        if (method === 'client_secret_basic') {
+          const pair = `${encodeURIComponent(clientId)}:${encodeURIComponent(clientSecret)}`
+          headers.authorization = `Basic ${Buffer.from(pair).toString('base64')}`
+        } else {
+          form.set('client_id', clientId)
+          form.set('client_secret', clientSecret)
+        }
+        return new NextRequest(`${baseUrl}/api/auth/oauth2/token`, {
+          method: 'POST',
+          body: form.toString(),
+          headers,
+        })
+      }
+
+      try {
+        await db.insert(schema.user).values({
+          id: userId,
+          name: 'Confidential OAuth client test',
+          email: `${userId}@example.com`,
+          emailVerified: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await db.insert(schema.session).values({
+          id: generateId(),
+          token: sessionToken,
+          userId,
+          expiresAt: new Date(now.getTime() + 86_400_000),
+          createdAt: now,
+          updatedAt: now,
+        })
+        await db.insert(schema.oauthClient).values({
+          id: generateId(),
+          clientId,
+          clientSecret: await symmetricEncrypt({ key: authSecret, data: clientSecret }),
+          name: 'Confidential OAuth client test',
+          public: false,
+          type: 'web',
+          tokenEndpointAuthMethod: method,
+          grantTypes: ['authorization_code', 'refresh_token'],
+          redirectUris: [redirectUri],
+          scopes,
+        })
+        await db.insert(schema.oauthConsent).values({
+          id: generateId(),
+          clientId,
+          userId,
+          scopes,
+          createdAt: now,
+          updatedAt: now,
+        })
+
+        const verifier = randomBytes(32).toString('base64url')
+        const challenge = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+        const authorizeUrl = new URL('/api/auth/oauth2/authorize', baseUrl)
+        authorizeUrl.search = new URLSearchParams({
+          client_id: clientId,
+          response_type: 'code',
+          redirect_uri: redirectUri,
+          scope: scopes.join(' '),
+          code_challenge: Buffer.from(challenge).toString('base64url'),
+          code_challenge_method: 'S256',
+          state: generateId(),
+        }).toString()
+        const authorized = await auth.handler(new Request(authorizeUrl, { headers: { cookie } }))
+        expect(authorized.status).toBe(302)
+        const code = new URL(authorized.headers.get('location') ?? '').searchParams.get('code')
+        expect(code, 'Expected an authorization code redirect').toBeTruthy()
+
+        const issued = await POST(
+          authenticate({
+            grant_type: 'authorization_code',
+            code: code ?? '',
+            code_verifier: verifier,
+            redirect_uri: redirectUri,
+          })
+        )
+        expect(issued.status, await issued.clone().text()).toBe(200)
+        const tokens = (await issued.json()) as TokenResponseBody
+        await expect(tokenStore.verifyOAuthAccessToken(tokens.access_token)).resolves.toMatchObject(
+          { userId }
+        )
+
+        const renewed = await POST(
+          authenticate({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token })
+        )
+        expect(renewed.status).toBe(200)
       } finally {
         await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
         await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId))

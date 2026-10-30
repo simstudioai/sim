@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import {
-  buildDelegatedOAuthRequest,
   isValidOAuthCodeVerifier,
   parseOAuthFormRequest,
   validateOAuthPkceAuthorizationRequest,
@@ -43,23 +42,6 @@ describe('parseOAuthFormRequest', () => {
       clientSecret: 's:ecret',
       method: 'client_secret_basic',
     })
-  })
-
-  it('adapts decoded Basic credentials to Better Auth without changing grant fields', async () => {
-    const encoded = Buffer.from('client%2Bid:s%3Aecret').toString('base64')
-    const original = request('grant_type=authorization_code&code=code', {
-      authorization: `basic ${encoded}`,
-    })
-    const parsed = await parseOAuthFormRequest(original)
-    if (!parsed.success) throw new Error('request should parse')
-    const delegated = buildDelegatedOAuthRequest(original, parsed.value)
-    const delegatedForm = new URLSearchParams(await delegated.text())
-
-    expect(delegated.headers.has('authorization')).toBe(false)
-    expect(delegatedForm.get('grant_type')).toBe('authorization_code')
-    expect(delegatedForm.get('code')).toBe('code')
-    expect(delegatedForm.get('client_id')).toBe('client+id')
-    expect(delegatedForm.get('client_secret')).toBe('s:ecret')
   })
 
   it('rejects repeated fields and mixed client authentication', async () => {

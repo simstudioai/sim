@@ -1,10 +1,6 @@
 import { db, ssoProvider } from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
-
-/** Issuers compare without trailing slashes, which identity providers add or drop freely. */
-function normalizeIssuer(issuer: string): string {
-  return issuer.trim().replace(/\/+$/, '')
-}
+import { normalizeIssuer } from '@/lib/auth/sso/issuer'
 
 /** The issuer's origin, so an Okta custom authorization server matches its organization URL. */
 function issuerOrigin(issuer: string): string | null {

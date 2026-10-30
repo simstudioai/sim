@@ -11,8 +11,13 @@
 --    valid IdP signature, on the Response or the Assertion, whatever the flag said. Clearing the flag
 --    keeps exactly that policy, so IdPs that sign only the Response keep signing users in; an admin
 --    can opt into signed assertions from SSO settings.
+-- 3. An `audience` equal to the IdP's own entity ID, which the provider registration script wrote
+--    by default. 1.6 accepted an assertion addressed to either the SP entity ID or `audience`, so
+--    those IdPs keep addressing Sim's SP entity ID; 1.7 accepts only `audience` when it is set. An
+--    IdP's entity ID is never the audience of an assertion it issues to Sim, so dropping it leaves
+--    1.7 checking the SP entity ID that those IdPs already send.
 --
--- Idempotent: a row is rewritten only when one of the two conditions still holds. The table holds
+-- Idempotent: a row is rewritten only when one of the three conditions still holds. The table holds
 -- one row per configured provider, so a single pass is bounded. Rows whose JSON cannot be parsed
 -- are left for the application to reject as before.
 DO $$
@@ -51,6 +56,11 @@ BEGIN
     IF config->'wantAssertionsSigned' = 'true'::jsonb
       AND coalesce(config #>> '{spMetadata,metadata}', '') !~ '\sWantAssertionsSigned\s*=\s*(["''])(true|1)\1' THEN
       updated := jsonb_set(updated, '{wantAssertionsSigned}', 'false'::jsonb);
+    END IF;
+
+    IF coalesce(config->>'audience', '') <> ''
+      AND config->>'audience' IN (config->>'issuer', provider."issuer", idp->>'entityID') THEN
+      updated := updated - 'audience';
     END IF;
 
     IF updated <> config THEN

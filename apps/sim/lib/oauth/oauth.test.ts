@@ -48,22 +48,6 @@ beforeEach(() => {
   })
 })
 
-describe('connector callbacks without an account link', () => {
-  it('yields no profile when the OAuth state does not come from /link-social', async () => {
-    mockGetOAuthState.mockResolvedValue({ callbackURL: '/' })
-    const fetchMock = createMockFetch({ json: { account_id: 'account-123' } })
-    const getUserInfo = getBitbucketConnector().getUserInfo
-    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
-
-    const profile = await withMockFetch(fetchMock, () =>
-      getUserInfo(getOAuth2Tokens({ access_token: 'bitbucket_access_token' }))
-    )
-
-    expect(profile).toBeNull()
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-})
-
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { getPerRequestOAuthLinkScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
@@ -120,6 +104,22 @@ function getMondayConnector() {
   if (!connector) throw new Error('Monday OAuth connector is not configured in this test')
   return connector
 }
+
+describe('connector callbacks without an account link', () => {
+  it('yields no profile when the OAuth state does not come from /link-social', async () => {
+    mockGetOAuthState.mockResolvedValue({ callbackURL: '/' })
+    const fetchMock = createMockFetch({ json: { account_id: 'account-123' } })
+    const getUserInfo = getBitbucketConnector().getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
+
+    const profile = await withMockFetch(fetchMock, () =>
+      getUserInfo(getOAuth2Tokens({ access_token: 'bitbucket_access_token' }))
+    )
+
+    expect(profile).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('Monday OAuth connector', () => {
   it('rejects GraphQL errors returned with HTTP 200 during user-info lookup', async () => {

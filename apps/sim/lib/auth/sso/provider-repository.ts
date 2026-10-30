@@ -13,6 +13,7 @@ import { filterUndefined, omit, sortObjectKeysDeep, toRecord } from '@sim/utils/
 import { APIError } from 'better-auth/api'
 import { and, count, eq } from 'drizzle-orm'
 import type { auth } from '@/lib/auth'
+import { normalizeIssuer } from '@/lib/auth/sso/issuer'
 import type { SsoProviderConfig } from '@/lib/auth/sso/provider-adapter'
 import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
 import type { DbOrTx } from '@/lib/db/types'
@@ -42,7 +43,7 @@ const OIDC_IDENTITY_FIELDS = [
 const SAML_IDENTITY_FIELDS = ['audience', 'callbackUrl', 'entryPoint', 'identifierFormat'] as const
 const SAML_IDP_IDENTITY_FIELDS = ['metadata', 'entityID', 'singleSignOnService'] as const
 const SAML_SP_IDENTITY_FIELDS = ['metadata', 'entityID'] as const
-const WANT_ASSERTIONS_SIGNED_ATTRIBUTE = /\sWantAssertionsSigned="[^"]*"/
+const WANT_ASSERTIONS_SIGNED_ATTRIBUTE = /\sWantAssertionsSigned\s*=\s*(["'])[^"']*\1/
 
 interface RepositoryConfiguration {
   reservedProviderIds: readonly string[]
@@ -93,11 +94,6 @@ function normalizeAlgorithm(value: string, algorithms: Record<string, string>, s
 
 function samlMetadata(value: unknown): Record<string, unknown> {
   return typeof value === 'string' ? { metadata: value } : toRecord(value)
-}
-
-/** Issuers compare without trailing slashes, which identity providers add or drop freely. */
-function normalizeIssuer(issuer: string): string {
-  return issuer.trim().replace(/\/+$/, '')
 }
 
 /**

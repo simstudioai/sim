@@ -206,10 +206,7 @@ describe('OAuth2 authorize route', () => {
     expect(new URL(forwarded.url).searchParams.get('sim_resource')).toBe(`${BASE_URL}/api/mcp`)
   })
 
-  it.each<Record<string, string>>([
-    { sim_resource: `${BASE_URL}/api/mcp` },
-    { dpop_jkt: 'a'.repeat(43), resource: `${BASE_URL}/api/mcp` },
-  ])('refuses reserved or unsupported provider parameters: %o', async (extra) => {
+  it('refuses the reserved authorized-resource parameter', async () => {
     const response = await GET(
       request({
         client_id: 'mcp-client',
@@ -218,12 +215,31 @@ describe('OAuth2 authorize route', () => {
         scope: 'api:read offline_access',
         code_challenge: 'a'.repeat(43),
         code_challenge_method: 'S256',
-        ...extra,
+        sim_resource: `${BASE_URL}/api/mcp`,
       }),
       { params: Promise.resolve({}) }
     )
     expect(response.status).toBe(400)
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()
+  })
+
+  it('issues a bearer grant when the client asks for a DPoP key binding', async () => {
+    const response = await GET(
+      request({
+        client_id: 'mcp-client',
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        scope: 'api:read offline_access',
+        code_challenge: 'a'.repeat(43),
+        code_challenge_method: 'S256',
+        resource: `${BASE_URL}/api/mcp`,
+        dpop_jkt: 'a'.repeat(43),
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(302)
+    const forwarded: Request = mocks.betterAuthGET.mock.calls[0][0]
+    expect(new URL(forwarded.url).searchParams.has('dpop_jkt')).toBe(false)
   })
 
   it.each([

@@ -171,9 +171,7 @@ export function guardOAuthProviderWrites(
 
       if (input.model !== 'oauthConsent') {
         const created = await adapter.create(input).catch((error: unknown) => {
-          // Issuance is not transactional: a concurrent replay can revoke the grant between the
-          // refresh and access inserts, so the access insert's foreign key fails. Refuse it the
-          // way the replay is refused rather than as a server error.
+          // A concurrent code replay revoked the refresh token this access token references.
           if (
             input.model === 'oauthAccessToken' &&
             getPostgresErrorCode(error) === '23503' &&

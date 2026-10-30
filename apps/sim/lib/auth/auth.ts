@@ -234,8 +234,9 @@ const connectorProviderIds: ReadonlySet<string> = new Set(
 
 /**
  * Whether an account write comes from an integration connector's OAuth callback. Connectors share
- * core's `/callback/:id` with the Google/GitHub/Microsoft sign-in providers, and hook contexts carry
- * the route pattern rather than the concrete path, so the account's provider tells them apart.
+ * core's `/callback/:id` with the Google/GitHub/Microsoft sign-in providers, and hook contexts
+ * carry the route pattern rather than the concrete path, so the account's provider tells them
+ * apart.
  */
 function isConnectorCallback(path: string | undefined, providerId: string): boolean {
   return path?.startsWith('/callback/') === true && connectorProviderIds.has(providerId)

@@ -151,10 +151,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (params.has(OAUTH_AUTHORIZED_RESOURCE_PARAM)) {
       return invalidRequest(`The ${OAUTH_AUTHORIZED_RESOURCE_PARAM} parameter is reserved.`)
     }
-    /** Sim's token and resource endpoints accept only bearer tokens. */
-    if (params.has('dpop_jkt')) {
-      return invalidRequest('DPoP-bound access tokens are not supported.')
-    }
     if (params.has('request_uri')) {
       return oauthAuthorizationErrorResponse(
         request,
@@ -184,6 +180,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const providerUrl = new URL(request.url)
     if (narrowedScope) providerUrl.searchParams.set('scope', narrowedScope)
     providerUrl.searchParams.delete('resource')
+    /** Sim's token and resource endpoints accept only bearer tokens, so a DPoP key is never bound. */
+    providerUrl.searchParams.delete('dpop_jkt')
     if (resource) providerUrl.searchParams.set(OAUTH_AUTHORIZED_RESOURCE_PARAM, resource.url)
     const response = await betterAuthGET(new Request(providerUrl, { headers: request.headers }))
     if (response.status === 403) {

@@ -232,30 +232,23 @@ async function readBoundedOAuthBody(request: Request): Promise<OAuthBodyReadResu
 
 /**
  * Rebuilds the consumed request for Better Auth.
- * Already-authenticated Basic credentials are passed through its body path
- * using their RFC 6749 form-decoded values. A DPoP proof is dropped: Sim's
- * resource servers accept only bearer tokens, so a DPoP-bound token would be
- * unusable.
+ * Client credentials keep the transport the client authenticated with: Better
+ * Auth form-decodes Basic credentials itself and refuses a client that
+ * presents them by any method other than the one it registered. A DPoP proof
+ * is dropped: Sim's resource servers accept only bearer tokens, so a
+ * DPoP-bound token would be unusable.
  */
 export function buildDelegatedOAuthRequest(
   request: NextRequest,
   parsed: ParsedOAuthForm
 ): NextRequest {
   const headers = new Headers(request.headers)
-  let body = parsed.rawBody
-  if (parsed.credentials?.method === 'client_secret_basic') {
-    const form = new URLSearchParams(parsed.rawBody)
-    form.set('client_id', parsed.credentials.clientId)
-    form.set('client_secret', parsed.credentials.clientSecret ?? '')
-    body = form.toString()
-    headers.delete('authorization')
-  }
   headers.delete('content-length')
   headers.delete('dpop')
   return new NextRequest(request.url, {
     method: request.method,
     headers,
-    body,
+    body: parsed.rawBody,
     signal: request.signal,
   })
 }

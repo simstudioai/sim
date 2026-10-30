@@ -215,9 +215,7 @@ Select **Save** for a new provider. Sign out, select **Sign in with SSO** on you
 
 If multiple providers serve the domain, ordinary sign-in uses the one marked **Primary**. Other providers can be reached through their **Test sign-in link**.
 
-<Callout type="warn">
-  Start SAML testing from Sim's **Sign in with SSO** flow. Sim rejects unsolicited SAML assertions, so a test started from an identity-provider app portal can fail even with a correct configuration.
-</Callout>
+SAML sign-in can start from Sim's **Sign in with SSO** flow or from the identity provider's app portal. Either way, Sim checks the assertion's signature, audience, recipient, and validity window, and accepts each assertion only once.
 
 An OIDC dashboard can use the saved provider's **Initiate login URL**. Sim starts that provider's sign-in without asking for an email when the domain is verified and the launch includes a matching issuer. An already signed-in account goes directly to Sim.
 

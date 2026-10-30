@@ -35,7 +35,7 @@
  *   SSO_SAML_SP_METADATA=<custom-sp-metadata-xml> (optional, auto-generated if not provided;
  *     its WantAssertionsSigned must not be weaker than SSO_SAML_WANT_ASSERTIONS_SIGNED)
  *   SSO_SAML_IDP_METADATA=<idp-metadata-xml> (optional)
- *   SSO_SAML_AUDIENCE=https://yourdomain.com (optional, defaults to SSO_ISSUER)
+ *   SSO_SAML_AUDIENCE=https://yourdomain.com (optional, defaults to the SP entity ID, the app URL)
  *   SSO_SAML_WANT_ASSERTIONS_SIGNED=true (optional, defaults to false)
  */
 
@@ -319,7 +319,7 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       entryPoint,
       cert,
       callbackUrl,
-      audience: process.env.SSO_SAML_AUDIENCE || issuer,
+      audience: process.env.SSO_SAML_AUDIENCE || undefined,
       wantAssertionsSigned,
       signatureAlgorithm: process.env.SSO_SAML_SIGNATURE_ALGORITHM,
       digestAlgorithm: process.env.SSO_SAML_DIGEST_ALGORITHM,

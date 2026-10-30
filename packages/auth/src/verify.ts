@@ -59,6 +59,11 @@ export function createVerifyAuth(options: VerifyAuthOptions): VerifyAuth {
       provider: 'pg',
       schema,
     }),
+    /**
+     * Migrations own the schema. A runtime check here would fail every handshake on the first
+     * NOT NULL column the app adds to a Better Auth table, while the app itself kept working.
+     */
+    advanced: { database: { validateSchema: false } },
     plugins: [
       oneTimeToken({
         /**

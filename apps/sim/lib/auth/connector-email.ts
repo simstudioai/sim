@@ -25,15 +25,14 @@ function sanitizeLocalPart(value: string): string {
  *
  * Many connector providers either never expose an email (X, Slack bot tokens,
  * TikTok, Reddit, Webflow) or expose one only when an optional scope was
- * granted. Better Auth 1.6's generic OAuth callback hard-rejected a falsy
- * `email` returned from `getUserInfo` with `?error=email_is_missing`, so every
- * `getUserInfo` returned a truthy address. Better Auth 1.7's link path no
- * longer requires one.
+ * granted. Every connector profile still carries an address, so linking never
+ * depends on an optional scope.
  *
  * The value is never persisted. Sim's connectors go through the session-bound
  * `/link-social` path, the `account` table has no email column, and
- * `updateUserInfoOnLink` is unset — so Better Auth reads the address, satisfies
- * its own guard, and discards it. It is never shown to a user, never mailed to,
+ * `updateUserInfoOnLink` is unset — so Better Auth only compares the address
+ * with the signed-in user's, which `allowDifferentEmails` permits, and
+ * discards it. It is never shown to a user, never mailed to,
  * and never matched against a real account.
  *
  * The domain is `.invalid`, reserved by RFC 2606 §2 precisely so that it can
