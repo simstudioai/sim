@@ -3,6 +3,7 @@ import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-state'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { getMcpStructuredContentOutputs } from '@/lib/workflows/blocks/outputs'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
@@ -133,7 +134,9 @@ function fillDeclaredStructuredContent(
   block: Record<string, unknown> | undefined
 ): void {
   if (block?.type !== 'mcp' || !Object.hasOwn(mock, MCP_STRUCTURED_CONTENT_OUTPUT)) return
-  const outputs = getMcpStructuredContentOutputs(toRecord(block.subBlocks))
+  // An invalid mode makes resolveMcpBlockConfig throw, which reads as no typed output.
+  const modes = toRecord(toRecord(block.data).canonicalModes) as CanonicalModeOverrides
+  const outputs = getMcpStructuredContentOutputs(toRecord(block.subBlocks), modes)
   const declared = outputs?.[MCP_STRUCTURED_CONTENT_OUTPUT]
   if (!declared) return
 

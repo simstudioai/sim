@@ -320,10 +320,14 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         input.blockEnabledChanges ?? [],
         skippedItems
       )
-      modifiedGraph.blocks = await snapshotMcpToolOutputSchemas(enablement.blocks, {
-        principal,
-        workspaceId: context.workspaceId,
-      })
+      modifiedGraph.blocks = await snapshotMcpToolOutputSchemas(
+        enablement.blocks,
+        asGraph(baseGraph).blocks ?? {},
+        {
+          principal,
+          workspaceId: context.workspaceId,
+        }
+      )
       input.checkAborted?.()
       const applied = appliedOperations + enablement.applied
 

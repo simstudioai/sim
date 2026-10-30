@@ -85,17 +85,24 @@ async function discoverTools(
       discoverMcpServerToolsUseCase,
       { mcpServerId: serverId }
     ),
-    input: { workspaceId, serverId, signal },
+    // Best effort: a failure here never marks the server unhealthy or starts its shared cooldown.
+    input: { workspaceId, serverId, signal, bestEffort: true },
   })
   return tools
 }
 
+/** The block's resolved target and fields as an edit can change them, to tell an edited block from an untouched one. */
+function editFingerprint(block: BlockState | undefined): string {
+  return JSON.stringify([block?.type, block?.subBlocks ?? {}, block?.data?.canonicalModes ?? {}])
+}
+
 /**
- * Records, on each MCP block an edit left targeting a literal server and
- * operation, the reply shape that operation declares, so the block's
+ * Records, on each MCP block this edit changed and left targeting a literal
+ * server and operation, the reply shape that operation declares, so the block's
  * `structuredContent` output is typed for lint, references, `workflows deps` and
- * the run. Blocks whose snapshot already matches their target are not
- * rediscovered; one per server is discovered, through the same authorized use
+ * the run. Blocks the edit did not touch, and blocks whose snapshot already
+ * matches their target, are not rediscovered, so an unreachable server never
+ * slows an edit that leaves its block alone; one per server is discovered, through the same authorized use
  * case the editor's tool list uses, as the editing principal.
  *
  * Best effort: a server that cannot be discovered, or an operation it does not
@@ -104,9 +111,11 @@ async function discoverTools(
  */
 export async function snapshotMcpToolOutputSchemas(
   blocks: Record<string, BlockState>,
+  baseBlocks: Record<string, BlockState>,
   options: SnapshotOptions
 ): Promise<Record<string, BlockState>> {
   const targets = Object.entries(blocks).flatMap(([blockId, block]) => {
+    if (editFingerprint(block) === editFingerprint(baseBlocks[blockId])) return []
     const target = staleSnapshotTarget(blockId, block)
     return target ? [target] : []
   })

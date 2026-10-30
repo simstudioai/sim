@@ -13,7 +13,6 @@ export const MCP_STRUCTURED_CONTENT_OUTPUT = 'structuredContent'
 
 const MAX_SHAPE_DEPTH = 8
 const MAX_SHAPE_NODES = 500
-const UNSAFE_PROPERTY_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
 
 /**
  * The structure of a declared output schema: types, properties and array items
@@ -72,12 +71,14 @@ function reduceNode(node: unknown, depth: number, budget: { nodes: number }): Mc
         (node.additionalProperties !== undefined && node.additionalProperties !== false) ||
         node.patternProperties !== undefined
       if (open || !isRecordLike(node.properties)) return { type: 'object' }
-      const properties: Record<string, McpToolOutputShape> = {}
+      const entries: [string, McpToolOutputShape][] = []
       for (const [name, child] of Object.entries(node.properties)) {
-        if (UNSAFE_PROPERTY_NAMES.has(name)) continue
-        properties[name] = reduceNode(child, depth + 1, budget)
+        /** Past the budget the object stays open: any field resolves, none is saved. */
+        if (budget.nodes <= 0) return { type: 'object' }
+        entries.push([name, reduceNode(child, depth + 1, budget)])
       }
-      return { type: 'object', properties }
+      /** `fromEntries` keeps every declared name, `__proto__` included, as an own field. */
+      return { type: 'object', properties: Object.fromEntries(entries) }
     }
     case 'array':
       return isRecordLike(node.items)

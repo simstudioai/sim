@@ -66,6 +66,7 @@ describe('snapshotMcpToolOutputSchemas', () => {
           toolSelector: 'add_note',
         }),
       },
+      {},
       options
     )
 
@@ -76,8 +77,21 @@ describe('snapshotMcpToolOutputSchemas', () => {
     expect(discover).toHaveBeenCalledOnce()
     expect(discover.mock.calls[0]?.[0]).toMatchObject({
       principal,
-      input: { workspaceId: 'workspace-1', serverId: 'server-1' },
+      input: { workspaceId: 'workspace-1', serverId: 'server-1', bestEffort: true },
     })
+  })
+
+  it('skips a block the edit did not touch, even one with no snapshot yet', async () => {
+    const untouched = mcpBlock('a', {
+      operation: 'run',
+      serverSelector: 'server-1',
+      toolSelector: 'on_call',
+    })
+    const input = { a: untouched }
+    expect(
+      await snapshotMcpToolOutputSchemas(input, { a: structuredClone(untouched) }, options)
+    ).toBe(input)
+    expect(discover).not.toHaveBeenCalled()
   })
 
   it('rediscovers a block whose operation changed since its snapshot', async () => {
@@ -91,6 +105,7 @@ describe('snapshotMcpToolOutputSchemas', () => {
           toolOutputSchema: stale,
         }),
       },
+      {},
       options
     )
     expect(snapshotOf(blocks, 'a')).toMatchObject({ tool: 'on_call', schema: { type: 'object' } })
@@ -118,7 +133,7 @@ describe('snapshotMcpToolOutputSchemas', () => {
     ['no operation yet', { operation: 'run', serverSelector: 'server-1', toolSelector: '' }],
   ])('leaves %s alone without discovering', async (_, values) => {
     const input = { a: mcpBlock('a', values) }
-    const blocks = await snapshotMcpToolOutputSchemas(input, options)
+    const blocks = await snapshotMcpToolOutputSchemas(input, {}, options)
     expect(blocks).toBe(input)
     expect(discover).not.toHaveBeenCalled()
   })
@@ -137,6 +152,7 @@ describe('snapshotMcpToolOutputSchemas', () => {
           { tool: 'advanced' }
         ),
       },
+      {},
       options
     )
     expect(snapshotOf(blocks, 'a')).toMatchObject({ tool: 'on_call' })
@@ -147,12 +163,12 @@ describe('snapshotMcpToolOutputSchemas', () => {
     const failed = {
       a: mcpBlock('a', { operation: 'run', serverSelector: 's', toolSelector: 'x' }),
     }
-    expect(await snapshotMcpToolOutputSchemas(failed, options)).toEqual(failed)
+    expect(await snapshotMcpToolOutputSchemas(failed, {}, options)).toEqual(failed)
 
     const unlisted = {
       a: mcpBlock('a', { operation: 'run', serverSelector: 'server-1', toolSelector: 'gone' }),
     }
-    expect(await snapshotMcpToolOutputSchemas(unlisted, options)).toEqual(unlisted)
+    expect(await snapshotMcpToolOutputSchemas(unlisted, {}, options)).toEqual(unlisted)
   })
 
   it('discovers a managed connection through its own use case', async () => {
@@ -164,6 +180,7 @@ describe('snapshotMcpToolOutputSchemas', () => {
       {
         a: mcpBlock('a', { operation: 'run', serverSelector: connection, toolSelector: 'on_call' }),
       },
+      {},
       options
     )
     expect(discover).not.toHaveBeenCalled()

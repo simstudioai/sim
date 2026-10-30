@@ -78,6 +78,7 @@ function graph(
       type?: string
       name?: string
       triggerMode?: boolean
+      data?: { canonicalModes?: Record<string, 'basic' | 'advanced'> }
       subBlocks?: Record<string, { value?: unknown }>
     }
   >
@@ -287,15 +288,21 @@ describe('collectDanglingBlockOutputReferences', () => {
       },
     }
 
-    function mcpGraph(reference: string, snapshot?: unknown) {
+    function mcpGraph(
+      reference: string,
+      snapshot?: unknown,
+      extra: { toolReference?: string; canonicalModes?: Record<string, 'basic' | 'advanced'> } = {}
+    ) {
       return graph({
         oncall: {
           type: 'mcp',
           name: 'On call',
+          ...(extra.canonicalModes ? { data: { canonicalModes: extra.canonicalModes } } : {}),
           subBlocks: {
             operation: { value: 'run' },
             serverSelector: { value: 'server-1' },
             toolSelector: { value: 'on_call' },
+            ...(extra.toolReference ? { toolReference: { value: extra.toolReference } } : {}),
             ...(snapshot === undefined ? {} : { toolOutputSchema: { value: snapshot } }),
           },
         },
@@ -338,6 +345,41 @@ describe('collectDanglingBlockOutputReferences', () => {
       )
       expect(finding?.reason).toContain('"structuredContent.person.email"')
       expect(finding?.reason).toContain('structuredContent.person.id')
+    })
+
+    it('reads the operation from the saved mode, not a dormant member', () => {
+      expect(
+        collectDanglingBlockOutputReferences(
+          mcpGraph('<oncall.structuredContent.role>', declared, {
+            toolReference: 'add_note',
+            canonicalModes: { tool: 'basic' },
+          })
+        )
+      ).toEqual([])
+    })
+
+    it('checks repeated array indices the way the run resolves them', () => {
+      const grid = createMcpToolOutputSnapshot('server-1', 'on_call', {
+        type: 'object',
+        properties: {
+          rows: {
+            type: 'array',
+            items: {
+              type: 'array',
+              items: { type: 'object', properties: { id: { type: 'string' } } },
+            },
+          },
+        },
+      })
+      expect(
+        collectDanglingBlockOutputReferences(
+          mcpGraph('<oncall.structuredContent.rows[0][1].id>', grid)
+        )
+      ).toEqual([])
+      const [finding] = collectDanglingBlockOutputReferences(
+        mcpGraph('<oncall.structuredContent.rows[0][1].nope>', grid)
+      )
+      expect(finding?.reason).toContain('Declared fields: structuredContent.rows.id')
     })
 
     it('keeps flagging structuredContent when the operation declares no schema', () => {

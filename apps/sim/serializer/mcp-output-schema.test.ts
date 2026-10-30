@@ -90,6 +90,29 @@ describe('MCP block output typed from a declared output schema', () => {
     expect(resolve(declared, ['content', '0', 'text'])).toBe('{"role":"sales-ops"}')
   })
 
+  it('keeps declared fields whose names are object built-ins', () => {
+    const snapshot = createMcpToolOutputSnapshot(
+      'server-1',
+      'on_call',
+      JSON.parse(
+        '{"type":"object","properties":{"constructor":{"type":"string"},"__proto__":{"type":"number"}}}'
+      )
+    )
+    expect(Object.keys(snapshot.schema?.properties ?? {})).toEqual(['constructor', '__proto__'])
+  })
+
+  it('leaves a schema wider than the snapshot budget open instead of saving every field', () => {
+    const wide = createMcpToolOutputSnapshot('server-1', 'on_call', {
+      type: 'object',
+      properties: Object.fromEntries(
+        Array.from({ length: 2_000 }, (_, index) => [`field${index}`, { type: 'string' }])
+      ),
+    })
+    expect(wide.schema).toEqual({ type: 'object' })
+    expect(resolve(wide, ['structuredContent', 'role'])).toBe('sales-ops')
+    expect(resolve(wide, ['structuredContent', 'anything'])).toBeUndefined()
+  })
+
   it('carries the schema structure without description strings into block params', () => {
     const params = serializeMcpBlock(declared).config.params
     expect(params.toolOutputSchema).toEqual(declared)

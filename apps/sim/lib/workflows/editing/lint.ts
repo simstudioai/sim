@@ -11,6 +11,7 @@ import {
   getMcpStructuredContentOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,
@@ -20,6 +21,7 @@ import {
 } from '@/executor/constants'
 import { isPathInSchema } from '@/executor/utils/block-reference'
 import { collectStringLeaves } from '@/executor/utils/reference-validation'
+import { splitLeadingBracketPath } from '@/executor/variables/resolvers/reference'
 import {
   collectBlockFieldIssues,
   extractBlockParams,
@@ -34,6 +36,7 @@ type BlockState = {
   name?: string
   triggerMode?: boolean
   subBlocks?: Record<string, { value?: unknown } | undefined>
+  data?: { canonicalModes?: CanonicalModeOverrides }
 }
 
 type EdgeState = {
@@ -643,6 +646,7 @@ function declaredOutputKeys(block: BlockState): string[] | undefined {
       triggerMode: false,
       preferToolOutputs: true,
       includeHidden: true,
+      canonicalModes: block.data?.canonicalModes,
     })
   )
   if (keys.length === 0) return undefined
@@ -666,10 +670,8 @@ function declaredChildPaths(outputs: Record<string, unknown>, prefix: string[]):
       node = toRecordOrNull(node?.items)
       continue
     }
-    const field = part.replace(INDEX_SUFFIX, '')
-    node = toRecordOrNull(toRecordOrNull(node?.properties)?.[field])
-    if (field !== part) node = toRecordOrNull(node?.items)
-    named.push(field)
+    node = toRecordOrNull(toRecordOrNull(node?.properties)?.[part])
+    named.push(part)
   }
   if (node?.type === 'array') node = toRecordOrNull(node.items)
   return Object.keys(toRecordOrNull(node?.properties) ?? {}).map((name) =>
@@ -689,9 +691,15 @@ function undeclaredNestedPath(
   token: string
 ): UndeclaredNestedPath | undefined {
   if (block?.type !== 'mcp') return undefined
-  const parts = token.split('.').slice(1)
+  const parts = token
+    .split('.')
+    .slice(1)
+    .flatMap((part) => {
+      const { property, pathParts } = splitLeadingBracketPath(part)
+      return [property, ...pathParts]
+    })
   if (parts[0] !== MCP_STRUCTURED_CONTENT_OUTPUT || parts.length < 2) return undefined
-  const outputs = getMcpStructuredContentOutputs(subBlockValues(block))
+  const outputs = getMcpStructuredContentOutputs(subBlockValues(block), block.data?.canonicalModes)
   if (!outputs || isPathInSchema(outputs, parts)) return undefined
   let valid = 1
   while (valid < parts.length && isPathInSchema(outputs, parts.slice(0, valid + 1))) valid++

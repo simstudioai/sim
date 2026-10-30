@@ -14,6 +14,7 @@ import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { containsReference } from '@/lib/workflows/sanitization/references'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import {
@@ -47,6 +48,8 @@ interface EffectiveOutputOptions {
   triggerMode?: boolean
   preferToolOutputs?: boolean
   includeHidden?: boolean
+  /** The block's saved canonical modes, which pick the active member of a basic/advanced pair. */
+  canonicalModes?: CanonicalModeOverrides
 }
 
 type ConditionValue = string | number | boolean
@@ -461,7 +464,8 @@ function toOutputNode(shape: McpToolOutputShape): DeclaredOutputNode {
  * targets now applies; anything else leaves the block's outputs as declared.
  */
 export function getMcpStructuredContentOutputs(
-  subBlocks?: Record<string, unknown>
+  subBlocks?: Record<string, unknown>,
+  canonicalModes?: CanonicalModeOverrides
 ): OutputDefinition | undefined {
   if (!subBlocks) return undefined
   const values = Object.fromEntries(
@@ -471,7 +475,7 @@ export function getMcpStructuredContentOutputs(
   if (!snapshot?.schema) return undefined
   let target: ReturnType<typeof resolveMcpBlockConfig>
   try {
-    target = resolveMcpBlockConfig(values)
+    target = resolveMcpBlockConfig(values, canonicalModes)
   } catch {
     return undefined
   }
@@ -540,7 +544,7 @@ export function getEffectiveBlockOutputs(
   }
 
   if (blockType === 'mcp' && !triggerMode) {
-    const structuredOutputs = getMcpStructuredContentOutputs(subBlocks)
+    const structuredOutputs = getMcpStructuredContentOutputs(subBlocks, options?.canonicalModes)
     if (structuredOutputs) return { ...baseOutputs, ...structuredOutputs }
   }
 
