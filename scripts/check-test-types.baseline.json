@@ -9,7 +9,7 @@
     "TS18048": 1
   },
   "apps/sim/app/api/auth/[...all]/route.test.ts": {
-    "TS2554": 14
+    "TS2554": 13
   },
   "apps/sim/app/api/auth/forget-password/route.test.ts": {
     "TS2554": 8
