@@ -5,3 +5,11 @@ body {
   background: white;
   color-scheme: light;
 }
+
+html {
+  --desktop-title-bar-height: 0px;
+}
+
+html[data-sim-desktop-title-bar="inset"] {
+  --desktop-title-bar-height: max(env(titlebar-area-height, 38px), 38px);
+}

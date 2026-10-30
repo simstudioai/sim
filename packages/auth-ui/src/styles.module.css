@@ -663,7 +663,6 @@
 .root .accountTrigger:disabled {
   opacity: var(--auth-disabled);
 }
-/* Notifications share the menu material and remain within the Auth portal. */
 .root .notification {
   position: fixed;
   right: 20px;

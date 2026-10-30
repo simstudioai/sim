@@ -372,7 +372,10 @@ export function AuthSelect({
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               event.preventDefault()
               move(active + (event.key === 'ArrowDown' ? 1 : -1))
-            } else if (event.key === 'Home' || event.key === 'End') {
+            } else if (
+              (event.key === 'Home' || event.key === 'End') &&
+              !(event.target instanceof HTMLInputElement)
+            ) {
               event.preventDefault()
               move(event.key === 'Home' ? 0 : available.length - 1)
             } else if (event.key === 'Enter' && activeValue) {
