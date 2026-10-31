@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-import { PersonalApiKeysDisabledError } from '@/lib/core/application/workspace-authorization'
+import { PersonalApiKeysDisabledError } from '@/lib/core/application'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
