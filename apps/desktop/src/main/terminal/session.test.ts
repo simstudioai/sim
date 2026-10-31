@@ -329,6 +329,45 @@ describe('TerminalSession on Windows', () => {
     }
   })
 
+  it.each([
+    [['\u001b[1t\u001b', '[c\u001b[?1004h']],
+    [['\u001b[1t\u001b[', 'c\u001b[?1004h']],
+    [['\u001b[1t\u001b', '[', 'c\u001b[?1004h']],
+  ])('answers the startup query when ConPTY splits it across chunks: %j', async (chunks) => {
+    vi.useFakeTimers()
+    let painted = ''
+    const session = sessionOn('win32', (_id, data) => {
+      painted += data
+    })
+    try {
+      for (const chunk of chunks) ptyStub.dataHandler?.(chunk)
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(ptyStub.writes.filter((write) => write === DEVICE_ATTRIBUTES_REPLY)).toHaveLength(1)
+      expect(painted).toBe('\u001b[1t\u001b[?1004h')
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('releases a held escape the next chunk shows was not the query', async () => {
+    vi.useFakeTimers()
+    let painted = ''
+    const session = sessionOn('win32', (_id, data) => {
+      painted += data
+    })
+    try {
+      ptyStub.dataHandler?.('\u001b[1t\u001b[')
+      ptyStub.dataHandler?.('?1004h')
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(painted).toBe('\u001b[1t\u001b[?1004h')
+      expect(ptyStub.writes).not.toContain(DEVICE_ATTRIBUTES_REPLY)
+    } finally {
+      session.dispose()
+    }
+  })
+
   it('leaves the startup query of a macOS shell to the panel', async () => {
     vi.useFakeTimers()
     const session = sessionOn('darwin')

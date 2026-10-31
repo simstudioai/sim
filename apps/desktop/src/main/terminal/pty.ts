@@ -15,6 +15,18 @@ import { spawn } from '@lydell/node-pty'
 const DEVICE_ATTRIBUTES_QUERY = '\u001b[c'
 const DEVICE_ATTRIBUTES_REPLY = '\u001b[?1;2c'
 
+/** How much of `data`'s end could be the start of the query, completed by the next chunk. */
+function trailingQueryPrefixLength(data: string): number {
+  for (
+    let length = Math.min(DEVICE_ATTRIBUTES_QUERY.length - 1, data.length);
+    length > 0;
+    length--
+  ) {
+    if (DEVICE_ATTRIBUTES_QUERY.startsWith(data.slice(-length))) return length
+  }
+  return 0
+}
+
 interface TerminalPtyOptions {
   platform: NodeJS.Platform
   shellPath: string
@@ -53,12 +65,20 @@ export function spawnTerminalPty(options: TerminalPtyOptions): TerminalPty {
   })
 
   let startupQueryPending = windows
+  /** A chunk's tail that may be the query split across chunks, held until the next one. */
+  let heldTail = ''
   const answerStartupQuery = (chunk: string): string => {
-    const index = chunk.indexOf(DEVICE_ATTRIBUTES_QUERY)
-    if (index === -1) return chunk
+    const data = heldTail + chunk
+    heldTail = ''
+    const index = data.indexOf(DEVICE_ATTRIBUTES_QUERY)
+    if (index === -1) {
+      const held = trailingQueryPrefixLength(data)
+      heldTail = data.slice(data.length - held)
+      return data.slice(0, data.length - held)
+    }
     startupQueryPending = false
     pty.write(DEVICE_ATTRIBUTES_REPLY)
-    return chunk.slice(0, index) + chunk.slice(index + DEVICE_ATTRIBUTES_QUERY.length)
+    return data.slice(0, index) + data.slice(index + DEVICE_ATTRIBUTES_QUERY.length)
   }
 
   return {
