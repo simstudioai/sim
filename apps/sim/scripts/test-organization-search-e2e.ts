@@ -788,6 +788,29 @@ try {
     )
     assert.equal(response.status(), 404)
   })
+  await check('A streamed denied chat remains navigable after hydration', async () => {
+    const releaseScripts = createDeferred<void>()
+    const scripts = '**/_next/static/**/*.js'
+    await page.route(scripts, async (route) => {
+      await releaseScripts.promise
+      await route.continue()
+    })
+    try {
+      const response = await page.goto(`${baseUrl.origin}${root}/search/chat/${deniedChatId}`, {
+        waitUntil: 'commit',
+      })
+      assert(response, 'The denied chat navigation must return a document')
+      await response.body()
+    } finally {
+      releaseScripts.resolve()
+      await page.unrouteAll({ behavior: 'wait' })
+    }
+    await page.waitForLoadState()
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+    await page.getByRole('link', { name: 'Return home', exact: true }).click()
+    await expect(page).toHaveURL(`${baseUrl.origin}${root}/home`)
+    await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toBeVisible()
+  })
   await check('Both search modes fit desktop and 320px/390px phones', async () => {
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 })
