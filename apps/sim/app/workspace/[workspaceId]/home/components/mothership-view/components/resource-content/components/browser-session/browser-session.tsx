@@ -34,6 +34,7 @@ import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { Favicon } from '@/components/favicon'
 import {
   onBrowserOmniboxFocusRequest,
   takeBrowserOmniboxFocusRequest,
@@ -58,7 +59,6 @@ import {
   showBrowserToolbarMenu,
   supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
-import { faviconUrl } from '@/lib/core/utils/favicon'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopBrowserAppearanceTheme,
@@ -104,20 +104,27 @@ const OMNIBOX_DRAG_THRESHOLD_PX = 4
 
 const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
 
+/** A browser-imported icon stays local; otherwise the site's favicon. */
 function BrowserSuggestionIcon({ suggestion }: { suggestion: UrlSuggestion }) {
-  const [failed, setFailed] = useState(false)
-  const source = suggestion.icon || faviconUrl(suggestion.hostname, 32)
-
-  if (failed) {
-    return <Link className='size-4 shrink-0 text-[var(--text-icon)]' />
+  const [failedIcon, setFailedIcon] = useState<string | null>(null)
+  const fallback = <Link className='size-4 shrink-0 text-[var(--text-icon)]' />
+  if (suggestion.icon) {
+    if (failedIcon === suggestion.icon) return fallback
+    const icon = suggestion.icon
+    return (
+      <img
+        src={icon}
+        alt=''
+        className='size-4 shrink-0 rounded-[3px]'
+        onError={() => setFailedIcon(icon)}
+      />
+    )
   }
-
   return (
-    <img
-      src={source}
-      alt=''
+    <Favicon
+      host={suggestion.hostname}
       className='size-4 shrink-0 rounded-[3px]'
-      onError={() => setFailed(true)}
+      fallback={fallback}
     />
   )
 }

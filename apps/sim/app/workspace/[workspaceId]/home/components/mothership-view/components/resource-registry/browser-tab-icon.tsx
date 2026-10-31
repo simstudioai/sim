@@ -5,7 +5,7 @@ import { cn } from '@sim/emcn'
 import { CircleAlert, Globe, Loader } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { browserTabHostname, shouldShowBrowserTabSpinner } from '@/lib/browser-agent/tab-label'
-import { faviconUrl } from '@/lib/core/utils/favicon'
+import { faviconSrc } from '@/lib/favicon/url'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 interface BrowserTabIconProps {
@@ -61,7 +61,7 @@ export function BrowserTabIcon({ tabId, scopeId, className }: BrowserTabIconProp
           {hostname && !faviconFailed && (
             <img
               key={hostname}
-              src={faviconUrl(hostname, 32)}
+              src={faviconSrc(hostname)}
               alt=''
               className={cn(
                 'size-[16px] rounded-[3px]',

@@ -1,0 +1,24 @@
+import { parse } from 'tldts'
+
+const MAX_PARENT_HOSTS = 3
+const HOST_SHAPE = /^[^\s/?#@\\]+$/
+
+/**
+ * Hosts to ask a favicon provider about, most specific first. A private tenant such as
+ * `acme.atlassian.net` is invisible to providers, but its platform is not, so each parent
+ * domain follows, stopping before the ICANN public suffix (`gitlab.io` is a valid last step;
+ * `io` and `co.uk` are not). Internal hosts — IP literals, single labels, and names outside
+ * the public DNS — yield nothing, so they never leave the server.
+ */
+export function faviconHostCandidates(input: string): string[] {
+  const url = HOST_SHAPE.test(input) ? URL.parse(`https://${input}`) : null
+  if (!url) return []
+  const hostname = url.hostname.replace(/\.$/, '')
+  const { isIp, isIcann, publicSuffix } = parse(hostname, { allowPrivateDomains: false })
+  if (isIp || !isIcann || !publicSuffix || /(^|\.)arpa$/.test(publicSuffix)) return []
+  const labels = hostname.split('.')
+  const candidateCount = labels.length - publicSuffix.split('.').length
+  return labels
+    .slice(0, Math.min(candidateCount, MAX_PARENT_HOSTS + 1))
+    .map((_, index) => labels.slice(index).join('.'))
+}

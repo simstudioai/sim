@@ -6,20 +6,17 @@ import { cn } from '@sim/emcn'
 import { Globe } from '@sim/emcn/icons'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { faviconSrc } from '@/lib/favicon/url'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
+/** Only the page's hostname leaves the browser, and only to Sim's favicon route. */
 function pageFaviconUrl(url: string): string | null {
-  try {
-    const page = new URL(url)
-    /** External images must use HTTPS under the app's content security policy. */
-    if (page.protocol !== 'https:') return null
-    return `${page.origin}/favicon.ico`
-  } catch {
-    return null
-  }
+  if (!URL.canParse(url)) return null
+  const page = new URL(url)
+  return page.protocol === 'https:' || page.protocol === 'http:' ? faviconSrc(page.hostname) : null
 }
 
 /** Uses this run's page observations so historical icons never follow another run's live tab. */
@@ -120,11 +117,10 @@ function BrowserAgentFavicon({ url, canLoad }: BrowserAgentFaviconProps) {
 
   return (
     <span className='relative flex size-full items-center justify-center' aria-hidden='true'>
-      {/** History alone must not contact a site; keep an already loaded image after the tab closes. */}
+      {/* History alone never looks up a site's icon; keep an already loaded image after the tab closes. */}
       {url && status !== 'failed' && (canLoad || status === 'loaded') && (
         <img
           src={url}
-          referrerPolicy='no-referrer'
           alt=''
           className={cn(
             'size-full rounded-[3px]',
