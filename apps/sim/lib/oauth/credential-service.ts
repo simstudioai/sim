@@ -1,4 +1,4 @@
-import { createHmac, createSign } from 'crypto'
+import { createHash, createHmac, createSign } from 'crypto'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { sealedTextEquals } from '@sim/db/sealed-text'
@@ -91,7 +91,10 @@ export interface CredentialTokenResolutionOptions {
   privacyMode?: 'selector'
   /** GitHub installation content tokens may only address one connector repository. */
   githubRepositoryScope?: GitHubInstallationRepositoryScope
-  /** Cancels supported service-account token exchanges and retry waits. */
+  /**
+   * Cancels supported service-account token exchanges and retry waits, and stops this caller
+   * waiting on an OAuth refresh without cancelling the refresh other callers share.
+   */
   signal?: AbortSignal
 }
 
@@ -1000,6 +1003,94 @@ function isOAuthAccessTokenExpiring(
   return expiresAt != null && expiresAt.getTime() <= now.getTime() + refreshWindowMs
 }
 
+/** Below this much remaining validity a caller waits for the refresh even where it could refresh ahead. */
+const OAUTH_ACCESS_TOKEN_MUST_REFRESH_MS = 2 * 60 * 1000
+/** Spreads when credentials that expire together start refreshing ahead. */
+const OAUTH_REFRESH_AHEAD_JITTER_MS = 60 * 1000
+
+/**
+ * Google and Microsoft keep a refreshed-away access token valid until its own expiry and keep the
+ * old refresh token usable (Google never rotates it; Microsoft rotates without revoking the old
+ * one), so a caller can use the old token while the refresh runs and an abandoned refresh loses
+ * nothing.
+ */
+function refreshesAheadOfExpiry(providerId: string): boolean {
+  return (
+    providerId === 'google' || providerId.startsWith('google-') || isMicrosoftProvider(providerId)
+  )
+}
+
+function refreshAheadJitterMs(accountId: string): number {
+  return (
+    createHash('sha256').update(accountId).digest().readUInt32BE(0) % OAUTH_REFRESH_AHEAD_JITTER_MS
+  )
+}
+
+/** The stored token state of one OAuth account row that decides whether it refreshes. */
+interface StoredOAuthTokens extends RevocableChain {
+  accessToken: string | null
+  accessTokenExpiresAt: Date | null
+  refreshTokenExpiresAt?: Date | null
+  updatedAt: Date
+}
+
+/**
+ * How a caller gets a usable access token from what an account row stores:
+ * - `fresh`: use the stored token (or report that none is stored).
+ * - `unrefreshable`: the stored token expired and nothing can refresh it.
+ * - `refresh-ahead`: use the still-valid stored token and refresh in the background.
+ * - `refresh-or-reuse`: wait for a refresh the token's own validity does not need, keeping the
+ *   stored token if it fails (Microsoft refresh-token aging, Instagram long-lived renewal).
+ * - `must-refresh`: wait for the refresh; the stored token cannot serve the request.
+ */
+type AccessTokenRefreshPlan =
+  | { kind: 'fresh' }
+  | { kind: 'unrefreshable' }
+  | { kind: 'refresh-ahead' | 'refresh-or-reuse' | 'must-refresh'; refreshToken: string }
+
+function planAccessTokenRefresh(
+  accountId: string,
+  providerId: string,
+  stored: StoredOAuthTokens,
+  now: Date
+): AccessTokenRefreshPlan {
+  const { accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt } = stored
+  if (!refreshToken) {
+    return accessTokenExpiresAt && accessTokenExpiresAt <= now
+      ? { kind: 'unrefreshable' }
+      : { kind: 'fresh' }
+  }
+  if (!accessToken) return { kind: 'must-refresh', refreshToken }
+  const refreshesAhead = refreshesAheadOfExpiry(providerId)
+  if (accessTokenExpiresAt && isOAuthAccessTokenExpiring(accessTokenExpiresAt, providerId, now)) {
+    const remainingMs = accessTokenExpiresAt.getTime() - now.getTime()
+    if (!refreshesAhead || remainingMs <= OAUTH_ACCESS_TOKEN_MUST_REFRESH_MS) {
+      return { kind: 'must-refresh', refreshToken }
+    }
+    if (remainingMs <= OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS - refreshAheadJitterMs(accountId)) {
+      return { kind: 'refresh-ahead', refreshToken }
+    }
+  }
+  /** Microsoft refresh tokens expire after 90 days without use. */
+  const refreshTokenAging =
+    isMicrosoftProvider(providerId) &&
+    refreshTokenExpiresAt != null &&
+    refreshTokenExpiresAt.getTime() <=
+      now.getTime() + PROACTIVE_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
+  /** Instagram long-lived tokens can only be refreshed while still valid. */
+  const instagramRenewal =
+    isInstagramProvider(providerId) &&
+    shouldProactivelyRefreshInstagramToken({
+      accessTokenExpiresAt,
+      updatedAt: stored.updatedAt,
+      now,
+    })
+  if (refreshTokenAging || instagramRenewal) {
+    return { kind: refreshesAhead ? 'refresh-ahead' : 'refresh-or-reuse', refreshToken }
+  }
+  return { kind: 'fresh' }
+}
+
 /**
  * Lock budgets sized past the provider call: the lease covers
  * {@link TOKEN_REFRESH_TIMEOUT_MS} plus headroom for the account read before it and
@@ -1441,6 +1532,55 @@ async function performCoalescedRefresh({
   }
 }
 
+type StoredAccessTokenResult =
+  | { kind: 'unrefreshable' }
+  | { kind: 'token'; accessToken: string | null; refreshed: boolean }
+  | { kind: 'failed'; outcome: RefreshOutcome | null }
+
+/**
+ * The access token a caller can use now from what an account row stores, refreshing as
+ * {@link planAccessTokenRefresh} decides. A refresh ahead of expiry runs detached on stored data
+ * alone, never the caller's signal, so it outlives the request; if the process exits first, the
+ * lock lease lapses and the next caller refreshes. `signal` stops only this caller's wait on a
+ * refresh, which keeps running for every caller sharing it.
+ */
+async function resolveStoredAccessToken(
+  stored: StoredOAuthTokens,
+  refresh: Omit<CoalescedRefreshOptions, 'refreshToken' | 'chain'>,
+  signal?: AbortSignal
+): Promise<StoredAccessTokenResult> {
+  const plan = planAccessTokenRefresh(refresh.accountId, refresh.providerId, stored, new Date())
+  if (plan.kind === 'unrefreshable') return { kind: 'unrefreshable' }
+  if (plan.kind === 'fresh') {
+    return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
+  }
+  const options: CoalescedRefreshOptions = {
+    ...refresh,
+    refreshToken: plan.refreshToken,
+    chain: stored,
+  }
+  const prefix = refresh.requestId ? `[${refresh.requestId}] ` : ''
+  if (plan.kind === 'refresh-ahead') {
+    performCoalescedRefresh(options).catch((error: unknown) => {
+      logger.error('Background token refresh failed', {
+        providerId: refresh.providerId,
+        ...(refresh.privacyMode === 'selector' ? {} : { error: toError(error).message }),
+      })
+    })
+    logger.info(`${prefix}Refreshing ahead of expiry; using the still-valid access token`)
+    return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
+  }
+  const fresh = await waitWithAbort(performCoalescedRefresh(options), signal)
+  if (fresh?.kind === 'token') {
+    return { kind: 'token', accessToken: fresh.accessToken, refreshed: true }
+  }
+  if (plan.kind === 'refresh-or-reuse' && stored.accessToken) {
+    logger.info(`${prefix}Refresh unavailable; reusing still-valid access token`)
+    return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
+  }
+  return { kind: 'failed', outcome: fresh }
+}
+
 export async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {
   const connections = await db
     .select({
@@ -1449,6 +1589,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
+      refreshTokenExpiresAt: account.refreshTokenExpiresAt,
       idToken: account.idToken,
       scope: account.scope,
       updatedAt: account.updatedAt,
@@ -1466,51 +1607,28 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
   }
 
   const credential = connections[0]
-
-  const now = new Date()
-  const tokenExpiry = credential.accessTokenExpiresAt
-  if (!credential.refreshToken && tokenExpiry && tokenExpiry <= now) {
+  const result = await resolveStoredAccessToken(credential, {
+    accountId: credential.id,
+    providerId,
+    providerAccountId: credential.providerAccountId,
+    oauthConfig: credential.oauthConfig,
+    userId,
+  })
+  if (result.kind === 'unrefreshable') {
     logger.warn('OAuth access token expired and cannot be refreshed; reconnect the account')
     return null
   }
-  const accessTokenNeedsRefresh =
-    !!credential.refreshToken &&
-    (!credential.accessToken || isOAuthAccessTokenExpiring(tokenExpiry, providerId, now))
-  const instagramNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isInstagramProvider(providerId) &&
-    shouldProactivelyRefreshInstagramToken({
-      accessTokenExpiresAt: credential.accessTokenExpiresAt,
-      updatedAt: credential.updatedAt,
-      now,
-    })
-
-  if (accessTokenNeedsRefresh || instagramNeedsProactiveRefresh) {
-    const fresh = await performCoalescedRefresh({
-      accountId: credential.id,
-      providerId,
-      refreshToken: credential.refreshToken!,
-      providerAccountId: credential.providerAccountId,
-      oauthConfig: credential.oauthConfig,
-      chain: credential,
-      userId,
-    })
-    if (fresh?.kind === 'token') return fresh.accessToken
-    if (!accessTokenNeedsRefresh && credential.accessToken) {
-      return credential.accessToken
-    }
-    return null
-  }
-
-  if (!credential.accessToken) {
+  if (result.kind === 'failed') return null
+  if (!result.accessToken) {
     logger.warn(
       `Access token is null and no refresh attempted or available for user ${userId}, provider ${providerId}`
     )
     return null
   }
-
-  logger.info(`Found valid OAuth token for user ${userId}, provider ${providerId}`)
-  return credential.accessToken
+  if (!result.refreshed) {
+    logger.info(`Found valid OAuth token for user ${userId}, provider ${providerId}`)
+  }
+  return result.accessToken
 }
 
 /**
@@ -1553,79 +1671,31 @@ export async function resolveCredentialTokenBundle(
     return null
   }
 
-  const accessTokenExpiresAt = credential.accessTokenExpiresAt
-  const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
-  const now = new Date()
-
-  if (!credential.refreshToken && accessTokenExpiresAt && accessTokenExpiresAt <= now) {
-    logger.warn('OAuth access token expired and cannot be refreshed; reconnect the account')
-    return null
-  }
-
-  const accessTokenNeedsRefresh =
-    !!credential.refreshToken &&
-    (!credential.accessToken ||
-      isOAuthAccessTokenExpiring(accessTokenExpiresAt, credential.providerId, now))
-
-  // Check if we should proactively refresh to prevent refresh token expiry
-  // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
-  const proactiveRefreshThreshold = new Date(
-    now.getTime() + PROACTIVE_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
-  )
-  const refreshTokenNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isMicrosoftProvider(credential.providerId) &&
-    refreshTokenExpiresAt &&
-    refreshTokenExpiresAt <= proactiveRefreshThreshold
-
-  // Instagram long-lived tokens can only be refreshed while still valid.
-  const instagramNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isInstagramProvider(credential.providerId) &&
-    shouldProactivelyRefreshInstagramToken({
-      accessTokenExpiresAt,
-      updatedAt: credential.updatedAt,
-      now,
-    })
-
-  const shouldRefresh =
-    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
-
-  const accessToken = credential.accessToken
-
-  if (shouldRefresh) {
-    const resolvedCredentialId =
-      (credential as { resolvedCredentialId?: string }).resolvedCredentialId ?? credentialId
-
-    const fresh = await performCoalescedRefresh({
-      accountId: resolvedCredentialId,
+  const result = await resolveStoredAccessToken(
+    credential,
+    {
+      accountId: credential.resolvedCredentialId,
       providerId: credential.providerId,
-      refreshToken: credential.refreshToken!,
       providerAccountId: credential.accountId,
       oauthConfig: credential.oauthConfig,
-      chain: credential,
       requestId,
       userId: credential.userId,
       privacyMode: options?.privacyMode,
-    })
-    if (fresh?.kind === 'token') return { accessToken: fresh.accessToken }
-
-    // If refresh was only triggered proactively (Microsoft refresh-token aging /
-    // Instagram long-lived nearing expiry), the still-valid access token is fine.
-    if (!accessTokenNeedsRefresh && accessToken) {
-      logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
-      return { accessToken }
-    }
+    },
+    options?.signal
+  )
+  if (result.kind === 'unrefreshable') {
+    logger.warn('OAuth access token expired and cannot be refreshed; reconnect the account')
     return null
   }
-  if (!accessToken) {
+  if (result.kind === 'failed') return null
+  if (!result.accessToken) {
     // We have no access token and either no refresh token or not eligible to refresh
     logger.error(`[${requestId}] Missing access token for credential`)
     return null
   }
-
-  logger.info(`[${requestId}] Access token is valid for credential`)
-  return { accessToken }
+  if (!result.refreshed) logger.info(`[${requestId}] Access token is valid for credential`)
+  return { accessToken: result.accessToken }
 }
 
 /**
@@ -1665,71 +1735,29 @@ export async function refreshTokenIfNeeded(
   credential: any,
   credentialId: string
 ): Promise<{ accessToken: string; refreshed: boolean }> {
-  const resolvedCredentialId = credential.resolvedCredentialId ?? credentialId
-
-  const accessTokenExpiresAt = credential.accessTokenExpiresAt
-  const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
-  const now = new Date()
-
-  if (!credential.refreshToken && accessTokenExpiresAt && accessTokenExpiresAt <= now) {
-    throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
-  }
-
-  const accessTokenNeedsRefresh =
-    !!credential.refreshToken &&
-    (!credential.accessToken ||
-      isOAuthAccessTokenExpiring(accessTokenExpiresAt, credential.providerId, now))
-
-  // Check if we should proactively refresh to prevent refresh token expiry
-  // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
-  const proactiveRefreshThreshold = new Date(
-    now.getTime() + PROACTIVE_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
-  )
-  const refreshTokenNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isMicrosoftProvider(credential.providerId) &&
-    refreshTokenExpiresAt &&
-    refreshTokenExpiresAt <= proactiveRefreshThreshold
-
-  // Instagram long-lived tokens can only be refreshed while still valid.
-  const instagramNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isInstagramProvider(credential.providerId) &&
-    shouldProactivelyRefreshInstagramToken({
-      accessTokenExpiresAt,
-      updatedAt: credential.updatedAt,
-      now,
-    })
-
-  const shouldRefresh =
-    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
-
-  // If token appears valid and present, return it directly
-  if (!shouldRefresh) {
-    logger.info(`[${requestId}] Access token is valid`)
-    return { accessToken: credential.accessToken, refreshed: false }
-  }
-
-  const fresh = await performCoalescedRefresh({
-    accountId: resolvedCredentialId,
+  const result = await resolveStoredAccessToken(credential, {
+    accountId: credential.resolvedCredentialId ?? credentialId,
     providerId: credential.providerId,
-    refreshToken: credential.refreshToken!,
     providerAccountId: credential.accountId,
     oauthConfig: credential.oauthConfig,
-    chain: credential,
     requestId,
     userId: credential.userId,
   })
-  if (fresh?.kind === 'token') return { accessToken: fresh.accessToken, refreshed: true }
-
-  if (!accessTokenNeedsRefresh && credential.accessToken) {
-    logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
-    return { accessToken: credential.accessToken, refreshed: false }
+  if (result.kind === 'unrefreshable') {
+    throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
   }
-  if (fresh?.kind === 'revoked') {
+  if (result.kind === 'token') {
+    if (!result.refreshed) logger.info(`[${requestId}] Access token is valid`)
+    /** A row storing neither token returns its empty token as before; callers decide how to fail. */
+    return {
+      accessToken: result.accessToken ?? credential.accessToken,
+      refreshed: result.refreshed,
+    }
+  }
+  if (result.outcome?.kind === 'revoked') {
     throw new CredentialRevokedError(
-      `The ${credential.providerId} credential was revoked by the provider (${fresh.errorCode}). Reconnect it to continue.`,
-      { providerId: credential.providerId, errorCode: fresh.errorCode }
+      `The ${credential.providerId} credential was revoked by the provider (${result.outcome.errorCode}). Reconnect it to continue.`,
+      { providerId: credential.providerId, errorCode: result.outcome.errorCode }
     )
   }
   throw new Error('Failed to refresh token')

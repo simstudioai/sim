@@ -11,7 +11,7 @@ import {
   knowledgeContextsMockFns,
 } from '@sim/testing/mocks/knowledge-contexts.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   accounts: vi.fn(),
@@ -751,6 +751,54 @@ describe('authorized live retrieval', () => {
     await searchLiveKnowledge.execute({ principal, input: { ...input, query: 'launch checklist' } })
     expect(signals.length).toBeGreaterThan(0)
     for (const signal of signals) expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
+  describe('when account token resolution never settles', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+        const controller = new AbortController()
+        setTimeout(
+          () => controller.abort(new DOMException('deadline', 'TimeoutError')),
+          milliseconds
+        )
+        return controller.signal
+      })
+    })
+    afterEach(() => {
+      vi.mocked(AbortSignal.timeout).mockRestore()
+      vi.useRealTimers()
+    })
+
+    it('reports the account timed out within the search deadline', async () => {
+      mocks.resolveAccount.mockReturnValue(new Promise(() => {}))
+      const pending = searchLiveKnowledge.execute({ principal, input })
+      await vi.advanceTimersByTimeAsync(20_000)
+      const result = await pending
+      expect(result.live?.accounts[0]?.status).toBe('timeout')
+      expect(mocks.search).not.toHaveBeenCalled()
+    })
+
+    it('fails a document read as retryable within the read deadline', async () => {
+      const search = await searchLiveKnowledge.execute({ principal, input })
+      mocks.resolveAccount.mockReturnValue(new Promise(() => {}))
+      const read = readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]?.documentId ?? '',
+          limit: 1,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+      const rejected = expect(read).rejects.toMatchObject({
+        retryable: true,
+        message: expect.stringContaining('took too long'),
+      })
+      await vi.advanceTimersByTimeAsync(15_000)
+      await rejected
+      expect(mocks.read).not.toHaveBeenCalled()
+    })
   })
 
   it('retries an underfilled search with any term for providers that require every term', async () => {

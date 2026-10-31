@@ -1,6 +1,12 @@
 import { generateKeyPairSync, verify } from 'node:crypto'
 import { account, credential } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createDeferred,
+  dbChainMockFns,
+  flushMicrotasks,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -435,14 +441,77 @@ describe('OAuth access-token refresh headroom', () => {
 
   describe.each(readers)('$name', ({ read, throwsOnFailure }) => {
     it.each([
-      { remainingMs: 300_000, refresh: true },
-      { remainingMs: 300_001, refresh: false },
-      { remainingMs: null, refresh: false },
-    ])('handles $remainingMs milliseconds remaining', async ({ remainingMs, refresh }) => {
-      await expect(read(createOAuthAccount(remainingMs))).resolves.toBe(
-        refresh ? 'refreshed-access-token' : 'original-access-token'
+      { providerId: 'google-drive', remainingMs: 120_000, refresh: 'wait' },
+      { providerId: 'google-drive', remainingMs: 240_000, refresh: 'ahead' },
+      { providerId: 'google-drive', remainingMs: 300_001, refresh: 'none' },
+      { providerId: 'google-drive', remainingMs: null, refresh: 'none' },
+      { providerId: 'confluence', remainingMs: 300_000, refresh: 'wait' },
+      { providerId: 'confluence', remainingMs: 300_001, refresh: 'none' },
+    ])(
+      'handles $providerId with $remainingMs milliseconds remaining',
+      async ({ providerId, remainingMs, refresh }) => {
+        await expect(read({ ...createOAuthAccount(remainingMs), providerId })).resolves.toBe(
+          refresh === 'wait' ? 'refreshed-access-token' : 'original-access-token'
+        )
+        if (refresh === 'ahead') {
+          await vi.waitFor(() => expect(dbChainMockFns.set).toHaveBeenCalled())
+        }
+        expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(refresh === 'none' ? 0 : 1)
+      }
+    )
+
+    it('uses a still-valid Google token while its refresh is still with the provider', async () => {
+      const provider = createDeferred<unknown>()
+      mocks.refreshOAuthToken.mockReturnValue(provider.promise)
+      await expect(read(createOAuthAccount(240_000))).resolves.toBe('original-access-token')
+      await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
+      expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      provider.resolve({
+        ok: true,
+        accessToken: 'refreshed-access-token',
+        refreshToken: 'rotated-refresh-token',
+        expiresIn: 3600,
+      })
+      await vi.waitFor(() =>
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            accessToken: 'refreshed-access-token',
+            refreshToken: 'rotated-refresh-token',
+          })
+        )
       )
-      expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(refresh ? 1 : 0)
+      const guard = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
+      expect(guard).toContain('original-refresh-token')
+    })
+
+    it.each([
+      {
+        label: 'a provider not verified for refresh-ahead',
+        providerId: 'confluence',
+        remainingMs: 240_000,
+      },
+      {
+        label: 'a Google token under the refresh floor',
+        providerId: 'google-drive',
+        remainingMs: 60_000,
+      },
+    ])('waits for the provider with $label', async ({ providerId, remainingMs }) => {
+      const provider = createDeferred<unknown>()
+      mocks.refreshOAuthToken.mockReturnValue(provider.promise)
+      let settled = false
+      const pending = read({ ...createOAuthAccount(remainingMs), providerId }).finally(() => {
+        settled = true
+      })
+      await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
+      await flushMicrotasks(20)
+      expect(settled).toBe(false)
+      provider.resolve({
+        ok: true,
+        accessToken: 'refreshed-access-token',
+        refreshToken: 'rotated-refresh-token',
+        expiresIn: 3600,
+      })
+      await expect(pending).resolves.toBe('refreshed-access-token')
     })
 
     it('still refreshes a missing access token without a known expiry', async () => {
@@ -614,7 +683,40 @@ describe('OAuth access-token refresh headroom', () => {
       accessToken: 'original-access-token',
       refreshed: false,
     })
-    expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(2))
+  })
+
+  it('stops a cancelled caller waiting while a concurrent caller still gets the refreshed token', async () => {
+    const { coalesceLocally } = await vi.importActual<
+      typeof import('@/lib/concurrency/singleflight')
+    >('@/lib/concurrency/singleflight')
+    mocks.coalesceLocally.mockImplementation(coalesceLocally)
+    const provider = createDeferred<unknown>()
+    mocks.refreshOAuthToken.mockReturnValue(provider.promise)
+    const controller = new AbortController()
+    const reason = new DOMException('Search deadline', 'TimeoutError')
+    queueCredentialAccount(createOAuthAccount())
+    queueCredentialAccount(createOAuthAccount())
+    const cancelled = resolveCredentialTokenBundle(
+      RAW_CREDENTIAL_ID,
+      RAW_USER_ID,
+      'test',
+      undefined,
+      undefined,
+      { signal: controller.signal }
+    )
+    const concurrent = resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
+    controller.abort(reason)
+    await expect(cancelled).rejects.toBe(reason)
+    provider.resolve({
+      ok: true,
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+      expiresIn: 3600,
+    })
+    await expect(concurrent).resolves.toEqual({ accessToken: 'refreshed-access-token' })
+    expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
   })
 })
 
