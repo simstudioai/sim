@@ -261,6 +261,8 @@ export interface RunStopTarget {
 /** The client workflows and sandbox commands a stopped run started, read once its admission closed. */
 export interface StoppedRunWork {
   clientWorkflowExecutionIds: string[]
+  /** Runs its calls started and left running past the call (`getDetachedWorkflowExecutions`). */
+  detachedWorkflowExecutionIds: string[]
   sandboxProcesses: StoppedSandboxProcess[]
 }
 
@@ -361,6 +363,7 @@ export async function stopLiveRunsTx(
       chatId,
       desktopDeviceId,
       clientWorkflowExecutionIds: await getUnsettledClientWorkflowExecutions(streamId, userId, tx),
+      detachedWorkflowExecutionIds: await getDetachedWorkflowExecutions(streamId, userId, tx),
       sandboxProcesses: await getUnsettledStreamSandboxProcesses(streamId, userId, tx),
     })
   }
@@ -1918,6 +1921,81 @@ export async function getUnsettledClientWorkflowExecutions(
           )
         )
       return rows.flatMap((row) => (row.executionId ? [row.executionId] : []))
+    }
+  )
+}
+
+const WORKFLOW_RUN_TOOL_NAMES = [
+  'run_workflow',
+  'run_workflow_until_block',
+  'run_from_block',
+  'run_block',
+] as const
+
+/**
+ * The workflow execution a settled call started and left running: a `workflows run` the CLI
+ * answered still running (exit 4 and its run record), or a workflow tool answered still running
+ * (`WorkflowToolRunningResult`). A run the call only waited on (`workflows runs wait`) is not
+ * one: another run started it.
+ */
+export function detachedWorkflowExecutionId(call: {
+  executableName: string | null
+  args: unknown
+  result: unknown
+}): string | undefined {
+  const result = toRecordOrNull(call.result)
+  if (!result) return undefined
+  if (call.executableName === 'sim_cli') {
+    const request = toRecordOrNull(toRecordOrNull(call.args)?.request)
+    const argv = toRecordOrNull(request?.invocation)?.argv
+    if (!Array.isArray(argv) || argv[0] !== 'workflows' || argv[1] !== 'run') return undefined
+    if (result.exitCode !== 4 || typeof result.stdout !== 'string') return undefined
+    try {
+      const record = toRecordOrNull(JSON.parse(result.stdout))
+      return record?.status === 'running' && typeof record.runId === 'string'
+        ? record.runId
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+  return result.status === 'running' && typeof result.executionId === 'string'
+    ? result.executionId
+    : undefined
+}
+
+/**
+ * Workflow executions this run's calls started and left running past the call: what a Stop
+ * cancels beyond the calls still open, since a detached run takes no call's abort signal.
+ */
+export async function getDetachedWorkflowExecutions(
+  streamId: string,
+  userId: string,
+  executor: DbOrTx = db
+) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
+    'SELECT',
+    'copilot_async_tool_calls',
+    { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
+    async () => {
+      const rows = await executor
+        .select({
+          executableName: copilotAsyncToolCalls.executableName,
+          args: copilotAsyncToolCalls.args,
+          result: copilotAsyncToolCalls.result,
+        })
+        .from(copilotAsyncToolCalls)
+        .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+        .where(
+          and(
+            eq(copilotRuns.streamId, streamId),
+            eq(copilotRuns.userId, userId),
+            inArray(copilotAsyncToolCalls.executableName, ['sim_cli', ...WORKFLOW_RUN_TOOL_NAMES]),
+            isNotNull(copilotAsyncToolCalls.result)
+          )
+        )
+      return [...new Set(rows.flatMap((row) => detachedWorkflowExecutionId(row) ?? []))]
     }
   )
 }

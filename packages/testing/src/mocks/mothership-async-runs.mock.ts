@@ -8,8 +8,8 @@ import { vi } from 'vitest'
  *   its result (the advisory lock itself is not modelled).
  * - `mockGetRunSecretAuthority` resolves the no-secrets authority.
  * - `mockGetClaimedWorkflowExecutionId` is a faithful port (strips the real `'workflow:'` claim prefix).
- * - `mockStopLiveRunsTx`, `mockFindWorkspacesWithLiveRunsTx`, `mockGetUnsettledStreamSandboxProcesses`, `mockGetUnsettledClientWorkflowExecutions` and
- *   `mockGetAsyncToolCalls` resolve `[]`.
+ * - `mockStopLiveRunsTx`, `mockFindWorkspacesWithLiveRunsTx`, `mockGetUnsettledStreamSandboxProcesses`, `mockGetUnsettledClientWorkflowExecutions`,
+ *   `mockGetDetachedWorkflowExecutions` and `mockGetAsyncToolCalls` resolve `[]`.
  *
  * @example
  * ```ts
@@ -64,6 +64,7 @@ export const mothershipAsyncRunsMockFns = {
   mockGetUnsettledClientWorkflowExecutions: vi.fn(
     async (..._args: unknown[]): Promise<unknown[]> => []
   ),
+  mockGetDetachedWorkflowExecutions: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
   mockGetClaimedWorkflowExecutionId: vi.fn(
     (claimedBy: string | null | undefined): string | undefined => {
       if (!claimedBy?.startsWith('workflow:')) return undefined
@@ -131,6 +132,7 @@ export const mothershipAsyncRunsMock = {
   areStreamToolExecutionsSettled: mothershipAsyncRunsMockFns.mockAreStreamToolExecutionsSettled,
   getUnsettledClientWorkflowExecutions:
     mothershipAsyncRunsMockFns.mockGetUnsettledClientWorkflowExecutions,
+  getDetachedWorkflowExecutions: mothershipAsyncRunsMockFns.mockGetDetachedWorkflowExecutions,
   getClaimedWorkflowExecutionId: mothershipAsyncRunsMockFns.mockGetClaimedWorkflowExecutionId,
   claimWorkflowToolExecution: mothershipAsyncRunsMockFns.mockClaimWorkflowToolExecution,
   releaseWorkflowToolExecutionClaim:

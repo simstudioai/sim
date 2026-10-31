@@ -14,6 +14,7 @@ import {
   closeStreamToolAdmission,
   createRunSegment,
   detachAsyncToolCall,
+  detachedWorkflowExecutionId,
   getClaimedWorkflowExecutionId,
   getUnsettledStreamSandboxProcesses,
   markAsyncToolRunning,
@@ -456,5 +457,54 @@ describe('async tool repository single-row semantics', () => {
     await expect(
       upsertAsyncToolCall({ runId: 'current-run', toolCallId: 'call-race', toolName: 'glob' })
     ).rejects.toThrow('Async tool call belongs to another run')
+  })
+})
+
+describe('the workflow run a settled call left running', () => {
+  const cli = (argv: string[], exitCode: number, record: Record<string, unknown>) => ({
+    executableName: 'sim_cli',
+    args: { request: { invocation: { kind: 'cli', argv } } },
+    result: { exitCode, stdout: JSON.stringify(record), stderr: '' },
+  })
+  const running = { runId: 'run-1', workflowId: 'wf-1', status: 'running' }
+
+  it('is a workflows run the CLI answered still running', () => {
+    expect(
+      detachedWorkflowExecutionId(
+        cli(['workflows', 'run', 'wf-1', '--wait-timeout', '240'], 4, running)
+      )
+    ).toBe('run-1')
+  })
+
+  it('is a workflow tool answered still running', () => {
+    expect(
+      detachedWorkflowExecutionId({
+        executableName: 'run_workflow',
+        args: { workflowId: 'wf-1' },
+        result: { status: 'running', executionId: 'exec-1', workflowId: 'wf-1' },
+      })
+    ).toBe('exec-1')
+  })
+
+  it.each([
+    [
+      'a run that settled',
+      cli(['workflows', 'run', 'wf-1'], 0, { ...running, status: 'completed' }),
+    ],
+    // Waiting on a run proves nothing about who started it; Stop must not cancel it.
+    ['a wait on a run', cli(['workflows', 'runs', 'wait', 'run-1'], 4, running)],
+    [
+      'an unreadable answer',
+      {
+        ...cli(['workflows', 'run', 'wf-1'], 4, running),
+        result: { exitCode: 4, stdout: 'not json' },
+      },
+    ],
+    [
+      'a workflow tool that settled',
+      { executableName: 'run_block', args: {}, result: { success: true, executionId: 'exec-1' } },
+    ],
+  ])('is not %s', (_label, call) => {
+    expect(detachedWorkflowExecutionId(call)).toBeUndefined()
   })
 })
