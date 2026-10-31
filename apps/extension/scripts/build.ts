@@ -125,6 +125,7 @@ await writeFile(
       },
       optional_host_permissions: ['https://*/*', 'http://*/*'],
       background: { service_worker: 'background.js' },
+      omnibox: { keyword: 'sim' },
       side_panel: { default_path: 'sidepanel.html' },
       action: { default_title: 'Open Sim' },
       icons: { 16: 'icon-16.png', 32: 'icon-32.png', 128: 'icon-128.png' },
@@ -135,7 +136,7 @@ await writeFile(
         },
       },
       content_security_policy: {
-        extension_pages: `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; frame-src ${origin.origin}; connect-src 'none'; object-src 'none'; base-uri 'none'`,
+        extension_pages: `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; frame-src ${origin.origin}; connect-src ${origin.origin}; object-src 'none'; base-uri 'none'`,
       },
       incognito: 'not_allowed',
       ...(key ? { key } : {}),

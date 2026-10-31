@@ -74,3 +74,13 @@ export const extensionToAppMessageSchema = z.discriminatedUnion('type', [
   }),
 ])
 export type ExtensionToAppMessage = z.infer<typeof extensionToAppMessageSchema>
+
+/** Where the extension asks for the address-bar suggestions behind its `sim` keyword. */
+export const SIM_LINK_SUGGESTIONS_PATH = '/api/sim-links/suggestions'
+
+/** Listed Sim links whose name starts with what was typed, most visited first. */
+export const simLinkSuggestionsSchema = z.strictObject({
+  links: z.array(
+    z.strictObject({ name: z.string(), description: z.string().nullable(), url: z.string() })
+  ),
+})

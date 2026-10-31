@@ -24,33 +24,39 @@ function encodeSegments(values: readonly string[]): string {
   return values.map(encodeURIComponent).join('/')
 }
 
-/** Values fill only what follows a closed authority, so leaving `origin` is a broken invariant. */
-function redirectWithin(origin: string, url: string): SimLinkTarget {
+/**
+ * Values fill only what follows a closed authority, so leaving `origin` is a broken invariant.
+ * The typed query follows the destination's own parameters, whose encoding is kept as stored.
+ */
+function redirectWithin(origin: string, url: string, query: URLSearchParams): SimLinkTarget {
   const parsed = parseHttpUrl(url)
   if (parsed?.origin !== origin) throw new Error('Sim link resolved outside its fixed origin')
+  const typed = query.toString()
+  if (typed) parsed.search = parsed.search ? `${parsed.search}&${typed}` : typed
   return { kind: 'redirect', url: parsed.toString() }
 }
 
 /**
- * Where `sim/<name>/<values…>` leads. A plain link appends the values to its path.
+ * Where `sim/<name>/<values…>?<query>` leads. A plain link appends the values to its path.
  * A variable link fills each `{*}` in order, the last taking every remaining value,
- * and opens its default destination when given none. Every redirect stays on the
- * stored destination's origin.
+ * and opens its default destination when given none. The query carries over to whichever
+ * destination opens, and every redirect stays on the stored destination's origin.
  */
 export function resolveSimLinkTarget(
   link: SimLinkDestination,
-  values: readonly string[]
+  values: readonly string[],
+  query: URLSearchParams = new URLSearchParams()
 ): SimLinkTarget {
   const origin = simLinkOrigin(link.url)
   if (!origin) throw new Error('Sim link destination has no fixed http(s) origin')
   if (values.some(isDotSegment)) return { kind: 'invalid_values' }
   if (!isVariableSimLinkUrl(link.url)) {
-    if (!values.length) return redirectWithin(origin, link.url)
+    if (!values.length) return redirectWithin(origin, link.url, query)
     const url = new URL(link.url)
     url.pathname = `${url.pathname.replace(/\/+$/, '')}/${encodeSegments(values)}`
-    return redirectWithin(origin, url.toString())
+    return redirectWithin(origin, url.toString(), query)
   }
-  if (!values.length && link.defaultUrl) return redirectWithin(origin, link.defaultUrl)
+  if (!values.length && link.defaultUrl) return redirectWithin(origin, link.defaultUrl, query)
   const parts = link.url.split(SIM_LINK_VARIABLE)
   const slots = parts.length - 1
   if (values.length < slots) return { kind: 'missing_values', required: slots }
@@ -60,6 +66,7 @@ export function resolveSimLinkTarget(
   ]
   return redirectWithin(
     origin,
-    parts.reduce((url, part, index) => url + fills[index - 1] + part)
+    parts.reduce((url, part, index) => url + fills[index - 1] + part),
+    query
   )
 }
