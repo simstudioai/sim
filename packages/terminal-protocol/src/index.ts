@@ -274,6 +274,12 @@ export interface TerminalTabState {
   interactive: boolean
   active: boolean
   /**
+   * The shell running in this terminal, as its program name without a
+   * directory or `.exe` (`zsh`, `bash`, `pwsh`, `powershell`, `cmd`). Absent
+   * from shells that predate the field, which all run on macOS.
+   */
+  shell?: string
+  /**
    * The tmux session attached in this terminal, when one is. Its windows and
    * panes are tmux's to manage — `panes` lists them; Sim's tab strip stays a
    * count of the shells Sim opened.
@@ -303,11 +309,18 @@ const COMMAND_PREFIX_WORDS = new Set([
 const ENVIRONMENT_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
 
 /**
+ * Windows shells, where a backslash separates path segments rather than
+ * escaping the next character (PowerShell escapes with a backtick, cmd with a
+ * caret).
+ */
+const LITERAL_BACKSLASH_SHELLS: ReadonlySet<string> = new Set(['pwsh', 'powershell', 'cmd'])
+
+/**
  * The last command in a shell line, ignoring separators inside quotes. A
  * quote-blind split would cut `claude "a && b"` in half and report `b"` as the
  * program.
  */
-function lastCommandSegment(command: string): string {
+function lastCommandSegment(command: string, backslashEscapes: boolean): string {
   let start = 0
   let quote: "'" | '"' | null = null
   for (let index = 0; index < command.length; index++) {
@@ -315,7 +328,7 @@ function lastCommandSegment(command: string): string {
     if (quote) {
       // Only double quotes honor backslash escapes; inside single quotes a
       // backslash is a literal character and cannot hide the closing quote.
-      if (char === '\\' && quote === '"') index++
+      if (char === '\\' && quote === '"' && backslashEscapes) index++
       else if (char === quote) quote = null
       continue
     }
@@ -323,7 +336,7 @@ function lastCommandSegment(command: string): string {
       quote = char
       continue
     }
-    if (char === '\\') {
+    if (char === '\\' && backslashEscapes) {
       index++
       continue
     }
@@ -353,12 +366,14 @@ function lastCommandSegment(command: string): string {
  * @example
  * describeRunningCommand('cd /repo && export PATH=/bin && claude "fix it"') // 'claude'
  * describeRunningCommand('sudo /usr/bin/docker compose up')                 // 'docker'
+ * describeRunningCommand('cd C:\repo; C:\tools\node.exe x', 'pwsh')         // 'node'
  */
-export function describeRunningCommand(running: string): string {
+export function describeRunningCommand(running: string, shell?: string): string {
   const line = running.trim()
   if (!line) return 'a command'
 
-  const segment = lastCommandSegment(line) || line
+  const backslashEscapes = !LITERAL_BACKSLASH_SHELLS.has(shell ?? '')
+  const segment = lastCommandSegment(line, backslashEscapes) || line
   const program = segment
     .split(/\s+/)
     .filter(Boolean)
@@ -373,9 +388,10 @@ export function describeRunningCommand(running: string): string {
     (program
       ? (program
           .replace(/^['"]|['"]$/g, '')
-          .split('/')
+          .split(backslashEscapes ? '/' : /[\\/]/)
           .filter(Boolean)
-          .pop() ?? '')
+          .pop()
+          ?.replace(/\.exe$/i, '') ?? '')
       : '') || segment
   return truncate(label, MAX_RUNNING_COMMAND_LABEL, '…')
 }

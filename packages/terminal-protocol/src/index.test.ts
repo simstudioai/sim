@@ -26,4 +26,13 @@ describe('describeRunningCommand', () => {
     expect(describeRunningCommand('sudo /usr/bin/docker compose up')).toBe('docker')
     expect(describeRunningCommand('env FOO=1 nohup python train.py')).toBe('python')
   })
+
+  it('names a Windows program by its file name without the directory or .exe', () => {
+    expect(describeRunningCommand('C:\\tools\\node.exe server.js', 'pwsh')).toBe('node')
+    expect(describeRunningCommand('& "C:\\Git\\bin\\git.EXE" status', 'pwsh')).toBe('git')
+  })
+
+  it('reads a backslash as a path separator in Windows shells, never an escape', () => {
+    expect(describeRunningCommand('cd C:\\; npm test', 'powershell')).toBe('npm')
+  })
 })
