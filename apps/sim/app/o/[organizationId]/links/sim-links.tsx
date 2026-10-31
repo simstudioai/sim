@@ -51,7 +51,7 @@ const COLUMNS: ResourceColumn[] = [
 const SORT_OPTIONS = [
   { id: 'name', label: 'Name' },
   { id: 'popular', label: 'Opens' },
-]
+] as const
 
 /** How the link is shared beyond the default: open to everyone and editable by any member. */
 function accessLabel(link: SimLink): string | null {
