@@ -486,13 +486,6 @@ export function handleSelectClientCertificate(
   })
 }
 
-/**
- * Who asked to open another app: a navigation names its initiating frame; a
- * popup cannot be attributed to one, since Electron's window-open details
- * carry no frame.
- */
-export type AppLaunchSource = { initiator: WebFrameMain | null | undefined } | 'popup'
-
 /** The tab's own top-level document asked, not a frame inside it. */
 function isTopDocument(
   contents: WebContents,
@@ -516,16 +509,18 @@ function launchAppLink(url: string): void {
 }
 
 /**
- * A browser tab asked to open a non-web URL. Agent input never launches
- * anything, and neither do frames. The top document's request right after the
- * user's own click asks them to confirm the app (mail links open directly);
- * a popup or a request without that click only gets a passive notice the user
- * can act on. A pending launch prompt refuses further requests.
+ * A browser tab's navigation to a non-web URL, with the frame that initiated
+ * it. Agent input never launches anything, and neither do frames; `window.open`
+ * never reaches here, since it names no initiating frame. The top document's
+ * request right after the user's own click asks them to confirm the app (mail
+ * links open directly); one without that click only gets a passive notice the
+ * user can act on. Nothing launches without a renderer that shows prompts, and
+ * a pending launch prompt refuses further requests.
  */
 export function requestExternalLaunch(
   contents: WebContents,
   rawUrl: string,
-  source: AppLaunchSource
+  initiator: WebFrameMain | null | undefined
 ): void {
   if (!host || contents.isDestroyed() || !isAgentWebContents(contents)) return
   const target = appLinkTarget(rawUrl)
@@ -540,7 +535,7 @@ export function requestExternalLaunch(
     appName = displayText(app.getApplicationNameForProtocol(target.url), 80)
   } catch {}
   const context = host.tabContext(contents)
-  if (!appName || !context) return
+  if (!appName || !context?.promptsEnabled) return
   if (context.agentActedLast) {
     host.noticeForAgent(
       contents,
@@ -550,14 +545,14 @@ export function requestExternalLaunch(
   }
   const origin = parseHttpUrl(contents.getURL())?.origin
   if (!origin) return
-  if (source !== 'popup' && !isTopDocument(contents, source.initiator, origin)) {
+  if (!isTopDocument(contents, initiator, origin)) {
     logger.warn('Denied an app link from a frame in agent browser', { scheme: target.scheme })
     return
   }
   const attempts = recentAttempts(contents, 'app-launch', LAUNCH_RATE_WINDOW_MS)
   if (attempts.length >= MAX_LAUNCHES_PER_WINDOW) return
   const launchKey = `${origin}|${target.scheme}`
-  if (source !== 'popup' && context.userActivated && !context.agentDrives) {
+  if (context.userActivated && !context.agentDrives) {
     if (target.scheme === 'mailto' || alwaysAllowedLaunches.has(launchKey)) {
       attempts.push(Date.now())
       launchAppLink(target.url)

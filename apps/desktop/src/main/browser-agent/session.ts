@@ -60,7 +60,6 @@ import {
   cancelPagePrompts,
   handleSelectPasskeyAccount,
   noteMainFrameNavigation,
-  requestExternalLaunch,
   resetPagePromptDecisions,
   setPagePromptHost,
 } from '@/main/browser-agent/page-prompts'
@@ -2777,10 +2776,6 @@ function initializeTabView(
   // WebContents keeps window.opener for sign-in popups that post back to it.
   contents.setWindowOpenHandler((details) =>
     withBrowserScope(scopeId, () => {
-      if (!isBlankPopupUrl(details.url) && !/^https?:\/\//i.test(details.url)) {
-        requestExternalLaunch(contents, details.url, 'popup')
-        return { action: 'deny' }
-      }
       const agentOwned = agentOwnsPopupFrom(contents)
       const background = details.disposition === 'background-tab'
       const adopt = canAdoptPopup(contents, details.url)

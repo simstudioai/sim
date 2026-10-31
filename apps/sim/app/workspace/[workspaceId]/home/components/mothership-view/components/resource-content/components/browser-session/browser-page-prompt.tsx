@@ -56,7 +56,10 @@ interface PromptModalProps<Prompt extends BrowserPagePrompt> {
   onRespond: RespondToPrompt
 }
 
-/** Signing in takes a click on Sign in: Enter in a field never submits credentials a keystroke meant for the page. */
+/**
+ * A page raised this, so it never takes focus, and signing in takes a click on
+ * Sign in: Enter in a field never submits credentials typed for the page.
+ */
 function HttpAuthPromptModal({ prompt, open, onRespond }: PromptModalProps<BrowserHttpAuthPrompt>) {
   const armed = useActivationDelay(open)
   const [username, setUsername] = useState('')
@@ -65,7 +68,13 @@ function HttpAuthPromptModal({ prompt, open, onRespond }: PromptModalProps<Brows
   const submit = () =>
     onRespond(prompt.requestId, { allowed: true, kind: 'http-auth', username, password })
   return (
-    <ChipModal open={open} onOpenChange={(next) => !next && cancel()} srTitle='Sign in' size='sm'>
+    <ChipModal
+      open={open}
+      onOpenChange={(next) => !next && cancel()}
+      srTitle='Sign in'
+      size='sm'
+      focusOnOpen={false}
+    >
       <ChipModalHeader onClose={cancel}>Sign in</ChipModalHeader>
       <ChipModalBody>
         <ChipModalDescription>
@@ -118,9 +127,9 @@ interface ChoicePromptModalProps {
 }
 
 /**
- * Picks one of the page's offered identities. Nothing is chosen up front, Enter
- * dismisses, and Continue waits out the activation delay, so a keystroke meant
- * for the page can never send an identity.
+ * Picks one of the page's offered identities. It never takes focus, nothing is
+ * chosen up front, Enter dismisses, and Continue waits out the activation delay,
+ * so a keystroke meant for the page can never send an identity.
  */
 function ChoicePromptModal({
   open,
@@ -137,7 +146,13 @@ function ChoicePromptModal({
   const armed = useActivationDelay(open)
   const [choiceId, setChoiceId] = useState('')
   return (
-    <ChipModal open={open} onOpenChange={(next) => !next && onCancel()} srTitle={title} size='sm'>
+    <ChipModal
+      open={open}
+      onOpenChange={(next) => !next && onCancel()}
+      srTitle={title}
+      size='sm'
+      focusOnOpen={false}
+    >
       <ChipModalHeader onClose={onCancel}>{title}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalDescription>{description}</ChipModalDescription>

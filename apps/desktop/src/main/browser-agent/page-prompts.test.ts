@@ -268,30 +268,36 @@ describe('app links', () => {
       frameTreeNodeId: 2,
       origin: 'https://ads.example',
     } as WebFrameMain
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', { initiator: frame })
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', {
-      initiator: topFrame('https://ads.example'),
-    })
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', { initiator: null })
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', frame)
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', topFrame('https://ads.example'))
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', null)
     expect(pagePromptForContents(contents)).toBeUndefined()
     expect(appLaunchNoticeForContents(contents)).toBeUndefined()
   })
 
-  it('asks after the top document is clicked, but only offers a popup passively', () => {
+  it('asks after the top document is clicked, and otherwise only offers passively', () => {
     const clicked = agentContents()
-    requestExternalLaunch(clicked, 'zoommtg://zoom.us/join', { initiator: topFrame() })
+    requestExternalLaunch(clicked, 'zoommtg://zoom.us/join', topFrame())
     expect(pagePromptForContents(clicked)).toMatchObject({ kind: 'external-app', appName: 'Zoom' })
 
-    const popup = agentContents()
-    requestExternalLaunch(popup, 'zoommtg://zoom.us/join', 'popup')
-    expect(pagePromptForContents(popup)).toBeUndefined()
-    expect(appLaunchNoticeForContents(popup)).toMatchObject({ origin: PAGE, appName: 'Zoom' })
+    context.userActivated = false
+    const unclicked = agentContents()
+    requestExternalLaunch(unclicked, 'zoommtg://zoom.us/join', topFrame())
+    expect(pagePromptForContents(unclicked)).toBeUndefined()
+    expect(appLaunchNoticeForContents(unclicked)).toMatchObject({ origin: PAGE, appName: 'Zoom' })
+  })
+
+  it('opens nothing, not even a clicked mail link, without a renderer that shows prompts', async () => {
+    context.promptsEnabled = false
+    requestExternalLaunch(agentContents(), 'mailto:ada@example.com', topFrame())
+    await vi.advanceTimersByTimeAsync(0)
+    expect(shell.openExternal).not.toHaveBeenCalled()
   })
 
   it('opens only the first link while its prompt is pending', async () => {
     const contents = agentContents()
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=1', { initiator: topFrame() })
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=2', { initiator: topFrame() })
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=1', topFrame())
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=2', topFrame())
     expect(appLaunchNoticeForContents(contents)).toBeUndefined()
     answer(contents, { allowed: true, kind: 'external-app', alwaysAllow: false })
     await vi.advanceTimersByTimeAsync(0)
@@ -300,11 +306,11 @@ describe('app links', () => {
 
   it('forgets "Always allow" on reset', async () => {
     const contents = agentContents()
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=1', { initiator: topFrame() })
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=1', topFrame())
     answer(contents, { allowed: true, kind: 'external-app', alwaysAllow: true })
     resetPagePromptDecisions()
     vi.advanceTimersByTime(20_000)
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=2', { initiator: topFrame() })
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join?id=2', topFrame())
     await vi.advanceTimersByTimeAsync(0)
     expect(pagePromptForContents(contents)).toMatchObject({ kind: 'external-app' })
     expect(shell.openExternal).toHaveBeenCalledExactlyOnceWith('zoommtg://zoom.us/join?id=1')
@@ -383,7 +389,7 @@ describe('accepting an answer', () => {
     vi.mocked(shell.openExternal).mockClear()
     context.userActivated = slot === 'prompt'
     const contents = agentContents()
-    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', { initiator: topFrame })
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', topFrame)
     const requestId =
       slot === 'prompt'
         ? shownPrompt(contents).requestId

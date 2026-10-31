@@ -43,7 +43,7 @@ export function attachNavigationGuards(contents: WebContents, deps: GuardDeps): 
       if (!hasAllowedAgentBrowserScheme) {
         event.preventDefault()
         if (event.isMainFrame === true) {
-          requestExternalLaunch(contents, url, { initiator: event.initiator })
+          requestExternalLaunch(contents, url, event.initiator)
         } else logger.warn('Denied non-http navigation in agent browser', { url: scrubUrl(url) })
       }
       return
