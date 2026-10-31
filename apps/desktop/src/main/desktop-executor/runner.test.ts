@@ -141,37 +141,53 @@ describe('background terminal calls', () => {
 })
 
 describe('calls for a surface the platform does not ship', () => {
-  it.each([
-    ['terminal', { operation: 'run', args: { command: 'echo hi' } }],
-    ['read_local_file', { path: '~/notes.txt' }],
-    ['import_local_files', { path: '~/notes', targetWorkspaceId: 'ws-1' }],
-  ])('never starts %s on Windows', async (toolName, args) => {
-    const executeTool = vi.fn()
-    const request = vi.fn()
-    const completion = await runner({
-      platform: 'win32',
-      terminal: { executeTool, cancelTool: vi.fn(async () => true) },
-      localFiles: { request },
-    }).run(
+  it.each([['terminal', { operation: 'run', args: { command: 'echo hi' } }]])(
+    'never starts %s on Windows',
+    async (toolName, args) => {
+      const executeTool = vi.fn()
+      const request = vi.fn()
+      const completion = await runner({
+        platform: 'win32',
+        terminal: { executeTool, cancelTool: vi.fn(async () => true) },
+        localFiles: { request },
+      }).run(
+        {
+          toolCallId: 'call-1',
+          toolName,
+          args,
+          chatId: 'chat-b',
+          workspaceId: 'ws-1',
+          executionToken: 'token-call-1',
+        },
+        new AbortController().signal
+      )
+
+      expect(completion.data).toMatchObject({ notStarted: true })
+      expect(completion.message).toContain('on this operating system')
+      expect(executeTool).not.toHaveBeenCalled()
+      expect(request).not.toHaveBeenCalled()
+    }
+  )
+})
+
+describe('local file calls', () => {
+  it.each(['read_local_file', 'import_local_files'])('starts %s on Windows', async (toolName) => {
+    const request = vi.fn(async () => ({ ok: false as const, error: 'unreadable' }))
+    await runner({ platform: 'win32', localFiles: { request } }).run(
       {
-        toolCallId: 'call-1',
+        toolCallId: 'local-1',
         toolName,
-        args,
+        args: { path: '~/notes', targetWorkspaceId: 'ws-1' },
         chatId: 'chat-b',
         workspaceId: 'ws-1',
-        executionToken: 'token-call-1',
+        executionToken: 'token-local-1',
       },
       new AbortController().signal
     )
 
-    expect(completion.data).toMatchObject({ notStarted: true })
-    expect(completion.message).toContain('on this operating system')
-    expect(executeTool).not.toHaveBeenCalled()
-    expect(request).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledOnce()
   })
-})
 
-describe('local file calls', () => {
   it('names a passing storage state, not a setting, when local files are out of reach', async () => {
     const completion = await runner({ accountDataAvailable: () => false }).run(
       {
@@ -191,7 +207,7 @@ describe('local file calls', () => {
   })
 })
 
-describe.skipIf(process.platform === 'win32')('background imports', () => {
+describe('background imports', () => {
   const roots: string[] = []
 
   afterEach(async () => {
