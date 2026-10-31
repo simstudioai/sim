@@ -69,7 +69,7 @@ Disclosures use a 16px chevron, 8px label gap, a 38px desktop summary (44px touc
 | Open navigation rows | `components/ui/cards.tsx` |
 | CLI command grids | `components/ui/command-table.tsx` |
 | Canonical provider marks | `components/ui/integration-icon.tsx` |
-| Original workflow graph/configuration | `components/workflow-preview/workflow-preview.tsx`, `block-inspector.tsx` |
+| Original workflow graph | `components/workflow-preview/workflow-preview.tsx` |
 | Complete nested workflow results, copy, download | `components/workflow-preview/output-bundle.tsx` |
 | Real component/state gallery | `components/docs/gallery.tsx` |
 

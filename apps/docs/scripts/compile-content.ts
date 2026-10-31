@@ -313,9 +313,9 @@ async function generate() {
     })
     .join('\n')
   const registry = `import type { MDXContent } from 'mdx/types'\nconst loaders: Record<string, () => Promise<{default: MDXContent}>> = {\n${loaders}\n}\nexport function loadPage(id: string) {\n  const load = loaders[id]\n  if (!load) throw new Error(\`Unknown authored document: \${id}\`)\n  return load()\n}\n`
-  if (process.argv.includes('--verify-migration')) {
+  if (process.argv.includes('--verify-compatibility')) {
     const baseline = JSON.parse(
-      await readFile(path.join(DOCS_ROOT, 'migration/baseline.json'), 'utf8')
+      await readFile(path.join(DOCS_ROOT, 'scripts/fixtures/content-baseline.json'), 'utf8')
     ) as {
       pages: Array<{
         url: string
@@ -362,7 +362,8 @@ async function generate() {
       })),
     }
     const reportPath =
-      process.env.DOCS_MIGRATION_REPORT_PATH ?? path.join(DOCS_ROOT, 'migration/report.json')
+      process.env.DOCS_COMPATIBILITY_REPORT_PATH ??
+      path.join(DOCS_ROOT, 'test-results/compatibility.json')
     const formattedReport = execFileSync(
       'bun',
       [
@@ -381,12 +382,13 @@ async function generate() {
         maxBuffer: MAX_CONTENT_BYTES,
       }
     )
-    if (!formattedReport.trim()) throw new Error('Migration report formatter returned empty output')
+    if (!formattedReport.trim())
+      throw new Error('Compatibility report formatter returned empty output')
     await mkdir(path.dirname(reportPath), { recursive: true })
     await writeFile(reportPath, formattedReport)
     if (lostRoutes.length || lostAnchors.length || changedCodeFences.length)
       throw new Error(
-        `Migration loses ${lostRoutes.length} routes and ${lostAnchors.length} anchors or changes ${changedCodeFences.length} code examples; see migration/report.json`
+        `Compatibility check loses ${lostRoutes.length} routes and ${lostAnchors.length} anchors or changes ${changedCodeFences.length} code examples; see ${reportPath}`
       )
   }
   await writeFullMarkdown(pages)

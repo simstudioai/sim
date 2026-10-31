@@ -171,7 +171,7 @@ jobs:
       DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/docs-headers.json
       DOCS_NAVIGATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/navigation/docs.json
       DOCS_GENERATORS_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/generators/report.json
-      DOCS_MIGRATION_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/migration.json
+      DOCS_COMPATIBILITY_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/compatibility.json
       DOCS_SAMPLES_REPORT_PATH: ${{ github.workspace }}/apps/docs/test-results/samples/report.json
       DOCS_SAMPLES_SYNTAX_LANGUAGES: javascript,python,bash,go,java,csharp
       DOCS_SAMPLES_HTTP_BASE_URL: http://127.0.0.1:3001
@@ -195,7 +195,7 @@ jobs:
         run: bun run --cwd apps/docs scripts/test-generators-e2e.ts
       - name: Verify preserved routes, anchors and examples
         if: always() && steps.build.outcome == 'success'
-        run: bun run --cwd apps/docs content:verify-migration
+        run: bun run --cwd apps/docs content:verify-compatibility
       - name: Verify native header edge cases
         if: always() && steps.build.outcome == 'success'
         run: bun run --cwd apps/docs test:headers:e2e

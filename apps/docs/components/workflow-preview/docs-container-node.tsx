@@ -48,7 +48,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
         isFocused={false}
         nestingLevel={0}
         canEditWorkflow={false}
-        onSelect={() => selectBlock?.(id)}
+        onSelect={selectBlock ? () => selectBlock(id) : undefined}
       />
     </div>
   )
