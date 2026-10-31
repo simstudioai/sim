@@ -369,13 +369,17 @@ class ToolExecutionTimeoutError extends Error {
 
 /** Builds the per-call context from the turn-scoped execution context. */
 export function buildToolExecutionContext(
-  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId' | 'params' | 'targetWorkspaceId'>,
+  toolCall: Pick<
+    ToolCallState,
+    'id' | 'parentToolCallId' | 'params' | 'targetWorkspaceId' | 'waitTimeoutMs'
+  >,
   execContext: ExecutionContext
 ): ExecutionContext {
   return {
     ...execContext,
     toolCallId: toolCall.id,
     ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+    ...(toolCall.waitTimeoutMs !== undefined ? { workflowRunWaitMs: toolCall.waitTimeoutMs } : {}),
     resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForInputPaths([]),
     ...(toolCall.parentToolCallId ? { parentToolCallId: toolCall.parentToolCallId } : {}),
   }

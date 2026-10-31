@@ -1,13 +1,16 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { retainSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { executeCopilotApiKeyUseCase } from '@/lib/mothership/application/execute-api-key-use-case'
 import {
   executeCopilotWorkflowUseCase,
   messageForCopilotWorkflowError,
 } from '@/lib/mothership/application/execute-workflow-use-case'
+import type { WorkflowToolRunningResult } from '@/lib/mothership/generated/protocol'
 import type { ExecutionContext, ToolCallResult } from '@/lib/mothership/request/types'
 import {
   TOOL_EFFECT_PHASE,
@@ -29,6 +32,7 @@ import {
 } from '@/lib/mothership/tools/workflow-output'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import {
+  type CopilotWorkflowRunLifecycle,
   runBlockFromCopilot,
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
@@ -252,6 +256,52 @@ function copilotRunLifecycle(context: ExecutionContext) {
   }
 }
 
+/**
+ * Runs a workflow tool's run and answers with its result. When the call names a wait the run
+ * outlasts (`workflowRunWaitMs`), it answers the run still running by the execution id it gave
+ * the run, and the run goes on. The tool's execution keeps holding the run, so its lease, and a
+ * Stop through the call's abort signal, reach the run until it settles.
+ */
+async function answerWithinWait(
+  context: ExecutionContext,
+  workflowId: string,
+  run: (lifecycle: CopilotWorkflowRunLifecycle) => Promise<ToolCallResult>
+): Promise<ToolCallResult> {
+  const lifecycle = copilotRunLifecycle(context)
+  const waitMs = context.workflowRunWaitMs
+  if (waitMs === undefined) return run(lifecycle)
+  const executionId = lifecycle.boundExecution?.executionId ?? generateId()
+  const settled = run({ ...lifecycle, executionId })
+  retainSandboxExecution(settled)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const waited = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), waitMs)
+  })
+  try {
+    const result = await Promise.race([settled, waited])
+    if (result) return result
+  } finally {
+    clearTimeout(timer)
+  }
+  logger.info('Workflow tool run outlasted its wait; answering it still running', {
+    toolCallId: context.toolCallId,
+    workflowId,
+    executionId,
+    waitMs,
+  })
+  const output: WorkflowToolRunningResult = {
+    status: 'running',
+    executionId,
+    workflowId,
+    message: `The run is still going after ${Math.round(waitMs / 1000)} seconds and continues in the background as execution ${executionId}.`,
+  }
+  return {
+    success: true,
+    output,
+    effect: executionEffect(TOOL_EFFECT_PHASE.attempted, executionId),
+  }
+}
+
 function assertWorkflowMutationNotAborted(
   context: ExecutionContext,
   message = 'Request aborted before workflow mutation could be applied.'
@@ -273,25 +323,31 @@ export async function executeRunWorkflow(
 
     const useDraftState = !params.useDeployedState
     const workflowInput = resolveRunWorkflowInput(params)
-    const result = await executeCopilotWorkflowUseCase(context, runWorkflowFromCopilot, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      triggerBlockId: resolveRunTriggerBlockId(params),
-      workflowInput,
-      hasWorkflowInput: workflowInput !== undefined,
-      useMockPayload: params.useMockPayload === true,
-      inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
-      lifecycle: copilotRunLifecycle(context),
-    })
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(context, runWorkflowFromCopilot, {
+          workflowId,
+          assertedWorkspaceId: context.workspaceId,
+          useDraftState,
+          triggerBlockId: resolveRunTriggerBlockId(params),
+          workflowInput,
+          hasWorkflowInput: workflowInput !== undefined,
+          useMockPayload: params.useMockPayload === true,
+          inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
+          lifecycle,
+        })
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      undefined,
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          undefined,
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
@@ -351,26 +407,37 @@ export async function executeRunWorkflowUntilBlock(
 
     const useDraftState = !params.useDeployedState
     const workflowInput = resolveRunWorkflowInput(params)
-    const result = await executeCopilotWorkflowUseCase(context, runWorkflowUntilBlockFromCopilot, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      triggerBlockId: resolveRunTriggerBlockId(params),
-      workflowInput,
-      hasWorkflowInput: workflowInput !== undefined,
-      useMockPayload: params.useMockPayload === true,
-      inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
-      stopAfterBlockId: params.stopAfterBlockId,
-      lifecycle: copilotRunLifecycle(context),
-    })
+    const stopAfterBlockId = params.stopAfterBlockId
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(
+          context,
+          runWorkflowUntilBlockFromCopilot,
+          {
+            workflowId,
+            assertedWorkspaceId: context.workspaceId,
+            useDraftState,
+            triggerBlockId: resolveRunTriggerBlockId(params),
+            workflowInput,
+            hasWorkflowInput: workflowInput !== undefined,
+            useMockPayload: params.useMockPayload === true,
+            inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
+            stopAfterBlockId,
+            lifecycle,
+          }
+        )
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      { stoppedAfterBlockId: params.stopAfterBlockId },
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          { stoppedAfterBlockId: stopAfterBlockId },
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
@@ -435,24 +502,31 @@ export async function executeRunFromBlock(
     }
 
     const useDraftState = !params.useDeployedState
-    const result = await executeCopilotWorkflowUseCase(context, runFromBlockFromCopilot, {
-      workflowId,
-      variableInputs: params.variableInputs,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      blockId: params.startBlockId,
-      workflowInput: resolveRunWorkflowInput(params),
-      sourceExecutionId: params.executionId,
-      lifecycle: copilotRunLifecycle(context),
-    })
+    const startBlockId = params.startBlockId
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(context, runFromBlockFromCopilot, {
+          workflowId,
+          variableInputs: params.variableInputs,
+          assertedWorkspaceId: context.workspaceId,
+          useDraftState,
+          blockId: startBlockId,
+          workflowInput: resolveRunWorkflowInput(params),
+          sourceExecutionId: params.executionId,
+          lifecycle,
+        })
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      { startBlockId: params.startBlockId },
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          { startBlockId },
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
@@ -472,24 +546,31 @@ export async function executeRunBlock(
     }
 
     const useDraftState = !params.useDeployedState
-    const result = await executeCopilotWorkflowUseCase(context, runBlockFromCopilot, {
-      workflowId,
-      variableInputs: params.variableInputs,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      blockId: params.blockId,
-      workflowInput: resolveRunWorkflowInput(params),
-      sourceExecutionId: params.executionId,
-      lifecycle: copilotRunLifecycle(context),
-    })
+    const blockId = params.blockId
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(context, runBlockFromCopilot, {
+          workflowId,
+          variableInputs: params.variableInputs,
+          assertedWorkspaceId: context.workspaceId,
+          useDraftState,
+          blockId,
+          workflowInput: resolveRunWorkflowInput(params),
+          sourceExecutionId: params.executionId,
+          lifecycle,
+        })
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      { blockId: params.blockId },
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          { blockId },
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
