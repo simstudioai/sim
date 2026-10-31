@@ -311,7 +311,9 @@ const v2FileIdOrPathParamsSchema = z.object({
       (value) => isWorkspaceFileVfsPath(value) || workspaceFileIdSchema.safeParse(value).success,
       'Invalid file id or path: pass a file id or its `files/<folder>/<name>` VFS path'
     )
-    .describe('File identifier, or the file’s VFS path: `files/<folder>/<name>`.'),
+    .describe(
+      'File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike.'
+    ),
 })
 
 export const v2CreateFileBodySchema = z

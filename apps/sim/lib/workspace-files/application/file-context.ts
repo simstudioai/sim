@@ -3,20 +3,29 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type ActiveWorkspaceFileContext,
-  getWorkspaceFileByVfsPath,
   loadActiveWorkspaceFileContext,
   loadWorkspaceFileLifecycleContext,
+  resolveFileReference,
   type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/file-manager'
-import { isWorkspaceFileVfsPath, VfsPathError } from '@/lib/vfs/path'
+import { isWorkspaceFileVfsPath } from '@/lib/vfs/path'
 import { UnresolvedWorkspaceFileVfsPathError } from '@/lib/workspace-files/application/unresolved-vfs-path'
 import { ownedFileKind } from '@/lib/workspace-files/owned-files'
 import { matchesFileOwner } from '@/lib/workspace-files/ownership'
 
-export interface WorkspaceFileContextInput {
-  /** A file id, or — with `assertedWorkspaceId` — the file's exact `files/…` VFS path. */
+/** How a use case names one workspace file: its id, or with `acceptVfsPath` its exact VFS path. */
+export interface WorkspaceFileTargetInput {
   fileId: string
   assertedWorkspaceId?: string
+  /**
+   * Also accept the file's exact `files/…` VFS path as `fileId`, resolved inside
+   * `assertedWorkspaceId` to a live workspace file. Only the public v2 surface sets it; every
+   * other caller passes ids, and a path-shaped string there stays an unknown id.
+   */
+  acceptVfsPath?: boolean
+}
+
+export interface WorkspaceFileContextInput extends WorkspaceFileTargetInput {
   includeDeleted?: boolean
   /**
    * Admit a chat upload (`context = 'mothership'`) addressed by its own id. Only read
@@ -78,35 +87,38 @@ function requireWorkspaceFileContext<C extends ActiveWorkspaceFileContext>(
   return canonical
 }
 
-/**
- * A malformed path is decided before any read and says nothing about the workspace, so it stays a
- * plain validation error. The lookup's own refusal (two names that display alike) does not.
- */
-function rethrowVfsLookupError(vfsPath: string, workspaceId: string, error: unknown): never {
-  if (error instanceof VfsPathError) {
-    throw new OrchestrationError(
-      'validation',
-      `"${vfsPath}" is not a valid workspace file path: ${error.message}`
-    )
-  }
-  if (error instanceof OrchestrationError && error.code === 'validation') {
-    throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'validation', error.message)
-  }
-  throw error
+function namesVfsPath(input: WorkspaceFileTargetInput): boolean {
+  return input.acceptVfsPath === true && isWorkspaceFileVfsPath(input.fileId)
 }
 
-/** A path becomes an id first, so the canonical load and every authorization check run unchanged. */
+/**
+ * A path becomes an id first, so the canonical load and every authorization check run unchanged.
+ * A malformed path is refused before any read and says nothing about the workspace. A path that
+ * names no single live file does, so it leaves as an {@link UnresolvedWorkspaceFileVfsPathError},
+ * which only a caller the operation admits to the workspace gets to see.
+ */
 async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> {
-  if (!isWorkspaceFileVfsPath(input.fileId)) return input.fileId
+  if (!namesVfsPath(input)) return input.fileId
   const workspaceId = input.assertedWorkspaceId
   if (workspaceId === undefined) {
     throw new OrchestrationError('not_found', 'File not found')
   }
-  const file = await getWorkspaceFileByVfsPath(workspaceId, input.fileId).catch((error: unknown) =>
-    rethrowVfsLookupError(input.fileId, workspaceId, error)
-  )
-  if (!file)
+  const file = await resolveFileReference(
+    { entityType: 'workspace', entityId: workspaceId },
+    input.fileId
+  ).catch((error: unknown) => {
+    if (error instanceof OrchestrationError && error.code === 'conflict') {
+      throw new UnresolvedWorkspaceFileVfsPathError(
+        workspaceId,
+        'validation',
+        `"${input.fileId}" names more than one file whose names display alike; pass the file id instead`
+      )
+    }
+    throw error
+  })
+  if (!file) {
     throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'not_found', 'File not found')
+  }
   return file.id
 }
 
@@ -118,7 +130,7 @@ export async function resolveActiveWorkspaceFileContext(
     includeChatUploads: input.includeChatUploads,
     includeOwnedFiles: Boolean(input.ownedFilePrincipal),
   })
-  if (!loaded && isWorkspaceFileVfsPath(input.fileId) && input.assertedWorkspaceId) {
+  if (!loaded && namesVfsPath(input) && input.assertedWorkspaceId) {
     throw new UnresolvedWorkspaceFileVfsPathError(
       input.assertedWorkspaceId,
       'not_found',
@@ -131,7 +143,7 @@ export async function resolveActiveWorkspaceFileContext(
 }
 
 export async function resolveWorkspaceFileLifecycleContext(
-  input: WorkspaceFileContextInput
+  input: Pick<WorkspaceFileTargetInput, 'fileId' | 'assertedWorkspaceId'>
 ): Promise<WorkspaceFileLifecycleContext> {
   return requireWorkspaceFileContext(
     await loadWorkspaceFileLifecycleContext(input.fileId),

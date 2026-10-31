@@ -53,13 +53,13 @@ async function row(id: string) {
 const describeFile = (fileId: string, userId = alice, assertedWorkspaceId = workspaceId) =>
   readWorkspaceFileMetadataWithVersion.execute({
     principal: session(userId),
-    input: { fileId, assertedWorkspaceId },
+    input: { fileId, acceptVfsPath: true, assertedWorkspaceId },
   })
 
 const deleteFile = (fileId: string, userId = alice) =>
   deleteWorkspaceFileOperation.execute({
     principal: session(userId),
-    input: { fileId, assertedWorkspaceId: workspaceId },
+    input: { fileId, acceptVfsPath: true, assertedWorkspaceId: workspaceId },
   })
 
 /** The `{ code, message }` each path is refused with, or null where it resolved. */
@@ -70,7 +70,10 @@ const refusalsFor = (
   Promise.all(
     paths.map((fileId) =>
       readWorkspaceFileMetadataWithVersion
-        .execute({ principal, input: { fileId, assertedWorkspaceId: workspaceId } })
+        .execute({
+          principal,
+          input: { fileId, acceptVfsPath: true, assertedWorkspaceId: workspaceId },
+        })
         .then(
           () => null,
           (error: { code?: string; message?: string }) => ({
@@ -171,6 +174,7 @@ describe('single-file operations addressed by VFS path', () => {
       code: 'not_found',
     })
     await expect(describeFile('files/Docs')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(describeFile('files/')).rejects.toMatchObject({ code: 'not_found' })
     await expect(describeFile('files/only-here.csv')).rejects.toMatchObject({
       code: 'not_found',
     })
@@ -203,7 +207,12 @@ describe('single-file operations addressed by VFS path', () => {
   it('renames and deletes only the file the path names', async () => {
     const renamed = await renameWorkspaceFile.execute({
       principal: session(alice),
-      input: { fileId: 'files/Docs/report.csv', assertedWorkspaceId: workspaceId, name: 'q3.csv' },
+      input: {
+        fileId: 'files/Docs/report.csv',
+        acceptVfsPath: true,
+        assertedWorkspaceId: workspaceId,
+        name: 'q3.csv',
+      },
     })
     expect(renamed.file.id).toBe(ids.docsReport)
     expect((await row(ids.docsReport))?.name).toBe('q3.csv')
@@ -226,7 +235,7 @@ describe('single-file operations addressed by VFS path', () => {
     await expect(
       readWorkspaceFileMetadataWithVersion.execute({
         principal: session(alice),
-        input: { fileId: 'files/report.csv' },
+        input: { fileId: 'files/report.csv', acceptVfsPath: true },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
   })
@@ -274,7 +283,11 @@ describe('single-file operations addressed by VFS path', () => {
     await expect(
       readWorkspaceFileMetadataWithVersion.execute({
         principal: delegated,
-        input: { fileId: 'files/report.csv', assertedWorkspaceId: workspaceId },
+        input: {
+          fileId: 'files/report.csv',
+          acceptVfsPath: true,
+          assertedWorkspaceId: workspaceId,
+        },
       })
     ).resolves.toMatchObject({ file: { id: ids.rootReport } })
     const outcomes = await refusalsFor(delegated, [
@@ -285,6 +298,37 @@ describe('single-file operations addressed by VFS path', () => {
     expect(outcomes[0]).toMatchObject({ code: 'forbidden' })
     expect(outcomes[1]).toEqual(outcomes[0])
     expect(outcomes[2]).toEqual(outcomes[0])
+  })
+
+  it('answers a non-member personal key the same for every path where the workspace disables keys', async () => {
+    await db
+      .update(workspace)
+      .set({ allowPersonalApiKeys: false })
+      .where(eq(workspace.id, workspaceId))
+    try {
+      const outcomes = await refusalsFor(
+        { kind: 'personal_api_key', userId: carol, keyId: generateId() },
+        [await ambiguousPath(), 'files/missing.csv', 'files/report.csv']
+      )
+      expect(outcomes[0]).not.toBeNull()
+      expect(outcomes[1]).toEqual(outcomes[0])
+      expect(outcomes[2]).toEqual(outcomes[0])
+    } finally {
+      await db
+        .update(workspace)
+        .set({ allowPersonalApiKeys: true })
+        .where(eq(workspace.id, workspaceId))
+    }
+  })
+
+  it('resolves no path for a caller that did not opt in', async () => {
+    await expect(
+      deleteWorkspaceFileOperation.execute({
+        principal: session(alice),
+        input: { fileId: 'files/report.csv', assertedWorkspaceId: workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect((await row(ids.rootReport))?.deletedAt).toBeNull()
   })
 
   it('rejects a dot-segment path instead of walking out of its folder', async () => {
