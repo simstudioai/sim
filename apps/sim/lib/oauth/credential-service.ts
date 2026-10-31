@@ -1321,8 +1321,9 @@ async function performCoalescedRefresh({
           /**
            * A writer that stored a new token after the caller's read (a refresh that finished just
            * before this one took the lock, or a reconnect) already answers it, so this refresh
-           * would only spend a provider call; the token must still clear the headroom a waiting
-           * caller is promised.
+           * would only spend a provider call. The token must still clear the headroom a waiting
+           * caller is promised, and sit outside the refresh-ahead window so the next caller does
+           * not start another refresh straight away.
            */
           const storedSinceRead =
             !slackTeamId &&
@@ -1330,7 +1331,12 @@ async function performCoalescedRefresh({
             current &&
             chain &&
             current.updatedAt > chain.updatedAt &&
-            current.accessToken !== chain.accessToken
+            current.accessToken !== chain.accessToken &&
+            !(
+              refreshesAheadOfExpiry(providerId) &&
+              current.accessTokenExpiresAt &&
+              current.accessTokenExpiresAt.getTime() <= Date.now() + OAUTH_REFRESH_AHEAD_WINDOW_MS
+            )
               ? usableStoredToken(current, providerId)
               : null
           if (storedSinceRead) {
@@ -1562,22 +1568,16 @@ async function performCoalescedRefresh({
   }
 }
 
-/** Accounts with a refresh ahead of expiry running in this process; every caller in the window shares it. */
-const backgroundRefreshAccounts = new Set<string>()
-
+/** Starts a refresh ahead of expiry; callers in the window share it through the refresh's own single-flight. */
 function refreshInBackground(options: CoalescedRefreshOptions, logPrefix: string): void {
-  if (backgroundRefreshAccounts.has(options.accountId)) return
-  backgroundRefreshAccounts.add(options.accountId)
-  logger.info(`${logPrefix}Refreshing ahead of expiry; using the still-valid access token`)
-  performCoalescedRefresh(options)
-    // The refresh settles and logs its own failures; this catches only a setup error before it starts.
-    .catch((error: unknown) => {
-      logger.error('Background token refresh failed to start', {
-        providerId: options.providerId,
-        ...(options.privacyMode === 'selector' ? {} : { error: toError(error).message }),
-      })
+  logger.debug(`${logPrefix}Refreshing ahead of expiry; using the still-valid access token`)
+  // The refresh settles and logs its own failures; this catches only a setup error before it starts.
+  performCoalescedRefresh(options).catch((error: unknown) => {
+    logger.error('Background token refresh failed to start', {
+      providerId: options.providerId,
+      ...(options.privacyMode === 'selector' ? {} : { error: toError(error).message }),
     })
-    .finally(() => backgroundRefreshAccounts.delete(options.accountId))
+  })
 }
 
 type StoredAccessTokenResult =

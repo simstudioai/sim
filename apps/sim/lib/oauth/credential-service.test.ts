@@ -659,17 +659,11 @@ describe('OAuth access-token refresh headroom', () => {
       accessToken: 'original-access-token',
       refreshed: false,
     })
-    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
     await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).resolves.toEqual({
       accessToken: 'original-access-token',
       refreshed: false,
     })
-    await flushMicrotasks(20)
-    expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
-    const refreshAheadLogs = serviceLogger.info.mock.calls.filter(([message]) =>
-      String(message).includes('Refreshing ahead of expiry')
-    )
-    expect(refreshAheadLogs).toHaveLength(1)
+    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalled())
     provider.resolve({
       ok: true,
       accessToken: 'refreshed-access-token',
@@ -677,6 +671,7 @@ describe('OAuth access-token refresh headroom', () => {
       expiresIn: 3600,
     })
     await vi.waitFor(() => expect(dbChainMockFns.set).toHaveBeenCalled())
+    await flushMicrotasks()
     expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
   })
 
@@ -689,6 +684,17 @@ describe('OAuth access-token refresh headroom', () => {
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toEqual({ accessToken: 'stored-meanwhile-token' })
     expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+  })
+
+  it('refreshes when the token another writer stored is itself due to refresh ahead', async () => {
+    queueCredentialAccount(createOAuthAccount())
+    queueTableRows(account, [
+      { ...createOAuthAccount(420_000), accessToken: 'stored-meanwhile-token', updatedAt: now },
+    ])
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toEqual({ accessToken: 'refreshed-access-token' })
+    expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -738,9 +744,6 @@ describe('OAuth access-token refresh headroom', () => {
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toEqual({ accessToken: 'original-access-token' })
-    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
-    /** Let the first background refresh settle so the second entry point starts its own. */
-    await flushMicrotasks(20)
     await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).resolves.toEqual({
       accessToken: 'original-access-token',
       refreshed: false,
