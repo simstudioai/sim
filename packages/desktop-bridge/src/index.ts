@@ -1256,3 +1256,4 @@ export {
   type DesktopTitleBarMode,
   observeDesktopTitleBar,
 } from './title-bar'
+export { DESKTOP_UPDATE_ARTIFACTS, type DesktopUpdateArtifacts } from './update-artifacts'

@@ -1,7 +1,11 @@
 import { execFile } from 'node:child_process'
 import { existsSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import type { DesktopUpdateState } from '@sim/desktop-bridge'
+import {
+  DESKTOP_UPDATE_ARTIFACTS,
+  type DesktopUpdateArtifacts,
+  type DesktopUpdateState,
+} from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -94,11 +98,7 @@ const RELEASE_REPOSITORIES: Record<UpdateChannel, string> = {
  * electron-updater requests, the artifacts a release may point it at, and how a
  * downloaded update becomes installable.
  */
-interface UpdatePlatform {
-  /** The manifest electron-updater requests from the feed for this platform. */
-  manifest: 'latest-mac.yml' | 'latest.yml'
-  /** Every artifact a manifest for `version` may reference, most human-installable first. */
-  assetNames(version: string): readonly string[]
+interface UpdatePlatform extends DesktopUpdateArtifacts {
   /**
    * macOS hands the downloaded zip to Squirrel.Mac, which stages it and only
    * then reports `update-downloaded` on Electron's native updater. NSIS has no
@@ -109,14 +109,12 @@ interface UpdatePlatform {
 }
 
 const MAC_UPDATE_PLATFORM: UpdatePlatform = {
-  manifest: 'latest-mac.yml',
-  assetNames: (version) => [`Sim-${version}-universal.dmg`, `Sim-${version}-universal.zip`],
+  ...DESKTOP_UPDATE_ARTIFACTS.mac,
   nativeStaging: true,
 }
 
 const WINDOWS_UPDATE_PLATFORM: UpdatePlatform = {
-  manifest: 'latest.yml',
-  assetNames: (version) => [`Sim-${version}-x64.exe`],
+  ...DESKTOP_UPDATE_ARTIFACTS.windows,
   nativeStaging: false,
 }
 
@@ -140,7 +138,7 @@ function isReleaseAssetUrl(
     const repository = RELEASE_REPOSITORIES[channel]
     const releasePath = `/${repository}/releases/download/v${normalizedVersion}/`
     const assetName = decodeURIComponent(url.pathname.slice(releasePath.length))
-    const expectedAssetNames = new Set(platform.assetNames(normalizedVersion))
+    const expectedAssetNames = new Set(platform.artifactNames(normalizedVersion))
     return (
       url.origin === RELEASE_ASSET_ORIGIN &&
       url.username === '' &&
@@ -985,7 +983,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         )
         const nextDownloadUrl =
           platform
-            .assetNames(version.replace(/^v/, ''))
+            .artifactNames(version.replace(/^v/, ''))
             .map((name) => urls.find((url) => url.endsWith(`/${encodeURIComponent(name)}`)))
             .find((url) => url !== undefined) ??
           urls[0] ??

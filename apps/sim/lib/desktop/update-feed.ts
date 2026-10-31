@@ -31,6 +31,7 @@
  * release, so Windows shells keep the newest release that has one.
  */
 
+import { DESKTOP_UPDATE_ARTIFACTS, type DesktopUpdateArtifacts } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { DesktopUpdatePlatform } from '@/lib/api/contracts/desktop-update'
@@ -67,16 +68,7 @@ export function channelOfVersion(version: string): DesktopUpdateChannel {
   return 'latest'
 }
 
-interface DesktopPlatformFeed {
-  /**
-   * The manifest asset a platform's build uploads. electron-builder's GitHub
-   * provider names it `latest-mac.yml` / `latest.yml` regardless of the
-   * version's prerelease tag (channels are a generic-provider concept); which
-   * channel a release belongs to is carried entirely by its tag.
-   */
-  manifestAssetName: string
-  /** Every artifact the manifest may reference, most human-installable first. */
-  artifactNames(version: string): readonly string[]
+interface DesktopPlatformFeed extends DesktopUpdateArtifacts {
   /**
    * Whether every desktop release must carry this platform. A missing manifest
    * then marks a broken release; otherwise the release just lacks the platform.
@@ -85,21 +77,12 @@ interface DesktopPlatformFeed {
 }
 
 const PLATFORM_FEEDS: Record<DesktopUpdatePlatform, DesktopPlatformFeed> = {
-  mac: {
-    manifestAssetName: 'latest-mac.yml',
-    artifactNames: (version) => [`Sim-${version}-universal.dmg`, `Sim-${version}-universal.zip`],
-    inEveryRelease: true,
-  },
-  windows: {
-    manifestAssetName: 'latest.yml',
-    // x64 only: a manifest naming any other architecture is not one this feed ships.
-    artifactNames: (version) => [`Sim-${version}-x64.exe`],
-    inEveryRelease: false,
-  },
+  mac: { ...DESKTOP_UPDATE_ARTIFACTS.mac, inEveryRelease: true },
+  windows: { ...DESKTOP_UPDATE_ARTIFACTS.windows, inEveryRelease: false },
 }
 
-export const MANIFEST_ASSET_NAME = PLATFORM_FEEDS.mac.manifestAssetName
-export const WINDOWS_MANIFEST_ASSET_NAME = PLATFORM_FEEDS.windows.manifestAssetName
+export const MANIFEST_ASSET_NAME = PLATFORM_FEEDS.mac.manifest
+export const WINDOWS_MANIFEST_ASSET_NAME = PLATFORM_FEEDS.windows.manifest
 export const MAX_DESKTOP_UPDATE_MANIFEST_BYTES = 256 * 1024
 
 /** The subset of the GitHub releases API the feed needs. */
@@ -125,10 +108,7 @@ function releasesForChannel(
   const candidates: Array<{ release: DesktopReleaseCandidate; version: string }> = []
   for (const release of releases) {
     if (release.draft) continue
-    if (
-      !feed.inEveryRelease &&
-      !release.assets?.some((asset) => asset.name === feed.manifestAssetName)
-    ) {
+    if (!feed.inEveryRelease && !release.assets?.some((asset) => asset.name === feed.manifest)) {
       continue
     }
     const version = release.tag_name.replace(/^v/, '')
@@ -222,7 +202,7 @@ async function resolveReleaseAssets(
   platform: DesktopUpdatePlatform,
   fetchManifest: (url: string) => Promise<Response>
 ): Promise<DesktopReleaseAssets | null> {
-  const manifestAssetName = PLATFORM_FEEDS[platform].manifestAssetName
+  const manifestAssetName = PLATFORM_FEEDS[platform].manifest
   const manifestAsset = release.assets?.find((asset) => asset.name === manifestAssetName)
   const installer = selectInstallerAsset(release, repository, platform)
   if (!manifestAsset || !installer) return null
