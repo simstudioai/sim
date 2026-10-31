@@ -5,6 +5,10 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import type {
+  BinaryResponseDescriptor,
+  NoContentResponseDescriptor,
+} from '@/lib/api/server/routes/types'
 import { getFavicon } from '@/lib/favicon/application'
 
 export const GET = defineInternalBinaryRoute({
@@ -20,7 +24,7 @@ export const GET = defineInternalBinaryRoute({
   mapInput: ({ query }) => ({ host: query.host }),
   useCase: getFavicon,
   /** No icon is an ordinary answer, not an error: 204, which an `<img>` still reports as failed. */
-  present: (favicon) =>
+  present: (favicon): BinaryResponseDescriptor | NoContentResponseDescriptor =>
     favicon.kind === 'hit'
       ? {
           body: new Uint8Array(favicon.bytes),
@@ -32,7 +36,7 @@ export const GET = defineInternalBinaryRoute({
           },
         }
       : {
-          status: 204 as const,
+          status: 204,
           headers: {
             'Cache-Control': favicon.kind === 'miss' ? 'private, max-age=3600' : 'no-store',
           },
