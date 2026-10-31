@@ -160,9 +160,9 @@ export function createNativeClient(input: {
     async json(path, options) {
       return request(path, options, (response) => response.json())
     },
-    async bytes(path, query) {
+    async bytes(path, query, options) {
       try {
-        return await request(path, { query }, async (response) =>
+        return await request(path, { query, signal: options?.signal }, async (response) =>
           Buffer.from(await response.arrayBuffer())
         )
       } catch (error) {
@@ -170,10 +170,28 @@ export function createNativeClient(input: {
         throw error
       }
     },
-    async text(path, query) {
-      return request(path, { query }, (response) => response.text())
+    async text(path, query, options) {
+      return request(path, { query, signal: options?.signal }, (response) => response.text())
     },
   })
+}
+
+/**
+ * The client with `signal` cancelling each of its requests, for work that may be abandoned
+ * before the client's own operation ends. A memoized GET keeps only the client's signal, since
+ * its response is shared with callers that did not abandon it.
+ */
+export function withRequestSignal(client: NativeClient, signal: AbortSignal): NativeClient {
+  const scoped = (own?: AbortSignal) => (own ? AbortSignal.any([own, signal]) : signal)
+  return {
+    json: (path, options) =>
+      client.json(
+        path,
+        options?.memo && !options.body ? options : { ...options, signal: scoped(options?.signal) }
+      ),
+    text: (path, query, options) => client.text(path, query, { signal: scoped(options?.signal) }),
+    bytes: (path, query, options) => client.bytes(path, query, { signal: scoped(options?.signal) }),
+  }
 }
 
 /**
