@@ -271,7 +271,11 @@ async function answerWithinWait(
   const waitMs = context.workflowRunWaitMs
   if (waitMs === undefined) return run(lifecycle)
   const executionId = lifecycle.boundExecution?.executionId ?? generateId()
-  const settled = run({ ...lifecycle, executionId })
+  let markDispatched: () => void = () => {}
+  const dispatched = new Promise<null>((resolve) => {
+    markDispatched = () => resolve(null)
+  })
+  const settled = run({ ...lifecycle, executionId, onDispatch: () => markDispatched() })
   retainSandboxExecution(settled)
   let timer: ReturnType<typeof setTimeout> | undefined
   const waited = new Promise<null>((resolve) => {
@@ -280,6 +284,9 @@ async function answerWithinWait(
   try {
     const result = await Promise.race([settled, waited])
     if (result) return result
+    // Only a run handed to the executor is answered running; one still in preflight settles first.
+    const started = await Promise.race([settled, dispatched])
+    if (started) return started
   } finally {
     clearTimeout(timer)
   }

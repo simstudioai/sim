@@ -65,6 +65,8 @@ export interface CopilotWorkflowRunLifecycle {
    * before it settles (a workflow tool that answers a still-running run by its id).
    */
   executionId?: string
+  /** Called once authorization and admission passed and the run is handed to the executor. */
+  onDispatch?: () => void
 }
 
 interface BaseCopilotRunInput {
@@ -307,6 +309,7 @@ async function executeCopilotRun(params: {
    * can already make with the id it was handed. Keep the executor call first: anything
    * inserted above it would be reported as a run that may exist.
    */
+  params.input.lifecycle.onDispatch?.()
   try {
     const result = await executeWorkflow(
       {

@@ -440,12 +440,17 @@ describe('a workflow tool run past its wait', () => {
   })
 
   /** A run the test settles itself, and the lifecycle it was started with. */
-  function pendingRun() {
+  function pendingRun(dispatch = true) {
     let settle: (value: unknown) => void = () => {}
     const started = new Promise((resolve) => {
       settle = resolve
     })
-    mocks.executeWorkflowUseCase.mockReturnValueOnce(started)
+    mocks.executeWorkflowUseCase.mockImplementationOnce(
+      (_context: unknown, _useCase: unknown, input: { lifecycle: { onDispatch?: () => void } }) => {
+        if (dispatch) input.lifecycle.onDispatch?.()
+        return started
+      }
+    )
     return {
       settle,
       lifecycle: () =>
@@ -486,6 +491,22 @@ describe('a workflow tool run past its wait', () => {
     expect(held).toHaveLength(1)
     run.settle({ success: true, output: { done: true }, logs: [], metadata: { executionId } })
     await expect(held[0]).resolves.toMatchObject({ success: true })
+  })
+
+  it('answers a run still in preflight past its wait with how it settles', async () => {
+    const run = pendingRun(false)
+    let answered = false
+    const answer = executeRunWorkflow(
+      { workflowId: 'workflow-1' },
+      { ...context, workflowRunWaitMs: 1_000 }
+    ).then((result) => {
+      answered = true
+      return result
+    })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(answered).toBe(false)
+    run.settle({ success: false, error: 'Workflow not found', logs: [] })
+    await expect(answer).resolves.toMatchObject({ success: false })
   })
 
   it('answers with the result when the run settles within its wait', async () => {

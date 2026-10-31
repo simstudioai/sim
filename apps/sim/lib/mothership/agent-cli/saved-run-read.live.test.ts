@@ -17,7 +17,6 @@
  * Isolated columns plus required defaults/indexes do not prove migrations or all constraints.
  */
 import { execFile, spawn } from 'node:child_process'
-import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import { createReadStream } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -66,6 +65,7 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { authMockFns, envFlagsMock, setEnv, setEnvFlags } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { generateRandomHex } from '@sim/utils/random'
 import { eq, is, SQL, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { NextRequest } from 'next/server'
@@ -3694,7 +3694,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         fixture.executionTimeoutMs = 50 * 60_000
         // A workflow tool call seals its inputs' provenance, which takes a real AES key.
         const encryptionKey = env.ENCRYPTION_KEY
-        setEnv({ ENCRYPTION_KEY: randomBytes(32).toString('hex') })
+        setEnv({ ENCRYPTION_KEY: generateRandomHex(64) })
 
         const child = spawn('bun', ['tools/probes/src/draft-run-slices.ts'], {
           cwd: workerRoot,

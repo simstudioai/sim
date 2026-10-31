@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import type {
   AsyncCompletionSignal,
@@ -79,7 +79,7 @@ async function detachClientRunAfterWait(params: {
   if (!workflowId) return
   let delayMs = params.waitTimeoutMs
   while (!signal.aborted) {
-    await sleep(delayMs)
+    await interruptibleSleep(delayMs, signal)
     delayMs = CLIENT_CLAIM_POLL_MS
     if (signal.aborted) return
     const row = await getAsyncToolCall(toolCallId)
@@ -140,7 +140,8 @@ export async function raceWorkflowToolClientPickup(
   })
   if (params.waitTimeoutMs !== undefined) {
     const stopDetach = new AbortController()
-    void clientWait.finally(() => stopDetach.abort())
+    const stop = () => stopDetach.abort()
+    void clientWait.then(stop, stop)
     detachClientRunAfterWait({
       toolCallId,
       workflowId,
