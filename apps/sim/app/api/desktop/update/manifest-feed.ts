@@ -3,6 +3,7 @@ import type { DesktopUpdatePlatform } from '@/lib/api/contracts/desktop-update'
 import { env } from '@/lib/core/config/env'
 import {
   DESKTOP_FEED_REVALIDATE_SECONDS,
+  type DesktopFeedResolution,
   resolveDeploymentRelease,
 } from '@/lib/desktop/update-feed'
 
@@ -30,26 +31,38 @@ export async function serveDesktopUpdateManifest(
     environment: env.APPCONFIG_ENVIRONMENT,
     githubToken: env.GITHUB_TOKEN,
     platform,
-    select: (assets) => assets.manifest,
   })
+  if (resolved.status !== 'release') {
+    return feedErrorResponse(resolved, 'manifest', { [FEED_STATUS_HEADER]: 'no-release' })
+  }
+  return new NextResponse(resolved.assets.manifest, {
+    status: 200,
+    headers: {
+      'content-type': 'text/yaml; charset=utf-8',
+      'cache-control': `public, max-age=${DESKTOP_FEED_REVALIDATE_SECONDS}`,
+      [FEED_STATUS_HEADER]: 'release',
+    },
+  })
+}
+
+/**
+ * The response to a feed with no release to offer: 502 when GitHub could not be read or no
+ * release carries a valid `artifact`, 404 (with `noReleaseHeaders`) when the channel has none.
+ */
+export function feedErrorResponse(
+  resolved: Exclude<DesktopFeedResolution, { status: 'release' }>,
+  artifact: 'installer' | 'manifest',
+  noReleaseHeaders?: Record<string, string>
+): NextResponse {
   switch (resolved.status) {
     case 'unavailable':
       return NextResponse.json({ error: 'Release feed unavailable' }, { status: 502 })
     case 'invalid':
-      return NextResponse.json({ error: 'Release manifest unavailable' }, { status: 502 })
+      return NextResponse.json({ error: `Release ${artifact} unavailable` }, { status: 502 })
     case 'no-release':
       return NextResponse.json(
         { error: `No desktop release for channel ${resolved.channel}` },
-        { status: 404, headers: { [FEED_STATUS_HEADER]: 'no-release' } }
+        { status: 404, headers: noReleaseHeaders }
       )
-    case 'release':
-      return new NextResponse(resolved.value, {
-        status: 200,
-        headers: {
-          'content-type': 'text/yaml; charset=utf-8',
-          'cache-control': `public, max-age=${DESKTOP_FEED_REVALIDATE_SECONDS}`,
-          [FEED_STATUS_HEADER]: 'release',
-        },
-      })
   }
 }

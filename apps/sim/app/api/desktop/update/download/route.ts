@@ -7,6 +7,7 @@ import {
   DESKTOP_FEED_REVALIDATE_SECONDS,
   resolveDeploymentRelease,
 } from '@/lib/desktop/update-feed'
+import { feedErrorResponse } from '@/app/api/desktop/update/manifest-feed'
 
 /**
  * Redirects to the platform's installer for the newest release of this
@@ -30,22 +31,10 @@ export const GET = withRouteHandler(async (request: NextRequest): Promise<Respon
     environment: env.APPCONFIG_ENVIRONMENT,
     githubToken: env.GITHUB_TOKEN,
     platform: parsed.data.query.platform,
-    select: (assets) => assets.installer,
   })
-  switch (resolved.status) {
-    case 'unavailable':
-      return NextResponse.json({ error: 'Release feed unavailable' }, { status: 502 })
-    case 'invalid':
-      return NextResponse.json({ error: 'Release installer unavailable' }, { status: 502 })
-    case 'no-release':
-      return NextResponse.json(
-        { error: `No desktop release for channel ${resolved.channel}` },
-        { status: 404 }
-      )
-    case 'release':
-      return NextResponse.redirect(resolved.value.browser_download_url, {
-        status: 302,
-        headers: { 'cache-control': `public, max-age=${DESKTOP_FEED_REVALIDATE_SECONDS}` },
-      })
-  }
+  if (resolved.status !== 'release') return feedErrorResponse(resolved, 'installer')
+  return NextResponse.redirect(resolved.assets.installer.browser_download_url, {
+    status: 302,
+    headers: { 'cache-control': `public, max-age=${DESKTOP_FEED_REVALIDATE_SECONDS}` },
+  })
 })

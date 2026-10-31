@@ -249,13 +249,13 @@ export function releasesApiUrl(repository: DesktopReleaseRepository, page: numbe
  * through to the next version. `fetchPage` returning null remains fatal because
  * an unreadable page could hide a newer valid release.
  */
-async function resolveLatestRelease<T>(
+async function resolveLatestRelease(
   channel: DesktopUpdateChannel,
   platform: DesktopUpdatePlatform,
   fetchPage: (page: number) => Promise<DesktopReleaseCandidate[] | null>,
-  resolveCandidate: (release: DesktopReleaseCandidate) => T | null | Promise<T | null>
+  resolveCandidate: (release: DesktopReleaseCandidate) => Promise<DesktopReleaseAssets | null>
 ): Promise<
-  | { release: DesktopReleaseCandidate; value: T }
+  | { release: DesktopReleaseCandidate; assets: DesktopReleaseAssets }
   | { release: null; rejectedCandidates: boolean }
   | { error: 'fetch-failed' }
 > {
@@ -264,8 +264,8 @@ async function resolveLatestRelease<T>(
     const releases = await fetchPage(page)
     if (releases === null) return { error: 'fetch-failed' }
     for (const release of releasesForChannel(releases, channel, platform)) {
-      const value = await resolveCandidate(release)
-      if (value !== null) return { release, value }
+      const assets = await resolveCandidate(release)
+      if (assets !== null) return { release, assets }
       rejectedCandidates = true
     }
     // A short page is the end of the list; nothing older remains to walk.
@@ -300,8 +300,8 @@ export function selectInstallerAsset(
 }
 
 /** How a deployment's feed resolved for one platform. */
-type DesktopFeedResolution<T> =
-  | { status: 'release'; channel: DesktopUpdateChannel; value: T }
+export type DesktopFeedResolution =
+  | { status: 'release'; channel: DesktopUpdateChannel; assets: DesktopReleaseAssets }
   /** The channel has no release for the platform yet: an authoritative answer, not an outage. */
   | { status: 'no-release'; channel: DesktopUpdateChannel }
   /** Releases exist, but none carries a complete, valid artifact set. */
@@ -314,21 +314,20 @@ export const DESKTOP_FEED_REVALIDATE_SECONDS = 300
 
 /**
  * Resolves the newest complete release a deployment offers to one platform,
- * reading GitHub through Next's fetch cache, and projects it with `select`
- * (the rewritten manifest for the feed, the installer for the download
- * redirect) so both routes always agree on the release.
+ * reading GitHub through Next's fetch cache. The feed serves its rewritten
+ * manifest and the download redirect its installer, so both routes always
+ * agree on the release.
  *
  * `environment` is the server-controlled deployment environment, never a
  * request header: this public lookup must not let a caller pick which
  * app-identity release it serves. `githubToken` only raises the API quota.
  */
-export async function resolveDeploymentRelease<T>(options: {
+export async function resolveDeploymentRelease(options: {
   environment: string | undefined
   githubToken: string | undefined
   platform: DesktopUpdatePlatform
-  select: (assets: DesktopReleaseAssets) => T
-}): Promise<DesktopFeedResolution<T>> {
-  const { githubToken, platform, select } = options
+}): Promise<DesktopFeedResolution> {
+  const { githubToken, platform } = options
   const channel = channelForDeploymentEnvironment(options.environment)
   const releaseRepository = releaseRepositoryForChannel(channel)
   const resolved = await resolveLatestRelease(
@@ -373,12 +372,11 @@ export async function resolveDeploymentRelease<T>(options: {
           channel,
           platform,
         })
-        return null
       }
-      return select(assets)
+      return assets
     }
   )
   if ('error' in resolved) return { status: 'unavailable', channel }
-  if (resolved.release) return { status: 'release', channel, value: resolved.value }
+  if (resolved.release) return { status: 'release', channel, assets: resolved.assets }
   return { status: resolved.rejectedCandidates ? 'invalid' : 'no-release', channel }
 }
