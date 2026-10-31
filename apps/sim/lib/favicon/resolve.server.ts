@@ -15,7 +15,12 @@ const MISS_TTL_SECONDS = 24 * 60 * 60
 /** A parent's icon chosen because the host's own lookup timed out: retried a day later, not a month. */
 const PROVISIONAL_HIT_TTL_SECONDS = 24 * 60 * 60
 const UNAVAILABLE_TTL_SECONDS = 5 * 60
-/** Cached values: an icon's bytes, or one of these markers. */
+/**
+ * Cached values: a hit is one prefix byte — definite or provisional, which a host reusing it
+ * must inherit — followed by the icon; the markers stand for no icon and for an outage.
+ */
+const DEFINITE_HIT_PREFIX = 'h'
+const PROVISIONAL_HIT_PREFIX = 'p'
 const MISS_MARKER = ''
 const UNAVAILABLE_MARKER = '-'
 
@@ -46,8 +51,13 @@ async function readCache(host: string): Promise<FaviconResolution | null> {
     const cached = await redis.getBuffer(cacheKey(host))
     if (cached === null) return null
     if (cached.toString() === UNAVAILABLE_MARKER) return { kind: 'unavailable' }
-    const result = classifyProviderResponse(200, cached)
-    return result.kind === 'hit' ? { ...result, bytes: cached } : { kind: 'miss' }
+    const prefix = cached.subarray(0, 1).toString()
+    const bytes = cached.subarray(1)
+    const result = classifyProviderResponse(200, bytes)
+    if (result.kind !== 'hit') return { kind: 'miss' }
+    return prefix === PROVISIONAL_HIT_PREFIX
+      ? { ...result, bytes, provisional: true }
+      : { ...result, bytes }
   } catch (error) {
     logger.warn('Favicon cache read failed', { error })
     return null
@@ -59,10 +69,15 @@ async function writeCache(host: string, resolution: FaviconResolution): Promise<
   if (!redis) return
   const [value, ttl] =
     resolution.kind === 'hit'
-      ? ([
-          resolution.bytes,
-          resolution.provisional ? PROVISIONAL_HIT_TTL_SECONDS : HIT_TTL_SECONDS,
-        ] as const)
+      ? resolution.provisional
+        ? ([
+            Buffer.concat([Buffer.from(PROVISIONAL_HIT_PREFIX), resolution.bytes]),
+            PROVISIONAL_HIT_TTL_SECONDS,
+          ] as const)
+        : ([
+            Buffer.concat([Buffer.from(DEFINITE_HIT_PREFIX), resolution.bytes]),
+            HIT_TTL_SECONDS,
+          ] as const)
       : resolution.kind === 'miss'
         ? ([MISS_MARKER, MISS_TTL_SECONDS] as const)
         : ([UNAVAILABLE_MARKER, UNAVAILABLE_TTL_SECONDS] as const)
@@ -112,11 +127,19 @@ async function askProviders(host: string, signal: AbortSignal): Promise<FaviconR
  */
 async function walk(candidates: string[], signal: AbortSignal): Promise<FaviconResolution> {
   let unavailable = false
+  const covered = new Set<string>()
   for (const [index, host] of candidates.entries()) {
+    if (covered.has(host)) continue
     const parent = index > 0
     const cached = parent ? await readCache(host) : null
-    if (cached?.kind === 'hit') return unavailable ? { ...cached, provisional: true } : cached
-    if (cached) return unavailable ? { kind: 'unavailable' } : cached
+    if (cached?.kind === 'hit') {
+      return unavailable || cached.provisional ? { ...cached, provisional: true } : cached
+    }
+    if (cached) {
+      if (cached.kind === 'unavailable') unavailable = true
+      for (const reached of faviconHostCandidates(host)) covered.add(reached)
+      continue
+    }
     const result = await askProviders(host, signal)
     if (result.kind === 'hit') {
       if (parent) await writeCache(host, result)

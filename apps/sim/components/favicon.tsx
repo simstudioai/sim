@@ -6,10 +6,11 @@ import { LRUCache } from 'lru-cache'
 import { faviconSrc } from '@/lib/favicon/url'
 
 /**
- * Hosts with no icon, so an icon that mounts again renders its fallback at once instead of
- * asking again and showing an empty slot first. Expires with the route's caching of a miss.
+ * Hosts whose icon just failed, so an icon that mounts again renders its fallback at once
+ * instead of an empty slot first. An `<img>` can't tell no icon from a provider outage, so this
+ * lasts only as long as the route retries an outage; a confirmed miss stays in the HTTP cache.
  */
-const knownMisses = new LRUCache<string, true>({ max: 500, ttl: 60 * 60 * 1000 })
+const knownMisses = new LRUCache<string, true>({ max: 500, ttl: 5 * 60 * 1000 })
 
 interface FaviconProps {
   /** The site's hostname; without one the fallback renders. */

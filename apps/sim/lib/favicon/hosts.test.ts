@@ -58,6 +58,10 @@ describe('faviconHostCandidates', () => {
     ],
     ['acme.testrail.io', ['acme.testrail.io', 'testrail.io', 'testrail.com']],
     [
+      'acme.databricksapps.mil',
+      ['acme.databricksapps.mil', 'databricksapps.mil', 'databricks.com'],
+    ],
+    [
       'dbc-1.cloud.databricks.us',
       ['dbc-1.cloud.databricks.us', 'cloud.databricks.us', 'databricks.us', 'databricks.com'],
     ],
@@ -81,6 +85,8 @@ describe('faviconHostCandidates', () => {
     'docs.gitlab.acme-internal.io',
     'notawsapps.com',
     'acme.herokuapp.com',
+    'gitlab.azurewebsites.net',
+    'gitlab.acme.vercel.app',
   ])('adds no platform for %s, which only resembles one', (host) => {
     const candidates = faviconHostCandidates(host)
     expect(candidates).not.toContain('gitlab.com')
