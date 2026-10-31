@@ -285,9 +285,11 @@ function resultFor(
 /**
  * Accounts resolving their credential and opening their session at once. That phase reads the
  * database (credentials, source settings, provider rollout) along with the network calls those
- * reads lead to, such as a token refresh or a Google Directory lookup and delegated token mint,
- * so it is bounded well under the web database pool. Provider searches are not bounded: a search
- * waits for every account, and a second wave would add a full provider round trip.
+ * reads lead to, such as a token refresh or a Google Directory lookup and delegated token mints,
+ * so it is bounded well under the web database pool. The bound is per account, not per
+ * connection: Google delegation resolves its subjects concurrently, and the service-account reads
+ * those subjects' mints overlap on are shared. Provider searches are not bounded: a search waits
+ * for every account, and a second wave would add a full provider round trip.
  */
 const ACCOUNT_OPEN_CONCURRENCY = 6
 /** Milliseconds a whole search may take. */
@@ -809,7 +811,10 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
             failed(
               new NativeSearchError(
                 'timeout',
-                'Not searched before the search deadline. Search this account alone or narrow the query.'
+                'Not searched before the search deadline. Search this account alone or narrow the query.',
+                undefined,
+                undefined,
+                'not_started'
               ),
               target
             )

@@ -9,6 +9,7 @@ import {
 } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
@@ -71,6 +72,7 @@ vi.mock('@/lib/oauth/refresh-error-codes', () => ({
   isTerminalRefreshError: vi.fn(() => false),
 }))
 
+import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import {
   getCredentialTerminalRefreshError,
   getOAuthToken,
@@ -83,7 +85,10 @@ import {
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import { isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
-import { isTerminalRefreshError } from '@/lib/oauth/refresh-error-codes'
+import {
+  isCredentialRevocationError,
+  isTerminalRefreshError,
+} from '@/lib/oauth/refresh-error-codes'
 import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { markCredentialDead } from '@/lib/oauth/terminal-errors'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -434,6 +439,7 @@ describe('OAuth access-token refresh headroom', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.mocked(isTerminalRefreshError).mockReturnValue(false)
+    vi.mocked(isCredentialRevocationError).mockReturnValue(false)
     vi.mocked(isInstagramProvider).mockReturnValue(false)
     vi.mocked(shouldProactivelyRefreshInstagramToken).mockReturnValue(false)
     vi.mocked(isMicrosoftProvider).mockReturnValue(false)
@@ -783,6 +789,98 @@ describe('OAuth access-token refresh headroom', () => {
     await expect(concurrent).resolves.toEqual({ accessToken: 'refreshed-access-token' })
     expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
   })
+  describe('when a refresh lease is held by a refresh no process is running', () => {
+    beforeEach(async () => {
+      const { withLeaderLock } = await vi.importActual<
+        typeof import('@/lib/concurrency/leader-lock')
+      >('@/lib/concurrency/leader-lock')
+      mocks.withLeaderLock.mockImplementation(withLeaderLock)
+      redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
+    })
+
+    it.each([
+      {
+        label: 'serves a Google token still valid after the wait',
+        row: { providerId: 'google-drive', remainingMs: 100_000 },
+        token: 'original-access-token',
+      },
+      {
+        label: 'fails a Google token with under 30 seconds left after the wait',
+        row: { providerId: 'google-drive', remainingMs: 50_000 },
+        token: null,
+      },
+      {
+        label: 'fails a provider whose refresh can invalidate the stored chain',
+        row: { providerId: 'confluence', remainingMs: 100_000 },
+        token: null,
+      },
+    ])('$label', async ({ row, token }) => {
+      queueCredentialAccount({ ...createOAuthAccount(row.remainingMs), providerId: row.providerId })
+      const pending = resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+      await vi.advanceTimersByTimeAsync(31_000)
+      await expect(pending).resolves.toEqual(token === null ? null : { accessToken: token })
+      expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+    })
+  })
+
+  it('fails a Google chain the provider revokes even while its access token is valid', async () => {
+    vi.mocked(isTerminalRefreshError).mockReturnValue(true)
+    vi.mocked(isCredentialRevocationError).mockReturnValue(true)
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+    const row = createOAuthAccount(100_000)
+    queueTableRows(account, [row])
+    queueTableRows(account, [row])
+    await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).rejects.toBeInstanceOf(
+      CredentialRevokedError
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshRevokedCode: 'invalid_grant' })
+    )
+  })
+
+  it('answers a Microsoft caller from its valid token while refresh-token aging refreshes', async () => {
+    vi.mocked(isMicrosoftProvider).mockReturnValue(true)
+    const provider = createDeferred<unknown>()
+    mocks.refreshOAuthToken.mockReturnValue(provider.promise)
+    const row = {
+      ...createOAuthAccount(3_600_000),
+      providerId: 'microsoft-teams',
+      refreshTokenExpiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
+    }
+    await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).resolves.toEqual({
+      accessToken: 'original-access-token',
+      refreshed: false,
+    })
+    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    provider.resolve({
+      ok: true,
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+      expiresIn: 3600,
+    })
+    await vi.waitFor(() =>
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ accessToken: 'refreshed-access-token' })
+      )
+    )
+  })
+
+  it('spreads refresh-ahead start across accounts expiring at the same moment', async () => {
+    const row = createOAuthAccount(270_000)
+    /** Chosen because their hashes fall on opposite sides of the 30s jitter cut, so a hash-rule change fails loudly. */
+    await expect(refreshTokenIfNeeded('test', row, 'account-2')).resolves.toEqual({
+      accessToken: 'original-access-token',
+      refreshed: false,
+    })
+    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
+    await expect(refreshTokenIfNeeded('test', row, 'account-c')).resolves.toEqual({
+      accessToken: 'original-access-token',
+      refreshed: false,
+    })
+    await flushMicrotasks(20)
+    expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
+  })
 })
 
 describe('Google service-account token minting', () => {
@@ -797,7 +895,11 @@ describe('Google service-account token minting', () => {
   const driveScope = 'https://www.googleapis.com/auth/drive.readonly'
   const now = new Date('2026-09-09T18:00:00.000Z')
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { coalesceLocally } = await vi.importActual<
+      typeof import('@/lib/concurrency/singleflight')
+    >('@/lib/concurrency/singleflight')
+    mocks.coalesceLocally.mockImplementation(coalesceLocally)
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(now)
@@ -894,6 +996,19 @@ describe('Google service-account token minting', () => {
 
     expect(mocks.decryptSecret).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shares one key read across concurrent mints', async () => {
+    queueTableRows(credential, [row])
+    await expect(
+      Promise.all(
+        Array.from({ length: 6 }, (_, index) =>
+          getServiceAccountToken('credential-1', [driveScope], `member-${index}@example.com`)
+        )
+      )
+    ).resolves.toEqual(Array(6).fill('google-access-token'))
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
   })
 
   it('preserves cancellation through the service-account resolver registry', async () => {

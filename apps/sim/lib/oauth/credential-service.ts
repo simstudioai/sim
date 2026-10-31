@@ -226,6 +226,38 @@ const SA_DIAGNOSTIC_ERROR_CODES = new Set([
 ])
 
 /**
+ * The decrypted key of a live Google service-account credential. Reads running at once (one per
+ * delegated subject) share one query and decrypt; a later read queries again, so it sees a
+ * revocation recorded since.
+ */
+function readGoogleServiceAccountKey(credentialId: string): Promise<string> {
+  return coalesceLocally(`sa-key:${credentialId}`, async () => {
+    const [credentialRow] = await db
+      .select({
+        type: credential.type,
+        providerId: credential.providerId,
+        revokedAt: credential.revokedAt,
+        encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+      })
+      .from(credential)
+      .where(eq(credential.id, credentialId))
+      .limit(1)
+
+    if (
+      credentialRow?.type !== 'service_account' ||
+      credentialRow.providerId !== GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
+      credentialRow.revokedAt !== null ||
+      !credentialRow.encryptedServiceAccountKey
+    ) {
+      throw new Error('Google service account credential is unavailable')
+    }
+
+    const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+    return decrypted
+  })
+}
+
+/**
  * Generates a short-lived access token for a Google service account credential
  * using the two-legged OAuth JWT flow (RFC 7523).
  *
@@ -241,27 +273,7 @@ export async function getServiceAccountToken(
   options?: CredentialTokenResolutionOptions
 ): Promise<string> {
   options?.signal?.throwIfAborted()
-  const [credentialRow] = await db
-    .select({
-      type: credential.type,
-      providerId: credential.providerId,
-      revokedAt: credential.revokedAt,
-      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
-    })
-    .from(credential)
-    .where(eq(credential.id, credentialId))
-    .limit(1)
-
-  if (
-    credentialRow?.type !== 'service_account' ||
-    credentialRow.providerId !== GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
-    credentialRow.revokedAt !== null ||
-    !credentialRow.encryptedServiceAccountKey
-  ) {
-    throw new Error('Google service account credential is unavailable')
-  }
-
-  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+  const decrypted = await readGoogleServiceAccountKey(credentialId)
   const keyData = JSON.parse(decrypted) as {
     client_email: string
     private_key: string
@@ -1003,6 +1015,10 @@ function isOAuthAccessTokenExpiring(
   return expiresAt != null && expiresAt.getTime() <= now.getTime() + refreshWindowMs
 }
 
+function remainingValidityMs(expiresAt: Date, now = new Date()): number {
+  return expiresAt.getTime() - now.getTime()
+}
+
 /**
  * Where a provider can refresh ahead of expiry, a caller is served the stored token with this much
  * validity left or less while a background refresh replaces it. It starts above
@@ -1016,12 +1032,16 @@ const OAUTH_REFRESH_AHEAD_WINDOW_MS = 10 * 60 * 1000
  * the two windows so every account still refreshes ahead before callers have to wait.
  */
 const OAUTH_REFRESH_AHEAD_JITTER_MS = 60 * 1000
+/**
+ * The validity a stored token must still have, after a failed blocking refresh, to be served
+ * instead of failing the request.
+ */
+const OAUTH_STORED_TOKEN_FALLBACK_MIN_MS = 30 * 1000
 
 /**
- * Google and Microsoft keep a refreshed-away access token valid until its own expiry and keep the
- * old refresh token usable (Google never rotates it; Microsoft rotates without revoking the old
- * one), so a caller can use the old token while the refresh runs and an abandoned refresh loses
- * nothing.
+ * A Google refresh does not rotate the refresh token, and Microsoft does not revoke the old one
+ * when issuing a new one (learn.microsoft.com, "Refresh tokens in the Microsoft identity
+ * platform"); serving the stored access token meanwhile relies on it staying valid until expiry.
  */
 function refreshesAheadOfExpiry(providerId: string): boolean {
   return (
@@ -1077,7 +1097,7 @@ function planAccessTokenRefresh(
   if (
     refreshesAhead &&
     accessTokenExpiresAt &&
-    accessTokenExpiresAt.getTime() - now.getTime() <=
+    remainingValidityMs(accessTokenExpiresAt, now) <=
       OAUTH_REFRESH_AHEAD_WINDOW_MS - refreshAheadJitterMs(accountId)
   ) {
     return { kind: 'refresh-ahead', refreshToken }
@@ -1616,8 +1636,20 @@ async function resolveStoredAccessToken(
   if (fresh?.kind === 'token') {
     return { kind: 'token', accessToken: fresh.accessToken, refreshed: true }
   }
-  if (plan.kind === 'refresh-or-reuse' && stored.accessToken) {
-    logger.info(`${prefix}Refresh unavailable; reusing still-valid access token`)
+  /**
+   * A refresh ahead abandoned with its process (Trigger.dev runs have no keep-alive) holds its
+   * lease until the TTL, so a follower can wait it out with nothing; a chain that survives
+   * refreshes still serves its stored token if enough validity is left after that wait.
+   */
+  const orphaned =
+    fresh === null &&
+    refreshesAheadOfExpiry(refresh.providerId) &&
+    stored.accessTokenExpiresAt != null &&
+    remainingValidityMs(stored.accessTokenExpiresAt) > OAUTH_STORED_TOKEN_FALLBACK_MIN_MS
+  if (stored.accessToken && (plan.kind === 'refresh-or-reuse' || orphaned)) {
+    logger.info(
+      `${prefix}${orphaned ? 'Refresh produced no token' : 'Refresh unavailable'}; reusing still-valid access token`
+    )
     return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
   }
   return { kind: 'failed', outcome: fresh }

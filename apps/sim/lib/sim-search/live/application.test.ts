@@ -10,6 +10,7 @@ import {
   knowledgeContextsMock,
   knowledgeContextsMockFns,
 } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   resolveAccount: vi.fn(),
   search: vi.fn(),
   mcpCall: vi.fn(),
+  mcpClose: vi.fn(async () => {}),
   read: vi.fn(),
   admin: vi.fn(),
   adminSearch: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock('@/lib/sim-search/live/policy-store', () => ({
   livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
 }))
 vi.mock('@/lib/sim-search/live/managed-mcp', () => ({
-  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall, close: async () => {} }),
+  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall, close: mocks.mcpClose }),
 }))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
   searchCodaMcp: vi.fn(),
@@ -74,6 +76,7 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: (value: string) => ({ safe: true, value }),
 }))
 
+import { withSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import {
   decodeLiveReference,
   encodeLiveReference,
@@ -96,6 +99,7 @@ inputValidationMockFns.mockCreatePinnedConnectionPool.mockImplementation(() => (
   destroy: mocks.destroyPool,
 }))
 
+const diagnosticsLogger = getMockLogger('KnowledgeSearchDiagnostics')
 const principal = createSessionPrincipal({ userId: 'reader', sessionId: 's' })
 const input = { workspaceId: 'workspace', query: 'launch', topK: 20 }
 const account = {
@@ -1309,7 +1313,9 @@ describe('authorized live retrieval', () => {
         search.signal?.throwIfAborted()
         return { documents: [document] }
       })
-      const pending = searchLiveKnowledge.execute({ principal, input })
+      const pending = withSearchDiagnostics({ surface: 'copilot' }, () =>
+        searchLiveKnowledge.execute({ principal, input })
+      )
       await vi.advanceTimersByTimeAsync(20_000)
       const statuses = (await pending).live?.accounts ?? []
       /** The second wave waits 9.5s for a slot, then still has its full account deadline. */
@@ -1322,6 +1328,45 @@ describe('authorized live retrieval', () => {
         message: expect.stringContaining('Not searched before the search deadline'),
       })
       expect(mocks.resolveAccount).toHaveBeenCalledTimes(12)
+      const skipped = diagnosticsLogger.info.mock.calls.find(
+        ([message, fields]) =>
+          message === 'Live search provider completed' && fields?.accountIndex === 12
+      )
+      expect(skipped?.[1]?.results).toEqual([
+        expect.objectContaining({ status: 'timeout', failure: { reason: 'not_started' } }),
+      ])
+    })
+
+    it('frees the slot of a session that never opens, so an account waiting on it still searches', async () => {
+      mocks.accounts.mockResolvedValue(accounts(7))
+      for (let index = 0; index < 6; index++)
+        mocks.service.mockReturnValueOnce(new Promise(() => {}))
+      let result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>> | undefined
+      void searchLiveKnowledge.execute({ principal, input }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(result?.live?.accounts.map(({ status }) => status)).toEqual([
+        ...Array.from({ length: 6 }, () => 'timeout'),
+        'ok',
+      ])
+    })
+
+    it('closes a session that opens after its account stopped waiting for it', async () => {
+      mocks.accounts.mockResolvedValue([
+        { ...account, provider: 'coda', providerId: 'mcp:coda', type: 'managed_mcp' },
+      ])
+      const opening = createDeferred<undefined>()
+      mocks.service.mockReturnValueOnce(opening.promise)
+      let result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>> | undefined
+      void searchLiveKnowledge.execute({ principal, input }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(12_000)
+      expect(result?.live?.accounts[0]?.status).toBe('timeout')
+      expect(mocks.mcpClose).not.toHaveBeenCalled()
+      opening.resolve(undefined)
+      await vi.waitFor(() => expect(mocks.mcpClose).toHaveBeenCalledOnce())
     })
   })
 })
