@@ -949,7 +949,7 @@ async function interactions(browser: Browser, profile: Profile, repetition: numb
       }
     })
     await apiControls(run, profile, repetition)
-    await measure(profile, '/workflows', repetition, 'workflow-inspector-control', async () => {
+    await measure(profile, '/workflows', repetition, 'workflow-canvas-control', async () => {
       await run.page.goto(new URL('/workflows', base).href, { waitUntil: 'domcontentloaded' })
       await meaningful(run.page, new URL('/workflows', base).pathname)
       const trigger = run.page
@@ -963,20 +963,65 @@ async function interactions(browser: Browser, profile: Profile, repetition: numb
       await dialog.waitFor()
       await painted(run.page)
       const feedbackMs = performance.now() - start
-      const block = dialog
-        .getByRole('group', { name: 'Inspect a block' })
-        .getByRole('button')
-        .first()
-      if (await block.count()) {
-        await block.click()
-        await painted(run.page)
-      }
+      const canvas = dialog.locator('.react-flow__pane')
+      const viewport = dialog.locator('.react-flow__viewport')
+      const node = dialog.locator('.react-flow__node').first()
+      await expect(node).toBeVisible()
+      await painted(run.page)
+      const bounds = await canvas.boundingBox()
+      if (!bounds) throw new Error('Workflow canvas has no visible bounds')
+      const transform = (element: Locator) =>
+        element.evaluate((element) => {
+          const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform)
+          return { x: matrix.e, y: matrix.f, scale: matrix.a }
+        })
+      const beforePan = await transform(viewport)
+      const x = bounds.x + bounds.width / 2
+      const y = bounds.y + bounds.height - 24
+      await run.page.mouse.move(x, y)
+      await run.page.mouse.down()
+      await run.page.mouse.move(x + 24, y - 24, { steps: 5 })
+      await run.page.mouse.up()
+      await expect.poll(async () => (await transform(viewport)).x).not.toBe(beforePan.x)
+      const afterPan = await transform(viewport)
+      expect(afterPan.scale).toBe(beforePan.scale)
+      const beforeZoom = afterPan.scale
+      await run.page.mouse.wheel(0, -80)
+      await expect
+        .poll(() =>
+          viewport.evaluate(
+            (element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a
+          )
+        )
+        .toBeGreaterThan(beforeZoom)
+      await node.click({ trial: true, position: { x: 8, y: 8 } })
+      const afterZoom = await transform(viewport)
+      const nodeBefore = await transform(node)
+      const nodeBounds = await node.boundingBox()
+      if (!nodeBounds) throw new Error('Workflow node has no visible bounds')
+      await run.page.mouse.move(nodeBounds.x + nodeBounds.width / 2, nodeBounds.y + 8)
+      await run.page.mouse.down()
+      await run.page.mouse.move(nodeBounds.x + nodeBounds.width / 2 + 20, nodeBounds.y + 28, {
+        steps: 5,
+      })
+      await run.page.mouse.up()
+      await expect
+        .poll(async () => {
+          const position = await transform(node)
+          return Math.hypot(position.x - nodeBefore.x, position.y - nodeBefore.y)
+        })
+        .toBeGreaterThan(1)
+      expect(await transform(viewport)).toEqual(afterZoom)
       const data = {
-        selectedBlock: (await block.count()) ? await block.textContent() : undefined,
-        dialogTextLength: (await dialog.textContent())?.length,
+        beforePan,
+        afterPan,
+        afterZoom,
+        nodeBefore,
+        nodeAfter: await transform(node),
       }
       await run.page.keyboard.press('Escape')
       await dialog.waitFor({ state: 'hidden' })
+      await expect(trigger).toBeFocused()
       return { status: 'completed', feedbackMs, data }
     })
     for (const route of [

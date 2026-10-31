@@ -608,6 +608,26 @@ try {
           }
         })
       }
+      for (const kind of ['loop', 'parallel']) {
+        await check(`Inline ${kind} body opens lightbox at ${width}px`, async () => {
+          const page = await context.newPage()
+          try {
+            await open(page, `/workflows/blocks/${kind}`)
+            const container = page.locator('.react-flow__node-previewContainer').first()
+            await expect(container).toBeVisible()
+            const bounds = await container.boundingBox()
+            if (!bounds) throw new Error('Container has no visible bounds')
+            await container.click({ position: { x: bounds.width / 2, y: bounds.height - 8 } })
+            const viewer = page.getByRole('dialog')
+            await expect(viewer).toBeVisible()
+            await page.screenshot({ path: join(directory, `${kind}-body-${width}.png`) })
+            await page.keyboard.press('Escape')
+            await expect(viewer).toHaveCount(0)
+          } finally {
+            await page.close()
+          }
+        })
+      }
       await check(`Workflow lightbox at ${width}px`, async () => {
         const page = await context.newPage()
         try {
