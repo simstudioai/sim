@@ -37,7 +37,6 @@ import {
   detectShell,
   ShellIntegrationParser,
   shellKind,
-  toWindowsPath,
 } from '@/main/terminal/shell-integration'
 import { resolveShellPath } from '@/main/terminal/shell-path'
 
@@ -260,6 +259,11 @@ interface PendingCommand {
   /** Rolling tail kept once {@link MAX_CAPTURE_CHARS} is exceeded. */
   overflow: string
   capturing: boolean
+  /**
+   * Set once Ctrl-C was sent. Whatever it leaves on screen (the tty's `^C` echo) is the
+   * interrupt landing, not a prompt, so the command is waited on to end, or for Stop to end it.
+   */
+  interrupted: boolean
   timer: NodeJS.Timeout
   resolve(result: TerminalRunResult): void
 }
@@ -488,6 +492,11 @@ export class TerminalSession {
     return this.shellName
   }
 
+  /** The shell's program name (`zsh`, `pwsh`, `cmd`), for reading its command lines. */
+  get shellProgram(): string {
+    return shellKind(this.shellName)
+  }
+
   get foreground(): string | null {
     return this.foregroundCommand
   }
@@ -526,7 +535,7 @@ export class TerminalSession {
       running: this.foregroundCommand === null ? null : this.foregroundCommand.trim() || 'command',
       interactive: this.altScreen,
       active,
-      shell: shellKind(this.shellName),
+      shell: this.shellProgram,
     }
   }
 
@@ -664,6 +673,7 @@ export class TerminalSession {
     // SIGINT is delivered as a keystroke so the foreground process group gets
     // it the way Ctrl-C would, rather than only the shell.
     if (signal === 'SIGINT') {
+      if (this.pendingCommand) this.pendingCommand.interrupted = true
       this.write('\u0003')
       return
     }
@@ -698,6 +708,7 @@ export class TerminalSession {
         output: '',
         overflow: '',
         capturing: false,
+        interrupted: false,
         timer,
         resolve,
       }
@@ -911,14 +922,12 @@ export class TerminalSession {
       case 'output-end':
         this.finishCommand(marker.exitCode)
         break
-      case 'cwd': {
-        const cwd = this.platform === 'win32' ? toWindowsPath(marker.cwd) : marker.cwd
-        if (cwd && cwd !== this.cwd) {
-          this.cwd = cwd
+      case 'cwd':
+        if (marker.cwd && marker.cwd !== this.cwd) {
+          this.cwd = marker.cwd
           this.emitState()
         }
         break
-      }
     }
   }
 
@@ -981,13 +990,14 @@ export class TerminalSession {
    * Hands a command back early when it has stopped mid-line and gone quiet —
    * the shape of something sitting on a prompt. Output that ends with a
    * newline, or that is still arriving, is a command doing work and is left to
-   * run out the full wait window.
+   * run out the full wait window. Escape sequences are not text: ConPTY ends a
+   * silent command's capture with cursor and colour codes that print nothing.
    */
   private checkForPrompt(): void {
     const pending = this.pendingCommand
-    if (!pending?.capturing) return
+    if (!pending?.capturing || pending.interrupted) return
     if (Date.now() - pending.lastActivityAt < PROMPT_IDLE_MS) return
-    const captured = this.capturedText(pending)
+    const captured = stripAnsi(this.capturedText(pending))
     if (!captured.trim() || /[\r\n]$/.test(captured)) return
     this.resolveStillRunning(true)
   }

@@ -178,6 +178,61 @@ describe('TerminalSession command lifecycle', () => {
     }
   })
 
+  describe('handing back a command that looks stuck on a prompt', () => {
+    function promptSession(): TerminalSession {
+      return TerminalSession.create({
+        terminalId: 'terminal-prompt',
+        cwd: '/tmp',
+        cols: 80,
+        rows: 24,
+        callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+      })
+    }
+
+    /** Whether `promise` has settled after `ms` of quiet. */
+    async function settledAfter(promise: Promise<unknown>, ms: number): Promise<boolean> {
+      let settled = false
+      void promise.then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(ms)
+      return settled
+    }
+
+    it('keeps waiting on a silent command whose only output is escape codes', async () => {
+      vi.useFakeTimers()
+      const session = promptSession()
+      try {
+        const result = session.runCommand('sleep 60', 'tool-call-silent', 60_000)
+        // ConPTY repaints the cursor and resets colour after the command line is echoed.
+        ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007\u001b[?25h\u001b[m')
+
+        expect(await settledAfter(result, 5_000)).toBe(false)
+        ptyStub.dataHandler?.('\u001b]633;D;0;test-nonce\u0007')
+        await expect(result).resolves.toMatchObject({ status: 'completed' })
+      } finally {
+        session.dispose()
+      }
+    })
+
+    it("never reads an interrupted command's ^C echo as a prompt", async () => {
+      vi.useFakeTimers()
+      const session = promptSession()
+      try {
+        const result = session.runCommand('stubborn', 'tool-call-stop', 60_000)
+        ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007working\r\n')
+        session.kill('SIGINT')
+        ptyStub.dataHandler?.('^C')
+
+        expect(await settledAfter(result, 5_000)).toBe(false)
+        ptyStub.dataHandler?.('\u001b]633;D;143;test-nonce\u0007')
+        await expect(result).resolves.toMatchObject({ status: 'completed', exitCode: 143 })
+      } finally {
+        session.dispose()
+      }
+    })
+  })
+
   it('stops pressing a batch of keys once the call is stopped', async () => {
     vi.useFakeTimers()
     const session = TerminalSession.create({
@@ -264,16 +319,6 @@ describe('TerminalSession on Windows', () => {
     try {
       session.kill('SIGTERM')
       expect(ptyStub.ended).toBe(true)
-    } finally {
-      session.dispose()
-    }
-  })
-
-  it("reports Git Bash's directory in the form Windows opens", () => {
-    const session = windowsSession()
-    try {
-      ptyStub.dataHandler?.(marker('P;Cwd=/c/Users/me/repo'))
-      expect(session.currentCwd).toBe('C:\\Users\\me\\repo')
     } finally {
       session.dispose()
     }
