@@ -1,11 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { FileText } from '@sim/emcn/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
+import { Favicon } from '@/components/favicon'
 import { GoogleDocsIcon, GoogleSheetsIcon, GoogleSlidesIcon } from '@/components/icons'
-import { faviconUrl } from '@/lib/core/utils/favicon'
 import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 import { externalLinkHostname } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
@@ -45,7 +44,6 @@ interface SourceIconProps {
 
 /** Shared document mark, connector mark, favicon and fallback across all source presentations. */
 export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
-  const [failedHostname, setFailedHostname] = useState<string | null>(null)
   const hostname = externalLinkHostname(source.url)
   const ConnectorIcon = source.connectorType
     ? BRAND_ICON_BY_BASE_TYPE.get(stripVersionSuffix(source.connectorType))
@@ -62,16 +60,11 @@ export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
   const Icon = DocumentIcon ?? ConnectorIcon ?? HostIcon
   const className = cn('shrink-0', size === 'inline' ? 'size-[12px]' : 'size-[14px]')
   if (Icon) return <BrandIcon icon={Icon} className={className} />
-  if (hostname && failedHostname !== hostname) {
-    return (
-      <img
-        src={faviconUrl(hostname, 64)}
-        alt=''
-        referrerPolicy='no-referrer'
-        className={cn(className, 'rounded-sm')}
-        onError={() => setFailedHostname(hostname)}
-      />
-    )
-  }
-  return <FileText aria-hidden className={cn(className, 'text-[var(--text-icon)]')} />
+  return (
+    <Favicon
+      host={hostname}
+      className={className}
+      fallback={<FileText aria-hidden className={cn(className, 'text-[var(--text-icon)]')} />}
+    />
+  )
 }
