@@ -2318,7 +2318,7 @@ function adoptPopupTab(
   }: { agentOwned: boolean; background: boolean; referrer?: Referrer }
 ): WebContents {
   const openerTabId = tabForContents(opener)?.id
-  const tab = openLinkTab(url, { agentOwned, background }, popup)
+  const tab = openLinkTab(url, { agentOwned, background }, { opener, options: popup })
   tab.openerTabId = openerTabId
   tab.returnToOpenerOnClose = true
   const contents = tab.view.webContents
@@ -2336,7 +2336,7 @@ function adoptPopupTab(
 function openLinkTab(
   url: string,
   { agentOwned, background }: { agentOwned: boolean; background: boolean },
-  popup?: PopupWindowOptions
+  popup?: AdoptedPopup
 ): AgentTab {
   if (agentOwned) return addAutomationTab(url, popup)
   if (background) {
@@ -2379,23 +2379,33 @@ function openTabWithUrl(
  */
 type PopupWindowOptions = BrowserWindowConstructorOptions & WebContentsViewConstructorOptions
 
+/** A page-opened window becoming a tab, with the page that opened it. */
+interface AdoptedPopup {
+  opener: WebContents
+  options: PopupWindowOptions
+}
+
 /**
  * Creates a tab's view. `popup` adopts a page-opened window's WebContents, which Chromium created
  * with the opener's (identical) web preferences, so the opener relationship and its session stay
- * intact; callers only adopt popups that are blank or whose URL belongs to the opener's session.
+ * intact; a deferred popup without one gets a fresh view in the opener's session. Callers only
+ * adopt popups that are blank or whose URL belongs to the opener's session.
  */
-function createTabView(url?: string, popup?: PopupWindowOptions): WebContentsView {
+function createTabView(url?: string, popup?: AdoptedPopup): WebContentsView {
   let appSession: BrowserAppSession | undefined
-  if (popup?.webContents) {
-    // A blank popup's URL names no origin, so trust the session Chromium created it in.
-    if (browserAppSession && popup.webContents.session === browserAppSession.session) {
+  if (popup) {
+    // A popup follows its opener's session (Chromium creates it there); a blank URL names no origin.
+    const popupSession = popup.options.webContents?.session ?? popup.opener.session
+    if (browserAppSession && popupSession === browserAppSession.session) {
       appSession = browserAppSession
     }
   } else if (url && browserAppSession && isAppOrigin(url, browserAppSession.origin)) {
     appSession = browserAppSession
   }
   const scopeId = getBrowserScopeId()
-  const view = popup?.webContents ? new WebContentsView(popup) : createFreshTabView(appSession)
+  const view = popup?.options.webContents
+    ? new WebContentsView(popup.options)
+    : createFreshTabView(appSession)
   try {
     /** Detached tabs must lay out before a foreground panel owns their native view. */
     const [width, height] = getMainWindow()?.getContentSize() ?? [1280, 720]
@@ -2960,7 +2970,7 @@ interface AddTabOptions {
   activate?: boolean
   notify?: boolean
   url?: string
-  popup?: PopupWindowOptions
+  popup?: AdoptedPopup
 }
 
 function addTabInternal({
@@ -3441,7 +3451,7 @@ export function restoreBrowserSession(): void {
   }
 }
 
-export function addTab(url?: string, popup?: PopupWindowOptions): AgentTab {
+export function addTab(url?: string, popup?: AdoptedPopup): AgentTab {
   restoreBrowserSession()
   currentScope.visibleTabUserSelected = true
   return addTabInternal({ url, popup })
@@ -3452,7 +3462,7 @@ export function addTab(url?: string, popup?: PopupWindowOptions): AgentTab {
  * renderer's decision: every page is a resource tab there, and it shows the
  * agent's tab or badges it depending on what the user is doing.
  */
-export function addAutomationTab(url?: string, popup?: PopupWindowOptions): AgentTab {
+export function addAutomationTab(url?: string, popup?: AdoptedPopup): AgentTab {
   restoreBrowserSession()
   const tab = addTabInternal({ activate: false, notify: false, url, popup })
   currentScope.automationTabId = tab.id

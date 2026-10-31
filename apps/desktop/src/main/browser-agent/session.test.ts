@@ -32,7 +32,7 @@ function _setPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { configurable: true, value: platform })
 }
 
-type PopupHandler = (details: { url: string }) => {
+type PopupHandler = (details: { url: string; disposition?: string }) => {
   action: string
   outlivesOpener?: boolean
   createWindow?: (options: Record<string, unknown>) => unknown
@@ -2321,12 +2321,27 @@ describe('importAgentCookies', () => {
 
 describe('first-party browser sessions', () => {
   const origin = 'https://www.dev.sim.ai'
+  const appSession = new WebContentsView().webContents.session
   function initialize(persistence?: sessionModule.BrowserSessionPersistence) {
     return freshSession(null, {}, persistence, undefined, {
       origin,
-      session: new WebContentsView().webContents.session,
+      session: appSession,
     })
   }
+
+  it("opens a deferred blank popup in its opener's session", () => {
+    const session = initialize()
+    const opener = session.addAutomationTab(`${origin}/home`).view.webContents
+    Object.assign(opener, { session: appSession })
+    const openWindow = vi.mocked(opener.setWindowOpenHandler).mock.calls[0]?.[0] as PopupHandler
+
+    const popup = openWindow({ url: 'about:blank', disposition: 'background-tab' }).createWindow?.(
+      {}
+    ) as WebContents
+    expect(popup).not.toBe(opener)
+    expect(agentAppOrigin(popup)).toBe(origin)
+    expect(popup.loadURL).not.toHaveBeenCalled()
+  })
 
   it('keeps a populated tab and its history when crossing the session boundary', () => {
     const session = initialize()

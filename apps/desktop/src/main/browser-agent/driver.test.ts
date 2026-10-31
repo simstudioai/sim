@@ -804,7 +804,7 @@ describe('executeTool', () => {
     const popup = session.activeTab()?.view.webContents
     if (!popup) throw new Error('Expected user popup tab')
     expect(session.automationTab()?.view.webContents).toBe(source)
-    expect(popup.loadURL).toHaveBeenCalledWith('https://user-popup.example/')
+    expect(popup.loadURL).toHaveBeenCalledWith('https://user-popup.example/', expect.anything())
   })
 
   it('keeps agent-opened target-blank tabs agent-owned after dispatch ends', async () => {
@@ -823,7 +823,7 @@ describe('executeTool', () => {
     expect(session.activeTab()?.view.webContents).toBe(source)
     session.setAutomationActive(false)
     expect(session.automationTab()?.view.webContents).toBe(popup)
-    expect(popup.loadURL).toHaveBeenCalledWith('https://agent-popup.example/')
+    expect(popup.loadURL).toHaveBeenCalledWith('https://agent-popup.example/', expect.anything())
   })
 
   it('does not report a timed-out restored tab as ready to the model', async () => {
