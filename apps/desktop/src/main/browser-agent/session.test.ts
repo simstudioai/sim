@@ -1259,7 +1259,7 @@ describe('browser-agent session', () => {
     openWindow({ url: 'https://example.com/later' }).createWindow?.({})
     const popup = (session.activeTab()?.view as unknown as MockView).webContents
     expect(popup).not.toBe(source)
-    expect(popup.loadURL).toHaveBeenCalledWith('https://example.com/later')
+    expect(popup.loadURL).toHaveBeenCalledWith('https://example.com/later', expect.anything())
     expect(openWindow({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
     expect(session.listTabs()).toHaveLength(2)
   })
