@@ -8,6 +8,7 @@ import { usePostHog } from 'posthog-js/react'
 import { trackFreebuffConversion } from '@/lib/analytics/freebuff'
 import { trackGoogleEvent } from '@/lib/analytics/google'
 import { client, useSession } from '@/lib/auth/client'
+import { DISPOSABLE_EMAIL_ERROR_CODE, DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth/constants'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
@@ -301,6 +302,9 @@ function SignupFormContent({
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
               errorCode = 'user_already_exists'
               setEmailError('An account with this email already exists. Please sign in instead.')
+            } else if (ctx.error.code === DISPOSABLE_EMAIL_ERROR_CODE) {
+              errorCode = 'disposable_email'
+              setEmailError(DISPOSABLE_EMAIL_MESSAGE)
             } else if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')

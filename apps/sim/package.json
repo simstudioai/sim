@@ -42,6 +42,7 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "generate:pi-model-catalog": "bun run scripts/generate-pi-model-catalog.ts",
+    "vendor:disposable-email-domains": "bun run scripts/vendor-disposable-email-domains.ts",
     "generate-docs": "bun run ../../scripts/generate-docs.ts",
     "org:consolidate-users": "bun run scripts/consolidate-users-into-organization.ts",
     "verify:oracledb": "node scripts/oracledb-patch-self-test.cjs --worker lib/internal/oracledb/oracle-worker.cjs",
