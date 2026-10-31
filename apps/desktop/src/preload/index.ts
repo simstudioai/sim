@@ -17,6 +17,7 @@ import type {
 import type {
   BrowserAddToChatPayload,
   BrowserChromeImportResult,
+  BrowserContinueSignInResult,
   BrowserCredentialConflictPolicy,
   BrowserCredentialMetadata,
   BrowserDownloadsState,
@@ -24,6 +25,7 @@ import type {
   BrowserImportProfile,
   BrowserImportResult,
   BrowserPasswordImportResult,
+  BrowserPendingSignIn,
   BrowserSiteInfo,
   BrowserToolbarCommand,
   ComputerUseActivity,
@@ -439,6 +441,17 @@ const api: SimDesktopApi = {
             policy?: BrowserCredentialConflictPolicy
           ): Promise<BrowserChromeImportResult> =>
             ipcRenderer.invoke('browser-import:all', profileId, policy),
+          continueSignIn: (
+            profileId: string,
+            scopeId: string
+          ): Promise<BrowserContinueSignInResult> =>
+            ipcRenderer.invoke('browser-import:continue-sign-in', profileId, scopeId),
+          bringSignInBack: (scopeId: string): Promise<BrowserImportResult> =>
+            ipcRenderer.invoke('browser-import:bring-sign-in-back', scopeId),
+          cancelSignIn: (scopeId: string): Promise<void> =>
+            ipcRenderer.invoke('browser-import:cancel-sign-in', scopeId),
+          getPendingSignIn: (scopeId: string): Promise<BrowserPendingSignIn | null> =>
+            ipcRenderer.invoke('browser-import:pending-sign-in', scopeId),
         },
       }
     : {}),

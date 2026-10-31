@@ -501,6 +501,50 @@ interface SimDesktopBrowserImportApi {
     profileId?: string,
     policy?: BrowserCredentialConflictPolicy
   ): Promise<BrowserChromeImportResult>
+  /**
+   * Continue a sign-in in the user's own browser.
+   *
+   * Electron cannot complete some sign-ins that sites now prefer: iCloud
+   * Keychain and Google Password Manager passkeys, the phone (hybrid/QR)
+   * passkey flow, and PIN-protected security keys are Chrome-only, so the site
+   * offers a passkey and then hangs. The user finishes there instead and brings
+   * the session back. `continueSignIn` opens the active tab's page in the named
+   * profile (the shell reads the address from the tab, never from the caller);
+   * `bringSignInBack` imports only that page's registrable-domain cookies from
+   * the same profile and reopens it. Both need a live user gesture; no browser
+   * tool maps to any of these. Absent on older shells, which hide the feature.
+   */
+  continueSignIn?(profileId: string, scopeId: string): Promise<BrowserContinueSignInResult>
+  /** Imports the chat's pending sign-in back. @see continueSignIn */
+  bringSignInBack?(scopeId: string): Promise<BrowserImportResult>
+  /** Drops the chat's pending sign-in. @see continueSignIn */
+  cancelSignIn?(scopeId: string): Promise<void>
+  /** The chat's pending sign-in, so a remounted panel can keep offering to bring it back. */
+  getPendingSignIn?(scopeId: string): Promise<BrowserPendingSignIn | null>
+}
+
+/** Why a page could not be continued in another browser. */
+export type BrowserContinueSignInError =
+  | 'chrome-not-found'
+  | 'unsupported-page'
+  | 'launch-failed'
+  | 'unknown'
+
+/** A sign-in waiting in another browser to be brought back. */
+export interface BrowserPendingSignIn {
+  /** The registrable domain a bring-back imports, e.g. `amazon.com`. */
+  site: string
+  /** The browser it was continued in, e.g. `Chrome`. */
+  browserLabel: string
+}
+
+/**
+ * A page handed to another browser, or why it could not be. Neither is set when
+ * a cancel or a newer continue retired the handoff while the browser launched.
+ */
+export interface BrowserContinueSignInResult {
+  pending?: BrowserPendingSignIn
+  error?: BrowserContinueSignInError
 }
 
 /** Both halves of a combined Chrome import, each with its own outcome. */

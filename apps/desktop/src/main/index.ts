@@ -54,6 +54,7 @@ import {
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
+import { clearSignIns } from '@/main/browser-import'
 import { attachClientInfo } from '@/main/client-info'
 import { NativeComputerUseClient } from '@/main/computer-use/native-client'
 import { ComputerUseService } from '@/main/computer-use/service'
@@ -395,6 +396,7 @@ function main(): void {
       clearHandoffState: async () => {
         const stores = [
           { label: 'sign-in handoff state', clear: () => handoff.clear() },
+          { label: 'browser sign-in handoffs', clear: clearSignIns },
           { label: 'recent tasks', clear: () => tray?.clearRecentChats() },
           {
             label: 'renderer session state',
@@ -939,6 +941,7 @@ function main(): void {
         ...(kind === 'account' && origin
           ? [
               { label: 'sign-in handoff state', clear: () => handoff.clear() },
+              { label: 'browser sign-in handoffs', clear: clearSignIns },
               { label: 'background executor', clear: () => desktopExecutor.signOut() },
               {
                 label: 'terminal sessions',

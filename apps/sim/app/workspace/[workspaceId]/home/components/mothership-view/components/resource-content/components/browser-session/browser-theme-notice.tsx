@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Banner, Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import { BrowserNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-notice'
 
 interface BrowserThemeNoticeProps {
   scopeId: string
@@ -16,16 +17,14 @@ export function BrowserThemeNotice({ scopeId }: BrowserThemeNoticeProps) {
   if (!visible) return null
 
   return (
-    <Banner className='border-[var(--border)] border-t bg-[var(--surface-3)] px-3 py-1.5'>
-      <div className='flex items-center justify-between gap-3'>
-        <p className='text-[var(--text-secondary)] text-small'>
-          Some sites apply theme changes after a reload.
-        </p>
-        <div className='flex shrink-0 items-center gap-0.5'>
+    <BrowserNotice
+      message='Some sites apply theme changes after a reload.'
+      actions={
+        <>
           <Chip onClick={() => sendBrowserPanelAction('reload', {}, scopeId)}>Reload page</Chip>
           <Chip leftIcon={X} aria-label='Dismiss theme notice' onClick={() => setVisible(false)} />
-        </div>
-      </div>
-    </Banner>
+        </>
+      }
+    />
   )
 }

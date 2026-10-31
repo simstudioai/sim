@@ -62,6 +62,7 @@
         "micromatch": "4.0.8",
         "pdf-lib": "1.17.1",
         "safe-regex2": "5.1.2",
+        "tldts": "7.4.18",
       },
       "devDependencies": {
         "@electron/fuses": "1.8.0",
