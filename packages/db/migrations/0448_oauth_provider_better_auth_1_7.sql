@@ -7,8 +7,10 @@
 -- per-organization and per-workflow MCP resources itself and never registers private_key_jwt
 -- clients, but the provider reads these tables, so they must exist.
 --
--- Tables are altered in the order token issuance locks them (client, consent, refresh token, access
--- token), so a concurrent grant waits for this migration instead of deadlocking with it.
+-- The live OAuth tables are altered after the COMMIT, one autocommitted statement each, so this
+-- migration never holds one table's lock while waiting for another's. A token insert locks its own
+-- table before its foreign-key check reaches oauth_client; holding oauth_client across the other
+-- ALTERs would deadlock with it.
 --
 -- Replay-safety: this file ends in CONCURRENTLY index builds on the live token tables below an
 -- embedded COMMIT, so a failure there replays the whole file from the top — every statement here
@@ -49,28 +51,6 @@ CREATE TABLE IF NOT EXISTS "oauth_client_resource" (
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "oauth_client_resource_resource_id_idx" ON "oauth_client_resource" USING btree ("resource_id");--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "client_discovery_id" text;--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "client_credentials_scopes" text[] DEFAULT '{}'::text[];--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "backchannel_logout_uri" text;--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "backchannel_logout_session_required" boolean;--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "application_type" text;--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "jwks" text;--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "jwks_uri" text;--> statement-breakpoint
-ALTER TABLE "oauth_client" ADD COLUMN IF NOT EXISTS "dpop_bound_access_tokens" boolean DEFAULT false;--> statement-breakpoint
-ALTER TABLE "oauth_consent" ADD COLUMN IF NOT EXISTS "resources" text[];--> statement-breakpoint
-ALTER TABLE "oauth_consent" ADD COLUMN IF NOT EXISTS "requested_user_info_claims" text[];--> statement-breakpoint
-ALTER TABLE "oauth_refresh_token" ADD COLUMN IF NOT EXISTS "authorization_code_id" text;--> statement-breakpoint
-ALTER TABLE "oauth_refresh_token" ADD COLUMN IF NOT EXISTS "resources" text[];--> statement-breakpoint
-ALTER TABLE "oauth_refresh_token" ADD COLUMN IF NOT EXISTS "requested_user_info_claims" text[];--> statement-breakpoint
-ALTER TABLE "oauth_refresh_token" ADD COLUMN IF NOT EXISTS "rotated_at" timestamp;--> statement-breakpoint
-ALTER TABLE "oauth_refresh_token" ADD COLUMN IF NOT EXISTS "rotation_replay_response" text;--> statement-breakpoint
-ALTER TABLE "oauth_refresh_token" ADD COLUMN IF NOT EXISTS "rotation_replay_expires_at" timestamp;--> statement-breakpoint
-ALTER TABLE "oauth_refresh_token" ADD COLUMN IF NOT EXISTS "confirmation" jsonb;--> statement-breakpoint
-ALTER TABLE "oauth_access_token" ADD COLUMN IF NOT EXISTS "revoked" timestamp;--> statement-breakpoint
-ALTER TABLE "oauth_access_token" ADD COLUMN IF NOT EXISTS "authorization_code_id" text;--> statement-breakpoint
-ALTER TABLE "oauth_access_token" ADD COLUMN IF NOT EXISTS "resources" text[];--> statement-breakpoint
-ALTER TABLE "oauth_access_token" ADD COLUMN IF NOT EXISTS "requested_user_info_claims" text[];--> statement-breakpoint
-ALTER TABLE "oauth_access_token" ADD COLUMN IF NOT EXISTS "confirmation" jsonb;--> statement-breakpoint
 -- A failed concurrent build leaves an invalid index that IF NOT EXISTS would keep: each replay
 -- moves one aside to be dropped, never a valid index or one on another table.
 DO $$
@@ -96,6 +76,32 @@ BEGIN
   END LOOP;
 END $$;--> statement-breakpoint
 COMMIT;--> statement-breakpoint
+ALTER TABLE "oauth_client"
+  ADD COLUMN IF NOT EXISTS "client_discovery_id" text,
+  ADD COLUMN IF NOT EXISTS "client_credentials_scopes" text[] DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS "backchannel_logout_uri" text,
+  ADD COLUMN IF NOT EXISTS "backchannel_logout_session_required" boolean,
+  ADD COLUMN IF NOT EXISTS "application_type" text,
+  ADD COLUMN IF NOT EXISTS "jwks" text,
+  ADD COLUMN IF NOT EXISTS "jwks_uri" text,
+  ADD COLUMN IF NOT EXISTS "dpop_bound_access_tokens" boolean DEFAULT false;--> statement-breakpoint
+ALTER TABLE "oauth_consent"
+  ADD COLUMN IF NOT EXISTS "resources" text[],
+  ADD COLUMN IF NOT EXISTS "requested_user_info_claims" text[];--> statement-breakpoint
+ALTER TABLE "oauth_refresh_token"
+  ADD COLUMN IF NOT EXISTS "authorization_code_id" text,
+  ADD COLUMN IF NOT EXISTS "resources" text[],
+  ADD COLUMN IF NOT EXISTS "requested_user_info_claims" text[],
+  ADD COLUMN IF NOT EXISTS "rotated_at" timestamp,
+  ADD COLUMN IF NOT EXISTS "rotation_replay_response" text,
+  ADD COLUMN IF NOT EXISTS "rotation_replay_expires_at" timestamp,
+  ADD COLUMN IF NOT EXISTS "confirmation" jsonb;--> statement-breakpoint
+ALTER TABLE "oauth_access_token"
+  ADD COLUMN IF NOT EXISTS "revoked" timestamp,
+  ADD COLUMN IF NOT EXISTS "authorization_code_id" text,
+  ADD COLUMN IF NOT EXISTS "resources" text[],
+  ADD COLUMN IF NOT EXISTS "requested_user_info_claims" text[],
+  ADD COLUMN IF NOT EXISTS "confirmation" jsonb;--> statement-breakpoint
 SET lock_timeout = 0;--> statement-breakpoint
 DROP INDEX CONCURRENTLY IF EXISTS "oauth_access_token_authorization_code_id_idx_failed";--> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "oauth_access_token_authorization_code_id_idx" ON "oauth_access_token" USING btree ("authorization_code_id");--> statement-breakpoint
