@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type {
   BrowserAppLaunchNotice,
   BrowserClientCertificatePrompt,
@@ -11,7 +11,6 @@ import type {
   BrowserPasskeyPrompt,
 } from '@sim/browser-protocol'
 import {
-  Banner,
   Checkbox,
   Chip,
   ChipConfirmModal,
@@ -26,6 +25,7 @@ import {
   Label,
 } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
+import { BrowserNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-notice'
 
 /** Keeps a click or keystroke aimed at the page from answering a prompt as it appears. */
 const ACTIVATION_DELAY_MS = 500
@@ -123,6 +123,8 @@ interface ChoicePromptModalProps {
   hintFor?: (choiceId: string) => string | undefined
   cancelLabel?: string
   onCancel: () => void
+  /** Closing without the Cancel button; defaults to {@link ChoicePromptModalProps.onCancel}. */
+  onDismiss?: () => void
   onChoose: (choiceId: string) => void
 }
 
@@ -141,6 +143,7 @@ function ChoicePromptModal({
   hintFor,
   cancelLabel,
   onCancel,
+  onDismiss = onCancel,
   onChoose,
 }: ChoicePromptModalProps) {
   const armed = useActivationDelay(open)
@@ -148,12 +151,12 @@ function ChoicePromptModal({
   return (
     <ChipModal
       open={open}
-      onOpenChange={(next) => !next && onCancel()}
+      onOpenChange={(next) => !next && onDismiss()}
       srTitle={title}
       size='sm'
       focusOnOpen={false}
     >
-      <ChipModalHeader onClose={onCancel}>{title}</ChipModalHeader>
+      <ChipModalHeader onClose={onDismiss}>{title}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalDescription>{description}</ChipModalDescription>
         <ChipModalField
@@ -236,7 +239,8 @@ function ClientCertificatePromptModal({
       }))}
       hintFor={hintFor}
       cancelLabel="Don't send"
-      onCancel={() => onRespond(prompt.requestId, { allowed: false })}
+      onCancel={() => onRespond(prompt.requestId, { allowed: false, remember: true })}
+      onDismiss={() => onRespond(prompt.requestId, { allowed: false })}
       onChoose={(choiceId) =>
         onRespond(prompt.requestId, { allowed: true, kind: 'client-certificate', choiceId })
       }
@@ -304,11 +308,26 @@ interface BrowserPagePromptModalProps {
   onRespond: RespondToPrompt
 }
 
-/** The sign-in or app-launch decision the visible page is waiting on. */
+/**
+ * The sign-in or app-launch decision the visible page is waiting on. A kind this
+ * renderer cannot show, from a newer shell, is refused at once rather than left
+ * for the page to wait out.
+ */
 export function BrowserPagePromptModal({ prompt, open, onRespond }: BrowserPagePromptModalProps) {
-  if (!prompt) return null
-  const Modal = PROMPT_MODALS[prompt.kind] as PromptModal | undefined
-  if (!Modal) return null
+  const refusedRequestIdRef = useRef<string | null>(null)
+  const Modal =
+    prompt && Object.hasOwn(PROMPT_MODALS, prompt.kind)
+      ? (PROMPT_MODALS[prompt.kind] as PromptModal)
+      : undefined
+  const unsupportedRequestId = prompt && !Modal ? prompt.requestId : null
+
+  useEffect(() => {
+    if (!unsupportedRequestId || refusedRequestIdRef.current === unsupportedRequestId) return
+    refusedRequestIdRef.current = unsupportedRequestId
+    onRespond(unsupportedRequestId, { allowed: false })
+  }, [unsupportedRequestId, onRespond])
+
+  if (!prompt || !Modal) return null
   return <Modal key={prompt.requestId} prompt={prompt} open={open} onRespond={onRespond} />
 }
 
@@ -321,12 +340,10 @@ interface BrowserAppLaunchNoticeBarProps {
 export function BrowserAppLaunchNoticeBar({ notice, onRespond }: BrowserAppLaunchNoticeBarProps) {
   const armed = useActivationDelay(true)
   return (
-    <Banner className='border-[var(--border)] border-t bg-[var(--surface-3)] px-3 py-1.5'>
-      <div className='flex items-center justify-between gap-3'>
-        <p className='min-w-0 text-[var(--text-secondary)] text-small'>
-          {notice.origin} wants to open {notice.appName}.
-        </p>
-        <div className='flex shrink-0 items-center gap-0.5'>
+    <BrowserNotice
+      message={`${notice.origin} wants to open ${notice.appName}.`}
+      actions={
+        <>
           <Chip
             disabled={!armed}
             onClick={() =>
@@ -340,8 +357,8 @@ export function BrowserAppLaunchNoticeBar({ notice, onRespond }: BrowserAppLaunc
             aria-label={`Don't open ${notice.appName}`}
             onClick={() => onRespond(notice.requestId, { allowed: false })}
           />
-        </div>
-      </div>
-    </Banner>
+        </>
+      }
+    />
   )
 }

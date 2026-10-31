@@ -89,6 +89,7 @@ import {
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
+import { withinWindow } from '@/main/input-activity'
 import { isAppOrigin, isBlankPopupUrl, parseHttpUrl } from '@/main/navigation'
 import {
   type FocusedResourceShortcut,
@@ -257,12 +258,18 @@ export type BrowserShortcut =
   | 'hard-reload'
   | UserOnlyShortcut
 
+type UserOnlyShortcut = 'back' | 'forward' | 'previous-tab' | 'next-tab' | 'stop'
 /** Shortcuts that move the user's history, tabs, or load; keystrokes the agent sends never trigger them. */
-const USER_ONLY_SHORTCUTS = ['back', 'forward', 'previous-tab', 'next-tab', 'stop'] as const
-type UserOnlyShortcut = (typeof USER_ONLY_SHORTCUTS)[number]
+const USER_ONLY_SHORTCUTS: ReadonlySet<BrowserShortcut> = new Set<UserOnlyShortcut>([
+  'back',
+  'forward',
+  'previous-tab',
+  'next-tab',
+  'stop',
+])
 
 function isUserOnlyShortcut(shortcut: BrowserShortcut): shortcut is UserOnlyShortcut {
-  return USER_ONLY_SHORTCUTS.some((candidate) => candidate === shortcut)
+  return USER_ONLY_SHORTCUTS.has(shortcut)
 }
 
 type BrowserShortcutInput = Pick<
@@ -631,6 +638,15 @@ function activeBrowserDownloadCount(scopeId?: string): number {
   let count = 0
   for (const active of activeBrowserDownloads) {
     if (resolveBrowserScopeId(active.scopeId) === resolved) count += 1
+  }
+  return count
+}
+
+/** Agent-browser downloads still receiving bytes, which a restart would cut off. */
+export function countProgressingBrowserDownloads(): number {
+  let count = 0
+  for (const active of activeBrowserDownloads) {
+    if (active.download.state === 'progressing') count += 1
   }
   return count
 }
@@ -1567,12 +1583,6 @@ function tabIsOnScreen(scopeId: string, tab: AgentTab): boolean {
     browserScopeStates.get(scopeId)?.activeTabId === tab.id &&
     isPanelVisible()
   )
-}
-
-/** Whether `at` lies in the last `windowMs`; a clock stepping backwards never passes. */
-function withinWindow(at: number, windowMs: number): boolean {
-  const elapsed = Date.now() - at
-  return elapsed >= 0 && elapsed < windowMs
 }
 
 function mediaRequestIsUserInitiated(scopeId: string, tab: AgentTab): boolean {
@@ -2984,6 +2994,9 @@ function initializeTabView(
     if (details.isMainFrame && !details.isSameDocument)
       noteMainFrameNavigation(contents, details.url)
   })
+  // An aborted navigation (ERR_ABORTED) reports no failure the driver records; once nothing is
+  // loading, no top-level request is pending, so a later frame cannot pass for it.
+  contents.on('did-stop-loading', () => noteMainFrameNavigation(contents, null))
 
   contents.on(
     'did-start-navigation',

@@ -105,6 +105,7 @@ void app.whenReady().then(async () => {
         computerUseApp: null,
         browserToolRunning,
         agentWorkRunning: false,
+        downloadCount: 0,
         ...(await countWindowsWithUnsavedChanges(
           hungPage ? [page.webContents, hungPage.webContents] : [page.webContents]
         )),

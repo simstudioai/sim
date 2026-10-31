@@ -47,6 +47,7 @@ import {
   setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/panel'
 import {
+  countProgressingBrowserDownloads,
   handleFocusedShortcut as handleFocusedBrowserShortcut,
   isBrowserScopeSuspended,
   quiesceBrowserSessions,
@@ -1180,6 +1181,7 @@ function main(): void {
           computerUseApp: computerUseActivity ? (computerUseActivity.appName ?? '') : null,
           browserToolRunning: isBrowserToolRunning(),
           agentWorkRunning,
+          downloadCount: countProgressingBrowserDownloads(),
           ...windows,
         })
       },

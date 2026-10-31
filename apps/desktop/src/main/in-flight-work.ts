@@ -68,6 +68,8 @@ export interface InFlightWork {
   browserToolRunning: boolean
   /** Whether a chat has desktop work claimed on this machine. */
   agentWorkRunning: boolean
+  /** Agent-browser downloads still in progress. */
+  downloadCount: number
   unsavedWindowCount: number
   unresponsiveWindowCount: number
 }
@@ -99,6 +101,12 @@ export function describeInFlightWork(work: InFlightWork): string[] {
   }
   if (work.agentWorkRunning && work.computerUseApp === null && !work.browserToolRunning) {
     sentences.push('An agent is still working on this computer.')
+  }
+
+  if (work.downloadCount === 1) {
+    sentences.push('A download is still in progress.')
+  } else if (work.downloadCount > 1) {
+    sentences.push(`${work.downloadCount} downloads are still in progress.`)
   }
 
   if (work.unsavedWindowCount === 1) {

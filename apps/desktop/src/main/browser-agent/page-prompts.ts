@@ -26,7 +26,9 @@ import type {
   WebFrameMain,
 } from 'electron'
 import { app, webContents as electronWebContents } from 'electron'
+import { LRUCache } from 'lru-cache'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
+import { withinWindow } from '@/main/input-activity'
 import { appLinkTarget, openExternalSafe, parseHttpUrl } from '@/main/navigation'
 
 const logger = createLogger('BrowserPagePrompts')
@@ -92,10 +94,11 @@ let host: PagePromptHost | null = null
 const pendingById = new Map<string, PendingRequest>()
 const pendingByContents = new WeakMap<WebContents, TabRequests>()
 const mainFrameNavigations = new WeakMap<WebContents, string>()
-const recentAttemptsByContents = new WeakMap<WebContents, Map<string, number[]>>()
-/** `null` remembers an explicit "no certificate" for that host. */
-let certificateDecisions = new WeakMap<Session, Map<string, string | null>>()
-const alwaysAllowedLaunches = new Map<string, true>()
+const recentAttemptsByContents = new WeakMap<WebContents, LRUCache<string, number[]>>()
+/** A host's remembered certificate, or `'declined'` for an explicit "Don't send". */
+type CertificateDecision = { fingerprint: string } | 'declined'
+let certificateDecisions = new WeakMap<Session, LRUCache<string, CertificateDecision>>()
+const alwaysAllowedLaunches = new LRUCache<string, true>({ max: MAX_REMEMBERED_DECISIONS })
 
 export function setPagePromptHost(next: PagePromptHost | null): void {
   host = next
@@ -110,27 +113,14 @@ export function resetPagePromptDecisions(session?: Session): void {
   alwaysAllowedLaunches.clear()
 }
 
-function withinWindow(at: number, windowMs: number): boolean {
-  const elapsed = Date.now() - at
-  return elapsed >= 0 && elapsed < windowMs
-}
-
-function rememberBounded<Value>(map: Map<string, Value>, key: string, value: Value): void {
-  map.delete(key)
-  map.set(key, value)
-  while (map.size > MAX_REMEMBERED_DECISIONS) {
-    const oldest = map.keys().next().value
-    if (oldest === undefined) break
-    map.delete(oldest)
-  }
-}
-
 /** The live list of this tab's recent attempts under `key`, pruned to the window. */
 function recentAttempts(contents: WebContents, key: string, windowMs: number): number[] {
-  const byKey = recentAttemptsByContents.get(contents) ?? new Map<string, number[]>()
+  const byKey =
+    recentAttemptsByContents.get(contents) ??
+    new LRUCache<string, number[]>({ max: MAX_REMEMBERED_DECISIONS })
   recentAttemptsByContents.set(contents, byKey)
   const recent = (byKey.get(key) ?? []).filter((at) => withinWindow(at, windowMs))
-  rememberBounded(byKey, key, recent)
+  byKey.set(key, recent)
   return recent
 }
 
@@ -247,6 +237,12 @@ function settle(entry: PendingRequest, response: BrowserPagePromptResponse | nul
       answer(response)
     } catch (error) {
       logger.warn('Browser page prompt answer failed', { error: getErrorMessage(error) })
+      // A malformed response must still release the page, which otherwise waits forever.
+      if (response !== null) {
+        try {
+          answer(null)
+        } catch {}
+      }
     }
   }
 }
@@ -271,8 +267,8 @@ export function cancelPagePrompts(contents: WebContents): void {
 
 /**
  * Tracks the URL the tab's top-level navigation is requesting (null once it
- * commits or fails), so HTTP authentication can tell its own challenge from a
- * frame's.
+ * commits, fails, or the tab stops loading), so HTTP authentication can tell its
+ * own challenge from a frame's.
  */
 export function noteMainFrameNavigation(contents: WebContents, url: string | null): void {
   if (url) mainFrameNavigations.set(contents, url)
@@ -352,6 +348,8 @@ export function handleBrowserLogin(
         if (
           response?.allowed === true &&
           response.kind === 'http-auth' &&
+          typeof response.username === 'string' &&
+          typeof response.password === 'string' &&
           response.username.length <= MAX_CREDENTIAL_LENGTH &&
           response.password.length <= MAX_CREDENTIAL_LENGTH
         ) {
@@ -448,13 +446,15 @@ export function handleSelectClientCertificate(
       })
     )
     if (!requestHost || choices.length === 0) return false
-    const decisions = certificateDecisions.get(contents.session) ?? new Map<string, string | null>()
+    const decisions =
+      certificateDecisions.get(contents.session) ??
+      new LRUCache<string, CertificateDecision>({ max: MAX_REMEMBERED_DECISIONS })
     certificateDecisions.set(contents.session, decisions)
     const remembered = decisions.get(requestHost)
-    if (remembered === null) return false
-    const rememberedCertificate = certificates.find(
-      (certificate) => certificate.fingerprint === remembered
-    )
+    if (remembered === 'declined') return false
+    const rememberedCertificate = remembered
+      ? certificates.find((certificate) => certificate.fingerprint === remembered.fingerprint)
+      : undefined
     if (rememberedCertificate) {
       answer(rememberedCertificate)
       return true
@@ -466,19 +466,22 @@ export function handleSelectClientCertificate(
       `client-certificate|${requestHost}`,
       (response) => {
         if (response?.allowed === false) {
-          rememberBounded(decisions, requestHost, null)
+          // Only an explicit "Don't send" sticks; closing the picker just cancels this request.
+          if (response.remember === true) decisions.set(requestHost, 'declined')
           answer()
           return
         }
         const certificate =
-          response?.allowed === true && response.kind === 'client-certificate'
+          response?.allowed === true &&
+          response.kind === 'client-certificate' &&
+          typeof response.choiceId === 'string'
             ? certificates.find((candidate) => candidate.fingerprint === response.choiceId)
             : undefined
         if (!certificate) {
           answer()
           return
         }
-        rememberBounded(decisions, requestHost, certificate.fingerprint)
+        decisions.set(requestHost, { fingerprint: certificate.fingerprint })
         answer(certificate)
       },
       { joinable: true }
@@ -568,7 +571,7 @@ export function requestExternalLaunch(
       (response) => {
         if (response?.allowed !== true || response.kind !== 'external-app') return
         if (response.alwaysAllow && canAlwaysAllow) {
-          rememberBounded(alwaysAllowedLaunches, launchKey, true)
+          alwaysAllowedLaunches.set(launchKey, true)
         }
         launchAppLink(target.url)
       },
