@@ -8,7 +8,7 @@ const RESERVED_DEVICE_STEM = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³]|
 
 /** `:` opens an alternate data stream; the rest are invalid in any NTFS name. */
 const INVALID_NAME_CHARACTERS = /[<>:"/\\|?*\x00-\x1f]/
-const INVALID_NAME_CHARACTERS_GLOBAL = /[<>:"/\\|?*\x00-\x1f]/g
+const INVALID_NAME_CHARACTERS_GLOBAL = new RegExp(INVALID_NAME_CHARACTERS.source, 'g')
 
 function isReservedDeviceName(name: string): boolean {
   return RESERVED_DEVICE_STEM.test(name.split('.')[0].trimEnd())
