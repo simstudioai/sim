@@ -23741,7 +23741,7 @@
                 "description": "Identity provider signing certificate."
               },
               "callbackUrl": {
-                "description": "SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL.",
+                "description": "SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL, and a provider already on the legacy `/sso/saml2/callback` URL keeps it.",
                 "type": "string",
                 "maxLength": 2048,
                 "format": "uri"

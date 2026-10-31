@@ -2,7 +2,7 @@ import { truncate } from '@sim/utils/string'
 import { NextRequest, NextResponse } from 'next/server'
 import type { OAuthClientCredentials, OAuthProtocolErrorCode } from '@/lib/auth/oauth-token-family'
 
-export interface ParsedOAuthForm {
+interface ParsedOAuthForm {
   form: URLSearchParams
   credentials: OAuthClientCredentials | null
   rawBody: string

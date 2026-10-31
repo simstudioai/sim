@@ -183,7 +183,7 @@ const v2SaveSsoProviderBodySchema = z.discriminatedUnion('providerType', [
         .max(2048)
         .optional()
         .describe(
-          'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL.'
+          'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL, and a provider already on the legacy `/sso/saml2/callback` URL keeps it.'
         ),
       audience: z
         .string()

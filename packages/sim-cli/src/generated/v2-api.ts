@@ -23523,7 +23523,7 @@ export const V2_OPERATIONS = {
       callbackUrl: {
         kind: 'string',
         describe:
-          'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL. Available when providerType is saml.',
+          'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL, and a provider already on the legacy `/sso/saml2/callback` URL keeps it. Available when providerType is saml.',
       },
       audience: {
         kind: 'string',
@@ -23671,7 +23671,7 @@ export const V2_OPERATIONS = {
           callbackUrl: {
             kind: 'string',
             describe:
-              'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL.',
+              'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL, and a provider already on the legacy `/sso/saml2/callback` URL keeps it.',
           },
           audience: {
             kind: 'string',

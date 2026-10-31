@@ -1,9 +1,9 @@
-import { randomBytes } from 'node:crypto'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
 import { generateId } from '@sim/utils/id'
+import { generateRandomBytes, generateRandomHex, randomInt } from '@sim/utils/random'
 import { makeSignature, symmetricEncrypt } from 'better-auth/crypto'
 import { eq, inArray, like, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -47,7 +47,7 @@ describe('OAuth token route in PostgreSQL', () => {
     async (redirectUri) => {
       const POST = (request: NextRequest) => tokenRoute(request, {})
       /** A fresh TEST-NET-2 address per case, so reruns never draw on an earlier run's bucket. */
-      const clientIp = `198.51.100.${(randomBytes(1)[0] % 254) + 1}`
+      const clientIp = `198.51.100.${randomInt(1, 255)}`
       requestUtilsMockFns.mockGetClientIp.mockReturnValue(clientIp)
       const userId = generateId()
       const clientId = generateId()
@@ -69,7 +69,7 @@ describe('OAuth token route in PostgreSQL', () => {
         })
 
       const issueCode = async () => {
-        const verifier = randomBytes(32).toString('base64url')
+        const verifier = Buffer.from(generateRandomBytes(32)).toString('base64url')
         const challenge = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
         const url = new URL('/api/auth/oauth2/authorize', baseUrl)
         url.search = new URLSearchParams({
@@ -268,7 +268,7 @@ describe('OAuth token route in PostgreSQL', () => {
     'exchanges a code and refreshes for a confidential client registered for %s',
     async (method) => {
       const POST = (request: NextRequest) => tokenRoute(request, {})
-      const clientIp = `203.0.113.${(randomBytes(1)[0] % 254) + 1}`
+      const clientIp = `203.0.113.${randomInt(1, 255)}`
       requestUtilsMockFns.mockGetClientIp.mockReturnValue(clientIp)
       const baseUrl = 'https://test.sim.ai'
       const redirectUri = 'https://client.example/callback'
@@ -339,7 +339,7 @@ describe('OAuth token route in PostgreSQL', () => {
           updatedAt: now,
         })
 
-        const verifier = randomBytes(32).toString('base64url')
+        const verifier = Buffer.from(generateRandomBytes(32)).toString('base64url')
         const challenge = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
         const authorizeUrl = new URL('/api/auth/oauth2/authorize', baseUrl)
         authorizeUrl.search = new URLSearchParams({
@@ -391,7 +391,7 @@ describe('OAuth token route in PostgreSQL', () => {
     const exchangeToken = (request: NextRequest) => tokenRoute(request, {})
     const revokeToken = (request: NextRequest) => revokeRoute(request, {})
 
-    const testId = randomBytes(8).toString('hex')
+    const testId = generateRandomHex(16)
     const userId = `oauth-route-test-user-${testId}`
     const sessionId = `oauth-route-test-session-${testId}`
     const sessionToken = `oauth-route-test-session-token-${testId}`
