@@ -34,6 +34,7 @@ import type {
   DownloadItem,
   Input,
   MenuItemConstructorOptions,
+  Referrer,
   Session,
   WebContents,
   WebContentsViewConstructorOptions,
@@ -80,7 +81,7 @@ import {
 import { clearHostVerdictCache } from '@/main/browser-agent/url-guard'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
-import { isAppOrigin } from '@/main/navigation'
+import { isAppOrigin, isBlankPopupUrl } from '@/main/navigation'
 import {
   type FocusedResourceShortcut,
   isResourceTabSelectionShortcut,
@@ -120,6 +121,8 @@ export interface AgentTab {
   lastRealUserGestureAt?: number
   /** The tab whose page opened this one; agent work returns there when this tab closes. */
   openerTabId?: string
+  /** Closing this tab while active shows its opener, until the user switches tabs (as in Chrome). */
+  returnToOpenerOnClose?: boolean
   /** A user action asked for this page to take focus once it is on screen. */
   pendingUserFocus?: boolean
   /** Electron owns the native alert or confirm until CDP reports it closed. */
@@ -2292,12 +2295,11 @@ export function stopFindInActiveTab(focusPage: boolean): void {
   if (tab) tab.view.webContents.focus()
 }
 
-/**
- * Whether a page's popup can become a tab that keeps its opener: http(s), within the tab
- * limits, and in the opener's own session (a session boundary needs a separate, opener-less tab).
- */
+/** Whether a popup can become an opener-keeping tab: blank (Chromium puts it in the opener's session) or same-session http(s), within the tab limits. */
 function canAdoptPopup(opener: WebContents, url: string): boolean {
-  if (!/^https?:\/\//i.test(url) || !hasTabCapacity()) return false
+  if (!hasTabCapacity()) return false
+  if (isBlankPopupUrl(url)) return true
+  if (!/^https?:\/\//i.test(url)) return false
   return (
     !browserAppSession ||
     isAppOrigin(url, browserAppSession.origin) === Boolean(agentAppOrigin(opener))
@@ -2309,14 +2311,21 @@ function adoptPopupTab(
   opener: WebContents,
   url: string,
   popup: PopupWindowOptions,
-  { agentOwned, background }: { agentOwned: boolean; background: boolean }
+  {
+    agentOwned,
+    background,
+    referrer,
+  }: { agentOwned: boolean; background: boolean; referrer?: Referrer }
 ): WebContents {
   const openerTabId = tabForContents(opener)?.id
-  const tab = openLinkTab(url, { agentOwned, background }, popup)
+  const tab = openLinkTab(url, { agentOwned, background }, { opener, options: popup })
   tab.openerTabId = openerTabId
+  tab.returnToOpenerOnClose = true
   const contents = tab.view.webContents
   // A background-tab disposition defers creation, so Chromium supplies no contents to adopt.
-  if (!popup.webContents) void contents.loadURL(url).catch(() => {})
+  if (!popup.webContents && !isBlankPopupUrl(url)) {
+    void contents.loadURL(url, { httpReferrer: referrer }).catch(() => {})
+  }
   return contents
 }
 
@@ -2327,7 +2336,7 @@ function adoptPopupTab(
 function openLinkTab(
   url: string,
   { agentOwned, background }: { agentOwned: boolean; background: boolean },
-  popup?: PopupWindowOptions
+  popup?: AdoptedPopup
 ): AgentTab {
   if (agentOwned) return addAutomationTab(url, popup)
   if (background) {
@@ -2347,12 +2356,16 @@ function openLinkTab(
  */
 function openTabWithUrl(
   url: string,
-  { agentOwned, background = false }: { agentOwned: boolean; background?: boolean }
+  {
+    agentOwned,
+    background = false,
+    referrer,
+  }: { agentOwned: boolean; background?: boolean; referrer?: Referrer }
 ): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
     const tab = openLinkTab(url, { agentOwned, background })
-    void tab.view.webContents.loadURL(url).catch(() => {})
+    void tab.view.webContents.loadURL(url, { httpReferrer: referrer }).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
       error: getErrorMessage(error),
@@ -2366,18 +2379,33 @@ function openTabWithUrl(
  */
 type PopupWindowOptions = BrowserWindowConstructorOptions & WebContentsViewConstructorOptions
 
+/** A page-opened window becoming a tab, with the page that opened it. */
+interface AdoptedPopup {
+  opener: WebContents
+  options: PopupWindowOptions
+}
+
 /**
  * Creates a tab's view. `popup` adopts a page-opened window's WebContents, which Chromium created
  * with the opener's (identical) web preferences, so the opener relationship and its session stay
- * intact; callers only adopt popups whose URL belongs to the opener's session.
+ * intact; a deferred popup without one gets a fresh view in the opener's session. Callers only
+ * adopt popups that are blank or whose URL belongs to the opener's session.
  */
-function createTabView(url?: string, popup?: PopupWindowOptions): WebContentsView {
-  const appSession =
-    url && browserAppSession && isAppOrigin(url, browserAppSession.origin)
-      ? browserAppSession
-      : undefined
+function createTabView(url?: string, popup?: AdoptedPopup): WebContentsView {
+  let appSession: BrowserAppSession | undefined
+  if (popup) {
+    // A popup follows its opener's session (Chromium creates it there); a blank URL names no origin.
+    const popupSession = popup.options.webContents?.session ?? popup.opener.session
+    if (browserAppSession && popupSession === browserAppSession.session) {
+      appSession = browserAppSession
+    }
+  } else if (url && browserAppSession && isAppOrigin(url, browserAppSession.origin)) {
+    appSession = browserAppSession
+  }
   const scopeId = getBrowserScopeId()
-  const view = popup?.webContents ? new WebContentsView(popup) : createFreshTabView(appSession)
+  const view = popup?.options.webContents
+    ? new WebContentsView(popup.options)
+    : createFreshTabView(appSession)
   try {
     /** Detached tabs must lay out before a foreground panel owns their native view. */
     const [width, height] = getMainWindow()?.getContentSize() ?? [1280, 720]
@@ -2544,16 +2572,20 @@ function initializeTabView(
     })
   )
 
-  // Keep popups inside the browser resource: http(s) window.open and
-  // target=_blank requests become a new internal tab, never a native window.
-  // A same-session popup adopts Chromium's own WebContents so window.opener
-  // survives (sign-in and "connect" popups post their result back to it).
+  // Popups become internal tabs, never native windows; adopting Chromium's own
+  // WebContents keeps window.opener for sign-in popups that post back to it.
   contents.setWindowOpenHandler((details) =>
     withBrowserScope(scopeId, () => {
       const agentOwned = agentOwnsPopupFrom(contents)
       const background = details.disposition === 'background-tab'
-      if (!canAdoptPopup(contents, details.url)) {
-        openTabWithUrl(details.url, { agentOwned, background })
+      const adopt = canAdoptPopup(contents, details.url)
+      // Only Chromium can carry a form POST with its initiator; never reissue one as a GET.
+      if (details.postBody && (!adopt || background)) {
+        logger.warn('Refused a form POST into a new browser tab')
+        return { action: 'deny' }
+      }
+      if (!adopt) {
+        openTabWithUrl(details.url, { agentOwned, background, referrer: details.referrer })
         return { action: 'deny' }
       }
       return {
@@ -2564,7 +2596,11 @@ function initializeTabView(
         overrideBrowserWindowOptions: { webPreferences: { focusOnNavigation: false } },
         createWindow: (options) =>
           withBrowserScope(scopeId, () =>
-            adoptPopupTab(contents, details.url, options, { agentOwned, background })
+            adoptPopupTab(contents, details.url, options, {
+              agentOwned,
+              background,
+              referrer: details.referrer,
+            })
           ),
       }
     })
@@ -2934,7 +2970,7 @@ interface AddTabOptions {
   activate?: boolean
   notify?: boolean
   url?: string
-  popup?: PopupWindowOptions
+  popup?: AdoptedPopup
 }
 
 function addTabInternal({
@@ -3415,7 +3451,7 @@ export function restoreBrowserSession(): void {
   }
 }
 
-export function addTab(url?: string, popup?: PopupWindowOptions): AgentTab {
+export function addTab(url?: string, popup?: AdoptedPopup): AgentTab {
   restoreBrowserSession()
   currentScope.visibleTabUserSelected = true
   return addTabInternal({ url, popup })
@@ -3426,7 +3462,7 @@ export function addTab(url?: string, popup?: PopupWindowOptions): AgentTab {
  * renderer's decision: every page is a resource tab there, and it shows the
  * agent's tab or badges it depending on what the user is doing.
  */
-export function addAutomationTab(url?: string, popup?: PopupWindowOptions): AgentTab {
+export function addAutomationTab(url?: string, popup?: AdoptedPopup): AgentTab {
   restoreBrowserSession()
   const tab = addTabInternal({ activate: false, notify: false, url, popup })
   currentScope.automationTabId = tab.id
@@ -3500,6 +3536,7 @@ export function switchTab(tabId: string, { claim = true }: { claim?: boolean } =
   if (previousActiveTab && previousActiveTab.id !== tab.id) {
     revokeTabMediaPermissions(previousActiveTab, false)
     previousActiveTab.pendingUserFocus = false
+    for (const entry of tabs) entry.returnToOpenerOnClose = false
   }
   // The claim describes the page on screen, so a mirrored switch to another
   // page leaves that page unclaimed rather than inheriting the last one's.
@@ -3594,8 +3631,10 @@ function removeTab(
   clearFocusedBrowserTab(tab.id)
   detachIfAttached(tab.view)
   if (contents && !contents.isDestroyed()) contents.close()
+  const opener = tabs.find((entry) => entry.id === tab.openerTabId)
   if (currentScope.activeTabId === tab.id) {
-    currentScope.activeTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
+    const returnTo = tab.returnToOpenerOnClose ? opener : undefined
+    currentScope.activeTabId = (returnTo ?? tabs[index] ?? tabs[index - 1])?.id ?? null
     layout()
     const active = activeTab()
     if (active) {
@@ -3603,7 +3642,6 @@ function removeTab(
     }
   }
   if (currentScope.automationTabId === tab.id) {
-    const opener = tabs.find((entry) => entry.id === tab.openerTabId)
     currentScope.automationTabId =
       opener?.id ?? (adoptNeighborForAgent ? ((tabs[index] ?? tabs[index - 1])?.id ?? null) : null)
     applyAutomationTabPolicy()

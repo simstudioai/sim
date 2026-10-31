@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
+import { isValidEmailSyntax } from '@sim/utils/string'
 import { shell } from 'electron'
 import { scrubUrl } from '@/main/observability'
 
@@ -112,6 +113,9 @@ export function classifyNavigation(rawUrl: string, ctx: NavigationContext): Main
   if (rawUrl === 'about:blank') {
     return 'in-app'
   }
+  if (isMailtoUrl(rawUrl)) {
+    return 'external'
+  }
   const url = parseHttpUrl(rawUrl)
   if (!url) {
     return 'deny'
@@ -146,8 +150,11 @@ export function classifyWindowOpen(
   frameName: string,
   appOrigin: string
 ): WindowOpenAction {
-  if (rawUrl === '' || rawUrl === 'about:blank') {
+  if (isBlankPopupUrl(rawUrl)) {
     return 'popup-blank'
+  }
+  if (isMailtoUrl(rawUrl)) {
+    return 'external'
   }
   const url = parseHttpUrl(rawUrl)
   if (!url) {
@@ -174,7 +181,7 @@ export function classifyWindowOpen(
  * by the blank-then-assign pattern.
  */
 export function classifyBlankChildNavigation(rawUrl: string, appOrigin: string): BlankChildAction {
-  if (rawUrl === '' || rawUrl === 'about:blank') {
+  if (isBlankPopupUrl(rawUrl)) {
     return 'ignore'
   }
   const url = parseHttpUrl(rawUrl)
@@ -185,6 +192,54 @@ export function classifyBlankChildNavigation(rawUrl: string, appOrigin: string):
     return 'internal'
   }
   return 'external'
+}
+
+/** The URL `window.open('')` and `window.open('about:blank')` hand a popup handler. */
+export function isBlankPopupUrl(url: string): boolean {
+  return url === '' || url === 'about:blank'
+}
+
+function isMailtoUrl(raw: string): boolean {
+  return /^mailto:/i.test(raw)
+}
+
+/** RFC 6068 fields a mail client fills in; anything else (`attach=`, arbitrary headers) is refused. */
+const MAILTO_FIELDS = new Set(['to', 'cc', 'bcc', 'subject', 'body'])
+
+function isMailtoAddressList(encoded: string): boolean {
+  if (encoded === '') return true
+  try {
+    return decodeURIComponent(encoded)
+      .split(',')
+      .every((address) => isValidEmailSyntax(address.trim()))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A `mailto:` of printable ASCII, plain addresses, and compose fields only: some mail clients
+ * honour `attach=` and other headers, which would let a page attach a local file.
+ */
+function isSafeMailtoUrl(raw: string): boolean {
+  if (!isMailtoUrl(raw) || raw.length > 4_096 || !/^[\x21-\x7e]+$/.test(raw)) {
+    return false
+  }
+  const [addresses = '', query, ...rest] = raw.slice(7).split('?')
+  if (rest.length > 0 || addresses.includes('#') || !isMailtoAddressList(addresses)) {
+    return false
+  }
+  if (query === undefined) return true
+  for (const field of query.split('&')) {
+    const separator = field.indexOf('=')
+    const name = (separator === -1 ? field : field.slice(0, separator)).toLowerCase()
+    if (!MAILTO_FIELDS.has(name)) return false
+    const value = separator === -1 ? '' : field.slice(separator + 1)
+    if ((name === 'to' || name === 'cc' || name === 'bcc') && !isMailtoAddressList(value)) {
+      return false
+    }
+  }
+  return true
 }
 
 /**
@@ -212,11 +267,11 @@ export function isSafeExternalUrl(raw: string, allowHttpLocalhost = false): bool
 }
 
 /**
- * Opens a URL in the system browser after validation. Every openExternal in
- * the app goes through here — menu items, IPC, and navigation policy.
+ * Opens a URL in the system browser, or a `mailto:` in the system mail client, after validation.
+ * Every openExternal in the app goes through here — menu items, IPC, and navigation policy.
  */
 export async function openExternalSafe(raw: string, allowHttpLocalhost = false): Promise<boolean> {
-  if (!isSafeExternalUrl(raw, allowHttpLocalhost)) {
+  if (!isSafeExternalUrl(raw, allowHttpLocalhost) && !isSafeMailtoUrl(raw)) {
     logger.warn('Blocked unsafe external URL', { url: scrubUrl(raw) })
     return false
   }
