@@ -233,7 +233,13 @@ function addFieldOption(
         : flag.textSource
           ? ' (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @)'
           : ''
-  }${descriptor.required ? ' (required)' : ''}${literalNull ? literalNullHint(documented, name) : ''}`
+  }${
+    descriptor.required
+      ? flag.trailing
+        ? ' (required, or pass the values as arguments)'
+        : ' (required)'
+      : ''
+  }${literalNull ? literalNullHint(documented, name) : ''}`
 
   const renamedFrom = flag.renamedFrom ?? []
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
@@ -243,11 +249,12 @@ function addFieldOption(
     option.default(undefined, String(descriptor.default))
   }
   // Commander's mandatory check runs before `executeOperation` can fold a
-  // renamed spelling onto the current one, so a required field that has been
-  // renamed would reject the very argv this exists to keep working. The
-  // requirement is not lost: `buildRequest` raises it against the current
-  // spelling once both have had their chance to supply the value.
-  if (descriptor.required && renamedFrom.length === 0) option.makeOptionMandatory()
+  // renamed spelling or trailing arguments onto the flag, so a required field
+  // supplied either way would be rejected. The requirement is not lost:
+  // `buildRequest` raises it once every spelling has had its chance.
+  if (descriptor.required && renamedFrom.length === 0 && !flag.trailing) {
+    option.makeOptionMandatory()
+  }
   command.addOption(option)
 
   for (const previous of renamedFrom) {

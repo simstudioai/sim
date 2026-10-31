@@ -14,6 +14,7 @@ import {
   isProfileWorkspacePath,
   PROFILE_INJECTED_FIELD,
   RESERVED_PROGRAM_FLAGS,
+  trailingListField,
 } from './request'
 import type { OperationSpec } from './types'
 
@@ -309,6 +310,22 @@ function configureOperation(
     command.argument(
       `<${flagNameFor(operation, field)}>`,
       flagSpecFor(operation, field).describe ?? descriptor.describe
+    )
+  }
+
+  const trailing = trailingListField(spec)
+  if (trailing) {
+    const trailingFlags = Object.values(spec.flags ?? {}).filter((flag) => flag.trailing)
+    const descriptor = operationSpec.query?.[trailing] ?? operationSpec.body?.[trailing]
+    if (trailingFlags.length > 1)
+      throw new Error(`${operation} declares more than one trailing list`)
+    if (!descriptor || !flagSpecFor(operation, trailing).list) {
+      throw new Error(`${operation}.${trailing} is trailing but not a list request field`)
+    }
+    const name = flagNameFor(operation, trailing)
+    command.argument(
+      `[${name}...]`,
+      `${flagSpecFor(operation, trailing).describe ?? descriptor.describe} Same as --${name}.`
     )
   }
 
