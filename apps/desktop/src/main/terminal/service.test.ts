@@ -198,6 +198,7 @@ vi.mock('@/main/terminal/session', async () => {
             return state.cwd
           },
           shell: 'zsh',
+          shellProgram: 'zsh',
           get foreground() {
             return state.busy ? 'sleep 1' : null
           },
@@ -331,7 +332,7 @@ describe('focus-gated shortcuts', () => {
       terminal.handleFocusedShortcut('close-tab', renderer.window, vi.fn(), confirmClose)
     ).toBe(true)
 
-    expect(confirmClose).toHaveBeenCalledWith('sleep 1')
+    expect(confirmClose).toHaveBeenCalledWith('sleep 1', 'zsh')
     expect(terminal.getTabs().activeTerminalId).toBe(activeId)
   })
 

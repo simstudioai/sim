@@ -592,7 +592,7 @@ export class TerminalService {
     shortcut: FocusedResourceShortcut,
     ownerWindow: BrowserWindow | null,
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
-    confirmCloseRunning?: (running: string) => boolean | Promise<boolean>
+    confirmCloseRunning?: (running: string, shell: string) => boolean | Promise<boolean>
   ): boolean {
     // Hard reload and history have no terminal meaning — leave them to the Browser or shell.
     if (
@@ -657,13 +657,13 @@ export class TerminalService {
   private async confirmCloseRunningTerminal(
     terminal: TerminalSession,
     running: string,
-    confirm: (running: string) => boolean | Promise<boolean>
+    confirm: (running: string, shell: string) => boolean | Promise<boolean>
   ): Promise<void> {
     const id = this.activeId
     if (!id || this.pendingCloseConfirmations.has(id)) return
     this.pendingCloseConfirmations.add(id)
     try {
-      if (!(await confirm(running))) return
+      if (!(await confirm(running, terminal.shellProgram))) return
       if (this.sessions.get(id) !== terminal) return
       if (terminal.isBusy && (terminal.foreground ?? 'A process') !== running) return
       this.closeTerminal(id)
