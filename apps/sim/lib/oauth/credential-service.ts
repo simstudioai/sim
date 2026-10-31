@@ -1040,8 +1040,9 @@ const OAUTH_REFRESH_AHEAD_WINDOW_MS = 10 * 60 * 1000
  */
 const OAUTH_REFRESH_AHEAD_JITTER_MS = 60 * 1000
 /**
- * The validity a stored token must still have, after a failed blocking refresh, to be served
- * instead of failing the request.
+ * The validity a stored token must still have, after a blocking refresh that never settled, to be
+ * served instead of failing the request. It sits below {@link OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS}
+ * on purpose: the request can still use such a token, and its next caller refreshes again.
  */
 const OAUTH_STORED_TOKEN_FALLBACK_MIN_MS = 30 * 1000
 
