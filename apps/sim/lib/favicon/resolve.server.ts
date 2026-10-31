@@ -78,11 +78,9 @@ async function askProvider(url: string, signal: AbortSignal): Promise<FaviconRes
       signal,
       headers: { Accept: 'image/png,image/x-icon,image/jpeg,image/gif,image/webp' },
     })
-    if (response.status !== 200) {
-      await response.body?.cancel().catch(() => {})
-      return classifyProviderResponse(response.status, new Uint8Array())
-    }
-    const bytes = Buffer.from(await response.arrayBuffer())
+    let bytes = Buffer.alloc(0)
+    if (response.status === 200) bytes = Buffer.from(await response.arrayBuffer())
+    else await response.body?.cancel().catch(() => {})
     const result = classifyProviderResponse(response.status, bytes)
     return result.kind === 'hit' ? { ...result, bytes } : result
   } catch (error) {

@@ -6,7 +6,7 @@ const HOST_SHAPE = /^[^\s/?#@\\]+$/
 /**
  * Hosts to ask a favicon provider about, most specific first. A private tenant such as
  * `acme.atlassian.net` is invisible to providers, but its platform is not, so each parent
- * domain follows, stopping before the ICANN public suffix (`gitlab.io` is a valid last step;
+ * domain follows — at most three, stopping before the ICANN public suffix (`gitlab.io` is a valid last step;
  * `io` and `co.uk` are not). Internal hosts — IP literals, single labels, and names outside
  * the public DNS — yield nothing, so they never leave the server, and neither does a name with
  * characters DNS can't hold, which could otherwise reshape a provider's URL.

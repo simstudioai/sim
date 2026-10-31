@@ -32,7 +32,7 @@ export const GET = defineInternalBinaryRoute({
           },
         }
       : {
-          status: 204,
+          status: 204 as const,
           headers: {
             'Cache-Control': favicon.kind === 'miss' ? 'private, max-age=3600' : 'no-store',
           },
