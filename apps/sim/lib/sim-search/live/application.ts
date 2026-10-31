@@ -27,7 +27,7 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import { createPinnedConnectionPool } from '@/lib/core/security/input-validation.server'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { mapWithConcurrency, waitWithAbort } from '@/lib/core/utils/concurrency'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -716,8 +716,9 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       let session: LiveAccountSession | undefined
       try {
         signal.throwIfAborted()
+        /** Bounds every resolution path, including those that take no signal (admin GitLab, managed OAuth). */
         const resolved = await measureSearchStage('live.resolve', () =>
-          resolveListedLiveAccount(input, userId, account)
+          waitWithAbort(resolveListedLiveAccount(input, userId, account, signal), signal)
         )
         session = await measureSearchStage('live.session', () =>
           openLiveAccountSession({
@@ -870,7 +871,7 @@ export type LiveReadInput = ResourceOwner & {
   signal?: AbortSignal
 }
 
-/** Milliseconds one document read may spend on provider calls, after account resolution. */
+/** Milliseconds one document read may spend resolving its account and calling the provider. */
 const READ_DEADLINE_MS = 15_000
 
 function liveProviderName(provider: string): string {
@@ -946,16 +947,16 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     /** Cancellation by the caller passes through unclassified. */
     const readFailure = (error: unknown, deadline?: AbortSignal) =>
       input.signal?.aborted ? error : liveReadFailure(error, reference.provider, deadline)
+    const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
+    const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
     const [resolved, policies] = await Promise.all([
-      resolveLiveAccount(input, userId, reference.account),
+      waitWithAbort(resolveLiveAccount(input, userId, reference.account, signal), signal),
       loadLiveSearchPolicies(input),
     ]).catch((error: unknown) => {
-      throw readFailure(error)
+      throw readFailure(error, deadline)
     })
     if (resolved.account.provider !== reference.provider)
       throw new OrchestrationError('not_found', 'Document account changed')
-    const deadline = AbortSignal.timeout(READ_DEADLINE_MS)
-    const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline
     const pool = createPinnedConnectionPool()
     let document: NativeDocument
     let session: LiveAccountSession | undefined
