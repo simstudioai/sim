@@ -18,16 +18,12 @@
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
+import { programName } from '@sim/terminal-protocol'
+
+const SUPPORTED_SHELLS = ['zsh', 'bash', 'pwsh', 'powershell'] as const
 
 /** Shells we can install prompt hooks into. */
-export type SupportedShell = 'zsh' | 'bash' | 'pwsh' | 'powershell'
-
-const SUPPORTED_SHELLS: ReadonlySet<string> = new Set<SupportedShell>([
-  'zsh',
-  'bash',
-  'pwsh',
-  'powershell',
-])
+export type SupportedShell = (typeof SUPPORTED_SHELLS)[number]
 
 /**
  * A shell's program name, as it is reported to the agent: no directory (either
@@ -35,16 +31,12 @@ const SUPPORTED_SHELLS: ReadonlySet<string> = new Set<SupportedShell>([
  * `powershell`, `-zsh` is `zsh`.
  */
 export function shellKind(shellPath: string): string {
-  const name = shellPath.split(/[\\/]/).pop() ?? ''
-  return name
-    .replace(/^-/, '')
-    .replace(/\.exe$/i, '')
-    .toLowerCase()
+  return programName(shellPath).replace(/^-/, '').toLowerCase()
 }
 
 export function detectShell(shellPath: string): SupportedShell | null {
   const kind = shellKind(shellPath)
-  return SUPPORTED_SHELLS.has(kind) ? (kind as SupportedShell) : null
+  return SUPPORTED_SHELLS.find((shell) => shell === kind) ?? null
 }
 
 export function createNonce(): string {
@@ -414,7 +406,7 @@ if (Test-Path -Path Function:\PSConsoleHostReadLine) {
 }
 
 /** PowerShell's `-EncodedCommand` takes base64 of UTF-16LE text. */
-export function encodePowerShellCommand(script: string): string {
+function encodePowerShellCommand(script: string): string {
   return Buffer.from(script, 'utf16le').toString('base64')
 }
 

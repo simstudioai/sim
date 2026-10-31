@@ -386,14 +386,27 @@ export function describeRunningCommand(running: string, shell?: string): string 
 
   const label =
     (program
-      ? (program
-          .replace(/^['"]|['"]$/g, '')
-          .split(backslashEscapes ? '/' : /[\\/]/)
-          .filter(Boolean)
-          .pop()
-          ?.replace(/\.exe$/i, '') ?? '')
+      ? lastPathSegment(program.replace(/^['"]|['"]$/g, ''), backslashEscapes ? '/' : /[\\/]/)
       : '') || segment
   return truncate(label, MAX_RUNNING_COMMAND_LABEL, '…')
+}
+
+/**
+ * A program's name from its path: the last segment, split on either separator as Windows reads
+ * both, without `.exe` in any case. `C:\Windows\System32\cmd.EXE` is `cmd`.
+ */
+export function programName(path: string): string {
+  return lastPathSegment(path, /[\\/]/)
+}
+
+function lastPathSegment(path: string, separator: string | RegExp): string {
+  return (
+    path
+      .split(separator)
+      .filter(Boolean)
+      .pop()
+      ?.replace(/\.exe$/i, '') ?? ''
+  )
 }
 
 /** One tmux pane, as reported by the `panes` operation. */
