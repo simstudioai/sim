@@ -531,6 +531,12 @@ function main(): void {
     win.on('focus', () => {
       lastActiveWindow = win
     })
+    // Windows and Linux report a mouse's back and forward buttons as app
+    // commands. They move the Browser tab the user is in, never the Sim shell.
+    win.on('app-command', (_event, command) => {
+      if (command === 'browser-backward') handleFocusedBrowserShortcut('back', win)
+      else if (command === 'browser-forward') handleFocusedBrowserShortcut('forward', win)
+    })
     // A fresh document (reload, origin change, crash recovery) has no browser
     // panel mounted yet — hide the embedded agent-browser view immediately
     // rather than letting it linger over the loading page.

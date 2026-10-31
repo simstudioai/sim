@@ -10,18 +10,20 @@
  * while the page keeps rendering, so none of that applies.
  *
  * It is also what a browser's page menu is everywhere else, and unlike the
- * terminal's hidden textarea, the roles here act on a real page: `copy` and
+ * terminal's hidden textarea, the edit items act on a real page: `copy` and
  * `paste` go to the frame that was clicked.
  */
 
 import { resolveDesktopZoom } from '@sim/desktop-bridge'
-import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
+import type { ContextMenuParams, MenuItemConstructorOptions, Referrer, WebContents } from 'electron'
 import { clipboard, Menu } from 'electron'
 import {
   clearAgentContextMenu,
   consumeAgentContextMenu,
   isDispatchingAgentInput,
 } from '@/main/browser-agent/cdp'
+import { spellingItems } from '@/main/context-menu'
+import { parseHttpUrl } from '@/main/navigation'
 
 /**
  * Page-zoom ladder for the embedded browser, in Chromium's absolute zoom
@@ -78,7 +80,15 @@ export function steppedZoomFactor(current: number, direction: 1 | -1): number {
 /** The parts of a right-click the menu acts on. */
 type AgentContextMenuParams = Pick<
   ContextMenuParams,
-  'selectionText' | 'linkURL' | 'isEditable' | 'editFlags'
+  | 'selectionText'
+  | 'linkURL'
+  | 'isEditable'
+  | 'editFlags'
+  | 'misspelledWord'
+  | 'dictionarySuggestions'
+  | 'mediaType'
+  | 'srcURL'
+  | 'hasImageContents'
 >
 
 /** What the page can currently do, read at the moment of the click. */
@@ -89,34 +99,89 @@ interface AgentPageContext {
   defaultZoomFactor: number
 }
 
+/** A history move or reload started from browser chrome rather than by the page. */
+export type PageNavigation = 'back' | 'forward' | 'reload'
+
+/**
+ * Edit actions are explicit calls on this page rather than menu roles: a role
+ * acts on whichever contents holds focus, and a right-click need not focus the page.
+ */
 interface AgentContextMenuHandlers {
   addToChat(text: string): void
+  replaceMisspelling(word: string): void
+  addToDictionary(word: string): void
+  undo(): void
+  redo(): void
+  cut(): void
   copy(): void
   paste(): void
-  back(): void
-  forward(): void
-  reload(): void
+  pasteAndMatchStyle(): void
+  selectAll(): void
+  navigate(kind: PageNavigation): void
   openTab(url: string): void
   copyLink(url: string): void
+  copyImage(): void
+  saveImage(url: string): void
   setZoomFactor(factor: number): void
 }
 
 export interface AgentContextMenuHost {
   /** Attaches selected page text to the chat that owns this browser tab. */
   addToChat(text: string): void
-  /** Opens a link from the page in another tab of the same browser. */
-  openTab(url: string): void
+  /** Opens a URL from the page in another tab of the same browser. */
+  openTab(url: string, referrer: Referrer): void
   /** Returns the device's current default page zoom factor. */
   defaultZoomFactor(): number
+  history(): Pick<AgentPageContext, 'canGoBack' | 'canGoForward'>
+  /** Runs through the user-navigation path, so a page's leave-site question reaches the user. */
+  navigate(kind: PageNavigation): void
+}
+
+const isWebUrl = (url: string) => parseHttpUrl(url) !== null
+
+const REFERRER_POLICIES: ReadonlySet<unknown> = new Set<Referrer['policy']>([
+  'default',
+  'unsafe-url',
+  'no-referrer-when-downgrade',
+  'no-referrer',
+  'origin',
+  'strict-origin-when-cross-origin',
+  'same-origin',
+  'strict-origin',
+])
+
+function isReferrerPolicy(value: unknown): value is Referrer['policy'] {
+  return REFERRER_POLICIES.has(value)
+}
+
+/** Electron types `referrerPolicy` as a Referrer, but it arrives as the bare policy string. */
+function menuReferrer(
+  params: Pick<ContextMenuParams, 'referrerPolicy' | 'frameURL' | 'pageURL'>
+): Referrer {
+  const policy: unknown = params.referrerPolicy
+  const url = params.frameURL || params.pageURL
+  return {
+    url: isWebUrl(url) ? url : '',
+    policy: isReferrerPolicy(policy) ? policy : 'default',
+  }
+}
+
+/** Ends the template with one separator, never two in a row or one at the top. */
+function endGroup(template: MenuItemConstructorOptions[]): void {
+  if (template.length > 0 && template[template.length - 1].type !== 'separator') {
+    template.push({ type: 'separator' })
+  }
 }
 
 /**
  * Builds the page menu. Unlike the main window's menu this is never empty —
- * navigation and zoom always apply, and only the clipboard and link items
- * depend on what was clicked.
+ * navigation and zoom always apply, and only the spelling, clipboard, link, and
+ * image items depend on what was clicked.
  *
- * Only http(s) links get link items: the actions open a browser tab or copy an
- * address, and neither means anything for a `javascript:` or `mailto:` target.
+ * Only http(s) links and image sources get address items: the actions open a
+ * browser tab, download, or copy an address, and none of them means anything
+ * for a `javascript:`, `data:`, or `blob:` target. Copy Image needs no address,
+ * so it is offered for any loaded image.
  */
 export function buildAgentContextMenuTemplate(
   params: AgentContextMenuParams,
@@ -124,8 +189,13 @@ export function buildAgentContextMenuTemplate(
   handlers: AgentContextMenuHandlers
 ): MenuItemConstructorOptions[] {
   const template: MenuItemConstructorOptions[] = []
-  const linkUrl = /^https?:\/\//i.test(params.linkURL) ? params.linkURL : ''
+  const linkUrl = isWebUrl(params.linkURL) ? params.linkURL : ''
+  const imageUrl = isWebUrl(params.srcURL) ? params.srcURL : ''
   const selectionText = params.selectionText
+  const flags = params.editFlags
+
+  template.push(...spellingItems(params, handlers))
+  endGroup(template)
 
   if (selectionText.trim()) {
     template.push(
@@ -142,20 +212,47 @@ export function buildAgentContextMenuTemplate(
     )
   }
 
-  if (selectionText.trim()) {
-    template.push({ label: 'Copy', click: () => handlers.copy() })
-  }
-  if (params.isEditable && params.editFlags.canPaste) {
-    template.push({ label: 'Paste', click: () => handlers.paste() })
-  }
-  if (template.length > 0 && template[template.length - 1].type !== 'separator') {
-    template.push({ type: 'separator' })
+  if (params.mediaType === 'image') {
+    const copyImage: MenuItemConstructorOptions[] = params.hasImageContents
+      ? [{ label: 'Copy Image', click: () => handlers.copyImage() }]
+      : []
+    template.push(
+      ...(imageUrl
+        ? [
+            { label: 'Open Image in New Tab', click: () => handlers.openTab(imageUrl) },
+            { label: 'Save Image', click: () => handlers.saveImage(imageUrl) },
+            ...copyImage,
+            { label: 'Copy Image Address', click: () => handlers.copyLink(imageUrl) },
+          ]
+        : copyImage)
+    )
+    endGroup(template)
   }
 
+  if (params.isEditable) {
+    template.push(
+      { label: 'Undo', enabled: flags.canUndo, click: () => handlers.undo() },
+      { label: 'Redo', enabled: flags.canRedo, click: () => handlers.redo() },
+      { type: 'separator' },
+      { label: 'Cut', enabled: flags.canCut, click: () => handlers.cut() },
+      { label: 'Copy', enabled: flags.canCopy, click: () => handlers.copy() },
+      { label: 'Paste', enabled: flags.canPaste, click: () => handlers.paste() },
+      {
+        label: 'Paste and Match Style',
+        enabled: flags.canPaste,
+        click: () => handlers.pasteAndMatchStyle(),
+      },
+      { label: 'Select All', enabled: flags.canSelectAll, click: () => handlers.selectAll() }
+    )
+  } else if (selectionText.trim()) {
+    template.push({ label: 'Copy', click: () => handlers.copy() })
+  }
+  endGroup(template)
+
   template.push(
-    { label: 'Back', enabled: page.canGoBack, click: () => handlers.back() },
-    { label: 'Forward', enabled: page.canGoForward, click: () => handlers.forward() },
-    { label: 'Reload', click: () => handlers.reload() },
+    { label: 'Back', enabled: page.canGoBack, click: () => handlers.navigate('back') },
+    { label: 'Forward', enabled: page.canGoForward, click: () => handlers.navigate('forward') },
+    { label: 'Reload', click: () => handlers.navigate('reload') },
     { type: 'separator' }
   )
 
@@ -198,20 +295,27 @@ export function attachAgentContextMenu(contents: WebContents, host: AgentContext
     const template = buildAgentContextMenuTemplate(
       params,
       {
-        canGoBack: contents.navigationHistory.canGoBack(),
-        canGoForward: contents.navigationHistory.canGoForward(),
+        ...host.history(),
         zoomFactor: contents.getZoomFactor(),
         defaultZoomFactor: host.defaultZoomFactor(),
       },
       {
         addToChat: (text) => host.addToChat(text),
+        replaceMisspelling: (word) => contents.replaceMisspelling(word),
+        addToDictionary: (word) => contents.session.addWordToSpellCheckerDictionary(word),
+        undo: () => contents.undo(),
+        redo: () => contents.redo(),
+        cut: () => contents.cut(),
         copy: () => contents.copy(),
         paste: () => contents.paste(),
-        back: () => contents.navigationHistory.goBack(),
-        forward: () => contents.navigationHistory.goForward(),
-        reload: () => contents.reload(),
-        openTab: (url) => host.openTab(url),
+        pasteAndMatchStyle: () => contents.pasteAndMatchStyle(),
+        selectAll: () => contents.selectAll(),
+        navigate: (kind) => host.navigate(kind),
+        openTab: (url) => host.openTab(url, menuReferrer(params)),
         copyLink: (url) => clipboard.writeText(url),
+        copyImage: () => contents.copyImageAt(params.x, params.y),
+        // A download, so the browser's download limits and request guards apply.
+        saveImage: (url) => contents.downloadURL(url),
         setZoomFactor: (factor) => contents.setZoomFactor(factor),
       }
     )
