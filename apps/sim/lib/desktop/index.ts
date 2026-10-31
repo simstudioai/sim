@@ -31,6 +31,7 @@ import {
 } from '@/lib/api/contracts/computer-use'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
+  DESKTOP_TERMINAL_HINT_SHELL_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
 
@@ -164,6 +165,8 @@ export interface DesktopTerminalHint {
   running?: string
   interactive?: boolean
   active?: boolean
+  /** The shell's program name (`zsh`, `pwsh`, `powershell`), so commands are written for it. */
+  shell?: string
 }
 
 export interface DesktopChatCapabilities {
@@ -235,6 +238,9 @@ export async function getDesktopChatCapabilities(
                   : {}),
                 ...(tab.interactive ? { interactive: true as const } : {}),
                 ...(tab.active ? { active: true as const } : {}),
+                ...(tab.shell
+                  ? { shell: truncate(tab.shell, DESKTOP_TERMINAL_HINT_SHELL_MAX_LENGTH, '') }
+                  : {}),
               }))
           )
           .catch(() => [])

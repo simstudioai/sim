@@ -894,7 +894,8 @@ describe('desktop request capabilities', () => {
       model: 'gpt-6-astra',
       browser: true,
       terminalCapable: true,
-      terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
+      desktopPlatform: 'win32',
+      terminals: [{ id: 'terminal-1', cwd: 'C:\\work\\app', active: true, shell: 'pwsh' }],
       browserSessions: [
         { hostname: 'example.com', evidence: 'cookies', lastObservedAt: '2026-09-08' },
       ],
@@ -903,7 +904,8 @@ describe('desktop request capabilities', () => {
       computerUse: false,
       browser: true,
       terminal: true,
-      terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
+      platform: 'win32',
+      terminals: [{ id: 'terminal-1', cwd: 'C:\\work\\app', active: true, shell: 'pwsh' }],
       browserSessions: [
         { hostname: 'example.com', evidence: 'cookies', lastObservedAt: '2026-09-08' },
       ],
