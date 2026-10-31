@@ -37,6 +37,7 @@ import {
   executeTool as executeAgentBrowserTool,
   hasBrowserScopeSession,
   initDriver as initBrowserAgentDriver,
+  isBrowserToolRunning,
   restoreBrowserScope as restoreAgentBrowserScope,
 } from '@/main/browser-agent/driver'
 import {
@@ -1170,10 +1171,9 @@ function main(): void {
         return describeInFlightWork({
           terminalCommands: terminal.runningCommands(),
           computerUseApp: computerUseActivity ? (computerUseActivity.appName ?? '') : null,
+          browserToolRunning: isBrowserToolRunning(),
           agentWorkRunning,
-          unsavedWindowCount: await countWindowsWithUnsavedChanges(
-            getWindows().map((win) => win.webContents)
-          ),
+          ...(await countWindowsWithUnsavedChanges(getWindows().map((win) => win.webContents))),
         })
       },
       beforeInstall: async () => {

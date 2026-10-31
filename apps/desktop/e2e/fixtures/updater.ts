@@ -23,7 +23,10 @@ declare global {
     failStaging(): void
     setWork(work: {
       terminalCommands: string[]
+      browserToolRunning: boolean
       unloadListener: FixtureUnloadListener
+      /** Adds a second window whose renderer is blocked past the shell's probe deadline. */
+      hungWindow?: boolean
     }): Promise<void>
     read(): {
       state: DesktopUpdateState
@@ -80,6 +83,8 @@ void app.whenReady().then(async () => {
   page.webContents.on('will-prevent-unload', (event) => event.preventDefault())
   await page.loadURL('about:blank')
   let terminalCommands: string[] = []
+  let browserToolRunning = false
+  let hungPage: BrowserWindow | null = null
 
   const updater = new MacUpdater()
   updater.forceDevUpdateConfig = true
@@ -98,8 +103,11 @@ void app.whenReady().then(async () => {
       describeInFlightWork({
         terminalCommands,
         computerUseApp: null,
+        browserToolRunning,
         agentWorkRunning: false,
-        unsavedWindowCount: await countWindowsWithUnsavedChanges([page.webContents]),
+        ...(await countWindowsWithUnsavedChanges(
+          hungPage ? [page.webContents, hungPage.webContents] : [page.webContents]
+        )),
       }),
   })
 
@@ -113,6 +121,21 @@ void app.whenReady().then(async () => {
     failStaging: () => nativeUpdater.emit('error', new Error('Native verification failed')),
     setWork: async (work) => {
       terminalCommands = work.terminalCommands
+      browserToolRunning = work.browserToolRunning
+      if (hungPage) {
+        // Let the blocked renderer finish first; destroying it mid-loop stalls the app's exit.
+        await hungPage.webContents.executeJavaScript('0')
+        hungPage.destroy()
+        hungPage = null
+      }
+      if (work.hungWindow) {
+        hungPage = new BrowserWindow({ show: false })
+        await hungPage.loadURL('about:blank')
+        await hungPage.webContents.executeJavaScript(`window.addEventListener('beforeunload', () => {
+          const until = Date.now() + 1500
+          while (Date.now() < until) {}
+        })`)
+      }
       await page.webContents.executeJavaScript(`(() => {
         for (const listener of window.fixtureUnloadListeners ?? []) {
           window.removeEventListener('beforeunload', listener)

@@ -4539,10 +4539,8 @@ export function useChat(
     }
 
     window.addEventListener('pagehide', clearClaim)
-    window.addEventListener('beforeunload', clearClaim)
     return () => {
       window.removeEventListener('pagehide', clearClaim)
-      window.removeEventListener('beforeunload', clearClaim)
     }
   }, [])
   useEffect(() => {

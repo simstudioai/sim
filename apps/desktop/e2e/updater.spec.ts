@@ -148,12 +148,24 @@ test('the real MacUpdater waits for native staging, replaces old builds, retries
       async () => {
         /** Sets the work in progress, clicks Restart to update, and answers any prompt with `response`. */
         const installWith = async (
-          work: { terminalCommands?: string[]; unloadListener: 'passive' | 'unsaved-edits' },
+          work: {
+            terminalCommands?: string[]
+            browserToolRunning?: boolean
+            unloadListener: 'passive' | 'unsaved-edits'
+            hungWindow?: boolean
+          },
           response: number
         ) => {
           await shell.evaluate(
-            async (_electron, [{ terminalCommands = [], unloadListener }, answer]) => {
-              await globalThis.desktopUpdaterFixture.setWork({ terminalCommands, unloadListener })
+            async (
+              _electron,
+              [{ terminalCommands = [], browserToolRunning = false, ...rest }, answer]
+            ) => {
+              await globalThis.desktopUpdaterFixture.setWork({
+                terminalCommands,
+                browserToolRunning,
+                ...rest,
+              })
               globalThis.updaterFixtureDialogResponse = answer
               globalThis.desktopUpdaterFixture.install()
             },
@@ -185,10 +197,19 @@ test('the real MacUpdater waits for native staging, replaces old builds, retries
         await installWith({ unloadListener: 'unsaved-edits' }, 1)
         await expectNotNowPrompt(2, 'A window has unsaved changes.')
 
+        await installWith(
+          { browserToolRunning: true, unloadListener: 'passive', hungWindow: true },
+          1
+        )
+        await expectNotNowPrompt(
+          3,
+          "An agent is using the browser. A window isn't responding and may have unsaved changes."
+        )
+
         // Answering Not Now again would leave nothing installed if a prompt appeared.
         await installWith({ unloadListener: 'passive' }, 1)
         await expect.poll(async () => (await read()).installed).toEqual(['2.1.0'])
-        expect((await read()).dialogs).toHaveLength(2)
+        expect((await read()).dialogs).toHaveLength(3)
       }
     )
     snapshot = await read()

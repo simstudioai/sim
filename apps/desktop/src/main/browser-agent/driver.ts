@@ -457,6 +457,11 @@ function releaseBrowserToolAdmission(state: DriverScopeState, admission: symbol)
   activeBrowserToolAdmissions.delete(admission)
 }
 
+/** Whether any chat has a browser action queued or running in this process. */
+export function isBrowserToolRunning(): boolean {
+  return activeBrowserToolAdmissions.size > 0
+}
+
 function retireDriverScopeState(state: DriverScopeState): void {
   state.disposed = true
   state.toolQueueCancellationEpoch++

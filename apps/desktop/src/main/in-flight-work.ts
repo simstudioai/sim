@@ -6,7 +6,7 @@ import type { WebContents } from 'electron'
 
 const logger = createLogger('DesktopInFlightWork')
 
-/** A renderer that cannot answer this quickly is hung, and its edits are not recoverable anyway. */
+/** A renderer that cannot answer this quickly is treated as hung, holding edits it cannot report. */
 const UNSAVED_CHANGES_PROBE_TIMEOUT_MS = 1_000
 const MAX_NAMED_TERMINAL_COMMANDS = 2
 
@@ -26,27 +26,37 @@ const UNSAVED_CHANGES_PROBE = `(() => {
   return event.defaultPrevented || (typeof event.returnValue === 'string' && event.returnValue !== '')
 })()`
 
-async function hasUnsavedChanges(contents: WebContents): Promise<boolean> {
-  if (contents.isDestroyed() || contents.isCrashed()) return false
+type UnloadAnswer = 'clean' | 'unsaved' | 'unresponsive'
+
+async function askAboutUnsavedChanges(contents: WebContents): Promise<UnloadAnswer> {
+  if (contents.isDestroyed() || contents.isCrashed()) return 'clean'
   try {
     const answer = await Promise.race([
       contents.executeJavaScript(UNSAVED_CHANGES_PROBE),
-      sleep(UNSAVED_CHANGES_PROBE_TIMEOUT_MS).then(() => false),
+      sleep(UNSAVED_CHANGES_PROBE_TIMEOUT_MS).then(() => 'unresponsive' as const),
     ])
-    return answer === true
+    if (answer === 'unresponsive') return answer
+    return answer === true ? 'unsaved' : 'clean'
   } catch (error) {
     logger.warn('Could not ask a window about unsaved changes', {
       message: getErrorMessage(error, 'unknown'),
     })
-    return false
+    return 'clean'
   }
 }
 
-/** How many of these windows' pages would ask before leaving; a page that cannot answer does not. */
+/**
+ * Counts the windows whose pages would ask before leaving, and those too hung
+ * to answer, which may be holding edits just the same.
+ */
 export async function countWindowsWithUnsavedChanges(
   windows: readonly WebContents[]
-): Promise<number> {
-  return (await Promise.all(windows.map(hasUnsavedChanges))).filter(Boolean).length
+): Promise<Pick<InFlightWork, 'unsavedWindowCount' | 'unresponsiveWindowCount'>> {
+  const answers = await Promise.all(windows.map(askAboutUnsavedChanges))
+  return {
+    unsavedWindowCount: answers.filter((answer) => answer === 'unsaved').length,
+    unresponsiveWindowCount: answers.filter((answer) => answer === 'unresponsive').length,
+  }
 }
 
 export interface InFlightWork {
@@ -54,9 +64,12 @@ export interface InFlightWork {
   terminalCommands: readonly string[]
   /** The app a computer-use action is driving, `''` when it has no name, or null when idle. */
   computerUseApp: string | null
+  /** Whether an agent has a browser action queued or running. */
+  browserToolRunning: boolean
   /** Whether a chat has desktop work claimed on this machine. */
   agentWorkRunning: boolean
   unsavedWindowCount: number
+  unresponsiveWindowCount: number
 }
 
 /**
@@ -80,7 +93,11 @@ export function describeInFlightWork(work: InFlightWork): string[] {
         ? `An agent is using ${work.computerUseApp}.`
         : 'An agent is using an app on this computer.'
     )
-  } else if (work.agentWorkRunning) {
+  }
+  if (work.browserToolRunning) {
+    sentences.push('An agent is using the browser.')
+  }
+  if (work.agentWorkRunning && work.computerUseApp === null && !work.browserToolRunning) {
     sentences.push('An agent is still working on this computer.')
   }
 
@@ -88,6 +105,13 @@ export function describeInFlightWork(work: InFlightWork): string[] {
     sentences.push('A window has unsaved changes.')
   } else if (work.unsavedWindowCount > 1) {
     sentences.push(`${work.unsavedWindowCount} windows have unsaved changes.`)
+  }
+  if (work.unresponsiveWindowCount === 1) {
+    sentences.push("A window isn't responding and may have unsaved changes.")
+  } else if (work.unresponsiveWindowCount > 1) {
+    sentences.push(
+      `${work.unresponsiveWindowCount} windows aren't responding and may have unsaved changes.`
+    )
   }
   return sentences
 }
