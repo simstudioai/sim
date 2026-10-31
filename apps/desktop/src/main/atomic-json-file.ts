@@ -9,6 +9,8 @@ import {
 } from 'node:fs'
 import { mkdir, open, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 
 /** Owner-only, matching every store that keeps user data in userData. */
 const FILE_MODE = 0o600
@@ -84,6 +86,42 @@ function temporaryPathFor(filePath: string): string {
   return `${filePath}.${process.pid}.${temporaryFileCounter}.tmp`
 }
 
+/** Defender and the search indexer briefly hold files open on Windows, which fails the rename. */
+const WINDOWS_TRANSIENT_RENAME_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
+const MAX_RENAME_ATTEMPTS = 5
+
+interface RenameOptions {
+  platform?: NodeJS.Platform
+  rename?: (from: string, to: string) => Promise<void>
+}
+
+/**
+ * Renames over `to`, retrying a few times on Windows while another process
+ * holds the target. Other platforms and other errors fail on the first try.
+ */
+export async function renameReplacing(
+  from: string,
+  to: string,
+  { platform = process.platform, rename: renameFile = rename }: RenameOptions = {}
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await renameFile(from, to)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (
+        platform !== 'win32' ||
+        attempt >= MAX_RENAME_ATTEMPTS ||
+        !code ||
+        !WINDOWS_TRANSIENT_RENAME_CODES.has(code)
+      )
+        throw error
+      await sleep(backoffWithJitter(attempt, null, { baseMs: 20, maxMs: 200 }))
+    }
+  }
+}
+
 /**
  * Crash-safe JSON writes for the small encrypted stores in userData.
  *
@@ -97,7 +135,7 @@ export async function writeJsonFileAtomically(filePath: string, value: unknown):
   await mkdir(dirname(filePath), { recursive: true })
   const temporaryPath = temporaryPathFor(filePath)
   await writeFile(temporaryPath, JSON.stringify(value), { mode: FILE_MODE })
-  await rename(temporaryPath, filePath)
+  await renameReplacing(temporaryPath, filePath)
 }
 
 /**

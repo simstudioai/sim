@@ -38,6 +38,7 @@ import type {
   PersistedLocalFilesystemGrant,
 } from '@/main/local-filesystem-grant-store'
 import { openNativeFile } from '@/main/native-directory'
+import { isWin32SafeSegment } from '@/main/win32-path'
 
 const MAX_URI_LENGTH = 4096
 const MAX_LIST_ENTRIES = 500
@@ -114,6 +115,8 @@ interface LocalFilesystemServiceOptions {
   chooseDirectory?: () => Promise<string | SelectedDirectory | null>
   grantStore?: LocalFilesystemGrantStore
   startAccessingBookmark?: (bookmark: string) => (() => void) | undefined
+  /** Which platform's file-name rules URI segments must satisfy. Defaults to the host. */
+  platform?: NodeJS.Platform
 }
 
 interface SelectedDirectory {
@@ -364,10 +367,12 @@ export class LocalFilesystemService {
   private readonly chooseDirectory: () => Promise<string | SelectedDirectory | null>
   private readonly grantStore?: LocalFilesystemGrantStore
   private readonly startAccessingBookmark: (bookmark: string) => (() => void) | undefined
+  private readonly platform: NodeJS.Platform
   private initializePromise?: Promise<void>
 
   constructor(options: LocalFilesystemServiceOptions = {}) {
     this.grantStore = options.grantStore
+    this.platform = options.platform ?? process.platform
     this.startAccessingBookmark =
       options.startAccessingBookmark ??
       ((bookmark) => {
@@ -976,15 +981,18 @@ export class LocalFilesystemService {
     const resolved = await this.resolveUri(uri)
     const handle = await open(
       resolved.realPath,
-      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK
+      // Windows has no O_NOFOLLOW (the constant is undefined, so this ORs in 0);
+      // the identity recheck below is what catches a swapped path there.
+      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | constants.O_NONBLOCK
     )
     try {
-      const metadata = await handle.stat()
+      // bigint: NTFS file IDs exceed 2^53, and rounded IDs could compare equal.
+      const metadata = await handle.stat({ bigint: true })
       if (!metadata.isFile()) {
         throw new LocalFilesystemError('NOT_A_FILE', 'The local path is not a file.')
       }
       const verified = await this.resolveUri(uri)
-      const currentMetadata = await lstat(verified.realPath)
+      const currentMetadata = await lstat(verified.realPath, { bigint: true })
       if (
         verified.realPath !== resolved.realPath ||
         !currentMetadata.isFile() ||
@@ -996,13 +1004,14 @@ export class LocalFilesystemService {
           'The local file changed while it was being opened. Try again.'
         )
       }
-      if (metadata.size > maxBytes) {
+      const size = Number(metadata.size)
+      if (size > maxBytes) {
         throw new LocalFilesystemError(
           'FILE_TOO_LARGE',
           `The local file exceeds the ${Math.floor(maxBytes / 1024 / 1024)} MB upload limit.`
         )
       }
-      return { handle, name: basename(resolved.realPath), size: metadata.size }
+      return { handle, name: basename(resolved.realPath), size }
     } catch (error) {
       await handle.close()
       throw error
@@ -1075,7 +1084,8 @@ export class LocalFilesystemService {
         decoded === '..' ||
         decoded.includes('/') ||
         (sep === '\\' && decoded.includes('\\')) ||
-        decoded.includes('\0')
+        decoded.includes('\0') ||
+        (this.platform === 'win32' && !isWin32SafeSegment(decoded))
       ) {
         throw new LocalFilesystemError('INVALID_URI', 'The localfs URI is invalid.')
       }

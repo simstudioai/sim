@@ -1,5 +1,7 @@
+import { fstat } from 'node:fs'
 import { lstat, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { promisify } from 'node:util'
 import type {
   DesktopLocalFileEntry,
   DesktopLocalFileManifest,
@@ -17,6 +19,8 @@ import { readNativeDirectory } from '@/main/native-directory'
 const CHUNK_BYTES = 8 * 1024 * 1024
 const MAX_ENTRIES = 1000
 const MAX_READ_BYTES = 64_000
+
+const statDescriptor = promisify(fstat)
 
 export interface LocalFileAuthorization {
   toolName: string
@@ -45,8 +49,9 @@ async function readApprovedDirectory(path: string, access: LocalFileAccess) {
   try {
     const listing = await readNativeDirectory(handle.fd, MAX_ENTRIES)
     const canonical = await access.resolve(path)
-    const current = await lstat(canonical)
-    const opened = await handle.stat()
+    // bigint: NTFS file IDs exceed 2^53, and rounded IDs could compare equal.
+    const current = await lstat(canonical, { bigint: true })
+    const opened = await statDescriptor(handle.fd, { bigint: true })
     if (canonical !== path || current.dev !== opened.dev || current.ino !== opened.ino)
       throw new Error('The local directory changed while it was being read. Try again.')
     listing.entries.sort((left, right) => compareStrings(left.name, right.name))
