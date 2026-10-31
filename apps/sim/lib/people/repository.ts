@@ -27,6 +27,7 @@ export interface PersonRecord extends PersonSummary {
   location: string | null
   startDate: string | null
   manager: PersonSummary | null
+  managerMemberId: string | null
   joinedAt: Date
 }
 
@@ -96,7 +97,10 @@ async function summariesById(
   return new Map(rows.map((row) => [row.memberId, row]))
 }
 
-/** Joins each person to their manager, read once for the whole page. */
+/**
+ * Joins each person to their manager, read once for the whole page. A suspended manager stays
+ * linked by `managerMemberId` but has no summary, since no read lists suspended people.
+ */
 async function withManagers(
   executor: DbOrTx,
   organizationId: string,
@@ -104,9 +108,9 @@ async function withManagers(
 ): Promise<PersonRecord[]> {
   const managerIds = [...new Set(rows.flatMap((row) => row.managerMemberId ?? []))]
   const managers = await summariesById(executor, organizationId, managerIds)
-  return rows.map(({ sortName, managerMemberId, ...row }) => ({
+  return rows.map(({ sortName, ...row }) => ({
     ...row,
-    manager: managerMemberId ? (managers.get(managerMemberId) ?? null) : null,
+    manager: row.managerMemberId ? (managers.get(row.managerMemberId) ?? null) : null,
   }))
 }
 

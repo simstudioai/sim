@@ -43,11 +43,14 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
     department: person.department,
     location: person.location,
     startDate: person.startDate,
-    managerMemberId: person.manager?.memberId ?? null,
+    managerMemberId: person.managerMemberId,
   })
   const [errors, setErrors] = useState<Partial<Record<keyof PersonBody, string>>>({})
   const [managerSearch, setManagerSearch] = useState('')
-  /** The chosen manager's name, kept with the choice: the search results may no longer include them. */
+  /**
+   * The chosen manager's name, kept with the choice: the search results may no longer include them.
+   * Only a stored manager who is suspended has an id and no name.
+   */
   const [managerName, setManagerName] = useState(person.manager?.name ?? null)
   const candidates = usePeople(
     organizationId,
@@ -64,7 +67,7 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
       label: `${candidate.name} (${candidate.email})`,
     })),
   ]
-  const managerLabel = (draft.managerMemberId && managerName) || 'No manager'
+  const managerLabel = draft.managerMemberId ? (managerName ?? 'Suspended member') : 'No manager'
 
   const change = <K extends keyof PersonBody>(field: K, value: PersonBody[K]) => {
     setDraft((current) => ({ ...current, [field]: value }))

@@ -86,7 +86,10 @@ async function person(member: Member, memberId: string) {
   const result = await api(member, `/${memberId}`, {})
   assert(isRecordLike(result.person), 'Expected a person')
   return result as {
-    person: Record<string, unknown> & { manager: { memberId: string } | null }
+    person: Record<string, unknown> & {
+      manager: { memberId: string } | null
+      managerMemberId: string | null
+    }
     chain: { memberId: string }[]
     reports: { memberId: string }[]
   }
@@ -298,6 +301,62 @@ async function run() {
   })
 
   await check(
+    "an edit keeps a suspended manager it doesn't change, and refuses one as a new manager",
+    async () => {
+      const margaret = await seedMember(orgId, 'member', 'Margaret')
+      const edit = (memberId: string, body: Record<string, unknown>, expected = 200) =>
+        api(owner, `/${memberId}`, { method: 'PUT', body, expected })
+      await edit(ada.memberId, {
+        title: 'Engineer',
+        department: 'Platform',
+        location: 'Berlin, Germany',
+        startDate: '2021-03-04',
+        managerMemberId: margaret.memberId,
+      })
+      await sql`update "user" set suspended_at = now() where id = ${margaret.userId}`
+
+      const { person: shown } = await person(owner, ada.memberId)
+      assert.equal(shown.manager, null, 'A suspended manager is not shown')
+      assert.equal(shown.managerMemberId, margaret.memberId, 'The stored link is still reported')
+      const saved = await edit(ada.memberId, {
+        title: 'Staff Engineer',
+        department: shown.department,
+        location: shown.location,
+        startDate: shown.startDate,
+        managerMemberId: shown.managerMemberId,
+      })
+      assert(isRecordLike(saved.person), 'Expected a person')
+      assert.equal(saved.person.managerMemberId, margaret.memberId)
+      const row = await profileRow(ada.memberId)
+      assert.equal(row?.title, 'Staff Engineer')
+      assert.equal(row?.manager_member_id, margaret.memberId)
+
+      const refused = await edit(
+        linus.memberId,
+        {
+          title: 'Principal Engineer',
+          department: null,
+          location: null,
+          startDate: '2019-07-01',
+          managerMemberId: margaret.memberId,
+        },
+        400
+      )
+      assert.equal(refused.error, 'The manager must be a member of this organization')
+      assert.equal((await profileRow(linus.memberId))?.manager_member_id, owner.memberId)
+
+      await edit(ada.memberId, {
+        title: 'Staff Engineer',
+        department: shown.department,
+        location: shown.location,
+        startDate: shown.startDate,
+        managerMemberId: owner.memberId,
+      })
+      assert.equal((await profileRow(ada.memberId))?.manager_member_id, owner.memberId)
+    }
+  )
+
+  await check(
     'leaving the organization removes the profile and clears reporting lines',
     async () => {
       await sql`delete from member where id = ${owner.memberId}`
@@ -308,7 +367,7 @@ async function run() {
   )
 
   await check('imports and edits are audited', async () => {
-    const expected = { 'org_people.imported': 3, 'org_member.profile_updated': 1 }
+    const expected = { 'org_people.imported': 3, 'org_member.profile_updated': 4 }
     let counts: Record<string, number> = {}
     for (let attempt = 0; attempt < 20; attempt++) {
       const rows = await sql<
