@@ -262,6 +262,12 @@ function copilotRunLifecycle(context: ExecutionContext) {
 /** How often a run past its wait is re-read for its log before it is answered running. */
 const RUN_LOG_POLL_MS = 1000
 
+/**
+ * How long past its wait a run's log is polled for. A run still unreadable by then (stuck in
+ * preflight or startup) is held until it settles, without more reads.
+ */
+const RUN_LOG_POLL_LIMIT_MS = 60_000
+
 /** Whether the run's log exists; a lookup that fails counts as not yet, so the call keeps waiting. */
 async function runIsReadable(executionId: string, workflowId: string): Promise<boolean> {
   try {
@@ -292,21 +298,40 @@ async function answerWithinWait(
   const executionId = lifecycle.boundExecution?.executionId ?? generateId()
   const settled = run({ ...lifecycle, executionId })
   retainSandboxExecution(settled)
+  const outcome: {
+    current?: { ok: true; result: ToolCallResult } | { ok: false; error: unknown }
+  } = {}
+  const finished = settled.then(
+    (result) => {
+      outcome.current = { ok: true, result }
+    },
+    (error: unknown) => {
+      outcome.current = { ok: false, error }
+    }
+  )
   const stopWaiting = new AbortController()
-  const waited = (ms: number) => interruptibleSleep(ms, stopWaiting.signal).then(() => null)
+  const waited = (ms: number) => interruptibleSleep(ms, stopWaiting.signal)
   try {
-    let result = await Promise.race([settled, waited(waitMs)])
+    await Promise.race([finished, waited(waitMs)])
     // Answered running only once the run is readable by its id; one still starting up (or in
     // preflight) is waited on until its log exists or it settles.
-    while (!result && !(await runIsReadable(executionId, workflowId))) {
-      result = await Promise.race([settled, waited(RUN_LOG_POLL_MS)])
+    const pollUntil = Date.now() + RUN_LOG_POLL_LIMIT_MS
+    let readable = false
+    while (!outcome.current && !readable) {
+      if (Date.now() >= pollUntil) {
+        await finished
+        break
+      }
+      readable = await runIsReadable(executionId, workflowId)
+      if (!readable) await Promise.race([finished, waited(RUN_LOG_POLL_MS)])
     }
-    // A run that settled while its log was being read answers with its result.
-    result ??= await Promise.race([settled, Promise.resolve(null)])
-    if (result) return result
+    // One macrotask lets a run that settled as its log was read deliver its result first.
+    if (!outcome.current) await Promise.race([finished, waited(0)])
   } finally {
     stopWaiting.abort()
   }
+  if (outcome.current?.ok === false) throw outcome.current.error
+  if (outcome.current) return outcome.current.result
   logger.info('Workflow tool run outlasted its wait; answering it still running', {
     toolCallId: context.toolCallId,
     workflowId,

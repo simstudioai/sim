@@ -11,6 +11,7 @@ import {
   copilotRequestStops,
   copilotRuns,
   user,
+  workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
@@ -79,6 +80,10 @@ import {
   NO_SECRET_AUTHORITY,
   type TurnSecretAuthority,
 } from '@/lib/mothership/secret-mount-policy'
+import {
+  isWorkflowToolName,
+  WORKFLOW_TOOL_NAMES,
+} from '@/lib/mothership/tools/client-executed-tools'
 import {
   type DesktopToolClaimOwner,
   isDesktopToolCall,
@@ -1753,6 +1758,7 @@ export async function prepareWorkbenchAccess(
         settledAt: copilotAsyncToolCalls.executionSettledAt,
         revokedAt: copilotAsyncToolCalls.executionRevokedAt,
         toolCallId: copilotAsyncToolCalls.toolCallId,
+        executableName: copilotAsyncToolCalls.executableName,
         processes: copilotAsyncToolCalls.sandboxProcesses,
       })
       .from(copilotAsyncToolCalls)
@@ -1820,7 +1826,13 @@ export async function prepareWorkbenchAccess(
     if (processes.some((process) => process.sessionKey !== input.sessionKey))
       throw new Error('Recorded workbench ownership does not match this chat')
     return {
-      handlersPending: previous.some((row) => !row.settledAt && !row.revokedAt),
+      // A workflow tool's run never touches the workbench, and one answered running outlives its turn.
+      handlersPending: previous.some(
+        (row) =>
+          !row.settledAt &&
+          !row.revokedAt &&
+          !(row.executableName && isWorkflowToolName(row.executableName))
+      ),
       processes,
     }
   })
@@ -1925,12 +1937,16 @@ export async function getUnsettledClientWorkflowExecutions(
   )
 }
 
-const WORKFLOW_RUN_TOOL_NAMES = [
-  'run_workflow',
-  'run_workflow_until_block',
-  'run_from_block',
-  'run_block',
-] as const
+/** The fields of a stored call that say whether it left a workflow run going, read as text. */
+interface DetachedRunCall {
+  executableName: string | null
+  /** `args.request.invocation.argv` of a `sim_cli` call. */
+  argv: unknown
+  exitCode: string | null
+  stdout: string | null
+  status: string | null
+  executionId: string | null
+}
 
 /**
  * The workflow execution a settled call started and left running: a `workflows run` the CLI
@@ -1938,24 +1954,17 @@ const WORKFLOW_RUN_TOOL_NAMES = [
  * (`WorkflowToolRunningResult`). A run the call only waited on (`workflows runs wait`) is not
  * one: another run started it.
  */
-export function detachedWorkflowExecutionId(call: {
-  executableName: string | null
-  args: unknown
-  result: unknown
-}): string | undefined {
-  const result = toRecordOrNull(call.result)
-  if (!result) return undefined
+export function detachedWorkflowExecutionId(call: DetachedRunCall): string | undefined {
   if (call.executableName === 'sim_cli') {
-    const request = toRecordOrNull(toRecordOrNull(call.args)?.request)
-    const argv = toRecordOrNull(request?.invocation)?.argv
+    const argv = call.argv
     // The command path, wherever global flags (`--output json`) put it, never `workflows runs`.
     const end = Array.isArray(argv) && argv.includes('--') ? argv.indexOf('--') : undefined
     const tokens = Array.isArray(argv) ? argv.slice(0, end) : []
     if (!tokens.some((token, index) => token === 'workflows' && tokens[index + 1] === 'run'))
       return undefined
-    if (result.exitCode !== 4 || typeof result.stdout !== 'string') return undefined
+    if (call.exitCode !== '4' || call.stdout === null) return undefined
     try {
-      const record = toRecordOrNull(JSON.parse(result.stdout))
+      const record = toRecordOrNull(JSON.parse(call.stdout))
       return record?.status === 'running' && typeof record.runId === 'string'
         ? record.runId
         : undefined
@@ -1963,14 +1972,15 @@ export function detachedWorkflowExecutionId(call: {
       return undefined
     }
   }
-  return result.status === 'running' && typeof result.executionId === 'string'
-    ? result.executionId
-    : undefined
+  return call.status === 'running' && call.executionId !== null ? call.executionId : undefined
 }
 
 /**
- * Workflow executions this run's calls started and left running past the call: what a Stop
- * cancels beyond the calls still open, since a detached run takes no call's abort signal.
+ * Workflow executions this run's calls started and left running past the call, and that are still
+ * running: what a Stop cancels beyond the calls still open, since a detached run takes no call's
+ * abort signal. A run whose log has settled or paused is left alone: a paused run waits on a
+ * person, not on this turn, and the durable cancel flag would fail its resume under the same
+ * execution id. A run with no log yet may still be starting, so it is cancelled.
  */
 export async function getDetachedWorkflowExecutions(
   streamId: string,
@@ -1983,11 +1993,16 @@ export async function getDetachedWorkflowExecutions(
     'copilot_async_tool_calls',
     { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
     async () => {
-      const rows = await executor
+      const { args, result } = copilotAsyncToolCalls
+      // Only what `detachedWorkflowExecutionId` reads; an exit-4 `sim_cli` stdout is its run record.
+      const rows: DetachedRunCall[] = await executor
         .select({
           executableName: copilotAsyncToolCalls.executableName,
-          args: copilotAsyncToolCalls.args,
-          result: copilotAsyncToolCalls.result,
+          argv: sql<unknown>`${args} #> '{request,invocation,argv}'`,
+          exitCode: sql<string | null>`${result} ->> 'exitCode'`,
+          stdout: sql<string | null>`${result} ->> 'stdout'`,
+          status: sql<string | null>`${result} ->> 'status'`,
+          executionId: sql<string | null>`${result} ->> 'executionId'`,
         })
         .from(copilotAsyncToolCalls)
         .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
@@ -1995,11 +2010,31 @@ export async function getDetachedWorkflowExecutions(
           and(
             eq(copilotRuns.streamId, streamId),
             eq(copilotRuns.userId, userId),
-            inArray(copilotAsyncToolCalls.executableName, ['sim_cli', ...WORKFLOW_RUN_TOOL_NAMES]),
-            isNotNull(copilotAsyncToolCalls.result)
+            or(
+              and(
+                eq(copilotAsyncToolCalls.executableName, 'sim_cli'),
+                sql`${result} ->> 'exitCode' = '4'`
+              ),
+              and(
+                inArray(copilotAsyncToolCalls.executableName, [...WORKFLOW_TOOL_NAMES]),
+                sql`${result} ->> 'status' = 'running'`
+              )
+            )
           )
         )
-      return [...new Set(rows.flatMap((row) => detachedWorkflowExecutionId(row) ?? []))]
+      const detached = [...new Set(rows.flatMap((row) => detachedWorkflowExecutionId(row) ?? []))]
+      if (detached.length === 0) return []
+      const settled = await executor
+        .select({ executionId: workflowExecutionLogs.executionId })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            inArray(workflowExecutionLogs.executionId, detached),
+            ne(workflowExecutionLogs.status, 'running')
+          )
+        )
+      const notRunning = new Set(settled.map((row) => row.executionId))
+      return detached.filter((executionId) => !notRunning.has(executionId))
     }
   )
 }

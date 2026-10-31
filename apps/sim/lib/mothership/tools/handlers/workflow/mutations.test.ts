@@ -476,6 +476,8 @@ describe('a workflow tool run past its wait', () => {
         executeRunWorkflow({ workflowId: 'workflow-1' }, { ...context, workflowRunWaitMs: 240_000 })
     )
     await vi.advanceTimersByTimeAsync(240_000)
+    // The one-macrotask settle check after the log read (a 0 ms timer runs at 1 ms).
+    await vi.advanceTimersByTimeAsync(1)
     const result = await answer
     const executionId = run.lifecycle().executionId
     expect(executionId).toEqual(expect.any(String))
@@ -525,9 +527,24 @@ describe('a workflow tool run past its wait', () => {
     await vi.advanceTimersByTimeAsync(1_000)
     expect(answered).toBe(false)
     await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(1)
     await expect(answer).resolves.toMatchObject({ output: { status: 'running' } })
     expect(mocks.logStatus).toHaveBeenCalledWith(run.lifecycle().executionId, 'workflow-1')
     run.settle({ success: true, output: {}, logs: [] })
+  })
+
+  it('answers a run that settles as its log read returns with how it settled', async () => {
+    const run = pendingRun()
+    mocks.logStatus.mockReset().mockImplementation(async () => {
+      queueMicrotask(() => run.settle({ success: true, output: { value: 5 }, logs: [] }))
+      return 'running'
+    })
+    const answer = executeRunWorkflow(
+      { workflowId: 'workflow-1' },
+      { ...context, workflowRunWaitMs: 1_000 }
+    )
+    await vi.advanceTimersByTimeAsync(1_000)
+    await expect(answer).resolves.toMatchObject({ success: true, output: { output: { value: 5 } } })
   })
 
   it('keeps waiting on a run past its wait when its log cannot be read', async () => {
@@ -574,6 +591,7 @@ describe('a workflow tool run past its wait', () => {
       { ...context, boundWorkflowExecutionId: 'bound-1', workflowRunWaitMs: 1_000 }
     )
     await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(1)
     await expect(answer).resolves.toMatchObject({
       output: { status: 'running', executionId: 'bound-1' },
     })
