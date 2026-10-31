@@ -5,6 +5,7 @@ import {
   MANIFEST_ASSET_NAME,
   rewriteManifestUrls,
   selectReleaseForChannel,
+  WINDOWS_MANIFEST_ASSET_NAME,
 } from '@/lib/desktop/update-feed'
 
 function release(
@@ -32,22 +33,22 @@ describe('selectReleaseForChannel', () => {
   ]
 
   it('offers stable-only to the latest channel', () => {
-    expect(selectReleaseForChannel(releases, 'latest')?.tag_name).toBe('v0.5.24')
+    expect(selectReleaseForChannel(releases, 'latest', 'mac')?.tag_name).toBe('v0.5.24')
   })
 
   it('offers only staging builds to the staging stream', () => {
-    expect(selectReleaseForChannel(releases, 'staging')?.tag_name).toBe('v0.5.25-staging.2')
+    expect(selectReleaseForChannel(releases, 'staging', 'mac')?.tag_name).toBe('v0.5.25-staging.2')
   })
 
   it('offers only dev builds to the dev stream, never staging builds', () => {
-    expect(selectReleaseForChannel(releases, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
+    expect(selectReleaseForChannel(releases, 'dev', 'mac')?.tag_name).toBe('v0.5.25-dev.412')
   })
 
   it('keeps already-published alpha and beta releases eligible during migration', () => {
-    expect(selectReleaseForChannel([release('v0.5.25-alpha.412')], 'dev')?.tag_name).toBe(
+    expect(selectReleaseForChannel([release('v0.5.25-alpha.412')], 'dev', 'mac')?.tag_name).toBe(
       'v0.5.25-alpha.412'
     )
-    expect(selectReleaseForChannel([release('v0.5.25-beta.2')], 'staging')?.tag_name).toBe(
+    expect(selectReleaseForChannel([release('v0.5.25-beta.2')], 'staging', 'mac')?.tag_name).toBe(
       'v0.5.25-beta.2'
     )
   })
@@ -57,14 +58,16 @@ describe('selectReleaseForChannel', () => {
     // Sim Staging); a stable Sim.app artifact can't be applied by those
     // shells, so a newer stable must not shadow the channel's own builds.
     const withNewStable = [...releases, release('v0.5.25')]
-    expect(selectReleaseForChannel(withNewStable, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
-    expect(selectReleaseForChannel(withNewStable, 'staging')?.tag_name).toBe('v0.5.25-staging.2')
-    expect(selectReleaseForChannel(withNewStable, 'latest')?.tag_name).toBe('v0.5.25')
+    expect(selectReleaseForChannel(withNewStable, 'dev', 'mac')?.tag_name).toBe('v0.5.25-dev.412')
+    expect(selectReleaseForChannel(withNewStable, 'staging', 'mac')?.tag_name).toBe(
+      'v0.5.25-staging.2'
+    )
+    expect(selectReleaseForChannel(withNewStable, 'latest', 'mac')?.tag_name).toBe('v0.5.25')
   })
 
   it('skips stable-tagged releases flagged prerelease on the latest channel', () => {
     const flagged = [release('v0.5.25', { prerelease: true }), release('v0.5.24')]
-    expect(selectReleaseForChannel(flagged, 'latest')?.tag_name).toBe('v0.5.24')
+    expect(selectReleaseForChannel(flagged, 'latest', 'mac')?.tag_name).toBe('v0.5.24')
   })
 
   it('keeps releases missing the updater manifest eligible for candidate validation', () => {
@@ -72,7 +75,9 @@ describe('selectReleaseForChannel', () => {
       release('v0.5.25-dev.413', { assets: [{ name: 'Sim-0.5.25-dev.413-universal.dmg' }] }),
       release('v0.5.25-dev.412'),
     ]
-    expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.413')
+    expect(selectReleaseForChannel(withBrokenNewest, 'dev', 'mac')?.tag_name).toBe(
+      'v0.5.25-dev.413'
+    )
   })
 })
 
@@ -95,7 +100,8 @@ describe('rewriteManifestUrls', () => {
       manifest,
       'v0.5.24',
       repository,
-      new Set(['Sim-0.5.24-universal.zip'])
+      new Set(['Sim-0.5.24-universal.zip']),
+      'mac'
     )
     expect(rewritten).toContain(
       `  - url: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
@@ -113,7 +119,8 @@ describe('rewriteManifestUrls', () => {
         manifest,
         'v0.5.24',
         DESKTOP_STABLE_RELEASE_REPOSITORY,
-        new Set(['Sim-0.5.24-universal.zip'])
+        new Set(['Sim-0.5.24-universal.zip']),
+        'mac'
       )
     ).toBe(
       `  - url: https://github.com/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
@@ -127,7 +134,8 @@ describe('rewriteManifestUrls', () => {
         manifest,
         'v0.5.24',
         DESKTOP_STABLE_RELEASE_REPOSITORY,
-        new Set(['Sim-0.5.24-universal.zip'])
+        new Set(['Sim-0.5.24-universal.zip']),
+        'mac'
       )
     ).toBeNull()
   })
@@ -135,7 +143,7 @@ describe('rewriteManifestUrls', () => {
   it('rejects an expected artifact that is absent from the release', () => {
     const manifest = '  - url: Sim-0.5.24-universal.zip'
     expect(
-      rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY, new Set())
+      rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY, new Set(), 'mac')
     ).toBeNull()
   })
 
@@ -146,7 +154,71 @@ describe('rewriteManifestUrls', () => {
         manifest,
         'v0.5.24',
         DESKTOP_STABLE_RELEASE_REPOSITORY,
-        new Set(['Sim-0.5.24-universal.zip'])
+        new Set(['Sim-0.5.24-universal.zip']),
+        'mac'
+      )
+    ).toBeNull()
+  })
+})
+
+describe('Windows feed', () => {
+  const windowsRelease = (tag: string) =>
+    release(tag, {
+      assets: [
+        { name: MANIFEST_ASSET_NAME },
+        { name: WINDOWS_MANIFEST_ASSET_NAME },
+        { name: `Sim-${tag.replace(/^v/, '')}-x64.exe` },
+      ],
+    })
+
+  it('skips a newer release that carries no Windows build instead of rejecting it', () => {
+    const releases = [release('v0.5.25'), windowsRelease('v0.5.24')]
+    expect(selectReleaseForChannel(releases, 'latest', 'windows')?.tag_name).toBe('v0.5.24')
+    expect(selectReleaseForChannel(releases, 'latest', 'mac')?.tag_name).toBe('v0.5.25')
+  })
+
+  it('rewrites the Windows installer entry to its absolute release asset', () => {
+    const manifest = [
+      'version: 0.5.24',
+      'files:',
+      '  - url: Sim-0.5.24-x64.exe',
+      '    sha512: abc',
+      'path: Sim-0.5.24-x64.exe',
+    ].join('\n')
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-x64.exe']),
+        'windows'
+      )
+    ).toContain(
+      `  - url: https://github.com/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases/download/v0.5.24/Sim-0.5.24-x64.exe`
+    )
+  })
+
+  it('rejects a Windows manifest that points at macOS artifacts', () => {
+    expect(
+      rewriteManifestUrls(
+        '  - url: Sim-0.5.24-universal.zip',
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-universal.zip']),
+        'windows'
+      )
+    ).toBeNull()
+  })
+
+  it('rejects a Windows manifest naming an architecture the feed does not ship', () => {
+    const manifest = ['  - url: Sim-0.5.24-x64.exe', '  - url: Sim-0.5.24-arm64.exe'].join('\n')
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-x64.exe', 'Sim-0.5.24-arm64.exe']),
+        'windows'
       )
     ).toBeNull()
   })
