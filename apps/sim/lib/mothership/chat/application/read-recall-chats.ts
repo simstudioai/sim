@@ -100,7 +100,12 @@ export const readRecallChats = defineAuthorizedChatUseCase({
     },
   },
   async execute({ principal, context, input }): Promise<RecallChatsResponse> {
-    if (context.type !== 'mothership') throw new OrchestrationError('not_found', 'Chat not found')
+    if (context.type !== 'mothership') {
+      throw new OrchestrationError(
+        'forbidden',
+        "Reading other chats is available in home chats, not in a workflow's copilot chat"
+      )
+    }
     if (context.mode !== 'agent' && context.mode !== 'plan') {
       throw new OrchestrationError('forbidden', 'Reading other chats requires an agent chat')
     }
