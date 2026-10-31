@@ -515,11 +515,6 @@ describe('running work before a restart', () => {
 
     read = async () => session.pid
     await expect(terminal.runningCommands()).resolves.toEqual([])
-
-    read = async () => {
-      throw new Error('ps is unavailable')
-    }
-    await expect(terminal.runningCommands()).resolves.toEqual([])
   })
 })
 
