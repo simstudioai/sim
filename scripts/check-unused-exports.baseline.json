@@ -4830,7 +4830,6 @@
   "apps/sim/lib/organization-secrets/validation.ts#MAX_MOUNTED_SECRET_NAMES",
   "apps/sim/lib/organization-secrets/validation.ts#MAX_SECRET_VALUE_BYTES",
   "apps/sim/lib/organizations/application/configuration-operations.ts#OrganizationConfigurationOperation",
-  "apps/sim/lib/organizations/application/reads.ts#requireOrganizationMemberDirectory",
   "apps/sim/lib/permission-groups/capabilities.ts#AssertsParameterizedCapabilityIsExcluded",
   "apps/sim/lib/permission-groups/capabilities.ts#AssertsStaticCapabilityResolves",
   "apps/sim/lib/permission-groups/capabilities.ts#CAPABILITY_IDS",

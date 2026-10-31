@@ -12,6 +12,7 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
@@ -64,7 +65,8 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
+  const peopleEnabled = await canBrowsePeople(organizationId, context.viewer.role)
+  if (!context.mothershipAvailable && !context.searchAccess.memberScoped && !peopleEnabled)
     redirect(WORKSPACE_SETTINGS_PATH)
 
   const [
@@ -123,6 +125,7 @@ export default async function OrganizationLayout({
                     <OrganizationSidebar
                       benchmarkEnabled={benchmarkEnabled}
                       simLinksEnabled={simLinksEnabled}
+                      peopleEnabled={peopleEnabled}
                     />
                   }
                   initialSidebarCollapsed={initialSidebarCollapsed}

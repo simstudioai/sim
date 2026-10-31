@@ -457,6 +457,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'search/lucid.mdx',
   'search/mcp.mdx',
   'search/notion.mdx',
+  'search/people.mdx',
   'search/quickstart.mdx',
   'search/sim-links.mdx',
   'search/slack.mdx',

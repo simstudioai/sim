@@ -24,6 +24,7 @@
     "test": "vitest run",
     "test:scim:e2e": "bun run scripts/test-scim-e2e.ts",
     "test:sim-links:e2e": "bun run scripts/test-sim-links-e2e.ts",
+    "test:people:e2e": "bun run scripts/test-people-e2e.ts",
     "test:browser-extension:e2e": "bun --no-env-file scripts/test-browser-extension-e2e.ts",
     "test:isolated-vm-remote:e2e": "bun run scripts/test-isolated-vm-remote-e2e.ts",
     "test:mobile:e2e": "bun --no-env-file scripts/test-mobile-e2e.ts",

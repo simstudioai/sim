@@ -58,6 +58,7 @@ interface OrganizationChatsProps
 interface OrganizationSidebarProps {
   benchmarkEnabled?: boolean
   simLinksEnabled?: boolean
+  peopleEnabled?: boolean
 }
 
 function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps) {
@@ -77,6 +78,7 @@ function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps)
 export const OrganizationSidebar = memo(function OrganizationSidebar({
   benchmarkEnabled = false,
   simLinksEnabled = false,
+  peopleEnabled = false,
 }: OrganizationSidebarProps) {
   const { isCollapsed: railCollapsed, isPeeking, onToggle: toggleCollapsed } = useSidebarChrome()
   /** The peek card always renders the expanded layout, whatever the rail's state. */
@@ -103,6 +105,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar({
     mothershipAvailable: canUseHome,
     benchmarkEnabled,
     simLinksEnabled,
+    peopleEnabled,
   })
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
