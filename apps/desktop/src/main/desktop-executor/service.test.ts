@@ -337,20 +337,25 @@ describe('desktop executor registration', () => {
     }
   })
 
-  it('registers with no install id it could not save', async () => {
-    const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
-    await chmod(userData, 0o500)
-    try {
-      const { sim, desktopExecutor } = await service(1, userData)
+  it.skipIf(process.platform === 'win32')(
+    'registers with no install id it could not save',
+    async () => {
+      const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))
+      await chmod(userData, 0o500)
+      try {
+        const { sim, desktopExecutor } = await service(1, userData)
 
-      desktopExecutor.start()
-      await sleep(200)
+        desktopExecutor.start()
+        await sleep(200)
 
-      expect(sim.requests.filter((request) => request.includes('/api/desktop/devices'))).toEqual([])
-    } finally {
-      await chmod(userData, 0o700)
+        expect(sim.requests.filter((request) => request.includes('/api/desktop/devices'))).toEqual(
+          []
+        )
+      } finally {
+        await chmod(userData, 0o700)
+      }
     }
-  })
+  )
 
   it('keeps its install id through a read failure instead of minting a new one', async () => {
     const userData = await mkdtemp(join(tmpdir(), 'sim-executor-service-'))

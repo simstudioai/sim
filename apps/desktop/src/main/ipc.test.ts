@@ -418,8 +418,9 @@ describe('registerIpcHandlers', () => {
 
     expect(await handler?.(evilEvent)).toBe(false)
     expect(await handler?.(appEvent)).toBe(false)
-    expect(await handler?.(activeAppEvent)).toBe(process.platform === 'darwin')
-    expect(shell.openExternal).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 0)
+    const hasPrivacySettings = process.platform === 'darwin' || process.platform === 'win32'
+    expect(await handler?.(activeAppEvent)).toBe(hasPrivacySettings)
+    expect(shell.openExternal).toHaveBeenCalledTimes(hasPrivacySettings ? 1 : 0)
   })
 
   it('restricts the OAuth connect handoff to an activated app origin', async () => {

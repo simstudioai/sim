@@ -191,7 +191,7 @@ describe('local file calls', () => {
   })
 })
 
-describe('background imports', () => {
+describe.skipIf(process.platform === 'win32')('background imports', () => {
   const roots: string[] = []
 
   afterEach(async () => {

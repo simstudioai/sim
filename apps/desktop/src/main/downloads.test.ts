@@ -45,7 +45,7 @@ describe('uniqueDownloadPath', () => {
     ])
 
     expect(new Set([first, second])).toEqual(
-      new Set(['/Downloads/report.csv', '/Downloads/report (copy-1).csv'])
+      new Set([join('/Downloads', 'report.csv'), join('/Downloads', 'report (copy-1).csv')])
     )
   })
 })

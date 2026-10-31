@@ -189,7 +189,7 @@ describe('dispatchKeyCombo', () => {
       .mockRejectedValueOnce(new Error('key-up response lost'))
       .mockRejectedValueOnce(new Error('cleanup unavailable'))
 
-    const dispatch = dispatchKeyCombo(contents, parseKeyCombo('Cmd+A'))
+    const dispatch = dispatchKeyCombo(contents, parseKeyCombo('Cmd+A', 'darwin'))
 
     await expect(dispatch).rejects.toEqual(
       expect.objectContaining({

@@ -8,7 +8,18 @@ export default mergeConfig(
     test: {
       setupFiles: ['src/test/setup.ts'],
       include: ['src/**/*.test.ts'],
-      exclude: ['**/e2e/**'],
+      // These suites drive subsystems Windows builds do not ship (tmux, the macOS computer-use
+      // helper, the POSIX native file module); see src/shared/platform-features.ts.
+      exclude: [
+        '**/e2e/**',
+        ...(process.platform === 'win32'
+          ? [
+              'src/main/terminal/tmux.test.ts',
+              'src/main/computer-use/native-client.test.ts',
+              'src/main/local-files.test.ts',
+            ]
+          : []),
+      ],
       pool: 'threads',
       testTimeout: 10000,
     },
