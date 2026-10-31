@@ -525,6 +525,19 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
+    redirects.push(
+      {
+        source: '/docs',
+        destination: 'https://docs.sim.ai/introduction',
+        permanent: false,
+      },
+      {
+        source: '/docs/:path*',
+        destination: 'https://docs.sim.ai/:path*',
+        permanent: false,
+      }
+    )
+
     redirects.push({
       source: '/academy/:path*',
       destination: 'https://docs.sim.ai/introduction',
