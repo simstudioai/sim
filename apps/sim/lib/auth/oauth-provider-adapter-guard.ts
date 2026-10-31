@@ -1,10 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { db } from '@sim/db'
-import { oauthConsent, oauthTokenFamily } from '@sim/db/schema'
+import { oauthConsent, oauthRefreshToken, oauthTokenFamily } from '@sim/db/schema'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError } from 'better-auth/api'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { getAuthPool } from '@/lib/auth/database-context'
 import { getOAuthIssuedResource } from '@/lib/auth/oauth-resource'
 import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
@@ -20,8 +21,18 @@ interface OAuthConsentInsert {
   userId: string | null
   referenceId: string | null
   scopes: string[]
+  resources: string[] | null
+  requestedUserInfoClaims: string[] | null
   createdAt: Date
   updatedAt: Date
+}
+
+function isOptionalStringArray(value: unknown): value is string[] | null | undefined {
+  return (
+    value === undefined ||
+    value === null ||
+    (Array.isArray(value) && value.every((entry) => typeof entry === 'string'))
+  )
 }
 
 async function deleteTrackedFamilies(
@@ -33,7 +44,7 @@ async function deleteTrackedFamilies(
 }
 
 /**
- * Compensates for Better Auth 1.6's non-transactional authorization-code token issuance.
+ * Compensates for Better Auth's non-transactional authorization-code token issuance.
  * A failed response cannot expose the refresh secret, so its newly inserted family is deleted.
  */
 export async function withOAuthProviderIssuanceCompensation<T extends Response>(
@@ -51,11 +62,37 @@ export async function withOAuthProviderIssuanceCompensation<T extends Response>(
   }
 }
 
+const ACCESS_TOKEN_REFRESH_FK = 'oauth_access_token_refresh_id_oauth_refresh_token_id_fk'
+
+/**
+ * Better Auth revokes a replayed code's grant by deleting its tokens by `authorizationCodeId`,
+ * which would leave Sim's token family behind. Deleting the families instead cascades to their
+ * refresh tokens and the access tokens bound to them.
+ */
+async function deleteFamiliesIssuedForAuthorizationCode(
+  database: AuthDatabase,
+  authorizationCodeId: string
+): Promise<void> {
+  await database
+    .delete(oauthTokenFamily)
+    .where(
+      inArray(
+        oauthTokenFamily.id,
+        database
+          .select({ id: oauthRefreshToken.familyId })
+          .from(oauthRefreshToken)
+          .where(eq(oauthRefreshToken.authorizationCodeId, authorizationCodeId))
+      )
+    )
+}
+
 function requireConsentInsert(data: Record<string, unknown>): OAuthConsentInsert {
   if (
     typeof data.clientId !== 'string' ||
     !Array.isArray(data.scopes) ||
     !data.scopes.every((scope) => typeof scope === 'string') ||
+    !isOptionalStringArray(data.resources) ||
+    !isOptionalStringArray(data.requestedUserInfoClaims) ||
     !(data.createdAt instanceof Date) ||
     !(data.updatedAt instanceof Date) ||
     (data.id !== undefined && typeof data.id !== 'string') ||
@@ -72,6 +109,8 @@ function requireConsentInsert(data: Record<string, unknown>): OAuthConsentInsert
     userId: typeof data.userId === 'string' ? data.userId : null,
     referenceId: typeof data.referenceId === 'string' ? data.referenceId : null,
     scopes: data.scopes,
+    resources: data.resources ?? null,
+    requestedUserInfoClaims: data.requestedUserInfoClaims ?? null,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -80,7 +119,7 @@ function requireConsentInsert(data: Record<string, unknown>): OAuthConsentInsert
 /**
  * Makes the provider's read-then-create consent path atomic.
  *
- * Better Auth 1.6.27 first looks for a grant and then inserts one. Two consent
+ * Better Auth first looks for a grant and then inserts one. Two consent
  * submissions can therefore race. The database uniqueness constraint is the
  * integrity backstop; this adapter seam turns the losing insert into the same
  * scope update the provider would have made had its preceding read seen the
@@ -92,6 +131,18 @@ export function guardOAuthProviderWrites(
 ): BetterAuthAdapter {
   return {
     ...adapter,
+    deleteMany: async (input) => {
+      const [condition, ...rest] = input.where
+      if (
+        input.model === 'oauthRefreshToken' &&
+        rest.length === 0 &&
+        condition?.field === 'authorizationCodeId' &&
+        typeof condition.value === 'string'
+      ) {
+        await deleteFamiliesIssuedForAuthorizationCode(database, condition.value)
+      }
+      return adapter.deleteMany(input)
+    },
     create: async (input) => {
       /**
        * permission-group-enforced: oauth_apps.use — recheck the canonical token
@@ -119,7 +170,20 @@ export function guardOAuthProviderWrites(
       }
 
       if (input.model !== 'oauthConsent') {
-        const created = await adapter.create(input)
+        const created = await adapter.create(input).catch((error: unknown) => {
+          // A concurrent code replay revoked the refresh token this access token references.
+          if (
+            input.model === 'oauthAccessToken' &&
+            getPostgresErrorCode(error) === '23503' &&
+            getPostgresConstraintName(error) === ACCESS_TOKEN_REFRESH_FK
+          ) {
+            throw new APIError('BAD_REQUEST', {
+              error: 'invalid_grant',
+              error_description: 'The authorization grant was revoked.',
+            })
+          }
+          throw error
+        })
         if (input.model === 'oauthRefreshToken') {
           const id = (created as { id?: unknown }).id
           if (typeof id !== 'string' || !id) {
@@ -139,6 +203,8 @@ export function guardOAuthProviderWrites(
           userId: values.userId ?? null,
           referenceId: values.referenceId ?? null,
           scopes: values.scopes,
+          resources: values.resources,
+          requestedUserInfoClaims: values.requestedUserInfoClaims,
           createdAt: values.createdAt,
           updatedAt: values.updatedAt,
         })
@@ -146,6 +212,8 @@ export function guardOAuthProviderWrites(
           target: [oauthConsent.userId, oauthConsent.clientId, oauthConsent.referenceId],
           set: {
             scopes: values.scopes,
+            resources: values.resources,
+            requestedUserInfoClaims: values.requestedUserInfoClaims,
             updatedAt: values.updatedAt,
           },
         })

@@ -17,9 +17,7 @@ const connector = createGreenhouseProvider({
 async function profileFor(payload: unknown) {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(payload)))
   if (!connector.getUserInfo) throw new Error('Greenhouse requires token introspection')
-  const tokens = { accessToken: 'fixture-access', scopes: ['unattested-scope'] }
-  const profile = await connector.getUserInfo(tokens)
-  return { profile, tokens }
+  return connector.getUserInfo({ accessToken: 'fixture-access', scopes: ['unattested-scope'] })
 }
 
 const activeIntrospection = {
@@ -64,8 +62,28 @@ describe('Greenhouse partner OAuth', () => {
   })
 
   it('uses provider-attested identity and scopes without promoting requested permissions', async () => {
-    const { profile, tokens } = await profileFor(activeIntrospection)
+    const profile = await profileFor(activeIntrospection)
     expect(profile).toMatchObject({ email: 'fixture@example.invalid', emailVerified: false })
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json({
+            access_token: 'fixture-access',
+            refresh_token: 'fixture-refresh',
+            token_type: 'Bearer',
+            expires_in: 600,
+          })
+        )
+        .mockResolvedValueOnce(Response.json(activeIntrospection))
+    )
+    if (!connector.getToken) throw new Error('Greenhouse requires a custom token exchange')
+    const tokens = await connector.getToken({
+      code: 'fixture-code',
+      redirectURI: 'https://example.invalid/callback',
+    })
     expect(tokens.scopes).toEqual(['harvest:candidates:list'])
   })
 

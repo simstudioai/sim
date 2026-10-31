@@ -7,7 +7,7 @@ const mockSignOut = vi.fn()
 /**
  * Stand-in for the Better Auth `client` from `@/lib/auth/client`: every endpoint the app
  * calls is a bare `vi.fn()` (resolves `undefined` when awaited), grouped exactly like the real
- * client (`client.organization.setActive`, `client.oauth2.link`, …). `client.signOut` is the same
+ * client (`client.organization.setActive`, `client.linkSocial`, …). `client.signOut` is the same
  * `vi.fn()` as the module-level `signOut` export, mirroring `const { signOut } = client`.
  */
 const client = {
@@ -16,7 +16,8 @@ const client = {
   signIn: { email: vi.fn(), social: vi.fn(), sso: vi.fn() },
   signUp: { email: vi.fn() },
   emailOtp: { verifyEmail: vi.fn(), sendVerificationOtp: vi.fn() },
-  oauth2: { link: vi.fn(), consent: vi.fn(), publicClientPrelogin: vi.fn() },
+  linkSocial: vi.fn(),
+  oauth2: { consent: vi.fn(), publicClientPrelogin: vi.fn() },
   organization: {
     list: vi.fn(),
     setActive: vi.fn(),

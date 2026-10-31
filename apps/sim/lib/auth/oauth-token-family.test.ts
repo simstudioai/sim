@@ -25,7 +25,11 @@ const resource = 'https://sim.example/api/mcp/search/organizations/one'
 const credentials = { clientId: 'search-client', method: 'none' as const }
 const scopes = ['search:read', 'offline_access']
 
-function queueGrant(target: string | null, grantedScopes = scopes) {
+function queueGrant(
+  target: string | null,
+  grantedScopes = scopes,
+  overrides: { client?: Record<string, unknown>; token?: Record<string, unknown> } = {}
+) {
   const client = {
     ...credentials,
     clientSecret: null,
@@ -35,6 +39,7 @@ function queueGrant(target: string | null, grantedScopes = scopes) {
     grantTypes: ['authorization_code', 'refresh_token'],
     scopes: grantedScopes,
     skipConsent: false,
+    ...overrides.client,
   }
   const token = {
     id: 'refresh-1',
@@ -50,6 +55,8 @@ function queueGrant(target: string | null, grantedScopes = scopes) {
     familyId: 'family-1',
     familyConsentId: 'consent-1',
     generation: 0,
+    authorizationCodeId: null,
+    ...overrides.token,
   }
   queueTableRows(schemaMock.oauthClient, [client])
   queueTableRows(schemaMock.oauthClient, [client])
@@ -92,6 +99,22 @@ describe('OAuth refresh audience binding', () => {
       }
     }
   )
+
+  it('authenticates a public client Better Auth 1.7 registered without the legacy flag', async () => {
+    queueGrant(resource, scopes, { client: { public: null } })
+    const result = await rotateOAuthRefreshToken({ credentials, refreshToken: 'sim_ort_original' })
+    expect(result.success).toBe(true)
+  })
+
+  it('carries the authorization code id so a replayed code revokes every generation', async () => {
+    queueGrant(resource, scopes, { token: { authorizationCodeId: 'code-hash' } })
+    const result = await rotateOAuthRefreshToken({ credentials, refreshToken: 'sim_ort_original' })
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.values).toHaveBeenCalledTimes(2)
+    for (const [values] of dbChainMockFns.values.mock.calls) {
+      expect(values).toMatchObject({ authorizationCodeId: 'code-hash' })
+    }
+  })
 
   it('cannot change the audience or convert an old API grant into a Search grant', async () => {
     queueGrant(resource)

@@ -15,6 +15,7 @@ import {
 } from '@/lib/auth/oauth-provider'
 import {
   InvalidOAuthResourceError,
+  OAUTH_AUTHORIZED_RESOURCE_PARAM,
   type OAuthResource,
   parseOAuthResource,
 } from '@/lib/auth/oauth-resource'
@@ -53,6 +54,8 @@ const OAUTH_AUTHORIZE_PARAMETERS = new Set([
   'nonce',
   'prompt',
   'resource',
+  'dpop_jkt',
+  OAUTH_AUTHORIZED_RESOURCE_PARAM,
 ])
 
 /** Returns the first ambiguous OAuth authorization parameter. */
@@ -145,6 +148,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     ) {
       return invalidRequest('This app must request Sim API access for the Sim MCP server URL.')
     }
+    if (params.has(OAUTH_AUTHORIZED_RESOURCE_PARAM)) {
+      return invalidRequest(`The ${OAUTH_AUTHORIZED_RESOURCE_PARAM} parameter is reserved.`)
+    }
     if (params.has('request_uri')) {
       return oauthAuthorizationErrorResponse(
         request,
@@ -171,13 +177,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (pkceError) {
       return oauthAuthorizationErrorResponse(request, 'invalid_request', pkceError)
     }
-    let providerRequest: Request = request
-    if (narrowedScope && rawScope !== narrowedScope) {
-      const url = new URL(request.url)
-      url.searchParams.set('scope', narrowedScope)
-      providerRequest = new Request(url, { headers: request.headers })
-    }
-    const response = await betterAuthGET(providerRequest)
+    const providerUrl = new URL(request.url)
+    if (narrowedScope) providerUrl.searchParams.set('scope', narrowedScope)
+    providerUrl.searchParams.delete('resource')
+    /** Sim's token and resource endpoints accept only bearer tokens, so a DPoP key is never bound. */
+    providerUrl.searchParams.delete('dpop_jkt')
+    if (resource) providerUrl.searchParams.set(OAUTH_AUTHORIZED_RESOURCE_PARAM, resource.url)
+    const response = await betterAuthGET(new Request(providerUrl, { headers: request.headers }))
     if (response.status === 403) {
       const body: unknown = await response
         .clone()
@@ -337,14 +343,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, connectionDraftId)
     const scopes = getPerRequestOAuthLinkScopes(providerId)
 
-    const linkResponse = await auth.api.oAuth2LinkAccount({
+    const linkResponse = await auth.api.linkSocialAccount({
       body: {
-        providerId,
+        provider: providerId,
         callbackURL: stateCallbackUrl.toString(),
         ...(scopes && { scopes }),
         ...(fromConnectionDraft
           ? { errorCallbackURL: `${baseUrl}/oauth/credential-connected?result=failed` }
           : {}),
+        disableRedirect: true,
       },
       headers: request.headers,
       asResponse: true,
@@ -352,7 +359,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const payload = (await linkResponse.json().catch(() => null)) as { url?: string } | null
     if (!linkResponse.ok || !payload?.url) {
-      logger.error('oAuth2LinkAccount did not return an authorization URL', {
+      logger.error('linkSocialAccount did not return an authorization URL', {
         providerId,
         status: linkResponse.status,
       })

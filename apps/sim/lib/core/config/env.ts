@@ -691,7 +691,6 @@ export const env = createEnv({
     SSO_TRUSTED_PROVIDER_IDS:              z.string().optional(),                  // Comma-separated SSO provider IDs to trust for automatic account linking when an existing account shares the same email. Use for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders.
 
     // SSO Mapping Configuration (optional - sensible defaults provided)
-    SSO_MAPPING_ID:                        z.string().optional(),                  // Custom ID claim mapping (default: sub for OIDC, nameidentifier for SAML)
     SSO_MAPPING_EMAIL:                     z.string().optional(),                  // Custom email claim mapping (default: email for OIDC, emailaddress for SAML)
     SSO_MAPPING_NAME:                      z.string().optional(),                  // Custom name claim mapping (default: name for both)
     SSO_MAPPING_IMAGE:                     z.string().optional(),                  // Custom image claim mapping (default: picture for OIDC)

@@ -93,6 +93,7 @@ interface RefreshTokenRow {
   authTime: Date | null
   scopes: string[]
   resource: string | null
+  authorizationCodeId: string | null
   familyId: string
   familyConsentId: string | null
   generation: number
@@ -144,12 +145,13 @@ async function authenticateClient(
   }
 
   if (registeredMethod === 'none') {
-    if (!client.public || credentials.clientSecret) {
+    if (credentials.clientSecret) {
       return protocolError('invalid_client', 'Client authentication failed.')
     }
     return { success: true, value: client }
   }
 
+  /** A client flagged `public` never authenticates with a secret, whatever method it carries. */
   if (client.public || !client.clientSecret || !credentials.clientSecret) {
     return protocolError('invalid_client', 'Client authentication failed.')
   }
@@ -221,6 +223,7 @@ async function readRefreshToken(
       authTime: oauthRefreshToken.authTime,
       scopes: oauthRefreshToken.scopes,
       resource: oauthRefreshToken.resource,
+      authorizationCodeId: oauthRefreshToken.authorizationCodeId,
       familyId: oauthRefreshToken.familyId,
       familyConsentId: oauthTokenFamily.consentId,
       generation: oauthRefreshToken.generation,
@@ -463,6 +466,8 @@ export async function rotateOAuthRefreshToken(
       authTime: currentToken.authTime,
       scopes: currentToken.scopes,
       resource: currentToken.resource,
+      /** A replayed authorization code revokes by this id, so every generation keeps it. */
+      authorizationCodeId: currentToken.authorizationCodeId,
       familyId: family.id,
       generation: nextGeneration,
     })
@@ -478,6 +483,7 @@ export async function rotateOAuthRefreshToken(
       createdAt: rotationTime,
       scopes: scopes.value,
       resource: currentToken.resource,
+      authorizationCodeId: currentToken.authorizationCodeId,
     })
 
     return {

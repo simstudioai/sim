@@ -199,7 +199,6 @@
     "apps/sim/hooks/use-trigger-config-aggregation.ts": 2,
     "apps/sim/hooks/use-undo-redo.ts": 43,
     "apps/sim/lib/auth/auth.ts": 3,
-    "apps/sim/lib/auth/connectors/providers.ts": 4,
     "apps/sim/lib/billing/client/types.ts": 1,
     "apps/sim/lib/billing/client/upgrade.ts": 3,
     "apps/sim/lib/billing/core/subscription.ts": 1,

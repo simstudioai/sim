@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
+import type { BetterAuthPlugin } from 'better-auth'
 
 /**
  * Scoped `'Auth'` because these lines are emitted from the OAuth callback path
@@ -84,6 +87,30 @@ export function mapMicrosoftProfileToUser(
   profile: Record<string, unknown>
 ): { emailVerified: true } | Record<string, never> {
   return isMicrosoftEmailDomainVerified(profile) ? { emailVerified: true } : {}
+}
+
+/**
+ * Keeps Microsoft sign-in accounts keyed by the ID token's `sub`, the key every existing
+ * `microsoft` account row was stored under. Better Auth's provider keys by `oid` instead, so
+ * without this an existing user's account would not be found and sign-in would fall back to
+ * email linking, which {@link mapMicrosoftProfileToUser} allows only for verified domains.
+ */
+export function microsoftAccountSubjectPlugin() {
+  return {
+    id: 'sim-microsoft-account-subject',
+    init: (context) => ({
+      context: {
+        socialProviders: context.socialProviders.map((provider) =>
+          provider.id === 'microsoft'
+            ? {
+                ...provider,
+                accountSubject: ({ profile }) => toStringOrNull(toRecord(profile).sub) ?? '',
+              }
+            : provider
+        ),
+      },
+    }),
+  } satisfies BetterAuthPlugin
 }
 
 /**

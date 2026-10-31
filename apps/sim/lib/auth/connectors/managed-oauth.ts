@@ -502,10 +502,10 @@ function resolveGrantedScopes(
  * rather than an OIDC id_token.
  *
  * The matching `getUserInfo` in `connectors/providers.ts` is not reusable here even though it
- * calls the same endpoint: it exists to satisfy Better Auth's `email_is_missing` guard, so it
- * substitutes a synthetic address when the provider returns none and asserts `emailVerified: true`
- * in several places the provider never verified. Managed enrollment binds a credential to an
- * invited person, so `parse` must report only what the provider actually proves.
+ * calls the same endpoint: it substitutes a synthetic address when the provider returns none and
+ * asserts `emailVerified: true` in several places the provider never verified. Managed enrollment
+ * binds a credential to an invited person, so `parse` must report only what the provider actually
+ * proves.
  */
 export function createUserInfoManagedOAuthConnector(
   options: UserInfoManagedOAuthConnectorOptions

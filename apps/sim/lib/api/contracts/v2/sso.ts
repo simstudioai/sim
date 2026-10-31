@@ -82,14 +82,21 @@ const mapping = z
       .string()
       .min(1)
       .max(255)
-      .default('sub')
-      .describe('Claim holding the stable identity identifier.'),
+      .optional()
+      .describe(
+        'Deprecated and ignored: users are identified by the OIDC sub claim or the SAML NameID.'
+      ),
     email: z.string().min(1).max(255).default('email').describe('Claim holding the email address.'),
     name: z.string().min(1).max(255).default('name').describe('Claim holding the display name.'),
-    image: z.string().min(1).max(255).default('picture').describe('Claim holding the avatar URL.'),
+    image: z
+      .string()
+      .min(1)
+      .max(255)
+      .default('picture')
+      .describe('Claim holding the avatar URL; OIDC only.'),
   })
   .strict()
-  .default({ id: 'sub', email: 'email', name: 'name', image: 'picture' })
+  .default({ email: 'email', name: 'name', image: 'picture' })
   .describe('Identity-provider claims mapped to user fields.')
 const shared = {
   providerId: nonEmptyIdSchema
@@ -175,7 +182,9 @@ const v2SaveSsoProviderBodySchema = z.discriminatedUnion('providerType', [
         .url()
         .max(2048)
         .optional()
-        .describe('SAML callback URL; defaults to this provider’s Sim callback.'),
+        .describe(
+          'SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL, and a provider already on the legacy `/sso/saml2/callback` URL keeps it.'
+        ),
       audience: z
         .string()
         .max(2048)

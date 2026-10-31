@@ -14,6 +14,14 @@ export const configuredSsoPlugin = sso({
    * email domain before linking an SSO identity to an existing account.
    */
   domainVerification: { enabled: true },
+  saml: {
+    /**
+     * Customers launch Sim from their identity provider's app portal, whose assertions carry no
+     * `InResponseTo`. Each is still signature-, audience-, recipient-, timestamp-, and
+     * replay-checked.
+     */
+    allowIdpInitiated: true,
+  },
   organizationProvisioning: {
     /**
      * Better Auth writes member rows directly and bypasses Sim's seat,

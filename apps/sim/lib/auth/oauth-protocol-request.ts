@@ -2,7 +2,7 @@ import { truncate } from '@sim/utils/string'
 import { NextRequest, NextResponse } from 'next/server'
 import type { OAuthClientCredentials, OAuthProtocolErrorCode } from '@/lib/auth/oauth-token-family'
 
-export interface ParsedOAuthForm {
+interface ParsedOAuthForm {
   form: URLSearchParams
   credentials: OAuthClientCredentials | null
   rawBody: string
@@ -101,7 +101,7 @@ const DELEGATED_OAUTH_ERROR_CODES = new Set([
   'unsupported_grant_type',
 ])
 
-/** Normalizes Better Auth 1.6 token errors to RFC 6749 and RFC 7636 semantics. */
+/** Normalizes Better Auth token errors to RFC 6749 and RFC 7636 semantics. */
 export async function normalizeDelegatedOAuthTokenResponse(
   response: Response,
   method: OAuthClientCredentials['method']
@@ -231,24 +231,17 @@ async function readBoundedOAuthBody(request: Request): Promise<OAuthBodyReadResu
 }
 
 /**
- * Rebuilds the consumed request for Better Auth 1.6.
- * Its Basic parser omits RFC 6749 form-decoding, so already-authenticated Basic
- * credentials are passed through its body path using their decoded values.
+ * Rebuilds the consumed request for Better Auth with `body` as its form.
+ * Client credentials keep the transport the client authenticated with: Better
+ * Auth form-decodes Basic credentials itself and refuses a client that
+ * presents them by any method other than the one it registered. A DPoP proof
+ * is dropped: Sim's resource servers accept only bearer tokens, so a
+ * DPoP-bound token would be unusable.
  */
-export function buildDelegatedOAuthRequest(
-  request: NextRequest,
-  parsed: ParsedOAuthForm
-): NextRequest {
+export function buildDelegatedOAuthRequest(request: NextRequest, body: string): NextRequest {
   const headers = new Headers(request.headers)
-  let body = parsed.rawBody
-  if (parsed.credentials?.method === 'client_secret_basic') {
-    const form = new URLSearchParams(parsed.rawBody)
-    form.set('client_id', parsed.credentials.clientId)
-    form.set('client_secret', parsed.credentials.clientSecret ?? '')
-    body = form.toString()
-    headers.delete('authorization')
-  }
   headers.delete('content-length')
+  headers.delete('dpop')
   return new NextRequest(request.url, {
     method: request.method,
     headers,

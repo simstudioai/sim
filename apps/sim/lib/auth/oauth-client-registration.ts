@@ -11,14 +11,23 @@ import { eq } from 'drizzle-orm'
 const PUBLIC_REGISTRATION_METADATA = { registration: 'public' } as const
 
 /**
- * Stamps a just-registered client. Registration discloses the client ID only
- * after this succeeds, so an unstamped client is never usable: if the write
- * fails, the registration fails and nobody holds the ID.
+ * Stamps a just-registered client and narrows it to the scope families it
+ * registered for. Registration discloses the client ID only after this
+ * succeeds, so an unstamped client is never usable: if the write fails, the
+ * registration fails and nobody holds the ID.
+ *
+ * Better Auth 1.7 grants every dynamically registered client all registrable
+ * scopes, so the requested `scopes` are written here. `public` is set because
+ * 1.7 no longer writes it, and 1.6 pods still serving during the rollout
+ * authenticate `none` clients by it.
  */
-export async function markPubliclyRegisteredOAuthClient(clientId: string): Promise<void> {
+export async function markPubliclyRegisteredOAuthClient(
+  clientId: string,
+  scopes: string[]
+): Promise<void> {
   const updated = await db
     .update(oauthClient)
-    .set({ metadata: PUBLIC_REGISTRATION_METADATA })
+    .set({ metadata: PUBLIC_REGISTRATION_METADATA, public: true, scopes })
     .where(eq(oauthClient.clientId, clientId))
     .returning({ clientId: oauthClient.clientId })
   if (updated.length !== 1) {

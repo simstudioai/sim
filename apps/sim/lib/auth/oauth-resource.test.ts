@@ -54,7 +54,10 @@ describe('OAuth resource binding', () => {
     await withOAuthResourceIssuance(resource, async () => {
       expect(() => getOAuthIssuedResource(scopes)).toThrow()
       expect(
-        bindOAuthIssuedResource({ verificationValue: { query: { resource } }, scopes })
+        bindOAuthIssuedResource({
+          verificationValue: { query: { sim_resource: resource } },
+          scopes,
+        })
       ).toEqual({})
       expect(getOAuthIssuedResource(scopes)).toBe(resource)
     })
@@ -66,7 +69,7 @@ describe('OAuth resource binding', () => {
     await expect(
       withOAuthResourceIssuance(removedResource, async () =>
         bindOAuthIssuedResource({
-          verificationValue: { query: { resource: removedResource } },
+          verificationValue: { query: { sim_resource: removedResource } },
           scopes,
         })
       )
@@ -80,7 +83,10 @@ describe('OAuth resource binding', () => {
   ])('refuses code/token resource substitution or omission', async (requested, authorized) => {
     await expect(
       withOAuthResourceIssuance(requested, async () =>
-        bindOAuthIssuedResource({ verificationValue: { query: { resource: authorized } }, scopes })
+        bindOAuthIssuedResource({
+          verificationValue: { query: { sim_resource: authorized } },
+          scopes,
+        })
       )
     ).rejects.toMatchObject({ body: { error: 'invalid_target' } })
   })
@@ -96,7 +102,7 @@ describe('OAuth resource binding', () => {
     await expect(
       withOAuthResourceIssuance(target, async () =>
         bindOAuthIssuedResource({
-          verificationValue: { query: { resource: target ?? undefined } },
+          verificationValue: { query: { sim_resource: target ?? undefined } },
           scopes: granted,
         })
       )
@@ -108,7 +114,7 @@ describe('OAuth resource binding', () => {
     await withOAuthResourceIssuance(simMcpResource, async () => {
       expect(
         bindOAuthIssuedResource({
-          verificationValue: { query: { resource: simMcpResource } },
+          verificationValue: { query: { sim_resource: simMcpResource } },
           scopes: apiScopes,
         })
       ).toEqual({})
@@ -120,7 +126,7 @@ describe('OAuth resource binding', () => {
     expect(bindOAuthIssuedResource({ scopes: ['api:read'] })).toEqual({})
     expect(getOAuthIssuedResource(['api:read'])).toBeNull()
     expect(() =>
-      bindOAuthIssuedResource({ verificationValue: { query: { resource } }, scopes })
+      bindOAuthIssuedResource({ verificationValue: { query: { sim_resource: resource } }, scopes })
     ).toThrow()
   })
 
@@ -128,7 +134,10 @@ describe('OAuth resource binding', () => {
     const results = await Promise.all(
       [resource, otherResource].map((target) =>
         withOAuthResourceIssuance(target, async () => {
-          bindOAuthIssuedResource({ verificationValue: { query: { resource: target } }, scopes })
+          bindOAuthIssuedResource({
+            verificationValue: { query: { sim_resource: target } },
+            scopes,
+          })
           await Promise.resolve()
           return getOAuthIssuedResource(scopes)
         })

@@ -18,7 +18,7 @@ vi.mock('@/lib/oauth', () => ({ OAUTH_PROVIDERS: {} }))
 import { useConnectOAuthService } from '@/hooks/queries/oauth/connections'
 
 const beginOAuthConnect = vi.fn()
-const oauthLink = authClientMockFns.mockClient.oauth2.link
+const oauthLink = authClientMockFns.mockClient.linkSocial
 libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
   beginOAuthConnect.getMockName() === 'desktop' ? { beginOAuthConnect } : undefined
 )

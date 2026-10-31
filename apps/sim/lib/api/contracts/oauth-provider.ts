@@ -34,10 +34,15 @@ const redirectUriSchema = z
 export const registerOAuthClientBodySchema = z.object({
   client_name: z.string().trim().min(1).max(128).default('MCP client'),
   redirect_uris: z.array(redirectUriSchema).min(1).max(10),
-  /** Better Auth negotiates unauthenticated registration to public clients without secrets. */
+  /**
+   * Unauthenticated registration yields public clients without secrets (RFC 7591
+   * §2 lets the server replace a requested value). Better Auth 1.7 would
+   * otherwise honor a confidential method and mint a secret.
+   */
   token_endpoint_auth_method: z
     .enum(['none', 'client_secret_basic', 'client_secret_post'])
-    .default('none'),
+    .default('none')
+    .transform(() => 'none' as const),
   grant_types: z
     .array(z.enum(['authorization_code', 'refresh_token']))
     .min(1)

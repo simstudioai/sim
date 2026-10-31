@@ -4179,7 +4179,7 @@ sim organizations sso providers save [options]
 | `--domain <value>` | Yes | Email domain already verified by this organization. |
 | `--jit-provisioning-enabled` | No | Allow SSO sign-in to provision organization membership, subject to eligibility and available seats. Defaults to true. |
 | `--no-jit-provisioning-enabled` | No | Send --jit-provisioning-enabled as false. |
-| `--mapping <json\|@file>` | No | Identity-provider claims mapped to user fields. Defaults to &#123;"id":"sub","email":"email","name":"name","image":"picture"&#125;. (JSON, or @path / @- to read a file or stdin). |
+| `--mapping <json\|@file>` | No | Identity-provider claims mapped to user fields. Defaults to &#123;"email":"email","name":"name","image":"picture"&#125;. (JSON, or @path / @- to read a file or stdin). |
 | `--client-id <value>` | Conditional | Identity provider client identifier. Available when providerType is oidc. Required when providerType is oidc. |
 | `--client-secret <value\|@file>` | Conditional | Write-only OIDC client secret; the redacted marker from providers get preserves an existing secret. Passing it inline exposes it to shell history and process listings. Required when --provider-type is oidc (@path / @- reads a file or stdin verbatim, including trailing newlines; @@value for a literal leading @). |
 | `--scopes <json\|@file>` | No | OIDC scopes; offline_access is omitted. Available when providerType is oidc. Defaults to ["openid","profile","email"]. (JSON, or @path / @- to read a file or stdin). |
@@ -4193,7 +4193,7 @@ sim organizations sso providers save [options]
 | `--jwks-endpoint <value>` | No | Optional signing-key endpoint; otherwise resolved through issuer discovery. Available when providerType is oidc. |
 | `--entry-point <value>` | Conditional | Identity provider SAML sign-in endpoint. Available when providerType is saml. Required when providerType is saml. |
 | `--cert <value>` | Conditional | Identity provider signing certificate. Available when providerType is saml. Required when providerType is saml. |
-| `--callback-url <value>` | No | SAML callback URL; defaults to this provider’s Sim callback. Available when providerType is saml. |
+| `--callback-url <value>` | No | SAML ACS URL advertised to the identity provider; defaults to this provider’s Sim ACS URL, and a provider already on the legacy `/sso/saml2/callback` URL keeps it. Available when providerType is saml. |
 | `--audience <value>` | No | SAML audience; omission preserves the saved value. Available when providerType is saml. |
 | `--want-assertions-signed` | No | Require signed assertions; omission preserves the saved value. Available when providerType is saml. |
 | `--no-want-assertions-signed` | No | Send --want-assertions-signed as false. |

@@ -24,6 +24,18 @@ export interface OAuthResource {
   url: string
 }
 
+/**
+ * Carries the validated authorization `resource` through Better Auth's signed
+ * authorize query and stored code. Better Auth 1.7 resolves a `resource` it sees
+ * against its static `oauth_resource` table, which cannot hold Sim's
+ * per-organization and per-workflow servers, so the authorize route hands the
+ * provider this parameter instead and binds the audience in
+ * {@link bindOAuthIssuedResource}. The provider signs every query parameter, so
+ * the value reaches the stored code tamper-proof through consent; the login hop
+ * hands it back as `resource` for the authorize route to validate again.
+ */
+export const OAUTH_AUTHORIZED_RESOURCE_PARAM = 'sim_resource'
+
 const issuance = new AsyncLocalStorage<OAuthResourceIssuance>()
 const SEARCH_RESOURCE_PATH = /^\/api\/mcp\/search\/organizations\/[A-Za-z0-9_-]{1,128}$/
 const WORKFLOW_MCP_RESOURCE_PATH = /^\/api\/mcp\/serve\/[A-Za-z0-9_-]{1,128}$/
@@ -98,7 +110,9 @@ export function bindOAuthIssuedResource({
   const context = issuance.getStore()
   const query = verificationValue?.query
   const resourceValue =
-    query && typeof query === 'object' && 'resource' in query ? query.resource : undefined
+    query && typeof query === 'object' && OAUTH_AUTHORIZED_RESOURCE_PARAM in query
+      ? query[OAUTH_AUTHORIZED_RESOURCE_PARAM]
+      : undefined
   let resource: OAuthResource | null
   try {
     if (resourceValue !== undefined && typeof resourceValue !== 'string') {

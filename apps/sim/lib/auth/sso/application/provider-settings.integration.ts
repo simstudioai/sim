@@ -151,7 +151,7 @@ describe('Organization SSO administration through API credentials', () => {
     domain,
     entryPoint: `https://idp.${domain}/sso`,
     cert: 'test signing certificate',
-    mapping: { id: 'sub', email: 'email', name: 'name', image: 'picture' },
+    mapping: { email: 'email', name: 'name' },
     jitProvisioningEnabled: true,
   })
 
@@ -167,7 +167,7 @@ describe('Organization SSO administration through API credentials', () => {
     tokenEndpoint: 'https://idp.example.com/token',
     jwksEndpoint: 'https://idp.example.com/jwks',
     userInfoEndpoint: 'https://idp.example.com/userinfo',
-    mapping: config().mapping,
+    mapping: { email: 'email', name: 'name', image: 'picture' },
     scopes: ['openid', 'email'],
     pkce: true,
     skipUserInfoEndpoint: false,
@@ -301,7 +301,6 @@ describe('Organization SSO administration through API credentials', () => {
       for (const changes of [
         { issuer: `https://other.${domain}` },
         { entryPoint: `https://other.${domain}/sso` },
-        { mapping: { ...config().mapping, id: 'different-subject' } },
         { idpMetadata: '<EntityDescriptor entityID="different-provider"/>' },
       ]) {
         await expect(
@@ -314,8 +313,8 @@ describe('Organization SSO administration through API credentials', () => {
         expect(row.issuer).toBe(config().issuer)
         expect(JSON.parse(row.samlConfig ?? '{}')).toMatchObject({
           entryPoint: config().entryPoint,
-          mapping: { id: 'sub' },
-          idpMetadata: { metadata: '' },
+          mapping: { email: 'email' },
+          idpMetadata: { entityID: config().issuer },
         })
       }
       await runtime.saveSsoProvider.execute({
@@ -359,7 +358,6 @@ describe('Organization SSO administration through API credentials', () => {
         { tokenEndpoint: 'https://other.example.com/token' },
         { authorizationEndpoint: 'https://other.example.com/authorize' },
         { userInfoEndpoint: 'https://other.example.com/userinfo' },
-        { mapping: { ...oidc.mapping, id: 'other-subject' } },
       ]) {
         await expect(
           runtime.saveSsoProvider.execute({ principal, input: { ...oidc, ...changes } })
@@ -375,7 +373,7 @@ describe('Organization SSO administration through API credentials', () => {
           tokenEndpoint: oidc.tokenEndpoint,
           authorizationEndpoint: oidc.authorizationEndpoint,
           userInfoEndpoint: oidc.userInfoEndpoint,
-          mapping: { id: 'sub' },
+          mapping: { email: 'email' },
         })
       }
       await runtime.saveSsoProvider.execute({

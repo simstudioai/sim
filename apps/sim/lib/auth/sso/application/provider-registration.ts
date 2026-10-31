@@ -9,6 +9,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, eq, sql } from 'drizzle-orm'
 import { ssoProviderOperations } from '@/lib/auth/sso/application/operations'
+import { normalizeIssuer } from '@/lib/auth/sso/issuer'
 import { type SsoProviderConfig, ssoProviderWriter } from '@/lib/auth/sso/provider-adapter'
 import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
 import type { SsoRegistrationInput } from '@/lib/auth/sso/registration-input'
@@ -53,16 +54,15 @@ function failSsoProvider(status: number, message: string, reason?: string): neve
 type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post'
 
 /**
- * Prefers client_secret_post over client_secret_basic when an IdP supports both:
- * better-auth sends client_secret_basic credentials without URL-encoding per
- * RFC 6749 §2.3.1, so a '+' in the client secret is decoded as a space, causing
- * invalid_client errors. Matches the same default in register-sso-provider.ts.
+ * Prefers client_secret_post over client_secret_basic when an IdP supports both, so new
+ * providers authenticate the way existing ones do. Matches the same default in
+ * register-sso-provider.ts.
  */
 function selectTokenEndpointAuthMethod(
   supportedMethods: unknown,
-  existing?: TokenEndpointAuthMethod
+  existing?: string
 ): TokenEndpointAuthMethod {
-  if (existing) return existing
+  if (existing === 'client_secret_basic' || existing === 'client_secret_post') return existing
   if (!Array.isArray(supportedMethods) || supportedMethods.length === 0) {
     return 'client_secret_post'
   }
@@ -509,10 +509,26 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
         )
       }
 
+      /**
+       * Better Auth 1.7 verifies every ID token's `iss` against the stored issuer exactly. Adopt
+       * the discovery document's spelling when the two differ only by a trailing slash, the
+       * form admins most often mistype.
+       */
+      const discoveredIssuer = discoveryResult.ok
+        ? toStringOrNull(discoveryResult.discovery.issuer)
+        : null
+      if (
+        discoveredIssuer &&
+        discoveredIssuer !== issuer &&
+        normalizeIssuer(discoveredIssuer) === normalizeIssuer(issuer)
+      )
+        providerConfig.issuer = discoveredIssuer
+
       oidcConfig.skipDiscovery = true
       // Better Auth reads the attribute mapping from oidcConfig.mapping, not a
       // top-level field — nesting it here is what makes a custom mapping apply.
-      if (mapping) oidcConfig.mapping = mapping
+      // Built field by field: the plugin rejects any other key.
+      oidcConfig.mapping = { email: mapping.email, name: mapping.name, image: mapping.image }
       providerConfig.oidcConfig = oidcConfig
     } else if (providerType === 'saml') {
       const {
@@ -527,8 +543,33 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
         idpMetadata,
       } = body
 
+      let stored: Record<string, unknown> = {}
+      if (ownedProvider?.samlConfig) {
+        try {
+          stored = toRecord(JSON.parse(ownedProvider.samlConfig))
+        } catch {
+          return failSsoProvider(400, 'Cannot update invalid SAML configuration.')
+        }
+      }
+
+      /**
+       * Better Auth 1.7 serves the ACS only at `sso/saml2/sp/acs/:providerId`. A provider saved
+       * earlier advertises `sso/saml2/callback/:providerId`, which its IdP has registered and the
+       * auth route still forwards to the ACS, so it keeps that URL rather than moving silently.
+       */
+      const legacyCallbackUrl = `${getBaseUrl()}/api/auth/sso/saml2/callback/${providerId}`
       const computedCallbackUrl =
-        callbackUrl || `${getBaseUrl()}/api/auth/sso/saml2/callback/${providerId}`
+        callbackUrl ||
+        (stored.callbackUrl === legacyCallbackUrl
+          ? legacyCallbackUrl
+          : `${getBaseUrl()}/api/auth/sso/saml2/sp/acs/${providerId}`)
+
+      /**
+       * Better Auth 1.7 takes the signing policy from SP metadata and refuses a configuration
+       * whose metadata asks for less than `wantAssertionsSigned`. An omitted flag keeps the stored
+       * one, so the metadata advertises the value that will be saved.
+       */
+      const requireSignedAssertions = wantAssertionsSigned ?? stored.wantAssertionsSigned === true
 
       const escapeXml = (str: string) =>
         str.replace(/[<>&"']/g, (c) => {
@@ -550,11 +591,18 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
 
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(getBaseUrl())}">
-  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="${requireSignedAssertions}" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(computedCallbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
 
+      /**
+       * Without a metadata document the IdP is identified by its entity ID, which is the issuer
+       * an admin enters (Better Auth 1.6 fell back to it; 1.7 requires it spelled out). Omitting
+       * the document clears a stored one, and a document is never generated here — one built
+       * from cert + entryPoint outranks the certificate on re-save, silently defeating SAML cert
+       * rotation.
+       */
       const samlConfig: NonNullable<SsoProviderConfig['samlConfig']> = {
         entryPoint,
         cert,
@@ -562,6 +610,7 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
         spMetadata: {
           metadata: spMetadataXml,
         },
+        idpMetadata: idpMetadata ? { metadata: idpMetadata } : { entityID: issuer },
       }
 
       if (audience) samlConfig.audience = audience
@@ -570,18 +619,12 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
 
       /**
-       * Always written, empty when unset: Better Auth merges SAML config with
-       * `??`, so an omitted key keeps whatever was stored and clearing either
-       * field would never take effect. Both are falsy-guarded downstream.
-       *
-       * Metadata must not be generated here — a document built from cert +
-       * entryPoint outranks the certificate on re-save, silently defeating
-       * SAML cert rotation.
+       * Always written, empty when unset: the stored config is merged with the update, so an
+       * omitted key keeps whatever was stored and clearing the format would never take effect.
        */
-      samlConfig.idpMetadata = { metadata: idpMetadata ?? '' }
       samlConfig.identifierFormat = identifierFormat ?? ''
       // Better Auth reads the attribute mapping from samlConfig.mapping.
-      if (mapping) samlConfig.mapping = mapping
+      samlConfig.mapping = { email: mapping.email, name: mapping.name }
 
       providerConfig.samlConfig = samlConfig
     }
@@ -630,7 +673,7 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
           providerConfig.oidcConfig.clientSecret = secret
         }
         if (
-          existing.issuer === issuer &&
+          existing.issuer === providerConfig.issuer &&
           (current.tokenEndpointAuthentication === 'client_secret_basic' ||
             current.tokenEndpointAuthentication === 'client_secret_post')
         )
@@ -643,7 +686,7 @@ export const saveSsoProvider = defineOrganizationConfigurationUseCase({
         await writer.update(
           {
             providerId,
-            issuer,
+            issuer: providerConfig.issuer,
             domain,
             ...(providerConfig.oidcConfig ? { oidcConfig: providerConfig.oidcConfig } : {}),
             ...(providerConfig.samlConfig ? { samlConfig: providerConfig.samlConfig } : {}),

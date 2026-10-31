@@ -20,7 +20,7 @@ interface ConnectLauncherProps {
 
 /**
  * Starts the better-auth link flow for the requested provider as soon as the
- * page loads — oauth2.link must run client-side so the state cookie lands in
+ * page loads — linkSocial must run client-side so the state cookie lands in
  * this browser, which the OAuth callback requires. On success the browser
  * leaves for the provider immediately, so the UI is just a brief interstitial
  * plus an error state with retry.
@@ -33,8 +33,8 @@ export function ConnectLauncher({ providerId, completeUrl }: ConnectLauncherProp
     setError(null)
     try {
       const scopes = getPerRequestOAuthLinkScopes(providerId)
-      await client.oauth2.link({
-        providerId,
+      const result = await client.linkSocial({
+        provider: providerId,
         callbackURL: completeUrl,
         ...(scopes && { scopes }),
         // Failed flows bounce to the same complete page (which forwards the
@@ -44,6 +44,9 @@ export function ConnectLauncher({ providerId, completeUrl }: ConnectLauncherProp
         // that the complete page can't read — so it would look like success.
         errorCallbackURL: completeUrl,
       })
+      if (result.error) {
+        setError(getErrorMessage(result.error.message, 'Could not start the connection.'))
+      }
     } catch (err) {
       setError(getErrorMessage(err, 'Could not start the connection.'))
     }

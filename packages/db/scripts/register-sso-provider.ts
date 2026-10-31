@@ -31,10 +31,11 @@
  * SAML Providers:
  *   SSO_SAML_ENTRY_POINT=https://your-idp/sso
  *   SSO_SAML_CERT=your-certificate-pem-string
- *   SSO_SAML_CALLBACK_URL=https://yourdomain.com/api/auth/sso/saml2/callback/provider-id
- *   SSO_SAML_SP_METADATA=<custom-sp-metadata-xml> (optional, auto-generated if not provided)
+ *   SSO_SAML_CALLBACK_URL=https://yourdomain.com/api/auth/sso/saml2/sp/acs/provider-id (optional ACS URL)
+ *   SSO_SAML_SP_METADATA=<custom-sp-metadata-xml> (optional, auto-generated if not provided;
+ *     its WantAssertionsSigned must not be weaker than SSO_SAML_WANT_ASSERTIONS_SIGNED)
  *   SSO_SAML_IDP_METADATA=<idp-metadata-xml> (optional)
- *   SSO_SAML_AUDIENCE=https://yourdomain.com (optional, defaults to SSO_ISSUER)
+ *   SSO_SAML_AUDIENCE=https://yourdomain.com (optional, defaults to the SP entity ID, the app URL)
  *   SSO_SAML_WANT_ASSERTIONS_SIGNED=true (optional, defaults to false)
  */
 
@@ -47,8 +48,8 @@ import postgres from 'postgres'
 import { ssoDomain, ssoProvider, user } from '../schema'
 import { keepDomainSignInProvider } from '../sso-primary-provider'
 
+/** Users are keyed by the OIDC `sub` claim or the SAML NameID; the account ID is not mappable. */
 interface SSOMapping {
-  id: string
   email: string
   name: string
   image?: string
@@ -188,11 +189,6 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
   }
 
   config.mapping = {
-    id:
-      process.env.SSO_MAPPING_ID ||
-      (providerType === 'oidc'
-        ? 'sub'
-        : 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'),
     email:
       process.env.SSO_MAPPING_EMAIL ||
       (providerType === 'oidc'
@@ -203,7 +199,7 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       (providerType === 'oidc'
         ? 'name'
         : 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'),
-    image: process.env.SSO_MAPPING_IMAGE || (providerType === 'oidc' ? 'picture' : undefined),
+    ...(providerType === 'oidc' ? { image: process.env.SSO_MAPPING_IMAGE || 'picture' } : {}),
   }
 
   if (providerType === 'oidc') {
@@ -270,13 +266,23 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       })
 
     const callbackUrl =
-      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/saml2/callback/${providerId}`
+      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/saml2/sp/acs/${providerId}`
+    const wantAssertionsSigned = process.env.SSO_SAML_WANT_ASSERTIONS_SIGNED === 'true'
 
     let spMetadata = process.env.SSO_SAML_SP_METADATA
+    if (
+      spMetadata &&
+      wantAssertionsSigned &&
+      !/\sWantAssertionsSigned\s*=\s*(["'])(true|1)\1/.test(spMetadata)
+    ) {
+      throw new Error(
+        'SSO_SAML_SP_METADATA must declare WantAssertionsSigned="true" when SSO_SAML_WANT_ASSERTIONS_SIGNED=true'
+      )
+    }
     if (!spMetadata) {
       spMetadata = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(appBaseUrl)}">
-  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="${wantAssertionsSigned}" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(callbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
@@ -313,8 +319,8 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       entryPoint,
       cert,
       callbackUrl,
-      audience: process.env.SSO_SAML_AUDIENCE || issuer,
-      wantAssertionsSigned: process.env.SSO_SAML_WANT_ASSERTIONS_SIGNED === 'true',
+      audience: process.env.SSO_SAML_AUDIENCE || undefined,
+      wantAssertionsSigned,
       signatureAlgorithm: process.env.SSO_SAML_SIGNATURE_ALGORITHM,
       digestAlgorithm: process.env.SSO_SAML_DIGEST_ALGORITHM,
       identifierFormat: process.env.SSO_SAML_IDENTIFIER_FORMAT,
@@ -359,7 +365,6 @@ function getExampleEnvVars(
         SSO_ISSUER: 'https://login.microsoftonline.com/{tenant-id}/v2.0',
         SSO_OIDC_CLIENT_ID: 'your-application-id',
         SSO_OIDC_CLIENT_SECRET: 'your-client-secret',
-        SSO_MAPPING_ID: 'oid',
         SSO_OIDC_SKIP_USERINFO_ENDPOINT: 'true',
       },
       generic: {
@@ -385,7 +390,6 @@ function getExampleEnvVars(
       '-----BEGIN CERTIFICATE-----\nMIIDBjCCAe4CAQAwDQYJKoZIhvcNAQEFBQAwEjEQMA4GA1UEAwwHYWRmcy...\n-----END CERTIFICATE-----',
     SSO_SAML_AUDIENCE: 'https://yourapp.com',
     SSO_SAML_WANT_ASSERTIONS_SIGNED: 'true',
-    SSO_MAPPING_ID: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
     SSO_MAPPING_EMAIL: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
     SSO_MAPPING_NAME: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
   }
@@ -593,9 +597,7 @@ async function registerSSOProvider(): Promise<boolean> {
         clientSecret: ssoConfig.oidcConfig.clientSecret,
         authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
         tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
-        // Default to client_secret_post: better-auth sends client_secret_basic
-        // credentials without URL-encoding per RFC 6749 §2.3.1, so '+' in secrets
-        // is decoded as space by OIDC providers, causing invalid_client errors.
+        // Matches the default of providers saved in the app.
         tokenEndpointAuthentication:
           ssoConfig.oidcConfig.tokenEndpointAuthentication ?? 'client_secret_post',
         jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
@@ -731,13 +733,10 @@ async function registerSSOProvider(): Promise<boolean> {
 
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || 'https://your-domain.com'
-    const callbackPath =
-      ssoConfig.providerType === 'saml'
-        ? `api/auth/sso/saml2/callback/${ssoConfig.providerId}`
-        : `api/auth/sso/callback/${ssoConfig.providerId}`
-    logger.info(
-      `📋 Callback URL (configure this in your identity provider): ${baseUrl}/${callbackPath}`
-    )
+    const callbackUrl =
+      ssoConfig.samlConfig?.callbackUrl ??
+      `${baseUrl}/api/auth/sso/callback/${ssoConfig.providerId}`
+    logger.info(`📋 Callback URL (configure this in your identity provider): ${callbackUrl}`)
 
     return true
   } catch (error) {

@@ -1,16 +1,17 @@
-import { randomBytes } from 'node:crypto'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
 import { generateId } from '@sim/utils/id'
-import { makeSignature } from 'better-auth/crypto'
+import { generateRandomBytes, generateRandomHex, randomInt } from '@sim/utils/random'
+import { makeSignature, symmetricEncrypt } from 'better-auth/crypto'
 import { eq, inArray, like, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 import { auth } from '@/lib/auth'
 import * as tokenStore from '@/lib/auth/oauth-access-token'
 import * as provider from '@/lib/auth/oauth-provider'
+import { OAUTH_AUTHORIZED_RESOURCE_PARAM } from '@/lib/auth/oauth-resource'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { POST as revokeRoute } from '@/app/api/auth/oauth2/revoke/route'
 import { POST as tokenRoute } from '@/app/api/auth/oauth2/token/route'
@@ -46,7 +47,7 @@ describe('OAuth token route in PostgreSQL', () => {
     async (redirectUri) => {
       const POST = (request: NextRequest) => tokenRoute(request, {})
       /** A fresh TEST-NET-2 address per case, so reruns never draw on an earlier run's bucket. */
-      const clientIp = `198.51.100.${(randomBytes(1)[0] % 254) + 1}`
+      const clientIp = `198.51.100.${randomInt(1, 255)}`
       requestUtilsMockFns.mockGetClientIp.mockReturnValue(clientIp)
       const userId = generateId()
       const clientId = generateId()
@@ -68,7 +69,7 @@ describe('OAuth token route in PostgreSQL', () => {
         })
 
       const issueCode = async () => {
-        const verifier = randomBytes(32).toString('base64url')
+        const verifier = Buffer.from(generateRandomBytes(32)).toString('base64url')
         const challenge = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
         const url = new URL('/api/auth/oauth2/authorize', baseUrl)
         url.search = new URLSearchParams({
@@ -78,7 +79,8 @@ describe('OAuth token route in PostgreSQL', () => {
           scope: scopes.join(' '),
           code_challenge: Buffer.from(challenge).toString('base64url'),
           code_challenge_method: 'S256',
-          resource,
+          /** What the authorize route hands the provider for a validated `resource`. */
+          [OAUTH_AUTHORIZED_RESOURCE_PARAM]: resource,
           state: generateId(),
           prompt: 'consent',
         }).toString()
@@ -86,8 +88,10 @@ describe('OAuth token route in PostgreSQL', () => {
         expect(response.status).toBe(302)
         const consentLocation = new URL(response.headers.get('location') ?? '', baseUrl)
         expect(consentLocation.pathname).toBe('/oauth/consent')
-        expect(consentLocation.searchParams.get('resource')).toBe(resource)
-        expect(consentLocation.searchParams.getAll('ba_param')).toContain('resource')
+        expect(consentLocation.searchParams.get(OAUTH_AUTHORIZED_RESOURCE_PARAM)).toBe(resource)
+        expect(consentLocation.searchParams.getAll('ba_param')).toContain(
+          OAUTH_AUTHORIZED_RESOURCE_PARAM
+        )
         expect(consentLocation.searchParams.has('sig')).toBe(true)
         const signedQuery = consentLocation.search.slice(1)
         const submitConsent = (query: string) =>
@@ -100,8 +104,8 @@ describe('OAuth token route in PostgreSQL', () => {
           )
         for (const replacement of [null, otherResource]) {
           const tampered = new URLSearchParams(signedQuery)
-          if (replacement) tampered.set('resource', replacement)
-          else tampered.delete('resource')
+          if (replacement) tampered.set(OAUTH_AUTHORIZED_RESOURCE_PARAM, replacement)
+          else tampered.delete(OAUTH_AUTHORIZED_RESOURCE_PARAM)
           const rejected = await submitConsent(tampered.toString())
           expect(rejected.status).toBe(400)
           await expect(rejected.json()).resolves.toMatchObject({ error: 'invalid_signature' })
@@ -260,11 +264,134 @@ describe('OAuth token route in PostgreSQL', () => {
     30_000
   )
 
+  it.each(['client_secret_basic', 'client_secret_post'] as const)(
+    'exchanges a code and refreshes for a confidential client registered for %s',
+    async (method) => {
+      const POST = (request: NextRequest) => tokenRoute(request, {})
+      const clientIp = `203.0.113.${randomInt(1, 255)}`
+      requestUtilsMockFns.mockGetClientIp.mockReturnValue(clientIp)
+      const baseUrl = 'https://test.sim.ai'
+      const redirectUri = 'https://client.example/callback'
+      const userId = generateId()
+      const sessionToken = generateId()
+      const clientId = `confidential+${generateId()}`
+      const clientSecret = `s:${generateId()}`
+      const scopes = ['api:read', 'offline_access']
+      const now = new Date()
+      const signature = await makeSignature(sessionToken, authSecret)
+      const cookie = `__Secure-better-auth.session_token=${encodeURIComponent(`${sessionToken}.${signature}`)}`
+
+      /** RFC 6749 §2.3.1 form-encodes each half before Basic encoding. */
+      const authenticate = (values: Record<string, string>) => {
+        const form = new URLSearchParams(values)
+        const headers: Record<string, string> = {
+          'content-type': 'application/x-www-form-urlencoded',
+        }
+        if (method === 'client_secret_basic') {
+          const pair = `${encodeURIComponent(clientId)}:${encodeURIComponent(clientSecret)}`
+          headers.authorization = `Basic ${Buffer.from(pair).toString('base64')}`
+        } else {
+          form.set('client_id', clientId)
+          form.set('client_secret', clientSecret)
+        }
+        return new NextRequest(`${baseUrl}/api/auth/oauth2/token`, {
+          method: 'POST',
+          body: form.toString(),
+          headers,
+        })
+      }
+
+      try {
+        await db.insert(schema.user).values({
+          id: userId,
+          name: 'Confidential OAuth client test',
+          email: `${userId}@example.com`,
+          emailVerified: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await db.insert(schema.session).values({
+          id: generateId(),
+          token: sessionToken,
+          userId,
+          expiresAt: new Date(now.getTime() + 86_400_000),
+          createdAt: now,
+          updatedAt: now,
+        })
+        await db.insert(schema.oauthClient).values({
+          id: generateId(),
+          clientId,
+          clientSecret: await symmetricEncrypt({ key: authSecret, data: clientSecret }),
+          name: 'Confidential OAuth client test',
+          public: false,
+          type: 'web',
+          tokenEndpointAuthMethod: method,
+          grantTypes: ['authorization_code', 'refresh_token'],
+          redirectUris: [redirectUri],
+          scopes,
+        })
+        await db.insert(schema.oauthConsent).values({
+          id: generateId(),
+          clientId,
+          userId,
+          scopes,
+          createdAt: now,
+          updatedAt: now,
+        })
+
+        const verifier = Buffer.from(generateRandomBytes(32)).toString('base64url')
+        const challenge = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+        const authorizeUrl = new URL('/api/auth/oauth2/authorize', baseUrl)
+        authorizeUrl.search = new URLSearchParams({
+          client_id: clientId,
+          response_type: 'code',
+          redirect_uri: redirectUri,
+          scope: scopes.join(' '),
+          code_challenge: Buffer.from(challenge).toString('base64url'),
+          code_challenge_method: 'S256',
+          state: generateId(),
+        }).toString()
+        const authorized = await auth.handler(new Request(authorizeUrl, { headers: { cookie } }))
+        expect(authorized.status).toBe(302)
+        const code = new URL(authorized.headers.get('location') ?? '').searchParams.get('code')
+        expect(code, 'Expected an authorization code redirect').toBeTruthy()
+
+        const issued = await POST(
+          authenticate({
+            grant_type: 'authorization_code',
+            code: code ?? '',
+            code_verifier: verifier,
+            redirect_uri: redirectUri,
+          })
+        )
+        expect(issued.status, await issued.clone().text()).toBe(200)
+        const tokens = (await issued.json()) as TokenResponseBody
+        await expect(tokenStore.verifyOAuthAccessToken(tokens.access_token)).resolves.toMatchObject(
+          { userId }
+        )
+
+        const renewed = await POST(
+          authenticate({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token })
+        )
+        expect(renewed.status).toBe(200)
+      } finally {
+        await db.delete(schema.verification).where(like(schema.verification.value, `%${userId}%`))
+        await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId))
+        await db.delete(schema.user).where(eq(schema.user.id, userId))
+        await db
+          .delete(schema.rateLimitBucket)
+          .where(eq(schema.rateLimitBucket.key, `route:oauth-provider-token:ip:${clientIp}`))
+        requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
+      }
+    },
+    30_000
+  )
+
   it('issues, rotates, contains replay, and revokes a real Better Auth PKCE grant', async () => {
     const exchangeToken = (request: NextRequest) => tokenRoute(request, {})
     const revokeToken = (request: NextRequest) => revokeRoute(request, {})
 
-    const testId = randomBytes(8).toString('hex')
+    const testId = generateRandomHex(16)
     const userId = `oauth-route-test-user-${testId}`
     const sessionId = `oauth-route-test-session-${testId}`
     const sessionToken = `oauth-route-test-session-token-${testId}`
@@ -582,35 +709,89 @@ describe('OAuth token route in PostgreSQL', () => {
           .where(eq(schema.oauthTokenFamily.id, secondRefresh?.familyId ?? 'missing'))
       ).toHaveLength(0)
 
-      const racingVerifier = `${testId}-racing-verifier-with-more-than-forty-three-characters`
-      const racingCode = await issueAuthorizationCode(racingVerifier)
-      const exchangeSameCode = () =>
+      const exchangeCode = (code: string, verifier: string) =>
         exchangeToken(
           createFormRequest(
             '/api/auth/oauth2/token',
             new URLSearchParams({
               grant_type: 'authorization_code',
               client_id: provider.SIM_CLI_CLIENT_ID,
-              code: racingCode,
-              code_verifier: racingVerifier,
+              code,
+              code_verifier: verifier,
               redirect_uri: redirectUri,
             })
           )
         )
-      const racingResponses = await Promise.all([exchangeSameCode(), exchangeSameCode()])
-      expect(racingResponses.map((response) => response.status).sort()).toEqual([200, 400])
-      const rejectedExchange = racingResponses.find((response) => response.status === 400)
-      await expect(rejectedExchange?.json()).resolves.toMatchObject({ error: 'invalid_grant' })
-      expect(
-        await db
+      const familyIdsForUser = () =>
+        db
           .select({ id: schema.oauthTokenFamily.id })
           .from(schema.oauthTokenFamily)
           .where(eq(schema.oauthTokenFamily.userId, userId))
-      ).toHaveLength(1)
 
-      const activeTokens = (await racingResponses
-        .find((response) => response.status === 200)
-        ?.json()) as TokenResponseBody
+      const racingVerifier = `${testId}-racing-verifier-with-more-than-forty-three-characters`
+      const racingCode = await issueAuthorizationCode(racingVerifier)
+      const racingResponses = await Promise.all([
+        exchangeCode(racingCode, racingVerifier),
+        exchangeCode(racingCode, racingVerifier),
+      ])
+      // The replay revokes whatever the first exchange has issued so far, so which of the two
+      // succeeds depends on interleaving; neither may fail as a server error or strand a family.
+      const racingStatuses = racingResponses.map((response) => response.status)
+      expect(racingStatuses).toContain(400)
+      expect(racingStatuses.every((status) => status === 200 || status === 400)).toBe(true)
+      for (const response of racingResponses.filter(({ status }) => status === 400)) {
+        await expect(response.json()).resolves.toMatchObject({ error: 'invalid_grant' })
+      }
+      const refreshFamilyIds = new Set(
+        (
+          await db
+            .select({ familyId: schema.oauthRefreshToken.familyId })
+            .from(schema.oauthRefreshToken)
+            .where(eq(schema.oauthRefreshToken.userId, userId))
+        ).map(({ familyId }) => familyId)
+      )
+      expect((await familyIdsForUser()).every(({ id }) => refreshFamilyIds.has(id))).toBe(true)
+      for (const response of racingResponses.filter(({ status }) => status === 200)) {
+        const { refresh_token } = (await response.json()) as TokenResponseBody
+        await revokeToken(
+          createFormRequest(
+            '/api/auth/oauth2/revoke',
+            new URLSearchParams({ client_id: provider.SIM_CLI_CLIENT_ID, token: refresh_token })
+          )
+        )
+      }
+      expect(await familyIdsForUser()).toHaveLength(0)
+
+      const replayVerifier = `${testId}-replay-verifier-with-more-than-forty-three-characters`
+      const replayCode = await issueAuthorizationCode(replayVerifier)
+      const firstExchange = await exchangeCode(replayCode, replayVerifier)
+      expect(firstExchange.status).toBe(200)
+      const firstGrant = (await firstExchange.json()) as TokenResponseBody
+      expect(await familyIdsForUser()).toHaveLength(1)
+      const replayedExchange = await exchangeCode(replayCode, replayVerifier)
+      expect(replayedExchange.status).toBe(400)
+      await expect(replayedExchange.json()).resolves.toMatchObject({ error: 'invalid_grant' })
+      expect(await familyIdsForUser()).toHaveLength(0)
+      const refreshAfterReplay = await exchangeToken(
+        createFormRequest(
+          '/api/auth/oauth2/token',
+          new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: provider.SIM_CLI_CLIENT_ID,
+            refresh_token: firstGrant.refresh_token,
+          })
+        )
+      )
+      expect(refreshAfterReplay.status).toBe(400)
+
+      const activeVerifier = `${testId}-active-verifier-with-more-than-forty-three-characters`
+      const activeExchange = await exchangeCode(
+        await issueAuthorizationCode(activeVerifier),
+        activeVerifier
+      )
+      expect(activeExchange.status).toBe(200)
+      const activeTokens = (await activeExchange.json()) as TokenResponseBody
+      expect(await familyIdsForUser()).toHaveLength(1)
       const withheldVerifier = `${testId}-withheld-verifier-with-more-than-forty-three-characters`
       const withheldCode = await issueAuthorizationCode(withheldVerifier)
       const consentUrl = await createAuthorizeUrl(withheldVerifier)

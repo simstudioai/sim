@@ -119,6 +119,20 @@ export function createGreenhouseProvider({
       throw new Error(`Invalid Greenhouse ${label} response`)
     }
   }
+  async function introspect(accessToken: string | undefined) {
+    if (!accessToken) throw new Error('Greenhouse token identity could not be verified')
+    const parsed = introspectionSchema.safeParse(
+      await post(
+        GREENHOUSE_INTROSPECTION_URL,
+        new URLSearchParams({ token: accessToken, token_type_hint: 'access_token' }),
+        'token introspection'
+      )
+    )
+    if (!parsed.success || parsed.data.client_id !== clientId) {
+      throw new Error('Greenhouse token identity could not be verified')
+    }
+    return parsed.data
+  }
   return {
     providerId: 'greenhouse',
     clientId,
@@ -128,28 +142,23 @@ export function createGreenhouseProvider({
     scopes,
     responseType: 'code',
     authentication: 'basic',
+    pkce: false,
     redirectURI,
+    /**
+     * Stores the scopes introspection attests rather than the requested ones. They are set here
+     * because Better Auth persists the exchange's scopes and hands `getUserInfo` a copy.
+     */
     getToken: async ({ code }) => {
       const url = new URL(GREENHOUSE_TOKEN_URL)
       url.searchParams.set('grant_type', 'authorization_code')
       url.searchParams.set('code', code)
-      return parseGreenhouseTokens(await post(url.toString(), undefined, 'token exchange'))
+      const tokens = parseGreenhouseTokens(await post(url.toString(), undefined, 'token exchange'))
+      const { scope } = await introspect(tokens.accessToken)
+      return { ...tokens, scopes: scope.split(/\s+/).filter(Boolean) }
     },
     getUserInfo: async (tokens) => {
-      if (!tokens.accessToken) throw new Error('Greenhouse token identity could not be verified')
-      const parsed = introspectionSchema.safeParse(
-        await post(
-          GREENHOUSE_INTROSPECTION_URL,
-          new URLSearchParams({ token: tokens.accessToken, token_type_hint: 'access_token' }),
-          'token introspection'
-        )
-      )
-      if (!parsed.success || parsed.data.client_id !== clientId) {
-        throw new Error('Greenhouse token identity could not be verified')
-      }
-      const identity = parsed.data
+      const identity = await introspect(tokens.accessToken)
       const organization = identity['https://auth.greenhouse.io/claims'].organization
-      tokens.scopes = identity.scope.split(/\s+/).filter(Boolean)
       const now = new Date()
       return {
         id: `${organization.id}-${identity.sub}-${generateId()}`,

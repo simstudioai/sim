@@ -62,18 +62,6 @@ function getRedirectUri(
   return current.connector.redirectURI
 }
 
-function staticParams(
-  value: ConnectorProviderConfig['authorizationUrlParams'],
-  label: string
-): Record<string, string> {
-  if (typeof value === 'function') {
-    throw new CredentialGroupProviderConfigurationError(
-      `${label} cannot depend on an authenticated Sim request`
-    )
-  }
-  return value ?? {}
-}
-
 async function resolveOAuthEndpoints(
   connector: ConnectorProviderConfig,
   providerName: string
@@ -228,7 +216,7 @@ async function exchangeAuthorizationCode(params: {
         },
         tokenEndpoint,
         authentication: connector.authentication,
-        additionalParams: staticParams(connector.tokenUrlParams, 'OAuth token parameters'),
+        additionalParams: connector.tokenUrlParams,
       })
   return applyDefaultAccessTokenExpiry(tokens, connector.accessTokenExpiresIn)
 }
@@ -278,13 +266,10 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
             accessType: current.connector.accessType,
             responseType: current.connector.responseType,
             responseMode: current.connector.responseMode,
+            ...(managed.nonceVerification === 'id_token' ? { nonce } : {}),
             additionalParams: {
-              ...staticParams(
-                current.connector.authorizationUrlParams,
-                'OAuth authorization parameters'
-              ),
+              ...current.connector.authorizationUrlParams,
               ...managed.authorizationUrlParams,
-              ...(managed.nonceVerification === 'id_token' ? { nonce } : {}),
             },
           })
           return authorizationUrl.toString()

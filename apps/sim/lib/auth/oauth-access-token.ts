@@ -37,6 +37,7 @@ export type InvalidOAuthAccessTokenReason =
   | 'malformed'
   | 'unknown'
   | 'expired'
+  | 'revoked'
   | 'client_disabled'
   | 'user_missing'
   | 'user_banned'
@@ -108,9 +109,10 @@ export function getOAuthAccessTokenAudience(): OAuthAccessTokenOptions {
  * One indexed read: the token is hashed the same way the provider stored it and
  * joined to its client and user, so the checks the API-key path makes about a
  * key row — not expired, owner still exists, owner not banned — are made here
- * about the token row, plus the one that is new: the client has not been
- * disabled. Nothing about the token is cached; that is what makes revoking an
- * app in settings, or `sim logout`, take effect on the very next request.
+ * about the token row, plus the ones that are new: the client has not been
+ * disabled, and the token was not revoked when its session ended. Nothing
+ * about the token is cached; that is what makes revoking an app in settings,
+ * or `sim logout`, take effect on the very next request.
  */
 export async function verifyOAuthAccessToken(
   token: string,
@@ -129,6 +131,7 @@ export async function verifyOAuthAccessToken(
       scopes: oauthAccessToken.scopes,
       resource: oauthAccessToken.resource,
       expiresAt: oauthAccessToken.expiresAt,
+      revoked: oauthAccessToken.revoked,
       clientDisabled: oauthClient.disabled,
       userBanned: user.banned,
       userBanExpires: user.banExpires,
@@ -151,6 +154,11 @@ export async function verifyOAuthAccessToken(
     throw new InvalidOAuthAccessTokenError('wrong_resource')
   }
   if (row.expiresAt <= new Date()) throw new InvalidOAuthAccessTokenError('expired')
+  /**
+   * Better Auth revokes the access tokens bound to a session when it ends; the
+   * client's `offline_access` refresh token survives and mints a new one.
+   */
+  if (row.revoked) throw new InvalidOAuthAccessTokenError('revoked')
   if (row.clientDisabled) throw new InvalidOAuthAccessTokenError('client_disabled')
   if (!row.userId || !row.userExists) throw new InvalidOAuthAccessTokenError('user_missing')
   if (
