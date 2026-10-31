@@ -40,10 +40,9 @@ const logger = createLogger('SimLinks')
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
-  { id: 'destination', header: 'Destination', widthMultiplier: 1.6 },
+  { id: 'destination', header: 'Destination', widthMultiplier: 2 },
   { id: 'description', header: 'Description', widthMultiplier: 1.4 },
   { id: 'owner', header: 'Created by' },
-  { id: 'opens', header: 'Opens' },
   { id: 'access', header: 'Access' },
   { id: 'updated', header: 'Updated' },
 ]
@@ -114,7 +113,6 @@ export function SimLinks({ organizationId }: SimLinksProps) {
                 label: link.createdBy.name,
               }
             : { label: null },
-          opens: { label: String(link.visitCount) },
           access: { label: accessLabel(link) },
           updated: timeCell(link.updatedAt),
         },
