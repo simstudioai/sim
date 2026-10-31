@@ -1,13 +1,18 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { retainSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { executeCopilotApiKeyUseCase } from '@/lib/mothership/application/execute-api-key-use-case'
 import {
   executeCopilotWorkflowUseCase,
   messageForCopilotWorkflowError,
 } from '@/lib/mothership/application/execute-workflow-use-case'
+import type { WorkflowToolRunningResult } from '@/lib/mothership/generated/protocol'
 import type { ExecutionContext, ToolCallResult } from '@/lib/mothership/request/types'
 import {
   TOOL_EFFECT_PHASE,
@@ -29,11 +34,13 @@ import {
 } from '@/lib/mothership/tools/workflow-output'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import {
+  type CopilotWorkflowRunLifecycle,
   runBlockFromCopilot,
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
   runWorkflowUntilBlockFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
+import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -252,6 +259,73 @@ function copilotRunLifecycle(context: ExecutionContext) {
   }
 }
 
+/** How often a run past its wait is re-read for its log before it is answered running. */
+const RUN_LOG_POLL_MS = 1000
+
+/** Whether the run's log exists; a lookup that fails counts as not yet, so the call keeps waiting. */
+async function runIsReadable(executionId: string, workflowId: string): Promise<boolean> {
+  try {
+    return (await getWorkflowExecutionLogStatus(executionId, workflowId)) !== undefined
+  } catch (error) {
+    logger.warn('Could not read a workflow tool run past its wait; still waiting on it', {
+      executionId,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
+/**
+ * Runs a workflow tool's run and answers with its result. When the call names a wait the run
+ * outlasts (`workflowRunWaitMs`), it answers the run still running by the execution id it gave
+ * the run, and the run goes on. The tool's execution keeps holding the run, so its lease, and a
+ * Stop through the call's abort signal, reach the run until it settles.
+ */
+async function answerWithinWait(
+  context: ExecutionContext,
+  workflowId: string,
+  run: (lifecycle: CopilotWorkflowRunLifecycle) => Promise<ToolCallResult>
+): Promise<ToolCallResult> {
+  const lifecycle = copilotRunLifecycle(context)
+  const waitMs = context.workflowRunWaitMs
+  if (waitMs === undefined) return run(lifecycle)
+  const executionId = lifecycle.boundExecution?.executionId ?? generateId()
+  const settled = run({ ...lifecycle, executionId })
+  retainSandboxExecution(settled)
+  const stopWaiting = new AbortController()
+  const waited = (ms: number) => interruptibleSleep(ms, stopWaiting.signal).then(() => null)
+  try {
+    let result = await Promise.race([settled, waited(waitMs)])
+    // Answered running only once the run is readable by its id; one still starting up (or in
+    // preflight) is waited on until its log exists or it settles.
+    while (!result && !(await runIsReadable(executionId, workflowId))) {
+      result = await Promise.race([settled, waited(RUN_LOG_POLL_MS)])
+    }
+    // A run that settled while its log was being read answers with its result.
+    result ??= await Promise.race([settled, Promise.resolve(null)])
+    if (result) return result
+  } finally {
+    stopWaiting.abort()
+  }
+  logger.info('Workflow tool run outlasted its wait; answering it still running', {
+    toolCallId: context.toolCallId,
+    workflowId,
+    executionId,
+    waitMs,
+  })
+  const output: WorkflowToolRunningResult = {
+    status: 'running',
+    executionId,
+    workflowId,
+    message: `The run is still going after ${Math.round(waitMs / 1000)} seconds and continues in the background as execution ${executionId}.`,
+  }
+  return {
+    success: true,
+    output,
+    effect: executionEffect(TOOL_EFFECT_PHASE.attempted, executionId),
+  }
+}
+
 function assertWorkflowMutationNotAborted(
   context: ExecutionContext,
   message = 'Request aborted before workflow mutation could be applied.'
@@ -273,25 +347,31 @@ export async function executeRunWorkflow(
 
     const useDraftState = !params.useDeployedState
     const workflowInput = resolveRunWorkflowInput(params)
-    const result = await executeCopilotWorkflowUseCase(context, runWorkflowFromCopilot, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      triggerBlockId: resolveRunTriggerBlockId(params),
-      workflowInput,
-      hasWorkflowInput: workflowInput !== undefined,
-      useMockPayload: params.useMockPayload === true,
-      inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
-      lifecycle: copilotRunLifecycle(context),
-    })
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(context, runWorkflowFromCopilot, {
+          workflowId,
+          assertedWorkspaceId: context.workspaceId,
+          useDraftState,
+          triggerBlockId: resolveRunTriggerBlockId(params),
+          workflowInput,
+          hasWorkflowInput: workflowInput !== undefined,
+          useMockPayload: params.useMockPayload === true,
+          inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
+          lifecycle,
+        })
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      undefined,
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          undefined,
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
@@ -351,26 +431,37 @@ export async function executeRunWorkflowUntilBlock(
 
     const useDraftState = !params.useDeployedState
     const workflowInput = resolveRunWorkflowInput(params)
-    const result = await executeCopilotWorkflowUseCase(context, runWorkflowUntilBlockFromCopilot, {
-      workflowId,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      triggerBlockId: resolveRunTriggerBlockId(params),
-      workflowInput,
-      hasWorkflowInput: workflowInput !== undefined,
-      useMockPayload: params.useMockPayload === true,
-      inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
-      stopAfterBlockId: params.stopAfterBlockId,
-      lifecycle: copilotRunLifecycle(context),
-    })
+    const stopAfterBlockId = params.stopAfterBlockId
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(
+          context,
+          runWorkflowUntilBlockFromCopilot,
+          {
+            workflowId,
+            assertedWorkspaceId: context.workspaceId,
+            useDraftState,
+            triggerBlockId: resolveRunTriggerBlockId(params),
+            workflowInput,
+            hasWorkflowInput: workflowInput !== undefined,
+            useMockPayload: params.useMockPayload === true,
+            inputFromExecutionId: resolveInputFromExecutionId(params.inputFromExecutionId),
+            stopAfterBlockId,
+            lifecycle,
+          }
+        )
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      { stoppedAfterBlockId: params.stopAfterBlockId },
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          { stoppedAfterBlockId: stopAfterBlockId },
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
@@ -435,24 +526,31 @@ export async function executeRunFromBlock(
     }
 
     const useDraftState = !params.useDeployedState
-    const result = await executeCopilotWorkflowUseCase(context, runFromBlockFromCopilot, {
-      workflowId,
-      variableInputs: params.variableInputs,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      blockId: params.startBlockId,
-      workflowInput: resolveRunWorkflowInput(params),
-      sourceExecutionId: params.executionId,
-      lifecycle: copilotRunLifecycle(context),
-    })
+    const startBlockId = params.startBlockId
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(context, runFromBlockFromCopilot, {
+          workflowId,
+          variableInputs: params.variableInputs,
+          assertedWorkspaceId: context.workspaceId,
+          useDraftState,
+          blockId: startBlockId,
+          workflowInput: resolveRunWorkflowInput(params),
+          sourceExecutionId: params.executionId,
+          lifecycle,
+        })
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      { startBlockId: params.startBlockId },
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          { startBlockId },
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }
@@ -472,24 +570,31 @@ export async function executeRunBlock(
     }
 
     const useDraftState = !params.useDeployedState
-    const result = await executeCopilotWorkflowUseCase(context, runBlockFromCopilot, {
-      workflowId,
-      variableInputs: params.variableInputs,
-      assertedWorkspaceId: context.workspaceId,
-      useDraftState,
-      blockId: params.blockId,
-      workflowInput: resolveRunWorkflowInput(params),
-      sourceExecutionId: params.executionId,
-      lifecycle: copilotRunLifecycle(context),
-    })
+    const blockId = params.blockId
+    return await answerWithinWait(context, workflowId, async (lifecycle) => {
+      try {
+        const result = await executeCopilotWorkflowUseCase(context, runBlockFromCopilot, {
+          workflowId,
+          variableInputs: params.variableInputs,
+          assertedWorkspaceId: context.workspaceId,
+          useDraftState,
+          blockId,
+          workflowInput: resolveRunWorkflowInput(params),
+          sourceExecutionId: params.executionId,
+          lifecycle,
+        })
 
-    return buildExecutionOutput(
-      result,
-      context.resolvedSecretTraceRegistry,
-      settledPhase(result.status),
-      { blockId: params.blockId },
-      params.select
-    )
+        return buildExecutionOutput(
+          result,
+          context.resolvedSecretTraceRegistry,
+          settledPhase(result.status),
+          { blockId },
+          params.select
+        )
+      } catch (error) {
+        return buildExecutionError(error, context.resolvedSecretTraceRegistry)
+      }
+    })
   } catch (error) {
     return buildExecutionError(error, context.resolvedSecretTraceRegistry)
   }

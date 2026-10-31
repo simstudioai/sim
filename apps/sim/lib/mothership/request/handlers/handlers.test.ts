@@ -732,6 +732,35 @@ describe('sse-handlers tool lifecycle', () => {
       expect(context.toolCalls.get('takeover-1')?.deadlineAt).toBeLessThan(before + 60_000)
     })
 
+    it('hands a workflow tool the wait its frame names, and no other tool', async () => {
+      executeTool.mockResolvedValue({ success: true, output: {} })
+      const frame = (toolCallId: string, toolName: string, waitTimeoutMs: unknown) => {
+        const event = deadlineFrame(900_000, {
+          toolCallId,
+          toolName,
+          arguments: { workflowId: 'workflow-1' },
+        })
+        return { ...event, payload: { ...event.payload, waitTimeoutMs } } as StreamEvent
+      }
+      await sseHandlers.tool(frame('run-1', 'run_workflow', 240_000), context, execContext, {
+        interactive: false,
+      })
+      await sseHandlers.tool(frame('audio-2', 'generate_audio', 240_000), context, execContext, {
+        interactive: false,
+      })
+      await sseHandlers.tool(frame('run-2', 'run_workflow', -5), context, execContext, {
+        interactive: false,
+      })
+      await Promise.all(context.pendingToolPromises.values())
+      const handed = (toolCallId: string) =>
+        executeTool.mock.calls.find(
+          ([, , toolContext]) => toolContext?.toolCallId === toolCallId
+        )?.[2]
+      expect(handed('run-1')?.workflowRunWaitMs).toBe(240_000)
+      expect(handed('audio-2')).not.toHaveProperty('workflowRunWaitMs')
+      expect(handed('run-2')).not.toHaveProperty('workflowRunWaitMs')
+    })
+
     /** Runs a desktop-local read whose frame names `deadlineMs`, recording the emitted events. */
     async function runLocalRead(deadlineMs: number) {
       const onEvent = vi.fn()

@@ -36,10 +36,12 @@ import {
   claimWorkflowToolExecution,
   completeAsyncToolCall,
   detachAsyncToolCall,
+  getDetachedWorkflowExecutions,
   settleClientWorkflowToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { getToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
+import { raceWorkflowToolClientPickup } from '@/lib/mothership/request/tools/workflow-client-fallback'
 import {
   reportQueuedClientWorkflowTool,
   reportSettledClientWorkflowTool,
@@ -88,6 +90,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
   const workflowId = generateId()
   const chatId = generateId()
   const runId = generateId()
+  const streamId = generateId()
   const snapshotIds: string[] = []
 
   beforeAll(async () => {
@@ -128,7 +131,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
       chatId,
       userId,
       workspaceId,
-      streamId: generateId(),
+      streamId,
       toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
       status: 'paused_waiting_for_tool',
       requestContext: { source: 'headless_lifecycle' },
@@ -153,7 +156,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
   async function executionLog(
     toolCallId: string,
     executionId: string,
-    status: 'completed' | 'failed' | 'cancelled' | 'pending'
+    status: 'completed' | 'failed' | 'cancelled' | 'pending' | 'running'
   ) {
     const snapshotId = generateId()
     snapshotIds.push(snapshotId)
@@ -489,5 +492,80 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
       completedAt: reported?.completedAt,
     })
     expect(await publishedConfirmation(toolCallId)).toBeNull()
+  })
+
+  it("settles a browser run that outlasts the worker's wait as running, bound to the call", async () => {
+    const { toolCallId, executionId } = await claimed()
+    // The execute route's log of the browser's run, still going: what the worker waits on.
+    await executionLog(toolCallId, executionId, 'running')
+    const runOnServer = vi.fn()
+
+    const outcome = await raceWorkflowToolClientPickup({
+      toolCallId,
+      workflowId,
+      timeoutMs: WAIT_MS,
+      graceMs: WAIT_MS,
+      waitTimeoutMs: 500,
+      runOnServer,
+    })
+
+    // The worker gets the run's ids and waits on it in slices; the browser's run goes on.
+    expect(outcome).toMatchObject({
+      winner: 'client',
+      completion: {
+        status: 'background',
+        data: { workflowId, executionId, status: 'running' },
+      },
+    })
+    expect(runOnServer).not.toHaveBeenCalled()
+    expect(await publishedConfirmation(toolCallId)).toMatchObject({
+      status: 'background',
+      executionId,
+    })
+    // Still bound to the call and unsettled, so a Stop's open-client-run read still cancels it.
+    expect(await toolRow(toolCallId)).toMatchObject({
+      status: 'delivered',
+      claimedBy: `workflow:${executionId}`,
+      clientWorkflowExecutionId: executionId,
+      executionSettledAt: null,
+    })
+  })
+
+  it("names the runs this run's calls started and left running, for a Stop to cancel", async () => {
+    const insertCall = async (executableName: string, args: unknown, result: unknown) =>
+      db.insert(copilotAsyncToolCalls).values({
+        runId,
+        toolCallId: generateId(),
+        toolName: executableName,
+        executableName,
+        args: args as Record<string, unknown>,
+        result: result as Record<string, unknown>,
+        status: 'completed',
+      })
+    const detachedCli = generateId()
+    const detachedTool = generateId()
+    const record = (runIdValue: string, status: string) =>
+      JSON.stringify({ runId: runIdValue, workflowId, status })
+    await insertCall(
+      'sim_cli',
+      { request: { invocation: { kind: 'cli', argv: ['workflows', 'run', workflowId] } } },
+      { exitCode: 4, stdout: record(detachedCli, 'running'), stderr: '' }
+    )
+    // A wait on a run proves nothing about who started it.
+    await insertCall(
+      'sim_cli',
+      { request: { invocation: { kind: 'cli', argv: ['workflows', 'runs', 'wait', 'other'] } } },
+      { exitCode: 4, stdout: record(generateId(), 'running'), stderr: '' }
+    )
+    await insertCall(
+      'run_workflow',
+      { workflowId },
+      { status: 'running', executionId: detachedTool, workflowId }
+    )
+    await insertCall('run_block', { workflowId }, { success: true, executionId: generateId() })
+
+    expect((await getDetachedWorkflowExecutions(streamId, userId)).sort()).toEqual(
+      [detachedCli, detachedTool].sort()
+    )
   })
 })

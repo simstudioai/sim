@@ -62,9 +62,10 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import { authMockFns, envFlagsMock, setEnvFlags } from '@sim/testing'
+import { authMockFns, envFlagsMock, setEnv, setEnvFlags } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { generateRandomHex } from '@sim/utils/random'
 import { eq, is, SQL, sql } from 'drizzle-orm'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { NextRequest } from 'next/server'
@@ -133,11 +134,18 @@ import {
 } from '@/lib/mothership/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
-import { WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY } from '@/lib/mothership/generated/protocol'
+import {
+  WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+  WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
+} from '@/lib/mothership/generated/protocol'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
-import { isToolCallStreamEvent } from '@/lib/mothership/request/session'
+import {
+  isToolCallStreamEvent,
+  registerActiveStream,
+  unregisterActiveStream,
+} from '@/lib/mothership/request/session'
 import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
 import { maybeWriteOutputToTable } from '@/lib/mothership/request/tools/tables'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
@@ -154,6 +162,7 @@ import { calculateNextRunTime, getScheduleTimeValues } from '@/lib/workflows/sch
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import { POST as abortChatRoute } from '@/app/api/copilot/chat/abort/route'
 import {
   POST as addChatResourceRoute,
   DELETE as removeChatResourceRoute,
@@ -230,7 +239,16 @@ vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
 vi.mock('@sim/logger', async () => {
   const { loggerMock, createMockLogger } = await import('@sim/testing')
   const logger = createMockLogger()
-  logger.error.mockImplementation((...args: unknown[]) => fixture.errors.push(args))
+  // Errors keep their message and top frames, which JSON evidence would otherwise drop as `{}`.
+  const loggable = (value: unknown): unknown =>
+    value instanceof Error
+      ? { message: value.message, stack: value.stack?.split('\n').slice(0, 6) }
+      : Array.isArray(value)
+        ? value.map(loggable)
+        : value !== null && typeof value === 'object'
+          ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, loggable(item)]))
+          : value
+  logger.error.mockImplementation((...args: unknown[]) => fixture.errors.push(args.map(loggable)))
   logger.withMetadata.mockReturnValue(logger)
   logger.child.mockReturnValue(logger)
   return { ...loggerMock, createLogger: () => logger }
@@ -3601,6 +3619,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       ['undeclared', 260, 0],
       // The model's own --wait-timeout 5 lapses: an exit 4 the worker hands the model.
       ['own-budget', 30, 0],
+      // run_workflow on a Sim that answers a tool's run still running after the frame's wait.
+      ['tool', 300, 200],
+      // The user stops the chat while the worker waits on a detached run: the run stops too.
+      ['declared-stop', 300, 300],
     ] as const)(
       'draft test run past a wait slice reaches the model settled (capability %s)',
       async (capability, waitA, waitB) => {
@@ -3670,6 +3692,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         fixture.saved.set(draftId, { blocks, edges, loops: {}, parallels: {} })
         // A paid plan's synchronous limit, so the run outlasts several slices.
         fixture.executionTimeoutMs = 50 * 60_000
+        // A workflow tool call seals its inputs' provenance, which takes a real AES key.
+        const encryptionKey = env.ENCRYPTION_KEY
+        setEnv({ ENCRYPTION_KEY: generateRandomHex(64) })
 
         const child = spawn('bun', ['tools/probes/src/draft-run-slices.ts'], {
           cwd: workerRoot,
@@ -3686,6 +3711,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             MSHIP_PROBE_RUN_FLAGS: JSON.stringify(
               capability === 'own-budget' ? ['--wait-timeout', '5'] : []
             ),
+            MSHIP_PROBE_TOOL: capability === 'tool' ? 'run_workflow' : '',
           },
           stdio: ['pipe', 'pipe', 'pipe'],
         })
@@ -3734,8 +3760,51 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             workspaceId,
             type: 'mothership',
             title: `Long draft ${capability}`,
+            // The Stop route stops the chat's current stream.
+            ...(capability === 'declared-stop' ? { conversationId: messageId } : {}),
           })
           const startedAt = Date.now()
+          /** When the declared-stop case stopped the chat, once the worker waited on a detached run. */
+          let stoppedAt: number | undefined
+          // Registered as the chat route registers its turn (lifecycle/start.ts), so a Stop
+          // aborts it; the route also aborts it on an observed abort marker.
+          const turn = new AbortController()
+          registerActiveStream(messageId, turn)
+          const stopper =
+            capability === 'declared-stop'
+              ? (async () => {
+                  // Bounded: a run that never reaches a run wait fails the case below.
+                  for (let read = 0; read < 300; read++) {
+                    await sleep(2_000)
+                    const [current] = await db
+                      .select({ id: copilotRuns.id })
+                      .from(copilotRuns)
+                      .where(eq(copilotRuns.streamId, messageId))
+                    if (!current) continue
+                    const waiting = await db
+                      .select({ args: copilotAsyncToolCalls.args })
+                      .from(copilotAsyncToolCalls)
+                      .where(eq(copilotAsyncToolCalls.runId, current.id))
+                    if (!JSON.stringify(waiting).includes('"runs","wait"')) continue
+                    await sleep(5_000)
+                    authMockFns.mockGetSession.mockResolvedValueOnce({
+                      user: { id: 'run-reader' },
+                      session: { id: 'stop-session' },
+                    })
+                    stoppedAt = Date.now()
+                    // The Stop button's request: it stops the run, not just the stream.
+                    const response = await abortChatRoute(
+                      new NextRequest('https://sim.test/api/copilot/chat/abort', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ chatId, streamId: messageId, workspaceId }),
+                      })
+                    )
+                    return response.status
+                  }
+                  return undefined
+                })()
+              : undefined
           const result = await runCopilotLifecycle(
             {
               message: 'Test-run the draft and tell me its output.',
@@ -3745,9 +3814,16 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               chatId,
               messageId,
               // What lib/mothership/chat/payload.ts declares on every chat turn.
-              ...(capability !== 'undeclared'
-                ? { clientCapabilities: [WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY] }
-                : {}),
+              ...(capability === 'tool'
+                ? {
+                    clientCapabilities: [
+                      WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+                      WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
+                    ],
+                  }
+                : capability !== 'undeclared'
+                  ? { clientCapabilities: [WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY] }
+                  : {}),
             },
             {
               userId: 'run-reader',
@@ -3758,12 +3834,32 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               interactive: false,
               clientToolPickupExpected: false,
               flushAfterEvent: false,
-              abortSignal: AbortSignal.timeout(20 * 60_000),
+              // Wired as the chat route wires its controller (lifecycle/start.ts): an observed
+              // Stop aborts the turn.
+              abortSignal: AbortSignal.any([turn.signal, AbortSignal.timeout(20 * 60_000)]),
+              onAbortObserved: (reason) => {
+                if (!turn.signal.aborted) turn.abort(reason)
+              },
               executionContext: {
                 userId: 'run-reader',
                 workspaceId,
                 workflowId: draftId,
                 chatId,
+                // As the chat route marks every turn's tool execution and bills it
+                // (lib/mothership/chat/post.ts); a workflow tool runs in-process under both.
+                copilotToolExecution: true,
+                billingAttribution: {
+                  actorUserId: 'run-reader',
+                  workspaceId,
+                  organizationId: null,
+                  billedAccountUserId: 'run-reader',
+                  billingEntity: { type: 'user', id: 'run-reader' },
+                  billingPeriod: {
+                    start: '2026-09-01T00:00:00.000Z',
+                    end: '2026-10-01T00:00:00.000Z',
+                  },
+                  payerSubscription: null,
+                },
                 userPermission: 'write',
                 resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
                   userId: 'run-reader',
@@ -3773,6 +3869,8 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             }
           )
           const endedAt = Date.now()
+          unregisterActiveStream(messageId, turn)
+          const stopStatus = await stopper
           const [run] = await db
             .select()
             .from(copilotRuns)
@@ -3783,8 +3881,38 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 .from(copilotAsyncToolCalls)
                 .where(eq(copilotAsyncToolCalls.runId, run.id))
             : []
+          /** The detached run's own status after a Stop, read until it leaves `running`. */
+          let stoppedRun: { executionId?: string; status?: string; endedAt?: string } = {}
+          if (capability === 'declared-stop') {
+            const receipt = calls.find(
+              (call) =>
+                (call.args as { request?: { invocation?: { argv?: string[] } } }).request
+                  ?.invocation?.argv?.[1] === 'run'
+            )?.result as { stdout?: string } | undefined
+            const executionId = String(JSON.parse(receipt?.stdout ?? '{}').runId ?? '')
+            for (let read = 0; read < 30; read++) {
+              const [log] = await db
+                .select({
+                  status: workflowExecutionLogs.status,
+                  endedAt: workflowExecutionLogs.endedAt,
+                })
+                .from(workflowExecutionLogs)
+                .where(eq(workflowExecutionLogs.executionId, executionId))
+              stoppedRun = {
+                executionId,
+                status: log?.status,
+                endedAt: log?.endedAt?.toISOString(),
+              }
+              if (log && log.status !== 'running') break
+              await sleep(2_000)
+            }
+          }
           const evidence = {
             capability,
+            stopStatus,
+            stoppedAt: stoppedAt ? new Date(stoppedAt).toISOString() : undefined,
+            stoppedRun,
+            errors: fixture.errors,
             waits: [waitA, waitB],
             startedAt: new Date(startedAt).toISOString(),
             totalSeconds: (endedAt - startedAt) / 1000,
@@ -3798,6 +3926,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 toolName: call.toolName,
                 args: call.args,
                 status: call.status,
+                createdAt: call.createdAt?.toISOString(),
+                result: call.toolName === 'sim_cli' ? undefined : call.result,
+                error: call.error,
                 exitCode: (call.result as { exitCode?: unknown } | null)?.exitCode,
                 stdout: (call.result as { stdout?: unknown } | null)?.stdout,
                 startedAt: call.executionStartedAt?.toISOString(),
@@ -3818,13 +3949,24 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               `${process.env.MSHIP_SLICES_REPORT_PATH}.${capability}.json`,
               JSON.stringify(evidence, null, 2)
             )
+          if (capability === 'declared-stop') {
+            expect(stopStatus).toBe(200)
+            // The turn ended at the Stop, not when the run would have settled.
+            expect(endedAt - (stoppedAt ?? endedAt)).toBeLessThan(60_000)
+            // The run the worker was waiting on stopped with the chat, as a held run does.
+            expect(stoppedRun.status, JSON.stringify(evidence)).toBe('cancelled')
+            return
+          }
           expect(
             result.success,
             JSON.stringify({ evidence, errors: fixture.errors, diagnostics })
           ).toBe(true)
           expect(run?.status).toBe('complete')
           const report = JSON.parse(result.content)
-          const seen = String(report.output.value)
+          const seen =
+            typeof report.output.value === 'string'
+              ? report.output.value
+              : JSON.stringify(report.output.value)
           if (capability === 'own-budget') {
             expect(calls).toHaveLength(1)
             expect(
@@ -3840,10 +3982,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           }
           // Sim #9469: a still-running (exit 4) slice settles as done, not failed.
           for (const call of calls) expect(call.status, call.toolName).not.toBe('failed')
-          // The model saw the settled run, not a detached receipt.
-          expect(seen).toContain('"exitCode":0')
-          expect(seen).toContain('"status":"completed"')
-          expect(seen).toContain('after-waits')
           const waitSeconds = waitA + waitB
           const argvOf = (call: (typeof calls)[number]) =>
             (call.args as { request: { invocation: { argv: string[] } } }).request.invocation.argv
@@ -3851,6 +3989,56 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             call.result as { exitCode: number; stdout: string }
           const heldSeconds = (call: (typeof calls)[number]) =>
             (Number(call.executionSettledAt) - Number(call.executionStartedAt)) / 1000
+          if (capability === 'tool') {
+            const [toolCall, ...slices] = calls
+            expect(toolCall.toolName).toBe('run_workflow')
+            // The tool answered its run still running by the run's id, after one wait.
+            const running = toolCall.result as { status?: string; executionId?: string }
+            expect(running).toMatchObject({ status: 'running', workflowId: draftId })
+            const executionId = String(running.executionId)
+            const answeredAfter = (Number(slices[0].createdAt) - Number(toolCall.createdAt)) / 1000
+            expect(answeredAfter).toBeGreaterThan(239)
+            expect(answeredAfter).toBeLessThan(250)
+            const toolWaits = slices.filter(
+              (call) => argvOf(call).slice(0, 3).join(' ') === 'workflows runs wait'
+            )
+            expect(toolWaits.length).toBeGreaterThan(0)
+            for (const [index, call] of toolWaits.entries()) {
+              expect(argvOf(call)).toEqual([
+                'workflows',
+                'runs',
+                'wait',
+                executionId,
+                '--workflow',
+                draftId,
+                '--wait-timeout',
+                '240',
+              ])
+              expect(outcome(call).exitCode).toBe(index === toolWaits.length - 1 ? 0 : 4)
+              expect(heldSeconds(call)).toBeLessThan(250)
+            }
+            const readBack = slices.at(-1)
+            if (!readBack) throw new Error('The run was never read back')
+            expect(argvOf(readBack)).toEqual([
+              'workflows',
+              'runs',
+              'get',
+              executionId,
+              '--workflow',
+              draftId,
+              '--include-output',
+            ])
+            expect(slices).toHaveLength(toolWaits.length + 1)
+            // The model saw the settled run with its output, not the still-running answer.
+            expect(seen).toContain('"status":"completed"')
+            expect(seen).toContain('after-waits')
+            expect(endedAt - startedAt).toBeGreaterThan(waitSeconds * 1000)
+            return
+          }
+          // The model saw the settled run, not a detached receipt.
+          expect(seen).toContain('"exitCode":0')
+          expect(seen).toContain('"status":"completed"')
+          expect(seen).toContain('after-waits')
           const runs = calls.filter((call) => argvOf(call)[1] === 'run')
           const waits = calls.filter(
             (call) => argvOf(call).slice(0, 3).join(' ') === 'workflows runs wait'
@@ -3919,6 +4107,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           expect(endedAt - startedAt).toBeGreaterThan(waitSeconds * 1000)
         } finally {
           clearTimeout(startupTimeout)
+          setEnv({ ENCRYPTION_KEY: encryptionKey })
           fixture.executionTimeoutMs = 20_000
           child.kill()
           await exited

@@ -60,6 +60,11 @@ export interface CopilotWorkflowRunLifecycle {
     executionId: string
     copilotToolCallId: string
   }
+  /**
+   * The id the run takes when no execution is bound, chosen by a caller that must name the run
+   * before it settles (a workflow tool that answers a still-running run by its id).
+   */
+  executionId?: string
 }
 
 interface BaseCopilotRunInput {
@@ -268,7 +273,8 @@ async function executeCopilotRun(params: {
   const boundExecution = params.input.lifecycle.boundExecution
   // Reuse the caller's already-claimed execution id so the claim and the log
   // row describe the same run; otherwise mint our own as before.
-  const childExecutionId = boundExecution?.executionId ?? generateId()
+  const childExecutionId =
+    boundExecution?.executionId ?? params.input.lifecycle.executionId ?? generateId()
   const requestId = generateRequestId()
   const admission = await prepareWorkflowExecutionAdmission(
     {

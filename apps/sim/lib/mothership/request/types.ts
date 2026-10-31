@@ -64,6 +64,11 @@ export interface ToolCallState {
    */
   deadlineAt?: number
   /**
+   * For a workflow tool, how long to wait for its run to settle before settling the call still
+   * running (the frame's `waitTimeoutMs`). Undefined holds the call until the run settles.
+   */
+  waitTimeoutMs?: number
+  /**
    * For a subagent-scoped tool call, the invoking subagent's channel id (its
    * outer tool_use id, = event.scope.parentToolCallId). Captured at dispatch so
    * the executor can thread it into the server tool context and scope the

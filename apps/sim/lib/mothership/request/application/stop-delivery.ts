@@ -5,6 +5,7 @@ import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
 import {
+  getDetachedWorkflowExecutions,
   getUnsettledClientWorkflowExecutions,
   getUnsettledStreamSandboxProcesses,
   type RunStopTarget,
@@ -34,30 +35,39 @@ interface RunStopDeliveryOptions {
 }
 
 /**
- * The client workflows and sandbox commands a stopped run started, read once its admission
- * closed. Each read is best-effort: one that fails stops nothing it would have found.
+ * The client workflows, detached workflow runs and sandbox commands a stopped run started, read
+ * once its admission closed. Each read is best-effort: one that fails stops nothing it would have
+ * found.
  */
 export async function readStoppedRunWork(
   streamId: string,
   userId: string
 ): Promise<StoppedRunWork> {
-  const [clientWorkflowExecutionIds, sandboxProcesses] = await Promise.all([
-    getUnsettledClientWorkflowExecutions(streamId, userId).catch((error) => {
-      logger.warn('Stopped stream workflow ownership could not be read', {
-        streamId,
-        error: getErrorMessage(error),
-      })
-      return []
-    }),
-    getUnsettledStreamSandboxProcesses(streamId, userId).catch((error) => {
-      logger.warn('Stopped stream sandbox ownership could not be read', {
-        streamId,
-        error: getErrorMessage(error),
-      })
-      return []
-    }),
-  ])
-  return { clientWorkflowExecutionIds, sandboxProcesses }
+  const [clientWorkflowExecutionIds, detachedWorkflowExecutionIds, sandboxProcesses] =
+    await Promise.all([
+      getUnsettledClientWorkflowExecutions(streamId, userId).catch((error) => {
+        logger.warn('Stopped stream workflow ownership could not be read', {
+          streamId,
+          error: getErrorMessage(error),
+        })
+        return []
+      }),
+      getDetachedWorkflowExecutions(streamId, userId).catch((error) => {
+        logger.warn('Stopped stream detached workflow runs could not be read', {
+          streamId,
+          error: getErrorMessage(error),
+        })
+        return []
+      }),
+      getUnsettledStreamSandboxProcesses(streamId, userId).catch((error) => {
+        logger.warn('Stopped stream sandbox ownership could not be read', {
+          streamId,
+          error: getErrorMessage(error),
+        })
+        return []
+      }),
+    ])
+  return { clientWorkflowExecutionIds, detachedWorkflowExecutionIds, sandboxProcesses }
 }
 
 /**
@@ -97,14 +107,21 @@ export async function deliverRunStop(
       error: getErrorMessage(error),
     })
   }
-  const cancelClientWorkflows = async () =>
-    Promise.all(
-      (await work).clientWorkflowExecutionIds.map(async (executionId) => {
-        /** The execution route reserved these IDs before recording ownership; no client result is trusted. */
-        abortManualExecution(executionId)
-        await markExecutionCancelled(executionId)
-      })
+  const cancelClientWorkflows = async () => {
+    const { clientWorkflowExecutionIds, detachedWorkflowExecutionIds } = await work
+    /**
+     * The execution route reserved the client IDs before recording ownership; no client result is
+     * trusted. A detached run took no call's abort signal, so only its own cancel reaches it.
+     */
+    return Promise.all(
+      [...new Set([...clientWorkflowExecutionIds, ...detachedWorkflowExecutionIds])].map(
+        async (executionId) => {
+          abortManualExecution(executionId)
+          await markExecutionCancelled(executionId)
+        }
+      )
     )
+  }
   const [settled, worker] = await Promise.all([
     waitForPendingChatStream(chatId, 8000, streamId),
     workerStop,

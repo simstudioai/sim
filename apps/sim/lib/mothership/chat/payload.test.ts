@@ -34,6 +34,7 @@ import {
   ChatPayloadSchema,
   TOOL_DEADLINE_CAPABILITY,
   WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+  WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
 } from '@/lib/mothership/generated/protocol'
 import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { gmailListLabelsV2Tool } from '@/tools/gmail/list_labels'
@@ -430,6 +431,7 @@ describe('buildCopilotRequestPayload', () => {
         'workflow-tool-pickup',
         TOOL_DEADLINE_CAPABILITY,
         WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+        WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
       ])
     }
   )
@@ -514,6 +516,7 @@ describe('buildCopilotRequestPayload', () => {
       expect(payload.clientCapabilities).toEqual([
         TOOL_DEADLINE_CAPABILITY,
         WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+        WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
       ])
       if (owner === 'organization') expect(payload).not.toHaveProperty('integrationTools')
     }
@@ -854,6 +857,7 @@ describe('Assistant payload', () => {
     expect(payload.clientCapabilities).toEqual([
       TOOL_DEADLINE_CAPABILITY,
       WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
+      WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
     ])
     expect(payload.mode).toBe('assistant')
     expect(payload.assistantSearch).toEqual({ source: 'slack', documentIds: ['document-1'] })

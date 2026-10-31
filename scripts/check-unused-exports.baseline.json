@@ -5069,7 +5069,6 @@
   "apps/sim/lib/workflows/application/apply-workflow-operations.ts#WorkflowBlockEnabledChange",
   "apps/sim/lib/workflows/application/download-workflow-run-file.ts#DownloadWorkflowRunFileResult",
   "apps/sim/lib/workflows/application/resolve-workflow-outputs.ts#loadResolvedWorkflowOutputs",
-  "apps/sim/lib/workflows/application/run-workflow-from-copilot.ts#CopilotWorkflowRunLifecycle",
   "apps/sim/lib/workflows/application/update-workflow-content.ts#WorkflowVariableOperation",
   "apps/sim/lib/workflows/application/update-workflow.ts#AppliedWorkflowUpdate",
   "apps/sim/lib/workflows/application/update-workflow.ts#UpdateWorkflowPolicyInput",
