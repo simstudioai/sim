@@ -19,7 +19,7 @@ import { createManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import { isManagedSearchMcpProvider } from '@/lib/sim-search/live/managed-mcp-config'
 import { readNotionMcp, searchNotionMcp } from '@/lib/sim-search/live/notion-mcp'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
-import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { type LiveSearchPolicy, requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
 import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
@@ -57,6 +57,11 @@ export interface LiveAccountSession {
    * cancels the read when its preview is no longer wanted.
    */
   previewText(document: NativeDocument, signal: AbortSignal): Promise<string | undefined>
+  /**
+   * True when `verify` spends requests from the member budget `previewText` also draws on, so a
+   * preview read before verification finishes could leave a later result unverified.
+   */
+  verifySharesPreviewBudget: boolean
   /** Checks a fetched document against the source settings saved now, not at session start. */
   verifyCurrent(document: NativeDocument): Promise<boolean>
 }
@@ -178,7 +183,7 @@ export async function openLiveAccountSession(
       signal,
       pool: input.pool,
     })
-    if (service) return service
+    if (service) return { ...service, spendsMemberBudget: service.spendsMemberBudget === true }
     const verifyPolicy = createPolicyVerifier(provider, memberPolicy, client, origin, mcp, {
       fresh,
     })
@@ -186,6 +191,7 @@ export async function openLiveAccountSession(
       policy: memberPolicy,
       partial: false,
       scopeSearch: undefined,
+      spendsMemberBudget: requiresScopedRetrieval(provider, memberPolicy),
       verify: (document: Reference) => verifyPolicy(document, document.accessMetadata),
     }
   }
@@ -200,6 +206,7 @@ export async function openLiveAccountSession(
     },
     policy: boundary.policy,
     servicePartial: boundary.partial,
+    verifySharesPreviewBudget: boundary.spendsMemberBudget,
     async search(search) {
       const searchOnce = async (request: NativeSearchInput): Promise<NativePage> => {
         const scoped = boundary.scopeSearch ? boundary.scopeSearch(request) : request

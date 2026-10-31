@@ -765,6 +765,33 @@ describe('authorized live retrieval', () => {
       expect(previewedIds()).toEqual(['a', 'd', 'b'])
     })
 
+    it('reads no preview until a verification that spends the same request budget finishes', async () => {
+      const googleDoc = 'application/vnd.google-apps.document'
+      vi.mocked(livePolicyFor).mockReturnValue({
+        ...defaultLiveSearchPolicy(),
+        fileTypes: [googleDoc],
+      })
+      mocks.search.mockResolvedValue({ documents: excerpts })
+      const pendingB = createDeferred<unknown>()
+      mocks.json.mockReset().mockImplementation(async (path: string) => {
+        const id = path.split('/').at(-1)
+        return id === 'b' ? pendingB.promise : { id, mimeType: googleDoc }
+      })
+      mocks.preview.mockImplementation(
+        async (_provider, _client, { id }: { id: string }) => `Full ${id} launch text`
+      )
+      const pending = searchLiveKnowledge.execute({ principal, input })
+      await vi.waitFor(() => expect(mocks.json).toHaveBeenCalledTimes(4))
+      expect(mocks.preview).not.toHaveBeenCalled()
+      pendingB.resolve({ id: 'b', mimeType: googleDoc })
+      expect(contents(await pending)).toEqual([
+        'Full a launch text',
+        'Full b launch text',
+        'Full c launch text',
+        'Excerpt d',
+      ])
+    })
+
     it('never surfaces the preview text of a candidate verification denies', async () => {
       mocks.search.mockResolvedValue({ documents: excerpts })
       mocks.service.mockResolvedValue({
@@ -1260,6 +1287,17 @@ describe('authorized live retrieval', () => {
       )
       expect(peak).toBeLessThanOrEqual(6)
       await pending
+    })
+
+    it('times an account out at its deadline when its session never opens', async () => {
+      mocks.service.mockReturnValue(new Promise(() => {}))
+      let result: Awaited<ReturnType<typeof searchLiveKnowledge.execute>> | undefined
+      void searchLiveKnowledge.execute({ principal, input }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(12_000)
+      expect(result?.live?.accounts[0]?.status).toBe('timeout')
+      expect(mocks.search).not.toHaveBeenCalled()
     })
 
     it('gives each account its own deadline from its slot, and skips one the search left no time', async () => {

@@ -345,7 +345,8 @@ const PREVIEW_SOURCE_CHARACTERS = 100_000
  * preview is a passage around the match like other providers' results rather than a prompt to
  * read. A result is read only once verification permits it and it is among the top results the
  * denials so far leave, so reads overlap the verification of other results without reading one
- * that is denied. `attach` gives text only to the verified results it is passed and cancels every
+ * that is denied. A session whose verification spends the budget reads draw on reads only after
+ * verification, so a preview never costs a result its check. `attach` gives text only to the verified results it is passed and cancels every
  * other read. A read that fails or misses its deadline keeps the provider's preview.
  */
 function streamPreviewReads(
@@ -609,7 +610,11 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       let previewed: LiveCandidate[]
       try {
         verification = await measureSearchStage('live.verify', () =>
-          verifyCandidates(session, eligible, previews?.verified)
+          verifyCandidates(
+            session,
+            eligible,
+            session.verifySharesPreviewBudget ? undefined : previews?.verified
+          )
         )
         matching = matchingOf(verification.permitted)
         previewed = previews
@@ -781,17 +786,22 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
           const resolved = await measureSearchStage('live.resolve', () =>
             waitWithAbort(resolveListedLiveAccount(input, userId, account, signal), signal)
           )
+          const opening = openLiveAccountSession({
+            owner: input,
+            userId,
+            resolved,
+            policies,
+            signal,
+            pool,
+            searches: natives.length,
+          })
+          /** Opening reads the database, which takes no signal; a session that opens late is closed. */
           session = await measureSearchStage('live.session', () =>
-            openLiveAccountSession({
-              owner: input,
-              userId,
-              resolved,
-              policies,
-              signal,
-              pool,
-              searches: natives.length,
-            })
-          )
+            waitWithAbort(opening, signal)
+          ).catch((error: unknown) => {
+            opening.then((late) => late.close()).catch(() => {})
+            throw error
+          })
           return { resolved, session }
         })
         if (!opened)
