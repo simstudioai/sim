@@ -14,12 +14,47 @@ import type { SandboxCodeResult, SandboxCommandResult } from '@/lib/execution/re
 const ERROR_HEADLINE =
   /^(?:\[(?:[A-Za-z_$][\w.$]*)?(?:Error|Exception)|\[?[A-Za-z_$][\w.$]* \[[\w.$-]+\]|[A-Za-z_$][\w.$]*):(?:\s|$)/
 
+const SIGNAL_NAMES: Readonly<Record<number, string>> = {
+  6: 'SIGABRT',
+  9: 'SIGKILL',
+  11: 'SIGSEGV',
+  15: 'SIGTERM',
+}
+
+/**
+ * `Process exited with code N`, naming the signal behind a code above 128. A killed process often
+ * printed only a warning first, and that warning must not read as the reason it failed; SIGKILL
+ * (137) is usually the out-of-memory killer.
+ */
+export function describeProcessExit(exitCode: number): string {
+  const described = `Process exited with code ${exitCode}`
+  const signal = killingSignal(exitCode)
+  if (signal === undefined) return described
+  const name = SIGNAL_NAMES[signal] ?? `signal ${signal}`
+  return `${described} (killed by ${name}${signal === 9 ? ', usually out of memory' : ''})`
+}
+
+/** The signal a shell's `128 + n` exit code reports, if the code is one. */
+function killingSignal(exitCode: number): number | undefined {
+  return exitCode > 128 && exitCode <= 128 + 64 ? exitCode - 128 : undefined
+}
+
 /**
  * Converts a failed code command into a code result, naming the error from the
- * last error headline of the traceback (stderr, else stdout).
+ * last error headline of the traceback (stderr, else stdout). A process a signal
+ * killed raised nothing: anything it printed (a warning) is not the cause, so the
+ * signal names the error and the output stays as the traceback.
  */
 export function processCodeFailure(result: SandboxCommandResult): SandboxCodeResult {
   const traceback = result.stderr || result.stdout
+  if (killingSignal(result.exitCode) !== undefined) {
+    return {
+      text: '',
+      stdout: result.stdout,
+      stderr: result.stderr,
+      error: { name: 'Error', value: describeProcessExit(result.exitCode), traceback },
+    }
+  }
   const headline = traceback
     .split('\n')
     .reverse()

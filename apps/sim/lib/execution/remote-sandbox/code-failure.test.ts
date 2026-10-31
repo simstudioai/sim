@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { processCodeFailure } from '@/lib/execution/remote-sandbox/code-failure'
+import {
+  describeProcessExit,
+  processCodeFailure,
+} from '@/lib/execution/remote-sandbox/code-failure'
 
 /** Node 22's crash report when `fetch` loses its socket before any response bytes. */
 const FETCH_SOCKET_CLOSED = `node:internal/deps/undici/undici:13510
@@ -194,6 +197,29 @@ describe('processCodeFailure', () => {
     const { error } = processCodeFailure({ stdout: '', stderr, exitCode: 1 })
 
     expect(error).toEqual({ name, value, traceback: stderr })
+  })
+
+  it('names the signal for a process killed after printing only a warning', () => {
+    const warning = 'Warning: You are sending unauthenticated requests to the HF Hub.'
+    const killed = processCodeFailure({ stdout: '', stderr: warning, exitCode: 137 })
+    const exited = processCodeFailure({ stdout: '', stderr: warning, exitCode: 1 })
+
+    expect(killed.error).toEqual({
+      name: 'Error',
+      value: 'Process exited with code 137 (killed by SIGKILL, usually out of memory)',
+      traceback: warning,
+    })
+    expect(exited.error?.name).toBe('Warning')
+  })
+
+  it.each([
+    [1, 'Process exited with code 1'],
+    [128, 'Process exited with code 128'],
+    [129, 'Process exited with code 129 (killed by signal 1)'],
+    [143, 'Process exited with code 143 (killed by SIGTERM)'],
+    [193, 'Process exited with code 193'],
+  ])('describes exit code %i', (exitCode, description) => {
+    expect(describeProcessExit(exitCode)).toBe(description)
   })
 
   it('reads the traceback from stdout when stderr is empty', () => {
