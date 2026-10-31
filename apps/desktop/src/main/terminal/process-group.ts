@@ -3,11 +3,13 @@
  * with Ctrl-C, including its children, and never the shell itself.
  *
  * On macOS and Linux that is the tty's foreground process group. Windows has no process groups or
- * job control, so there it is the shell's child processes created since the command was typed,
- * each ended with its whole tree. Children from before then (a server the user started in the
- * background earlier) belong to someone else's work and are left running. Creation times and the
- * command's start come from the same system clock, and the shell only starts a program after it
- * reads the command, so no tolerance is needed.
+ * job control, so there it is the processes the shell started since the command was typed, each
+ * ended with its whole tree. They are found among the shell's descendants rather than its
+ * children, since a launcher can stand between the pty and the real shell (Git for Windows'
+ * `bin\bash.exe` starts `usr\bin\bash.exe`). Processes from before then (a server the user started
+ * in the background earlier, the real shell behind a launcher) are someone else's and are left
+ * running. Creation times and the command's start come from the same system clock, and the shell
+ * only starts a program after it reads the command, so no tolerance is needed.
  */
 import { spawn } from 'node:child_process'
 import { win32 } from 'node:path'
@@ -54,25 +56,46 @@ const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
 }
 
 /** A Windows process, as the process table reports it. */
-export interface WindowsChildProcess {
+export interface WindowsProcess {
   pid: number
+  parentPid: number
   /** Epoch milliseconds. */
   createdAt: number
 }
 
 /**
- * Windows, given how to list a shell's child processes. The one escalation is a forced tree kill:
- * a Windows console program cannot be asked to terminate, and Ctrl-C, the one request it can trap,
+ * The outermost of the shell's descendants created at or after `startedAt`: the processes a
+ * command typed then started, each standing for its whole tree.
+ */
+function commandRoots(table: WindowsProcess[], shellPid: number, startedAt: number): number[] {
+  const children = new Map<number, WindowsProcess[]>()
+  for (const entry of table) {
+    if (entry.pid === entry.parentPid) continue
+    children.set(entry.parentPid, [...(children.get(entry.parentPid) ?? []), entry])
+  }
+  const roots: number[] = []
+  const visited = new Set<number>([shellPid])
+  const pending = [...(children.get(shellPid) ?? [])]
+  for (let entry = pending.pop(); entry; entry = pending.pop()) {
+    if (visited.has(entry.pid)) continue
+    visited.add(entry.pid)
+    if (entry.createdAt >= startedAt) roots.push(entry.pid)
+    else pending.push(...(children.get(entry.pid) ?? []))
+  }
+  return roots
+}
+
+/**
+ * Windows, given how to read the process table. The one escalation is a forced tree kill: a
+ * Windows console program cannot be asked to terminate, and Ctrl-C, the one request it can trap,
  * has already been sent.
  */
 export function windowsProcessGroups(
-  readChildren: (shellPid: number) => Promise<WindowsChildProcess[]>
+  readProcesses: () => Promise<WindowsProcess[]>
 ): TerminalProcessGroups {
   return {
     foreground: async (shellPid, startedAt) =>
-      (await readChildren(shellPid))
-        .filter((child) => child.pid !== shellPid && child.createdAt >= startedAt)
-        .map((child) => child.pid),
+      commandRoots(await readProcesses(), shellPid, startedAt),
     stillRunning: async (_shellPid, pids) => pids.filter(isRunning),
     signal: (pids) => {
       for (const pid of pids) killProcessTree(pid)
@@ -83,7 +106,7 @@ export function windowsProcessGroups(
 
 /** This operating system's way of reading and stopping a terminal's foreground command. */
 export const osProcessGroups: TerminalProcessGroups =
-  process.platform === 'win32' ? windowsProcessGroups(readChildProcesses) : POSIX_PROCESS_GROUPS
+  process.platform === 'win32' ? windowsProcessGroups(readProcessTable) : POSIX_PROCESS_GROUPS
 
 /**
  * The tty's foreground process group, read from `ps`. Null when it cannot be read, or when the
@@ -107,9 +130,7 @@ function signalProcessGroup(pgid: number, signal: NodeJS.Signals): void {
   }
 }
 
-/** The shell's direct children, from the process table; each one's tree is what it runs. */
-async function readChildProcesses(shellPid: number): Promise<WindowsChildProcess[]> {
-  if (!isProcessId(shellPid)) return []
+async function readProcessTable(): Promise<WindowsProcess[]> {
   const stdout = await readOutput(
     windowsPowerShellPath(process.env),
     [
@@ -117,13 +138,15 @@ async function readChildProcesses(shellPid: number): Promise<WindowsChildProcess
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      `Get-CimInstance -ClassName Win32_Process -Filter 'ParentProcessId=${shellPid}' | ForEach-Object { "$($_.ProcessId) $(([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds())" }`,
+      'Get-CimInstance -ClassName Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $(([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds())" }',
     ],
     WINDOWS_LOOKUP_TIMEOUT_MS
   )
   return (stdout ?? '').split(/\r?\n/).flatMap((line) => {
-    const [pid, createdAt] = line.trim().split(' ').map(Number)
-    return isProcessId(pid) && Number.isFinite(createdAt) ? [{ pid, createdAt }] : []
+    const [pid, parentPid, createdAt] = line.trim().split(' ').map(Number)
+    return isProcessId(pid) && Number.isInteger(parentPid) && Number.isFinite(createdAt)
+      ? [{ pid, parentPid, createdAt }]
+      : []
   })
 }
 
