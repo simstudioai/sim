@@ -7,7 +7,6 @@ import {
   buildShellLaunch,
   detectShell,
   ShellIntegrationParser,
-  toWindowsPath,
 } from '@/main/terminal/shell-integration'
 
 const NONCE = 'testnonce'
@@ -125,20 +124,6 @@ describe('detectShell', () => {
   it('returns null for shells without hooks, leaving the terminal uninstrumented', () => {
     expect(detectShell('/usr/bin/fish')).toBeNull()
     expect(detectShell('/bin/sh')).toBeNull()
-  })
-})
-
-describe('toWindowsPath', () => {
-  it('turns the drive paths Git Bash reports into ones Windows can open', () => {
-    expect(toWindowsPath('/c/Users/me/my repo')).toBe('C:\\Users\\me\\my repo')
-    expect(toWindowsPath('/cygdrive/d/work')).toBe('D:\\work')
-    expect(toWindowsPath('/c')).toBe('C:\\')
-  })
-
-  it('leaves Windows paths and MSYS-only directories alone', () => {
-    expect(toWindowsPath('C:\\Users\\me')).toBe('C:\\Users\\me')
-    expect(toWindowsPath('\\\\server\\share')).toBe('\\\\server\\share')
-    expect(toWindowsPath('/tmp')).toBe('/tmp')
   })
 })
 

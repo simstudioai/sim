@@ -85,19 +85,6 @@ function unescapeValue(value: string): string {
 }
 
 /**
- * The Windows form of a directory Git Bash reports. MSYS shows drives as
- * `/c/Users/me` (Cygwin as `/cygdrive/c/...`), which nothing outside the shell
- * can open. Anything else, including a path already in Windows form, is
- * returned unchanged.
- */
-export function toWindowsPath(cwd: string): string {
-  const drive = /^\/(?:cygdrive\/)?([a-zA-Z])(?=\/|$)(.*)$/.exec(cwd)
-  if (!drive) return cwd
-  const [, letter, rest] = drive
-  return `${letter.toUpperCase()}:${rest.replaceAll('/', '\\') || '\\'}`
-}
-
-/**
  * Incremental parser. PTY chunks split escape sequences at arbitrary byte
  * offsets, so a partial trailing sequence is held back until the rest arrives
  * rather than being emitted as garbage or mis-parsed.
@@ -281,6 +268,14 @@ function writeBashFile(dir: string, nonce: string): string {
   writeFileSync(
     rcPath,
     `builtin printf '\\e]633;SimStartup;%s\\a' '${nonce}'
+# MSYS and Cygwin (Git Bash) set up PATH, /usr/bin included, in /etc/profile, which only a login
+# shell reads; their cwd is a POSIX path (/c/..., /tmp) that only cygpath can map to Windows.
+if [ -x /usr/bin/cygpath ]; then
+  [ -f /etc/profile ] && builtin source /etc/profile
+  __sim_cwd() { /usr/bin/cygpath -w "$PWD" 2>/dev/null || builtin printf '%s' "$PWD"; }
+else
+  __sim_cwd() { builtin printf '%s' "$PWD"; }
+fi
 [ -f "$HOME/.bashrc" ] && builtin source "$HOME/.bashrc"
 
 __sim_nonce='${nonce}'
@@ -305,7 +300,7 @@ __sim_precmd() {
   local st=$?
   # Cwd is reported before the finish marker so a \`cd\` is already visible by
   # the time the command's result is resolved.
-  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$PWD")" "$__sim_nonce"
+  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$(__sim_cwd)")" "$__sim_nonce"
   if [ -n "$__sim_in_cmd" ]; then
     builtin printf '\\e]633;D;%s;%s\\a' "$st" "$__sim_nonce"
   fi
