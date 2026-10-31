@@ -7,6 +7,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { BILLING_LOCK_TIMEOUT_MS, DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { calculateSubscriptionOverage, computeOrgOverageAmount } from '@/lib/billing/core/billing'
+import { isDefaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   getHighestPriorityPersonalSubscription,
@@ -216,6 +217,11 @@ export async function checkAndBillPayerOverageThreshold(
   billingEntity: BillingEntity,
   options: ThresholdBillingOptions = {}
 ): Promise<ThresholdSettlementOutcome | undefined> {
+  // Spend admitted without a subscription stays in the open period, which no subscription the
+  // payer gains later ever spans, so it has no threshold to settle.
+  if (options.expectedBillingPeriod && isDefaultBillingPeriod(options.expectedBillingPeriod)) {
+    return noOp(options, 'no-subscription')
+  }
   if (billingEntity.type === 'organization') {
     return checkAndBillOrganizationOverageThreshold(billingEntity.id, options)
   }

@@ -70,9 +70,8 @@ async function createUser(): Promise<string> {
   return userId
 }
 
-/** A user on a pro subscription for `period`, whose close marker has caught up to it. */
-async function createPayer(period: { start: Date; end: Date }): Promise<Payer> {
-  const userId = await createUser()
+/** Puts `userId` on a pro subscription for `period`, whose close marker has caught up to it. */
+async function subscribePro(userId: string, period: { start: Date; end: Date }): Promise<string> {
   const subscriptionId = generateId()
   await db.insert(subscription).values({
     id: subscriptionId,
@@ -83,6 +82,13 @@ async function createPayer(period: { start: Date; end: Date }): Promise<Payer> {
     periodEnd: period.end,
     lastClosedPeriodStart: period.start,
   })
+  return subscriptionId
+}
+
+/** A user on a pro subscription for `period`. */
+async function createPayer(period: { start: Date; end: Date }): Promise<Payer> {
+  const userId = await createUser()
+  const subscriptionId = await subscribePro(userId, period)
   const decision = serializeAccountBillingDecisionHeader({
     userId,
     billingEntity: { type: 'user', id: userId },
@@ -242,6 +248,52 @@ describe('direct-v1 cost callbacks in PostgreSQL', () => {
     expect(late.status).toBe(409)
     expect(await late.json()).toMatchObject({ code: 'BILLING_PERIOD_ELAPSED', retryable: false })
     expect((await requestRows(requestKey)).map((row) => Number(row.cost))).toEqual([0.5])
+  })
+})
+
+/**
+ * A free payer who subscribes mid-run: the run's spend stays in the open default period it was
+ * admitted in, which no subscription period ever matches, so each callback must still settle
+ * rather than answer a retryable refusal on every attempt.
+ */
+describe('a free payer who subscribes mid-run', () => {
+  it.each([
+    {
+      protocol: 'direct-v1',
+      admit: async () => {
+        const payer = await createFreePayer()
+        return {
+          userId: payer.userId,
+          send: (key: string, cost: number) => callback(payer, key, cost),
+        }
+      },
+    },
+    {
+      protocol: 'attribution-v1',
+      admit: async () => {
+        const attribution = await createFreeWorkspacePayer()
+        return {
+          userId: attribution.billedAccountUserId,
+          send: (key: string, cost: number) => attributedCallback(attribution, key, cost),
+        }
+      },
+    },
+  ])('settles $protocol spend in the period it was admitted in', async ({ admit }) => {
+    const { userId, send } = await admit()
+    const requestKey = generateId()
+    const periodStart = new Date(Date.now() - 60 * 60 * 1000)
+
+    expect((await POST(send(requestKey, 0.5), {})).status).toBe(200)
+    await subscribePro(userId, {
+      start: periodStart,
+      end: new Date(periodStart.getTime() + 30 * DAY_MS),
+    })
+    expect((await POST(send(requestKey, 0.8), {})).status).toBe(200)
+    expect((await POST(send(requestKey, 0.8), {})).status).toBe(409)
+
+    const rows = await requestRows(requestKey)
+    expect(rows.map((row) => Number(row.cost))).toEqual([0.8])
+    expect(rows[0]?.billingPeriodStart?.getTime()).toBe(defaultBillingPeriod().start.getTime())
   })
 })
 
