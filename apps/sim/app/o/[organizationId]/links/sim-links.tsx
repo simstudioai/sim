@@ -89,6 +89,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   const loaded = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
   const linksById = useMemo(() => new Map(loaded.map((link) => [link.id, link])), [loaded])
   const menuLink = menuLinkId ? linksById.get(menuLinkId) : undefined
+  if (menuLinkId && !menuLink) setMenuLinkId(null)
 
   const rows: ResourceRow[] = useMemo(
     () =>

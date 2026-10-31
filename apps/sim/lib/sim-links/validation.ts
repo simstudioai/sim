@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
+const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
 export const SIM_LINK_NAME_MAX_LENGTH = 64
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
 const URL_MAX_LENGTH = 2048
@@ -16,6 +17,17 @@ export const SIM_LINK_VARIABLE = '{*}'
 /** The lookup key: case and punctuation never tell two links apart, so sim/Q4-goals is sim/q4goals. */
 export function normalizeSimLinkName(name: string): string {
   return name.toLowerCase().replace(NAME_PUNCTUATION, '')
+}
+
+/**
+ * Shapes typed or pasted text into a name as it is entered: a leading `sim/` is dropped, spaces
+ * and slashes become hyphens, and any other character a name can't hold is removed.
+ */
+export function toSimLinkName(input: string): string {
+  return input
+    .replace(/^sim\//i, '')
+    .replace(/[\s/]+/g, '-')
+    .replace(NAME_DISALLOWED, '')
 }
 
 export function isVariableSimLinkUrl(url: string): boolean {
