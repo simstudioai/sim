@@ -23,7 +23,7 @@
     "test:interfaces:e2e": "bun scripts/test-docs-interfaces-e2e.ts",
     "search:plan": "bun scripts/index-search.ts --plan",
     "search:check": "bun scripts/index-search.ts --check",
-    "content:verify-migration": "bun scripts/compile-content.ts --verify-migration",
+    "content:verify-compatibility": "bun scripts/compile-content.ts --verify-compatibility",
     "test:corpus:e2e": "bun scripts/test-corpus-e2e.ts",
     "test:search:postgres:e2e": "bun --no-env-file --conditions=react-server scripts/test-search-postgres-e2e.ts"
   },

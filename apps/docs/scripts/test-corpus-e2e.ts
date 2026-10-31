@@ -63,7 +63,7 @@ const catalog = JSON.parse(
   await readFile(resolve(docsRoot, '.content/catalog.json'), 'utf8')
 ) as ContentCatalog
 const baseline = JSON.parse(
-  await readFile(resolve(docsRoot, 'migration/baseline.json'), 'utf8')
+  await readFile(resolve(docsRoot, 'scripts/fixtures/content-baseline.json'), 'utf8')
 ) as Baseline
 const baselinePages = new Map(baseline.pages.map((page) => [page.url, page]))
 const canonicalPages = new Set(catalog.pages.map((page) => page.url))

@@ -608,6 +608,57 @@ try {
           }
         })
       }
+      await check(`Workflow canvas inspection at ${width}px`, async () => {
+        const page = await context.newPage()
+        try {
+          await open(page, '/workflows/data-flow')
+          const trigger = page.getByRole('button', {
+            name: 'Inspect workflow: Classify and reply',
+            exact: true,
+          })
+          await trigger.click()
+          const viewer = page.getByRole('dialog')
+          await expect(viewer).toBeVisible()
+          const block = viewer.getByRole('button', { name: /^Classify Agent/ })
+          await block.press('Enter')
+          const details = viewer.getByRole('region', {
+            name: 'Classify configuration',
+            exact: true,
+          })
+          await expect(details).toBeVisible()
+          const canvas = viewer.locator('.react-flow')
+          const canvasBounds = await canvas.boundingBox()
+          const detailsBounds = await details.boundingBox()
+          if (!canvasBounds || !detailsBounds) throw new Error('Missing workflow inspection bounds')
+          expect(detailsBounds.x).toBeGreaterThanOrEqual(canvasBounds.x)
+          expect(detailsBounds.x + detailsBounds.width).toBeLessThanOrEqual(
+            canvasBounds.x + canvasBounds.width
+          )
+          await details
+            .getByRole('button', { name: 'Collapse Classify configuration', exact: true })
+            .click()
+          await expect(details).toHaveCount(0)
+          await block.press('Enter')
+          await expect(details).toBeVisible()
+          await page.screenshot({ path: join(directory, `workflow-canvas-${width}.png`) })
+          await page.keyboard.press('Escape')
+          await expect(viewer).toHaveCount(0)
+          await expect(trigger).toBeFocused()
+          await trigger.press('Enter')
+          await expect(viewer).toBeVisible()
+          await page
+            .locator('.docs-portal[data-state="open"][aria-hidden="true"]')
+            .click({ position: { x: 1, y: 1 } })
+          await expect(viewer).toHaveCount(0)
+          await expect(trigger).toBeFocused()
+          await trigger.press('Enter')
+          await viewer.getByRole('button', { name: 'Close media viewer', exact: true }).click()
+          await expect(viewer).toHaveCount(0)
+          await expect(trigger).toBeFocused()
+        } finally {
+          await page.close()
+        }
+      })
     } finally {
       await context.close()
     }

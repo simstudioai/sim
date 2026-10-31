@@ -146,7 +146,14 @@ export function toReactFlowElements(
     const commonNode = {
       id: block.id,
       position,
-      zIndex: isContainer ? nestingDepth : block.parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE,
+      zIndex:
+        selectedBlock === block.id
+          ? CONTAINER_CHILD_Z_BASE + 10
+          : isContainer
+            ? nestingDepth
+            : block.parentId
+              ? CONTAINER_CHILD_Z_BASE
+              : BLOCK_Z_BASE,
       ...(block.size ? { style: { width: block.size.width, height: block.size.height } } : {}),
       draggable: true,
       selectable: false,

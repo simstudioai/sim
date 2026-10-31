@@ -1,7 +1,0 @@
-{
-  "name": "Workflow SSR hydration, inspector, Escape and focus restoration",
-  "status": "passed",
-  "durationMs": 460.762792,
-  "nodeTitles": ["Start", "Agent"],
-  "errors": []
-}

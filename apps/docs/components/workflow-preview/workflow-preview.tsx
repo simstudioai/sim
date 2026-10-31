@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Chip } from '@sim/emcn'
-import { Expand, X } from '@sim/emcn/icons'
+import { useCallback, useId, useMemo, useState } from 'react'
+import { Expand } from '@sim/emcn/icons'
 import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import {
   applyNodeChanges,
@@ -16,8 +15,8 @@ import {
 } from '@xyflow/react'
 import { domAnimation, LazyMotion, m, useReducedMotion } from 'framer-motion'
 import '@xyflow/react/dist/style.css'
-import { cn } from '@/components/docs/classnames'
-import { DocsButton, docsControlClass, docsDialogClass } from '@/components/docs/primitives'
+import { DocsButton } from '@/components/docs/primitives'
+import { Lightbox } from '@/components/ui/lightbox'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
@@ -193,7 +192,47 @@ function PreviewFlow({
 
   return (
     <ReactFlowProvider initialNodes={nodes} initialEdges={initialEdges}>
-      <PreviewSelectionContext value={onNodeClick}>
+      <PreviewSelectionContext
+        value={{
+          selectBlock: onNodeClick,
+          renderDetails: (id) => {
+            if (!interactive || selectedBlock !== id) return null
+            const block = workflow.blocks.find((block) => block.id === id)
+            if (!block) return null
+            return (
+              <section
+                aria-label={`${block.name} configuration`}
+                className='nodrag nopan nowheel max-h-80 overflow-y-auto rounded-lg border border-[var(--docs-border)] bg-[var(--docs-reading)]'
+              >
+                <div className='flex justify-end p-1'>
+                  <DocsButton
+                    aria-label={`Collapse ${block.name} configuration`}
+                    onClick={(event) => {
+                      event.currentTarget
+                        .closest('.react-flow__node')
+                        ?.querySelector<HTMLElement>('[role="button"]')
+                        ?.focus()
+                      onPaneClick?.()
+                    }}
+                  >
+                    Collapse
+                  </DocsButton>
+                </div>
+                <BlockInspector
+                  embedded
+                  name={block.name}
+                  type={block.type}
+                  color={block.bgColor}
+                  isIntegration={block.isIntegration}
+                  triggerMode={block.triggerMode}
+                  fields={inspectorFieldsFor(block)}
+                  tools={block.tools}
+                />
+              </section>
+            )
+          },
+        }}
+      >
         <ReactFlow<PreviewNode, PreviewFlowEdge>
           id={flowId}
           colorMode={colorMode}
@@ -201,7 +240,6 @@ function PreviewFlow({
           nodes={nodes}
           edges={initialEdges}
           onNodesChange={onNodesChange}
-          onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
           onPaneClick={onPaneClick}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
@@ -234,9 +272,8 @@ function PreviewFlow({
  * Read-only, app-styled workflow diagram for docs pages. Renders a
  * {@link PreviewWorkflow} with ReactFlow — draggable, non-editable, no app
  * runtime. Clicking a block (or the expand control) opens a full-screen
- * lightbox with zoom and pan, plus a read-only inspector panel showing the
- * selected block's full configuration — canvas rows truncate, the inspector
- * doesn't.
+ * lightbox with zoom and pan. Selecting a block expands its configuration
+ * directly on the canvas.
  *
  * @example
  * <WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
@@ -251,30 +288,6 @@ export function WorkflowPreview({
   const reducedMotion = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const dialogRef = useRef<HTMLDialogElement>(null)
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (!expanded) {
-      dialog.close()
-      return
-    }
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    dialog.showModal()
-    closeButtonRef.current?.focus()
-    return () => {
-      dialog.close()
-      document.body.style.overflow = previousOverflow
-    }
-  }, [expanded])
-
-  const selectedBlock = selectedId
-    ? (workflow.blocks.find((b) => b.id === selectedId) ?? null)
-    : null
-
   const openWith = (blockId: string | null) => {
     setSelectedId(blockId)
     setExpanded(true)
@@ -288,13 +301,34 @@ export function WorkflowPreview({
       >
         <div className='flex h-11 shrink-0 items-center justify-between gap-3 border-[var(--docs-border)] border-b px-4'>
           <span className='min-w-0 text-docs-control'>{workflow.name}</span>
-          <DocsButton
-            aria-label={`Inspect workflow: ${workflow.name}`}
-            onClick={() => openWith(null)}
+          <Lightbox
+            open={expanded}
+            onOpenChange={(open) => {
+              setExpanded(open)
+              if (!open) setSelectedId(null)
+            }}
+            title={workflow.name}
+            description='Interactive workflow preview. Select a block to inspect its configuration. Drag to pan and scroll to zoom. Press Escape to close.'
+            trigger={
+              <DocsButton aria-label={`Inspect workflow: ${workflow.name}`}>
+                <Expand className='size-4' />
+                Inspect workflow
+              </DocsButton>
+            }
           >
-            <Expand className='size-4' />
-            Inspect workflow
-          </DocsButton>
+            <div className='relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--docs-canvas)]'>
+              <PreviewFlow
+                key={`${workflow.id}-lightbox`}
+                workflow={workflow}
+                highlightBlock={highlightBlock}
+                highlightEdge={highlightEdge}
+                selectedBlock={selectedId ?? undefined}
+                interactive
+                onNodeClick={(id) => setSelectedId((current) => (current === id ? null : id))}
+                onPaneClick={() => setSelectedId(null)}
+              />
+            </div>
+          </Lightbox>
         </div>
         <div className='min-h-0 min-w-0 flex-1'>
           <PreviewFlow
@@ -308,95 +342,6 @@ export function WorkflowPreview({
           />
         </div>
       </div>
-
-      <dialog
-        ref={dialogRef}
-        aria-label={`${workflow.name} workflow preview`}
-        onCancel={(event) => {
-          event.preventDefault()
-          setExpanded(false)
-        }}
-        onClose={() => setExpanded(false)}
-        onClick={(event) => {
-          if (event.target !== event.currentTarget) return
-          const bounds = event.currentTarget.getBoundingClientRect()
-          if (
-            event.clientX < bounds.left ||
-            event.clientX > bounds.right ||
-            event.clientY < bounds.top ||
-            event.clientY > bounds.bottom
-          )
-            setExpanded(false)
-        }}
-        className={cn(
-          docsDialogClass,
-          'fixed inset-0 m-auto h-[90dvh] max-h-none w-[calc(100%-24px)] max-w-none overflow-hidden p-0 backdrop:bg-[var(--docs-media-scrim)] backdrop:backdrop-blur-[var(--docs-backdrop-blur)] sm:w-[92vw]'
-        )}
-      >
-        {expanded && (
-          <div className='relative flex size-full flex-col sm:flex-row'>
-            <div className='relative min-h-0 min-w-0 flex-1'>
-              <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
-                <span className='text-[var(--text-muted)] text-small'>{workflow.name}</span>
-                <button
-                  ref={closeButtonRef}
-                  type='button'
-                  aria-label='Close'
-                  onClick={() => setExpanded(false)}
-                  className={cn(docsControlClass, 'pointer-events-auto pointer-coarse:size-11')}
-                >
-                  <X className='size-4' />
-                </button>
-              </div>
-              <PreviewFlow
-                key={`${workflow.id}-lightbox`}
-                workflow={workflow}
-                highlightBlock={highlightBlock}
-                highlightEdge={highlightEdge}
-                selectedBlock={selectedId ?? undefined}
-                interactive
-                onNodeClick={(id) => setSelectedId(id)}
-                onPaneClick={() => setSelectedId(null)}
-              />
-            </div>
-
-            <div className='flex max-h-[50%] min-h-0 w-full flex-shrink-0 flex-col overflow-y-auto border-[var(--border)] border-t sm:max-h-none sm:w-[340px] sm:border-t-0 sm:border-l'>
-              <div
-                role='group'
-                aria-label='Inspect a block'
-                className='flex shrink-0 flex-wrap gap-1 border-[var(--border)] border-b p-3'
-              >
-                {workflow.blocks.map((block) => (
-                  <Chip
-                    key={block.id}
-                    active={selectedId === block.id}
-                    aria-pressed={selectedId === block.id}
-                    onClick={() => setSelectedId(block.id)}
-                  >
-                    {block.name}
-                  </Chip>
-                ))}
-              </div>
-              {selectedBlock ? (
-                <BlockInspector
-                  embedded
-                  name={selectedBlock.name}
-                  type={selectedBlock.type}
-                  color={selectedBlock.bgColor}
-                  isIntegration={selectedBlock.isIntegration}
-                  triggerMode={selectedBlock.triggerMode}
-                  fields={inspectorFieldsFor(selectedBlock)}
-                  tools={selectedBlock.tools}
-                />
-              ) : (
-                <div className='flex h-full items-center justify-center px-6 text-center text-[var(--text-muted)] text-small'>
-                  Select a block to see its full configuration
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </dialog>
     </LazyMotion>
   )
 }

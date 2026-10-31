@@ -102,3 +102,11 @@ bun run test:search:postgres:e2e
 ```
 
 Then stop the container using the ID returned by `docker run`; `--rm` removes its temporary data. Successful vector generation and provider ranking still require separate verification with an embedding provider. The local suite makes no paid provider calls.
+
+## Release verification and rollback
+
+Repository CI proves the exercised HTTP, browser, generator, database, and deterministic provider contracts. It does not establish real-provider relevance, production CDN cache separation, field performance, native Safari behavior, or screen-reader usability. Verify those boundaries against the intended release; historical redesign measurements are retained in Git rather than treated as current readiness evidence.
+
+Before publishing, independently verify that the serving docs deployment matches the publisher source and record a restorable index backup. The manual workflow records that attestation but does not make the backup. On rollback, hold queued publishers, restore the paired docs deployment and index, then check Markdown, search reads, and citations with the matching source. A legacy deployment cannot be certified by a freshness checker it did not ship. Historical rollback requires a separately reviewed procedure because ordinary publication dispatch targets current `main`.
+
+The planned path-prefix move has its own [cutover and rollback requirements](DOMAIN_MOVE.md). Do not infer that it is complete from the redesign's successful CI.

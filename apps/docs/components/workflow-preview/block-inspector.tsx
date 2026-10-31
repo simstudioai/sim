@@ -35,7 +35,7 @@ interface BlockInspectorProps {
   triggerMode?: boolean
   fields: InspectorField[]
   tools?: InspectorTool[]
-  /** Render as a borderless panel filling its parent (the lightbox sidebar). */
+  /** Render without an outer frame inside a canvas detail region. */
   embedded?: boolean
 }
 

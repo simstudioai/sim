@@ -1,8 +1,0 @@
-{
-  "moduleImportMs": 218.62574999999998,
-  "firstQueryMs": 9.399209000000013,
-  "totalMs": 228.024959,
-  "results": 10,
-  "first": "https://docs.sim.ai/integrations/slack",
-  "runtime": "1.4.1"
-}
