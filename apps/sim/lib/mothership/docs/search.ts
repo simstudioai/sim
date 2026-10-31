@@ -146,8 +146,8 @@ function clampTopK(requested: number | undefined): number {
 }
 
 /**
- * Semantic search over the indexed docs corpus (`docs_embeddings`, rebuilt by
- * `scripts/process-docs.ts` on release). Every result carries the `docs/` path
+ * Semantic search over the indexed docs corpus (`docs_embeddings`, published by
+ * `apps/docs/scripts/index-search.ts` on release). Every result carries the `docs/` path
  * it came from so the caller can `read` the full page next.
  *
  * The index lags the VFS: a page added since the last index rebuild is readable

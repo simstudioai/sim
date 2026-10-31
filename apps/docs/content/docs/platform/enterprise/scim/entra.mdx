@@ -3,8 +3,8 @@ title: Microsoft Entra provisioning
 description: Connect Microsoft Entra ID and verify member and group provisioning
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Callout } from '@/components/ui/callout'
+import { Step, Steps } from '@/components/ui/steps'
 import { Image } from '@/components/ui/image'
 
 Use a non-gallery enterprise application in Microsoft Entra ID to create, update, and deactivate Sim organization members. Configure [single sign-on](/platform/enterprise/sso) separately for authentication.
@@ -49,7 +49,7 @@ Open the app's **Provisioning** page, select **New configuration**, and choose *
 
 Select **Test connection**, then **Create** after it succeeds. Entra adds the bearer prefix. A successful test confirms connectivity and authentication; a test assignment verifies provisioning.
 
-<Image src="/static/enterprise/entra/connection.png" alt="Entra Bearer authentication fields with a redacted Tenant URL and masked Secret token" width={808} height={305} className="mx-auto h-auto w-full max-w-xl" />
+<Image src="/static/enterprise/entra/connection.png" alt="Entra Bearer authentication fields with a redacted Tenant URL and masked Secret token" width={808} height={305} maxWidth="xl" className="mx-auto h-auto w-full" />
 
 <Callout type="info">
   In Entra's legacy provisioning experience, choose **Automatic**, enter the same values under **Admin Credentials**, test, and save. See [Microsoft SCIM configuration](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/use-scim-to-provision-users-and-groups).
@@ -73,7 +73,7 @@ Under **Attribute mapping**, review the user mappings:
 
 Use an email in a verified Sim domain. If the UPN differs from the account email, adjust mappings before provisioning. When **Mail** is empty, Entra omits the work email and Sim uses `userName` as the account email; that UPN must be a valid email address in a verified domain.
 
-<Image src="/static/enterprise/entra/scope.png" alt="Entra Properties showing assigned-only provisioning scope, accidental deletion protection, and Skip out of scope deletions disabled" width={810} height={250} className="mx-auto h-auto w-full max-w-xl" />
+<Image src="/static/enterprise/entra/scope.png" alt="Entra Properties showing assigned-only provisioning scope, accidental deletion protection, and Skip out of scope deletions disabled" width={810} height={250} maxWidth="xl" className="mx-auto h-auto w-full" />
 </Step>
 </Steps>
 
@@ -85,7 +85,7 @@ Use an email in a verified Sim domain. If the UPN differs from the account email
 4. Remove the app assignment, then provision that account on demand again. Confirm Sim deactivates the member.
 5. Reassign and provision it to verify reactivation of the same account. Assignment changes can take a few minutes to reach provisioning.
 
-<Image src="/static/enterprise/entra/provision-user.png" alt="Successful Entra on-demand import, scope, matching, and action checks with account details redacted" width={812} height={626} className="mx-auto h-auto w-full max-w-xl" />
+<Image src="/static/enterprise/entra/provision-user.png" alt="Successful Entra on-demand import, scope, matching, and action checks with account details redacted" width={812} height={626} maxWidth="xl" className="mx-auto h-auto w-full" />
 
 ### Deactivation and directory deletion
 

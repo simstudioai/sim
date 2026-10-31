@@ -1096,7 +1096,6 @@
     "apps/desktop/src/main/local-files.test.ts": 2,
     "apps/desktop/src/preload/browser/forms.test.ts": 2,
     "apps/desktop/src/preload/browser/forms.ts": 1,
-    "apps/docs/lib/integration-navigation.test.ts": 2,
     "apps/realtime/src/database/operations.ts": 1,
     "apps/realtime/src/handlers/file-doc-store.test.ts": 57,
     "apps/sim/app/(auth)/login/login-form.tsx": 1,

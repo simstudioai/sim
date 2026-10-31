@@ -4,6 +4,7 @@ description: Build, deploy, and manage AI agents in a shared workspace.
 ---
 
 import { IntroductionHero, IntroductionLink } from '@/components/introduction'
+import { Cards } from '@/components/ui/cards'
 
 Build, deploy, and manage AI agents in a shared workspace.
 
@@ -11,7 +12,7 @@ Build, deploy, and manage AI agents in a shared workspace.
 
 ## Start building [#choose-how-to-build]
 
-<div className="not-prose mb-7">
+<Cards className="not-prose mb-7">
   <IntroductionLink href="/chat" title="Start with Chat" icon="chat">
     Describe a task and build with Sim.
   </IntroductionLink>
@@ -21,7 +22,7 @@ Build, deploy, and manage AI agents in a shared workspace.
   <IntroductionLink href="/api-reference/getting-started" title="Build with the API" icon="api">
     Create resources and run workflows from your application.
   </IntroductionLink>
-</div>
+</Cards>
 
 You can start in Chat and refine the same workflow in the builder. On self-hosted deployments, Chat depends on the deployment's configuration and can be disabled.
 

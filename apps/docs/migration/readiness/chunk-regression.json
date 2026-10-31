@@ -1,0 +1,54 @@
+{
+  "measuredSource": "b313fcc70a59fbe4de0b2920554090e1c63e2bdd",
+  "catalogContentRevision": "179c340e8069b59d770cfc763dd42602d8c66c76",
+  "sourceContentUnchangedSinceCatalog": true,
+  "conditions": "Bun, compiled real documentation; no provider or database calls. Before and negative controls restore the faulty chunk behavior; the final source is restored.",
+  "regressions": {
+    "before": [
+      {
+        "name": "Compiled publication chunks preserve code, tables, context and bounded payloads",
+        "status": "failed",
+        "durationMs": 32,
+        "error": "/api-reference/access-requests/cancelOrganizationAccessRequest:response-200:0: unclosed fenced code"
+      }
+    ],
+    "control-context": [
+      {
+        "name": "Compiled publication chunks preserve code, tables, context and bounded payloads",
+        "status": "failed",
+        "durationMs": 34,
+        "error": "/api-reference/access-requests/cancelOrganizationAccessRequest:response-200:1: continuation lost its page/section context"
+      }
+    ],
+    "control-table-header": [
+      {
+        "name": "Compiled publication chunks preserve code, tables, context and bounded payloads",
+        "status": "failed",
+        "durationMs": 604,
+        "error": "/integrations/buffer: fitting table row or repeated header lost"
+      }
+    ],
+    "control-oversized-cell": [
+      {
+        "name": "Compiled publication chunks preserve code, tables, context and bounded payloads",
+        "status": "failed",
+        "durationMs": 3815,
+        "error": "/integrations/plane: oversized table cell lost content"
+      }
+    ],
+    "after": [
+      {
+        "name": "Compiled publication chunks preserve code, tables, context and bounded payloads",
+        "status": "passed",
+        "durationMs": 3943
+      }
+    ]
+  },
+  "allCatalog": {
+    "pages": 803,
+    "totalChunks": 28131,
+    "maxCharacters": 5996,
+    "durationMs": 6442,
+    "errors": []
+  }
+}

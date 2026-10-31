@@ -61,7 +61,6 @@
   "apps/docs/components/workflow-preview/index.ts#PreviewTool",
   "apps/docs/components/workflow-preview/index.ts#PreviewWorkflow",
   "apps/docs/components/workflow-preview/workflow-data.ts#PreviewEdgeData",
-  "apps/docs/lib/openapi-code-samples-client.ts#AuthCodeSampleContext",
   "apps/realtime/src/database/operations.ts#updateSubflowNodeList",
   "apps/realtime/src/env.ts#isDev",
   "apps/realtime/src/env.ts#isHosted",

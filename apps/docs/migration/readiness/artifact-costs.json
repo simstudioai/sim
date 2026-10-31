@@ -1,0 +1,71 @@
+{
+  "node": "v24.19.0",
+  "zlib": "1.3.2.1-motley-3246f1b",
+  "method": "Same htmlparser2 parser and Node gzipSync default options; scripts compressed separately. Artifact sizes are distinct from observed network transfers.",
+  "observations": [
+    {
+      "revision": "f06b2d6d535b5cd0a4a80c851e54cbdd7aef189d",
+      "route": "introduction",
+      "htmlBytes": 478723,
+      "htmlGzipBytes": 41397,
+      "rscBytes": 146897,
+      "rscGzipBytes": 21249,
+      "elements": 2327,
+      "tables": 1,
+      "rows": 6,
+      "cells": 10,
+      "headerCells": 2,
+      "modernScriptReferences": 14,
+      "modernScriptBytes": 789582,
+      "modernScriptGzipBytes": 241762
+    },
+    {
+      "revision": "f06b2d6d535b5cd0a4a80c851e54cbdd7aef189d",
+      "route": "integrations/cloudflare",
+      "htmlBytes": 15473385,
+      "htmlGzipBytes": 665457,
+      "rscBytes": 7359146,
+      "rscGzipBytes": 329899,
+      "elements": 45101,
+      "tables": 152,
+      "rows": 7838,
+      "cells": 23623,
+      "headerCells": 532,
+      "modernScriptReferences": 14,
+      "modernScriptBytes": 789582,
+      "modernScriptGzipBytes": 241762
+    },
+    {
+      "revision": "66faa48d018adaa7ebf540968f029455557cfef1",
+      "route": "introduction",
+      "htmlBytes": 481254,
+      "htmlGzipBytes": 42450,
+      "rscBytes": 145653,
+      "rscGzipBytes": 21545,
+      "elements": 2327,
+      "tables": 1,
+      "rows": 6,
+      "cells": 10,
+      "headerCells": 2,
+      "modernScriptReferences": 14,
+      "modernScriptBytes": 790903,
+      "modernScriptGzipBytes": 242170
+    },
+    {
+      "revision": "66faa48d018adaa7ebf540968f029455557cfef1",
+      "route": "integrations/cloudflare",
+      "htmlBytes": 6417366,
+      "htmlGzipBytes": 480826,
+      "rscBytes": 3393957,
+      "rscGzipBytes": 258815,
+      "elements": 45041,
+      "tables": 152,
+      "rows": 7838,
+      "cells": 23623,
+      "headerCells": 532,
+      "modernScriptReferences": 14,
+      "modernScriptBytes": 790903,
+      "modernScriptGzipBytes": 242170
+    }
+  ]
+}

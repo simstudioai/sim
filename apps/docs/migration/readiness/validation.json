@@ -1,0 +1,157 @@
+{
+  "sourceRevision": "66faa48d018adaa7ebf540968f029455557cfef1",
+  "prMergeRevision": "4a9977a2c1ed434f8251f67cfa77ab78961f7f79",
+  "mergeStagingParent": "13a782b804b938ecdd4322c825706d254734ac58",
+  "rootCI": {
+    "status": "completed",
+    "conclusion": "success",
+    "headSha": "66faa48d018adaa7ebf540968f029455557cfef1",
+    "url": "https://github.com/simstudioai/sim/actions/runs/41114409967",
+    "jobConclusions": {
+      "skipped": 23,
+      "success": 39
+    }
+  },
+  "docsCI": {
+    "status": "completed",
+    "conclusion": "success",
+    "headSha": "66faa48d018adaa7ebf540968f029455557cfef1",
+    "url": "https://github.com/simstudioai/sim/actions/runs/41114409835",
+    "jobConclusions": {
+      "success": 1,
+      "skipped": 1
+    },
+    "reports": {
+      "docs-corpus.json": {
+        "count": 2996,
+        "statuses": {
+          "passed": 2996
+        },
+        "unavailable": []
+      },
+      "docs-negotiation.json": {
+        "count": 12,
+        "statuses": {
+          "passed": 12
+        },
+        "unavailable": []
+      },
+      "docs-interfaces.json": {
+        "count": 18,
+        "statuses": {
+          "passed": 18
+        },
+        "unavailable": []
+      },
+      "docs-headers.json": {
+        "count": 16,
+        "statuses": {
+          "passed": 16
+        },
+        "unavailable": []
+      },
+      "search-postgres/report.json": {
+        "count": 20,
+        "statuses": {
+          "passed": 20
+        },
+        "unavailable": []
+      },
+      "platform-consumer/report.json": {
+        "count": 2,
+        "statuses": {
+          "passed": 2
+        },
+        "unavailable": []
+      },
+      "samples/report.json": {
+        "count": 40,
+        "statuses": {
+          "passed": 40
+        },
+        "unavailable": []
+      },
+      "generators/report.json": {
+        "count": 22,
+        "statuses": {
+          "passed": 22
+        },
+        "unavailable": []
+      },
+      "navigation/docs.json": {
+        "count": 74,
+        "statuses": {
+          "passed": 74
+        },
+        "unavailable": []
+      },
+      "navigation-webkit/docs.json": {
+        "count": 74,
+        "statuses": {
+          "passed": 71,
+          "unavailable": 3
+        },
+        "unavailable": [
+          {
+            "name": "In-flight intent prefetch transfers a large reference body only once",
+            "status": "unavailable",
+            "durationMs": 0,
+            "error": "Controlled network throttling uses Chromium CDP; Playwright WebKit cannot exercise this transport regression."
+          },
+          {
+            "name": "Legacy clipboard preserves activation and invalidates prepared content after navigation",
+            "status": "unavailable",
+            "durationMs": 0,
+            "error": "Playwright WebKit does not support granting clipboard-read/write permissions; Chromium owns clipboard readback verification."
+          },
+          {
+            "name": "Dark theme respects reduced transparency across navigation and portals",
+            "status": "unavailable",
+            "durationMs": 0,
+            "error": "Chromium CDP reduced-transparency emulation is unavailable in Playwright WebKit; native OS preference needs manual Safari verification."
+          }
+        ]
+      }
+    }
+  },
+  "benchmarkCI": {
+    "status": "completed",
+    "conclusion": "success",
+    "headSha": "66faa48d018adaa7ebf540968f029455557cfef1",
+    "url": "https://github.com/simstudioai/sim/actions/runs/41114445590",
+    "jobConclusions": {
+      "success": 1,
+      "skipped": 1
+    },
+    "observations": {
+      "navigation": {
+        "completed": 300
+      },
+      "lighthouse": {
+        "completed": 42
+      }
+    }
+  },
+  "generatorDiffs": [[], []],
+  "migration": {
+    "source": "Canonical catalog compared with pre-migration MDX AST and specification inventory",
+    "authoredPages": 495,
+    "operationPages": 308,
+    "totalPages": 803,
+    "catalogBytes": 39983025,
+    "internalLinks": 2146,
+    "lostRoutes": [],
+    "lostAnchors": [],
+    "changedCodeFences": [],
+    "componentCoverage": "Every JSX component validated against the centrally owned component allowlist"
+  },
+  "securityAudit": {
+    "status": "failed-nonblocking",
+    "vulnerabilities": 42,
+    "critical": 1,
+    "high": 15,
+    "moderate": 19,
+    "low": 7,
+    "source": "https://github.com/simstudioai/sim/actions/runs/41114409967/job/124264989416"
+  }
+}

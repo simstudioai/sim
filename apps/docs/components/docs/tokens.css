@@ -1,0 +1,237 @@
+@theme inline {
+  --text-small: 13px;
+  --text-small--line-height: 18px;
+  --text-caption: 12px;
+  --text-caption--line-height: 18px;
+  --text-docs-title: 32px;
+  --text-docs-title--line-height: 40px;
+  --text-docs-h1: 32px;
+  --text-docs-h1--line-height: 40px;
+  --text-docs-h2: 24px;
+  --text-docs-h2--line-height: 32px;
+  --text-docs-h3: 18px;
+  --text-docs-h3--line-height: 28px;
+  --text-docs-body: 16px;
+  --text-docs-body--line-height: 26px;
+  --text-docs-lead: 18px;
+  --text-docs-lead--line-height: 28px;
+  --text-docs-nav: 14px;
+  --text-docs-nav--line-height: 20px;
+  --text-docs-table: 14px;
+  --text-docs-table--line-height: 22px;
+  --text-docs-control: 13px;
+  --text-docs-control--line-height: 18px;
+  --text-docs-header: 13px;
+  --text-docs-header--line-height: 19.5px;
+  --text-docs-caption: 12px;
+  --text-docs-caption--line-height: 18px;
+  --text-docs-code: 13px;
+  --text-docs-code--line-height: 22px;
+  --text-docs-keyboard: 11px;
+  --text-docs-keyboard--line-height: 14px;
+}
+
+.docs-root,
+.docs-portal {
+  --docs-canvas: #fff;
+  --docs-heading: #0a0a0a;
+  --docs-text: rgb(10 10 10 / 80%);
+  --docs-muted: rgb(10 10 10 / 60%);
+  --docs-placeholder: var(--docs-muted);
+  --docs-disabled: var(--docs-muted);
+  --docs-surface: rgb(10 10 10 / 4%);
+  --docs-border: rgb(0 0 0 / 6%);
+  --docs-rule: rgb(0 0 0 / 12%);
+  --docs-hover: rgb(10 10 10 / 6%);
+  --docs-selected: rgb(0 0 0 / 8%);
+  --docs-selected-hover: var(--docs-selected);
+  --docs-current-edge: none;
+  --docs-pressed: rgb(0 0 0 / 12%);
+  --docs-link: #0066cc;
+  --docs-prose-link: var(--docs-link);
+  --docs-toc-current: var(--docs-link);
+  --docs-glass: rgb(255 255 255 / 80%);
+  --docs-overlay: rgb(255 255 255 / 88%);
+  --docs-reading: rgb(255 255 255 / 96%);
+  --docs-raised: #fff;
+  --docs-search-scrim: var(--docs-overlay);
+  --docs-navigation-scrim: rgb(0 0 0 / 20%);
+  --docs-media-scrim: rgb(0 0 0 / 50%);
+  --docs-chrome-blur: 20px;
+  --docs-backdrop-blur: 8px;
+  --docs-highlight: rgb(255 255 255 / 70%);
+  --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 8%);
+  --docs-segment-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  --docs-segment-fill: var(--docs-canvas);
+  --docs-segment-border: var(--docs-border);
+  --docs-segment-text: var(--docs-muted);
+  --docs-menu-shadow: inset 0 1px 0 var(--docs-highlight), 0 10px 15px -3px rgb(0 0 0 / 6%);
+  --docs-dialog-shadow: var(--docs-shadow);
+  --docs-search-fill: var(--docs-canvas);
+  --docs-primary-fill: var(--docs-heading);
+  --docs-primary-hover: color-mix(in srgb, var(--docs-heading) 85%, var(--docs-canvas));
+  --docs-primary-pressed: color-mix(in srgb, var(--docs-heading) 75%, var(--docs-canvas));
+  --docs-primary-label: var(--docs-canvas);
+  --docs-secondary-fill: var(--docs-surface);
+  --docs-secondary-hover: var(--docs-hover);
+  --docs-secondary-pressed: var(--docs-pressed);
+  --docs-radius: 8px;
+  --docs-blue: #0062c4;
+  --docs-blue-soft: rgb(191 219 254 / 35%);
+  --docs-green: #15803d;
+  --docs-green-soft: rgb(187 247 208 / 35%);
+  --docs-purple: #7c3aed;
+  --docs-purple-soft: rgb(233 213 255 / 35%);
+  --docs-orange: #c2410c;
+  --docs-orange-soft: rgb(254 215 170 / 35%);
+  --docs-red: #c83232;
+  --docs-red-soft: rgb(254 202 202 / 35%);
+  --docs-sticky-offset: 80px;
+  --text-primary: var(--docs-heading);
+  --text-body: var(--docs-text);
+  --text-secondary: var(--docs-muted);
+  --text-muted: var(--docs-muted);
+  --text-icon: var(--docs-muted);
+  --text-subtle: var(--docs-muted);
+  --text-tertiary: var(--docs-muted);
+  --workflow-edge: var(--docs-rule);
+  --border-success: var(--docs-green);
+  --warning: var(--docs-orange);
+  --white: #fff;
+  --border: var(--docs-border);
+  --border-1: var(--docs-border);
+  --surface-1: var(--docs-canvas);
+  --surface-2: var(--docs-reading);
+  --surface-3: var(--docs-surface);
+  --surface-4: var(--docs-surface);
+  --surface-5: var(--docs-surface);
+  --surface-hover: var(--docs-hover);
+  --surface-active: var(--docs-selected);
+  --bg: var(--docs-canvas);
+  --brand-accent: var(--docs-link);
+  --brand-secondary: var(--docs-link);
+  --brand-blue: var(--docs-link);
+  --text-error: var(--docs-red);
+  --shadow-overlay: var(--docs-shadow);
+  color: var(--docs-text);
+  color-scheme: light;
+}
+
+.dark .docs-root,
+.dark .docs-portal,
+.docs-root.dark,
+.docs-portal.dark {
+  --docs-canvas: #141414;
+  --docs-heading: #e6e6e6;
+  --docs-text: #e6e6e6;
+  --docs-muted: #b0b0b0;
+  --docs-placeholder: #a8a8a8;
+  --docs-disabled: #707070;
+  --docs-surface: #1c1c1c;
+  --docs-border: #383838;
+  --docs-rule: #383838;
+  --docs-boundary: #8a8a8a;
+  --docs-hover: #2b2b2b;
+  --docs-selected: #333;
+  --docs-selected-hover: var(--docs-pressed);
+  --docs-current-edge: inset 2px 0 0 var(--docs-boundary);
+  --docs-pressed: #3a3a3a;
+  --docs-link: #8abeff;
+  --docs-prose-link: var(--docs-heading);
+  --docs-toc-current: var(--docs-muted);
+  --docs-glass: rgb(20 20 20 / 92%);
+  --docs-overlay: rgb(36 36 36 / 92%);
+  --docs-reading: #1c1c1c;
+  --docs-raised: #242424;
+  --docs-search-fill: var(--docs-overlay);
+  --docs-search-scrim: rgb(0 0 0 / 60%);
+  --docs-navigation-scrim: var(--docs-search-scrim);
+  --docs-media-scrim: var(--docs-search-scrim);
+  --docs-highlight: rgb(255 255 255 / 10%);
+  --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 40%);
+  --docs-segment-shadow: none;
+  --docs-segment-fill: var(--docs-selected);
+  --docs-segment-border: var(--docs-boundary);
+  --docs-segment-text: var(--docs-heading);
+  --docs-menu-shadow: inset 0 1px 0 var(--docs-highlight), 0 8px 24px rgb(0 0 0 / 40%);
+  --docs-dialog-shadow: 0 16px 48px rgb(0 0 0 / 40%), 0 0 0 1px var(--docs-highlight);
+  --docs-primary-hover: #d4d4d4;
+  --docs-primary-pressed: #c2c2c2;
+  --docs-secondary-fill: var(--docs-selected);
+  --docs-secondary-hover: var(--docs-pressed);
+  --docs-secondary-pressed: #424242;
+  --docs-blue: var(--docs-link);
+  --docs-blue-soft: #203047;
+  --docs-green: #8ed5a4;
+  --docs-green-soft: #20382a;
+  --docs-purple: #c4a6f2;
+  --docs-purple-soft: #332b43;
+  --docs-orange: #edb27b;
+  --docs-orange-soft: #3e3024;
+  --docs-red: #f09a9a;
+  --docs-red-soft: #432a2a;
+  color-scheme: dark;
+}
+
+/* biome-ignore lint/correctness/noUnknownMediaFeatureName: Media Queries Level 5 feature not yet recognized by the installed CSS linter. */
+@media (prefers-reduced-transparency: reduce) {
+  .docs-root,
+  .docs-portal,
+  .dark .docs-root,
+  .dark .docs-portal,
+  .docs-root.dark,
+  .docs-portal.dark {
+    --docs-glass: var(--docs-canvas);
+    --docs-overlay: var(--docs-raised);
+    --docs-chrome-blur: 0px;
+    --docs-backdrop-blur: 0px;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .docs-root,
+  .docs-portal,
+  .dark .docs-root,
+  .dark .docs-portal,
+  .docs-root.dark,
+  .docs-portal.dark {
+    --docs-glass: var(--docs-canvas);
+    --docs-overlay: var(--docs-raised);
+    --docs-chrome-blur: 0px;
+    --docs-backdrop-blur: 0px;
+  }
+}
+
+.dark .docs-root ::selection,
+.dark .docs-portal ::selection {
+  background: rgb(138 190 255 / 24%);
+  color: var(--docs-heading);
+}
+
+@media (max-width: 1023px) {
+  .docs-root {
+    --docs-sticky-offset: 172px;
+  }
+}
+
+.docs-root .shiki,
+.docs-root .shiki span {
+  color: var(--shiki-light);
+}
+.dark .docs-root .shiki,
+.dark .docs-root .shiki span {
+  color: var(--shiki-dark);
+}
+
+.docs-root [hidden="until-found"] {
+  content-visibility: hidden;
+}
+
+@media print {
+  .docs-root [hidden="until-found"] {
+    content-visibility: visible;
+  }
+  .docs-root [data-docs-tab-panel] {
+    display: block;
+  }
+}

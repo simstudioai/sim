@@ -1,64 +1,43 @@
-'use client'
-
-import { type ComponentPropsWithoutRef, useState } from 'react'
-import { Check, Link } from '@sim/emcn/icons'
-import { cn } from '@/lib/utils'
+import type { HTMLAttributes } from 'react'
+import { Link } from '@sim/emcn/icons'
+import { cn } from '@/components/docs/classnames'
 
 type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
-
-interface HeadingProps extends ComponentPropsWithoutRef<'h1'> {
+interface HeadingProps extends HTMLAttributes<HTMLHeadingElement> {
   as?: HeadingTag
 }
 
-export function Heading({ as, className, ...props }: HeadingProps) {
-  const [copied, setCopied] = useState(false)
-  const As = as ?? 'h1'
+const SIZES = {
+  h1: 'mt-10 mb-5 text-docs-title tracking-[-0.02em]',
+  h2: 'mt-8 mb-3 text-docs-h2 tracking-[-0.02em]',
+  h3: 'mt-7 mb-3 text-docs-h3',
+  h4: 'mt-6 mb-2 text-docs-body',
+  h5: 'mt-5 mb-2 text-docs-table',
+  h6: 'mt-5 mb-2 text-docs-table',
+} as const
 
-  if (!props.id) {
-    return <As className={className} {...props} />
-  }
-
-  const copyHeadingLink = async (e: React.MouseEvent) => {
-    e.preventDefault()
-
-    const url = `${window.location.origin}${window.location.pathname}#${props.id}`
-
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-
-      // Update URL hash without scrolling
-      window.history.pushState(null, '', `#${props.id}`)
-
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Fallback: just navigate to the anchor
-      window.location.hash = props.id as string
-    }
-  }
-
+/** Server-rendered headings expose real links without hydrating article prose. */
+export function Heading({ as: Tag = 'h2', className, children, id, ...props }: HeadingProps) {
   return (
-    <As
+    <Tag
+      {...props}
+      id={id}
       className={cn(
-        'group flex scroll-mt-[calc(var(--fd-docs-row-3,0px)+1rem)] flex-row items-center gap-2',
+        'group/heading font-medium text-[var(--docs-heading)] [&+p]:mt-3',
+        SIZES[Tag],
         className
       )}
-      {...props}
     >
-      <a href={`#${props.id}`} className='peer' onClick={copyHeadingLink}>
-        {props.children}
-      </a>
-      {copied ? (
-        <Check
-          aria-hidden
-          className='size-[14px] shrink-0 text-[var(--brand-accent)] opacity-100 transition-opacity'
-        />
-      ) : (
-        <Link
-          aria-hidden
-          className='size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-opacity group-hover:opacity-100 peer-hover:opacity-100 peer-focus-visible:opacity-100'
-        />
+      {children}
+      {id && (
+        <a
+          href={`#${id}`}
+          aria-label='Link to this section'
+          className='ml-2 inline-flex rounded align-middle text-[var(--docs-muted)] opacity-0 pointer-coarse:opacity-100 transition-opacity hover:text-[var(--docs-link)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 group-hover/heading:opacity-100 motion-reduce:transition-none'
+        >
+          <Link className='size-4' />
+        </a>
       )}
-    </As>
+    </Tag>
   )
 }
