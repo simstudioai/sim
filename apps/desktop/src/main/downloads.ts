@@ -3,7 +3,7 @@ import { basename, extname, join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import type { Session } from 'electron'
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import type { EventRecorder } from '@/main/observability'
 
@@ -131,10 +131,20 @@ export async function uniqueDownloadPath(
   return null
 }
 
+/** The Windows counterpart of the Dock bounce: a taskbar flash for a backgrounded window. */
+function flashUntilFocused(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed() || win.isFocused()) return
+  win.once('focus', () => {
+    if (!win.isDestroyed()) win.flashFrame(false)
+  })
+  win.flashFrame(true)
+}
+
 /**
  * Wires will-download so exports, blob URLs, and presigned-URL downloads all
  * get a native save dialog with a sensible default name, and completed
- * downloads bounce the Dock Downloads stack.
+ * downloads bounce the Dock Downloads stack (or flash the taskbar button on
+ * Windows).
  */
 export function attachDownloadHandling(session: Session, events: EventRecorder): void {
   session.on('will-download', (_event, item, contents) => {
@@ -148,6 +158,8 @@ export function attachDownloadHandling(session: Session, events: EventRecorder):
         logger.info('Download completed', { filename })
         if (process.platform === 'darwin') {
           app.dock?.downloadFinished(item.getSavePath())
+        } else if (process.platform === 'win32' && contents) {
+          flashUntilFocused(BrowserWindow.fromWebContents(contents))
         }
       } else if (state === 'interrupted') {
         logger.warn('Download interrupted', { filename })
