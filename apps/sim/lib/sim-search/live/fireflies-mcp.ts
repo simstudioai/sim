@@ -181,7 +181,7 @@ export async function searchFirefliesMcp(
   const data = toRecord(result)
   const rows = Array.isArray(result)
     ? result
-    : (data.transcripts ?? toRecord(data.data).transcripts)
+    : (data.transcripts ?? (Array.isArray(data.data) ? data.data : toRecord(data.data).transcripts))
   if (!Array.isArray(rows)) {
     logger.warn('Unsupported Fireflies transcript list response shape', {
       response: responseShape(result),

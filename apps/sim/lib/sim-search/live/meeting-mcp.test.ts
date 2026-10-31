@@ -13,14 +13,19 @@ const meetingId = '11111111-2222-4333-8444-555555555555'
  * an unrelated read response is attached to a signed reference; malformed wire shapes hide gaps.
  */
 describe('meeting MCP provider wire contracts', () => {
-  it('finds spoken Fireflies content and continues a full metadata page without inventing modification times', async () => {
-    const client: ManagedSearchMcpClient = {
-      async call(name, args) {
-        if (name !== 'fireflies_get_transcripts' || args.scope !== 'all' || args.format !== 'json')
-          throw new Error('Transcript-content search requires all scope and JSON output')
-        if (args.skip !== 10) throw new Error('Wrong continuation offset')
-        return {
-          transcripts: [
+  it.each(['bare array', 'data array', 'transcripts', 'nested transcripts'] as const)(
+    'finds spoken Fireflies content and continues a %s page without inventing modification times',
+    async (shape) => {
+      const client: ManagedSearchMcpClient = {
+        async call(name, args) {
+          if (
+            name !== 'fireflies_get_transcripts' ||
+            args.scope !== 'all' ||
+            args.format !== 'json'
+          )
+            throw new Error('Transcript-content search requires all scope and JSON output')
+          if (args.skip !== 10) throw new Error('Wrong continuation offset')
+          const transcripts = [
             {
               id: 'meeting-1',
               title: 'Planning',
@@ -28,21 +33,61 @@ describe('meeting MCP provider wire contracts', () => {
               summary: { overview: 'Launch in September' },
             },
             { id: 'meeting-2', title: 'Next match' },
+          ]
+          if (shape === 'bare array') return transcripts
+          if (shape === 'data array') return { data: transcripts }
+          if (shape === 'nested transcripts') return { data: { transcripts } }
+          return { transcripts }
+        },
+      }
+      const result = await searchFirefliesMcp(client, {
+        ...input,
+        limit: 1,
+        native: { provider: 'fireflies', query: 'launch', cursor: '10' },
+      })
+      expect(result.documents).toHaveLength(1)
+      expect(result.documents[0]).toMatchObject({
+        id: 'meeting-1',
+        eventStartAt: '2026-09-01T00:00:00.000Z',
+      })
+      expect(result.documents[0]?.modifiedAt).toBeUndefined()
+      expect(result.nextCursor).toBe('11')
+      expect(result.partial).toBe(false)
+    }
+  )
+
+  it('returns an empty Fireflies data page without reporting unavailable', async () => {
+    const client: ManagedSearchMcpClient = {
+      async call() {
+        return { data: [] }
+      },
+    }
+    const result = await searchFirefliesMcp(client, input)
+    expect(result.documents).toEqual([])
+    expect(result.nextCursor).toBeUndefined()
+    expect(result.partial).toBe(false)
+  })
+
+  it('keeps partial coverage and provider offsets when a Fireflies data page has invalid rows', async () => {
+    const client: ManagedSearchMcpClient = {
+      async call() {
+        return {
+          data: [
+            { id: '../invalid', title: 'Invalid meeting' },
+            { id: 'meeting-1', title: 'Planning' },
+            { id: 'meeting-2', title: 'Next match' },
           ],
         }
       },
     }
     const result = await searchFirefliesMcp(client, {
       ...input,
-      limit: 1,
+      limit: 2,
       native: { provider: 'fireflies', query: 'launch', cursor: '10' },
     })
-    expect(result.documents[0]).toMatchObject({
-      id: 'meeting-1',
-      eventStartAt: '2026-09-01T00:00:00.000Z',
-    })
-    expect(result.documents[0]?.modifiedAt).toBeUndefined()
-    expect(result.nextCursor).toBe('11')
+    expect(result.documents.map((document) => document.id)).toEqual(['meeting-1'])
+    expect(result.nextCursor).toBe('12')
+    expect(result.partial).toBe(true)
   })
 
   it('keeps meetings earlier on a partial UTC end day and omits keyword scope from termless listings', async () => {
@@ -149,14 +194,26 @@ describe('meeting MCP provider wire contracts', () => {
     expect(document.content).toContain(transcript)
   })
 
-  it('fails on unknown Fireflies list formats rather than claiming zero matches', async () => {
-    const client = {
-      async call() {
-        return { answer: 'No matching meetings' }
-      },
+  it.each([
+    { shape: 'unknown', response: { answer: 'No matching meetings' } },
+    { shape: 'null data', response: { data: null } },
+    { shape: 'text data', response: { data: '[]' } },
+    { shape: 'object data', response: { data: {} } },
+    {
+      shape: 'malformed transcripts with a data array',
+      response: { transcripts: 'invalid', data: [] },
+    },
+  ])(
+    'rejects $shape Fireflies list formats rather than claiming zero matches',
+    async ({ response }) => {
+      const client: ManagedSearchMcpClient = {
+        async call() {
+          return response
+        },
+      }
+      await expect(searchFirefliesMcp(client, input)).rejects.toThrow('unsupported')
     }
-    await expect(searchFirefliesMcp(client, input)).rejects.toThrow('unsupported')
-  })
+  )
 
   it.each(['text', 'json', 'code_fence', 'oversized'] as const)(
     'diagnoses unsupported Fireflies %s envelopes without logging private values or arbitrary keys',
