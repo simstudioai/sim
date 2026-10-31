@@ -2,6 +2,33 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('DisposableEmail')
 
+/**
+ * Forwarding services whose aliases are permanent and deliver to a real inbox. The upstream lists
+ * carry some of them, or individual aliases under them, so they are exempted here rather than
+ * edited out of the vendored file, which keeps a refresh from bringing them back.
+ */
+const MAIL_RELAY_DOMAINS: ReadonlySet<string> = new Set([
+  '33mail.com',
+  'abinemail.com',
+  'addy.io',
+  'addy.to',
+  'aleeas.com',
+  'anonaddy.com',
+  'anonaddy.me',
+  'duck.com',
+  'maskmy.id',
+  'mozmail.com',
+  'passinbox.com',
+  'passmail.com',
+  'passmail.net',
+  'privaterelay.appleid.com',
+  'relay.firefox.com',
+  'simplelogin.co',
+  'simplelogin.com',
+  'simplelogin.fr',
+  'slmail.me',
+])
+
 let disposableDomains: Promise<ReadonlySet<string>> | undefined
 
 /**
@@ -35,13 +62,16 @@ function loadDisposableDomains(): Promise<ReadonlySet<string>> {
  * - https://github.com/disposable-email-domains/disposable-email-domains
  *   `disposable_email_blocklist.conf` (CC0), at e2254bf7fc8dcf113f6028b21e263a352111490b
  *
- * Refresh from both and review the diff for mainstream providers and mail relays (Gmail,
- * Outlook, iCloud, Proton, DuckDuckGo, Firefox Relay, SimpleLogin, addy.io), none of which
- * belong here.
+ * Refresh from both, keeping the file an exact union of upstream, and review the diff for
+ * mainstream providers (Gmail, Outlook, iCloud, Proton), none of which belong here.
  */
 export async function isDisposableEmail(email: string | null | undefined): Promise<boolean> {
   const domain = email?.split('@')[1]?.trim().toLowerCase()
   if (!domain) return false
+
+  const labels = domain.split('.')
+  const candidates = labels.slice(0, -1).map((_, i) => labels.slice(i).join('.'))
+  if (candidates.some((candidate) => MAIL_RELAY_DOMAINS.has(candidate))) return false
 
   let domains: ReadonlySet<string>
   try {
@@ -51,9 +81,5 @@ export async function isDisposableEmail(email: string | null | undefined): Promi
     return false
   }
 
-  const labels = domain.split('.')
-  for (let i = 0; i < labels.length - 1; i++) {
-    if (domains.has(labels.slice(i).join('.'))) return true
-  }
-  return false
+  return candidates.some((candidate) => domains.has(candidate))
 }
