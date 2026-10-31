@@ -24,7 +24,10 @@ const personSchema = personSummarySchema.extend({
   location: z.string().nullable(),
   /** `YYYY-MM-DD`. */
   startDate: z.string().nullable(),
+  /** The manager as shown; `null` when there is none or they are suspended. */
   manager: personSummarySchema.nullable(),
+  /** The stored manager link, kept while that manager is suspended. */
+  managerMemberId: z.string().nullable(),
   joinedAt: z.iso.datetime(),
 })
 export type Person = z.output<typeof personSchema>

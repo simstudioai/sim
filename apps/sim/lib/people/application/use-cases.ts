@@ -79,8 +79,9 @@ export const getPerson = defineAuthorizedOrganizationUseCase({
 })
 
 /**
- * Replaces one member's profile. The manager must be another active member of the same
- * organization who doesn't already report, directly or not, to this person.
+ * Replaces one member's profile. A new manager must be another active member of the same
+ * organization who doesn't already report, directly or not, to this person. The stored manager,
+ * sent back unchanged, is kept even while suspended, as an import that leaves it out keeps it.
  */
 export const updatePerson = defineAuthorizedOrganizationUseCase({
   operation: peopleOperations.update,
@@ -93,20 +94,19 @@ export const updatePerson = defineAuthorizedOrganizationUseCase({
     }
     return db.transaction(async (tx) => {
       await repository.lockProfiles(tx, organizationId)
-      const active = await repository.findActiveMembers(
-        tx,
-        organizationId,
-        managerMemberId ? [memberId, managerMemberId] : [memberId]
-      )
-      if (!active.has(memberId)) throw new OrchestrationError('not_found', 'Person not found')
-      if (managerMemberId && !active.has(managerMemberId)) {
-        throw new OrchestrationError(
-          'validation',
-          'The manager must be a member of this organization'
-        )
-      }
-      if (managerMemberId && (await repository.isInReportingChain(tx, memberId, managerMemberId))) {
-        throw new OrchestrationError('validation', 'That manager reports to this person')
+      const current = await repository.getPerson(tx, organizationId, memberId)
+      if (!current) throw new OrchestrationError('not_found', 'Person not found')
+      if (managerMemberId && managerMemberId !== current.managerMemberId) {
+        const active = await repository.findActiveMembers(tx, organizationId, [managerMemberId])
+        if (!active.has(managerMemberId)) {
+          throw new OrchestrationError(
+            'validation',
+            'The manager must be a member of this organization'
+          )
+        }
+        if (await repository.isInReportingChain(tx, memberId, managerMemberId)) {
+          throw new OrchestrationError('validation', 'That manager reports to this person')
+        }
       }
       await repository.upsertProfiles(tx, [{ memberId, ...fields }], context.userId)
       const person = await repository.getPerson(tx, organizationId, memberId)
