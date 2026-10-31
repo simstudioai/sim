@@ -28,7 +28,7 @@ export interface PreviewTool {
  * A single block in a preview workflow. Presentational shape — authored by hand
  * for docs diagrams, not the app's full serialized block state.
  */
-export interface PreviewBlock {
+interface PreviewBlock {
   id: string
   name: string
   type: string
@@ -90,8 +90,6 @@ export const DIMMED_PREVIEW_CLASS =
 export interface HighlightOptions {
   highlightBlock?: string
   highlightEdge?: string
-  /** Ring one block (selection) without dimming the rest. */
-  selectedBlock?: string
 }
 
 /** Semantic container depth used for z-order while docs positions stay flattened. */
@@ -124,7 +122,7 @@ export function toReactFlowElements(
   animate = false,
   highlight: HighlightOptions = {}
 ): { nodes: PreviewNode[]; edges: PreviewFlowEdge[] } {
-  const { highlightBlock, highlightEdge, selectedBlock } = highlight
+  const { highlightBlock, highlightEdge } = highlight
   const hasHighlight = Boolean(highlightBlock || highlightEdge)
   const blockIndexMap = new Map(workflow.blocks.map((b, i) => [b.id, i]))
 
@@ -168,8 +166,8 @@ export function toReactFlowElements(
         parentId: block.parentId,
         index,
         animate,
-        isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
-        isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
+        isHighlighted: highlightBlock === block.id,
+        isDimmed: hasHighlight && highlightBlock !== block.id,
       }
       return {
         ...commonNode,
@@ -195,8 +193,8 @@ export function toReactFlowElements(
       parentId: block.parentId,
       index,
       animate,
-      isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
-      isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
+      isHighlighted: highlightBlock === block.id,
+      isDimmed: hasHighlight && highlightBlock !== block.id,
     }
     return {
       ...commonNode,

@@ -7,7 +7,7 @@ Sim owns the content catalog, page rendering, navigation, search, and machine in
 | Location | Responsibility |
 | --- | --- |
 | `content/docs/` | Authored MDX, navigation metadata, and generated content regions |
-| `scripts/compile-content.ts` | Build orchestration, validation, cache, and migration report |
+| `scripts/compile-content.ts` | Build orchestration, validation, cache, and compatibility verification |
 | `lib/content/` | Typed catalog, MDX compilation, Markdown serialization, navigation, and OpenAPI projection |
 | `.content/` | Ignored generated catalog and individually loadable compiled page modules |
 | `components/docs/` | Shared design tokens, shell, navigation, page framing, search, and API reference |
@@ -17,7 +17,7 @@ Sim owns the content catalog, page rendering, navigation, search, and machine in
 | `lib/http/`, `app/api/` | Bounded public discovery, page retrieval, and MCP adapters |
 | `app/[[...slug]]/page.tsx` | Thin catalog-backed page, metadata, and static-parameter adapter |
 | `app/design-system/` | Local component gallery, excluded from indexing |
-| `migration/` | Baseline inventory, design-system specification, parity matrix, and migration results |
+| `scripts/fixtures/content-baseline.json` | Frozen compatibility inventory for public routes, anchors, examples, and assets |
 
 `app/` follows the App Router's file conventions. The root layout owns the persistent shell: navbar, sidebar, footer, search, and mobile navigation. Client navigation reads the current pathname without remounting the sidebar's scroll container. Only navigation metadata is shared with the client; document bodies and the complete catalog stay on the server. The single catch-all route loads that page's server-compiled MDX or specification reference into the shared article and page frame, which owns its responsive outline. Ordinary content does not create a React route or duplicate a layout. Promised route parameters and the Metadata API follow the installed Next.js 16 documentation.
 
@@ -29,11 +29,11 @@ Sim owns the content catalog, page rendering, navigation, search, and machine in
 4. Use ordinary Markdown and shared components. MDX imports must be named imports registered in `lib/content/compile.ts`. Unknown modules, components, metadata, duplicate routes/anchors, broken internal links, or missing local media fail compilation with source context.
 5. Run `bun run --cwd apps/docs content:generate`, inspect the affected page and Markdown, and run the applicable repository gates.
 
-The compiler records source hashes, heading IDs, code-fence hashes and media references. Run `content:verify-migration` to enforce preservation against the frozen replacement baseline and regenerate `migration/report.json`. Ordinary builds validate current content without loading the historical inventory or rewriting the migration report, allowing intentional prose and code updates. The compiler serializes every tab and disclosure into meaningful Markdown, including workflow configuration and outputs. The introductory paragraph is hidden in HTML only when it exactly repeats the page description; machine-readable prose remains intact.
+The compiler records source hashes, heading IDs, code-fence hashes and media references. Run `content:verify-compatibility` to enforce preservation against `scripts/fixtures/content-baseline.json` and write `test-results/compatibility.json` (or `DOCS_COMPATIBILITY_REPORT_PATH`). The frozen fixture retains its original source provenance and must not be regenerated from the implementation under test to silence a failure. Review intentional public-contract changes explicitly. Ordinary builds validate current content without loading this inventory or writing a compatibility report. The compiler serializes every tab and disclosure into meaningful Markdown, including workflow configuration and outputs. The introductory paragraph is hidden in HTML only when it exactly repeats the page description; machine-readable prose remains intact.
 
 ## Extend the component library
 
-Shared dimensions, tokens, component ownership, and intentional differences from platform components are documented in `migration/design-system.md`.
+Shared dimensions, tokens, component ownership, and intentional differences from platform components are documented in `DESIGN_SYSTEM.md`.
 
 Keep reusable chrome in `components/docs/` and reusable reading components in `components/ui/`. Export Markdown element mappings from `getMDXComponents()` rather than styling each page. A new MDX component also needs an explicit compiler allowlist entry and a meaningful serializer in `lib/content/markdown.ts`. Add its states to `/design-system` and inspect its keyboard, touch, light and dark behavior.
 
@@ -47,7 +47,9 @@ Keep platform screenshots and original integration logos in `public/static/` wit
 
 The compiler converts local screenshot sources into Next.js static image imports after extracting their original Markdown URLs. Static imports give changed assets new content-addressed URLs. The shared image component supplies responsive sizes for each frame variant; Next serves a small set of WebP widths at quality 90 for interface text and 75 for scenery. The original loads when the media viewer opens. Backgrounds use the same hashed assets in both views. Legacy public asset URLs remain available; mutable filenames do not receive immutable caching.
 
-Product contracts remain authoritative for OpenAPI. Run `bun run generate:openapi` after changing their owners; the docs compiler projects operations from all registered specifications. CLI, MCP operations, integration content, and marked Agent streaming regions retain their existing generators listed in `EDITORIAL_GUIDE.md`. Do not hand-edit generated regions. Request examples are inert and never execute an API call or accept credentials.
+Product contracts remain authoritative for OpenAPI. Run `bun run generate:openapi` after changing their owners; the docs compiler projects operations from all registered specifications. CLI, MCP operations, integration content, and marked Agent streaming regions retain their existing generators listed in `EDITORIAL_GUIDE.md`. Do not hand-edit generated regions. Request examples are inert and never execute an API call or accept credentials. Specifications own authentication alternatives, media types, named examples, response headers, callbacks, defaults, and deprecation. Schema-derived samples are labeled as examples. Multipart examples must let the client set the boundary.
+
+Keep existing API heading aliases (`authorization`, `parameters-path`, `parameters-query`, `parameters-header`, `parameters-cookie`, `request-body`, `response-body`, and `callbacks`) when changing the reference layout. Local JSON pointers preserve sibling properties, and recursive references remain explicit in both HTML and Markdown.
 
 The agent docs manifest continues to publish existing `.mdx` paths and its deliberate corpus exclusions. Run `bun run check:docs-manifest`, `bun run check:agent-stream-docs`, `bun run check:cli-docs`, `bun run check:openapi`, and `bun run check:docs` after relevant changes.
 
@@ -65,8 +67,8 @@ The implementation was checked against the installed Next.js 16.4.1 docs and cur
 
 ## Review and rollback
 
-Review the migration report first, then the library gallery and representative pages, then the HTTP/browser reports. Run a production build without embedding credentials to verify the local fallback. Production search index publication remains a separate deployment step and must pass its freshness check.
+Review the compatibility report, library gallery, representative pages, and HTTP/browser reports. Run a production build without embedding credentials to verify the local fallback. Production search index publication remains a separate deployment step and must pass its freshness check.
 
-This change preserves the docs workspace, origin, deployment identity, product generators, and content paths. Restoring the previous docs deployment requires no schema migration or product-data rollback. Search publication changes `docs_embeddings` separately: before publishing, back up that table and record its paired docs deployment and source revision. Rollback must hold queued publishers, restore the paired deployment and index, and check freshness and citations from the restored source. The workflow does not create this backup automatically and checks out current `main`; ordinary dispatch cannot select an older publisher. Keep the PR in draft until the visual and behavior evidence has been reviewed.
+Search publication changes `docs_embeddings` separately: before publishing, back up that table and record its paired docs deployment and source revision. Rollback must hold queued publishers, restore the paired deployment and index, and check freshness and citations from the restored source. The workflow does not create this backup automatically and checks out current `main`; ordinary dispatch cannot select an older publisher.
 
-The requested move to `https://sim.ai/docs` requires a coordinated path-aware build and infrastructure cutover. See [the domain migration plan](migration/domain-move.md); the current build remains on `docs.sim.ai` until that work is verified.
+The requested move to `https://sim.ai/docs` requires a coordinated path-aware build and infrastructure cutover. See [the domain migration plan](DOMAIN_MOVE.md); the current build remains on `docs.sim.ai` until that work is verified.

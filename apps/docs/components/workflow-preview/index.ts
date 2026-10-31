@@ -39,7 +39,6 @@ export {
   WORKFLOW_CALL_WORKFLOW,
 } from '@/components/workflow-preview/examples'
 export type {
-  PreviewBlock,
   PreviewTool,
   PreviewWorkflow,
 } from '@/components/workflow-preview/workflow-data'

@@ -44,7 +44,9 @@ export interface KnowledgeBundleReader {
    * line must carry a vector of the manifest's dimension; without, none is decoded.
    */
   readChunks(
-    document: Pick<KnowledgeBundleDocument, 'chunkCount' | 'characterCount'> & { chunks: string },
+    document: Pick<KnowledgeBundleDocument, 'chunkCount' | 'characterCount' | 'tokenCount'> & {
+      chunks: string
+    },
     vectors: boolean
   ): Promise<PreparedDocumentIndex>
   close(): void
@@ -231,8 +233,10 @@ export async function openKnowledgeBundle(path: string): Promise<KnowledgeBundle
           chunks.push(chunk)
           if (vector) decoded.push(vector)
         })
-        const { characterCount } = document
-        return vectors ? { chunks, vectors: decoded, characterCount } : { chunks, characterCount }
+        const { characterCount, tokenCount } = document
+        return vectors
+          ? { chunks, vectors: decoded, characterCount, tokenCount }
+          : { chunks, characterCount, tokenCount }
       },
       close: () => zip.close(),
     }

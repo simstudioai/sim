@@ -202,6 +202,7 @@ async function importedDocuments(knowledgeBaseId: string) {
       enabled: document.enabled,
       processingStatus: document.processingStatus,
       chunkCount: document.chunkCount,
+      tokenCount: document.tokenCount,
       tag1: document.tag1,
     })
     .from(document)
@@ -308,6 +309,7 @@ describe('knowledge base bundle import', () => {
       enabled: true,
       processingStatus: 'completed',
       chunkCount: 2,
+      tokenCount: 8,
       tag1: 'public',
     })
     expect(handbook.fileUrl).toMatch(/^\/api\/files\/serve\/kb\/.+\?context=knowledge-base$/)
@@ -328,6 +330,7 @@ describe('knowledge base bundle import', () => {
       enabled: false,
       processingStatus: 'completed',
       chunkCount: 1,
+      tokenCount: 4,
     })
     expect(
       (
@@ -380,7 +383,7 @@ describe('knowledge base bundle import', () => {
         )
       )
     expect(queued).toHaveLength(1)
-    expect(notes.processingStatus).toBe('completed')
+    expect(notes).toMatchObject({ processingStatus: 'completed', tokenCount: 4 })
     expect(fixture.embedded).toBe(1)
     expect(await importedChunks(notes.id)).toEqual([
       {

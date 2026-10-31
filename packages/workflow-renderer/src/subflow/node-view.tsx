@@ -76,7 +76,7 @@ export interface SubflowNodeViewProps {
   nestingLevel: number
   canEditWorkflow: boolean
   /** Selects this subflow in the editor panel. */
-  onSelect: () => void
+  onSelect?: () => void
   /** Editor-only action bar; omit in read-only / preview contexts. */
   actionBar?: ReactNode
 }
@@ -608,10 +608,10 @@ export function SubflowNodeView({
         )}
 
         <div
-          role='button'
-          tabIndex={0}
+          role={onSelect ? 'button' : undefined}
+          tabIndex={onSelect ? 0 : undefined}
           onClick={onSelect}
-          onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
+          onKeyDown={onSelect ? (event) => handleKeyboardActivation(event, onSelect) : undefined}
           className='workflow-drag-handle relative z-20 flex cursor-grab items-center justify-between px-2 [&:active]:cursor-grabbing'
           style={{ pointerEvents: 'auto', height: CONTAINER_DIMENSIONS.HEADER_HEIGHT }}
           data-subflow-header=''
@@ -652,13 +652,13 @@ export function SubflowNodeView({
          * DOM children), so enabling pointer events here doesn't block them.
          */}
         <div
-          role='button'
-          tabIndex={isPreview ? -1 : 0}
-          aria-label={`Select ${blockName}`}
+          role={onSelect ? 'button' : undefined}
+          tabIndex={onSelect ? (isPreview ? -1 : 0) : undefined}
+          aria-label={onSelect ? `Select ${blockName}` : undefined}
           className='workflow-drag-handle absolute inset-0 top-[40px] z-10 cursor-grab rounded-b-2xl [&:active]:cursor-grabbing'
           style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
           onClick={onSelect}
-          onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
+          onKeyDown={onSelect ? (event) => handleKeyboardActivation(event, onSelect) : undefined}
         />
 
         {!isPreview && canEditWorkflow && (

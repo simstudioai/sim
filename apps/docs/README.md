@@ -1,6 +1,6 @@
 # Sim documentation
 
-The documentation site uses Next.js, a build-time MDX content catalog, and the shared Sim docs component library. Read the [editorial guide](EDITORIAL_GUIDE.md) before changing copy or page organization. The [architecture and authoring guide](migration/content.md) explains content ownership, reusable components, assets, and generated references. The [copy audit](COPY_AUDIT.md) records the complete page inventory, accuracy corrections, and validation.
+The documentation site uses Next.js, a build-time MDX content catalog, and the shared Sim docs component library. Read the [editorial guide](EDITORIAL_GUIDE.md) before changing copy or page organization. The [architecture and authoring guide](ARCHITECTURE.md) explains content ownership, reusable components, assets, and generated references. The [copy audit](COPY_AUDIT.md) records the complete page inventory, accuracy corrections, and validation.
 
 ## Develop
 
