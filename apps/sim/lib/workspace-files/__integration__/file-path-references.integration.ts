@@ -11,6 +11,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { readWorkspaceFileMetadataWithVersion } from '@/lib/workspace-files/application/read-workspace-file-metadata'
@@ -21,6 +22,7 @@ const bob = generateId()
 const carol = generateId()
 const workspaceId = generateId()
 const otherWorkspaceId = generateId()
+const overLimitWorkspaceId = generateId()
 const folders = { docs: generateId(), media: generateId(), foreign: generateId() }
 const session = (userId: string) => ({ kind: 'session' as const, userId, sessionId: generateId() })
 
@@ -53,13 +55,13 @@ async function row(id: string) {
 const describeFile = (fileId: string, userId = alice, assertedWorkspaceId = workspaceId) =>
   readWorkspaceFileMetadataWithVersion.execute({
     principal: session(userId),
-    input: { fileId, assertedWorkspaceId },
+    input: { fileId, acceptVfsPath: true, assertedWorkspaceId },
   })
 
 const deleteFile = (fileId: string, userId = alice) =>
   deleteWorkspaceFileOperation.execute({
     principal: session(userId),
-    input: { fileId, assertedWorkspaceId: workspaceId },
+    input: { fileId, acceptVfsPath: true, assertedWorkspaceId: workspaceId },
   })
 
 /** The `{ code, message }` each path is refused with, or null where it resolved. */
@@ -70,7 +72,10 @@ const refusalsFor = (
   Promise.all(
     paths.map((fileId) =>
       readWorkspaceFileMetadataWithVersion
-        .execute({ principal, input: { fileId, assertedWorkspaceId: workspaceId } })
+        .execute({
+          principal,
+          input: { fileId, acceptVfsPath: true, assertedWorkspaceId: workspaceId },
+        })
         .then(
           () => null,
           (error: { code?: string; message?: string }) => ({
@@ -160,7 +165,10 @@ describe('single-file operations addressed by VFS path', () => {
   })
 
   afterAll(async () => {
-    await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
+    await deleteWorkspaceFixture(
+      db,
+      inArray(workspace.id, [workspaceId, otherWorkspaceId, overLimitWorkspaceId])
+    )
     await db.delete(user).where(inArray(user.id, [alice, bob, carol]))
   })
 
@@ -171,6 +179,7 @@ describe('single-file operations addressed by VFS path', () => {
       code: 'not_found',
     })
     await expect(describeFile('files/Docs')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(describeFile('files/')).rejects.toMatchObject({ code: 'not_found' })
     await expect(describeFile('files/only-here.csv')).rejects.toMatchObject({
       code: 'not_found',
     })
@@ -203,7 +212,12 @@ describe('single-file operations addressed by VFS path', () => {
   it('renames and deletes only the file the path names', async () => {
     const renamed = await renameWorkspaceFile.execute({
       principal: session(alice),
-      input: { fileId: 'files/Docs/report.csv', assertedWorkspaceId: workspaceId, name: 'q3.csv' },
+      input: {
+        fileId: 'files/Docs/report.csv',
+        acceptVfsPath: true,
+        assertedWorkspaceId: workspaceId,
+        name: 'q3.csv',
+      },
     })
     expect(renamed.file.id).toBe(ids.docsReport)
     expect((await row(ids.docsReport))?.name).toBe('q3.csv')
@@ -226,7 +240,7 @@ describe('single-file operations addressed by VFS path', () => {
     await expect(
       readWorkspaceFileMetadataWithVersion.execute({
         principal: session(alice),
-        input: { fileId: 'files/report.csv' },
+        input: { fileId: 'files/report.csv', acceptVfsPath: true },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
   })
@@ -274,7 +288,11 @@ describe('single-file operations addressed by VFS path', () => {
     await expect(
       readWorkspaceFileMetadataWithVersion.execute({
         principal: delegated,
-        input: { fileId: 'files/report.csv', assertedWorkspaceId: workspaceId },
+        input: {
+          fileId: 'files/report.csv',
+          acceptVfsPath: true,
+          assertedWorkspaceId: workspaceId,
+        },
       })
     ).resolves.toMatchObject({ file: { id: ids.rootReport } })
     const outcomes = await refusalsFor(delegated, [
@@ -285,6 +303,68 @@ describe('single-file operations addressed by VFS path', () => {
     expect(outcomes[0]).toMatchObject({ code: 'forbidden' })
     expect(outcomes[1]).toEqual(outcomes[0])
     expect(outcomes[2]).toEqual(outcomes[0])
+  })
+
+  it('answers a non-member personal key the same for every path where the workspace disables keys', async () => {
+    await db
+      .update(workspace)
+      .set({ allowPersonalApiKeys: false })
+      .where(eq(workspace.id, workspaceId))
+    try {
+      const outcomes = await refusalsFor(
+        { kind: 'personal_api_key', userId: carol, keyId: generateId() },
+        [await ambiguousPath(), 'files/missing.csv', 'files/report.csv']
+      )
+      expect(outcomes[0]).not.toBeNull()
+      expect(outcomes[1]).toEqual(outcomes[0])
+      expect(outcomes[2]).toEqual(outcomes[0])
+    } finally {
+      await db
+        .update(workspace)
+        .set({ allowPersonalApiKeys: true })
+        .where(eq(workspace.id, workspaceId))
+    }
+  })
+
+  it('answers a non-member the same for a workspace whose folder tree is too large to read', async () => {
+    await insertWorkspaceFixture(db, [
+      { id: overLimitWorkspaceId, name: 'Over limit', ownerId: alice, billedAccountUserId: alice },
+    ])
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId: alice,
+      entityType: 'workspace',
+      entityId: overLimitWorkspaceId,
+      permissionType: 'admin',
+    })
+    await db.execute(sql`
+      INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
+      SELECT ${generateId()} || '-' || g, 'Folder ' || g, ${alice}, ${overLimitWorkspaceId}, 'file', NULL
+      FROM generate_series(1, ${MAX_FOLDERS_PER_WORKSPACE + 1}) AS g`)
+    const answer = (userId: string, fileId: string) =>
+      describeFile(fileId, userId, overLimitWorkspaceId).then(
+        () => null,
+        (error: { code?: string; message?: string }) => ({
+          code: error.code,
+          message: error.message,
+        })
+      )
+    const nested = await answer(carol, 'files/Folder 1/report.csv')
+    expect(nested).toMatchObject({ code: 'forbidden' })
+    expect(await answer(carol, 'files/missing.csv')).toEqual(nested)
+    expect(await answer(alice, 'files/Folder 1/report.csv')).toMatchObject({
+      code: 'payload_too_large',
+    })
+  })
+
+  it('resolves no path for a caller that did not opt in', async () => {
+    await expect(
+      deleteWorkspaceFileOperation.execute({
+        principal: session(alice),
+        input: { fileId: 'files/report.csv', assertedWorkspaceId: workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect((await row(ids.rootReport))?.deletedAt).toBeNull()
   })
 
   it('rejects a dot-segment path instead of walking out of its folder', async () => {

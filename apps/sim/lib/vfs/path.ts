@@ -10,9 +10,12 @@ export class VfsPathError extends Error {
   }
 }
 
-/** A `files/…` workspace-file VFS path. File ids are drawn from `[A-Za-z0-9_-]`, so no id is one. */
+/**
+ * A `files/…` workspace-file VFS path naming something under the prefix. File ids are drawn from
+ * `[A-Za-z0-9_-]`, so no id is one.
+ */
 export function isWorkspaceFileVfsPath(reference: string): boolean {
-  return reference.startsWith('files/')
+  return reference.startsWith('files/') && reference.length > 'files/'.length
 }
 
 /**

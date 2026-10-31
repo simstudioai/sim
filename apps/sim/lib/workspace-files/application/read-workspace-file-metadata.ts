@@ -11,12 +11,13 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
+import {
+  resolveActiveWorkspaceFileContext,
+  type WorkspaceFileTargetInput,
+} from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
-export interface ReadWorkspaceFileMetadataInput {
-  fileId: string
-  assertedWorkspaceId?: string
+export interface ReadWorkspaceFileMetadataInput extends WorkspaceFileTargetInput {
   /**
    * Opt into the archived lifecycle set. It relaxes only the `deleted_at` predicate on the
    * canonical row lookup — the workspace the file resolves to, the asserted-workspace check,

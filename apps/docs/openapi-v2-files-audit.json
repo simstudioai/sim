@@ -2151,12 +2151,12 @@
             "name": "fileId",
             "in": "path",
             "required": true,
-            "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`.",
+            "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 4096,
-              "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`."
+              "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike."
             }
           },
           {
@@ -2237,12 +2237,12 @@
             "name": "fileId",
             "in": "path",
             "required": true,
-            "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`.",
+            "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 4096,
-              "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`."
+              "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike."
             }
           }
         ],
@@ -2487,12 +2487,12 @@
             "name": "fileId",
             "in": "path",
             "required": true,
-            "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`.",
+            "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 4096,
-              "description": "File identifier, or the file’s VFS path: `files/<folder>/<name>`."
+              "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike."
             }
           },
           {
