@@ -147,7 +147,7 @@ describe('installTray', () => {
     // left-click on the icon does nothing at all.
     const resized = {
       addRepresentation: vi.fn(),
-      toDataURL: vi.fn(() => 'data:image/png;base64,'),
+      toPNG: vi.fn(() => Buffer.alloc(0)),
       setTemplateImage: vi.fn(),
     }
     vi.mocked(nativeImage.createFromPath).mockReturnValueOnce({

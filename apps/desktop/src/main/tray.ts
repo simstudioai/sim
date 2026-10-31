@@ -430,7 +430,7 @@ function windowsTrayIcon(channel: DesktopChannel): NativeImage | null {
   }
   const icon = sized(1)
   for (const scaleFactor of WINDOWS_TRAY_SCALE_FACTORS) {
-    icon.addRepresentation({ scaleFactor, dataURL: sized(scaleFactor).toDataURL() })
+    icon.addRepresentation({ scaleFactor, buffer: sized(scaleFactor).toPNG() })
   }
   return icon
 }
