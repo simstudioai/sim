@@ -21,6 +21,8 @@ export function SimLinkIcon({ url }: SimLinkIconProps) {
       src={faviconUrl(hostname, 64)}
       alt=''
       referrerPolicy='no-referrer'
+      loading='lazy'
+      decoding='async'
       className='rounded-sm'
       onError={() => setFailedHostname(hostname)}
     />
