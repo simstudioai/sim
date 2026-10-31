@@ -28,7 +28,7 @@ export interface PreviewTool {
  * A single block in a preview workflow. Presentational shape — authored by hand
  * for docs diagrams, not the app's full serialized block state.
  */
-export interface PreviewBlock {
+interface PreviewBlock {
   id: string
   name: string
   type: string
