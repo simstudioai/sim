@@ -385,7 +385,7 @@ export interface IpcDeps {
   updates: {
     getState: () => DesktopUpdateState
     check: () => void
-    install: () => void
+    install: (options: { mandatory: boolean }) => void
   }
   server: {
     open: () => void
@@ -1016,7 +1016,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'app-origin',
       needsUserActivation: true,
-      handler: () => deps.updates.install(),
+      handler: (options) =>
+        deps.updates.install({ mandatory: isRecordLike(options) && options.mandatory === true }),
     },
     'browser-agent:execute-tool': {
       kind: 'invoke',

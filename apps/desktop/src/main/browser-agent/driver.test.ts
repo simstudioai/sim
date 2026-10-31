@@ -1150,6 +1150,31 @@ describe('executeTool', () => {
     }
   })
 
+  it('reports a browser action as running from queueing until it settles', async () => {
+    vi.useFakeTimers()
+    try {
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
+      expect(driver.isBrowserToolRunning()).toBe(false)
+      const queued = driver.captureBrowserToolQueueBoundary('chat-test')
+      expect(driver.isBrowserToolRunning()).toBe(true)
+      if (queued) driver.releaseBrowserToolQueueBoundary(queued)
+      expect(driver.isBrowserToolRunning()).toBe(false)
+      const contents = session.requireTab().view.webContents
+      vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+      vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
+
+      const held = driver.executeTool('chat-test', 'browser_snapshot', {}, 'held-running')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(driver.isBrowserToolRunning()).toBe(true)
+
+      driver.cancelTool('chat-test', 'held-running')
+      await held
+      expect(driver.isBrowserToolRunning()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('sanitizes hostile tab titles before returning them across the tool boundary', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents

@@ -37,6 +37,7 @@ import {
   executeTool as executeAgentBrowserTool,
   hasBrowserScopeSession,
   initDriver as initBrowserAgentDriver,
+  isBrowserToolRunning,
   restoreBrowserScope as restoreAgentBrowserScope,
 } from '@/main/browser-agent/driver'
 import {
@@ -78,6 +79,7 @@ import {
   installDocumentationHelpSearch,
   uninstallDocumentationHelpSearch,
 } from '@/main/help-search'
+import { countWindowsWithUnsavedChanges, describeInFlightWork } from '@/main/in-flight-work'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilePermissions } from '@/main/local-file-permissions'
@@ -127,6 +129,9 @@ const logger = createLogger('DesktopMain')
 function reportHandoffFailure(error: unknown): void {
   logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
 }
+
+/** Bounds what a hand-edited settings file can make an update relaunch open. */
+const MAX_RELAUNCH_WINDOWS = 16
 
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
@@ -575,6 +580,41 @@ function main(): void {
     return win
   }
 
+  /**
+   * An update relaunch reopens every app window where it was: the active one
+   * through `lastRoute` like any launch, the rest from this list. Written only
+   * once the relaunch is committed, and withdrawn if it fails.
+   */
+  function rememberWindowsForRelaunch(committed: boolean): void {
+    if (!committed) {
+      if (config.get('updateRelaunchRoutes') === undefined) return
+      config.set('updateRelaunchRoutes', undefined)
+      config.flush()
+      return
+    }
+    const active = getMainWindow()
+    const activeRoute = active ? routeFromAppUrl(active.webContents.getURL()) : null
+    if (activeRoute) config.set('lastRoute', activeRoute)
+    const otherRoutes = getWindows()
+      .filter((win) => win !== active)
+      .flatMap((win) => routeFromAppUrl(win.webContents.getURL()) ?? [])
+    config.set('updateRelaunchRoutes', otherRoutes.length > 0 ? otherRoutes : undefined)
+    config.flush()
+  }
+
+  /** Reopens the windows an update relaunch remembered, once the active window is up. */
+  function restoreWindowsAfterRelaunch(): void {
+    const routes: unknown = config.get('updateRelaunchRoutes')
+    if (routes === undefined) return
+    config.set('updateRelaunchRoutes', undefined)
+    if (!Array.isArray(routes)) return
+    for (const route of routes.slice(0, MAX_RELAUNCH_WINDOWS)) {
+      if (typeof route === 'string' && decideStartRoute(route) === route) {
+        void createAndLoadAppWindow({ route })
+      }
+    }
+  }
+
   /** Opens the Sim app's settings page in the active window. */
   function openSettings(): void {
     void openMainWindowAt(settingsRoute(config.get('lastRoute')))
@@ -685,6 +725,7 @@ function main(): void {
       Notification.isSupported() ? new Notification(options) : null,
   })
 
+  let agentWorkRunning = false
   const desktopExecutor = createDesktopExecutorService({
     userDataPath,
     origin: appOrigin,
@@ -692,7 +733,10 @@ function main(): void {
     preferences: () => desktopSettings.getPreferences(),
     accountDataAvailable,
     onApprovals: (items) => approvalNotifier.update(items),
-    onBusyChange: (busy) => sleepBlocker.setBusy(busy),
+    onBusyChange: (busy) => {
+      agentWorkRunning = busy
+      sleepBlocker.setBusy(busy)
+    },
     // A result the model has makes a tmux run it handed back as still going collectable across a
     // restart.
     onResultDelivered: (toolCallId) => terminal.markRunDelivered(toolCallId),
@@ -1070,7 +1114,7 @@ function main(): void {
       updates: {
         getState: () => updater?.getState() ?? { status: 'idle' },
         check: () => updater?.check(),
-        install: () => updater?.install(),
+        install: (options) => updater?.install(options),
       },
       server: {
         open: () => serverWindow.open(),
@@ -1119,6 +1163,22 @@ function main(): void {
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
       setRelaunchPending: (pending) => {
         committedRelaunchPending = pending
+        rememberWindowsForRelaunch(pending)
+      },
+      describeInFlightWork: async () => {
+        // Native activity is read after the window probes so work started meanwhile still counts.
+        const windows = await countWindowsWithUnsavedChanges(
+          getWindows().map((win) => win.webContents)
+        )
+        const terminalCommands = await terminal.runningCommands()
+        const computerUseActivity = computerUse.getActivity()
+        return describeInFlightWork({
+          terminalCommands,
+          computerUseApp: computerUseActivity ? (computerUseActivity.appName ?? '') : null,
+          browserToolRunning: isBrowserToolRunning(),
+          agentWorkRunning,
+          ...windows,
+        })
       },
       beforeInstall: async () => {
         if (!prepareAccountDataTeardownForQuit()) {
@@ -1135,6 +1195,7 @@ function main(): void {
       },
     })
     desktopSettings.applySystemPreferences()
+    restoreWindowsAfterRelaunch()
   })
 }
 

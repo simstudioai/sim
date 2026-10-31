@@ -303,6 +303,24 @@ export class TerminalService {
     this.cwdTimer = null
   }
 
+  /**
+   * The command line holding each busy terminal's foreground, `''` when unannounced. A shell
+   * without integration (fish, sh) announces nothing, so the OS's foreground process group
+   * answers for it; an unreadable group (null) counts as idle.
+   */
+  async runningCommands(): Promise<string[]> {
+    const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
+    const commands = await Promise.all(
+      [...this.sessions.values()].map(async (session) => {
+        if (session.isBusy) return [session.foreground ?? '']
+        if (session.hasShellIntegration) return []
+        const pgid = await groups.foreground(session.pid)
+        return pgid !== null && pgid !== session.pid ? [''] : []
+      })
+    )
+    return commands.flat()
+  }
+
   getTabs(): TerminalTabsState {
     if (this.sessions.size === 0) return EMPTY_TABS
     return {
