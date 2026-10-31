@@ -1390,6 +1390,7 @@ export class TerminalService {
     if (!session.hasShellIntegration) {
       await this.awaitShellStartup(session, latch)
     }
+    await session.waitForPromptDrawn(latch.signal)
     if (session.isBusy) {
       throw new TerminalError(
         'BUSY',

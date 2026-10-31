@@ -246,6 +246,9 @@ const KEYSTROKE_GAP_MS = 150
  */
 const KEYSTROKE_SETTLE_MAX_MS = 1_000
 
+/** Cap on waiting for a shell's prompt to be drawn before typing into it anyway. */
+const PROMPT_DRAW_MAX_MS = 2_000
+
 interface PendingCommand {
   command: string
   toolCallId: string
@@ -374,8 +377,12 @@ export class TerminalSession {
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
-  /** Pending shell-readiness waits, rechecked whenever the shell's startup moves on. */
+  /** Pending readiness and prompt waits, rechecked whenever startup moves on or a prompt is drawn. */
   private readonly readinessWaiters = new Set<() => void>()
+  /** Whether the shell says when its prompt is drawn (`B`); bash and PowerShell do, zsh does not. */
+  private reportsPromptEnd = false
+  /** Whether the prompt is drawn and reading input, as far as the shell has said. */
+  private promptDrawn = false
 
   private constructor(
     options: TerminalSessionOptions,
@@ -598,6 +605,31 @@ export class TerminalSession {
         : null
     }
     return now - this.startupBegunAt >= bounds.startingMs ? 'starting' : null
+  }
+
+  /**
+   * Resolves once the prompt is drawn and reading input, for a shell that reports it; at once for
+   * one that does not. Git Bash drops what is typed while it is still switching from a native
+   * program back to its prompt, so a command typed straight after the last one finished can vanish.
+   * Also resolves after {@link PROMPT_DRAW_MAX_MS}, on exit, or when `signal` aborts.
+   */
+  waitForPromptDrawn(signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout | null = null
+      const done = () => {
+        if (timer) clearTimeout(timer)
+        this.readinessWaiters.delete(check)
+        signal?.removeEventListener('abort', done)
+        resolve()
+      }
+      const check = () => {
+        if (this.promptDrawn || !this.reportsPromptEnd || this.disposed) done()
+      }
+      timer = setTimeout(done, PROMPT_DRAW_MAX_MS)
+      this.readinessWaiters.add(check)
+      signal?.addEventListener('abort', done)
+      check()
+    })
   }
 
   private notifyReadinessWaiters(): void {
@@ -901,7 +933,13 @@ export class TerminalSession {
           this.notifyReadinessWaiters()
         }
         break
+      case 'prompt-end':
+        this.reportsPromptEnd = true
+        this.promptDrawn = true
+        this.notifyReadinessWaiters()
+        break
       case 'prompt-start':
+        this.promptDrawn = false
         if (!this.shellIntegration) {
           this.shellIntegration = true
           this.emitState()
@@ -912,6 +950,7 @@ export class TerminalSession {
         this.announcedCommand = marker.command
         break
       case 'output-start': {
+        this.promptDrawn = false
         if (this.pendingCommand) {
           this.pendingCommand.capturing = true
           break

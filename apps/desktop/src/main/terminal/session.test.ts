@@ -290,6 +290,68 @@ describe('TerminalSession command lifecycle', () => {
   })
 })
 
+describe('waiting for the prompt before typing a command', () => {
+  const marker = (body: string) => `\u001b]633;${body};test-nonce\u0007`
+
+  function promptSession(): TerminalSession {
+    return TerminalSession.create({
+      terminalId: 'terminal-prompt-drawn',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+  }
+
+  async function settledAfter(promise: Promise<unknown>, ms: number): Promise<boolean> {
+    let settled = false
+    void promise.then(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(ms)
+    return settled
+  }
+
+  it('waits, in a shell that reports it, until the next prompt is drawn', async () => {
+    vi.useFakeTimers()
+    const session = promptSession()
+    try {
+      ptyStub.dataHandler?.(`${marker('A')}$ ${marker('B')}`)
+      // The last command just finished: its prompt is not drawn yet.
+      ptyStub.dataHandler?.(`${marker('D;0')}${marker('A')}`)
+      const drawn = session.waitForPromptDrawn()
+
+      expect(await settledAfter(drawn, 500)).toBe(false)
+      ptyStub.dataHandler?.(`$ ${marker('B')}`)
+      expect(await settledAfter(drawn, 0)).toBe(true)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('never waits on a shell that does not report its prompt', async () => {
+    vi.useFakeTimers()
+    const session = promptSession()
+    try {
+      ptyStub.dataHandler?.(`${marker('D;0')}${marker('A')}`)
+      expect(await settledAfter(session.waitForPromptDrawn(), 0)).toBe(true)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('types anyway once a prompt that reports itself is slow to come', async () => {
+    vi.useFakeTimers()
+    const session = promptSession()
+    try {
+      ptyStub.dataHandler?.(`${marker('A')}$ ${marker('B')}${marker('A')}`)
+      expect(await settledAfter(session.waitForPromptDrawn(), 2_100)).toBe(true)
+    } finally {
+      session.dispose()
+    }
+  })
+})
+
 describe('TerminalSession on Windows', () => {
   const marker = (body: string) => `\u001b]633;${body};test-nonce\u0007`
 

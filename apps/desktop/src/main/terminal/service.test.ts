@@ -184,6 +184,7 @@ vi.mock('@/main/terminal/session', async () => {
             if (signal === 'SIGINT' && state.interruptible) finishRun(130)
           }),
           waitForShellIntegration: async () => {},
+          waitForPromptDrawn: async () => {},
           /** Stands in for the user running `exit` or pressing Ctrl-D. */
           exit: () => {
             state.disposed = true

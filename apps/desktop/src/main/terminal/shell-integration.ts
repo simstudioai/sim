@@ -45,7 +45,8 @@ export function createNonce(): string {
 
 /**
  * Marker kinds we act on. `A` (prompt start) doubles as the "integration is
- * live" signal; `C`/`D` bracket a command's output; `E` reports the exact
+ * live" signal; `B` (prompt end) says the prompt is drawn and reading input;
+ * `C`/`D` bracket a command's output; `E` reports the exact
  * command line; `P` tracks the working directory across `cd`. `SimStartup` is
  * ours, not VS Code's: the shell sends it before running the user's startup
  * files, so a shell that is still starting can be told from one we never
@@ -54,6 +55,7 @@ export function createNonce(): string {
 export type ShellMarker =
   | { kind: 'startup' }
   | { kind: 'prompt-start' }
+  | { kind: 'prompt-end' }
   | { kind: 'command-line'; command: string }
   | { kind: 'output-start' }
   | { kind: 'output-end'; exitCode: number }
@@ -145,6 +147,8 @@ export class ShellIntegrationParser {
         return { kind: 'startup' }
       case 'A':
         return { kind: 'prompt-start' }
+      case 'B':
+        return { kind: 'prompt-end' }
       case 'C':
         return { kind: 'output-start' }
       case 'D': {
@@ -310,8 +314,17 @@ __sim_precmd() {
   return $st
 }
 
+# The prompt-end marker rides at the end of PS1, so it is drawn by readline itself, once the
+# prompt is up and reading. Appended after the user's PROMPT_COMMAND, which may rebuild PS1.
+__sim_prompt_end() {
+  local st=$? marker="\\[\\e]633;B;\${__sim_nonce}\\a\\]"
+  case "$PS1" in *"$marker") ;; *) PS1="$PS1$marker" ;; esac
+  return $st
+}
+
+# Set before the trap, so assigning it is not reported as a command.
+PROMPT_COMMAND="__sim_precmd\${PROMPT_COMMAND:+; $PROMPT_COMMAND}; __sim_prompt_end"
 trap '__sim_preexec' DEBUG
-PROMPT_COMMAND="__sim_precmd\${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
 `
   )
   return rcPath
