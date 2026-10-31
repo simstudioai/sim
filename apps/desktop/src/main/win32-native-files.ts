@@ -15,6 +15,12 @@ export interface Win32NativeFileSystem {
 
 const NODE_FILE_SYSTEM: Win32NativeFileSystem = { open: (path) => open(path, 'r'), opendir }
 
+/**
+ * Reparse points classified at once while listing. A OneDrive folder is all placeholders, each of
+ * which needs its own `lstat`; awaiting them one by one makes a large folder slow to list.
+ */
+const ENTRY_KIND_CONCURRENCY = 16
+
 const OUTSIDE_GRANT = 'The path must stay within the approved folder.'
 
 function isRequestedKind(info: { isFile(): boolean; isDirectory(): boolean }, directory: boolean) {
@@ -99,14 +105,20 @@ export async function openWin32NativeFile(
     statBigint: () => handle.stat({ bigint: true }),
     read: (buffer, offset, length, position) => handle.read(buffer, offset, length, position),
     readDirectory: async (limit) => {
-      const entries: NativeDirectoryListing['entries'] = []
+      const scanned: Dirent[] = []
       let truncated = false
       for await (const entry of await fs.opendir(path)) {
-        if (entries.length === limit) {
+        if (scanned.length === limit) {
           truncated = true
           break
         }
-        entries.push({ name: entry.name, kind: await entryKind(path, entry) })
+        scanned.push(entry)
+      }
+      const entries: NativeDirectoryListing['entries'] = []
+      for (let start = 0; start < scanned.length; start += ENTRY_KIND_CONCURRENCY) {
+        const batch = scanned.slice(start, start + ENTRY_KIND_CONCURRENCY)
+        const kinds = await Promise.all(batch.map((entry) => entryKind(path, entry)))
+        batch.forEach((entry, index) => entries.push({ name: entry.name, kind: kinds[index] }))
       }
       const listed = await lstat(path, { bigint: true })
       if (!sameFileIdentity(listed, checked))
