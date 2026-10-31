@@ -273,7 +273,7 @@ export async function getServiceAccountToken(
   options?: CredentialTokenResolutionOptions
 ): Promise<string> {
   options?.signal?.throwIfAborted()
-  const decrypted = await readGoogleServiceAccountKey(credentialId)
+  const decrypted = await waitWithAbort(readGoogleServiceAccountKey(credentialId), options?.signal)
   const keyData = JSON.parse(decrypted) as {
     client_email: string
     private_key: string

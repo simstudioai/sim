@@ -959,6 +959,13 @@ describe('Google service-account token minting', () => {
   }
   const driveScope = 'https://www.googleapis.com/auth/drive.readonly'
   const now = new Date('2026-09-09T18:00:00.000Z')
+  const decryptedKey = {
+    decrypted: JSON.stringify({
+      client_email: 'crawler@qa-project.iam.gserviceaccount.com',
+      private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+      token_uri: 'https://oauth2.googleapis.com/token',
+    }),
+  }
 
   beforeEach(async () => {
     const { coalesceLocally } = await vi.importActual<
@@ -970,13 +977,7 @@ describe('Google service-account token minting', () => {
     vi.setSystemTime(now)
     vi.stubGlobal('fetch', fetchMock)
     fetchMock.mockImplementation(async () => Response.json({ access_token: 'google-access-token' }))
-    mocks.decryptSecret.mockResolvedValue({
-      decrypted: JSON.stringify({
-        client_email: 'crawler@qa-project.iam.gserviceaccount.com',
-        private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
-        token_uri: 'https://oauth2.googleapis.com/token',
-      }),
-    })
+    mocks.decryptSecret.mockResolvedValue(decryptedKey)
   })
 
   afterEach(() => {
@@ -1074,6 +1075,24 @@ describe('Google service-account token minting', () => {
     ).resolves.toEqual(Array(6).fill('google-access-token'))
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledTimes(6)
+  })
+
+  it('stops a cancelled mint waiting on a shared key read while the others finish', async () => {
+    queueTableRows(credential, [row])
+    const decrypted = createDeferred<{ decrypted: string }>()
+    mocks.decryptSecret.mockReturnValue(decrypted.promise)
+    const controller = new AbortController()
+    const reason = new DOMException('Caller cancelled', 'AbortError')
+    const concurrent = getServiceAccountToken('credential-1', [driveScope], 'a@example.com')
+    const cancelled = getServiceAccountToken('credential-1', [driveScope], 'b@example.com', {
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => expect(mocks.decryptSecret).toHaveBeenCalledOnce())
+    controller.abort(reason)
+    await expect(cancelled).rejects.toBe(reason)
+    decrypted.resolve(decryptedKey)
+    await expect(concurrent).resolves.toBe('google-access-token')
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
   it('preserves cancellation through the service-account resolver registry', async () => {
