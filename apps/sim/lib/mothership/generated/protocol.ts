@@ -106,6 +106,8 @@ export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
 
 /** Desktop capabilities and bounded session hints, supplied by Sim for this turn. */
 export const DesktopContextSchema = z.object({
+  /** The desktop host OS; absent from builds that predate Windows support, which means macOS. */
+  platform: z.enum(["darwin", "win32", "linux"]).optional(),
   localFiles: z.boolean().optional(),
   computerUse: z.boolean().default(false),
   browser: z.boolean().default(false),
@@ -118,6 +120,8 @@ export const DesktopContextSchema = z.object({
         running: z.string().max(1024).optional(),
         interactive: z.boolean().optional(),
         active: z.boolean().optional(),
+        /** The short shell kind, e.g. "zsh", "bash", "pwsh", "powershell" or "cmd". */
+        shell: z.string().max(32).optional(),
       }),
     )
     .max(20)
