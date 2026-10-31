@@ -84,7 +84,9 @@ async function detachClientRunAfterWait(params: {
     await interruptibleSleep(delayMs, signal)
     delayMs = CLIENT_CLAIM_POLL_MS
     if (signal.aborted) return
-    const row = await getAsyncToolCall(toolCallId)
+    // A failed read is retried on the next poll; only a call that left `running` ends the watch.
+    const row = await getAsyncToolCall(toolCallId).catch(() => undefined)
+    if (row === undefined) continue
     if (!row || row.status !== ASYNC_TOOL_STATUS.running) return
     const executionId = getClaimedWorkflowExecutionId(row.claimedBy)
     if (!executionId || row.clientWorkflowExecutionId !== executionId) continue
