@@ -33,10 +33,6 @@
   },
   "dependencies": {
     "@lydell/node-pty": "1.2.0-beta.12",
-    "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
-    "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
-    "@lydell/node-pty-win32-arm64": "1.2.0-beta.12",
-    "@lydell/node-pty-win32-x64": "1.2.0-beta.12",
     "@sim/browser-protocol": "workspace:*",
     "@sim/desktop-bridge": "workspace:*",
     "@sim/logger": "workspace:*",
@@ -49,6 +45,12 @@
     "safe-regex2": "5.1.2",
     "pdf-lib": "1.17.1",
     "@sim/auth-ui": "workspace:*"
+  },
+  "optionalDependencies": {
+    "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
+    "@lydell/node-pty-win32-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-win32-x64": "1.2.0-beta.12"
   },
   "devDependencies": {
     "@electron/fuses": "1.8.0",

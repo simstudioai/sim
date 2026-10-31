@@ -189,7 +189,7 @@ describe('dispatchKeyCombo', () => {
       .mockRejectedValueOnce(new Error('key-up response lost'))
       .mockRejectedValueOnce(new Error('cleanup unavailable'))
 
-    const dispatch = dispatchKeyCombo(contents, parseKeyCombo('Cmd+A', 'darwin'))
+    const dispatch = dispatchKeyCombo(contents, parseKeyCombo('Mod+A'))
 
     await expect(dispatch).rejects.toEqual(
       expect.objectContaining({
@@ -202,7 +202,7 @@ describe('dispatchKeyCombo', () => {
     const keyEvents = vi
       .mocked(contents.debugger.sendCommand)
       .mock.calls.filter(([method]) => method === 'Input.dispatchKeyEvent')
-    // Meta down, A down, A up (lost), then cleanup re-releases A and releases the held Meta.
+    // Mod down, A down, A up (lost), then cleanup re-releases A and releases the held Mod.
     expect(keyEvents).toHaveLength(5)
     expect(keyEvents[2]).toEqual(keyEvents[3])
     expect(keyEvents[2]).toEqual([
@@ -211,7 +211,10 @@ describe('dispatchKeyCombo', () => {
     ])
     expect(keyEvents[4]).toEqual([
       'Input.dispatchKeyEvent',
-      expect.objectContaining({ type: 'keyUp', key: 'Meta' }),
+      expect.objectContaining({
+        type: 'keyUp',
+        key: process.platform === 'darwin' ? 'Meta' : 'Control',
+      }),
     ])
     expect(contents.setIgnoreMenuShortcuts).toHaveBeenNthCalledWith(1, true)
     expect(contents.setIgnoreMenuShortcuts).toHaveBeenNthCalledWith(2, false)
