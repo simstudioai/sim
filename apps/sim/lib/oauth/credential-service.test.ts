@@ -442,11 +442,16 @@ describe('OAuth access-token refresh headroom', () => {
   describe.each(readers)('$name', ({ read, throwsOnFailure }) => {
     it.each([
       { providerId: 'google-drive', remainingMs: 120_000, refresh: 'wait' },
-      { providerId: 'google-drive', remainingMs: 240_000, refresh: 'ahead' },
-      { providerId: 'google-drive', remainingMs: 300_001, refresh: 'none' },
+      { providerId: 'google-drive', remainingMs: 240_000, refresh: 'wait' },
+      { providerId: 'google-drive', remainingMs: 300_000, refresh: 'wait' },
+      { providerId: 'google-drive', remainingMs: 300_001, refresh: 'ahead' },
+      /** Inside the refresh-ahead window for every account, whatever its jitter. */
+      { providerId: 'google-drive', remainingMs: 540_000, refresh: 'ahead' },
+      { providerId: 'google-drive', remainingMs: 600_001, refresh: 'none' },
       { providerId: 'google-drive', remainingMs: null, refresh: 'none' },
       { providerId: 'confluence', remainingMs: 300_000, refresh: 'wait' },
       { providerId: 'confluence', remainingMs: 300_001, refresh: 'none' },
+      { providerId: 'confluence', remainingMs: 540_000, refresh: 'none' },
     ])(
       'handles $providerId with $remainingMs milliseconds remaining',
       async ({ providerId, remainingMs, refresh }) => {
@@ -463,7 +468,7 @@ describe('OAuth access-token refresh headroom', () => {
     it('uses a still-valid Google token while its refresh is still with the provider', async () => {
       const provider = createDeferred<unknown>()
       mocks.refreshOAuthToken.mockReturnValue(provider.promise)
-      await expect(read(createOAuthAccount(240_000))).resolves.toBe('original-access-token')
+      await expect(read(createOAuthAccount(360_000))).resolves.toBe('original-access-token')
       await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
       expect(dbChainMockFns.set).not.toHaveBeenCalled()
       provider.resolve({
@@ -494,6 +499,16 @@ describe('OAuth access-token refresh headroom', () => {
         label: 'a Google token under the refresh floor',
         providerId: 'google-drive',
         remainingMs: 60_000,
+      },
+      {
+        label: 'a Google token with less than five minutes left',
+        providerId: 'google-drive',
+        remainingMs: 240_000,
+      },
+      {
+        label: 'a Google token with exactly five minutes left',
+        providerId: 'google-drive',
+        remainingMs: 300_000,
       },
     ])('waits for the provider with $label', async ({ providerId, remainingMs }) => {
       const provider = createDeferred<unknown>()
@@ -632,6 +647,50 @@ describe('OAuth access-token refresh headroom', () => {
     expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(1)
   })
 
+  it('shares one background refresh across every caller served inside the refresh-ahead window', async () => {
+    const { coalesceLocally } = await vi.importActual<
+      typeof import('@/lib/concurrency/singleflight')
+    >('@/lib/concurrency/singleflight')
+    mocks.coalesceLocally.mockImplementation(coalesceLocally)
+    const provider = createDeferred<unknown>()
+    mocks.refreshOAuthToken.mockReturnValue(provider.promise)
+    const row = createOAuthAccount(360_000)
+    await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).resolves.toEqual({
+      accessToken: 'original-access-token',
+      refreshed: false,
+    })
+    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
+    await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).resolves.toEqual({
+      accessToken: 'original-access-token',
+      refreshed: false,
+    })
+    await flushMicrotasks(20)
+    expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
+    const refreshAheadLogs = serviceLogger.info.mock.calls.filter(([message]) =>
+      String(message).includes('Refreshing ahead of expiry')
+    )
+    expect(refreshAheadLogs).toHaveLength(1)
+    provider.resolve({
+      ok: true,
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+      expiresIn: 3600,
+    })
+    await vi.waitFor(() => expect(dbChainMockFns.set).toHaveBeenCalled())
+    expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce()
+  })
+
+  it('uses a token another writer stored after the caller read the account instead of refreshing again', async () => {
+    queueCredentialAccount(createOAuthAccount())
+    queueTableRows(account, [
+      { ...createOAuthAccount(3_600_000), accessToken: 'stored-meanwhile-token', updatedAt: now },
+    ])
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toEqual({ accessToken: 'stored-meanwhile-token' })
+    expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+  })
+
   it.each([
     { remainingMs: 300_000, refresh: true },
     { remainingMs: 300_001, refresh: false },
@@ -679,6 +738,9 @@ describe('OAuth access-token refresh headroom', () => {
     await expect(
       resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
     ).resolves.toEqual({ accessToken: 'original-access-token' })
+    await vi.waitFor(() => expect(mocks.refreshOAuthToken).toHaveBeenCalledOnce())
+    /** Let the first background refresh settle so the second entry point starts its own. */
+    await flushMicrotasks(20)
     await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).resolves.toEqual({
       accessToken: 'original-access-token',
       refreshed: false,

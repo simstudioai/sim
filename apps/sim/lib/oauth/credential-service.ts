@@ -886,8 +886,8 @@ interface CoalescedRefreshOptions {
   /** External provider account id (`account.accountId`), used to scope Slack refreshes per installation. */
   providerAccountId?: string | null
   oauthConfig?: string | null
-  /** The account row's refresh token and recorded revocation, read together. */
-  chain?: RevocableChain
+  /** The account row the caller read: its tokens, recorded revocation, and version, read together. */
+  chain?: StoredOAuthTokens
   requestId?: string
   userId?: string
   privacyMode?: 'selector'
@@ -1003,9 +1003,18 @@ function isOAuthAccessTokenExpiring(
   return expiresAt != null && expiresAt.getTime() <= now.getTime() + refreshWindowMs
 }
 
-/** Below this much remaining validity a caller waits for the refresh even where it could refresh ahead. */
-const OAUTH_ACCESS_TOKEN_MUST_REFRESH_MS = 2 * 60 * 1000
-/** Spreads when credentials that expire together start refreshing ahead. */
+/**
+ * Where a provider can refresh ahead of expiry, a caller is served the stored token with this much
+ * validity left or less while a background refresh replaces it. It starts above
+ * {@link OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS}, so a served token keeps the same headroom a caller
+ * that waits for its refresh gets: callers that resolve once and reuse the token through a long
+ * batch (the pollers) depend on it.
+ */
+const OAUTH_REFRESH_AHEAD_WINDOW_MS = 10 * 60 * 1000
+/**
+ * Spreads when credentials that expire together start refreshing ahead. Kept below the gap between
+ * the two windows so every account still refreshes ahead before callers have to wait.
+ */
 const OAUTH_REFRESH_AHEAD_JITTER_MS = 60 * 1000
 
 /**
@@ -1061,15 +1070,17 @@ function planAccessTokenRefresh(
       : { kind: 'fresh' }
   }
   if (!accessToken) return { kind: 'must-refresh', refreshToken }
-  const refreshesAhead = refreshesAheadOfExpiry(providerId)
   if (accessTokenExpiresAt && isOAuthAccessTokenExpiring(accessTokenExpiresAt, providerId, now)) {
-    const remainingMs = accessTokenExpiresAt.getTime() - now.getTime()
-    if (!refreshesAhead || remainingMs <= OAUTH_ACCESS_TOKEN_MUST_REFRESH_MS) {
-      return { kind: 'must-refresh', refreshToken }
-    }
-    if (remainingMs <= OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS - refreshAheadJitterMs(accountId)) {
-      return { kind: 'refresh-ahead', refreshToken }
-    }
+    return { kind: 'must-refresh', refreshToken }
+  }
+  const refreshesAhead = refreshesAheadOfExpiry(providerId)
+  if (
+    refreshesAhead &&
+    accessTokenExpiresAt &&
+    accessTokenExpiresAt.getTime() - now.getTime() <=
+      OAUTH_REFRESH_AHEAD_WINDOW_MS - refreshAheadJitterMs(accountId)
+  ) {
+    return { kind: 'refresh-ahead', refreshToken }
   }
   /** Microsoft refresh tokens expire after 90 days without use. */
   const refreshTokenAging =
@@ -1307,6 +1318,25 @@ async function performCoalescedRefresh({
           if (recordedMeanwhile && !isRevocationReprobeDue(current)) {
             return revokedOutcome(recordedMeanwhile)
           }
+          /**
+           * A writer that stored a new token after the caller's read (a refresh that finished just
+           * before this one took the lock, or a reconnect) already answers it, so this refresh
+           * would only spend a provider call; the token must still clear the headroom a waiting
+           * caller is promised.
+           */
+          const storedSinceRead =
+            !slackTeamId &&
+            !recordedMeanwhile &&
+            current &&
+            chain &&
+            current.updatedAt > chain.updatedAt &&
+            current.accessToken !== chain.accessToken
+              ? usableStoredToken(current, providerId)
+              : null
+          if (storedSinceRead) {
+            logger.info('Using the token stored since this caller read the account', logContext)
+            return tokenOutcome(storedSinceRead)
+          }
           let chainVersion = current?.updatedAt
           let refreshTokenToUse = refreshToken
           let slackChainVersion: Date | null = null
@@ -1532,6 +1562,24 @@ async function performCoalescedRefresh({
   }
 }
 
+/** Accounts with a refresh ahead of expiry running in this process; every caller in the window shares it. */
+const backgroundRefreshAccounts = new Set<string>()
+
+function refreshInBackground(options: CoalescedRefreshOptions, logPrefix: string): void {
+  if (backgroundRefreshAccounts.has(options.accountId)) return
+  backgroundRefreshAccounts.add(options.accountId)
+  logger.info(`${logPrefix}Refreshing ahead of expiry; using the still-valid access token`)
+  performCoalescedRefresh(options)
+    // The refresh settles and logs its own failures; this catches only a setup error before it starts.
+    .catch((error: unknown) => {
+      logger.error('Background token refresh failed to start', {
+        providerId: options.providerId,
+        ...(options.privacyMode === 'selector' ? {} : { error: toError(error).message }),
+      })
+    })
+    .finally(() => backgroundRefreshAccounts.delete(options.accountId))
+}
+
 type StoredAccessTokenResult =
   | { kind: 'unrefreshable' }
   | { kind: 'token'; accessToken: string | null; refreshed: boolean }
@@ -1561,13 +1609,7 @@ async function resolveStoredAccessToken(
   }
   const prefix = refresh.requestId ? `[${refresh.requestId}] ` : ''
   if (plan.kind === 'refresh-ahead') {
-    performCoalescedRefresh(options).catch((error: unknown) => {
-      logger.error('Background token refresh failed', {
-        providerId: refresh.providerId,
-        ...(refresh.privacyMode === 'selector' ? {} : { error: toError(error).message }),
-      })
-    })
-    logger.info(`${prefix}Refreshing ahead of expiry; using the still-valid access token`)
+    refreshInBackground(options, prefix)
     return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
   }
   const fresh = await waitWithAbort(performCoalescedRefresh(options), signal)
