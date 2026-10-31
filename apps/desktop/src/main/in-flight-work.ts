@@ -41,7 +41,7 @@ async function askAboutUnsavedChanges(contents: WebContents): Promise<UnloadAnsw
     logger.warn('Could not ask a window about unsaved changes', {
       message: getErrorMessage(error, 'unknown'),
     })
-    return 'clean'
+    return 'unresponsive'
   }
 }
 

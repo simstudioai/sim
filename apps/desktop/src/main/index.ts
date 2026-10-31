@@ -1167,13 +1167,17 @@ function main(): void {
         rememberWindowsForRelaunch(pending)
       },
       describeInFlightWork: async () => {
+        // Native activity is read after the window probes so work started meanwhile still counts.
+        const windows = await countWindowsWithUnsavedChanges(
+          getWindows().map((win) => win.webContents)
+        )
         const computerUseActivity = computerUse.getActivity()
         return describeInFlightWork({
           terminalCommands: terminal.runningCommands(),
           computerUseApp: computerUseActivity ? (computerUseActivity.appName ?? '') : null,
           browserToolRunning: isBrowserToolRunning(),
           agentWorkRunning,
-          ...(await countWindowsWithUnsavedChanges(getWindows().map((win) => win.webContents))),
+          ...windows,
         })
       },
       beforeInstall: async () => {

@@ -1150,10 +1150,14 @@ describe('executeTool', () => {
     }
   })
 
-  it('reports a browser action as running from admission until it settles', async () => {
+  it('reports a browser action as running from queueing until it settles', async () => {
     vi.useFakeTimers()
     try {
       await driver.executeTool('chat-test', 'browser_open_tab', {})
+      expect(driver.isBrowserToolRunning()).toBe(false)
+      const queued = driver.captureBrowserToolQueueBoundary('chat-test')
+      expect(driver.isBrowserToolRunning()).toBe(true)
+      if (queued) driver.releaseBrowserToolQueueBoundary(queued)
       expect(driver.isBrowserToolRunning()).toBe(false)
       const contents = session.requireTab().view.webContents
       vi.mocked(contents.getURL).mockReturnValue('https://example.com/')

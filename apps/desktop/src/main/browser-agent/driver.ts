@@ -459,7 +459,7 @@ function releaseBrowserToolAdmission(state: DriverScopeState, admission: symbol)
 
 /** Whether any chat has a browser action queued or running in this process. */
 export function isBrowserToolRunning(): boolean {
-  return activeBrowserToolAdmissions.size > 0
+  return activeBrowserToolAdmissions.size > 0 || pendingBrowserToolQueueBoundaries.size > 0
 }
 
 function retireDriverScopeState(state: DriverScopeState): void {
