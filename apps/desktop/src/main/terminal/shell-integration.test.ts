@@ -7,6 +7,7 @@ import {
   buildShellLaunch,
   detectShell,
   ShellIntegrationParser,
+  toWindowsPath,
 } from '@/main/terminal/shell-integration'
 
 const NONCE = 'testnonce'
@@ -73,6 +74,14 @@ describe('ShellIntegrationParser', () => {
     expect(markers).toEqual([{ kind: 'cwd', cwd: '/tmp/some dir' }])
   })
 
+  it('reads an escaped backslash as one, so a Windows cwd survives intact', () => {
+    const parser = new ShellIntegrationParser(NONCE)
+    // A folder named x3b: its escaped form must not decode the `\x3b` into a `;`.
+    const { markers } = parser.parse(osc(`P;Cwd=C:\\\\Users\\\\x3b;${NONCE}`))
+
+    expect(markers).toEqual([{ kind: 'cwd', cwd: 'C:\\Users\\x3b' }])
+  })
+
   it("recognises the startup marker sent before the user's startup files", () => {
     const parser = new ShellIntegrationParser(NONCE)
     const { text, markers } = parser.parse(`${osc(`SimStartup;${NONCE}`)}loading`)
@@ -104,9 +113,32 @@ describe('detectShell', () => {
     expect(detectShell('/usr/local/bin/bash')).toBe('bash')
   })
 
+  it('recognises Windows shells by their executable names', () => {
+    expect(detectShell('C:\\Program Files\\PowerShell\\7\\pwsh.exe')).toBe('pwsh')
+    expect(detectShell('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\PowerShell.exe')).toBe(
+      'powershell'
+    )
+    expect(detectShell('C:\\Program Files\\Git\\bin\\bash.exe')).toBe('bash')
+    expect(detectShell('C:\\Windows\\System32\\cmd.exe')).toBeNull()
+  })
+
   it('returns null for shells without hooks, leaving the terminal uninstrumented', () => {
     expect(detectShell('/usr/bin/fish')).toBeNull()
     expect(detectShell('/bin/sh')).toBeNull()
+  })
+})
+
+describe('toWindowsPath', () => {
+  it('turns the drive paths Git Bash reports into ones Windows can open', () => {
+    expect(toWindowsPath('/c/Users/me/my repo')).toBe('C:\\Users\\me\\my repo')
+    expect(toWindowsPath('/cygdrive/d/work')).toBe('D:\\work')
+    expect(toWindowsPath('/c')).toBe('C:\\')
+  })
+
+  it('leaves Windows paths and MSYS-only directories alone', () => {
+    expect(toWindowsPath('C:\\Users\\me')).toBe('C:\\Users\\me')
+    expect(toWindowsPath('\\\\server\\share')).toBe('\\\\server\\share')
+    expect(toWindowsPath('/tmp')).toBe('/tmp')
   })
 })
 

@@ -17,16 +17,34 @@
  */
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join, sep } from 'node:path'
 
 /** Shells we can install prompt hooks into. */
-export type SupportedShell = 'zsh' | 'bash'
+export type SupportedShell = 'zsh' | 'bash' | 'pwsh' | 'powershell'
+
+const SUPPORTED_SHELLS: ReadonlySet<string> = new Set<SupportedShell>([
+  'zsh',
+  'bash',
+  'pwsh',
+  'powershell',
+])
+
+/**
+ * A shell's program name, as it is reported to the agent: no directory (either
+ * separator), no login dash, no `.exe`. `C:\Windows\...\PowerShell.exe` is
+ * `powershell`, `-zsh` is `zsh`.
+ */
+export function shellKind(shellPath: string): string {
+  const name = shellPath.split(/[\\/]/).pop() ?? ''
+  return name
+    .replace(/^-/, '')
+    .replace(/\.exe$/i, '')
+    .toLowerCase()
+}
 
 export function detectShell(shellPath: string): SupportedShell | null {
-  const name = basename(shellPath)
-  if (name === 'zsh' || name === '-zsh') return 'zsh'
-  if (name === 'bash' || name === '-bash') return 'bash'
-  return null
+  const kind = shellKind(shellPath)
+  return SUPPORTED_SHELLS.has(kind) ? (kind as SupportedShell) : null
 }
 
 export function createNonce(): string {
@@ -55,11 +73,28 @@ export interface ParseResult {
   markers: ShellMarker[]
 }
 
-/** Undoes the escaping applied by the shell hooks. */
+/**
+ * Undoes the escaping applied by the shell hooks: `\\` is one backslash and
+ * `\xHH` one character. Both are read in one pass, so `C:\x3b`, which the
+ * hooks send as `C:\\x3b`, comes back unchanged rather than as `C:\;`.
+ */
 function unescapeValue(value: string): string {
-  return value.replace(/\\x([0-9a-fA-F]{2})/g, (_match, hex: string) =>
-    String.fromCharCode(Number.parseInt(hex, 16))
+  return value.replace(/\\(?:\\|x([0-9a-fA-F]{2}))/g, (_match, hex: string | undefined) =>
+    hex === undefined ? '\\' : String.fromCharCode(Number.parseInt(hex, 16))
   )
+}
+
+/**
+ * The Windows form of a directory Git Bash reports. MSYS shows drives as
+ * `/c/Users/me` (Cygwin as `/cygdrive/c/...`), which nothing outside the shell
+ * can open. Anything else, including a path already in Windows form, is
+ * returned unchanged.
+ */
+export function toWindowsPath(cwd: string): string {
+  const drive = /^\/(?:cygdrive\/)?([a-zA-Z])(?=\/|$)(.*)$/.exec(cwd)
+  if (!drive) return cwd
+  const [, letter, rest] = drive
+  return `${letter.toUpperCase()}:${rest.replaceAll('/', '\\') || '\\'}`
 }
 
 /**
@@ -286,6 +321,99 @@ PROMPT_COMMAND="__sim_precmd\${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
   return rcPath
 }
 
+/**
+ * PowerShell (7 and Windows PowerShell 5.1) has no preexec hook either. The
+ * command line is caught by wrapping PSReadLine's `PSConsoleHostReadLine`,
+ * which returns each line the user accepts, and the finish by wrapping
+ * `prompt`. Without PSReadLine there is no line to report, so nothing is
+ * installed and the agent is refused as for any uninstrumented shell.
+ *
+ * The shell starts with `-NoProfile` and this script loads the profiles
+ * itself, in PowerShell's own order, so the startup marker goes out before any
+ * of the user's code runs and the hooks wrap the prompt their profile set
+ * (oh-my-posh, starship) rather than being replaced by it. The script travels
+ * as `-EncodedCommand` because a `.ps1` file is refused under Windows
+ * PowerShell's default `Restricted` execution policy; the profiles stay under
+ * the user's policy exactly as they would without us.
+ *
+ * The exit code is 0 when the line succeeded, else `$LASTEXITCODE` when a
+ * native program set a failing one, else 1 (a failing cmdlet has no code).
+ */
+function powerShellScript(nonce: string): string {
+  return String.raw`$Global:__SimNonce = '${nonce}'
+$Global:__SimInCommand = $false
+
+function Global:__Sim-Osc([string]$Body) {
+  "$([char]27)]633;$Body;$Global:__SimNonce$([char]7)"
+}
+
+function Global:__Sim-Escape([string]$Value) {
+  [regex]::Replace($Value, '[\\;\x00-\x1f]', {
+    param($m)
+    if ($m.Value -eq '\') { '\\' } else { '\x{0:x2}' -f [int][char]$m.Value }
+  })
+}
+
+[Console]::Write((__Sim-Osc 'SimStartup'))
+
+foreach ($__simProfile in @($PROFILE.AllUsersAllHosts, $PROFILE.AllUsersCurrentHost, $PROFILE.CurrentUserAllHosts, $PROFILE.CurrentUserCurrentHost)) {
+  if ($__simProfile -and (Test-Path -LiteralPath $__simProfile -PathType Leaf)) {
+    try { . $__simProfile } catch { Write-Error -ErrorRecord $_ }
+  }
+}
+Remove-Variable -Name __simProfile -ErrorAction SilentlyContinue
+
+if (-not (Get-Module -Name PSReadLine)) { Import-Module PSReadLine -ErrorAction SilentlyContinue }
+
+if (Test-Path -Path Function:\PSConsoleHostReadLine) {
+  # Sim clears a half-typed line with Ctrl+U before typing a command; Windows mode leaves it unbound.
+  try {
+    if (-not (Get-PSReadLineKeyHandler -Bound | Where-Object { $_.Key -eq 'Ctrl+u' })) {
+      Set-PSReadLineKeyHandler -Chord 'Ctrl+u' -Function BackwardDeleteLine
+    }
+  } catch {}
+
+  $Global:__SimReadLine = $function:PSConsoleHostReadLine
+  function Global:PSConsoleHostReadLine {
+    $line = & $Global:__SimReadLine
+    if (-not [string]::IsNullOrWhiteSpace($line)) {
+      $Global:__SimInCommand = $true
+      [Console]::Write((__Sim-Osc "E;$(__Sim-Escape $line)") + (__Sim-Osc 'C'))
+    }
+    $line
+  }
+
+  $Global:__SimPrompt = $function:prompt
+  if (-not $Global:__SimPrompt) { $Global:__SimPrompt = { "PS $($PWD.Path)> " } }
+  function Global:prompt {
+    $succeeded = $global:?
+    $nativeExitCode = $global:LASTEXITCODE
+    # Cwd is reported before the finish marker so a cd is already visible by the time the
+    # command's result is resolved.
+    $markers = ''
+    if ($PWD.Provider.Name -eq 'FileSystem') {
+      $markers += (__Sim-Osc "P;Cwd=$(__Sim-Escape $PWD.ProviderPath)")
+    }
+    if ($Global:__SimInCommand) {
+      $Global:__SimInCommand = $false
+      $exitCode = if ($succeeded) { 0 } elseif ($nativeExitCode -is [int] -and $nativeExitCode -ne 0) { $nativeExitCode } else { 1 }
+      $markers += (__Sim-Osc "D;$exitCode")
+    }
+    $markers += (__Sim-Osc 'A')
+    # Hands the user's prompt the $? it would have seen, for prompts that show the last result.
+    if (-not $succeeded) { Write-Error 'failure' -ErrorAction Ignore }
+    $userPrompt = (& $Global:__SimPrompt) -join ''
+    $markers + $userPrompt + (__Sim-Osc 'B')
+  }
+}
+`
+}
+
+/** PowerShell's `-EncodedCommand` takes base64 of UTF-16LE text. */
+export function encodePowerShellCommand(script: string): string {
+  return Buffer.from(script, 'utf16le').toString('base64')
+}
+
 export interface ShellLaunch {
   args: string[]
   env: Record<string, string>
@@ -301,6 +429,19 @@ export function buildShellLaunch(
   nonce: string,
   env: Record<string, string>
 ): ShellLaunch {
+  if (shell === 'pwsh' || shell === 'powershell') {
+    return {
+      args: [
+        '-NoLogo',
+        '-NoProfile',
+        '-NoExit',
+        '-EncodedCommand',
+        encodePowerShellCommand(powerShellScript(nonce)),
+      ],
+      env: {},
+    }
+  }
+
   mkdirSync(dir, { recursive: true })
 
   if (shell === 'zsh') {
@@ -312,7 +453,9 @@ export function buildShellLaunch(
   }
 
   const rcPath = writeBashFile(dir, nonce)
+  // Git Bash reads `C:/...` without the MS-DOS path warning `C:\...` can raise.
+  const initFile = sep === '\\' ? rcPath.replaceAll('\\', '/') : rcPath
   // `--init-file` is honoured only by interactive non-login bash, so the login
   // flag is deliberately omitted here; the generated file sources ~/.bashrc.
-  return { args: ['--init-file', rcPath, '-i'], env: {} }
+  return { args: ['--init-file', initFile, '-i'], env: {} }
 }
