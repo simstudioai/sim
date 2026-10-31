@@ -461,10 +461,25 @@ describe('async tool repository single-row semantics', () => {
 })
 
 describe('the workflow run a settled call left running', () => {
+  const stored = {
+    argv: null,
+    exitCode: null,
+    stdout: null,
+    status: null,
+    executionId: null,
+  }
   const cli = (argv: string[], exitCode: number, record: Record<string, unknown>) => ({
+    ...stored,
     executableName: 'sim_cli',
-    args: { request: { invocation: { kind: 'cli', argv } } },
-    result: { exitCode, stdout: JSON.stringify(record), stderr: '' },
+    argv,
+    exitCode: String(exitCode),
+    stdout: JSON.stringify(record),
+  })
+  const tool = (executableName: string, status: string | null, executionId: string) => ({
+    ...stored,
+    executableName,
+    status,
+    executionId,
   })
   const running = { runId: 'run-1', workflowId: 'wf-1', status: 'running' }
 
@@ -485,13 +500,7 @@ describe('the workflow run a settled call left running', () => {
   })
 
   it('is a workflow tool answered still running', () => {
-    expect(
-      detachedWorkflowExecutionId({
-        executableName: 'run_workflow',
-        args: { workflowId: 'wf-1' },
-        result: { status: 'running', executionId: 'exec-1', workflowId: 'wf-1' },
-      })
-    ).toBe('exec-1')
+    expect(detachedWorkflowExecutionId(tool('run_workflow', 'running', 'exec-1'))).toBe('exec-1')
   })
 
   it.each([
@@ -503,15 +512,9 @@ describe('the workflow run a settled call left running', () => {
     ['a wait on a run', cli(['workflows', 'runs', 'wait', 'run-1'], 4, running)],
     [
       'an unreadable answer',
-      {
-        ...cli(['workflows', 'run', 'wf-1'], 4, running),
-        result: { exitCode: 4, stdout: 'not json' },
-      },
+      { ...cli(['workflows', 'run', 'wf-1'], 4, running), stdout: 'not json' },
     ],
-    [
-      'a workflow tool that settled',
-      { executableName: 'run_block', args: {}, result: { success: true, executionId: 'exec-1' } },
-    ],
+    ['a workflow tool that settled', tool('run_block', null, 'exec-1')],
   ])('is not %s', (_label, call) => {
     expect(detachedWorkflowExecutionId(call)).toBeUndefined()
   })

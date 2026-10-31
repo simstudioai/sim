@@ -591,9 +591,14 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     )
   })
 
-  it.each(['pending', 'completed', 'failed', 'cancelled'] as const)(
+  it.each([
+    ['pending (paused at a human approval)', 'pending'],
+    ['completed', 'completed'],
+    ['failed', 'failed'],
+    ['cancelled', 'cancelled'],
+  ] as const)(
     'leaves a detached run whose log is %s for a Stop to skip',
-    async (logStatus) => {
+    async (_label, logStatus) => {
       const detachedCli = generateId()
       const detachedTool = generateId()
       const cliCall = generateId()

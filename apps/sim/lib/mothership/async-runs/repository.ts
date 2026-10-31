@@ -1826,10 +1826,7 @@ export async function prepareWorkbenchAccess(
     if (processes.some((process) => process.sessionKey !== input.sessionKey))
       throw new Error('Recorded workbench ownership does not match this chat')
     return {
-      /**
-       * A workflow tool's handler runs a workflow, which never touches the workbench. One answered
-       * still running holds its run past its turn, so it must not hold the workbench too.
-       */
+      // A workflow tool's run never touches the workbench, and one answered running outlives its turn.
       handlersPending: previous.some(
         (row) =>
           !row.settledAt &&
@@ -1940,30 +1937,34 @@ export async function getUnsettledClientWorkflowExecutions(
   )
 }
 
+/** The fields of a stored call that say whether it left a workflow run going, read as text. */
+interface DetachedRunCall {
+  executableName: string | null
+  /** `args.request.invocation.argv` of a `sim_cli` call. */
+  argv: unknown
+  exitCode: string | null
+  stdout: string | null
+  status: string | null
+  executionId: string | null
+}
+
 /**
  * The workflow execution a settled call started and left running: a `workflows run` the CLI
  * answered still running (exit 4 and its run record), or a workflow tool answered still running
  * (`WorkflowToolRunningResult`). A run the call only waited on (`workflows runs wait`) is not
  * one: another run started it.
  */
-export function detachedWorkflowExecutionId(call: {
-  executableName: string | null
-  args: unknown
-  result: unknown
-}): string | undefined {
-  const result = toRecordOrNull(call.result)
-  if (!result) return undefined
+export function detachedWorkflowExecutionId(call: DetachedRunCall): string | undefined {
   if (call.executableName === 'sim_cli') {
-    const request = toRecordOrNull(toRecordOrNull(call.args)?.request)
-    const argv = toRecordOrNull(request?.invocation)?.argv
+    const argv = call.argv
     // The command path, wherever global flags (`--output json`) put it, never `workflows runs`.
     const end = Array.isArray(argv) && argv.includes('--') ? argv.indexOf('--') : undefined
     const tokens = Array.isArray(argv) ? argv.slice(0, end) : []
     if (!tokens.some((token, index) => token === 'workflows' && tokens[index + 1] === 'run'))
       return undefined
-    if (result.exitCode !== 4 || typeof result.stdout !== 'string') return undefined
+    if (call.exitCode !== '4' || call.stdout === null) return undefined
     try {
-      const record = toRecordOrNull(JSON.parse(result.stdout))
+      const record = toRecordOrNull(JSON.parse(call.stdout))
       return record?.status === 'running' && typeof record.runId === 'string'
         ? record.runId
         : undefined
@@ -1971,9 +1972,7 @@ export function detachedWorkflowExecutionId(call: {
       return undefined
     }
   }
-  return result.status === 'running' && typeof result.executionId === 'string'
-    ? result.executionId
-    : undefined
+  return call.status === 'running' && call.executionId !== null ? call.executionId : undefined
 }
 
 /**
@@ -1995,12 +1994,15 @@ export async function getDetachedWorkflowExecutions(
     { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
     async () => {
       const { args, result } = copilotAsyncToolCalls
-      /** Only the fields `detachedWorkflowExecutionId` reads, so no call's payload is loaded. */
-      const rows = await executor
+      // Only what `detachedWorkflowExecutionId` reads; an exit-4 `sim_cli` stdout is its run record.
+      const rows: DetachedRunCall[] = await executor
         .select({
           executableName: copilotAsyncToolCalls.executableName,
-          args: sql<unknown>`jsonb_build_object('request', jsonb_build_object('invocation', jsonb_build_object('argv', ${args} #> '{request,invocation,argv}')))`,
-          result: sql<unknown>`jsonb_build_object('exitCode', ${result} -> 'exitCode', 'stdout', ${result} -> 'stdout', 'status', ${result} -> 'status', 'executionId', ${result} -> 'executionId')`,
+          argv: sql<unknown>`${args} #> '{request,invocation,argv}'`,
+          exitCode: sql<string | null>`${result} ->> 'exitCode'`,
+          stdout: sql<string | null>`${result} ->> 'stdout'`,
+          status: sql<string | null>`${result} ->> 'status'`,
+          executionId: sql<string | null>`${result} ->> 'executionId'`,
         })
         .from(copilotAsyncToolCalls)
         .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
