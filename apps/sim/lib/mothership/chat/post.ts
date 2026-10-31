@@ -1,5 +1,6 @@
 import { context as otelContextApi } from '@opentelemetry/api'
 import type { SessionPrincipal } from '@sim/auth/principal'
+import { DESKTOP_PLATFORMS, type DesktopPlatform } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -165,7 +166,7 @@ const ChatMessageSchema = z
         terminal: z.boolean().optional(),
         computerUse: z.boolean().optional(),
         /** Optional: shells that predate it are all macOS. */
-        platform: z.enum(['darwin', 'win32', 'linux']).optional(),
+        platform: z.enum(DESKTOP_PLATFORMS).optional(),
         terminals: z
           .array(
             z.object({
@@ -246,7 +247,6 @@ function backgroundExecutorDeviceId(body: UnifiedChatRequest): string | undefine
 
 type BrowserSessions = NonNullable<UnifiedChatRequest['desktopCapabilities']>['browserSessions']
 type Terminals = NonNullable<UnifiedChatRequest['desktopCapabilities']>['terminals']
-type DesktopPlatform = NonNullable<UnifiedChatRequest['desktopCapabilities']>['platform']
 type UnifiedChatBranch =
   | {
       kind: 'workflow'

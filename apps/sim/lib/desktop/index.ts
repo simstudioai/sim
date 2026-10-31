@@ -252,6 +252,7 @@ export async function getDesktopChatCapabilities(
           .then((state) => state.sessions)
           .catch(() => [])
       : []
+  const platform = getDesktopPlatform()
   // Shells without a background executor (every build before it ships) leave the turn unbound.
   const executorDevice = bridge?.desktopExecutor
     ? await bridge.desktopExecutor.getDevice().catch(() => null)
@@ -266,7 +267,7 @@ export async function getDesktopChatCapabilities(
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),
             ...(computerUse ? { computerUse: true as const } : {}),
-            ...(bridge ? { platform: bridge.platform ?? 'darwin' } : {}),
+            ...(platform ? { platform } : {}),
             ...(terminals.length > 0 ? { terminals } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
             ...(executorDevice

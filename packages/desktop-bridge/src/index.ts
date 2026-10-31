@@ -1177,8 +1177,11 @@ interface SimDesktopExecutorApi {
   getDevice(): Promise<DesktopExecutorDevice | null>
 }
 
+/** The operating systems a desktop shell runs on. */
+export const DESKTOP_PLATFORMS = ['darwin', 'win32', 'linux'] as const
+
 /** The operating system a desktop shell runs on. */
-export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
+export type DesktopPlatform = (typeof DESKTOP_PLATFORMS)[number]
 
 export interface SimDesktopApi {
   computerUse?: SimDesktopComputerUseApi
