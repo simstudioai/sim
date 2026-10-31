@@ -68,11 +68,16 @@ const SEARCH_VECTOR_COLUMNS = SEARCH_VECTOR_WIDTHS.map((width) => widthColumn('v
 /** The bit columns of `embedding_search`, whose width check requires exactly one. */
 const SEARCH_BINARY_COLUMNS = ['"binary"', 'binary_384', 'binary_768', 'binary_1024', 'binary_3072']
 
+/** The `ON CONFLICT DO UPDATE` assignments that take each column from the proposed row. */
+function excludedAssignments(columns: readonly string[]): string {
+  return columns.map((column) => `${column} = EXCLUDED.${column}`).join(', ')
+}
+
 /**
  * The halfvec projections of an embedding row, in {@link SEARCH_VECTOR_COLUMNS} order. Shortening
  * is valid only for the two OpenAI models trained for prefix retrieval. These and the bit
- * projections match what `sync_embedding_search()` from `0016_backfill_search_vectors` writes, so
- * a pass over rows a synchronous writer wrote finds nothing to rewrite.
+ * projections are what {@link SYNC_EMBEDDING_SEARCH_FUNCTION} writes, so a pass over rows a
+ * synchronous writer wrote finds nothing to rewrite.
  */
 function searchVectorProjections(prefix: string, shortened: string): string {
   return SEARCH_VECTOR_WIDTHS.map((width) =>
@@ -93,6 +98,39 @@ function searchBinaryProjections(prefix: string): string {
 function searchVectorShortened(model: string, prefix: string): string {
   return `${model} IN ${SHORTENED_EMBEDDING_MODELS} AND ${prefix}.embedding_384 IS NULL`
 }
+
+/**
+ * The `embedding_search_sync` trigger function: projects an ordinary-KB chunk and deletes the row
+ * of a Search-KB chunk. Migration 0448 installs this exact body; fresh databases and pushes install
+ * it through `0016_backfill_search_vectors`.
+ *
+ * contract-pending(after Search KB candidate rows are purged and Search KBs are unwritable): drop
+ * the `search_index` delete branch — no Search-KB chunk write can reach the trigger then.
+ */
+export const SYNC_EMBEDDING_SEARCH_FUNCTION = `CREATE OR REPLACE FUNCTION sync_embedding_search()
+  RETURNS trigger LANGUAGE plpgsql AS $$
+  DECLARE
+    search_index boolean;
+    shortened boolean;
+  BEGIN
+    SELECT is_search_index, ${searchVectorShortened('embedding_model', 'NEW')}
+      INTO STRICT search_index, shortened
+    FROM knowledge_base WHERE id = NEW.knowledge_base_id;
+    IF search_index THEN
+      DELETE FROM embedding_search WHERE id = NEW.id;
+      RETURN NEW;
+    END IF;
+    INSERT INTO embedding_search
+      (id, knowledge_base_id, document_id, enabled, ${SEARCH_BINARY_COLUMNS.join(', ')},
+        ${SEARCH_VECTOR_COLUMNS.join(', ')})
+    VALUES (NEW.id, NEW.knowledge_base_id, NEW.document_id, NEW.enabled,
+      ${searchBinaryProjections('NEW')},
+      ${searchVectorProjections('NEW', 'shortened')})
+    ON CONFLICT (id) DO UPDATE SET
+      ${excludedAssignments(['knowledge_base_id', 'document_id', 'enabled', ...SEARCH_BINARY_COLUMNS, ...SEARCH_VECTOR_COLUMNS])};
+    RETURN NEW;
+  END;
+  $$`
 
 export type KnowledgeProjection = 'embedding_search'
 
@@ -138,7 +176,7 @@ function contentPageStatement(): string {
         ${searchVectorProjections('source', 'shortened')}
       FROM source
       ON CONFLICT (id) DO UPDATE SET
-        ${[...compared, ...SEARCH_BINARY_COLUMNS].map((column) => `${column} = EXCLUDED.${column}`).join(', ')}
+        ${excludedAssignments([...compared, ...SEARCH_BINARY_COLUMNS])}
       WHERE (${compared.map((column) => `s.${column}`).join(', ')})
         IS DISTINCT FROM (${compared.map((column) => `EXCLUDED.${column}`).join(', ')})
       RETURNING s.id

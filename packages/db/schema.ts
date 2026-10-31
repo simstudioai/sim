@@ -4454,7 +4454,8 @@ export const embedding = pgTable(
 /**
  * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
  * candidate scans from fetching full-precision TOAST values. Application writers only change
- * `embedding`: its trigger writes this projection in the writer's transaction. A chunk write that
+ * `embedding`: its trigger writes this projection in the writer's transaction, and deletes the row
+ * instead for a chunk of a retired Search knowledge base (`isSearchIndex`). A chunk write that
  * skipped the trigger, as releases that deferred projection did, is written by the knowledge
  * projector after the commit (see {@link knowledgeProjectionDirty}).
  */

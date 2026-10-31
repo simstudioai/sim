@@ -17,8 +17,8 @@ const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './script-migrations/0031_drop_keyword_tin.ts'],
 ]
 
-/** Keep preparation, Drizzle and reconcilers fenced without a session lock or a retained snapshot. */
-async function withRetirementFence(run: (signal: AbortSignal) => Promise<number>): Promise<number> {
+/** Fences preparation, Drizzle and reconcilers from a concurrent migration run. */
+async function withMigrationFence(run: (signal: AbortSignal) => Promise<number>): Promise<number> {
   const rawUrl = process.env.DATABASE_URL
   if (!rawUrl) {
     logger.error('DATABASE_URL is required for schema push')
@@ -42,19 +42,10 @@ async function withRetirementFence(run: (signal: AbortSignal) => Promise<number>
     })
     return (await sql.begin('isolation level read committed read only', async (tx) => {
       // Simple protocol closes SELECT portals so concurrent index builds do not wait on their snapshots.
-      const [locks] = await tx<{ maintenance: boolean; migration: boolean }[]>`
-        SELECT pg_try_advisory_xact_lock(hashtextextended('sim:search-retirement-maintenance', 0)) AS maintenance,
-          pg_try_advisory_xact_lock(4961002270::bigint) AS migration`.simple()
-      if (!locks.maintenance || !locks.migration) {
-        logger.error('Another migration or retirement operation is active; retry schema push later')
-        return 1
-      }
-      const [state] = await tx<{ present: boolean }[]>`
-        SELECT to_regclass('public.search_retirement_state') IS NOT NULL AS present`.simple()
-      if (state.present) {
-        logger.error(
-          'Schema push is disabled after Search retirement starts, including completed retirement. Use reviewed versioned migrations; push reconcilers would restore retired projections'
-        )
+      const [lock] = await tx<{ migration: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(4961002270::bigint) AS migration`.simple()
+      if (!lock.migration) {
+        logger.error('A migration is running; retry schema push later')
         return 1
       }
       return run(abort.signal)
@@ -143,7 +134,7 @@ export async function runPush(args: string[]): Promise<number> {
     }
     return 0
   }
-  return help ? runCommands() : withRetirementFence(runCommands)
+  return help ? runCommands() : withMigrationFence(runCommands)
 }
 
 if (import.meta.main) {
