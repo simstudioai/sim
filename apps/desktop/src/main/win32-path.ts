@@ -38,6 +38,8 @@ export function toWin32SafeFileName(name: string): string {
 const DRIVE_ABSOLUTE = /^[A-Za-z]:[\\/]/
 const HOME_RELATIVE = /^~[\\/]/
 
+const DRIVE_PATH_REQUIRED = 'Use a drive path such as C:\\Users\\name\\file or a ~\\ path.'
+
 /**
  * Resolves a model-supplied Windows path without touching the filesystem.
  *
@@ -47,15 +49,15 @@ const HOME_RELATIVE = /^~[\\/]/
  * path under `~` is accepted, so UNC, `\\?\` and `\\.\` device paths,
  * drive-relative `C:foo`, and rooted `\foo` (relative to the current drive)
  * are all refused. UNC shares are refused outright, even inside a granted
- * share, until grants can be matched lexically. Each segment must also pass
- * {@link isWin32SafeSegment}.
+ * share, until grants can be matched lexically. A drive letter the user
+ * mapped to a share stays allowed: it reaches only the server the user chose,
+ * so a model-supplied path cannot name a new host through it. Each segment
+ * must also pass {@link isWin32SafeSegment}.
  */
 export function resolveWin32NativePath(value: string, home: string): string {
   const homeRelative = value === '~' ? '' : HOME_RELATIVE.test(value) ? value.slice(2) : null
-  if (homeRelative === null && !DRIVE_ABSOLUTE.test(value))
-    throw new Error('Use a drive path such as C:\\Users\\name\\file or a ~\\ path.')
-  if (homeRelative !== null && /^[\\/]/.test(homeRelative))
-    throw new Error('Use a drive path such as C:\\Users\\name\\file or a ~\\ path.')
+  if (homeRelative === null && !DRIVE_ABSOLUTE.test(value)) throw new Error(DRIVE_PATH_REQUIRED)
+  if (homeRelative !== null && /^[\\/]/.test(homeRelative)) throw new Error(DRIVE_PATH_REQUIRED)
   const segments = (homeRelative ?? value.slice(3)).split(/[\\/]/)
   for (const segment of segments) {
     if (segment === '' || segment === '.' || segment === '..') continue
@@ -63,6 +65,6 @@ export function resolveWin32NativePath(value: string, home: string): string {
       throw new Error(`"${segment}" is not a plain Windows file or folder name.`)
   }
   const resolved = homeRelative === null ? win32.resolve(value) : win32.resolve(home, homeRelative)
-  if (!DRIVE_ABSOLUTE.test(resolved)) throw new Error('Use a path on a local drive.')
+  if (!DRIVE_ABSOLUTE.test(resolved)) throw new Error(DRIVE_PATH_REQUIRED)
   return resolved
 }

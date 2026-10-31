@@ -375,6 +375,7 @@ describe('registerIpcHandlers', () => {
     'terminal-themes:list-profiles',
     'computer-use:execute-tool',
     'browser-import:all',
+    'browser-credentials:import',
     'desktop:local-files',
     'browser-credentials:copy',
   ])('registers no handler on Windows for %s, which that shell does not ship', (channel) => {

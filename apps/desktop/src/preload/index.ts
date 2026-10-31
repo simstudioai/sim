@@ -481,11 +481,15 @@ const api: SimDesktopApi = {
             ipcRenderer.invoke('browser-credentials:copy', id),
         }
       : {}),
-    importFromChrome: (
-      profileId?: string,
-      policy?: BrowserCredentialConflictPolicy
-    ): Promise<BrowserPasswordImportResult> =>
-      ipcRenderer.invoke('browser-credentials:import', profileId, policy),
+    ...(features.browserImport
+      ? {
+          importFromChrome: (
+            profileId?: string,
+            policy?: BrowserCredentialConflictPolicy
+          ): Promise<BrowserPasswordImportResult> =>
+            ipcRenderer.invoke('browser-credentials:import', profileId, policy),
+        }
+      : {}),
     showChooser: (anchor: { x: number; y: number }, scopeId: string): Promise<boolean> =>
       ipcRenderer.invoke('browser-credentials:show-chooser', anchor, scopeId),
     listFillOptions: (scopeId: string): Promise<BrowserCredentialMetadata[]> =>

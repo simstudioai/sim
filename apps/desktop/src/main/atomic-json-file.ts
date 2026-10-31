@@ -90,9 +90,23 @@ function temporaryPathFor(filePath: string): string {
 const WINDOWS_TRANSIENT_RENAME_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
 const MAX_RENAME_ATTEMPTS = 5
 
-interface RenameOptions {
+interface RenameOptions<Result> {
   platform?: NodeJS.Platform
-  rename?: (from: string, to: string) => Promise<void>
+  rename?: (from: string, to: string) => Result
+}
+
+function shouldRetryRename(error: unknown, attempt: number, platform: NodeJS.Platform): boolean {
+  const code = (error as NodeJS.ErrnoException).code
+  return (
+    platform === 'win32' &&
+    attempt < MAX_RENAME_ATTEMPTS &&
+    code !== undefined &&
+    WINDOWS_TRANSIENT_RENAME_CODES.has(code)
+  )
+}
+
+function renameRetryDelayMs(attempt: number): number {
+  return backoffWithJitter(attempt, null, { baseMs: 20, maxMs: 200 })
 }
 
 /**
@@ -102,22 +116,35 @@ interface RenameOptions {
 export async function renameReplacing(
   from: string,
   to: string,
-  { platform = process.platform, rename: renameFile = rename }: RenameOptions = {}
+  { platform = process.platform, rename: renameFile = rename }: RenameOptions<Promise<void>> = {}
 ): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     try {
       await renameFile(from, to)
       return
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (
-        platform !== 'win32' ||
-        attempt >= MAX_RENAME_ATTEMPTS ||
-        !code ||
-        !WINDOWS_TRANSIENT_RENAME_CODES.has(code)
-      )
-        throw error
-      await sleep(backoffWithJitter(attempt, null, { baseMs: 20, maxMs: 200 }))
+      if (!shouldRetryRename(error, attempt, platform)) throw error
+      await sleep(renameRetryDelayMs(attempt))
+    }
+  }
+}
+
+/**
+ * {@link renameReplacing} for a caller that cannot await. The waits block the
+ * thread, bounded by the same few short attempts.
+ */
+export function renameReplacingSync(
+  from: string,
+  to: string,
+  { platform = process.platform, rename: renameFile = renameSync }: RenameOptions<void> = {}
+): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      renameFile(from, to)
+      return
+    } catch (error) {
+      if (!shouldRetryRename(error, attempt, platform)) throw error
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, renameRetryDelayMs(attempt))
     }
   }
 }
@@ -153,7 +180,7 @@ export function writeJsonFileAtomicallySync(
   mkdirSync(dirname(filePath), { recursive: true })
   const temporaryPath = temporaryPathFor(filePath)
   writeFileSync(temporaryPath, JSON.stringify(value, null, indent), { mode: FILE_MODE })
-  renameSync(temporaryPath, filePath)
+  renameReplacingSync(temporaryPath, filePath)
 }
 
 /**

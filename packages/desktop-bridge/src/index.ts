@@ -598,8 +598,11 @@ interface SimDesktopBrowserCredentialsApi {
    * copy that clearing the clipboard does not remove.
    */
   copy?(id: string): Promise<boolean>
-  /** Copy saved passwords out of a Chrome profile into the vault. */
-  importFromChrome(
+  /**
+   * Copy saved passwords out of a Chrome profile into the vault. Absent where
+   * browser import is unavailable (Windows).
+   */
+  importFromChrome?(
     profileId?: string,
     policy?: BrowserCredentialConflictPolicy
   ): Promise<BrowserPasswordImportResult>
