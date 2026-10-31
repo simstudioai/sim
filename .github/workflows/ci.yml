@@ -1275,6 +1275,55 @@ jobs:
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+  # Windows desktop builds are signed with Azure Artifact Signing over GitHub
+  # OIDC. Gated like the macOS build: until the Azure identity and signing
+  # variables exist, the Windows build skips with a warning, and nothing is
+  # ever published unsigned. Windows jobs are separate workflow calls that no
+  # other job needs, so a Windows failure never blocks a macOS release; the
+  # update feed treats a release without latest.yml as having no Windows build.
+  desktop-signing-windows:
+    name: desktop-signing-windows
+    runs-on: *runner-2vcpu
+    timeout-minutes: 2
+    needs: [version, desktop-changes]
+    if: ${{ !cancelled() && (needs.version.outputs.is_release == 'true' || needs.desktop-changes.outputs.changed == 'true') }}
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Probe Azure signing configuration
+        id: check
+        env:
+          CONFIGURED: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' && secrets.AZURE_SUBSCRIPTION_ID != '' && vars.AZURE_SIGNING_ENDPOINT != '' && vars.AZURE_SIGNING_ACCOUNT != '' && vars.AZURE_SIGNING_PROFILE != '' && vars.AZURE_SIGNING_PUBLISHER != '' }}
+        run: |
+          echo "configured=${CONFIGURED}" >> "$GITHUB_OUTPUT"
+          if [ "$CONFIGURED" != "true" ]; then
+            echo "::warning::Windows desktop release skipped: Azure signing is not configured (secrets AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID; variables AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE, AZURE_SIGNING_PUBLISHER)."
+          fi
+
+  desktop-release-windows:
+    name: desktop-release-windows
+    needs: [release, desktop-signing-windows, version]
+    # See desktop-release for why the implicit success() check is suppressed.
+    if: >-
+      !cancelled() &&
+      needs.release.result == 'success' &&
+      needs.desktop-signing-windows.result == 'success' &&
+      needs.version.result == 'success' &&
+      needs.desktop-signing-windows.outputs.configured == 'true'
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      publish: true
+      platform: windows
+    secrets:
+      DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
   # Per-env desktop prereleases: a dev/staging push that touches shell code
   # publishes an environment-tagged GitHub prerelease to the public,
   # release-only simstudioai/sim-desktop-releases repository. Keeping these
@@ -1373,6 +1422,31 @@ jobs:
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+  # Attaches the Windows build to the same prerelease, before or after
+  # prerelease-publish: publication waits only for the macOS build.
+  prerelease-build-windows:
+    name: prerelease-build-windows
+    needs: [prerelease-create, desktop-signing-windows]
+    if: >-
+      !cancelled() &&
+      needs.prerelease-create.result == 'success' &&
+      needs.desktop-signing-windows.result == 'success' &&
+      needs.desktop-signing-windows.outputs.configured == 'true'
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: ${{ needs.prerelease-create.outputs.version }}
+      publish: true
+      sign: true
+      platform: windows
+    secrets:
+      DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   # The draft only becomes visible to the update feed once its artifacts are
   # attached — this is what makes a dev/staging push atomic from the shell's

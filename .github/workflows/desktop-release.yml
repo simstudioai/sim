@@ -5,6 +5,10 @@ name: desktop-release
 # releases live in simstudioai/sim-desktop-releases. Ordering is load-bearing:
 # scripts/create-single-release.ts skips creation when the stable tag already
 # exists, so this workflow must never create a release itself.
+#
+# One call builds one platform. Callers run macOS and Windows as separate calls
+# so a Windows failure never holds back the macOS release: the update feed
+# treats a release without latest.yml as having no Windows build.
 
 on:
   workflow_call:
@@ -19,11 +23,16 @@ on:
         type: boolean
         default: true
       sign:
-        description: Sign and notarize with the Apple Developer identity. Unsigned
-          builds are workflow artifacts only and cannot be published.
+        description: Sign (and on macOS notarize) the build. Unsigned builds are
+          workflow artifacts only and cannot be published.
         required: false
         type: boolean
         default: true
+      platform:
+        description: Desktop platform to build (mac or windows)
+        required: false
+        type: string
+        default: mac
     secrets:
       DESKTOP_RELEASE_TOKEN:
         required: false
@@ -39,6 +48,12 @@ on:
         required: false
       APPLE_TEAM_ID:
         required: false
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_SUBSCRIPTION_ID:
+        required: false
   workflow_dispatch:
     inputs:
       version:
@@ -51,10 +66,16 @@ on:
         type: boolean
         default: false
       sign:
-        description: Sign and notarize with the Apple Developer identity
+        description: Sign (and on macOS notarize) the build
         required: false
         type: boolean
         default: true
+      platform:
+        description: Desktop platform to build
+        required: false
+        type: choice
+        options: [mac, windows]
+        default: mac
 
 permissions:
   contents: write
@@ -62,6 +83,7 @@ permissions:
 jobs:
   build:
     name: build
+    if: ${{ inputs.platform != 'windows' }}
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -478,4 +500,364 @@ jobs:
             apps/desktop/release/*.zip
             apps/desktop/release/*.blockmap
             apps/desktop/release/latest-mac.yml
+          retention-days: 7
+
+  # Windows: a per-user NSIS installer for x64, Authenticode-signed through
+  # Azure Artifact Signing. GitHub OIDC logs in to Azure, so no signing secret
+  # is stored here; the signing account and profile come from repository
+  # variables and are passed as -c flags.
+  build-windows:
+    name: build-windows
+    if: ${{ inputs.platform == 'windows' }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
+
+      # Mirrors the macOS job's channel identity. SLUG becomes the package name
+      # (-c.extraMetadata.name): one-click NSIS installs derive their install
+      # directory and updater cache from it, so each channel needs its own.
+      - name: Resolve channel identity
+        id: channel
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$VERSION" in
+            *-dev.*|*-alpha.*)
+              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; SLUG=sim-dev; ORIGIN=https://www.dev.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
+            *-staging.*|*-beta.*)
+              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; SLUG=sim-staging; ORIGIN=https://www.staging.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
+            *)
+              NAME='Sim'; APP_ID=ai.sim.desktop; SLUG=sim; ORIGIN=''; RELEASE_REPOSITORY="$GITHUB_REPOSITORY"; TOKEN_KIND=stable ;;
+          esac
+          {
+            echo "name=$NAME"
+            echo "app_id=$APP_ID"
+            echo "slug=$SLUG"
+            echo "origin=$ORIGIN"
+            echo "release_repository=$RELEASE_REPOSITORY"
+            echo "token_kind=$TOKEN_KIND"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building $NAME ($APP_ID, $SLUG) for $RELEASE_REPOSITORY; default origin: ${ORIGIN:-production}"
+
+      - name: Validate release source
+        env:
+          PUBLISH: ${{ inputs.publish }}
+          SIGN: ${{ inputs.sign }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
+          VERSION: ${{ inputs.version }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Refusing to build: '$VERSION' is not a vX.Y.Z release tag."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$TOKEN_KIND" != stable ]; then
+            echo "::error::Manual desktop releases must use a stable source-repository tag."
+            exit 1
+          fi
+          if [ "$PUBLISH" = true ] && [ "$SIGN" != true ]; then
+            echo "::error::Desktop releases must be signed before publication."
+            exit 1
+          fi
+          if [ "$SIGN" = true ]; then
+            for NAME in AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE AZURE_SIGNING_PUBLISHER; do
+              if [ -z "${!NAME}" ]; then
+                echo "::error::Repository variable $NAME is required to sign the Windows build."
+                exit 1
+              fi
+            done
+          fi
+          if [ "$TOKEN_KIND" = stable ]; then
+            TAG_COMMIT="$(git rev-parse "refs/tags/${VERSION}^{commit}")"
+            HEAD_COMMIT="$(git rev-parse HEAD)"
+            if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+              echo "::error::Requested tag $VERSION points to $TAG_COMMIT, but the checkout is $HEAD_COMMIT."
+              exit 1
+            fi
+          fi
+
+      - name: Validate release authentication
+        if: ${{ inputs.publish }}
+        env:
+          DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
+        run: |
+          if [ "$TOKEN_KIND" = prerelease ] && [ -z "$DESKTOP_RELEASE_TOKEN" ]; then
+            echo "::error::DESKTOP_RELEASE_TOKEN is required to publish prereleases to $RELEASE_REPOSITORY."
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: 22
+
+      - name: Cache Electron binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-cache-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
+
+      - name: Install dependencies
+        env:
+          HUSKY: '0'
+        run: bun install --frozen-lockfile
+
+      - name: Inject release version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          SEMVER="${VERSION#v}"
+          cd apps/desktop
+          bun pm pkg set version="$SEMVER"
+          cd ../..
+          INJECTED="$(node -p "require('./apps/desktop/package.json').version")"
+          if [ "$INJECTED" != "$SEMVER" ]; then
+            echo "Version injection mismatch: wanted $SEMVER got $INJECTED" >&2
+            exit 1
+          fi
+
+      # Lint and type-check are platform-independent and already run in the
+      # macOS job; the unit suite runs here for the Windows code paths.
+      - name: Verify desktop source
+        run: bun run --cwd apps/desktop test
+
+      - name: Bundle main and preload
+        working-directory: apps/desktop
+        env:
+          SIM_DESKTOP_DEFAULT_ORIGIN: ${{ steps.channel.outputs.origin }}
+        run: bun run build
+
+      - name: Log in to Azure
+        if: ${{ inputs.sign }}
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # forceCodeSigning fails the build if any file that should be signed is
+      # not. publisherName also lands in resources/app-update.yml, where the
+      # installed app's updater checks each downloaded installer against it.
+      - name: Package and sign
+        if: ${{ inputs.sign }}
+        working-directory: apps/desktop
+        env:
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          APP_ID: ${{ steps.channel.outputs.app_id }}
+          SLUG: ${{ steps.channel.outputs.slug }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+        run: >
+          bunx electron-builder --win --x64 --publish never
+          -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID" -c.extraMetadata.name="$SLUG"
+          -c.win.azureSignOptions.publisherName="$AZURE_SIGNING_PUBLISHER"
+          -c.win.azureSignOptions.endpoint="$AZURE_SIGNING_ENDPOINT"
+          -c.win.azureSignOptions.codeSigningAccountName="$AZURE_SIGNING_ACCOUNT"
+          -c.win.azureSignOptions.certificateProfileName="$AZURE_SIGNING_PROFILE"
+          -c.forceCodeSigning=true
+
+      - name: Log out of Azure
+        if: ${{ always() && inputs.sign }}
+        run: az logout || true
+
+      # Unsigned artifact-only path for workflow testing; never published.
+      - name: Package unsigned
+        if: ${{ !inputs.sign }}
+        working-directory: apps/desktop
+        env:
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          APP_ID: ${{ steps.channel.outputs.app_id }}
+          SLUG: ${{ steps.channel.outputs.slug }}
+        run: >
+          bunx electron-builder --win --x64 --publish never
+          -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID" -c.extraMetadata.name="$SLUG"
+          -c.win.signExecutable=false
+
+      - name: Validate packaged artifacts
+        env:
+          VERSION: ${{ inputs.version }}
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          SLUG: ${{ steps.channel.outputs.slug }}
+        run: |
+          SEMVER="${VERSION#v}"
+          RELEASE_DIR=apps/desktop/release
+          INSTALLER="$RELEASE_DIR/Sim-${SEMVER}-x64.exe"
+          MANIFEST="$RELEASE_DIR/latest.yml"
+          for ARTIFACT in "$INSTALLER" "$INSTALLER.blockmap" "$MANIFEST" "$RELEASE_DIR/win-unpacked/$PRODUCT_NAME.exe"; do
+            if [ ! -f "$ARTIFACT" ]; then
+              echo "::error::Expected desktop artifact is missing: $ARTIFACT"
+              exit 1
+            fi
+          done
+          if [ "$(find "$RELEASE_DIR" -maxdepth 1 \( -name '*.exe' -o -name '*.blockmap' -o -name '*.yml' \) ! -name builder-debug.yml ! -name builder-effective-config.yaml | wc -l | tr -d ' ')" != 3 ]; then
+            echo "::error::Unexpected package artifacts were produced; refusing a wildcard upload."
+            find "$RELEASE_DIR" -maxdepth 1 -type f -print
+            exit 1
+          fi
+          if ! grep -Fxq "version: $SEMVER" "$MANIFEST"; then
+            echo "::error::Updater manifest version does not match $VERSION."
+            exit 1
+          fi
+          URLS="$(sed -nE 's/^[[:space:]]*(-[[:space:]]*)?url:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\2/p' "$MANIFEST")"
+          if [ "$URLS" != "Sim-${SEMVER}-x64.exe" ]; then
+            echo "::error::Updater manifest contains unexpected artifact URLs."
+            exit 1
+          fi
+          if ! grep -Fxq "path: Sim-${SEMVER}-x64.exe" "$MANIFEST"; then
+            echo "::error::Updater manifest path does not reference the verified installer."
+            exit 1
+          fi
+          DIGEST="$(node -e "process.stdout.write(require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64'))" "$INSTALLER")"
+          if [ "$(grep -c "sha512: ${DIGEST}\$" "$MANIFEST")" -lt 1 ]; then
+            echo "::error::Updater manifest sha512 does not match the installer."
+            exit 1
+          fi
+          # Each channel must keep its own updater cache (see Resolve channel identity).
+          APP_UPDATE="$RELEASE_DIR/win-unpacked/resources/app-update.yml"
+          if ! grep -Fxq "updaterCacheDirName: ${SLUG}-updater" "$APP_UPDATE"; then
+            echo "::error::app-update.yml does not carry the ${SLUG} updater cache."
+            exit 1
+          fi
+
+      # Without publisherName in app-update.yml, electron-updater skips the
+      # signature check on downloaded installers entirely.
+      - name: Validate signatures
+        if: ${{ inputs.sign }}
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $semver = $env:VERSION -replace '^v', ''
+          $files = @(
+            "apps/desktop/release/Sim-$semver-x64.exe",
+            "apps/desktop/release/win-unpacked/$($env:PRODUCT_NAME).exe"
+          )
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -FilePath $file
+            if ($signature.Status -ne 'Valid') {
+              Write-Output "::error::$file is not validly signed: $($signature.Status) $($signature.StatusMessage)"
+              exit 1
+            }
+            $commonName = $signature.SignerCertificate.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false)
+            if ($commonName -ne $env:AZURE_SIGNING_PUBLISHER) {
+              Write-Output "::error::$file is signed by '$commonName', not '$($env:AZURE_SIGNING_PUBLISHER)'."
+              exit 1
+            }
+          }
+          $appUpdate = Get-Content -Raw 'apps/desktop/release/win-unpacked/resources/app-update.yml'
+          $publisherLine = '^\s*-\s*[''"]?' + [regex]::Escape($env:AZURE_SIGNING_PUBLISHER) + '[''"]?\s*$'
+          if ($appUpdate -notmatch '(?m)^publisherName:' -or $appUpdate -notmatch "(?m)$publisherLine") {
+            Write-Output "::error::app-update.yml does not pin the expected publisherName; updates would install unverified."
+            exit 1
+          }
+
+      - name: Run packaged Electron smoke suite
+        working-directory: apps/desktop
+        env:
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+        run: SIM_DESKTOP_EXECUTABLE="release/win-unpacked/$PRODUCT_NAME.exe" bunx playwright test e2e/packaged-smoke.spec.ts
+
+      - name: Upload artifacts to the release
+        if: ${{ inputs.publish }}
+        env:
+          DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
+          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
+          SOURCE_RELEASE_TOKEN: ${{ github.token }}
+          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$TOKEN_KIND" in
+            prerelease) GH_TOKEN="$DESKTOP_RELEASE_TOKEN" ;;
+            stable) GH_TOKEN="$SOURCE_RELEASE_TOKEN" ;;
+            *)
+              echo "::error::Unknown desktop release token kind: $TOKEN_KIND"
+              exit 1 ;;
+          esac
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::No GitHub token is available to publish to $RELEASE_REPOSITORY."
+            exit 1
+          fi
+          export GH_TOKEN
+          if ! RELEASE_ID="$(
+            gh release view "$VERSION" --repo "$RELEASE_REPOSITORY" \
+              --json databaseId --jq '.databaseId'
+          )"; then
+            echo "::error::Release $VERSION does not exist in $RELEASE_REPOSITORY."
+            exit 1
+          fi
+          if ! [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Release $VERSION returned an invalid database ID."
+            exit 1
+          fi
+          RELEASE_JSON="$(gh api "repos/${RELEASE_REPOSITORY}/releases/${RELEASE_ID}")"
+          SEMVER="${VERSION#v}"
+          # latest.yml goes last: the feed only offers a Windows build once its
+          # manifest exists, so it must never point at a missing installer.
+          ARTIFACTS=(
+            "apps/desktop/release/Sim-${SEMVER}-x64.exe"
+            "apps/desktop/release/Sim-${SEMVER}-x64.exe.blockmap"
+            "apps/desktop/release/latest.yml"
+          )
+          upload_or_verify() {
+            local ARTIFACT="$1"
+            local NAME SIZE DIGEST REMOTE REMOTE_SIZE REMOTE_DIGEST
+            NAME="$(basename "$ARTIFACT")"
+            SIZE="$(stat -c%s "$ARTIFACT")"
+            DIGEST="sha256:$(sha256sum "$ARTIFACT" | awk '{print $1}')"
+            REMOTE="$(jq -c --arg name "$NAME" '.assets[] | select(.name == $name)' <<< "$RELEASE_JSON")"
+            if [ -n "$REMOTE" ]; then
+              REMOTE_SIZE="$(jq -r '.size' <<< "$REMOTE")"
+              REMOTE_DIGEST="$(jq -r '.digest // empty' <<< "$REMOTE")"
+              if [ "$REMOTE_SIZE" != "$SIZE" ] || [ "$REMOTE_DIGEST" != "$DIGEST" ]; then
+                echo "::error::Existing release asset $NAME does not match this build."
+                exit 1
+              fi
+              echo "Verified existing release asset $NAME; skipping upload."
+              return
+            fi
+            gh release upload "$VERSION" "$ARTIFACT" --repo "$RELEASE_REPOSITORY"
+          }
+          for ARTIFACT in "${ARTIFACTS[@]:0:2}"; do
+            upload_or_verify "$ARTIFACT"
+          done
+          upload_or_verify "${ARTIFACTS[2]}"
+
+      - name: Upload artifacts to the workflow run
+        if: ${{ !inputs.publish }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sim-desktop-windows-${{ inputs.version }}
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest.yml
           retention-days: 7
