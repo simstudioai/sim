@@ -778,6 +778,14 @@ function fileAddressFilter(workspaceId: string, fileId: string) {
   }
 }
 
+/** Refetches every active read that can have handed out `fileId`'s storage key. */
+function reresolveFileRecord(queryClient: QueryClient, workspaceId: string, fileId: string) {
+  return queryClient.refetchQueries(
+    { ...fileAddressFilter(workspaceId, fileId), type: 'active' },
+    { cancelRefetch: true }
+  )
+}
+
 /**
  * Re-resolve a file's address after a read found its storage key superseded.
  *
@@ -809,13 +817,21 @@ function useStaleKeyRecovery(workspaceId: string, fileId: string): (error: unkno
       //
       // `cancelRefetch` because a re-resolution has to OBSERVE the rotation: a record read already in
       // flight was started before it, so it can only hand back the key we already know is dead.
-      void Promise.resolve().then(() =>
-        queryClient.refetchQueries(
-          { ...fileAddressFilter(workspaceId, fileId), type: 'active' },
-          { cancelRefetch: true }
-        )
-      )
+      void Promise.resolve().then(() => reresolveFileRecord(queryClient, workspaceId, fileId))
     },
+    [queryClient, workspaceId, fileId]
+  )
+}
+
+/**
+ * Re-resolves a file's record for a reader that loads bytes outside react-query — a media element
+ * streaming from the serve URL — the way a content query does on a 404 from a replaced key. Resolves
+ * once the record is current: if it moved, the reader re-renders at the new key's URL.
+ */
+export function useReresolveFileRecord(workspaceId: string, fileId: string): () => Promise<void> {
+  const queryClient = useQueryClient()
+  return useCallback(
+    () => reresolveFileRecord(queryClient, workspaceId, fileId),
     [queryClient, workspaceId, fileId]
   )
 }

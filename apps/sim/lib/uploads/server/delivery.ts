@@ -150,6 +150,15 @@ export function bufferedRepresentationEtag(buffer: Buffer): string {
   return `"${createHash('sha256').update(buffer).digest('base64url')}"`
 }
 
+/**
+ * Strong validator for bytes streamed straight from a stored object. Those bytes are never held, so
+ * they cannot be digested; the validator is derived from what identifies the object instead, and
+ * every part passed must change whenever the bytes do.
+ */
+export function storedObjectEtag(identity: readonly (string | number)[]): string {
+  return `"${createHash('sha256').update(identity.join('\u0000')).digest('base64url')}"`
+}
+
 /** Binary presenters share header assembly without coupling storage mechanics to a route framework. */
 export function presentFileDelivery(input: {
   body: Buffer | ReadableStream<Uint8Array>

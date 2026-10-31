@@ -4,11 +4,13 @@ import {
   isPayloadSizeLimitError,
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { resolveByteRange } from '@/lib/uploads/server/byte-range'
 import {
   bufferedRepresentationEtag,
   FILE_CACHE_CONTROL,
   fileDeliveryHeaders,
 } from '@/lib/uploads/server/delivery'
+import type { ByteRange } from '@/lib/uploads/shared/types'
 import { sanitizeFileKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('FilesUtils')
@@ -216,6 +218,75 @@ export function createConditionalFileResponse(
   const response = createFileResponse(file)
   response.headers.set('ETag', etag)
   return response
+}
+
+/** A file answered straight from its stored object, read only as far as the response needs. */
+interface StoredFileStream {
+  filename: string
+  contentType: string
+  cacheControl: string
+  /** The stored object's exact length, which `Content-Length` and every range are measured against. */
+  size: number
+  /**
+   * Strong validator for the stored bytes. Without one, a revalidation is never answered 304 and
+   * `If-Range` never matches, so a resumed transfer restarts from the first byte.
+   */
+  etag?: string
+  /** Opens the bytes to send: the whole object, or one inclusive span of it. */
+  open(range: ByteRange | undefined): Promise<ReadableStream<Uint8Array>>
+}
+
+/**
+ * Answers a request from a stored object without materializing it: a 304 when the client already
+ * holds these bytes, a 206 for the one byte range it asked for, a 416 for a range past the end, and
+ * otherwise a 200 streaming the whole object.
+ *
+ * Ranges are what let a media element seek, and Safari will not play a video at all from a server
+ * that refuses them. A rejected range is answered before storage is opened, so it costs no read.
+ */
+export async function createStoredFileStreamResponse(
+  file: StoredFileStream,
+  requestHeaders: Headers
+): Promise<NextResponse> {
+  const headers = fileDeliveryHeaders(file)
+  headers.set('Accept-Ranges', 'bytes')
+  if (file.etag) headers.set('ETag', file.etag)
+
+  if (file.etag && ifNoneMatchHolds(requestHeaders.get('if-none-match'), file.etag)) {
+    return new NextResponse(null, { status: 304, headers })
+  }
+
+  const resolution = resolveByteRange({
+    range: requestHeaders.get('range'),
+    ifRange: requestHeaders.get('if-range'),
+    etag: file.etag,
+    size: file.size,
+  })
+
+  if (resolution.kind === 'unsatisfiable') {
+    return NextResponse.json(
+      { error: 'RangeNotSatisfiable', message: 'Requested range is outside the file' },
+      {
+        status: 416,
+        headers: {
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': FILE_CACHE_CONTROL.noStore,
+          'Content-Range': `bytes */${file.size}`,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      }
+    )
+  }
+
+  if (resolution.kind === 'full') {
+    headers.set('Content-Length', String(file.size))
+    return new NextResponse(await file.open(undefined), { status: 200, headers })
+  }
+
+  const { range } = resolution
+  headers.set('Content-Length', String(range.end - range.start + 1))
+  headers.set('Content-Range', `bytes ${range.start}-${range.end}/${file.size}`)
+  return new NextResponse(await file.open(range), { status: 206, headers })
 }
 
 export function createFileErrorResponse(error: Error, status = 500): NextResponse {

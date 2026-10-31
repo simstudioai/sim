@@ -64,6 +64,12 @@ export interface ImageDimensionsSource {
 export interface FileContentSource {
   buildUrl: (key: string, opts?: FileContentUrlOptions) => string
   /**
+   * The URLs {@link buildUrl} returns answer byte-range requests, so a media element can play and
+   * seek a file straight from them while it downloads. Absent where the route sends only whole
+   * bodies, from which a player can stream only start to end — and Safari not at all.
+   */
+  servesByteRanges?: boolean
+  /**
    * Map an embedded image `src` to a display URL scoped to the current context: the in-app source
    * points at the workspace-scoped inline route, the public source at the token-scoped cascade route.
    * Non-workspace srcs (external, `data:`, public assets) pass through unchanged.
@@ -125,6 +131,7 @@ export function createWorkspaceFileContentSource(
       `/api/workspaces/${workspaceId}/files/inline`,
       { entityType: 'workspace', entityId: workspaceId }
     ),
+    servesByteRanges: true,
     ...imageDimensions,
   }
 }
@@ -181,6 +188,7 @@ export function createProjectFileContentSource(
 export const workspaceFileContentSource: FileContentSource = {
   buildUrl: buildServeUrl,
   resolveImageSrc: (src) => src,
+  servesByteRanges: true,
 }
 
 const FileContentSourceContext = createContext<FileContentSource>(workspaceFileContentSource)
