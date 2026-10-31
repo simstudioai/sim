@@ -1309,9 +1309,11 @@ test.describe('browser tools', () => {
   })
   test('local terminal executes through its native PTY and refuses repeated authorization', async () => {
     await window.evaluate(async (scope) => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-      await api.terminal.activateScope(scope)
-      await api.terminal.openTerminal(undefined, scope)
+      const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        .terminal
+      if (!terminal) throw new Error('No agent terminal on this platform')
+      await terminal.activateScope(scope)
+      await terminal.openTerminal(undefined, scope)
     }, SCOPE)
     calls.set('local-cwd', {
       chatId: SCOPE,
@@ -1319,8 +1321,10 @@ test.describe('browser tools', () => {
       args: { operation: 'cwd', args: {} },
     })
     const cwd = await window.evaluate(async (scope) => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-      return api.terminal.executeTool('local-cwd', 'cwd', {}, scope)
+      const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        .terminal
+      if (!terminal) throw new Error('No agent terminal on this platform')
+      return terminal.executeTool('local-cwd', 'cwd', {}, scope)
     }, SCOPE)
     expect(cwd.ok).toBe(true)
     calls.set('local-run', {
@@ -1329,14 +1333,18 @@ test.describe('browser tools', () => {
       args: { operation: 'run', args: { command: "printf 'SIM_NATIVE_TERMINAL_VERIFIED\\n'" } },
     })
     const result = await window.evaluate(async (scope) => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-      return api.terminal.executeTool('local-run', 'run', {}, scope)
+      const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        .terminal
+      if (!terminal) throw new Error('No agent terminal on this platform')
+      return terminal.executeTool('local-run', 'run', {}, scope)
     }, SCOPE)
     expect(result.ok).toBe(true)
     expect(JSON.stringify(result)).toContain('SIM_NATIVE_TERMINAL_VERIFIED')
     const replay = await window.evaluate(async (scope) => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-      return api.terminal.executeTool('local-run', 'run', {}, scope)
+      const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+        .terminal
+      if (!terminal) throw new Error('No agent terminal on this platform')
+      return terminal.executeTool('local-run', 'run', {}, scope)
     }, SCOPE)
     expect(replay.ok).toBe(false)
   })

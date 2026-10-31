@@ -672,10 +672,13 @@ test.describe('desktop tools against a live Sim', () => {
     // stays pending and unclaimed. Whether a handed-over command then runs depends on a terminal
     // being open for the chat, which this test does not set up, so it checks the claim only.
     const response = await page.evaluate(
-      ({ toolCallId, command }) =>
-        (globalThis as DesktopWindow).simDesktop.terminal
+      ({ toolCallId, command }) => {
+        const terminal = (globalThis as DesktopWindow).simDesktop.terminal
+        if (!terminal) throw new Error('No agent terminal on this platform')
+        return terminal
           .executeTool(toolCallId, 'run', { command }, 'unapproved-e2e')
-          .catch((error: unknown) => ({ ok: false, error: String(error) })),
+          .catch((error: unknown) => ({ ok: false, error: String(error) }))
+      },
       { toolCallId: run.toolCallId, command }
     )
     expect(response).toMatchObject({ ok: false })

@@ -167,7 +167,7 @@ npx sim-setup desktop --no-open
 The desktop app is not tied to sim.ai — it bakes in only a default server, and
 every Sim deployment already serves `/api/desktop/update/download` and the
 update feed installed apps poll. Install the signed build, then point it at your
-deployment with **Server…** in the Sim menu. Nothing has to be built or signed by you.
+deployment with **Server…** (in the Sim menu on macOS, the File menu on Windows). Nothing has to be built or signed by you.
 
 ### Add or change capabilities
 

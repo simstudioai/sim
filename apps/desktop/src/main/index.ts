@@ -117,6 +117,7 @@ import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/m
 import { installBrowserUserAgent } from '@/main/user-agent'
 import { createMainWindow, handleSecondInstance, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
+import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopMain')
 
@@ -184,7 +185,8 @@ function main(): void {
   const computerStopShortcut = 'CommandOrControl+Shift+Escape'
   const computerUse = new ComputerUseService({
     config,
-    supported: process.platform === 'darwin' && Number.parseInt(release(), 10) >= 23,
+    supported:
+      desktopFeatures(process.platform).computerUse && Number.parseInt(release(), 10) >= 23,
     native: computerNative,
     openPermissionSettings: (permission) =>
       shell.openExternal(

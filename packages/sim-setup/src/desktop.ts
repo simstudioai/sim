@@ -24,8 +24,8 @@ const DESKTOP_PLATFORMS = {
   windows: {
     downloadPath: '/api/desktop/update/download?platform=windows',
     feedPath: '/api/desktop/update/latest.yml',
-    serverCommand: 'Server…',
-    serverCommandWhere: 'from the Sim menu',
+    serverCommand: 'File → Server…',
+    serverCommandWhere: 'in the menu bar (press Alt to show it)',
   },
 } as const
 
