@@ -93,21 +93,29 @@ async function detachClientRunAfterWait(params: {
     if (row.status !== ASYNC_TOOL_STATUS.running) return
     const executionId = getClaimedWorkflowExecutionId(row.claimedBy)
     if (!executionId || row.clientWorkflowExecutionId !== executionId) continue
-    // The claim precedes the run's log; answer running only once the run is readable by its id.
+    // The claim precedes the run's log: answer running only once the run is readable by its id
+    // and still going. A run that already ended is reported by its own settlement.
     const logged = await getWorkflowExecutionLogStatus(executionId, workflowId).catch(
       () => undefined
     )
-    if (!logged) continue
+    if (logged !== 'running') continue
     const status = ASYNC_TOOL_CONFIRMATION_STATUS.background
-    await settleClientToolCall({
+    const settled = await settleClientToolCall({
       toolCallId,
       status,
       message: getWorkflowToolCompletionMessage(status),
       data: createStructuralWorkflowToolCompletionData(status, workflowId, executionId),
       executionId,
       guard: { kind: 'open' },
+    }).catch((error) => {
+      logger.warn('Could not settle a lapsed browser workflow wait as running; retrying', {
+        toolCallId,
+        error: toError(error).message,
+      })
+      return undefined
     })
-    return
+    // A write that failed is retried on the next poll; one another transition beat ends the watch.
+    if (settled !== undefined) return
   }
 }
 
