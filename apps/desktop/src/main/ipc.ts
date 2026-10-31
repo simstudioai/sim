@@ -1320,6 +1320,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: ([action]) => {
         if (!isRecordLike(action)) return false
         if (action.action === 'navigate') return true
+        if (action.action === 'respond-prompt') {
+          return isRecordLike(action.response) && action.response.allowed === true
+        }
         return action.action === 'respond-media-permission' && action.allowed === true
       },
       handler: (sender, action, rawScope) => {

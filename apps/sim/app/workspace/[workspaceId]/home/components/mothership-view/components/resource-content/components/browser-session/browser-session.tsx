@@ -4,6 +4,7 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState }
 import type {
   BrowserMediaPermissionRequest,
   BrowserOmniboxFocusMode,
+  BrowserPagePromptResponse,
   BrowserPanelAnchor,
   BrowserPanelBounds,
   BrowserPanelSnapshot,
@@ -75,6 +76,10 @@ import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mo
 import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
 import { BrowserPageDialogModal } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-dialog'
 import { BrowserPageIssueView } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-issue'
+import {
+  BrowserAppLaunchNoticeBar,
+  BrowserPagePromptModal,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-prompt'
 import {
   type BrowserPanelOverlay,
   type BrowserPanelOverlayController,
@@ -453,6 +458,7 @@ export function BrowserSession({
   const mediaPermissionRequest = pageState?.mediaPermissionRequest
   const sitePermissionRequest = pageState?.sitePermissionRequest
   const permissionRequest = sitePermissionRequest ?? mediaPermissionRequest
+  const pagePrompt = pageState?.prompt
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   // Lets the occlusion handshake reject a capture taken before a modal's
@@ -538,12 +544,14 @@ export function BrowserSession({
     )
   }, [permissionRequest, respondToPermission, visible])
 
-  // The shell answers page dialogs itself until this renderer declares it shows them.
+  // The shell answers page dialogs and refuses page prompts until this renderer declares it shows them.
   useEffect(() => {
-    sendBrowserPanelAction('enable-page-dialogs', {}, scopeId)
+    sendBrowserPanelAction('enable-page-dialogs', { pagePrompts: true }, scopeId)
   }, [scopeId])
   const answerPageDialog = (requestId: string, accept: boolean) =>
     sendBrowserPanelAction('respond-dialog', { requestId, allowed: accept }, scopeId)
+  const respondToPagePrompt = (requestId: string, response: BrowserPagePromptResponse) =>
+    sendBrowserPanelAction('respond-prompt', { requestId, response }, scopeId)
 
   const permissionModalOpen = shouldShowBrowserPermissionRequest(
     permissionRequest?.requestId,
@@ -971,7 +979,7 @@ export function BrowserSession({
   // Keep the page's exact captured frame underneath it while it is open so
   // pointer events reach the Sim popover instead of the WebContentsView.
   useEffect(() => {
-    if (mediaPermissionRequest || sitePermissionRequest) {
+    if (mediaPermissionRequest || sitePermissionRequest || pagePrompt) {
       void closeOverlay('suggestions')
       return
     }
@@ -988,6 +996,7 @@ export function BrowserSession({
     closeOverlay,
     hasRendererPage,
     mediaPermissionRequest,
+    pagePrompt,
     requestOverlay,
     sitePermissionRequest,
     suggestions.length,
@@ -1350,6 +1359,13 @@ export function BrowserSession({
           <BrowserThemeNotice key={themeNoticeVersion} scopeId={scopeId} />
         )}
         <BrowserContinueSignInNotice controller={continueSignIn} />
+        {pageState?.appLaunchNotice && (
+          <BrowserAppLaunchNoticeBar
+            key={pageState.appLaunchNotice.requestId}
+            notice={pageState.appLaunchNotice}
+            onRespond={respondToPagePrompt}
+          />
+        )}
         <BrowserLoadingBar loading={Boolean(pageState?.loading)} />
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
@@ -1404,6 +1420,11 @@ export function BrowserSession({
         dialog={pageState?.dialog}
         open={visible && !permissionModalOpen}
         onAnswer={answerPageDialog}
+      />
+      <BrowserPagePromptModal
+        prompt={pagePrompt}
+        open={visible && !permissionModalOpen && !pageState?.dialog}
+        onRespond={respondToPagePrompt}
       />
     </div>
   )

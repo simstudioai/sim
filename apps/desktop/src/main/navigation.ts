@@ -267,11 +267,111 @@ export function isSafeExternalUrl(raw: string, allowHttpLocalhost = false): bool
 }
 
 /**
- * Opens a URL in the system browser, or a `mailto:` in the system mail client, after validation.
- * Every openExternal in the app goes through here — menu items, IPC, and navigation policy.
+ * Schemes that reach local files, network shares, script, browser internals,
+ * or Windows/macOS handlers with a record of remote-code abuse. A browser page
+ * never opens them, even with a registered handler and the user's click.
  */
-export async function openExternalSafe(raw: string, allowHttpLocalhost = false): Promise<boolean> {
-  if (!isSafeExternalUrl(raw, allowHttpLocalhost) && !isSafeMailtoUrl(raw)) {
+const DENIED_APP_LINK_SCHEMES: ReadonlySet<string> = new Set([
+  'about',
+  'afp',
+  'applescript',
+  'blob',
+  'chrome',
+  'chrome-extension',
+  'chrome-untrusted',
+  'data',
+  'dav',
+  'devtools',
+  'disk',
+  'disks',
+  'file',
+  'filesystem',
+  'ftp',
+  'hcp',
+  'help',
+  'ie.http',
+  'its',
+  'jar',
+  'javascript',
+  'jnlp',
+  'localfs',
+  'mk',
+  'ms-appinstaller',
+  'ms-excel',
+  'ms-help',
+  'ms-its',
+  'ms-msdt',
+  'ms-officecmd',
+  'ms-powerpoint',
+  'ms-settings',
+  'ms-word',
+  'nfs',
+  'nntp',
+  'res',
+  'search',
+  'search-ms',
+  'shell',
+  'sim-shell',
+  'smb',
+  'vbscript',
+  'view-source',
+  'vnd.ms.radio',
+  'webdav',
+  'x-man-page',
+])
+const DENIED_APP_LINK_SCHEME_PREFIXES = ['ms-cxh', 'local+'] as const
+const MAX_APP_LINK_LENGTH = 2_048
+/** C0 controls, space, DEL, and C1 controls: never valid in a URL handed to the OS. */
+const URL_CONTROL_CHARACTERS = /[\u0000-\u0020\u007f-\u009f]/
+
+function isDeniedAppLinkScheme(scheme: string): boolean {
+  return (
+    scheme.length < 2 ||
+    scheme === 'http' ||
+    scheme === 'https' ||
+    DENIED_APP_LINK_SCHEMES.has(scheme) ||
+    DENIED_APP_LINK_SCHEME_PREFIXES.some((prefix) => scheme.startsWith(prefix))
+  )
+}
+
+/**
+ * The link to another app a browser page may hand the OS, rebuilt by the URL
+ * parser, or null when the scheme is denied or the URL is malformed, oversized,
+ * carries credentials or control characters, or is an unsafe mail link.
+ */
+export function appLinkTarget(raw: unknown): { url: string; scheme: string } | null {
+  if (typeof raw !== 'string' || raw.length > MAX_APP_LINK_LENGTH) return null
+  if (URL_CONTROL_CHARACTERS.test(raw)) return null
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return null
+  }
+  const scheme = url.protocol.slice(0, -1).toLowerCase()
+  if (!/^[a-z][a-z0-9+.-]*$/.test(scheme) || isDeniedAppLinkScheme(scheme)) return null
+  if (url.username || url.password) return null
+  if (scheme === 'mailto' && !isSafeMailtoUrl(raw)) return null
+  const rebuilt = url.href
+  if (rebuilt.length > MAX_APP_LINK_LENGTH || URL_CONTROL_CHARACTERS.test(rebuilt)) return null
+  return { url: rebuilt, scheme }
+}
+
+/**
+ * Opens a URL in the system browser, a `mailto:` in the system mail client, or, with
+ * `appLink`, a validated link to another app, after validation. Every openExternal in the
+ * app goes through here — menu items, IPC, navigation policy, and browser-tab app links.
+ */
+export async function openExternalSafe(
+  raw: string,
+  allowHttpLocalhost = false,
+  { appLink = false }: { appLink?: boolean } = {}
+): Promise<boolean> {
+  if (
+    !isSafeExternalUrl(raw, allowHttpLocalhost) &&
+    !isSafeMailtoUrl(raw) &&
+    !(appLink && appLinkTarget(raw)?.url === raw)
+  ) {
     logger.warn('Blocked unsafe external URL', { url: scrubUrl(raw) })
     return false
   }

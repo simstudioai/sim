@@ -12,6 +12,7 @@ vi.mock('node:dns/promises', () => ({
 }))
 
 import {
+  app,
   BrowserWindow,
   dialog,
   session as electronSession,
@@ -19,6 +20,7 @@ import {
   shell,
   WebContentsView,
 } from 'electron'
+import { appLaunchNoticeForContents } from '@/main/browser-agent/page-prompts'
 import * as panel from '@/main/browser-agent/panel'
 import { agentAppOrigin, routeAgentNavigation } from '@/main/browser-agent/registry'
 import * as sessionModule from '@/main/browser-agent/session'
@@ -1257,6 +1259,11 @@ describe('browser-agent session', () => {
     contents.loadURL.mockClear()
     expect(openHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
     expect(contents.loadURL).not.toHaveBeenCalled()
+    // window.open names no initiating frame, so an app link from it is never offered either.
+    session.enablePagePrompts()
+    app.getApplicationNameForProtocol = vi.fn(() => 'Zoom')
+    expect(openHandler({ url: 'zoommtg://zoom.us/join' })).toEqual({ action: 'deny' })
+    expect(appLaunchNoticeForContents(contents as unknown as WebContents)).toBeUndefined()
   })
 
   it('opens a background-disposition popup by URL and keeps cross-scheme popups denied', () => {
@@ -1566,9 +1573,11 @@ describe('browser-agent session', () => {
   it('leaves nothing of the signed-out user behind in the browser profile', async () => {
     const clearStorageData = vi.fn(async () => {})
     const clearCache = vi.fn(async () => {})
+    const clearAuthCache = vi.fn(async () => {})
     vi.mocked(electronSession.fromPartition).mockReturnValue({
       clearStorageData,
       clearCache,
+      clearAuthCache,
     } as unknown as ReturnType<typeof electronSession.fromPartition>)
     const { persistence, snapshots } = memoryBrowserPersistence()
     session = freshSession(win, {}, persistence)
@@ -1587,6 +1596,8 @@ describe('browser-agent session', () => {
     expect(snapshots.get('chat-test')).toMatchObject({ tabs: [], activeIndex: -1 })
     expect(clearStorageData).toHaveBeenCalled()
     expect(clearCache).toHaveBeenCalled()
+    // Chromium keeps typed HTTP sign-in credentials outside storage and cache.
+    expect(clearAuthCache).toHaveBeenCalled()
   })
 
   it('hides the panel when the renderer stops renewing its bounds lease', async () => {
