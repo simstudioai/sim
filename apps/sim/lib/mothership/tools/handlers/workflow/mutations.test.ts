@@ -15,7 +15,12 @@ const { mocks } = vi.hoisted(() => ({
     executeWorkflowUseCase: vi.fn(),
     hasExecutionResult: vi.fn(),
     readAttemptedExecutionId: vi.fn(),
+    logStatus: vi.fn(),
   },
+}))
+
+vi.mock('@/lib/workflows/executor/execution-state', () => ({
+  getWorkflowExecutionLogStatus: mocks.logStatus,
 }))
 
 vi.mock('@/lib/mothership/application/execute-workflow-use-case', () => ({
@@ -445,12 +450,9 @@ describe('a workflow tool run past its wait', () => {
     const started = new Promise((resolve) => {
       settle = resolve
     })
-    mocks.executeWorkflowUseCase.mockImplementationOnce(
-      (_context: unknown, _useCase: unknown, input: { lifecycle: { onDispatch?: () => void } }) => {
-        if (dispatch) input.lifecycle.onDispatch?.()
-        return started
-      }
-    )
+    mocks.executeWorkflowUseCase.mockReturnValueOnce(started)
+    // The run's log exists once it started; a run still in preflight has none.
+    mocks.logStatus.mockResolvedValue(dispatch ? 'running' : undefined)
     return {
       settle,
       lifecycle: () =>
@@ -493,7 +495,7 @@ describe('a workflow tool run past its wait', () => {
     await expect(held[0]).resolves.toMatchObject({ success: true })
   })
 
-  it('answers a run still in preflight past its wait with how it settles', async () => {
+  it('waits on a run past its wait until its log exists, answering one that never starts with how it settles', async () => {
     const run = pendingRun(false)
     let answered = false
     const answer = executeRunWorkflow(
@@ -507,6 +509,25 @@ describe('a workflow tool run past its wait', () => {
     expect(answered).toBe(false)
     run.settle({ success: false, error: 'Workflow not found', logs: [] })
     await expect(answer).resolves.toMatchObject({ success: false })
+  })
+
+  it('answers a run still starting up running once its log exists', async () => {
+    const run = pendingRun()
+    mocks.logStatus.mockReset().mockResolvedValueOnce(undefined).mockResolvedValue('running')
+    let answered = false
+    const answer = executeRunWorkflow(
+      { workflowId: 'workflow-1' },
+      { ...context, workflowRunWaitMs: 1_000 }
+    ).then((result) => {
+      answered = true
+      return result
+    })
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(answered).toBe(false)
+    await vi.advanceTimersByTimeAsync(1_000)
+    await expect(answer).resolves.toMatchObject({ output: { status: 'running' } })
+    expect(mocks.logStatus).toHaveBeenCalledWith(run.lifecycle().executionId, 'workflow-1')
+    run.settle({ success: true, output: {}, logs: [] })
   })
 
   it('answers with the result when the run settles within its wait', async () => {

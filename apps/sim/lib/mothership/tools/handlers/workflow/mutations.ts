@@ -39,6 +39,7 @@ import {
   runWorkflowFromCopilot,
   runWorkflowUntilBlockFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
+import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -257,6 +258,9 @@ function copilotRunLifecycle(context: ExecutionContext) {
   }
 }
 
+/** How often a run past its wait is re-read for its log before it is answered running. */
+const RUN_LOG_POLL_MS = 1000
+
 /**
  * Runs a workflow tool's run and answers with its result. When the call names a wait the run
  * outlasts (`workflowRunWaitMs`), it answers the run still running by the execution id it gave
@@ -272,20 +276,18 @@ async function answerWithinWait(
   const waitMs = context.workflowRunWaitMs
   if (waitMs === undefined) return run(lifecycle)
   const executionId = lifecycle.boundExecution?.executionId ?? generateId()
-  let markDispatched: () => void = () => {}
-  const dispatched = new Promise<null>((resolve) => {
-    markDispatched = () => resolve(null)
-  })
-  const settled = run({ ...lifecycle, executionId, onDispatch: () => markDispatched() })
+  const settled = run({ ...lifecycle, executionId })
   retainSandboxExecution(settled)
   const stopWaiting = new AbortController()
-  const waited = interruptibleSleep(waitMs, stopWaiting.signal).then(() => null)
+  const waited = (ms: number) => interruptibleSleep(ms, stopWaiting.signal).then(() => null)
   try {
-    const result = await Promise.race([settled, waited])
+    let result = await Promise.race([settled, waited(waitMs)])
+    // Answered running only once the run is readable by its id; one still starting up (or in
+    // preflight) is waited on until its log exists or it settles.
+    while (!result && !(await getWorkflowExecutionLogStatus(executionId, workflowId))) {
+      result = await Promise.race([settled, waited(RUN_LOG_POLL_MS)])
+    }
     if (result) return result
-    // Only a run handed to the executor is answered running; one still in preflight settles first.
-    const started = await Promise.race([settled, dispatched])
-    if (started) return started
   } finally {
     stopWaiting.abort()
   }
