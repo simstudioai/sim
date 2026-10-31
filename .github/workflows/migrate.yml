@@ -18,6 +18,10 @@ on:
         required: false
       STAGING_MIGRATION_DATABASE_URL:
         required: false
+      TS_OAUTH_CLIENT_ID:
+        required: false
+      TS_AUDIENCE:
+        required: false
   workflow_dispatch:
     inputs:
       environment:
@@ -46,6 +50,10 @@ jobs:
     concurrency:
       group: migrate-${{ inputs.environment }}
       cancel-in-progress: false
+    permissions:
+      contents: read
+      # Tailscale workload identity federation exchanges this job's OIDC token.
+      id-token: write
 
     steps:
       # An environment only migrates from its own branch, so a manual dispatch
@@ -72,6 +80,18 @@ jobs:
             echo "::error::Refusing to migrate ${ENVIRONMENT} from ${REF}; ${ENVIRONMENT} migrates only from ${expected}"
             exit 1
           fi
+
+      # Database IP restrictions admit the tailnet's app connector, never a
+      # runner's address. Linux nodes only use app connector routes with
+      # --accept-routes.
+      - name: Join the tailnet
+        if: vars.CI_DB_TAILNET == 'true'
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          args: --accept-routes
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
