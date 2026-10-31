@@ -1,3 +1,4 @@
+import { defineOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 
 const policy = { minimumRole: 'member', principalKinds: ['session'] } as const
@@ -32,6 +33,13 @@ export const simLinkOperations = {
   resolve: defineOrganizationOperation({
     id: 'organization.sim_links.resolve',
     ...policy,
+    capability: 'none',
+  }),
+  /** Not organization-scoped: it serves whichever organization `sim/` opens in for the session. */
+  // permission-group-exempt: Sim links are organization-wide shortcuts, not a governed capability.
+  suggest: defineOperation({
+    id: 'sim_links.suggest',
+    principalKinds: ['session'],
     capability: 'none',
   }),
 } as const

@@ -1,7 +1,8 @@
 import { cache } from 'react'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
-import { asc, count, eq } from 'drizzle-orm'
+import { member, organization, session } from '@sim/db/schema'
+import { and, asc, count, eq } from 'drizzle-orm'
 import {
   getOrganizationSettingsFeatures,
   type OrganizationSettingsFeatures,
@@ -171,4 +172,20 @@ export async function resolveOrganizationLanding(
     activeOrganizationId !== null &&
     memberships.some((row) => row.organizationId === activeOrganizationId)
   return isActiveMember ? activeOrganizationId : memberships[0].organizationId
+}
+
+/**
+ * {@link resolveOrganizationLanding} for a session known only by its principal, reading the
+ * active organization stored on the session, so an API call lands where a page load would.
+ */
+export async function resolveSessionOrganizationLanding({
+  userId,
+  sessionId,
+}: SessionPrincipal): Promise<string | null> {
+  const [row] = await db
+    .select({ activeOrganizationId: session.activeOrganizationId })
+    .from(session)
+    .where(and(eq(session.id, sessionId), eq(session.userId, userId)))
+    .limit(1)
+  return resolveOrganizationLanding(userId, row?.activeOrganizationId ?? null)
 }

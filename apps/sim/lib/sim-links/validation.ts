@@ -19,15 +19,38 @@ export function normalizeSimLinkName(name: string): string {
   return name.toLowerCase().replace(NAME_PUNCTUATION, '')
 }
 
+/** Text as typed after `sim/`, whether or not the prefix itself was typed too. */
+export function stripSimLinkPrefix(input: string): string {
+  return input.replace(/^sim\//i, '')
+}
+
 /**
  * Shapes typed or pasted text into a name as it is entered: a leading `sim/` is dropped, spaces
  * and slashes become hyphens, and any other character a name can't hold is removed.
  */
 export function toSimLinkName(input: string): string {
-  return input
-    .replace(/^sim\//i, '')
+  return stripSimLinkPrefix(input)
     .replace(/[\s/]+/g, '-')
     .replace(NAME_DISALLOWED, '')
+}
+
+/** Sentence punctuation and closing quotes or brackets that follow a link pasted from prose. */
+const PASTED_TRAILING_PUNCTUATION = /[.,;:!?'"’”)\]}>]+$/
+
+/**
+ * `sim/<name>/<values…>` split into the name and its values. A name typed alone loses the
+ * punctuation it picked up from the sentence it was copied out of, so `sim/onboarding).` opens
+ * `sim/onboarding`: none of these characters can end a distinct name, since `.` and `:` are
+ * ignored when matching and the rest are not allowed. Values are kept verbatim, and a name that
+ * is only punctuation stays as typed, so it still fails validation.
+ */
+export function parseTypedSimLink(segments: readonly string[]): {
+  name: string
+  values: string[]
+} {
+  const [name = '', ...values] = segments
+  if (values.length) return { name, values }
+  return { name: name.replace(PASTED_TRAILING_PUNCTUATION, '') || name, values }
 }
 
 export function isVariableSimLinkUrl(url: string): boolean {

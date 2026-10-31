@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { simLink, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, desc, eq, gt, ilike, lt, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, ilike, like, lt, or, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   normalizeSimLinkName,
@@ -132,6 +132,30 @@ export async function getSimLink(
     .where(and(eq(simLink.organizationId, organizationId), eq(simLink.id, id)))
     .limit(1)
   return row ? toRecord(row) : null
+}
+
+const SUGGESTION_LIMIT = 6
+
+/**
+ * Listed links whose name starts with `namePrefix` (normalized), most visited first; the most
+ * visited overall when it is empty. Unlisted links never appear: suggesting is browsing.
+ */
+export async function suggestSimLinks(
+  organizationId: string,
+  namePrefix: string
+): Promise<{ name: string; description: string | null; url: string }[]> {
+  return db
+    .select({ name: simLink.name, description: simLink.description, url: simLink.url })
+    .from(simLink)
+    .where(
+      and(
+        eq(simLink.organizationId, organizationId),
+        eq(simLink.unlisted, false),
+        namePrefix ? like(simLink.normalizedName, `${escapeLikePattern(namePrefix)}%`) : undefined
+      )
+    )
+    .orderBy(desc(simLink.visitCount), asc(simLink.normalizedName))
+    .limit(SUGGESTION_LIMIT)
 }
 
 /** The destination a typed name leads to, matched case- and punctuation-insensitively. */
