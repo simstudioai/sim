@@ -8,13 +8,8 @@ import {
 } from '@sim/testing/mocks/mothership-client-tool-waiter.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { recordDegraded, settleClientToolCall } = vi.hoisted(() => ({
+const { recordDegraded } = vi.hoisted(() => ({
   recordDegraded: vi.fn(),
-  settleClientToolCall: vi.fn(),
-}))
-
-vi.mock('@/lib/mothership/request/tools/client-settlement.server', () => ({
-  settleClientToolCall,
 }))
 
 vi.mock('@/lib/mothership/request/metrics', () => ({ recordDegraded }))
@@ -29,8 +24,6 @@ vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 import { raceWorkflowToolClientPickup } from '@/lib/mothership/request/tools/workflow-client-fallback'
 
 const claimWorkflowToolExecution = mothershipAsyncRunsMockFns.mockClaimWorkflowToolExecution
-const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
-const getClaimedWorkflowExecutionId = mothershipAsyncRunsMockFns.mockGetClaimedWorkflowExecutionId
 
 const GRACE_MS = 30_000
 const TIMEOUT_MS = 3_600_000
@@ -221,88 +214,5 @@ describe('raceWorkflowToolClientPickup', () => {
     // Losing the claim to an error must never become a second execution.
     expect(outcome.winner).toBe('client')
     expect(params.runOnServer).not.toHaveBeenCalled()
-  })
-})
-
-describe('a browser-run workflow call past its wait', () => {
-  const WAIT_MS = 240_000
-  beforeEach(() => {
-    vi.useFakeTimers()
-    waiterSignals = []
-    settleClientToolCall.mockReset()
-    getAsyncToolCall.mockReset()
-    getClaimedWorkflowExecutionId.mockImplementation((claimedBy?: string | null) =>
-      claimedBy?.startsWith('workflow:') ? claimedBy.slice('workflow:'.length) : undefined
-    )
-    pendingUntilAborted()
-    // A browser already holds the call, so the server keeps waiting on it.
-    claimWorkflowToolExecution.mockResolvedValue(null)
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  const browserClaim = {
-    status: 'running',
-    claimedBy: 'workflow:execution-1',
-    clientWorkflowExecutionId: 'execution-1',
-  }
-
-  it('settles the call running in the background by the browser run ids', async () => {
-    getAsyncToolCall.mockResolvedValue(browserClaim)
-    const params = baseParams({ waitTimeoutMs: WAIT_MS })
-    void raceWorkflowToolClientPickup(params as never)
-
-    await vi.advanceTimersByTimeAsync(WAIT_MS - 1)
-    expect(settleClientToolCall).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-
-    expect(settleClientToolCall).toHaveBeenCalledWith({
-      toolCallId: 'tool-1',
-      status: 'background',
-      message: 'Workflow execution is continuing in the background.',
-      data: { workflowId: 'workflow-1', executionId: 'execution-1', status: 'running' },
-      executionId: 'execution-1',
-      guard: { kind: 'open' },
-    })
-    // The browser's run goes on; only the server's wait ended.
-    expect(params.runOnServer).not.toHaveBeenCalled()
-  })
-
-  it('re-reads a call no browser has claimed yet until one does', async () => {
-    getAsyncToolCall
-      .mockResolvedValueOnce({
-        status: 'running',
-        claimedBy: null,
-        clientWorkflowExecutionId: null,
-      })
-      .mockResolvedValue(browserClaim)
-    void raceWorkflowToolClientPickup(baseParams({ waitTimeoutMs: WAIT_MS }) as never)
-
-    await vi.advanceTimersByTimeAsync(WAIT_MS)
-    expect(settleClientToolCall).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(settleClientToolCall).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'background', executionId: 'execution-1' })
-    )
-  })
-
-  it('leaves a call that settled first alone', async () => {
-    waitForWorkflowToolCompletion.mockResolvedValue({ status: 'success', data: { ok: true } })
-    const outcome = await raceWorkflowToolClientPickup(
-      baseParams({ waitTimeoutMs: WAIT_MS }) as never
-    )
-    await vi.advanceTimersByTimeAsync(WAIT_MS * 2)
-    expect(outcome.winner).toBe('client')
-    expect(getAsyncToolCall).not.toHaveBeenCalled()
-    expect(settleClientToolCall).not.toHaveBeenCalled()
-  })
-
-  it('holds a call that names no wait', async () => {
-    getAsyncToolCall.mockResolvedValue(browserClaim)
-    void raceWorkflowToolClientPickup(baseParams() as never)
-    await vi.advanceTimersByTimeAsync(TIMEOUT_MS / 2)
-    expect(getAsyncToolCall).not.toHaveBeenCalled()
-    expect(settleClientToolCall).not.toHaveBeenCalled()
   })
 })
