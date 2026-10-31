@@ -303,6 +303,13 @@ export class TerminalService {
     this.cwdTimer = null
   }
 
+  /** The command line holding each busy terminal's foreground, `''` when unannounced. */
+  runningCommands(): string[] {
+    return [...this.sessions.values()].flatMap((session) =>
+      session.isBusy ? [session.foreground ?? ''] : []
+    )
+  }
+
   getTabs(): TerminalTabsState {
     if (this.sessions.size === 0) return EMPTY_TABS
     return {

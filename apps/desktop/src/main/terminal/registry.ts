@@ -375,6 +375,11 @@ export class TerminalRegistry {
     return true
   }
 
+  /** The command line holding each busy terminal's foreground, across every chat. */
+  runningCommands(): string[] {
+    return [...this.entries.values()].flatMap((entry) => entry.service.runningCommands())
+  }
+
   /**
    * Stops every command the agent started in any chat's terminals; the user's own are untouched.
    * That includes tmux runs no live terminal holds any more: a chat put away, or a previous

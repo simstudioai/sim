@@ -238,8 +238,8 @@ const api: SimDesktopApi = {
     check: (): void => {
       ipcRenderer.send('desktop:updates:check')
     },
-    install: (): void => {
-      ipcRenderer.send('desktop:updates:install')
+    install: (options?: { mandatory?: boolean }): void => {
+      ipcRenderer.send('desktop:updates:install', { mandatory: options?.mandatory === true })
     },
     onState: (callback: (state: DesktopUpdateState) => void): (() => void) => {
       const listener = (_event: unknown, state: DesktopUpdateState) => callback(state)

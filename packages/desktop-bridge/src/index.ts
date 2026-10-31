@@ -1100,8 +1100,12 @@ interface SimDesktopUpdatesApi {
    * self-update, or opens an available manual installer.
    */
   check(): void
-  /** Installs a ready update or opens the installer for an available manual update. */
-  install(): void
+  /**
+   * Installs a ready update or opens the installer for an available manual
+   * update. A `mandatory` install never offers to wait, even for running work.
+   * Shells that predate the option ignore it.
+   */
+  install(options?: { mandatory?: boolean }): void
   /** Subscribe to pipeline state changes. Returns an unsubscribe function. */
   onState(callback: (state: DesktopUpdateState) => void): () => void
 }

@@ -10,7 +10,7 @@ import { build } from 'esbuild'
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 
-test('the real MacUpdater waits for native staging, replaces old builds, and retries failed staging', async () => {
+test('the real MacUpdater waits for native staging, replaces old builds, retries failed staging, and restarts on one click', async () => {
   test.skip(process.platform !== 'darwin', 'Squirrel.Mac lifecycle')
   const directory = mkdtempSync(join(tmpdir(), 'sim-updater-e2e-'))
   const reportPath =
@@ -40,6 +40,7 @@ test('the real MacUpdater waits for native staging, replaces old builds, and ret
     }
   }
   let snapshot: unknown
+  let completed = false
   const server = createServer((request, response) => {
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
     requests.push({ path, status: 200 })
@@ -72,15 +73,18 @@ test('the real MacUpdater waits for native staging, replaces old builds, and ret
       tsconfig: join(DESKTOP_DIR, 'tsconfig.json'),
       plugins: [
         {
-          name: 'approve-fixture-restart',
+          name: 'record-fixture-dialogs',
           setup(builder) {
             builder.onResolve({ filter: /^@\/main\/dialogs$/ }, () => ({
               path: 'dialog',
               namespace: 'fixture',
             }))
             builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
-              contents:
-                'export async function showShellDialog() { return { response: 1, checkboxChecked: false } }',
+              contents: `export async function showShellDialog(...args) {
+                const { title, message, buttons, defaultId, cancelId } = args.at(-1)
+                globalThis.updaterFixtureDialogs.push({ title, message, buttons, defaultId, cancelId })
+                return { response: globalThis.updaterFixtureDialogResponse, checkboxChecked: false }
+              }`,
             }))
           },
         },
@@ -129,7 +133,7 @@ test('the real MacUpdater waits for native staging, replaces old builds, and ret
       expect((await read()).state).toEqual({ status: 'error', version: '2.1.0' })
     })
 
-    await check('cached retry installs only the verified replacement', async () => {
+    await check('cached retry stages only the verified replacement', async () => {
       await shell.evaluate(() => globalThis.desktopUpdaterFixture.check())
       await expect
         .poll(async () => (await read()).state)
@@ -137,9 +141,56 @@ test('the real MacUpdater waits for native staging, replaces old builds, and ret
       await expect.poll(async () => (await read()).nativeArchive).toBe('2.1.0')
       await shell.evaluate(() => globalThis.desktopUpdaterFixture.finishStaging())
       expect((await read()).state).toEqual({ status: 'ready', version: '2.1.0' })
-      await shell.evaluate(() => globalThis.desktopUpdaterFixture.install())
-      await expect.poll(async () => (await read()).installed).toEqual(['2.1.0'])
     })
+
+    await check(
+      'restart asks only about real in-flight work, then installs on one click',
+      async () => {
+        /** Sets the work in progress, clicks Restart to update, and answers any prompt with `response`. */
+        const installWith = async (
+          work: { terminalCommands?: string[]; unloadListener: 'passive' | 'unsaved-edits' },
+          response: number
+        ) => {
+          await shell.evaluate(
+            async (_electron, [{ terminalCommands = [], unloadListener }, answer]) => {
+              await globalThis.desktopUpdaterFixture.setWork({ terminalCommands, unloadListener })
+              globalThis.updaterFixtureDialogResponse = answer
+              globalThis.desktopUpdaterFixture.install()
+            },
+            [work, response] as const
+          )
+        }
+        const expectNotNowPrompt = async (count: number, message: string) => {
+          await expect.poll(async () => (await read()).dialogs.length).toBe(count)
+          expect((await read()).dialogs.at(-1)).toEqual({
+            title: 'Restart to install Sim 2.1.0?',
+            message,
+            buttons: ['Restart and Update', 'Not Now'],
+            defaultId: 0,
+            cancelId: 1,
+          })
+          // The decline settles asynchronously; nothing may install, and the update stays ready.
+          await expect
+            .poll(async () => (await read()).state)
+            .toEqual({ status: 'ready', version: '2.1.0' })
+          expect((await read()).installed).toEqual([])
+        }
+
+        await installWith(
+          { terminalCommands: ['cd /repo && claude "fix the build"'], unloadListener: 'passive' },
+          1
+        )
+        await expectNotNowPrompt(1, 'claude is still running in a terminal.')
+
+        await installWith({ unloadListener: 'unsaved-edits' }, 1)
+        await expectNotNowPrompt(2, 'A window has unsaved changes.')
+
+        // Answering Not Now again would leave nothing installed if a prompt appeared.
+        await installWith({ unloadListener: 'passive' }, 1)
+        await expect.poll(async () => (await read()).installed).toEqual(['2.1.0'])
+        expect((await read()).dialogs).toHaveLength(2)
+      }
+    )
     snapshot = await read()
     await check(
       'the next process distinguishes an incomplete update from a successful install',
@@ -182,6 +233,7 @@ test('the real MacUpdater waits for native staging, replaces old builds, and ret
           })
       }
     )
+    completed = true
   } finally {
     if (!snapshot && app)
       snapshot = await app
@@ -192,7 +244,7 @@ test('the real MacUpdater waits for native staging, replaces old builds, and ret
       reportPath,
       JSON.stringify(
         {
-          passed: checks.length === 4 && checks.every((check) => check.status === 'passed'),
+          passed: completed && checks.every((check) => check.status === 'passed'),
           checks,
           requests,
           snapshot,
