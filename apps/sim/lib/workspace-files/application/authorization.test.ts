@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
+import { PersonalApiKeysDisabledError } from '@/lib/core/application'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -53,14 +54,14 @@ describe('file operation authorization', () => {
     })
   })
 
-  it('fails a personal key immediately when the workspace disables it', async () => {
+  it("refuses a member's personal key when the workspace disables them", async () => {
+    resolvePermission.mockResolvedValue('admin')
     await expect(
       authorizeWorkspaceFileAccess(createPersonalApiKeyPrincipal(), fileOperations.rename, {
         ...authorizationContext,
         allowPersonalApiKeys: false,
       })
-    ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
-    expect(resolvePermission).not.toHaveBeenCalled()
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
   })
 
   it('rejects a disallowed principal kind before principal-specific authorization', async () => {
