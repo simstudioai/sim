@@ -36,7 +36,13 @@ import {
   readStoppedRunWork,
 } from '@/lib/mothership/request/application/stop-delivery'
 
-const run = { id: 'run-1', streamId: 'stream-1', userId: 'user-1', chatId: 'chat-1' }
+const run = {
+  id: 'run-1',
+  streamId: 'stream-1',
+  userId: 'user-1',
+  chatId: 'chat-1',
+  desktopDeviceId: null,
+}
 
 describe('a Stop', () => {
   beforeEach(() => {

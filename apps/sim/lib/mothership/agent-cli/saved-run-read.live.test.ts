@@ -240,17 +240,15 @@ vi.mock('@sim/logger', async () => {
   const { loggerMock, createMockLogger } = await import('@sim/testing')
   const logger = createMockLogger()
   // Errors keep their message and top frames, which JSON evidence would otherwise drop as `{}`.
-  logger.error.mockImplementation((...args: unknown[]) =>
-    fixture.errors.push(
-      JSON.parse(
-        JSON.stringify(args, (_key, value) =>
-          value instanceof Error
-            ? { message: value.message, stack: value.stack?.split('\n').slice(0, 6) }
-            : value
-        )
-      )
-    )
-  )
+  const loggable = (value: unknown): unknown =>
+    value instanceof Error
+      ? { message: value.message, stack: value.stack?.split('\n').slice(0, 6) }
+      : Array.isArray(value)
+        ? value.map(loggable)
+        : value !== null && typeof value === 'object'
+          ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, loggable(item)]))
+          : value
+  logger.error.mockImplementation((...args: unknown[]) => fixture.errors.push(args.map(loggable)))
   logger.withMetadata.mockReturnValue(logger)
   logger.child.mockReturnValue(logger)
   return { ...loggerMock, createLogger: () => logger }
