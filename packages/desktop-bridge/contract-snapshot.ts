@@ -47,7 +47,6 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_list_tabs',
   'browser_list_sessions',
   'browser_list_downloads',
-  'browser_save_download',
   'browser_wait_for',
   'browser_snapshot',
   'browser_find',
@@ -58,13 +57,11 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_click_at',
   'browser_type',
   'browser_fill_form',
-  'browser_batch',
   'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
   'browser_set_checked',
-  'browser_upload_file',
   'browser_hover',
   'browser_drag',
   'browser_zoom',
@@ -72,34 +69,27 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
 
 export type CurrentBrowserToolName = (typeof CURRENT_BROWSER_TOOL_NAMES)[number]
 
-const RETIRED_BROWSER_TOOL_NAMES = ['browser_request_takeover'] as const
+export const RETIRED_BROWSER_TOOL_NAMES = ['browser_request_takeover'] as const
 
-const BROWSER_TOOL_NAMES = [...CURRENT_BROWSER_TOOL_NAMES, ...RETIRED_BROWSER_TOOL_NAMES] as const
+export const BROWSER_TOOL_NAMES = [
+  ...CURRENT_BROWSER_TOOL_NAMES,
+  ...RETIRED_BROWSER_TOOL_NAMES,
+] as const
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
-const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
-const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
-const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
+export const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
+export const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
+export const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
 export const BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS = 8_000
 export const BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS = 60_000
 export const BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS = BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
 const BROWSER_RENDERER_TRANSPORT_GRACE_MS = 2_000
-const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
+export const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
   BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS +
   BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
   BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS +
   BROWSER_RENDERER_TRANSPORT_GRACE_MS
-
-/**
- * The desktop exchanges browser-agent file bytes with the app here: POST streams a file named by
- * a claimed `browser_upload_file` call, PUT stores a completed download for `browser_save_download`.
- */
-export const BROWSER_FILE_TRANSFER_PATH = '/api/desktop/tool/file'
-/** Per-file byte ceiling for browser uploads and saved downloads, enforced on both sides. */
-export const BROWSER_FILE_TRANSFER_MAX_BYTES = 100 * 1024 * 1024
-/** Files one `browser_upload_file` call may attach. */
-export const BROWSER_UPLOAD_MAX_FILES = 10
 
 /**
  * Normalizes the model-visible `browser_wait_for.timeoutMs` consistently in
@@ -129,9 +119,6 @@ export function browserToolRendererTimeoutMs(
     case 'browser_reload':
     case 'browser_open_tab':
     case 'browser_switch_tab':
-    case 'browser_upload_file':
-    case 'browser_save_download':
-    case 'browser_batch':
       return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
     case 'browser_wait_for':
       return (
@@ -144,7 +131,7 @@ export function browserToolRendererTimeoutMs(
   }
 }
 
-const BROWSER_THEMES = ['system', 'light', 'dark'] as const
+export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
 
 /** Sim appearance preference mirrored into browser-tab media queries. */
 export type BrowserTheme = (typeof BROWSER_THEMES)[number]
@@ -164,46 +151,6 @@ export function isBrowserToolName(name: string): name is BrowserToolName {
 export function isCurrentBrowserToolName(name: string): name is CurrentBrowserToolName {
   return CURRENT_BROWSER_TOOL_NAME_SET.has(name)
 }
-
-/**
- * Which browser tools only observe the page (read it, list it, wait on it) and never act on it.
- * Repeating one cannot cause a side effect, and one can never collide with what the user is doing.
- */
-export const BROWSER_TOOL_OBSERVES_ONLY = {
-  browser_navigate: false,
-  browser_open_url: false,
-  browser_go_back: false,
-  browser_go_forward: false,
-  browser_reload: false,
-  browser_open_tab: false,
-  browser_switch_tab: false,
-  browser_close_tab: false,
-  browser_list_tabs: true,
-  browser_list_sessions: true,
-  browser_list_downloads: true,
-  browser_save_download: false,
-  browser_wait_for: true,
-  browser_snapshot: true,
-  browser_find: true,
-  browser_read_text: true,
-  browser_screenshot: true,
-  browser_extract: true,
-  browser_click: false,
-  browser_click_at: false,
-  browser_type: false,
-  browser_fill_form: false,
-  browser_batch: false,
-  browser_insert_text: false,
-  browser_press_key: false,
-  browser_scroll: false,
-  browser_select_option: false,
-  browser_set_checked: false,
-  browser_upload_file: false,
-  browser_hover: false,
-  browser_drag: false,
-  browser_zoom: false,
-  browser_request_takeover: false,
-} as const satisfies Readonly<Record<BrowserToolName, boolean>>
 
 export function isBrowserTheme(value: unknown): value is BrowserTheme {
   return typeof value === 'string' && BROWSER_THEME_SET.has(value)
@@ -307,14 +254,6 @@ export interface BrowserPanelAction {
     /** Compatibility response for installed shells with the retired navigation gate. */
     | 'respond-site-permission'
     | 'takeover-done'
-    /**
-     * Declares that this renderer shows page dialogs. Until it arrives, the
-     * shell keeps answering them itself, so an older renderer never leaves a
-     * page blocked on a dialog nobody can see.
-     */
-    | 'enable-page-dialogs'
-    /** Answers {@link BrowserPageState.dialog}; `allowed` is Leave. */
-    | 'respond-dialog'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
   /** Stable tab id for `switch-tab` and `close-tab`. */
@@ -327,16 +266,10 @@ export interface BrowserPanelAction {
   claim?: boolean
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
-  /** Exact pending permission request or dialog being answered. */
+  /** Exact pending permission request being answered. */
   requestId?: string
-  /** User decision for a permission or dialog response. */
+  /** User decision for a permission response. */
   allowed?: boolean
-}
-
-/** A leave-site decision awaiting the user's answer in browser chrome. */
-export interface BrowserPageDialog {
-  requestId: string
-  kind: 'beforeunload'
 }
 
 export type BrowserMediaDevice = 'microphone' | 'camera'
@@ -373,8 +306,6 @@ export interface BrowserPageState {
   mediaPermissionRequest?: BrowserMediaPermissionRequest
   /** Legacy request from installed shells that still require a site-origin prompt. */
   sitePermissionRequest?: BrowserSitePermissionRequest
-  /** Page dialog awaiting the user's answer. Optional for older shells. */
-  dialog?: BrowserPageDialog
 }
 
 /** A recoverable top-level page problem rendered by Sim instead of a blank native view. */
@@ -524,6 +455,25 @@ import { truncate } from '@sim/utils/string'
 export const TERMINAL_TOOL_NAME = 'terminal'
 
 /**
+ * Names this surface used to expose, one tool per operation. Kept so rows in
+ * conversations recorded before the consolidation still render with a real
+ * title instead of a humanized tool name.
+ */
+export const LEGACY_TERMINAL_TOOL_NAMES = [
+  'terminal_run',
+  'terminal_input',
+  'terminal_read',
+  'terminal_kill',
+  'terminal_cwd',
+  'terminal_list',
+  'terminal_new',
+  'terminal_switch',
+  'terminal_close',
+] as const
+
+export type LegacyTerminalToolName = (typeof LEGACY_TERMINAL_TOOL_NAMES)[number]
+
+/**
  * What one `terminal` call does.
  *
  * The first group acts on a shell — or, when that shell has tmux attached, on
@@ -532,7 +482,7 @@ export const TERMINAL_TOOL_NAME = 'terminal'
  * inspects them rather than Sim mirroring them into the tab strip. `handoff`
  * gives the terminal to the user and waits.
  */
-const TERMINAL_OPERATIONS = [
+export const TERMINAL_OPERATIONS = [
   'run',
   'read',
   'input',
@@ -585,17 +535,9 @@ export const MAX_CAPTURE_CHARS = 512_000
  * `terminal_read`. Successive reads are also how it tells progress from a
  * stall — output that stops changing is a command waiting on input or wedged.
  */
-const DEFAULT_RUN_WAIT_MS = 30_000
+export const DEFAULT_RUN_WAIT_MS = 30_000
 
-const MAX_RUN_WAIT_MS = 120_000
-
-/** How long one `terminal_run` holds the turn, from the `waitSeconds` the model asked for. */
-export function resolveRunWaitMs(waitSeconds: unknown): number {
-  const requested = Number(waitSeconds)
-  return Number.isFinite(requested) && requested > 0
-    ? Math.min(requested * 1000, MAX_RUN_WAIT_MS)
-    : DEFAULT_RUN_WAIT_MS
-}
+export const MAX_RUN_WAIT_MS = 120_000
 
 /**
  * How long output must be silent, with the cursor left mid-line, before the
@@ -616,7 +558,7 @@ export const PROMPT_IDLE_MS = 2_500
 export const MAX_INPUT_KEYS = 20
 
 /** Control keys the agent may send to a running foreground process. */
-const TERMINAL_CONTROL_KEYS = [
+export const TERMINAL_CONTROL_KEYS = [
   'ctrl-c',
   'ctrl-d',
   'ctrl-z',
@@ -637,7 +579,7 @@ export function isTerminalControlKey(value: unknown): value is TerminalControlKe
   return typeof value === 'string' && TERMINAL_CONTROL_KEY_SET.has(value)
 }
 
-type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
+export type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL'
 
 /**
  * Arguments for every operation, flattened into one object.
@@ -676,8 +618,8 @@ export interface TerminalToolArgs {
    */
   terminalId?: string
   /**
-   * Which tmux pane to act on, as a tmux target (`session:window.pane`, or a
-   * run's pane id `%N`), for a terminal that has tmux attached. Omitting it uses that session's active
+   * Which tmux pane to act on, as a tmux target (`session:window.pane`), for
+   * a terminal that has tmux attached. Omitting it uses that session's active
    * pane. Ignored when the terminal is a plain shell.
    */
   pane?: string
@@ -685,12 +627,17 @@ export interface TerminalToolArgs {
   reason?: string
 }
 
+export interface TerminalToolCall {
+  operation: TerminalOperation
+  args?: TerminalToolArgs
+}
+
 /**
  * How a `terminal_run` ended. Only `completed` means the command is finished
  * and the terminal is free; in every other case it is still running and still
  * holds the foreground.
  */
-type TerminalRunStatus =
+export type TerminalRunStatus =
   /** Exited on its own. `exitCode` is set. */
   | 'completed'
   /**
@@ -713,10 +660,7 @@ export interface TerminalRunResult {
   durationMs: number
   cwd: string | null
   terminalId: string
-  /**
-   * Set when the command ran in tmux: its own pane's id (`%N`), a tmux target that `read`,
-   * `input`, `kill` and `close` accept as `pane`.
-   */
+  /** Set when the command ran in tmux: the target it ran under. */
   pane?: string
   /** True when output was elided to fit {@link MAX_TOOL_OUTPUT_CHARS}. */
   truncated: boolean
@@ -956,12 +900,16 @@ export type TerminalErrorCode =
   /** No pane with that target — the targets come from the `panes` operation. */
   | 'NO_SUCH_PANE'
   | 'INVALID_REQUEST'
-  /** The call was stopped before its command started; nothing ran. */
-  | 'CANCELLED'
 
 export interface TerminalStartOptions {
   cols: number
   rows: number
+}
+
+/** One batch of PTY bytes, tagged with the terminal that produced it. */
+export interface TerminalOutputEvent {
+  terminalId: string
+  data: string
 }
 
 /**
@@ -984,80 +932,7 @@ export interface ScopedTerminalCommandEvent extends TerminalCommandEvent {
   scopeId: string
 }
 
-import type {
-  ComputerUseInput,
-  ComputerUseNativeError,
-  ComputerUseResult,
-} from './computer-use.generated'
-import type { DesktopLocalFileRequest, DesktopLocalFileResponse } from './local-files'
-
-export type {
-  DesktopLocalFileEntry,
-  DesktopLocalFileManifest,
-  DesktopLocalFileRead,
-  DesktopLocalFileRequest,
-  DesktopLocalFileResponse,
-} from './local-files'
-
-const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
-
-/** Renderer budget for native authorization, app approval, queueing, and execution. */
-export const COMPUTER_USE_TOOL_TIMEOUT_MS = 90_000
-
-/** Native work is bound to the server-authorized chat and tool call. */
-export interface ComputerUseActivity {
-  toolCallId: string
-  scopeId: string
-  bundleId?: string
-  appName?: string
-  action: string
-  startedAt: number
-  stopShortcutAvailable?: boolean
-}
-
-/** Device permissions are independent of the server rollout flag. */
-export interface ComputerUseStatus {
-  supported: boolean
-  enabled: boolean
-  permissions: { accessibility: boolean; screenCapture: boolean }
-  activeAction: ComputerUseActivity | null
-}
-
-export interface ComputerUseAppPermission {
-  bundleId: string
-  displayName: string
-}
-
-/** Preserve native dispatch certainty as data across Electron's error serialization boundary. */
-export interface ComputerUseToolFailure {
-  kind: 'error'
-  error: ComputerUseNativeError
-}
-
-/** Only validated helper replies may carry a confirmed pre-dispatch failure. */
-export class ComputerUseError extends Error {
-  constructor(readonly details: ComputerUseNativeError) {
-    super(details.message)
-    this.name = 'ComputerUseError'
-  }
-}
-
-/** Optional so a new web deployment remains compatible with older desktop shells. */
-interface SimDesktopComputerUseApi {
-  /** Current activity without starting the helper; absent in older shells. */
-  getActivity?(): Promise<ComputerUseActivity | null>
-  getStatus(): Promise<ComputerUseStatus>
-  setEnabled(enabled: boolean): Promise<ComputerUseStatus>
-  requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>
-  listAppPermissions(): Promise<ComputerUseAppPermission[]>
-  revokeApp(bundleId: string): Promise<void>
-  executeTool(
-    toolCallId: string,
-    params: ComputerUseInput
-  ): Promise<ComputerUseResult | ComputerUseToolFailure>
-  cancel(toolCallId?: string): Promise<void>
-  onActivity(callback: (activity: ComputerUseActivity | null) => void): () => void
-}
+export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
 
 /** Boolean results preserve compatibility with older installed desktop shells. */
 export type TerminalPasteResult = boolean | 'too-large'
@@ -1329,7 +1204,7 @@ export interface SimDesktopBrowserAgentApi {
   onScopeSuspended(callback: (scopeId: string) => void): () => void
 }
 
-type BrowserDownloadState = 'progressing' | 'completed' | 'interrupted' | 'cancelled'
+export type BrowserDownloadState = 'progressing' | 'completed' | 'interrupted' | 'cancelled'
 
 /** Safe renderer metadata for a native browser download; host paths never cross the bridge. */
 export interface BrowserDownloadInfo {
@@ -1348,7 +1223,7 @@ export interface BrowserDownloadsState {
 }
 
 /** Renderer navigation requested by the native browser toolbar menu. */
-export type BrowserToolbarCommand = 'browser-settings' | 'import' | 'passwords'
+export type BrowserToolbarCommand = 'browser-settings' | 'import'
 
 /** Selected text and live page identity handed from the native browser to Sim. */
 export interface BrowserAddToChatPayload {
@@ -1433,7 +1308,7 @@ export interface BrowserSiteInfo {
   importedAt?: string
 }
 
-interface SimDesktopBrowserImportApi {
+export interface SimDesktopBrowserImportApi {
   /** Chrome profiles detected on this device; empty when none are readable. */
   listChromeProfiles(): Promise<BrowserImportProfile[]>
   /**
@@ -1531,7 +1406,7 @@ export interface BrowserFillAvailability {
  * management calls require the Sim app origin, filling additionally requires
  * a real user gesture, and no browser tool maps to these channels.
  */
-interface SimDesktopBrowserCredentialsApi {
+export interface SimDesktopBrowserCredentialsApi {
   /** False when OS-backed encryption is unavailable and passwords are disabled. */
   isAvailable(): Promise<boolean>
   /** Saved credentials, without passwords. */
@@ -1546,7 +1421,7 @@ interface SimDesktopBrowserCredentialsApi {
    * This is the only method on the entire bridge that can produce password
    * plaintext, and it is heavily conditioned: it requires an active user
    * gesture, the shell prompts for Touch ID (or a native confirmation where
-   * Touch ID is unavailable, including every Windows machine) on every call, and it returns exactly one
+   * Touch ID is unavailable) on every call, and it returns exactly one
    * password. Resolves null when the user declines or the credential is gone.
    */
   reveal(id: string): Promise<string | null>
@@ -1554,11 +1429,8 @@ interface SimDesktopBrowserCredentialsApi {
    * Copy one saved password to the clipboard. Same authorization as
    * {@link reveal}, but the password never enters the renderer: the shell
    * writes the clipboard itself and clears it again shortly after.
-   *
-   * Absent on Windows, where Clipboard History and the cloud clipboard keep a
-   * copy that clearing the clipboard does not remove.
    */
-  copy?(id: string): Promise<boolean>
+  copy(id: string): Promise<boolean>
   /** Copy saved passwords out of a Chrome profile into the vault. */
   importFromChrome(
     profileId?: string,
@@ -1602,7 +1474,7 @@ export interface LocalFilesystemEntry {
   modifiedAt?: string
 }
 
-interface LocalFilesystemStat {
+export interface LocalFilesystemStat {
   name: string
   uri: string
   kind: LocalFilesystemEntryKind
@@ -1610,7 +1482,7 @@ interface LocalFilesystemStat {
   modifiedAt: string
 }
 
-interface LocalFilesystemReadResult {
+export interface LocalFilesystemReadResult {
   uri: string
   content: string
   startLine: number
@@ -1695,10 +1567,6 @@ export type LocalFilesystemResponse =
 /** Outcome of an OAuth connect handoff, pushed when the browser flow finishes. */
 export interface DesktopOAuthConnectResult {
   ok: boolean
-  /** Source request correlated by the shell, never taken from the browser callback. */
-  sourceRequestId?: string
-  /** A GitHub setup selection; consumers verify current access before using it. */
-  credentialId?: string
   /** OAuth error slug forwarded from the provider callback, when the flow failed. */
   error?: string
   /**
@@ -1812,7 +1680,7 @@ export const TERMINAL_DARK_THEME = {
   brightWhite: '#f0f6fc',
 } as const satisfies TerminalThemePalette
 
-type TerminalThemeSource = 'terminal' | 'iterm2'
+export type TerminalThemeSource = 'terminal' | 'iterm2'
 
 export interface TerminalSelectedProfile {
   /** Stable source profile id used to restore this selection. */
@@ -1895,14 +1763,12 @@ export function cloneTerminalSelectedProfile(
 }
 
 export interface DesktopPreferences {
-  /** Allows authorized local file tools to run without per-folder approval on this device. */
-  fullFileAccess?: boolean
   notificationsEnabled: boolean
   notificationSounds: boolean
   notificationsOnlyWhenUnfocused: boolean
   launchAtLogin: boolean
   autoDownloadUpdates: boolean
-  /** Show the Sim status item (recent chats menu) in the macOS menu bar or the Windows system tray. */
+  /** Show the Sim status item (recent chats menu) in the macOS menu bar. */
   trayEnabled: boolean
   /** Let Chat drive the built-in agent browser on this device. */
   browserEnabled: boolean
@@ -1910,11 +1776,6 @@ export interface DesktopPreferences {
   browserSearchSuggestionsEnabled?: boolean
   /** Let Chat run commands in local shells. */
   terminalEnabled: boolean
-  /**
-   * Keep the machine awake while a chat runs desktop work in the background. Optional for
-   * compatibility with installed shells that predate the background executor.
-   */
-  preventSleepWhileRunning?: boolean
   /**
    * Appearance used by browser pages on this device. `app` follows Sim's
    * current preference; explicit values override it.
@@ -1962,7 +1823,7 @@ export function resolveDesktopZoom(
   return Math.min(bounds.max, Math.max(bounds.min, next))
 }
 
-const DESKTOP_APPEARANCE_THEMES = ['app', 'light', 'dark'] as const
+export const DESKTOP_APPEARANCE_THEMES = ['app', 'light', 'dark'] as const
 
 export type DesktopAppearanceTheme = (typeof DESKTOP_APPEARANCE_THEMES)[number]
 
@@ -1988,16 +1849,10 @@ export interface DesktopNotificationPayload {
   body: string
   /** Optional in-app route opened when the notification is clicked. */
   route?: string
-  /**
-   * A chat that finished in the background. In "only when unfocused" mode such a notification is
-   * held back only while the focused window shows its `route`; every other notification is held
-   * back whenever the window is focused.
-   */
-  background?: boolean
 }
 
 /** Device-level settings owned by the desktop shell. */
-interface SimDesktopSettingsApi {
+export interface SimDesktopSettingsApi {
   getPreferences(): Promise<DesktopPreferences>
   setPreference<K extends DesktopPreferenceKey>(
     key: K,
@@ -2008,15 +1863,6 @@ interface SimDesktopSettingsApi {
    * for compatibility with installed shells that predate live suggestions.
    */
   setBrowserSearchSuggestionsEnabled?(enabled: boolean): Promise<DesktopPreferences>
-  /**
-   * Keeps the machine awake while a chat runs desktop work in the background. Optional for
-   * compatibility with installed shells that predate the background executor.
-   */
-  setPreventSleepWhileRunning?(enabled: boolean): Promise<DesktopPreferences>
-  /** Optional for installed shells that predate the explicit full-file-access setting. */
-  setFullFileAccess?(enabled: boolean): Promise<DesktopPreferences>
-  /** Keeps settings in sync when folder consent changes access in the native shell. */
-  onFullFileAccessChanged?(callback: (preferences: DesktopPreferences) => void): () => void
   notify(payload: DesktopNotificationPayload): Promise<boolean>
   /** Overrides the appearance requested by browser pages. */
   setBrowserTheme(theme: DesktopAppearanceTheme): Promise<DesktopPreferences>
@@ -2030,7 +1876,7 @@ interface SimDesktopSettingsApi {
   setTerminalDefaultZoom(zoom: DesktopZoomPercent): Promise<DesktopPreferences>
 }
 
-interface SimDesktopTerminalThemesApi {
+export interface SimDesktopTerminalThemesApi {
   listProfiles(): Promise<TerminalThemeProfile[]>
   selectProfile(profileId: string): Promise<DesktopPreferences | null>
 }
@@ -2040,7 +1886,13 @@ interface SimDesktopTerminalThemesApi {
  * automatic downloads are disabled or the shell requires a manual installer;
  * self-updating shells with automatic downloads enabled move to `downloading`.
  */
-type DesktopUpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
+export type DesktopUpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'error'
 
 export interface DesktopUpdateState {
   status: DesktopUpdateStatus
@@ -2057,7 +1909,7 @@ export interface DesktopUpdateState {
 }
 
 /** The shell updater surface. */
-interface SimDesktopUpdatesApi {
+export interface SimDesktopUpdatesApi {
   getState(): Promise<DesktopUpdateState>
   /**
    * Advances the pipeline: checks for an update, downloads an available
@@ -2110,7 +1962,7 @@ export type DesktopServerChangeResult =
  * to must stay reachable when that server cannot be reached at all, and must
  * never be drivable by a page the current server serves.
  */
-interface SimDesktopServerApi {
+export interface SimDesktopServerApi {
   /** Opens the shell's native server-selection window. */
   open(): void
   getConfiguration(): Promise<DesktopServerConfiguration>
@@ -2121,29 +1973,9 @@ interface SimDesktopServerApi {
   setOrigin(origin: string): Promise<DesktopServerChangeResult>
 }
 
-/** The device the desktop app registered for its background executor. */
-export interface DesktopExecutorDevice {
-  /** The install id Sim binds a turn to. */
-  deviceId: string
-  /** The executor protocol version Sim accepted at registration. */
-  protocolVersion: number
-}
-
-/** The background executor in the desktop main process. */
-interface SimDesktopExecutorApi {
-  /** Null until the device registers, and whenever Sim reports the executor off. */
-  getDevice(): Promise<DesktopExecutorDevice | null>
-}
-
-/** The operating system a desktop shell runs on. */
-export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
-
 export interface SimDesktopApi {
-  computerUse?: SimDesktopComputerUseApi
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
-  /** The shell's operating system. Absent on shells that predate it, all of which are macOS. */
-  platform?: DesktopPlatform
   openExternal(url: string): Promise<boolean>
   /** Opens the operating system's microphone privacy settings when supported. */
   openMicrophoneSettings?(): Promise<boolean>
@@ -2153,11 +1985,6 @@ export interface SimDesktopApi {
    * browser could not be opened.
    */
   beginOAuthConnect(providerId: string, scope?: DesktopOAuthConnectScope): Promise<boolean>
-  /** Starts an opaque source request in the browser without moving the desktop page. */
-  prepareSourceConnect?(): Promise<string | null>
-  beginSourceConnect?(requestId: string): Promise<boolean>
-  /** Cancels only the matching pending source handoff. */
-  cancelSourceConnect?(requestId: string): Promise<boolean>
   /**
    * Subscribe to connect-handoff completions (the app is refocused just
    * before this fires). Returns an unsubscribe function.
@@ -2170,17 +1997,6 @@ export interface SimDesktopApi {
    */
   server?: SimDesktopServerApi
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
-  /**
-   * Optional so older installed shells do not advertise the new native tools. Also absent on
-   * platforms whose shell cannot run them (Windows today).
-   */
-  localFiles?(request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse>
-  /**
-   * Present on shells that claim each local read (`read_local_file`, user-local VFS reads) through
-   * the server's tool authorization before reading, as they already do for imports. A turn started
-   * from such a shell persists those calls pending, so a read nobody picks up fails fast.
-   */
-  localReadClaims?: true
   /** Subscribe to commands initiated by the native application menu. */
   onCommand(callback: (command: DesktopCommand) => void): () => void
   windowState: SimDesktopWindowStateApi
@@ -2189,29 +2005,12 @@ export interface SimDesktopApi {
   browserAgent: SimDesktopBrowserAgentApi
   /**
    * Local Chrome import for the built-in browser. Absent on platforms without
-   * a supported importer (everything but macOS today).
+   * a supported importer.
    */
   browserImport?: SimDesktopBrowserImportApi
   /** Saved passwords and user-driven fill for the built-in browser. */
   browserCredentials: SimDesktopBrowserCredentialsApi
-  /** Absent on platforms without the agent terminal (Windows today). */
-  terminal?: SimDesktopTerminalApi
-  /**
-   * Runs desktop tools for chats the user is not viewing. Optional: shells without one leave
-   * desktop tools to the chat view.
-   */
-  desktopExecutor?: SimDesktopExecutorApi
-  /** Reads and selects Terminal.app or iTerm2 color profiles. Present only on macOS. */
+  terminal: SimDesktopTerminalApi
+  /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
-export {
-  DESKTOP_IMPORT_TOKEN_HEADER,
-  isStorableImportName,
-  MAX_DESKTOP_IMPORT_FILE_BYTES,
-} from './local-files'
-export {
-  applyDesktopTitleBarMode,
-  DESKTOP_TITLE_BAR_ATTRIBUTE,
-  type DesktopTitleBarMode,
-  observeDesktopTitleBar,
-} from './title-bar'
