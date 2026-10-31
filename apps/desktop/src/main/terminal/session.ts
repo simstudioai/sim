@@ -9,8 +9,6 @@
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { IPty } from '@lydell/node-pty'
-import { spawn } from '@lydell/node-pty'
 import { createLogger } from '@sim/logger'
 import {
   MAX_CAPTURE_CHARS,
@@ -31,6 +29,7 @@ import {
   type IBufferLine,
 } from '@xterm/headless'
 import { readProcessCwd } from '@/main/terminal/process-cwd'
+import { spawnTerminalPty, type TerminalPty } from '@/main/terminal/pty'
 import {
   buildShellLaunch,
   createNonce,
@@ -221,15 +220,6 @@ const ALT_SCREEN_ENTER = '\u001b[?1049h'
 const ALT_SCREEN_EXIT = '\u001b[?1049l'
 
 /**
- * The bundled ConPTY asks the terminal for its device attributes as it starts and holds the
- * shell's first output until it hears back, for three seconds when nothing answers. The session
- * answers that one query itself, as xterm.js would, and keeps it from the panel so the reply is
- * never sent twice; an agent's shell has no panel to answer it at all.
- */
-const DEVICE_ATTRIBUTES_QUERY = '\u001b[c'
-const DEVICE_ATTRIBUTES_REPLY = '\u001b[?1;2c'
-
-/**
  * Scrollback the on-demand emulator keeps while rendering a read.
  *
  * Only ever needs to cover what a read returns — a couple of hundred lines by
@@ -315,28 +305,34 @@ export interface TerminalSessionOptions {
 }
 
 /**
- * The Windows shell, found once for each `SHELL`: the search stats every PATH
+ * The shell, found once for each platform and `SHELL`: on Windows the search stats every PATH
  * entry, and which shells are installed does not change while Sim runs.
  */
-let windowsShell: { configured: string | undefined; path: string } | null = null
+let resolvedShell: {
+  platform: NodeJS.Platform
+  configured: string | undefined
+  path: string
+} | null = null
 
 function shellPathFor(platform: NodeJS.Platform): string {
-  const context = { platform, env: process.env, exists: existsSync }
-  if (platform !== 'win32') return resolveShellPath(context)
-  if (windowsShell === null || windowsShell.configured !== process.env.SHELL) {
-    windowsShell = { configured: process.env.SHELL, path: resolveShellPath(context) }
+  const configured = process.env.SHELL
+  if (resolvedShell?.platform !== platform || resolvedShell.configured !== configured) {
+    const path = resolveShellPath({ platform, env: process.env, exists: existsSync })
+    resolvedShell = { platform, configured, path }
   }
-  return windowsShell.path
+  return resolvedShell.path
 }
 
 export class TerminalSession {
-  private readonly pty: IPty
+  private readonly pty: TerminalPty
   /** The environment the shell was spawned with, for tmux to reuse. */
   private readonly shellEnv: NodeJS.ProcessEnv
   private readonly parser: ShellIntegrationParser
   private readonly integrationDir: string
   private readonly callbacks: TerminalSessionCallbacks
   private readonly shellName: string
+  /** The shell's program name (`zsh`, `pwsh`, `cmd`), for reading its command lines. */
+  readonly shellProgram: string
   readonly terminalId: string
 
   /**
@@ -365,8 +361,6 @@ export class TerminalSession {
   private startupBegunAt: number | null = null
   private readonly spawnedAt = Date.now()
   private altScreen = false
-  /** Whether ConPTY's startup query is still to be answered. */
-  private conptyQueryPending: boolean
   private foregroundCommand: string | null = null
   private foregroundToolCallId: string | null = null
   /**
@@ -383,13 +377,12 @@ export class TerminalSession {
 
   private constructor(
     options: TerminalSessionOptions,
-    pty: IPty,
+    pty: TerminalPty,
     integrationDir: string,
     nonce: string,
     shellName: string,
     shellEnv: NodeJS.ProcessEnv,
-    private readonly instrumented: boolean,
-    private readonly platform: NodeJS.Platform
+    private readonly instrumented: boolean
   ) {
     this.callbacks = options.callbacks
     this.terminalId = options.terminalId
@@ -400,8 +393,8 @@ export class TerminalSession {
     this.shellEnv = shellEnv
     this.integrationDir = integrationDir
     this.shellName = shellName
+    this.shellProgram = shellKind(shellName)
     this.parser = new ShellIntegrationParser(nonce)
-    this.conptyQueryPending = platform === 'win32'
 
     this.pty.onData((chunk) => this.handleData(chunk))
     this.pty.onExit(() => this.handleExit())
@@ -421,22 +414,18 @@ export class TerminalSession {
     const { ELECTRON_RUN_AS_NODE: _runAsNode, ...env } = process.env as Record<string, string>
 
     // A shell we cannot instrument still gives the user a working terminal;
-    // the agent is refused separately via NO_SHELL_INTEGRATION. Windows shells
-    // have no login mode.
-    const launch = shell
-      ? buildShellLaunch(shell, integrationDir, nonce, env)
-      : { args: platform === 'win32' ? [] : ['-l'], env: {} }
+    // the agent is refused separately via NO_SHELL_INTEGRATION.
+    const launch = shell ? buildShellLaunch(shell, integrationDir, nonce, env) : null
 
-    const shellEnv = { ...env, ...launch.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' }
-    const pty = spawn(shellPath, launch.args, {
-      name: 'xterm-256color',
+    const shellEnv = { ...env, ...launch?.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' }
+    const pty = spawnTerminalPty({
+      platform,
+      shellPath,
+      args: launch?.args,
       cols: options.cols,
       rows: options.rows,
       cwd: options.cwd,
       env: shellEnv,
-      // The ConPTY built into Windows can deliver an OSC marker ahead of the text written before
-      // it, so a command's output lands after its finish marker; the bundled build keeps order.
-      ...(platform === 'win32' ? { useConptyDll: true } : {}),
     })
 
     logger.info('Started terminal session', { shell: shellPath, instrumented: shell !== null })
@@ -447,8 +436,7 @@ export class TerminalSession {
       nonce,
       shell ?? shellPath,
       shellEnv,
-      shell !== null,
-      platform
+      shell !== null
     )
   }
 
@@ -505,11 +493,6 @@ export class TerminalSession {
 
   get shell(): string | null {
     return this.shellName
-  }
-
-  /** The shell's program name (`zsh`, `pwsh`, `cmd`), for reading its command lines. */
-  get shellProgram(): string {
-    return shellKind(this.shellName)
   }
 
   get foreground(): string | null {
@@ -693,9 +676,7 @@ export class TerminalSession {
       return
     }
     try {
-      // node-pty on Windows throws when given a signal: there it can only end the shell.
-      if (this.platform === 'win32') this.pty.kill()
-      else this.pty.kill(signal)
+      this.pty.kill(signal)
     } catch (error) {
       logger.warn('Failed to signal pty', { signal, error: (error as Error).message })
     }
@@ -877,7 +858,7 @@ export class TerminalSession {
   }
 
   private handleData(chunk: string): void {
-    const { text, markers } = this.parser.parse(this.answerConptyQuery(chunk))
+    const { text, markers } = this.parser.parse(chunk)
 
     for (const marker of markers) {
       this.applyMarker(marker)
@@ -900,16 +881,6 @@ export class TerminalSession {
       this.pendingOutput += text
       this.scheduleFlush()
     }
-  }
-
-  /** Answers and removes ConPTY's startup device-attributes query, the first time it appears. */
-  private answerConptyQuery(chunk: string): string {
-    if (!this.conptyQueryPending) return chunk
-    const index = chunk.indexOf(DEVICE_ATTRIBUTES_QUERY)
-    if (index === -1) return chunk
-    this.conptyQueryPending = false
-    this.pty.write(DEVICE_ATTRIBUTES_REPLY)
-    return chunk.slice(0, index) + chunk.slice(index + DEVICE_ATTRIBUTES_QUERY.length)
   }
 
   private applyMarker(
