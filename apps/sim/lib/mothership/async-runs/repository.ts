@@ -11,6 +11,7 @@ import {
   copilotRequestStops,
   copilotRuns,
   user,
+  workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
@@ -79,6 +80,10 @@ import {
   NO_SECRET_AUTHORITY,
   type TurnSecretAuthority,
 } from '@/lib/mothership/secret-mount-policy'
+import {
+  isWorkflowToolName,
+  WORKFLOW_TOOL_NAMES,
+} from '@/lib/mothership/tools/client-executed-tools'
 import {
   type DesktopToolClaimOwner,
   isDesktopToolCall,
@@ -1753,6 +1758,7 @@ export async function prepareWorkbenchAccess(
         settledAt: copilotAsyncToolCalls.executionSettledAt,
         revokedAt: copilotAsyncToolCalls.executionRevokedAt,
         toolCallId: copilotAsyncToolCalls.toolCallId,
+        executableName: copilotAsyncToolCalls.executableName,
         processes: copilotAsyncToolCalls.sandboxProcesses,
       })
       .from(copilotAsyncToolCalls)
@@ -1820,7 +1826,16 @@ export async function prepareWorkbenchAccess(
     if (processes.some((process) => process.sessionKey !== input.sessionKey))
       throw new Error('Recorded workbench ownership does not match this chat')
     return {
-      handlersPending: previous.some((row) => !row.settledAt && !row.revokedAt),
+      /**
+       * A workflow tool's handler runs a workflow, which never touches the workbench. One answered
+       * still running holds its run past its turn, so it must not hold the workbench too.
+       */
+      handlersPending: previous.some(
+        (row) =>
+          !row.settledAt &&
+          !row.revokedAt &&
+          !(row.executableName && isWorkflowToolName(row.executableName))
+      ),
       processes,
     }
   })
@@ -1925,13 +1940,6 @@ export async function getUnsettledClientWorkflowExecutions(
   )
 }
 
-const WORKFLOW_RUN_TOOL_NAMES = [
-  'run_workflow',
-  'run_workflow_until_block',
-  'run_from_block',
-  'run_block',
-] as const
-
 /**
  * The workflow execution a settled call started and left running: a `workflows run` the CLI
  * answered still running (exit 4 and its run record), or a workflow tool answered still running
@@ -1969,8 +1977,11 @@ export function detachedWorkflowExecutionId(call: {
 }
 
 /**
- * Workflow executions this run's calls started and left running past the call: what a Stop
- * cancels beyond the calls still open, since a detached run takes no call's abort signal.
+ * Workflow executions this run's calls started and left running past the call, and that are still
+ * running: what a Stop cancels beyond the calls still open, since a detached run takes no call's
+ * abort signal. A run whose log has settled or paused is left alone: a paused run waits on a
+ * person, not on this turn, and the durable cancel flag would fail its resume under the same
+ * execution id. A run with no log yet may still be starting, so it is cancelled.
  */
 export async function getDetachedWorkflowExecutions(
   streamId: string,
@@ -1983,11 +1994,13 @@ export async function getDetachedWorkflowExecutions(
     'copilot_async_tool_calls',
     { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
     async () => {
+      const { args, result } = copilotAsyncToolCalls
+      /** Only the fields `detachedWorkflowExecutionId` reads, so no call's payload is loaded. */
       const rows = await executor
         .select({
           executableName: copilotAsyncToolCalls.executableName,
-          args: copilotAsyncToolCalls.args,
-          result: copilotAsyncToolCalls.result,
+          args: sql<unknown>`jsonb_build_object('request', jsonb_build_object('invocation', jsonb_build_object('argv', ${args} #> '{request,invocation,argv}')))`,
+          result: sql<unknown>`jsonb_build_object('exitCode', ${result} -> 'exitCode', 'stdout', ${result} -> 'stdout', 'status', ${result} -> 'status', 'executionId', ${result} -> 'executionId')`,
         })
         .from(copilotAsyncToolCalls)
         .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
@@ -1995,11 +2008,31 @@ export async function getDetachedWorkflowExecutions(
           and(
             eq(copilotRuns.streamId, streamId),
             eq(copilotRuns.userId, userId),
-            inArray(copilotAsyncToolCalls.executableName, ['sim_cli', ...WORKFLOW_RUN_TOOL_NAMES]),
-            isNotNull(copilotAsyncToolCalls.result)
+            or(
+              and(
+                eq(copilotAsyncToolCalls.executableName, 'sim_cli'),
+                sql`${result} ->> 'exitCode' = '4'`
+              ),
+              and(
+                inArray(copilotAsyncToolCalls.executableName, [...WORKFLOW_TOOL_NAMES]),
+                sql`${result} ->> 'status' = 'running'`
+              )
+            )
           )
         )
-      return [...new Set(rows.flatMap((row) => detachedWorkflowExecutionId(row) ?? []))]
+      const detached = [...new Set(rows.flatMap((row) => detachedWorkflowExecutionId(row) ?? []))]
+      if (detached.length === 0) return []
+      const settled = await executor
+        .select({ executionId: workflowExecutionLogs.executionId })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            inArray(workflowExecutionLogs.executionId, detached),
+            ne(workflowExecutionLogs.status, 'running')
+          )
+        )
+      const notRunning = new Set(settled.map((row) => row.executionId))
+      return detached.filter((executionId) => !notRunning.has(executionId))
     }
   )
 }

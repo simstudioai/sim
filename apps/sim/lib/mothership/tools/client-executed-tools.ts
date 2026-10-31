@@ -1,14 +1,15 @@
 import { isDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
 
-const WORKFLOW_TOOL_NAMES = new Set<string>([
+/** The tools that run a workflow, in the browser or on the server. */
+export const WORKFLOW_TOOL_NAMES = [
   'run_workflow',
   'run_workflow_until_block',
   'run_block',
   'run_from_block',
-])
+] as const
 
 export function isWorkflowToolName(name: string): boolean {
-  return WORKFLOW_TOOL_NAMES.has(name)
+  return (WORKFLOW_TOOL_NAMES as readonly string[]).includes(name)
 }
 
 /**
