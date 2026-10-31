@@ -392,11 +392,24 @@ describe('Search candidate retirement in PostgreSQL', () => {
       await applyMigration()
       await sql`ALTER TABLE embedding DISABLE TRIGGER embedding_search_sync`
       expect(runPurge('--execute', '--pause-ms', '0').status).toBe(1)
+      // A replica-only trigger never fires for application writes.
+      await sql`ALTER TABLE embedding ENABLE REPLICA TRIGGER embedding_search_sync`
+      expect(runPurge('--execute', '--pause-ms', '0').status).toBe(1)
+      await sql`ALTER TABLE embedding ENABLE TRIGGER embedding_search_sync`
+
+      await sql.unsafe(`CREATE FUNCTION public.other_embedding_sync()
+        RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$`)
+      await sql.unsafe(`CREATE OR REPLACE TRIGGER embedding_search_sync AFTER INSERT ON embedding
+        FOR EACH ROW EXECUTE FUNCTION public.other_embedding_sync()`)
+      expect(runPurge('--execute', '--pause-ms', '0').status).toBe(1)
       expect(await candidateCount('search')).toBe(3)
     } finally {
       await sql`ALTER TABLE embedding ENABLE TRIGGER embedding_search_sync`
+      await sql.unsafe(provisioned.sync.replace('CREATE TRIGGER', 'CREATE OR REPLACE TRIGGER'))
+      await sql`DROP FUNCTION IF EXISTS public.other_embedding_sync()`
       await applyMigration()
     }
+    expect((await definitions())[0].sync).toBe(provisioned.sync)
     const dryRun = runPurge()
     expect(dryRun.stdout).toContain('"projectionRetired":true')
     const execute = runPurge('--execute', '--pause-ms', '0')

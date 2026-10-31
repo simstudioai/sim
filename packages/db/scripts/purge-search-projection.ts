@@ -134,7 +134,6 @@ export function connectOperatorDatabase(rawUrl: string | undefined): Sql {
   clientUrl.searchParams.delete('sslmode')
   clientUrl.searchParams.delete('sslrootcert')
   return postgres(clientUrl.toString(), {
-    port: Number(url.port || '5432'),
     ssl: hosted ? 'verify-full' : false,
     max: 1,
     prepare: false,
@@ -153,7 +152,7 @@ export function connectOperatorDatabase(rawUrl: string | undefined): Sql {
 
 /**
  * Whether migration 0449 is live: `public.sync_embedding_search` has the body that deletes a
- * Search chunk's candidate row, and its `embedding_search_sync` trigger is enabled. Before that,
+ * Search chunk's candidate row, and the enabled `embedding_search_sync` trigger calls it. Before that,
  * chunk writes keep projecting the rows a purge deletes.
  */
 async function isProjectionRetired(sql: Sql): Promise<boolean> {
@@ -162,7 +161,7 @@ async function isProjectionRetired(sql: Sql): Promise<boolean> {
       EXISTS (
         SELECT 1 FROM pg_trigger
         WHERE tgrelid = to_regclass('public.embedding') AND tgname = 'embedding_search_sync'
-          AND tgenabled <> 'D'
+          AND tgenabled IN ('O', 'A') AND tgfoid = to_regproc('public.sync_embedding_search')
       ) AS trigger_enabled`
   return (
     live.trigger_enabled && live.source !== null && isCurrentSyncEmbeddingSearchSource(live.source)
