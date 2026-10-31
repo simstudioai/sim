@@ -948,23 +948,16 @@ function isRevocationReprobeDue(chain: RevocableChain | null | undefined): boole
   return !revokedAt || Date.now() - revokedAt.getTime() >= REVOKED_REFRESH_REPROBE_INTERVAL_MS
 }
 
-/** What a settled refresh produced: one this process led, or one a follower saw its leader store. */
-type SettledRefreshOutcome =
+/** What one coalesced refresh produced; `null` is a failure worth retrying later. */
+type RefreshOutcome =
   | { kind: 'token'; accessToken: string }
   | { kind: 'revoked'; errorCode: string }
 
-/**
- * What one coalesced refresh produced; `null` is a failure worth retrying later. `lease-held`
- * means this caller followed another lease holder for its whole wait and nothing was stored, while
- * the account still holds the chain the caller read and no leader flagged it dead.
- */
-type RefreshOutcome = SettledRefreshOutcome | { kind: 'lease-held' }
-
-function tokenOutcome(accessToken: string | null): SettledRefreshOutcome | null {
+function tokenOutcome(accessToken: string | null): RefreshOutcome | null {
   return accessToken ? { kind: 'token', accessToken } : null
 }
 
-function revokedOutcome(errorCode: string | null): SettledRefreshOutcome | null {
+function revokedOutcome(errorCode: string | null): RefreshOutcome | null {
   return errorCode ? { kind: 'revoked', errorCode } : null
 }
 
@@ -1022,10 +1015,6 @@ function isOAuthAccessTokenExpiring(
   return expiresAt != null && expiresAt.getTime() <= now.getTime() + refreshWindowMs
 }
 
-function remainingValidityMs(expiresAt: Date, now = new Date()): number {
-  return expiresAt.getTime() - now.getTime()
-}
-
 /**
  * Where a provider can refresh ahead of expiry, a caller is served the stored token with this much
  * validity left or less while a background refresh replaces it. It starts above
@@ -1039,12 +1028,6 @@ const OAUTH_REFRESH_AHEAD_WINDOW_MS = 10 * 60 * 1000
  * the two windows so every account still refreshes ahead before callers have to wait.
  */
 const OAUTH_REFRESH_AHEAD_JITTER_MS = 60 * 1000
-/**
- * The validity a stored token must still have, after a blocking refresh that never settled, to be
- * served instead of failing the request. It sits below {@link OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS}
- * on purpose: the request can still use such a token, and its next caller refreshes again.
- */
-const OAUTH_STORED_TOKEN_FALLBACK_MIN_MS = 30 * 1000
 
 /**
  * A Google refresh does not rotate the refresh token, and Microsoft does not revoke the old one
@@ -1106,7 +1089,7 @@ function planAccessTokenRefresh(
   if (
     refreshesAhead &&
     accessTokenExpiresAt &&
-    remainingValidityMs(accessTokenExpiresAt, now) <=
+    accessTokenExpiresAt.getTime() - now.getTime() <=
       OAUTH_REFRESH_AHEAD_WINDOW_MS - refreshAheadJitterMs(accountId)
   ) {
     return { kind: 'refresh-ahead', refreshToken }
@@ -1146,11 +1129,13 @@ const REFRESH_LOCK_HEADROOM_MS = 15_000
 const REFRESH_LOCK_TTL_SEC = Math.ceil((TOKEN_REFRESH_TIMEOUT_MS + REFRESH_LOCK_HEADROOM_MS) / 1000)
 const REFRESH_FOLLOWER_MAX_WAIT_MS = REFRESH_LOCK_TTL_SEC * 1000
 /**
- * How long callers sharing one in-process refresh wait for it: past a follower's full wait (which
- * starts once the lock is contested, and ends with one more read), so a follower concludes on its
- * own; and still bounded, so a leader hung in this process fails its callers instead of wedging them.
+ * How long callers sharing one in-process refresh wait for it: a follower's full wait, then the
+ * leader run it may take over when that wait ends with a lapsed lease (budgeted like any lease),
+ * plus headroom for the lock round trips around them; so a follower concludes on its own, and a
+ * leader hung in this process still fails its callers instead of wedging them.
  */
-const REFRESH_SETTLE_TIMEOUT_MS = REFRESH_FOLLOWER_MAX_WAIT_MS + REFRESH_LOCK_HEADROOM_MS
+const REFRESH_SETTLE_TIMEOUT_MS =
+  REFRESH_FOLLOWER_MAX_WAIT_MS + REFRESH_LOCK_TTL_SEC * 1000 + REFRESH_LOCK_HEADROOM_MS
 
 /**
  * The raw scope one refresh coordinates on: the account row, or the installation for a Slack
@@ -1338,27 +1323,25 @@ async function performCoalescedRefresh({
 
   const refreshPromise = coalesceLocally(
     lockKey,
-    async (): Promise<RefreshOutcome | null> => {
-      let led = false
-      /** The refresh token the follower's latest read found, `undefined` when that read found nothing. */
-      let followerSawRefreshToken: string | null | undefined
-      const outcome = await withLeaderLock<SettledRefreshOutcome>({
+    () =>
+      withLeaderLock<RefreshOutcome>({
         key: lockKey,
         ttlSec: REFRESH_LOCK_TTL_SEC,
         maxWaitMs: REFRESH_FOLLOWER_MAX_WAIT_MS,
         onLeader: async () => {
-          led = true
           try {
             /**
-             * Reread under the lock: another process may have recorded a revocation after the
-             * caller read the row, and the version guards the record against a reconnect that
-             * lands while the provider call is in flight.
+             * Reread under the lock: another process may have recorded a revocation or flagged the
+             * credential dead after the caller read the row (a follower taking over the lock after
+             * a failed leader released it sees only these), and the version guards the record
+             * against a reconnect that lands while the provider call is in flight.
              */
             const current = await readStoredChain(accountId)
             const recordedMeanwhile = recordedRevocationCode(current)
             if (recordedMeanwhile && !isRevocationReprobeDue(current)) {
               return revokedOutcome(recordedMeanwhile)
             }
+            if (await getRecentTerminalError(scopeKey)) return null
             /**
              * A writer that stored a new token after the caller's read (a refresh that finished just
              * before this one took the lock, or a reconnect) already answers it, so this refresh
@@ -1578,7 +1561,6 @@ async function performCoalescedRefresh({
               .from(account)
               .where(eq(account.id, accountId))
               .limit(1)
-            followerSawRefreshToken = row?.refreshToken
             if (
               row?.accessToken &&
               row.accessTokenExpiresAt &&
@@ -1592,7 +1574,6 @@ async function performCoalescedRefresh({
               ? revokedOutcome(revokedByLeader)
               : null
           } catch (error) {
-            followerSawRefreshToken = undefined
             logger.warn('Follower DB read failed during refresh poll', {
               ...logContext,
               ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
@@ -1600,16 +1581,7 @@ async function performCoalescedRefresh({
             return null
           }
         },
-      })
-      if (outcome || led) return outcome
-      /**
-       * A follower's wait ran out with nothing stored. That counts against the chain unless the
-       * last read still found the chain this caller read and no leader flagged it dead meanwhile.
-       */
-      const chainStanding =
-        followerSawRefreshToken === refreshToken && !(await getRecentTerminalError(scopeKey))
-      return chainStanding ? { kind: 'lease-held' } : null
-    },
+      }),
     REFRESH_SETTLE_TIMEOUT_MS
   )
 
@@ -1672,21 +1644,8 @@ async function resolveStoredAccessToken(
   if (fresh?.kind === 'token') {
     return { kind: 'token', accessToken: fresh.accessToken, refreshed: true }
   }
-  /**
-   * A refresh ahead abandoned with its process (Trigger.dev runs have no keep-alive) holds its
-   * lease until the TTL, so a follower can wait it out with nothing; a chain that survives
-   * refreshes still serves its stored token if enough validity is left after that wait. Any other
-   * failure (a dead flag, a terminal error, a vanished account) says the chain itself is unusable.
-   */
-  const orphaned =
-    fresh?.kind === 'lease-held' &&
-    refreshesAheadOfExpiry(refresh.providerId) &&
-    stored.accessTokenExpiresAt != null &&
-    remainingValidityMs(stored.accessTokenExpiresAt) > OAUTH_STORED_TOKEN_FALLBACK_MIN_MS
-  if (stored.accessToken && (plan.kind === 'refresh-or-reuse' || orphaned)) {
-    logger.info(
-      `${prefix}${orphaned ? 'Refresh lease still held elsewhere' : 'Refresh unavailable'}; reusing still-valid access token`
-    )
+  if (plan.kind === 'refresh-or-reuse' && stored.accessToken) {
+    logger.info(`${prefix}Refresh unavailable; reusing still-valid access token`)
     return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
   }
   return { kind: 'failed', outcome: fresh }

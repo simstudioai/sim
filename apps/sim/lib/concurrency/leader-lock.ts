@@ -19,6 +19,13 @@ export interface LeaderLockOptions<T> {
   onFollower: () => Promise<T | null>
 }
 
+/**
+ * Runs `onLeader` in the one caller that takes the lock for `key`; every other caller polls
+ * `onFollower` until it reports the leader's result or `maxWaitMs` passes. A follower whose wait
+ * ends with nothing tries the lock once more: a leader whose process died without releasing it
+ * leaves the lease to lapse, and that follower then leads instead of failing. Losing that try
+ * means a live holder has the lease, and the follower returns `null`.
+ */
 export async function withLeaderLock<T>(opts: LeaderLockOptions<T>): Promise<T | null> {
   const {
     key,
@@ -42,7 +49,7 @@ export async function withLeaderLock<T>(opts: LeaderLockOptions<T>): Promise<T |
     return onLeader()
   }
 
-  if (acquired) {
+  const leadHoldingLock = async () => {
     try {
       return await onLeader()
     } finally {
@@ -57,6 +64,8 @@ export async function withLeaderLock<T>(opts: LeaderLockOptions<T>): Promise<T |
     }
   }
 
+  if (acquired) return leadHoldingLock()
+
   const deadline = Date.now() + maxWaitMs
   while (Date.now() < deadline) {
     await sleep(pollIntervalMs)
@@ -67,6 +76,20 @@ export async function withLeaderLock<T>(opts: LeaderLockOptions<T>): Promise<T |
   // The leader may have persisted between our final poll and now; one last check.
   const lastChance = await onFollower()
   if (lastChance !== null) return lastChance
+
+  let tookOver = false
+  try {
+    tookOver = await acquireLock(key, ownerToken, ttlSec)
+  } catch (error) {
+    logger.warn('Lock takeover failed after the follower wait', {
+      key,
+      error: toError(error).message,
+    })
+  }
+  if (tookOver) {
+    logger.warn('Follower took over a lease its leader left to lapse', { key, maxWaitMs })
+    return leadHoldingLock()
+  }
 
   logger.warn('Follower timed out waiting for leader', { key, maxWaitMs })
   return null
