@@ -17,7 +17,9 @@ const MAX_BODY_BYTES = 12_288
 export async function POST(request: Request) {
   const headers = { 'Cache-Control': 'no-store' }
   const fail = (error: string, status: number) => Response.json({ error }, { status, headers })
-  if (request.headers.get('origin') !== new URL(request.url).origin) {
+  const requestUrl = new URL(request.url)
+  const host = request.headers.get('host')
+  if (!host || request.headers.get('origin') !== `${requestUrl.protocol}//${host}`) {
     return fail('Feedback must be submitted from this site.', 403)
   }
   if (request.headers.get('content-type')?.split(';')[0].trim() !== 'application/json') {

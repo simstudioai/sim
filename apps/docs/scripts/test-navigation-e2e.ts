@@ -14,6 +14,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { toRecord } from '@sim/utils/object'
 
 const logger = createLogger('DocsNavigationE2E', { logLevel: 'INFO' })
 const origin = process.env.DOCS_E2E_BASE_URL
@@ -162,6 +163,112 @@ async function verifyClipboard(
 let browser: Browser | undefined
 try {
   browser = await (engine === 'webkit' ? webkit : chromium).launch()
+  const feedbackBrowser = browser
+  await check('Feedback forwards votes and preserves unchanged retry identity', async () => {
+    const cert = process.env.DOCS_FEEDBACK_TEST_CERT
+    const key = process.env.DOCS_FEEDBACK_TEST_KEY
+    const token = process.env.DOCS_FEEDBACK_WEBHOOK_TOKEN
+    if (!cert || !key || !token) throw new Error('Feedback HTTPS fixture configuration is required')
+    const received: Array<{ authorization: string | null; body: Record<string, unknown> }> = []
+    let accept = false
+    const intake = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 3443,
+      tls: { cert: await readFile(cert), key: await readFile(key) },
+      async fetch(request) {
+        if (received.length >= 8) return new Response(null, { status: 429 })
+        received.push({
+          authorization: request.headers.get('authorization'),
+          body: toRecord(await request.json()),
+        })
+        return Response.json(
+          { message: accept ? 'Webhook processed' : 'Unavailable' },
+          { status: accept ? 200 : 503 }
+        )
+      },
+    })
+    let context: BrowserContext | undefined
+    try {
+      context = await feedbackBrowser.newContext()
+      const page = await context.newPage()
+      const started = Date.now()
+      await open(page, '/introduction')
+      await page.getByRole('button', { name: 'No, this could be improved', exact: true }).click()
+      const comment = page.getByLabel('What could be better? (optional)', { exact: true })
+      await comment.fill('  Explain deployment prerequisites.  ')
+      const send = page.getByRole('button', { name: 'Send feedback', exact: true })
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const response = page.waitForResponse(
+          (response) => new URL(response.url()).pathname === '/api/feedback'
+        )
+        await send.click()
+        expect((await response).status()).toBe(502)
+        await expect(page.getByRole('alert')).toContainText('Could not send feedback.')
+        await expect(comment).toHaveValue('  Explain deployment prerequisites.  ')
+        await expect(send).toBeEnabled()
+      }
+      expect(received).toHaveLength(2)
+      expect(received[1].body.submission_id).toBe(received[0].body.submission_id)
+      expect(received[0].body.comment).toBe('Explain deployment prerequisites.')
+      accept = true
+      await comment.fill('  Explain deployment permissions.  ')
+      const accepted = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === '/api/feedback'
+      )
+      await send.click()
+      expect((await accepted).status()).toBe(202)
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Thanks for your feedback.' })
+      ).toBeVisible()
+      expect(received).toHaveLength(3)
+      expect(received[2].body.submission_id).not.toBe(received[1].body.submission_id)
+      expect(received[2].body).toMatchObject({
+        page: '/introduction',
+        helpful: false,
+        comment: 'Explain deployment permissions.',
+      })
+      await page
+        .getByRole('navigation', { name: 'Page navigation' })
+        .getByRole('link', { name: 'Next Getting started' })
+        .click()
+      const positive = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === '/api/feedback'
+      )
+      await page.getByRole('button', { name: 'Yes, this was helpful', exact: true }).click()
+      expect((await positive).status()).toBe(202)
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Thanks for your feedback.' })
+      ).toBeVisible()
+      expect(received).toHaveLength(4)
+      expect(received[3].body).toMatchObject({
+        page: '/getting-started',
+        helpful: true,
+        comment: '',
+      })
+      expect(received[3].body.submission_id).not.toBe(received[2].body.submission_id)
+      for (const request of received) {
+        expect(request.authorization).toBe(`Bearer ${token}`)
+        expect(Object.keys(request.body).sort()).toEqual([
+          'comment',
+          'helpful',
+          'page',
+          'received_at',
+          'submission_id',
+        ])
+        expect(request.body.submission_id).toMatch(/^[0-9a-f-]{36}$/)
+        expect(typeof request.body.received_at).toBe('string')
+        const timestamp = Date.parse(String(request.body.received_at))
+        expect(timestamp).toBeGreaterThanOrEqual(started)
+        expect(timestamp).toBeLessThanOrEqual(Date.now())
+      }
+    } finally {
+      try {
+        await context?.close()
+      } finally {
+        await intake.stop(true)
+      }
+    }
+  })
   const noScript = await browser.newContext({
     javaScriptEnabled: false,
     viewport: { width: 1440, height: 1000 },
