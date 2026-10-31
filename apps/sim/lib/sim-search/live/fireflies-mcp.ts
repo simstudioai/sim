@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { toArray, toRecord } from '@sim/utils/object'
 import { nativeText } from '@/lib/sim-search/live/dates'
 import { NativeSearchError, string } from '@/lib/sim-search/live/http'
@@ -6,7 +7,49 @@ import { boundedMeetingContent } from '@/lib/sim-search/live/meeting-content'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
 
 const MAX_MEETING_CONTENT = 200_000
+const MAX_DIAGNOSTIC_TEXT_LENGTH = 65_536
 const UTC_DAY_MS = 86_400_000
+const logger = createLogger('FirefliesMcpSearch', { logLevel: 'WARN' })
+
+/** Only fixed envelope keys and value kinds may enter diagnostics, never provider keys or values. */
+function responseShape(value: unknown) {
+  const record = toRecord(value)
+  const kind = (entry: unknown) =>
+    entry === null ? 'null' : Array.isArray(entry) ? 'array' : typeof entry
+  return {
+    type: kind(value),
+    fields: Object.fromEntries(
+      [
+        'transcripts',
+        'data',
+        'result',
+        'results',
+        'items',
+        'output',
+        'text',
+        'error',
+        'errors',
+      ].flatMap((key) => (Object.hasOwn(record, key) ? [[key, kind(record[key])]] : []))
+    ),
+  }
+}
+
+function responseTextShape(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  if (value.length > MAX_DIAGNOSTIC_TEXT_LENGTH)
+    return { length: value.length, inspection: 'skipped_size_limit' }
+  const text = value.trim()
+  const fenced = text.match(/^```(?:json)?\r?\n([\s\S]*)\r?\n```$/i)?.[1]
+  let jsonShape: ReturnType<typeof responseShape> | undefined
+  try {
+    jsonShape = responseShape(JSON.parse(fenced ?? text))
+  } catch {}
+  return {
+    length: value.length,
+    format: fenced !== undefined ? 'code_fence' : jsonShape ? 'json' : 'text',
+    ...(jsonShape ? { jsonShape } : {}),
+  }
+}
 
 function requireMeetingId(id: string): string {
   if (!/^[\w-]{1,200}$/.test(id))
@@ -139,11 +182,19 @@ export async function searchFirefliesMcp(
   const rows = Array.isArray(result)
     ? result
     : (data.transcripts ?? toRecord(data.data).transcripts)
-  if (!Array.isArray(rows))
+  if (!Array.isArray(rows)) {
+    logger.warn('Unsupported Fireflies transcript list response shape', {
+      response: responseShape(result),
+      data: responseShape(data.data),
+      result: responseShape(data.result),
+      output: responseShape(data.output),
+      text: responseTextShape(typeof result === 'string' ? result : data.text),
+    })
     throw new NativeSearchError(
       'unavailable',
       'Fireflies returned an unsupported transcript list format.'
     )
+  }
   const documents = rows.slice(0, limit).flatMap((value) => {
     const document = meetingDocument(toRecord(value))
     return document ? [document] : []
