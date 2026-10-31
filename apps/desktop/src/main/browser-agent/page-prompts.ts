@@ -289,7 +289,8 @@ export function respondToPagePrompt(scopeId: string, action: BrowserPanelAction)
     settle(entry, response)
     return
   }
-  settle(entry, response?.kind === entry.kind && context.onScreen ? response : null)
+  const accepted = response?.allowed === true && response.kind === entry.kind && context.onScreen
+  settle(entry, accepted ? response : null)
 }
 
 /**
@@ -321,6 +322,7 @@ export function httpAuthChallenge(
 /**
  * `app.on('login')` for agent browser tabs. Other contents keep Electron's
  * default, which cancels: the main window's proxy prompt needs a shell form.
+ * The prompt never takes focus, since a page can trigger it on its own.
  */
 export function handleBrowserLogin(
   event: { preventDefault(): void },
@@ -357,7 +359,7 @@ export function handleBrowserLogin(
           answer()
         }
       },
-      { joinable: true, focus: true }
+      { joinable: true }
     )
     if (held === 'held') {
       prompts.push(Date.now())
@@ -468,7 +470,7 @@ export function handleSelectClientCertificate(
           return
         }
         const certificate =
-          response?.kind === 'client-certificate'
+          response?.allowed === true && response.kind === 'client-certificate'
             ? certificates.find((candidate) => candidate.fingerprint === response.choiceId)
             : undefined
         if (!certificate) {
@@ -574,6 +576,7 @@ export function requestExternalLaunch(
         }
         launchAppLink(target.url)
       },
+      // The prompt answers the user's own click in the page, so it takes the focus that click had.
       { focus: true }
     )
     if (held) attempts.push(Date.now())

@@ -32,13 +32,21 @@ const ACTIVATION_DELAY_MS = 500
 
 type RespondToPrompt = (requestId: string, response: BrowserPagePromptResponse) => void
 
-/** False until the prompt has been on screen long enough to be read; remount per request. */
-function useActivationDelay(): boolean {
+/**
+ * False until the prompt has been visible long enough to be read. Hiding it
+ * disarms it again, so a prompt shown after waiting behind another dialog
+ * starts its delay only once it appears.
+ */
+function useActivationDelay(visible: boolean): boolean {
   const [armed, setArmed] = useState(false)
   useEffect(() => {
+    if (!visible) {
+      setArmed(false)
+      return
+    }
     const timer = setTimeout(() => setArmed(true), ACTIVATION_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [])
+  }, [visible])
   return armed
 }
 
@@ -48,7 +56,9 @@ interface PromptModalProps<Prompt extends BrowserPagePrompt> {
   onRespond: RespondToPrompt
 }
 
+/** Signing in takes a click on Sign in: Enter in a field never submits credentials a keystroke meant for the page. */
 function HttpAuthPromptModal({ prompt, open, onRespond }: PromptModalProps<BrowserHttpAuthPrompt>) {
+  const armed = useActivationDelay(open)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const cancel = () => onRespond(prompt.requestId, { allowed: false })
@@ -83,7 +93,12 @@ function HttpAuthPromptModal({ prompt, open, onRespond }: PromptModalProps<Brows
       </ChipModalBody>
       <ChipModalFooter
         onCancel={cancel}
-        primaryAction={{ label: 'Sign in', onClick: submit, disabled: !username && !password }}
+        defaultAction='dismiss'
+        primaryAction={{
+          label: 'Sign in',
+          onClick: submit,
+          disabled: !armed || (!username && !password),
+        }}
       />
     </ChipModal>
   )
@@ -119,7 +134,7 @@ function ChoicePromptModal({
   onCancel,
   onChoose,
 }: ChoicePromptModalProps) {
-  const armed = useActivationDelay()
+  const armed = useActivationDelay(open)
   const [choiceId, setChoiceId] = useState('')
   return (
     <ChipModal open={open} onOpenChange={(next) => !next && onCancel()} srTitle={title} size='sm'>
@@ -219,7 +234,7 @@ function ExternalAppPromptModal({
   open,
   onRespond,
 }: PromptModalProps<BrowserExternalAppPrompt>) {
-  const armed = useActivationDelay()
+  const armed = useActivationDelay(open)
   const [alwaysAllow, setAlwaysAllow] = useState(false)
   const checkboxId = `browser-always-open-${prompt.requestId}`
   return (
@@ -289,7 +304,7 @@ interface BrowserAppLaunchNoticeBarProps {
 
 /** A page's unprompted request to open another app; nothing opens until the user chooses Open. */
 export function BrowserAppLaunchNoticeBar({ notice, onRespond }: BrowserAppLaunchNoticeBarProps) {
-  const armed = useActivationDelay()
+  const armed = useActivationDelay(true)
   return (
     <Banner className='border-[var(--border)] border-t bg-[var(--surface-3)] px-3 py-1.5'>
       <div className='flex items-center justify-between gap-3'>

@@ -11,11 +11,12 @@ import type {
   WebContents,
   WebFrameMain,
 } from 'electron'
-import { app, shell } from 'electron'
+import { app, webContents as electronWebContents, shell } from 'electron'
 import {
   appLaunchNoticeForContents,
   handleBrowserLogin,
   handleSelectClientCertificate,
+  handleSelectPasskeyAccount,
   httpAuthChallenge,
   noteMainFrameNavigation,
   pagePromptForContents,
@@ -307,5 +308,92 @@ describe('app links', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(pagePromptForContents(contents)).toMatchObject({ kind: 'external-app' })
     expect(shell.openExternal).toHaveBeenCalledExactlyOnceWith('zoommtg://zoom.us/join?id=1')
+  })
+})
+
+describe('accepting an answer', () => {
+  const topFrame = { parent: null, frameTreeNodeId: 1, origin: PAGE } as WebFrameMain
+
+  /** What a renderer could send over IPC without `allowed: true`, which the gesture gate keys on. */
+  function withoutAllowed(response: Record<string, unknown>): BrowserPagePromptResponse {
+    // double-cast-allowed: an IPC payload is untyped; this is the shape a hostile renderer could send
+    return response as unknown as BrowserPagePromptResponse
+  }
+
+  it.each([
+    [
+      'client-certificate',
+      { kind: 'client-certificate', choiceId: 'sha256/first' },
+      (contents: WebContents, callback: () => void) =>
+        handleSelectClientCertificate(
+          { preventDefault: () => {} },
+          contents,
+          'https://mtls.corp',
+          [{ fingerprint: 'sha256/first', subjectName: 'Personal' } as Certificate],
+          callback
+        ),
+    ],
+    [
+      'passkey-account',
+      { kind: 'passkey-account', choiceId: 'credential-1' },
+      (contents: WebContents, callback: () => void) => {
+        vi.mocked(electronWebContents.fromFrame).mockReturnValue(contents)
+        handleSelectPasskeyAccount(
+          {},
+          {
+            relyingPartyId: 'meet.example',
+            accounts: [{ credentialId: 'credential-1', name: 'ada', userHandle: 'u1' }],
+            frame: topFrame,
+          },
+          callback
+        )
+      },
+    ],
+    [
+      'http-auth',
+      { kind: 'http-auth', username: 'ada', password: 'pw' },
+      (contents: WebContents, callback: () => void) => {
+        noteMainFrameNavigation(contents, 'https://intranet.example/')
+        handleBrowserLogin(
+          { preventDefault: () => {} },
+          contents,
+          {
+            url: 'https://intranet.example/',
+            isRequestForNavigation: true,
+            firstAuthAttempt: true,
+          } as AuthenticationResponseDetails,
+          { isProxy: false, scheme: 'basic', host: 'intranet.example', port: 443 } as AuthInfo,
+          callback
+        )
+      },
+    ],
+  ])('sends nothing for a %s answer without allowed: true', (_kind, response, ask) => {
+    const contents = agentContents()
+    const callback = vi.fn()
+    ask(contents, callback)
+    answer(contents, withoutAllowed(response))
+    expect(callback).toHaveBeenCalledExactlyOnceWith()
+  })
+
+  it.each([
+    ['an app prompt', { kind: 'external-app', alwaysAllow: true }, 'prompt'],
+    ['an app notice', { kind: 'app-launch-notice' }, 'notice'],
+  ])('opens nothing for %s answer without allowed: true', async (_label, response, slot) => {
+    app.getApplicationNameForProtocol = vi.fn(() => 'Zoom')
+    vi.mocked(shell.openExternal).mockClear()
+    context.userActivated = slot === 'prompt'
+    const contents = agentContents()
+    requestExternalLaunch(contents, 'zoommtg://zoom.us/join', { initiator: topFrame })
+    const requestId =
+      slot === 'prompt'
+        ? shownPrompt(contents).requestId
+        : appLaunchNoticeForContents(contents)?.requestId
+    respondToPagePrompt('chat', {
+      action: 'respond-prompt',
+      requestId,
+      response: withoutAllowed(response),
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(shell.openExternal).not.toHaveBeenCalled()
   })
 })

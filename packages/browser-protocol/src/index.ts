@@ -358,7 +358,7 @@ export interface BrowserHttpAuthPrompt {
   retry: boolean
 }
 
-export interface BrowserPasskeyAccount {
+interface BrowserPasskeyAccount {
   /** The credential id the shell resolves the choice by. */
   id: string
   name: string
@@ -373,7 +373,7 @@ export interface BrowserPasskeyPrompt {
   accounts: BrowserPasskeyAccount[]
 }
 
-export interface BrowserClientCertificate {
+interface BrowserClientCertificate {
   /** Certificate fingerprint; the shell resolves the choice by it. */
   id: string
   subject: string

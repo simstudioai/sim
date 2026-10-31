@@ -504,10 +504,11 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
         } })
         await make('user-ada', 'ada@example.com')
         await make('user-grace', 'grace@example.com')
-        globalThis.passkeyResult = navigator.credentials.get({ publicKey: {
+        globalThis.passkeyOutcome = 'pending'
+        navigator.credentials.get({ publicKey: {
           challenge: new Uint8Array(16), rpId: 'localhost', userVerification: 'preferred',
         } }).then((credential) => new TextDecoder().decode(credential.response.userHandle),
-          (error) => 'error:' + error.name)
+          (error) => 'error:' + error.name).then((outcome) => { globalThis.passkeyOutcome = outcome })
         return 'created'
       })()`
       )
@@ -520,26 +521,31 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
       expect(
         prompt?.kind === 'passkey-account' && prompt.accounts.map((account) => account.name).sort()
       ).toEqual(['ada@example.com', 'grace@example.com'])
-      // A stray Enter must never send an identity: nothing is preselected, and Enter refuses.
+      // A stray Enter must never send an identity: nothing is preselected and Enter does not
+      // continue. It dismisses when the prompt has keyboard focus and is ignored when it does
+      // not (as on a CI runner without window focus); either way, refuse and ask again.
+      const passkeyOutcome = () => pageAt<string>(passkeyPage, 'globalThis.passkeyOutcome')
       await shell.keyboard.press('Enter')
-      await expect
-        .poll(() => pageAt<string>(passkeyPage, 'globalThis.passkeyResult'))
-        .toBe('error:NotAllowedError')
+      await sleep(QUIET_MS)
+      expect(['pending', 'error:NotAllowedError']).toContain(await passkeyOutcome())
+      if ((await passkeyOutcome()) === 'pending') {
+        await shell.getByRole('button', { name: 'Cancel', exact: true }).click()
+      }
+      await expect.poll(passkeyOutcome).toBe('error:NotAllowedError')
       await pageAt(
         passkeyPage,
-        `globalThis.passkeyResult = navigator.credentials.get({ publicKey: {
+        `globalThis.passkeyOutcome = 'pending'
+        navigator.credentials.get({ publicKey: {
           challenge: new Uint8Array(16), rpId: 'localhost', userVerification: 'preferred',
         } }).then((credential) => new TextDecoder().decode(credential.response.userHandle),
-          (error) => 'error:' + error.name); 'asked'`
+          (error) => 'error:' + error.name).then((outcome) => { globalThis.passkeyOutcome = outcome }); 'asked'`
       )
       await expect.poll(pagePrompt).toMatchObject({ kind: 'passkey-account' })
       const dialog = shell.getByRole('dialog')
       await dialog.getByRole('button').filter({ hasText: 'Choose an account' }).click()
       await shell.getByRole('menuitemradio', { name: 'grace@example.com' }).click()
       await shell.getByRole('button', { name: 'Continue', exact: true }).click()
-      await expect
-        .poll(() => pageAt<string>(passkeyPage, 'globalThis.passkeyResult'))
-        .toBe('user-grace')
+      await expect.poll(passkeyOutcome).toBe('user-grace')
       expect(await pagePrompt()).toBeNull()
     })
     passed = true

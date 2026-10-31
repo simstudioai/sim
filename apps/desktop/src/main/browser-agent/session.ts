@@ -4141,7 +4141,10 @@ export async function clearProfileStorage(): Promise<void> {
   await clearBrowserSignIns(ses)
 }
 
-/** HTTP credentials Chromium caches, and remembered certificate and app-launch choices. */
+/**
+ * Sign-out forgets every HTTP credential Chromium cached for browser tabs, in the
+ * borrowed app session too, and the remembered certificate and app-launch choices.
+ */
 async function clearBrowserSignIns(agentSession: Session): Promise<void> {
   resetPagePromptDecisions()
   await agentSession.clearAuthCache()
@@ -4179,7 +4182,7 @@ export async function clearAgentData(kinds: readonly BrowserDataKind[]): Promise
   if (storages.length > 0) {
     await ses.clearStorageData({ storages } as Parameters<Session['clearStorageData']>[0])
   }
-  if (kinds.includes('cookies')) await clearBrowserSignIns(ses)
+  if (kinds.includes('cookies')) await ses.clearAuthCache()
   if (kinds.includes('cache')) {
     await ses.clearCache()
     // Resolved-host verdicts are a cache too, and a user clearing the cache
