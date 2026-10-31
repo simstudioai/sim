@@ -38,6 +38,8 @@ interface ShellUnderTest {
   cd: string
   /** What runs a program named by a quoted path. */
   call: string
+  /** Starts a quoted program with quoted arguments in the background, as a user would. */
+  background(program: string, args: string[]): string
 }
 
 const POWERSHELL: Omit<ShellUnderTest, 'name' | 'path'> = {
@@ -47,6 +49,8 @@ const POWERSHELL: Omit<ShellUnderTest, 'name' | 'path'> = {
   quote: (path) => `'${path}'`,
   cd: 'Set-Location -LiteralPath',
   call: '&',
+  background: (program, args) =>
+    `Start-Process -WindowStyle Hidden -FilePath ${program} -ArgumentList ${args.join(',')}`,
 }
 
 const SHELLS: ShellUnderTest[] = [
@@ -60,6 +64,7 @@ const SHELLS: ShellUnderTest[] = [
     quote: (path) => `'${path.replaceAll('\\', '/')}'`,
     cd: 'cd',
     call: '',
+    background: (program, args) => `${program} ${args.join(' ')} &`,
   },
 ]
 
@@ -78,6 +83,13 @@ const SHELL_TEST_TIMEOUT_MS = 90_000
 
 function scratchDirectory(): string {
   return realpathSync.native(mkdtempSync(join(tmpdir(), 'sim-windows-shell-')))
+}
+
+/** The pid a stubborn script wrote once it is up. */
+async function readPid(pidFile: string): Promise<number> {
+  const pid = () => (existsSync(pidFile) ? Number.parseInt(readFileSync(pidFile, 'utf8'), 10) : 0)
+  await vi.waitFor(() => expect(pid()).toBeGreaterThan(0), { timeout: 30_000, interval: 100 })
+  return pid()
 }
 
 function isAlive(pid: number): boolean {
@@ -167,34 +179,47 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
     )
 
     it.runIf(installed)(
-      'Stop ends a command that ignores Ctrl-C and leaves the shell usable',
+      'Stop ends a command that ignores Ctrl-C, spares earlier background work, and leaves the shell usable',
       async () => {
         const scratch = scratchDirectory()
         const script = join(scratch, 'stubborn.ps1')
+        const backgroundPidFile = join(scratch, 'background-pid')
         const pidFile = join(scratch, 'pid')
         writeFileSync(script, STUBBORN_SCRIPT)
         const terminal = open(shell, scratch)
-        const command = [
-          shell.call,
-          shell.quote(WINDOWS_POWERSHELL),
-          '-NoProfile -ExecutionPolicy Bypass -File',
+        const stubbornArgs = (pidPath: string) => [
+          "'-NoProfile'",
+          "'-ExecutionPolicy'",
+          "'Bypass'",
+          "'-File'",
           shell.quote(script),
-          shell.quote(pidFile),
+          shell.quote(pidPath),
         ]
+        const command = [shell.call, shell.quote(WINDOWS_POWERSHELL), ...stubbornArgs(pidFile)]
           .filter(Boolean)
           .join(' ')
 
-        const running = run(terminal, 'call-stubborn', command)
-        await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true), {
-          timeout: 30_000,
-          interval: 100,
-        })
-        const pid = Number.parseInt(readFileSync(pidFile, 'utf8'), 10)
+        // A server the user left running in this shell before the agent's command.
+        await run(
+          terminal,
+          'call-background',
+          shell.background(shell.quote(WINDOWS_POWERSHELL), stubbornArgs(backgroundPidFile))
+        )
+        const backgroundPid = await readPid(backgroundPidFile)
+        try {
+          const running = run(terminal, 'call-stubborn', command)
+          const pid = await readPid(pidFile)
 
-        await expect(terminal.cancelTool('call-stubborn')).resolves.toBe(true)
-        expect(await running).toMatchObject({ status: 'completed' })
-        expect(isAlive(pid)).toBe(false)
-        expect(await run(terminal, 'call-after', shell.succeed(0))).toMatchObject({ exitCode: 0 })
+          await expect(terminal.cancelTool('call-stubborn')).resolves.toBe(true)
+          expect(await running).toMatchObject({ status: 'completed' })
+          expect(isAlive(pid)).toBe(false)
+          expect(isAlive(backgroundPid)).toBe(true)
+          expect(await run(terminal, 'call-after', shell.succeed(0))).toMatchObject({
+            exitCode: 0,
+          })
+        } finally {
+          if (isAlive(backgroundPid)) process.kill(backgroundPid)
+        }
       },
       SHELL_TEST_TIMEOUT_MS
     )

@@ -962,7 +962,8 @@ export class TerminalService {
    * does, so a command the user starts meanwhile is never hit.
    */
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
-    if (session.agentCommandToolCallId !== toolCallId) return
+    const startedAt = session.agentCommandStartedAt
+    if (session.agentCommandToolCallId !== toolCallId || startedAt === null) return
     const groups = this.options.processGroups ?? osProcessGroups
     session.kill('SIGINT')
     let command: number[] | undefined
@@ -970,7 +971,7 @@ export class TerminalService {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
       const remaining =
         command === undefined
-          ? await groups.foreground(session.pid)
+          ? await groups.foreground(session.pid, startedAt)
           : await groups.stillRunning(session.pid, command)
       command ??= remaining
       if (remaining.length === 0) return

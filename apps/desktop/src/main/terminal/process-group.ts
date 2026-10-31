@@ -3,7 +3,11 @@
  * with Ctrl-C, including its children, and never the shell itself.
  *
  * On macOS and Linux that is the tty's foreground process group. Windows has no process groups or
- * job control, so there it is the shell's child processes, each ended with its whole tree.
+ * job control, so there it is the shell's child processes created since the command was typed,
+ * each ended with its whole tree. Children from before then (a server the user started in the
+ * background earlier) belong to someone else's work and are left running. Creation times and the
+ * command's start come from the same system clock, and the shell only starts a program after it
+ * reads the command, so no tolerance is needed.
  */
 import { spawn } from 'node:child_process'
 import { win32 } from 'node:path'
@@ -21,11 +25,11 @@ const WINDOWS_LOOKUP_TIMEOUT_MS = 5_000
 /** Reads and signals what holds a terminal's foreground. */
 export interface TerminalProcessGroups {
   /**
-   * Ids of what runs the foreground command: process group ids on macOS and Linux, process ids on
-   * Windows. Empty when the shell itself holds the foreground (it is sitting at its prompt) or the
-   * lookup failed.
+   * Ids of what runs the foreground command, which was typed into the shell at `startedAt` (epoch
+   * ms): process group ids on macOS and Linux, process ids on Windows. Empty when the shell itself
+   * holds the foreground (it is sitting at its prompt) or the lookup failed.
    */
-  foreground(shellPid: number): Promise<number[]>
+  foreground(shellPid: number, startedAt: number): Promise<number[]>
   /** Those of `ids`, from an earlier {@link foreground}, that still run the foreground command. */
   stillRunning(shellPid: number, ids: number[]): Promise<number[]>
   /** Sends `signal` to each id {@link foreground} returned. */
@@ -40,8 +44,8 @@ const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
     return pgid === null ? [] : [pgid]
   },
   stillRunning: async (shellPid, pgids) => {
-    const foreground = await POSIX_PROCESS_GROUPS.foreground(shellPid)
-    return pgids.filter((pgid) => foreground.includes(pgid))
+    const foreground = await readForegroundProcessGroup(shellPid)
+    return pgids.filter((pgid) => pgid === foreground)
   },
   signal: (pgids, signal) => {
     for (const pgid of pgids) signalProcessGroup(pgid, signal)
@@ -49,22 +53,37 @@ const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
   escalations: ['SIGTERM', 'SIGKILL'],
 }
 
+/** A Windows process, as the process table reports it. */
+export interface WindowsChildProcess {
+  pid: number
+  /** Epoch milliseconds. */
+  createdAt: number
+}
+
 /**
- * The one escalation is a forced tree kill: a Windows console program cannot be asked to
- * terminate, and Ctrl-C, the one request it can trap, has already been sent.
+ * Windows, given how to list a shell's child processes. The one escalation is a forced tree kill:
+ * a Windows console program cannot be asked to terminate, and Ctrl-C, the one request it can trap,
+ * has already been sent.
  */
-const WINDOWS_PROCESS_GROUPS: TerminalProcessGroups = {
-  foreground: readChildProcesses,
-  stillRunning: async (_shellPid, pids) => pids.filter(isRunning),
-  signal: (pids) => {
-    for (const pid of pids) killProcessTree(pid)
-  },
-  escalations: ['SIGTERM'],
+export function windowsProcessGroups(
+  readChildren: (shellPid: number) => Promise<WindowsChildProcess[]>
+): TerminalProcessGroups {
+  return {
+    foreground: async (shellPid, startedAt) =>
+      (await readChildren(shellPid))
+        .filter((child) => child.pid !== shellPid && child.createdAt >= startedAt)
+        .map((child) => child.pid),
+    stillRunning: async (_shellPid, pids) => pids.filter(isRunning),
+    signal: (pids) => {
+      for (const pid of pids) killProcessTree(pid)
+    },
+    escalations: ['SIGTERM'],
+  }
 }
 
 /** This operating system's way of reading and stopping a terminal's foreground command. */
 export const osProcessGroups: TerminalProcessGroups =
-  process.platform === 'win32' ? WINDOWS_PROCESS_GROUPS : POSIX_PROCESS_GROUPS
+  process.platform === 'win32' ? windowsProcessGroups(readChildProcesses) : POSIX_PROCESS_GROUPS
 
 /**
  * The tty's foreground process group, read from `ps`. Null when it cannot be read, or when the
@@ -89,7 +108,7 @@ function signalProcessGroup(pgid: number, signal: NodeJS.Signals): void {
 }
 
 /** The shell's direct children, from the process table; each one's tree is what it runs. */
-async function readChildProcesses(shellPid: number): Promise<number[]> {
+async function readChildProcesses(shellPid: number): Promise<WindowsChildProcess[]> {
   if (!isProcessId(shellPid)) return []
   const stdout = await readOutput(
     windowsPowerShellPath(process.env),
@@ -98,14 +117,14 @@ async function readChildProcesses(shellPid: number): Promise<number[]> {
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      `(Get-CimInstance -ClassName Win32_Process -Filter 'ParentProcessId=${shellPid}').ProcessId`,
+      `Get-CimInstance -ClassName Win32_Process -Filter 'ParentProcessId=${shellPid}' | ForEach-Object { "$($_.ProcessId) $(([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds())" }`,
     ],
     WINDOWS_LOOKUP_TIMEOUT_MS
   )
-  return (stdout ?? '')
-    .split(/\s+/)
-    .map((value) => Number.parseInt(value, 10))
-    .filter((pid) => isProcessId(pid) && pid !== shellPid)
+  return (stdout ?? '').split(/\r?\n/).flatMap((line) => {
+    const [pid, createdAt] = line.trim().split(' ').map(Number)
+    return isProcessId(pid) && Number.isFinite(createdAt) ? [{ pid, createdAt }] : []
+  })
 }
 
 function killProcessTree(pid: number): void {

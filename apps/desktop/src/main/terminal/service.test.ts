@@ -177,6 +177,9 @@ vi.mock('@/main/terminal/session', async () => {
           get agentCommandToolCallId() {
             return state.toolCallId
           },
+          get agentCommandStartedAt() {
+            return state.toolCallId === null ? null : 0
+          },
           kill: vi.fn((signal: string) => {
             if (signal === 'SIGINT' && state.interruptible) finishRun(130)
           }),
@@ -485,7 +488,7 @@ describe('stopping a tool call', () => {
     /** What holds the terminal's foreground as the OS would report it at each read. */
     let foreground: number[] = [COMMAND_GROUP]
     const processGroups = {
-      foreground: vi.fn(async (_shellPid: number) => foreground),
+      foreground: vi.fn(async (_shellPid: number, _startedAt: number) => foreground),
       stillRunning: vi.fn(async (_shellPid: number, ids: number[]) =>
         ids.filter((id) => foreground.includes(id))
       ),

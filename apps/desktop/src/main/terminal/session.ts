@@ -369,6 +369,8 @@ export class TerminalSession {
    * the command is still the agent's, so Stop and sign-out can still end it.
    */
   private agentToolCallId: string | null = null
+  /** When that command was typed into the shell; anything it started began after this. */
+  private agentCommandSentAt: number | null = null
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
@@ -507,6 +509,11 @@ export class TerminalSession {
   /** The agent tool call whose command is still running in this shell, if one is. */
   get agentCommandToolCallId(): string | null {
     return this.agentToolCallId
+  }
+
+  /** When the agent's still-running command was typed into the shell, in epoch milliseconds. */
+  get agentCommandStartedAt(): number | null {
+    return this.agentCommandSentAt
   }
 
   /**
@@ -711,6 +718,7 @@ export class TerminalSession {
       this.foregroundCommand = command
       this.foregroundToolCallId = toolCallId
       this.agentToolCallId = toolCallId
+      this.agentCommandSentAt = Date.now()
       this.emitState()
       this.callbacks.onCommand({ terminalId: this.terminalId, phase: 'start', command, toolCallId })
 
@@ -1097,6 +1105,7 @@ export class TerminalSession {
     this.foregroundCommand = null
     this.foregroundToolCallId = null
     this.agentToolCallId = null
+    this.agentCommandSentAt = null
     this.announcedCommand = null
     this.altScreen = false
     this.emitState()
