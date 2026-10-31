@@ -148,6 +148,8 @@ const FAILURE_REASONS = [
   'mcp_payload_too_large',
   'mcp_payload_unreadable',
   'mcp_account_required',
+  /** The account never got to search: no slot freed with enough of the search deadline left. */
+  'not_started',
 ] as const
 export type SearchFailureReason = (typeof FAILURE_REASONS)[number]
 

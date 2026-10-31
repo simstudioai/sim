@@ -119,6 +119,32 @@ describe('withLeaderLock', () => {
     }
   })
 
+  describe('when the follower wait ends with nothing', () => {
+    const waitedOut = {
+      key: 'k',
+      pollIntervalMs: 5,
+      maxWaitMs: 20,
+      onFollower: async () => null,
+    }
+
+    it('leads once a leader that vanished leaves its lease to lapse', async () => {
+      redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
+      const onLeader = vi.fn(async () => 'took-over')
+      await expect(withLeaderLock<string>({ ...waitedOut, onLeader })).resolves.toBe('took-over')
+      expect(onLeader).toHaveBeenCalledOnce()
+      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledTimes(2)
+      expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledOnce()
+    })
+
+    it('returns the follower result when a live holder still has the lease', async () => {
+      redisConfigMockFns.mockAcquireLock.mockResolvedValue(false)
+      const onLeader = vi.fn(async () => 'should-not-run')
+      await expect(withLeaderLock<string>({ ...waitedOut, onLeader })).resolves.toBeNull()
+      expect(onLeader).not.toHaveBeenCalled()
+      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('only one of N concurrent callers acquires the lock', async () => {
     // Track which calls won the lock: first one returns true, rest return false.
     let acquired = false

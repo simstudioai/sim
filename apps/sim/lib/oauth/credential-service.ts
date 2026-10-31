@@ -226,6 +226,38 @@ const SA_DIAGNOSTIC_ERROR_CODES = new Set([
 ])
 
 /**
+ * The decrypted key of a live Google service-account credential. Reads running at once (one per
+ * delegated subject) share one query and decrypt; a later read queries again, so it sees a
+ * revocation recorded since. Sharing also bounds a hung read by the coalescing settle timeout.
+ */
+function readGoogleServiceAccountKey(credentialId: string): Promise<string> {
+  return coalesceLocally(`sa-key:${credentialId}`, async () => {
+    const [credentialRow] = await db
+      .select({
+        type: credential.type,
+        providerId: credential.providerId,
+        revokedAt: credential.revokedAt,
+        encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+      })
+      .from(credential)
+      .where(eq(credential.id, credentialId))
+      .limit(1)
+
+    if (
+      credentialRow?.type !== 'service_account' ||
+      credentialRow.providerId !== GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
+      credentialRow.revokedAt !== null ||
+      !credentialRow.encryptedServiceAccountKey
+    ) {
+      throw new Error('Google service account credential is unavailable')
+    }
+
+    const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+    return decrypted
+  })
+}
+
+/**
  * Generates a short-lived access token for a Google service account credential
  * using the two-legged OAuth JWT flow (RFC 7523).
  *
@@ -241,27 +273,7 @@ export async function getServiceAccountToken(
   options?: CredentialTokenResolutionOptions
 ): Promise<string> {
   options?.signal?.throwIfAborted()
-  const [credentialRow] = await db
-    .select({
-      type: credential.type,
-      providerId: credential.providerId,
-      revokedAt: credential.revokedAt,
-      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
-    })
-    .from(credential)
-    .where(eq(credential.id, credentialId))
-    .limit(1)
-
-  if (
-    credentialRow?.type !== 'service_account' ||
-    credentialRow.providerId !== GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
-    credentialRow.revokedAt !== null ||
-    !credentialRow.encryptedServiceAccountKey
-  ) {
-    throw new Error('Google service account credential is unavailable')
-  }
-
-  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+  const decrypted = await waitWithAbort(readGoogleServiceAccountKey(credentialId), options?.signal)
   const keyData = JSON.parse(decrypted) as {
     client_email: string
     private_key: string
@@ -1018,10 +1030,9 @@ const OAUTH_REFRESH_AHEAD_WINDOW_MS = 10 * 60 * 1000
 const OAUTH_REFRESH_AHEAD_JITTER_MS = 60 * 1000
 
 /**
- * Google and Microsoft keep a refreshed-away access token valid until its own expiry and keep the
- * old refresh token usable (Google never rotates it; Microsoft rotates without revoking the old
- * one), so a caller can use the old token while the refresh runs and an abandoned refresh loses
- * nothing.
+ * A Google refresh does not rotate the refresh token, and Microsoft does not revoke the old one
+ * when issuing a new one (learn.microsoft.com, "Refresh tokens in the Microsoft identity
+ * platform"); serving the stored access token meanwhile relies on it staying valid until expiry.
  */
 function refreshesAheadOfExpiry(providerId: string): boolean {
   return (
@@ -1049,7 +1060,8 @@ interface StoredOAuthTokens extends RevocableChain {
  * - `unrefreshable`: the stored token expired and nothing can refresh it.
  * - `refresh-ahead`: use the still-valid stored token and refresh in the background.
  * - `refresh-or-reuse`: wait for a refresh the token's own validity does not need, keeping the
- *   stored token if it fails (Microsoft refresh-token aging, Instagram long-lived renewal).
+ *   stored token if it fails (Instagram long-lived renewal; Microsoft refresh-token aging
+ *   refreshes ahead instead).
  * - `must-refresh`: wait for the refresh; the stored token cannot serve the request.
  */
 type AccessTokenRefreshPlan =
@@ -1116,6 +1128,14 @@ function planAccessTokenRefresh(
 const REFRESH_LOCK_HEADROOM_MS = 15_000
 const REFRESH_LOCK_TTL_SEC = Math.ceil((TOKEN_REFRESH_TIMEOUT_MS + REFRESH_LOCK_HEADROOM_MS) / 1000)
 const REFRESH_FOLLOWER_MAX_WAIT_MS = REFRESH_LOCK_TTL_SEC * 1000
+/**
+ * How long callers sharing one in-process refresh wait for it: a follower's full wait, then the
+ * leader run it may take over when that wait ends with a lapsed lease (budgeted like any lease),
+ * plus headroom for the lock round trips around them; so a follower concludes on its own, and a
+ * leader hung in this process still fails its callers instead of wedging them.
+ */
+const REFRESH_SETTLE_TIMEOUT_MS =
+  REFRESH_FOLLOWER_MAX_WAIT_MS + REFRESH_LOCK_TTL_SEC * 1000 + REFRESH_LOCK_HEADROOM_MS
 
 /**
  * The raw scope one refresh coordinates on: the account row, or the installation for a Slack
@@ -1301,260 +1321,268 @@ async function performCoalescedRefresh({
 
   const lockKey = `oauth:refresh:${scopeKey}`
 
-  const refreshPromise = coalesceLocally(lockKey, () =>
-    withLeaderLock<RefreshOutcome>({
-      key: lockKey,
-      ttlSec: REFRESH_LOCK_TTL_SEC,
-      maxWaitMs: REFRESH_FOLLOWER_MAX_WAIT_MS,
-      onLeader: async () => {
-        try {
-          /**
-           * Reread under the lock: another process may have recorded a revocation after the
-           * caller read the row, and the version guards the record against a reconnect that
-           * lands while the provider call is in flight.
-           */
-          const current = await readStoredChain(accountId)
-          const recordedMeanwhile = recordedRevocationCode(current)
-          if (recordedMeanwhile && !isRevocationReprobeDue(current)) {
-            return revokedOutcome(recordedMeanwhile)
-          }
-          /**
-           * A writer that stored a new token after the caller's read (a refresh that finished just
-           * before this one took the lock, or a reconnect) already answers it, so this refresh
-           * would only spend a provider call. The token must still clear the headroom a waiting
-           * caller is promised, and sit outside the refresh-ahead window so the next caller does
-           * not start another refresh straight away.
-           */
-          const storedSinceRead =
-            !slackTeamId &&
-            !recordedMeanwhile &&
-            current &&
-            chain &&
-            current.updatedAt > chain.updatedAt &&
-            current.accessToken !== chain.accessToken &&
-            !(
-              refreshesAheadOfExpiry(providerId) &&
-              current.accessTokenExpiresAt &&
-              current.accessTokenExpiresAt.getTime() <= Date.now() + OAUTH_REFRESH_AHEAD_WINDOW_MS
-            )
-              ? usableStoredToken(current, providerId)
-              : null
-          if (storedSinceRead) {
-            logger.info('Using the token stored since this caller read the account', logContext)
-            return tokenOutcome(storedSinceRead)
-          }
-          let chainVersion = current?.updatedAt
-          let refreshTokenToUse = refreshToken
-          let slackChainVersion: Date | null = null
-          if (slackTeamId) {
-            const freshest = await getFreshestSlackChain(slackTeamId)
-            if (!freshest) {
-              throw new Error(
-                `No refresh-capable account row found for Slack installation ${slackTeamId}`
-              )
+  const refreshPromise = coalesceLocally(
+    lockKey,
+    () =>
+      withLeaderLock<RefreshOutcome>({
+        key: lockKey,
+        ttlSec: REFRESH_LOCK_TTL_SEC,
+        maxWaitMs: REFRESH_FOLLOWER_MAX_WAIT_MS,
+        onLeader: async () => {
+          try {
+            /**
+             * Reread under the lock: another process may have recorded a revocation or flagged the
+             * credential dead after the caller read the row (a follower taking over the lock after
+             * a failed leader released it sees only these), and the version guards the record
+             * against a reconnect that lands while the provider call is in flight.
+             */
+            const current = await readStoredChain(accountId)
+            const recordedMeanwhile = recordedRevocationCode(current)
+            if (recordedMeanwhile && !isRevocationReprobeDue(current)) {
+              return revokedOutcome(recordedMeanwhile)
             }
-            slackChainVersion = freshest.chainVersion
-            chainVersion = freshest.chainVersion
-            if (
-              freshest.accessToken &&
-              freshest.accessTokenExpiresAt &&
-              !isOAuthAccessTokenExpiring(freshest.accessTokenExpiresAt, providerId)
-            ) {
+            if (await getRecentTerminalError(scopeKey)) return null
+            /**
+             * A writer that stored a new token after the caller's read (a refresh that finished just
+             * before this one took the lock, or a reconnect) already answers it, so this refresh
+             * would only spend a provider call. The token must still clear the headroom a waiting
+             * caller is promised, and sit outside the refresh-ahead window so the next caller does
+             * not start another refresh straight away.
+             */
+            const storedSinceRead =
+              !slackTeamId &&
+              !recordedMeanwhile &&
+              current &&
+              chain &&
+              current.updatedAt > chain.updatedAt &&
+              current.accessToken !== chain.accessToken &&
+              !(
+                refreshesAheadOfExpiry(providerId) &&
+                current.accessTokenExpiresAt &&
+                current.accessTokenExpiresAt.getTime() <= Date.now() + OAUTH_REFRESH_AHEAD_WINDOW_MS
+              )
+                ? usableStoredToken(current, providerId)
+                : null
+            if (storedSinceRead) {
+              logger.info('Using the token stored since this caller read the account', logContext)
+              return tokenOutcome(storedSinceRead)
+            }
+            let chainVersion = current?.updatedAt
+            let refreshTokenToUse = refreshToken
+            let slackChainVersion: Date | null = null
+            if (slackTeamId) {
+              const freshest = await getFreshestSlackChain(slackTeamId)
+              if (!freshest) {
+                throw new Error(
+                  `No refresh-capable account row found for Slack installation ${slackTeamId}`
+                )
+              }
+              slackChainVersion = freshest.chainVersion
+              chainVersion = freshest.chainVersion
+              if (
+                freshest.accessToken &&
+                freshest.accessTokenExpiresAt &&
+                !isOAuthAccessTokenExpiring(freshest.accessTokenExpiresAt, providerId)
+              ) {
+                await fanOutSlackTokenChain(
+                  slackTeamId,
+                  {
+                    accessToken: freshest.accessToken,
+                    refreshToken: freshest.refreshToken,
+                    accessTokenExpiresAt: freshest.accessTokenExpiresAt,
+                  },
+                  { ifChainUnchangedSince: freshest.chainVersion }
+                )
+                logger.info('Reused freshest Slack installation token', logContext)
+                return tokenOutcome(freshest.accessToken)
+              }
+              refreshTokenToUse = freshest.refreshToken
+            }
+
+            let quickBooksClientConfig
+            if (providerId === 'quickbooks') {
+              if (!oauthConfig) {
+                throw new Error('QuickBooks OAuth client configuration is missing')
+              }
+              quickBooksClientConfig = await decryptQuickBooksOAuthClientConfig(oauthConfig)
+            }
+            const result = quickBooksClientConfig
+              ? await refreshOAuthToken(providerId, refreshTokenToUse, quickBooksClientConfig)
+              : await refreshOAuthToken(providerId, refreshTokenToUse)
+
+            if (!result.ok) {
+              const { errorCode } = result
+              const revoked = isCredentialRevocationError(errorCode, providerId)
+              if (!revoked) {
+                logger.error('Failed to refresh token', {
+                  ...logContext,
+                  errorCode,
+                  message: result.message,
+                })
+              }
+              const chainScope = { accountId, slackTeamId }
+              if (errorCode && isTerminalRefreshError(errorCode, providerId)) {
+                // A refresh that lost a race with a concurrent connect or a newer
+                // rotation fails with a revoked/rotated-out token even though the
+                // account just got a live chain — recording it then would take
+                // down a healthy credential.
+                if (
+                  slackChainVersion &&
+                  (await hasSlackChainMoved(slackTeamId!, slackChainVersion))
+                ) {
+                  logger.info('Skipping dead flag: Slack chain moved during refresh', logContext)
+                  return null
+                }
+                if (!slackTeamId) {
+                  const stored = await readStoredChain(accountId)
+                  if (stored && stored.refreshToken !== refreshToken) {
+                    logger.info('Skipping dead flag: chain moved during refresh', logContext)
+                    return tokenOutcome(usableStoredToken(stored, providerId))
+                  }
+                }
+                if (!revoked) {
+                  await markCredentialDead(scopeKey, errorCode)
+                  return null
+                }
+                if (
+                  !(await recordRefreshRevocation(
+                    chainScope,
+                    refreshTokenToUse,
+                    errorCode,
+                    chainVersion
+                  ))
+                ) {
+                  logger.info('Skipping revocation record: chain moved during refresh', logContext)
+                  return null
+                }
+                // Logged once per rejection; later runs short-circuited by the record stay silent.
+                logger.warn('Provider revoked the refresh token; recorded until reconnect', {
+                  ...logContext,
+                  errorCode,
+                })
+                return revokedOutcome(errorCode)
+              }
+              // A re-probe that fails for a passing reason keeps the revocation, unless the chain moved.
+              const stillRevoked =
+                recordedCode !== null &&
+                (await recordRefreshRevocation(
+                  chainScope,
+                  refreshTokenToUse,
+                  recordedCode,
+                  chainVersion
+                ))
+              return stillRevoked ? revokedOutcome(recordedCode) : null
+            }
+
+            const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
+
+            if (slackTeamId) {
               await fanOutSlackTokenChain(
                 slackTeamId,
                 {
-                  accessToken: freshest.accessToken,
-                  refreshToken: freshest.refreshToken,
-                  accessTokenExpiresAt: freshest.accessTokenExpiresAt,
+                  accessToken: result.accessToken,
+                  refreshToken: result.refreshToken || refreshTokenToUse,
+                  accessTokenExpiresAt,
                 },
-                { ifChainUnchangedSince: freshest.chainVersion }
+                { ifChainUnchangedSince: slackChainVersion ?? undefined, freshlyIssued: true }
               )
-              logger.info('Reused freshest Slack installation token', logContext)
-              return tokenOutcome(freshest.accessToken)
-            }
-            refreshTokenToUse = freshest.refreshToken
-          }
-
-          let quickBooksClientConfig
-          if (providerId === 'quickbooks') {
-            if (!oauthConfig) {
-              throw new Error('QuickBooks OAuth client configuration is missing')
-            }
-            quickBooksClientConfig = await decryptQuickBooksOAuthClientConfig(oauthConfig)
-          }
-          const result = quickBooksClientConfig
-            ? await refreshOAuthToken(providerId, refreshTokenToUse, quickBooksClientConfig)
-            : await refreshOAuthToken(providerId, refreshTokenToUse)
-
-          if (!result.ok) {
-            const { errorCode } = result
-            const revoked = isCredentialRevocationError(errorCode, providerId)
-            if (!revoked) {
-              logger.error('Failed to refresh token', {
-                ...logContext,
-                errorCode,
-                message: result.message,
-              })
-            }
-            const chainScope = { accountId, slackTeamId }
-            if (errorCode && isTerminalRefreshError(errorCode, providerId)) {
-              // A refresh that lost a race with a concurrent connect or a newer
-              // rotation fails with a revoked/rotated-out token even though the
-              // account just got a live chain — recording it then would take
-              // down a healthy credential.
-              if (
-                slackChainVersion &&
-                (await hasSlackChainMoved(slackTeamId!, slackChainVersion))
-              ) {
-                logger.info('Skipping dead flag: Slack chain moved during refresh', logContext)
-                return null
-              }
-              if (!slackTeamId) {
-                const stored = await readStoredChain(accountId)
-                if (stored && stored.refreshToken !== refreshToken) {
-                  logger.info('Skipping dead flag: chain moved during refresh', logContext)
-                  return tokenOutcome(usableStoredToken(stored, providerId))
-                }
-              }
-              if (!revoked) {
-                await markCredentialDead(scopeKey, errorCode)
-                return null
-              }
-              if (
-                !(await recordRefreshRevocation(
-                  chainScope,
-                  refreshTokenToUse,
-                  errorCode,
-                  chainVersion
-                ))
-              ) {
-                logger.info('Skipping revocation record: chain moved during refresh', logContext)
-                return null
-              }
-              // Logged once per rejection; later runs short-circuited by the record stay silent.
-              logger.warn('Provider revoked the refresh token; recorded until reconnect', {
-                ...logContext,
-                errorCode,
-              })
-              return revokedOutcome(errorCode)
-            }
-            // A re-probe that fails for a passing reason keeps the revocation, unless the chain moved.
-            const stillRevoked =
-              recordedCode !== null &&
-              (await recordRefreshRevocation(
-                chainScope,
-                refreshTokenToUse,
-                recordedCode,
-                chainVersion
-              ))
-            return stillRevoked ? revokedOutcome(recordedCode) : null
-          }
-
-          const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
-
-          if (slackTeamId) {
-            await fanOutSlackTokenChain(
-              slackTeamId,
-              {
+            } else {
+              const updateData: Record<string, unknown> = {
                 accessToken: result.accessToken,
-                refreshToken: result.refreshToken || refreshTokenToUse,
                 accessTokenExpiresAt,
-              },
-              { ifChainUnchangedSince: slackChainVersion ?? undefined, freshlyIssued: true }
-            )
-          } else {
-            const updateData: Record<string, unknown> = {
-              accessToken: result.accessToken,
-              accessTokenExpiresAt,
-              ...CLEARED_REFRESH_REVOCATION,
-              updatedAt: new Date(),
-            }
-            if (result.refreshToken && result.refreshToken !== refreshToken) {
-              updateData.refreshToken = result.refreshToken
-            }
-            if (isMicrosoftProvider(providerId)) {
-              updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
-            }
-            if (result.refreshTokenExpiresIn) {
-              updateData.refreshTokenExpiresAt = new Date(
-                Date.now() + result.refreshTokenExpiresIn * 1000
-              )
-            }
-
-            /**
-             * The chain is rotated only from the refresh token this refresh started from.
-             * A lease is not mutual exclusion: it can expire under a slow provider or a
-             * paused process while the leader is still running, and an unconditional
-             * write would then let this refresh overwrite a newer rotation with a chain
-             * the provider has already retired, which the next refresh pays for as
-             * `invalid_grant` and, under reuse detection, as a revoked grant. When no row
-             * matches, another writer rotated first: its chain is the live one, so this
-             * caller uses what is stored and never retries the provider.
-             */
-            const rotated = await db
-              .update(account)
-              .set(updateData)
-              .where(
-                and(eq(account.id, accountId), sealedTextEquals(account.refreshToken, refreshToken))
-              )
-              .returning({ id: account.id })
-            if (rotated.length === 0) {
-              const stored = await readStoredChain(accountId)
-              if (!stored) {
-                logger.warn('Rotation write found no account; the credential is gone', logContext)
-                return null
+                ...CLEARED_REFRESH_REVOCATION,
+                updatedAt: new Date(),
               }
-              logger.warn(
-                'Rotation write lost to a newer chain; using the stored token',
-                logContext
-              )
-              return tokenOutcome(usableStoredToken(stored, providerId))
-            }
-          }
+              if (result.refreshToken && result.refreshToken !== refreshToken) {
+                updateData.refreshToken = result.refreshToken
+              }
+              if (isMicrosoftProvider(providerId)) {
+                updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+              }
+              if (result.refreshTokenExpiresIn) {
+                updateData.refreshTokenExpiresAt = new Date(
+                  Date.now() + result.refreshTokenExpiresIn * 1000
+                )
+              }
 
-          logger.info('Successfully refreshed access token', logContext)
-          return { kind: 'token', accessToken: result.accessToken }
-        } catch (error) {
-          logger.error('Refresh failed inside leader path', {
-            ...logContext,
-            ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
-          })
-          return revokedOutcome(recordedCode)
-        }
-      },
-      onFollower: async () => {
-        try {
-          const [row] = await db
-            .select({
-              accessToken: account.accessToken,
-              accessTokenExpiresAt: account.accessTokenExpiresAt,
-              refreshToken: account.refreshToken,
-              ...refreshRevocationColumns,
+              /**
+               * The chain is rotated only from the refresh token this refresh started from.
+               * A lease is not mutual exclusion: it can expire under a slow provider or a
+               * paused process while the leader is still running, and an unconditional
+               * write would then let this refresh overwrite a newer rotation with a chain
+               * the provider has already retired, which the next refresh pays for as
+               * `invalid_grant` and, under reuse detection, as a revoked grant. When no row
+               * matches, another writer rotated first: its chain is the live one, so this
+               * caller uses what is stored and never retries the provider.
+               */
+              const rotated = await db
+                .update(account)
+                .set(updateData)
+                .where(
+                  and(
+                    eq(account.id, accountId),
+                    sealedTextEquals(account.refreshToken, refreshToken)
+                  )
+                )
+                .returning({ id: account.id })
+              if (rotated.length === 0) {
+                const stored = await readStoredChain(accountId)
+                if (!stored) {
+                  logger.warn('Rotation write found no account; the credential is gone', logContext)
+                  return null
+                }
+                logger.warn(
+                  'Rotation write lost to a newer chain; using the stored token',
+                  logContext
+                )
+                return tokenOutcome(usableStoredToken(stored, providerId))
+              }
+            }
+
+            logger.info('Successfully refreshed access token', logContext)
+            return { kind: 'token', accessToken: result.accessToken }
+          } catch (error) {
+            logger.error('Refresh failed inside leader path', {
+              ...logContext,
+              ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
             })
-            .from(account)
-            .where(eq(account.id, accountId))
-            .limit(1)
-          if (
-            row?.accessToken &&
-            row.accessTokenExpiresAt &&
-            !isOAuthAccessTokenExpiring(row.accessTokenExpiresAt, providerId)
-          ) {
-            logger.info('Got fresh access token from coalesced refresh', logContext)
-            return { kind: 'token', accessToken: row.accessToken }
+            return revokedOutcome(recordedCode)
           }
-          const revokedByLeader = recordedRevocationCode(row)
-          return revokedByLeader && !isRevocationReprobeDue(row)
-            ? revokedOutcome(revokedByLeader)
-            : null
-        } catch (error) {
-          logger.warn('Follower DB read failed during refresh poll', {
-            ...logContext,
-            ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
-          })
-          return null
-        }
-      },
-    })
+        },
+        onFollower: async () => {
+          try {
+            const [row] = await db
+              .select({
+                accessToken: account.accessToken,
+                accessTokenExpiresAt: account.accessTokenExpiresAt,
+                refreshToken: account.refreshToken,
+                ...refreshRevocationColumns,
+              })
+              .from(account)
+              .where(eq(account.id, accountId))
+              .limit(1)
+            if (
+              row?.accessToken &&
+              row.accessTokenExpiresAt &&
+              !isOAuthAccessTokenExpiring(row.accessTokenExpiresAt, providerId)
+            ) {
+              logger.info('Got fresh access token from coalesced refresh', logContext)
+              return { kind: 'token', accessToken: row.accessToken }
+            }
+            const revokedByLeader = recordedRevocationCode(row)
+            return revokedByLeader && !isRevocationReprobeDue(row)
+              ? revokedOutcome(revokedByLeader)
+              : null
+          } catch (error) {
+            logger.warn('Follower DB read failed during refresh poll', {
+              ...logContext,
+              ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
+            })
+            return null
+          }
+        },
+      }),
+    REFRESH_SETTLE_TIMEOUT_MS
   )
 
   try {
