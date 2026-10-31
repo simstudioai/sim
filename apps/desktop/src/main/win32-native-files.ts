@@ -1,6 +1,8 @@
 import type { Dir, Dirent } from 'node:fs'
 import { type FileHandle, lstat, open, opendir, realpath } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
+import type { LocalFilesystemEntryKind } from '@sim/desktop-bridge'
+import { type FileIdentity, fileEntryKind, sameFileIdentity } from '@/main/file-identity'
 import type { NativeDirectoryListing, NativeFileHandle } from '@/main/native-directory'
 import { isWithinRoot } from '@/main/path-containment'
 import { isWin32SafeSegment } from '@/main/win32-path'
@@ -13,34 +15,10 @@ export interface Win32NativeFileSystem {
 
 const NODE_FILE_SYSTEM: Win32NativeFileSystem = { open: (path) => open(path, 'r'), opendir }
 
-type EntryKind = NativeDirectoryListing['entries'][number]['kind']
-
-interface Identity {
-  dev: bigint
-  ino: bigint
-}
-
-interface KindInfo {
-  isFile(): boolean
-  isDirectory(): boolean
-  isSymbolicLink(): boolean
-}
-
 const OUTSIDE_GRANT = 'The path must stay within the approved folder.'
 
-function sameIdentity(left: Identity, right: Identity): boolean {
-  return left.dev === right.dev && left.ino === right.ino
-}
-
-function isRequestedKind(info: KindInfo, directory: boolean): boolean {
+function isRequestedKind(info: { isFile(): boolean; isDirectory(): boolean }, directory: boolean) {
   return directory ? info.isDirectory() : info.isFile()
-}
-
-function kindOf(info: KindInfo): EntryKind {
-  if (info.isFile()) return 'file'
-  if (info.isDirectory()) return 'directory'
-  if (info.isSymbolicLink()) return 'symlink'
-  return 'other'
 }
 
 /**
@@ -48,10 +26,10 @@ function kindOf(info: KindInfo): EntryKind {
  * included, though those are ordinary files. `lstat` reports only symlinks and
  * junctions as links, so it settles the kind without following anything.
  */
-async function entryKind(directory: string, entry: Dirent): Promise<EntryKind> {
-  if (!entry.isSymbolicLink()) return kindOf(entry)
+async function entryKind(directory: string, entry: Dirent): Promise<LocalFilesystemEntryKind> {
+  if (!entry.isSymbolicLink()) return fileEntryKind(entry)
   try {
-    return kindOf(await lstat(join(directory, entry.name)))
+    return fileEntryKind(await lstat(join(directory, entry.name)))
   } catch {
     return 'other'
   }
@@ -83,7 +61,7 @@ async function canonicalBeneath(rootReal: string, path: string): Promise<string>
 export async function openWin32NativeFile(
   root: string,
   relativePath: string,
-  identity: Identity,
+  identity: FileIdentity,
   directory: boolean,
   fs: Win32NativeFileSystem = NODE_FILE_SYSTEM
 ): Promise<NativeFileHandle> {
@@ -91,7 +69,7 @@ export async function openWin32NativeFile(
   if (!segments.every(isWin32SafeSegment)) throw new Error(OUTSIDE_GRANT)
   const assertRootCurrent = async () => {
     const info = await lstat(root, { bigint: true })
-    if (!info.isDirectory() || !sameIdentity(info, identity))
+    if (!info.isDirectory() || !sameFileIdentity(info, identity))
       throw new Error('The approved folder changed. Request access again.')
   }
   await assertRootCurrent()
@@ -104,7 +82,7 @@ export async function openWin32NativeFile(
   const handle = await fs.open(path)
   try {
     const opened = await handle.stat({ bigint: true })
-    if (!sameIdentity(opened, checked) || !isRequestedKind(opened, directory))
+    if (!sameFileIdentity(opened, checked) || !isRequestedKind(opened, directory))
       throw new Error('The local path changed while it was being opened. Try again.')
     await canonicalBeneath(rootReal, path)
     await assertRootCurrent()
@@ -118,6 +96,7 @@ export async function openWin32NativeFile(
       return handle.fd
     },
     stat: () => handle.stat(),
+    statBigint: () => handle.stat({ bigint: true }),
     read: (buffer, offset, length, position) => handle.read(buffer, offset, length, position),
     readDirectory: async (limit) => {
       const entries: NativeDirectoryListing['entries'] = []
@@ -130,7 +109,7 @@ export async function openWin32NativeFile(
         entries.push({ name: entry.name, kind: await entryKind(path, entry) })
       }
       const listed = await lstat(path, { bigint: true })
-      if (!sameIdentity(listed, checked))
+      if (!sameFileIdentity(listed, checked))
         throw new Error('The local directory changed while it was being read. Try again.')
       await canonicalBeneath(rootReal, path)
       return { entries, truncated }

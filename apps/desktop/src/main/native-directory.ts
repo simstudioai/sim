@@ -1,8 +1,9 @@
-import { fstat, read, type Stats } from 'node:fs'
+import { type BigIntStats, fstat, read, type Stats } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { DesktopLocalFileRead } from '@sim/desktop-bridge'
 import { app } from 'electron'
+import type { FileIdentity } from '@/main/file-identity'
 import { openWin32NativeFile } from '@/main/win32-native-files'
 
 /** At most `limit` entries of one directory, and whether more were left unread. */
@@ -15,6 +16,8 @@ export interface NativeDirectoryListing {
 export interface NativeFileHandle {
   readonly fd: number
   stat: () => Promise<Stats>
+  /** {@link stat} with bigint fields, for comparing identities: NTFS file IDs exceed 2^53. */
+  statBigint: () => Promise<BigIntStats>
   read: (
     buffer: Buffer,
     offset: number,
@@ -60,7 +63,7 @@ function nativeBridge(): NativeDirectoryBridge {
 export async function openPosixNativeFile(
   root: string,
   relativePath: string,
-  identity: { dev: bigint; ino: bigint },
+  identity: FileIdentity,
   directory: boolean
 ): Promise<NativeFileHandle> {
   let descriptor = await nativeBridge().openApproved(
@@ -75,6 +78,7 @@ export async function openPosixNativeFile(
       return descriptor
     },
     stat: () => statDescriptor(descriptor),
+    statBigint: () => statDescriptor(descriptor, { bigint: true }),
     read: (buffer, offset, length, position) =>
       readDescriptor(descriptor, buffer, offset, length, position),
     readDirectory: (limit) => nativeBridge().readDirectory(descriptor, limit),

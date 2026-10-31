@@ -1,7 +1,5 @@
-import { fstat } from 'node:fs'
 import { lstat, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { promisify } from 'node:util'
 import type {
   DesktopLocalFileEntry,
   DesktopLocalFileManifest,
@@ -13,13 +11,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { PDFDocument } from 'pdf-lib'
+import { sameFileIdentity } from '@/main/file-identity'
 import type { LocalFileAccess } from '@/main/local-filesystem'
 
 const CHUNK_BYTES = 8 * 1024 * 1024
 const MAX_ENTRIES = 1000
 const MAX_READ_BYTES = 64_000
-
-const statDescriptor = promisify(fstat)
 
 export interface LocalFileAuthorization {
   toolName: string
@@ -48,10 +45,9 @@ async function readApprovedDirectory(path: string, access: LocalFileAccess) {
   try {
     const listing = await handle.readDirectory(MAX_ENTRIES)
     const canonical = await access.resolve(path)
-    // bigint: NTFS file IDs exceed 2^53, and rounded IDs could compare equal.
     const current = await lstat(canonical, { bigint: true })
-    const opened = await statDescriptor(handle.fd, { bigint: true })
-    if (canonical !== path || current.dev !== opened.dev || current.ino !== opened.ino)
+    const opened = await handle.statBigint()
+    if (canonical !== path || !sameFileIdentity(current, opened))
       throw new Error('The local directory changed while it was being read. Try again.')
     listing.entries.sort((left, right) => compareStrings(left.name, right.name))
     return listing

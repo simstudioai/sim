@@ -4,7 +4,6 @@ import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
   LocalFilesystemEntry,
-  LocalFilesystemEntryKind,
   LocalFilesystemGrepMatch,
   LocalFilesystemMount,
   LocalFilesystemResponse,
@@ -33,6 +32,7 @@ import {
   waitForAccountDataMutations,
 } from '@/main/account-data-generation'
 import { showShellDialog } from '@/main/dialogs'
+import { type FileIdentity, fileEntryKind, sameFileIdentity } from '@/main/file-identity'
 import type {
   LocalFilesystemGrantStore,
   PersistedLocalFilesystemGrant,
@@ -97,10 +97,8 @@ const GRANT_SCOPED_OPERATIONS: ReadonlySet<string> = new Set([
   'stat',
 ])
 
-interface GrantedMount extends LocalFilesystemMount {
+interface GrantedMount extends LocalFilesystemMount, FileIdentity {
   rootPath: string
-  dev: bigint
-  ino: bigint
   bookmark?: string
   stopAccessing?: () => void
 }
@@ -128,17 +126,6 @@ interface SelectedDirectory {
 export interface LocalFilesystemToolAuthorization {
   toolName: string
   args: Record<string, unknown>
-}
-
-function entryKind(entry: {
-  isFile(): boolean
-  isDirectory(): boolean
-  isSymbolicLink(): boolean
-}): LocalFilesystemEntryKind {
-  if (entry.isFile()) return 'file'
-  if (entry.isDirectory()) return 'directory'
-  if (entry.isSymbolicLink()) return 'symlink'
-  return 'other'
 }
 
 function encodeUriPath(relativePath: string): string {
@@ -636,7 +623,7 @@ export class LocalFilesystemService {
   async grantDirectory(
     selected: SelectedDirectory,
     generation: number,
-    expected?: { dev: bigint; ino: bigint }
+    expected?: FileIdentity
   ): Promise<LocalFilesystemData> {
     const stopAccessing = selected.bookmark
       ? this.startAccessingBookmark(selected.bookmark)
@@ -660,12 +647,7 @@ export class LocalFilesystemService {
         throw new LocalFilesystemError('NOT_A_DIRECTORY', 'The selected item is not a directory.')
       }
 
-      if (
-        expected &&
-        (rootPath !== selected.path ||
-          rootStat.dev !== expected.dev ||
-          rootStat.ino !== expected.ino)
-      ) {
+      if (expected && (rootPath !== selected.path || !sameFileIdentity(rootStat, expected))) {
         throw new LocalFilesystemError(
           'ACCESS_DENIED',
           'The folder changed while awaiting permission. Request access again.'
@@ -770,11 +752,9 @@ export class LocalFilesystemService {
     const current = this.mounts.get(mount.id)
     if (!current || current.rootPath !== mount.rootPath) throw mountNotFound()
     if (
-      current.dev !== mount.dev ||
-      current.ino !== mount.ino ||
+      !sameFileIdentity(current, mount) ||
       !root.isDirectory() ||
-      root.dev !== mount.dev ||
-      root.ino !== mount.ino
+      !sameFileIdentity(root, mount)
     ) {
       throw new LocalFilesystemError(
         'ACCESS_DENIED',
@@ -976,8 +956,7 @@ export class LocalFilesystemService {
       if (
         verified.realPath !== resolved.realPath ||
         !currentMetadata.isFile() ||
-        metadata.dev !== currentMetadata.dev ||
-        metadata.ino !== currentMetadata.ino
+        !sameFileIdentity(metadata, currentMetadata)
       ) {
         throw new LocalFilesystemError(
           'ACCESS_DENIED',
@@ -1120,7 +1099,7 @@ export class LocalFilesystemService {
             return {
               name: directoryEntry.name,
               uri: localUri(resolvedPath.mount.id, childRelativePath),
-              kind: entryKind(directoryEntry),
+              kind: fileEntryKind(directoryEntry),
               size: metadata.size,
               modifiedAt: metadata.mtime.toISOString(),
             }
@@ -1185,7 +1164,7 @@ export class LocalFilesystemService {
           entries.push({
             name: child.name,
             uri: localUri(resolvedPath.mount.id, mountRelativePath),
-            kind: entryKind(child),
+            kind: fileEntryKind(child),
             size: metadata.size,
             modifiedAt: metadata.mtime.toISOString(),
           })
@@ -1475,7 +1454,7 @@ export class LocalFilesystemService {
     return {
       name: basename(resolvedPath.lexicalPath) || resolvedPath.mount.name,
       uri,
-      kind: entryKind(metadata),
+      kind: fileEntryKind(metadata),
       size: metadata.size,
       modifiedAt: metadata.mtime.toISOString(),
     }
