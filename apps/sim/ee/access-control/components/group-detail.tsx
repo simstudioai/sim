@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   Avatar,
   Checkbox,
@@ -15,16 +15,13 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
-  ChipTag,
-  cn,
   Info,
   OverflowText,
-  Search,
   Skeleton,
   Switch,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
+import { ArrowLeft, Plus, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
@@ -36,7 +33,6 @@ import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
 import {
   isFeatureInertForGroup,
-  ORGANIZATION_SCOPED_FEATURE_NOTE,
   PLATFORM_CATEGORY_ORDER,
   PLATFORM_FEATURES,
 } from '@/lib/permission-groups/features'
@@ -60,9 +56,15 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import type { BlockConfig } from '@/blocks/types'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { AgentDefault } from '@/ee/access-control/components/agent-default'
+import {
+  BlockToolRow,
+  PermissionBulkSelect,
+  PermissionGrid,
+  PlatformPermissionRow,
+  ProviderRow,
+} from '@/ee/access-control/components/permission-rows'
 import { ProjectIssueRestrictions } from '@/ee/access-control/components/project-issue-restrictions'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
@@ -74,25 +76,22 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import { withPermissionGroupAccessState } from '@/ee/access-control/utils/access-state'
 import {
-  allowlistRowsFromStored,
-  toggleAllowlistRow,
-  withAllowlistRows,
-} from '@/ee/access-control/utils/integration-allowlist-rows'
+  type AccessRequestTarget,
+  createAccessRequestCatalog,
+  describeAccessRequestTarget,
+  getAccessRequestTargetParents,
+  getPermissionGroupAccessState,
+  type PermissionGroupAccessState,
+  validateAccessRequestTarget,
+} from '@/ee/access-requests/lib/targets'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganizationRoster } from '@/hooks/queries/organization'
-import { useProviderModels } from '@/hooks/queries/providers'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import {
-  DYNAMIC_MODEL_PROVIDERS,
-  getProviderModels,
-  PROVIDER_DEFINITIONS,
-} from '@/providers/models'
-import type { ProviderId } from '@/providers/types'
-import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
-import type { ProviderName } from '@/stores/providers'
-import { getToolMetadata } from '@/tools/metadata'
+import { getStaticProviderModels, PROVIDER_DEFINITIONS } from '@/providers/models'
+import { getAllProviderIds } from '@/providers/utils'
 
 const logger = createLogger('AccessControlGroupDetail')
 
@@ -108,7 +107,6 @@ const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = 
   { value: 'email', label: 'Email' },
   { value: 'sso', label: 'SSO' },
 ]
-const ALL_FILE_SHARE_AUTH_TYPES: ShareAuthType[] = FILE_SHARE_AUTH_TYPE_OPTIONS.map((o) => o.value)
 
 /** Chat-deployment auth modes an admin can allow/disallow. `null` config = all allowed. */
 const CHAT_DEPLOY_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
@@ -117,9 +115,6 @@ const CHAT_DEPLOY_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] =
   { value: 'email', label: 'Email' },
   { value: 'sso', label: 'SSO' },
 ]
-const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTIONS.map(
-  (o) => o.value
-)
 
 /**
  * Knowledge base connectors an admin can allow or disallow. `null` config = all
@@ -134,18 +129,24 @@ const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = Object.v
   .map((meta) => ({ value: meta.id, label: meta.name }))
   .sort((a, b) => a.label.localeCompare(b.label))
 
-type StatusFilter = 'all' | 'enabled' | 'disabled'
-
-const ALL_KNOWLEDGE_CONNECTORS: string[] = KNOWLEDGE_CONNECTOR_OPTIONS.map((o) => o.value)
+type StatusFilter = 'all' | 'enabled' | 'disabled' | 'requestable' | 'unavailable'
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'Show all' },
-  { value: 'enabled', label: 'Show enabled' },
-  { value: 'disabled', label: 'Show disabled' },
+  { value: 'enabled', label: 'Allowed' },
+  { value: 'requestable', label: 'Can request' },
+  { value: 'unavailable', label: 'Unavailable' },
 ]
 
-function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
-  return filter === 'all' || (filter === 'enabled') === enabled
+function matchesStatusFilter(filter: StatusFilter, state: PermissionGroupAccessState) {
+  return (
+    filter === 'all' ||
+    (filter === 'enabled'
+      ? state === 'allowed'
+      : filter === 'disabled'
+        ? state !== 'allowed'
+        : state === filter)
+  )
 }
 
 interface StatusFilterChipProps {
@@ -153,59 +154,19 @@ interface StatusFilterChipProps {
   onChange: (value: StatusFilter) => void
 }
 
-/** The All/Enabled/Disabled narrowing control shared by the three list tabs. */
 function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   return (
     <ChipDropdown
       value={value}
       onChange={(next) => onChange(next as StatusFilter)}
-      options={STATUS_FILTER_OPTIONS}
+      options={
+        value === 'disabled'
+          ? [...STATUS_FILTER_OPTIONS, { value: 'disabled', label: 'Restricted' }]
+          : STATUS_FILTER_OPTIONS
+      }
       matchTriggerWidth={false}
-      className='w-[140px] shrink-0'
+      className='w-[140px] shrink-0 max-sm:min-w-0 max-sm:flex-1'
     />
-  )
-}
-
-interface AllowlistFieldProps {
-  label: string
-  value: string[]
-  onChange: (values: string[]) => void
-  options: { value: string; label: string }[]
-  disabled: boolean
-}
-
-/**
- * The allowed-values multi-select nested under a platform toggle. Dims and
- * disables together with the toggle that owns it. The left padding lines both
- * children up with the parent's label text — row gutter (8) + checkbox (16) +
- * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
- */
-function AllowlistField({ label, value, onChange, options, disabled }: AllowlistFieldProps) {
-  const labelId = useId()
-  const triggerId = useId()
-  return (
-    <div className={cn('flex flex-col gap-1.5 pt-1 pr-2 pb-2 pl-8', disabled && 'opacity-50')}>
-      <span id={labelId} className='text-[var(--text-muted)] text-caption'>
-        {label}
-      </span>
-      <ChipDropdown
-        multiple
-        showAllOption={false}
-        id={triggerId}
-        // Both ids: `aria-labelledby` replaces the content-derived name, so
-        // naming it with the label alone would drop the selected value.
-        aria-labelledby={`${labelId} ${triggerId}`}
-        value={value}
-        onChange={onChange}
-        options={options}
-        disabled={disabled}
-        // An empty allow-list denies every option, so the multi-select's default
-        // empty label — 'All' — states the opposite of what the server enforces.
-        allLabel='None allowed'
-        matchTriggerWidth={false}
-        className='w-[200px]'
-      />
-    </div>
   )
 }
 
@@ -304,7 +265,7 @@ function AddMembersModal({
         ) : (
           <ChipModalField type='custom' title='Members' submitOnEnter={false}>
             <div className='flex flex-col gap-3'>
-              <div className='flex items-center gap-2'>
+              <div className='flex flex-wrap items-center gap-2'>
                 <ChipInput
                   icon={Search}
                   placeholder='Search members...'
@@ -371,327 +332,6 @@ function AddMembersModal({
         }}
       />
     </ChipModal>
-  )
-}
-
-interface DenylistGridItem {
-  id: string
-  label: string
-}
-
-interface DenylistControls {
-  isAllowed: (id: string) => boolean
-  onToggle: (id: string) => void
-  onSetDenied: (ids: string[], denied: boolean) => void
-}
-
-interface CheckboxGridProps extends DenylistControls {
-  items: DenylistGridItem[]
-  isLoading: boolean
-  searchPlaceholder: string
-  emptyLabel: string
-}
-
-/**
- * Searchable two-column checkbox grid over a denylist. A checked item is
- * allowed; unchecking adds it to the denylist. Shared by the model deny-list
- * (per provider) and the tool deny-list (per integration block).
- */
-function CheckboxGrid({
-  items,
-  isLoading,
-  searchPlaceholder,
-  emptyLabel,
-  isAllowed,
-  onToggle,
-  onSetDenied,
-}: CheckboxGridProps) {
-  const [search, setSearch] = useState('')
-
-  const sortedItems = useMemo(
-    () => [...items].sort((a, b) => a.label.localeCompare(b.label)),
-    [items]
-  )
-
-  const filteredItems = useMemo(() => {
-    if (!search.trim()) return sortedItems
-    const query = search.toLowerCase()
-    return sortedItems.filter(
-      (item) => item.label.toLowerCase().includes(query) || item.id.toLowerCase().includes(query)
-    )
-  }, [sortedItems, search])
-
-  if (isLoading) {
-    return <div className='px-2 py-3 text-[var(--text-muted)] text-xs'>Loading…</div>
-  }
-
-  if (items.length === 0) {
-    return <div className='px-2 py-3 text-[var(--text-muted)] text-xs'>{emptyLabel}</div>
-  }
-
-  const allFilteredAllowed = filteredItems.every((item) => isAllowed(item.id))
-
-  return (
-    <div className='flex flex-col gap-2'>
-      <div className='flex items-center gap-2'>
-        <ChipInput
-          icon={Search}
-          placeholder={searchPlaceholder}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className='min-w-0 flex-1'
-        />
-        <Chip
-          onClick={() =>
-            onSetDenied(
-              filteredItems.map((item) => item.id),
-              allFilteredAllowed
-            )
-          }
-        >
-          {allFilteredAllowed ? 'Block All' : 'Allow All'}
-        </Chip>
-      </div>
-      <div className='grid grid-cols-2 gap-x-2 gap-y-0.5'>
-        {filteredItems.map((item) => {
-          const checkboxId = `denylist-${item.id}`
-          return (
-            <label
-              key={item.id}
-              htmlFor={checkboxId}
-              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-            >
-              <Checkbox
-                id={checkboxId}
-                checked={isAllowed(item.id)}
-                onCheckedChange={() => onToggle(item.id)}
-              />
-              <OverflowText label={item.label} className='text-sm' />
-            </label>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-interface DynamicProviderModelsProps extends DenylistControls {
-  provider: ProviderName
-  workspaceId?: string
-}
-
-function DynamicProviderModels({ provider, workspaceId, ...controls }: DynamicProviderModelsProps) {
-  const { data, isPending } = useProviderModels(provider, workspaceId)
-  const items = useMemo(
-    () => (data?.models ?? []).map((model) => ({ id: model, label: model })),
-    [data?.models]
-  )
-  return (
-    <CheckboxGrid
-      items={items}
-      isLoading={isPending}
-      searchPlaceholder='Search models...'
-      emptyLabel='No models available for this provider.'
-      {...controls}
-    />
-  )
-}
-
-interface StaticProviderModelsProps extends DenylistControls {
-  providerId: ProviderId
-}
-
-function StaticProviderModels({ providerId, ...controls }: StaticProviderModelsProps) {
-  const items = useMemo(
-    () => getProviderModels(providerId).map((model) => ({ id: model, label: model })),
-    [providerId]
-  )
-  return (
-    <CheckboxGrid
-      items={items}
-      isLoading={false}
-      searchPlaceholder='Search models...'
-      emptyLabel='No models available for this provider.'
-      {...controls}
-    />
-  )
-}
-
-interface ProviderRowProps extends DenylistControls {
-  providerId: ProviderId
-  isProviderAllowed: boolean
-  onToggleProvider: () => void
-  deniedCount: number
-  workspaceId?: string
-}
-
-function ProviderRow({
-  providerId,
-  isProviderAllowed,
-  onToggleProvider,
-  deniedCount,
-  workspaceId,
-  ...controls
-}: ProviderRowProps) {
-  const [expanded, setExpanded] = useState(false)
-
-  const ProviderIcon = PROVIDER_DEFINITIONS[providerId]?.icon
-  const providerName =
-    PROVIDER_DEFINITIONS[providerId]?.name ||
-    providerId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  const isDynamic = (DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)
-  const checkboxId = `provider-${providerId}`
-
-  return (
-    <div>
-      <div className='flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'>
-        <Checkbox
-          id={checkboxId}
-          checked={isProviderAllowed}
-          onCheckedChange={() => onToggleProvider()}
-        />
-        <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
-          {ProviderIcon && <ProviderIcon className='size-[16px]!' />}
-        </div>
-        <button
-          type='button'
-          onClick={() => isProviderAllowed && setExpanded((prev) => !prev)}
-          disabled={!isProviderAllowed}
-          className={cn(
-            'flex flex-1 items-center gap-2 text-left',
-            isProviderAllowed ? 'cursor-pointer' : 'cursor-default opacity-60'
-          )}
-        >
-          <OverflowText label={providerName} className='text-sm' />
-          {isProviderAllowed && deniedCount > 0 && (
-            <ChipTag variant='gray' className='shrink-0'>
-              {deniedCount} blocked
-            </ChipTag>
-          )}
-          {isProviderAllowed && (
-            <ChevronDown
-              className={cn(
-                'ml-auto size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-                expanded && 'rotate-180'
-              )}
-            />
-          )}
-        </button>
-      </div>
-      {expanded && isProviderAllowed && (
-        <div className='border-[var(--border)] border-t px-2 pt-2 pb-3'>
-          {isDynamic ? (
-            <DynamicProviderModels
-              provider={providerId as ProviderName}
-              workspaceId={workspaceId}
-              {...controls}
-            />
-          ) : (
-            <StaticProviderModels providerId={providerId} {...controls} />
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-interface BlockToolRowProps extends DenylistControls {
-  block: BlockConfig
-  isBlockAllowed: boolean
-  onToggleBlock: () => void
-  deniedCount: number
-}
-
-/**
- * Integration/trigger block row. The checkbox drives whole-block access
- * (`allowedIntegrations`); when allowed and the block exposes more than one
- * tool, the row expands to a per-tool deny-list grid (`deniedTools`), mirroring
- * the provider → models pattern.
- */
-function BlockToolRow({
-  block,
-  isBlockAllowed,
-  onToggleBlock,
-  deniedCount,
-  ...controls
-}: BlockToolRowProps) {
-  const [expanded, setExpanded] = useState(false)
-  const BlockIcon = block.icon
-  const checkboxId = `block-${block.type}`
-
-  const toolItems = useMemo<DenylistGridItem[]>(
-    () => (block.tools?.access ?? []).map((id) => ({ id, label: getToolMetadata(id)?.name ?? id })),
-    [block.tools?.access]
-  )
-  const isExpandable = toolItems.length > 1
-
-  return (
-    <div>
-      <div className='flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'>
-        <Checkbox
-          id={checkboxId}
-          checked={isBlockAllowed}
-          onCheckedChange={() => onToggleBlock()}
-        />
-        <div
-          className='relative flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
-          style={{ background: block.bgColor }}
-        >
-          {BlockIcon && <BlockIcon className='size-[9px]! text-white' />}
-        </div>
-        <button
-          type='button'
-          onClick={() => isBlockAllowed && isExpandable && setExpanded((prev) => !prev)}
-          disabled={!isBlockAllowed || !isExpandable}
-          className={cn(
-            'flex min-w-0 flex-1 items-center gap-2 text-left',
-            isBlockAllowed && isExpandable ? 'cursor-pointer' : 'cursor-default',
-            !isBlockAllowed && 'opacity-60'
-          )}
-        >
-          <OverflowText label={block.name} className='text-sm' />
-          {/* An org running one custom block per environment has prod/uat/sandbox copies
-              sharing a name and differing only by an opaque type slug. The source workspace
-              is the only thing that tells them apart, so an allowlist decision made without
-              it is a guess. */}
-          {block.sourceWorkspaceName && (
-            <span className='shrink-0 text-[var(--text-muted)] text-caption'>
-              {block.sourceWorkspaceName}
-            </span>
-          )}
-          {isBlockAllowed && deniedCount > 0 && (
-            <ChipTag variant='gray' className='shrink-0'>
-              {deniedCount} blocked
-            </ChipTag>
-          )}
-          {isBlockAllowed && isExpandable && (
-            <ChevronDown
-              className={cn(
-                'ml-auto size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-                expanded && 'rotate-180'
-              )}
-            />
-          )}
-        </button>
-        {/* Outside the button: an Info trigger is itself a button and cannot nest. */}
-        {block.description && (
-          <Info side='top' className={cn('shrink-0', !isBlockAllowed && 'opacity-60')}>
-            {block.description}
-          </Info>
-        )}
-      </div>
-      {expanded && isBlockAllowed && isExpandable && (
-        <div className='border-[var(--border)] border-t px-2 pt-2 pb-3'>
-          <CheckboxGrid
-            items={toolItems}
-            isLoading={false}
-            searchPlaceholder='Search tools...'
-            emptyLabel='This integration exposes no configurable tools.'
-            {...controls}
-          />
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -791,8 +431,7 @@ export function GroupDetail({
   /**
    * The allowlist UNIVERSE: every access-controllable block, INCLUDING blocks
    * gated for this viewer (they arrive as clones with `hideFromToolbar: true`,
-   * clone-not-remove). Materialization and the collapse-to-null comparison in
-   * `toggleIntegration`/`setBlocksAllowed` must use this viewer-independent set —
+   * clone-not-remove). Materialization and the collapse-to-null comparison must use this viewer-independent set —
    * otherwise a null→partial transition by a non-revealed admin would silently
    * drop a preview block from the stored allowlist and deny it to revealed
    * users already running it.
@@ -833,16 +472,89 @@ export function GroupDetail({
       availableProviderIds: allProviderIds,
     })
 
-  /** Maps every tool id to ALL block types that expose it (some tools are shared across blocks). */
-  const toolBlockTypes = useMemo(() => {
-    const map: Record<string, string[]> = {}
+  const publicTools = useMemo(() => {
+    const parentByTool = new Map<string, string | null>()
     for (const block of allBlocks) {
-      for (const toolId of block.tools?.access ?? []) {
-        ;(map[toolId] ??= []).push(block.type)
+      if (block.type.startsWith('custom_block_')) continue
+      for (const id of block.tools?.access ?? []) {
+        if (!parentByTool.has(id)) parentByTool.set(id, block.type)
+        else if (parentByTool.get(id) !== block.type) parentByTool.set(id, null)
       }
     }
-    return map
+    return [...parentByTool].flatMap(([id, parent]) =>
+      parent ? [{ id, label: id, integrationId: parent }] : []
+    )
   }, [allBlocks])
+
+  const editorCatalog = useMemo(
+    () =>
+      createAccessRequestCatalog({
+        integrations: allBlocks.map((block) => ({ id: block.type, label: block.name })),
+        providers: allProviderIds.map((id) => ({
+          id,
+          label: PROVIDER_DEFINITIONS[id]?.name ?? id,
+        })),
+        models: allProviderIds.flatMap((providerId) =>
+          getStaticProviderModels(providerId)
+            .filter((model) => model.sunset?.status !== 'deprecated')
+            .map((model) => ({ id: model.id, label: model.id, providerId }))
+        ),
+        tools: publicTools,
+        knowledgeConnectors: KNOWLEDGE_CONNECTOR_OPTIONS.map(({ value, label }) => ({
+          id: value,
+          label,
+        })),
+      }),
+    [allBlocks, allProviderIds, publicTools]
+  )
+
+  const canRequest = useCallback(
+    (target: AccessRequestTarget) => {
+      if (target.kind === 'integration' && target.id.startsWith('custom_block_')) return false
+      return validateAccessRequestTarget(target, editorCatalog) !== null
+    },
+    [editorCatalog]
+  )
+
+  const getState = useCallback(
+    (target: AccessRequestTarget) => {
+      const state = getPermissionGroupAccessState(target, editingConfig, editorCatalog)
+      return state === 'requestable' && !canRequest(target) ? 'unavailable' : state
+    },
+    [editingConfig, editorCatalog, canRequest]
+  )
+
+  const getInheritedFrom = (target: AccessRequestTarget): string | null => {
+    const parent = getAccessRequestTargetParents(target, editorCatalog).find(
+      (parent) => getState(parent) !== 'allowed'
+    )
+    if (!parent) return null
+    return (
+      getInheritedFrom(parent) ??
+      describeAccessRequestTarget(parent, editorCatalog)?.label ??
+      'a restricted parent'
+    )
+  }
+
+  const isInherited = (target: AccessRequestTarget) => getInheritedFrom(target) !== null
+
+  const setAccess = (targets: AccessRequestTarget[], state: PermissionGroupAccessState) => {
+    setEditingConfig((previous) => {
+      const editable = targets.filter(
+        (target) =>
+          (state !== 'requestable' || canRequest(target)) &&
+          !getAccessRequestTargetParents(target, editorCatalog).some(
+            (parent) => getPermissionGroupAccessState(parent, previous, editorCatalog) !== 'allowed'
+          )
+      )
+      return editable.reduce(
+        (config, target) => withPermissionGroupAccessState(config, target, state, editorCatalog),
+        previous
+      )
+    })
+  }
+
+  const controls = { getState, isInherited, getInheritedFrom, canRequest, onSet: setAccess }
 
   const searchedPlatformFeatures = useMemo(() => {
     const search = searchTerm.trim().toLowerCase()
@@ -856,9 +568,9 @@ export function GroupDetail({
   const filteredPlatformFeatures = useMemo(() => {
     if (statusFilter === 'all') return searchedPlatformFeatures
     return searchedPlatformFeatures.filter((f) =>
-      matchesStatusFilter(statusFilter, !editingConfig[f.configKey])
+      matchesStatusFilter(statusFilter, getState({ kind: 'feature', configKey: f.configKey }))
     )
-  }, [searchedPlatformFeatures, statusFilter, editingConfig])
+  }, [searchedPlatformFeatures, statusFilter, getState])
 
   const platformCategories = useMemo(() => {
     const categories: Record<string, (typeof PLATFORM_FEATURES)[number][]> = {}
@@ -913,53 +625,18 @@ export function GroupDetail({
     onDiscard: () => handleDiscardConfig(),
   })
 
-  const allBlockTypes = useMemo(() => allBlocks.map((b) => b.type), [allBlocks])
-
-  /**
-   * `null` means "everything allowed". Indexing the allow-lists once keeps the
-   * per-row membership checks O(1) — they run for every one of the ~200 block
-   * rows on each render, and again in the section-wide `every(...)` scans.
-   */
-  const allowedIntegrationSet = useMemo(
-    () => allowlistRowsFromStored(allBlockTypes, editingConfig.allowedIntegrations),
-    [allBlockTypes, editingConfig.allowedIntegrations]
-  )
-
-  const allowedProviderSet = useMemo(
-    () =>
-      editingConfig.allowedModelProviders === null
-        ? null
-        : new Set(editingConfig.allowedModelProviders),
-    [editingConfig.allowedModelProviders]
-  )
-
-  const isIntegrationAllowed = useCallback(
-    (blockType: string) => allowedIntegrationSet === null || allowedIntegrationSet.has(blockType),
-    [allowedIntegrationSet]
-  )
-
-  const isProviderAllowed = useCallback(
-    (providerId: string) => allowedProviderSet === null || allowedProviderSet.has(providerId),
-    [allowedProviderSet]
-  )
-
   const searchedProviders = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
     if (!query) return allProviderIds
     return allProviderIds.filter((id) => id.toLowerCase().includes(query))
   }, [allProviderIds, searchTerm])
 
-  /**
-   * Split from the search pass so the common `all` case returns the searched
-   * list by reference — only the status pass depends on the allow-list, so a
-   * checkbox toggle no longer invalidates downstream consumers.
-   */
   const filteredProviders = useMemo(() => {
     if (statusFilter === 'all') return searchedProviders
     return searchedProviders.filter((id) =>
-      matchesStatusFilter(statusFilter, isProviderAllowed(id))
+      matchesStatusFilter(statusFilter, getState({ kind: 'provider', id }))
     )
-  }, [searchedProviders, statusFilter, isProviderAllowed])
+  }, [searchedProviders, statusFilter, getState])
 
   const searchedBlocks = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -970,9 +647,9 @@ export function GroupDetail({
   const filteredBlocks = useMemo(() => {
     if (statusFilter === 'all') return searchedBlocks
     return searchedBlocks.filter((b) =>
-      matchesStatusFilter(statusFilter, isIntegrationAllowed(b.type))
+      matchesStatusFilter(statusFilter, getState({ kind: 'integration', id: b.type }))
     )
-  }, [searchedBlocks, statusFilter, isIntegrationAllowed])
+  }, [searchedBlocks, statusFilter, getState])
 
   const filteredCoreBlocks = useMemo(
     () => filteredBlocks.filter((block) => block.category === 'blocks'),
@@ -1002,287 +679,32 @@ export function GroupDetail({
     return organizationMembers.filter((m) => !existingMemberUserIds.has(m.userId))
   }, [organizationMembers, members])
 
-  /**
-   * Drops denied tools whose integration is no longer allowed, keeping the
-   * invariant that `deniedTools` only holds tools of currently-allowed blocks.
-   * Without this, disabling then re-enabling an integration would silently
-   * re-apply stale per-tool denials. Tools we can't attribute to a known block
-   * are preserved.
-   */
-  const pruneDeniedTools = useCallback(
-    (allowedIntegrations: string[] | null, deniedTools: string[]) => {
-      if (allowedIntegrations === null) return deniedTools
-      const allowed = new Set(allowedIntegrations)
-      const pruned = deniedTools.filter((toolId) => {
-        const blockTypes = toolBlockTypes[toolId]
-        return !blockTypes || blockTypes.some((bt) => allowed.has(bt))
-      })
-      return pruned.length === deniedTools.length ? deniedTools : pruned
-    },
-    [toolBlockTypes]
-  )
-
-  const toggleIntegration = useCallback(
-    (blockType: string) => {
-      setEditingConfig((prev) => {
-        const nextAllowed = toggleAllowlistRow(allBlockTypes, prev.allowedIntegrations, blockType)
-        return {
-          ...prev,
-          allowedIntegrations: nextAllowed,
-          deniedTools: pruneDeniedTools(nextAllowed, prev.deniedTools),
-        }
-      })
-    },
-    [allBlockTypes, pruneDeniedTools]
-  )
-
-  /** Allow or deny a whole section's blocks at once, respecting the active filter. */
-  const setBlocksAllowed = useCallback(
-    (blocks: BlockConfig[], allowed: boolean) => {
-      setEditingConfig((prev) => {
-        const nextAllowed = withAllowlistRows(
-          allBlockTypes,
-          prev.allowedIntegrations,
-          blocks.map((block) => block.type),
-          allowed
-        )
-        return {
-          ...prev,
-          allowedIntegrations: nextAllowed,
-          deniedTools: pruneDeniedTools(nextAllowed, prev.deniedTools),
-        }
-      })
-    },
-    [allBlockTypes, pruneDeniedTools]
-  )
-
-  const isToolAllowed = useCallback(
-    (toolId: string) => !editingConfig.deniedTools.includes(toolId),
-    [editingConfig.deniedTools]
-  )
-
-  const toggleTool = useCallback((toolId: string) => {
-    setEditingConfig((prev) => {
-      const denied = prev.deniedTools.includes(toolId)
-      return {
-        ...prev,
-        deniedTools: denied
-          ? prev.deniedTools.filter((t) => t !== toolId)
-          : [...prev.deniedTools, toolId],
-      }
-    })
-  }, [])
-
-  const setToolsDenied = useCallback((toolIds: string[], denied: boolean) => {
-    setEditingConfig((prev) => {
-      if (denied) {
-        const existing = new Set(prev.deniedTools)
-        const additions = toolIds.filter((t) => !existing.has(t))
-        if (additions.length === 0) return prev
-        return { ...prev, deniedTools: [...prev.deniedTools, ...additions] }
-      }
-      const toRemove = new Set(toolIds)
-      return { ...prev, deniedTools: prev.deniedTools.filter((t) => !toRemove.has(t)) }
-    })
-  }, [])
-
-  const deniedCountByBlock = useMemo(() => {
-    const denied = new Set(editingConfig.deniedTools)
-    const counts: Record<string, number> = {}
-    for (const block of allBlocks) {
-      let count = 0
-      for (const toolId of block.tools?.access ?? []) {
-        if (denied.has(toolId)) count++
-      }
-      if (count > 0) counts[block.type] = count
-    }
-    return counts
-  }, [editingConfig.deniedTools, allBlocks])
-
-  const toggleProvider = useCallback(
-    (providerId: string) => {
-      setEditingConfig((prev) => {
-        const current = prev.allowedModelProviders
-        if (current === null) {
-          const allExcept = allProviderIds.filter((p) => p !== providerId)
-          return { ...prev, allowedModelProviders: allExcept }
-        }
-        if (current.includes(providerId)) {
-          const updated = current.filter((p) => p !== providerId)
-          return {
-            ...prev,
-            allowedModelProviders: updated.length === allProviderIds.length ? null : updated,
-          }
-        }
-        const updated = [...current, providerId]
-        return {
-          ...prev,
-          allowedModelProviders: updated.length === allProviderIds.length ? null : updated,
-        }
-      })
-    },
-    [allProviderIds]
-  )
-
-  /** Allow or deny a set of providers at once, respecting the active search filter. */
-  const setProvidersAllowed = useCallback(
-    (providerIds: string[], allowed: boolean) => {
-      setEditingConfig((prev) => {
-        const current =
-          prev.allowedModelProviders === null
-            ? new Set(allProviderIds)
-            : new Set(prev.allowedModelProviders)
-        for (const id of providerIds) {
-          if (allowed) current.add(id)
-          else current.delete(id)
-        }
-        const nextArr = allProviderIds.filter((id) => current.has(id))
-        return {
-          ...prev,
-          allowedModelProviders: nextArr.length === allProviderIds.length ? null : nextArr,
-        }
-      })
-    },
-    [allProviderIds]
-  )
-
-  const isModelAllowed = useCallback(
-    (model: string) => {
-      const normalized = model.toLowerCase()
-      return !editingConfig.deniedModels.some((denied) => denied.toLowerCase() === normalized)
-    },
-    [editingConfig.deniedModels]
-  )
-
-  const toggleModel = useCallback((model: string) => {
-    setEditingConfig((prev) => {
-      const normalized = model.toLowerCase()
-      const isDenied = prev.deniedModels.some((denied) => denied.toLowerCase() === normalized)
-      return {
-        ...prev,
-        deniedModels: isDenied
-          ? prev.deniedModels.filter((denied) => denied.toLowerCase() !== normalized)
-          : [...prev.deniedModels, model],
-      }
-    })
-  }, [])
-
-  const setModelsDenied = useCallback((models: string[], denied: boolean) => {
-    setEditingConfig((prev) => {
-      if (denied) {
-        const existing = new Set(prev.deniedModels.map((m) => m.toLowerCase()))
-        const additions = models.filter((m) => !existing.has(m.toLowerCase()))
-        if (additions.length === 0) return prev
-        return { ...prev, deniedModels: [...prev.deniedModels, ...additions] }
-      }
-      const toRemove = new Set(models.map((m) => m.toLowerCase()))
-      return {
-        ...prev,
-        deniedModels: prev.deniedModels.filter((m) => !toRemove.has(m.toLowerCase())),
-      }
-    })
-  }, [])
-
-  const deniedCountByProvider = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const model of editingConfig.deniedModels) {
-      try {
-        const providerId = getProviderFromModel(model)
-        counts[providerId] = (counts[providerId] ?? 0) + 1
-      } catch {}
-    }
-    return counts
-  }, [editingConfig.deniedModels])
-
-  const fileShareAuthValue = useMemo(
-    () => editingConfig.allowedFileShareAuthTypes ?? ALL_FILE_SHARE_AUTH_TYPES,
-    [editingConfig.allowedFileShareAuthTypes]
-  )
-
-  const setFileShareAuthTypes = useCallback((values: string[]) => {
-    // At least one mode must stay allowed while public sharing is enabled — an
-    // empty allow-list would silently block every share. To turn public sharing
-    // off entirely, uncheck Public Sharing instead.
-    if (values.length === 0) return
-    setEditingConfig((prev) => ({
-      ...prev,
-      allowedFileShareAuthTypes:
-        values.length === ALL_FILE_SHARE_AUTH_TYPES.length ? null : (values as ShareAuthType[]),
-    }))
-  }, [])
-
-  const chatDeployAuthValue = useMemo(
-    () => editingConfig.allowedChatDeployAuthTypes ?? ALL_CHAT_DEPLOY_AUTH_TYPES,
-    [editingConfig.allowedChatDeployAuthTypes]
-  )
-
-  const setChatDeployAuthTypes = useCallback((values: string[]) => {
-    // At least one mode must stay allowed while chat deploy is enabled — an empty
-    // allow-list would silently block every chat deployment. To turn chat deploy
-    // off entirely, uncheck Chat → Deployment instead.
-    if (values.length === 0) return
-    setEditingConfig((prev) => ({
-      ...prev,
-      allowedChatDeployAuthTypes:
-        values.length === ALL_CHAT_DEPLOY_AUTH_TYPES.length ? null : (values as ShareAuthType[]),
-    }))
-  }, [])
-
-  const knowledgeConnectorValue = useMemo(
-    () => editingConfig.allowedKnowledgeConnectors ?? ALL_KNOWLEDGE_CONNECTORS,
-    [editingConfig.allowedKnowledgeConnectors]
-  )
-
-  /**
-   * At least one connector must stay allowed while the Knowledge Base module is
-   * visible — an empty allow-list would silently block every connector while
-   * the add-connector button still offered them. To withhold connectors along
-   * with the rest of the module, uncheck Knowledge Base instead.
-   */
-  const setKnowledgeConnectors = useCallback((values: string[]) => {
-    if (values.length === 0) return
-    setEditingConfig((prev) => ({
-      ...prev,
-      allowedKnowledgeConnectors: values.length === ALL_KNOWLEDGE_CONNECTORS.length ? null : values,
-    }))
-  }, [])
-
-  /**
-   * Nested controls rendered under a platform feature's checkbox, keyed by
-   * feature id. Kept out of `PLATFORM_FEATURES` so that array stays pure data.
-   */
-  const featureExtras: Partial<Record<string, ReactNode>> = {
+  const featureExtras = {
     'hide-deploy-chatbot': (
-      <AllowlistField
-        label='Auth modes chat deployments may use'
-        value={chatDeployAuthValue}
-        onChange={setChatDeployAuthTypes}
-        options={CHAT_DEPLOY_AUTH_TYPE_OPTIONS}
-        disabled={editingConfig.hideDeployChatbot}
+      <PermissionGrid
+        items={CHAT_DEPLOY_AUTH_TYPE_OPTIONS.map(({ value, label }) => ({ id: value, label }))}
+        kind='chat_deploy_auth'
+        searchPlaceholder='Search authentication modes...'
+        emptyLabel='No modes available.'
+        {...controls}
       />
     ),
     'disable-public-file-sharing': (
-      <AllowlistField
-        label='Auth modes public file-share links may use'
-        value={fileShareAuthValue}
-        onChange={setFileShareAuthTypes}
-        options={FILE_SHARE_AUTH_TYPE_OPTIONS}
-        disabled={editingConfig.disablePublicFileSharing}
+      <PermissionGrid
+        items={FILE_SHARE_AUTH_TYPE_OPTIONS.map(({ value, label }) => ({ id: value, label }))}
+        kind='file_share_auth'
+        searchPlaceholder='Search authentication modes...'
+        emptyLabel='No modes available.'
+        {...controls}
       />
     ),
-    /**
-     * Nested under Knowledge Base rather than Knowledge Base Creation: a
-     * connector attaches to an existing knowledge base, so the allow-list still
-     * governs a group that may sync but never create. Hanging it off creation
-     * would dim the picker for exactly the group it was written for.
-     */
     'hide-knowledge-base': (
-      <AllowlistField
-        label='Connectors knowledge bases may sync from'
-        value={knowledgeConnectorValue}
-        onChange={setKnowledgeConnectors}
-        options={KNOWLEDGE_CONNECTOR_OPTIONS}
-        disabled={editingConfig.hideKnowledgeBaseTab}
+      <PermissionGrid
+        items={KNOWLEDGE_CONNECTOR_OPTIONS.map(({ value, label }) => ({ id: value, label }))}
+        kind='knowledge_connector'
+        searchPlaceholder='Search connectors...'
+        emptyLabel='No connectors available.'
+        {...controls}
       />
     ),
   }
@@ -1457,23 +879,11 @@ export function GroupDetail({
     []
   )
 
-  const filteredProvidersAllAllowed = filteredProviders.every((id) => isProviderAllowed(id))
-  const coreBlocksAllAllowed = filteredCoreBlocks.every((b) => isIntegrationAllowed(b.type))
-  const toolBlocksAllAllowed = filteredToolBlocks.every((b) => isIntegrationAllowed(b.type))
-  /**
-   * Rows this group cannot decide: an organization-scoped key is read from the
-   * organization's *default* group, so setting it on any other group changes
-   * nothing. They render inert, and every bulk action skips them — "Select All"
-   * writing a value the server would never read is the same false promise as
-   * the checkbox itself.
-   */
-  const editablePlatformFeatures = useMemo(
-    () =>
-      filteredPlatformFeatures.filter((f) => !isFeatureInertForGroup(f, viewingGroup.isDefault)),
-    [filteredPlatformFeatures, viewingGroup.isDefault]
+  const editablePlatformFeatures = filteredPlatformFeatures.filter(
+    (feature) =>
+      !isFeatureInertForGroup(feature, viewingGroup.isDefault) &&
+      !isInherited({ kind: 'feature', configKey: feature.configKey })
   )
-
-  const platformAllAllowed = editablePlatformFeatures.every((f) => !editingConfig[f.configKey])
 
   return (
     <>
@@ -1500,6 +910,13 @@ export function GroupDetail({
         <div className='sticky top-0 z-10 bg-[var(--bg)]'>
           <ChipModalTabs tabs={tabs} value={configTab} onChange={handleTabChange} />
         </div>
+
+        {configTab !== 'general' && (
+          <p className='text-[var(--text-muted)] text-sm'>
+            Allowed permits use. Can request requires admin approval. Unavailable blocks both.
+            Workspace roles and deployment settings still apply.
+          </p>
+        )}
 
         {configTab === 'general' && (
           <>
@@ -1665,26 +1082,22 @@ export function GroupDetail({
                   setEditingConfig((prev) => ({ ...prev, defaultAgentModel }))
                 }
               />
-              <div className='flex items-center gap-2'>
+              <div className='flex flex-wrap items-center gap-2'>
                 <ChipInput
                   icon={Search}
                   placeholder='Search providers...'
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className='min-w-0 flex-1'
+                  className='min-w-0 basis-full sm:flex-1 sm:basis-0'
                 />
                 <StatusFilterChip
                   value={statusFilter}
                   onChange={(next) => void setStatusFilter(next)}
                 />
-                <Chip
-                  onClick={() =>
-                    setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)
-                  }
-                  disabled={filteredProviders.length === 0}
-                >
-                  {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
-                </Chip>
+                <PermissionBulkSelect
+                  targets={filteredProviders.map((id) => ({ kind: 'provider', id }))}
+                  {...controls}
+                />
               </div>
               {filteredProviders.length === 0 ? (
                 <SettingsEmptyState variant='inline'>
@@ -1696,13 +1109,8 @@ export function GroupDetail({
                     <ProviderRow
                       key={providerId}
                       providerId={providerId}
-                      isProviderAllowed={isProviderAllowed(providerId)}
-                      onToggleProvider={() => toggleProvider(providerId)}
-                      deniedCount={deniedCountByProvider[providerId] ?? 0}
                       workspaceId={workspaceId}
-                      isAllowed={isModelAllowed}
-                      onToggle={toggleModel}
-                      onSetDenied={setModelsDenied}
+                      {...controls}
                     />
                   ))}
                 </div>
@@ -1712,13 +1120,13 @@ export function GroupDetail({
 
         {configTab === 'blocks' && (
           <div className='flex flex-col gap-7'>
-            <div className='flex items-center gap-2'>
+            <div className='flex flex-wrap items-center gap-2'>
               <ChipInput
                 icon={Search}
                 placeholder='Search blocks...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='min-w-0 flex-1'
+                className='min-w-0 basis-full sm:flex-1 sm:basis-0'
               />
               <StatusFilterChip
                 value={statusFilter}
@@ -1734,50 +1142,19 @@ export function GroupDetail({
               <SettingsSection
                 label='Core Blocks'
                 action={
-                  <Chip onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}>
-                    {coreBlocksAllAllowed ? 'Deselect All' : 'Select All'}
-                  </Chip>
+                  <PermissionBulkSelect
+                    targets={filteredCoreBlocks.map((block) => ({
+                      kind: 'integration',
+                      id: block.type,
+                    }))}
+                    {...controls}
+                  />
                 }
               >
-                <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                  {filteredCoreBlocks.map((block) => {
-                    const BlockIcon = block.icon
-                    const checkboxId = `block-${block.type}`
-                    return (
-                      <div
-                        key={block.type}
-                        className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'
-                      >
-                        <label
-                          htmlFor={checkboxId}
-                          className='flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-[5px] pl-2'
-                        >
-                          <Checkbox
-                            id={checkboxId}
-                            checked={isIntegrationAllowed(block.type)}
-                            onCheckedChange={() => toggleIntegration(block.type)}
-                          />
-                          <div
-                            className='relative flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                            style={{ background: block.bgColor }}
-                          >
-                            {BlockIcon && <BlockIcon className='size-[9px]! text-white' />}
-                          </div>
-                          <OverflowText label={block.name} className='text-sm' />
-                          {block.sourceWorkspaceName && (
-                            <span className='shrink-0 text-[var(--text-muted)] text-caption'>
-                              {block.sourceWorkspaceName}
-                            </span>
-                          )}
-                        </label>
-                        {block.description && (
-                          <Info side='top' className='shrink-0'>
-                            {block.description}
-                          </Info>
-                        )}
-                      </div>
-                    )
-                  })}
+                <div className='flex flex-col gap-0.5'>
+                  {filteredCoreBlocks.map((block) => (
+                    <BlockToolRow key={block.type} block={block} {...controls} />
+                  ))}
                 </div>
               </SettingsSection>
             )}
@@ -1785,29 +1162,24 @@ export function GroupDetail({
               <SettingsSection
                 label='Integrations and Triggers'
                 headerAccessory={
-                  <Info side='top'>
-                    Allow a whole integration with its checkbox, then expand it to deny specific
-                    tools while keeping the rest available.
+                  <Info side='top' label='About integration and trigger permissions'>
+                    Choose access for an integration, then expand it to set individual tools. Parent
+                    restrictions apply to every tool.
                   </Info>
                 }
                 action={
-                  <Chip onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}>
-                    {toolBlocksAllAllowed ? 'Deselect All' : 'Select All'}
-                  </Chip>
+                  <PermissionBulkSelect
+                    targets={filteredToolBlocks.map((block) => ({
+                      kind: 'integration',
+                      id: block.type,
+                    }))}
+                    {...controls}
+                  />
                 }
               >
                 <div className='flex flex-col gap-0.5'>
                   {filteredToolBlocks.map((block) => (
-                    <BlockToolRow
-                      key={block.type}
-                      block={block}
-                      isBlockAllowed={isIntegrationAllowed(block.type)}
-                      onToggleBlock={() => toggleIntegration(block.type)}
-                      deniedCount={deniedCountByBlock[block.type] ?? 0}
-                      isAllowed={isToolAllowed}
-                      onToggle={toggleTool}
-                      onSetDenied={setToolsDenied}
-                    />
+                    <BlockToolRow key={block.type} block={block} {...controls} />
                   ))}
                 </div>
               </SettingsSection>
@@ -1817,31 +1189,25 @@ export function GroupDetail({
 
         {configTab === 'platform' && (
           <div className='flex flex-col gap-7'>
-            <div className='flex items-center gap-2'>
+            <div className='flex flex-wrap items-center gap-2'>
               <ChipInput
                 icon={Search}
                 placeholder='Search features...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='min-w-0 flex-1'
+                className='min-w-0 basis-full sm:flex-1 sm:basis-0'
               />
               <StatusFilterChip
                 value={statusFilter}
                 onChange={(next) => void setStatusFilter(next)}
               />
-              <Chip
-                onClick={() =>
-                  setEditingConfig((prev) => ({
-                    ...prev,
-                    ...Object.fromEntries(
-                      editablePlatformFeatures.map((f) => [f.configKey, platformAllAllowed])
-                    ),
-                  }))
-                }
-                disabled={editablePlatformFeatures.length === 0}
-              >
-                {platformAllAllowed ? 'Deselect All' : 'Select All'}
-              </Chip>
+              <PermissionBulkSelect
+                targets={editablePlatformFeatures.map((feature) => ({
+                  kind: 'feature',
+                  configKey: feature.configKey,
+                }))}
+                {...controls}
+              />
             </div>
             {platformCategorySections.length === 0 && (
               <SettingsEmptyState variant='inline'>
@@ -1849,48 +1215,23 @@ export function GroupDetail({
               </SettingsEmptyState>
             )}
             {platformCategorySections.map(({ category, features }) => (
-              <SettingsSection key={category} label={category}>
+              <SettingsSection
+                key={category}
+                label={<span className='flex h-[30px] items-center'>{category}</span>}
+              >
                 <div className='flex flex-col gap-0.5'>
-                  {features.map((feature) => {
-                    const inert = isFeatureInertForGroup(feature, viewingGroup.isDefault)
-                    return (
-                      <div key={feature.id} className='flex flex-col'>
-                        <div className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'>
-                          <label
-                            htmlFor={feature.id}
-                            className={cn(
-                              'flex flex-1 items-center gap-2 py-[5px] pl-2',
-                              inert ? 'cursor-default opacity-60' : 'cursor-pointer'
-                            )}
-                          >
-                            <Checkbox
-                              id={feature.id}
-                              checked={!editingConfig[feature.configKey]}
-                              disabled={inert}
-                              onCheckedChange={(checked) =>
-                                setEditingConfig((prev) => ({
-                                  ...prev,
-                                  [feature.configKey]: checked !== true,
-                                }))
-                              }
-                            />
-                            <span className='font-normal text-sm'>{feature.label}</span>
-                            {inert && (
-                              <ChipTag variant='gray' className='shrink-0'>
-                                Organization
-                              </ChipTag>
-                            )}
-                          </label>
-                          <Info side='top' className='shrink-0'>
-                            {inert
-                              ? `${feature.hint} ${ORGANIZATION_SCOPED_FEATURE_NOTE}`
-                              : feature.hint}
-                          </Info>
-                        </div>
-                        {featureExtras[feature.id]}
-                      </div>
-                    )
-                  })}
+                  {features.map((feature) => (
+                    <PlatformPermissionRow
+                      key={feature.id}
+                      feature={feature}
+                      inert={isFeatureInertForGroup(feature, viewingGroup.isDefault)}
+                      {...controls}
+                    >
+                      {feature.id in featureExtras
+                        ? featureExtras[feature.id as keyof typeof featureExtras]
+                        : undefined}
+                    </PlatformPermissionRow>
+                  ))}
                 </div>
               </SettingsSection>
             ))}

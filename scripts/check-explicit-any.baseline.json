@@ -1290,7 +1290,7 @@
     "apps/sim/connectors/sftp/sftp.test.ts": 6,
     "apps/sim/connectors/sharepoint/sharepoint.test.ts": 4,
     "apps/sim/connectors/sharepoint/sharepoint.ts": 2,
-    "apps/sim/ee/access-control/components/group-detail.test.tsx": 2,
+    "apps/sim/ee/access-control/components/group-detail.test.tsx": 1,
     "apps/sim/ee/access-requests/components/policy-changes.tsx": 1,
     "apps/sim/ee/access-requests/lib/application/requests.ts": 4,
     "apps/sim/ee/access-requests/lib/repository.integration.ts": 1,

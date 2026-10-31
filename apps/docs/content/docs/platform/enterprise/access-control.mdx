@@ -20,7 +20,23 @@ Organization owners and admins manage groups under **Settings → Organization �
 Changes to workspace scope, the default-group switch, and membership take effect immediately. **Discard** only discards the buffered name, description, and permission changes.
 </Callout>
 
-In the provider, block, and platform permission lists, a checked box allows the item. Clear it to restrict the item. The **Project Issues** project checklist is an exception: checked projects are restricted.
+Choose an access state in the provider, block, and platform permission lists:
+
+| State | What members can do |
+| --- | --- |
+| **Allowed** | Use the item, subject to their workspace role and deployment settings. |
+| **Can request** | Discover the item and ask an administrator for access when their role and deployment settings permit it. Use stays blocked until approved. |
+| **Unavailable** | Cannot use or request the item. It is omitted from normal discovery; direct links remain restricted. |
+
+Use **Unavailable** for software your organization has not procured. Existing groups retain their permissions and request behavior until you change them. **Project Issues** keeps its separate checklist: checked projects are restricted.
+
+Search and the state filter narrow each list. **Set shown to…** changes only the visible, editable rows and offers choices supported by all of them. Changes remain a draft until **Save**; **Discard** restores the saved configuration.
+
+A restricted parent also restricts its children. Expand a provider, integration, or platform feature to inspect its models, tools, connectors, or authentication modes. Allow the parent before editing its children. Child choices are preserved when a parent changes. An unavailable child stays unavailable even if its parent allows requests. Requests cannot bypass an unavailable parent.
+
+The info icon beside an item explains its restriction and, for inherited choices, names the parent to change. Hover or focus the icon to read the help, or click or tap to keep it open. Press Escape or click outside to dismiss it.
+
+These choices configure the group's policy, independently of the deployment's current availability. **Allowed** and **Can request** cannot enable a deployment-disabled feature or bypass a workspace role. Members only discover and request items available to their deployment and role. Custom blocks, private dynamically discovered models, and other items outside the public request catalog do not offer **Can request**.
 
 ### General
 
@@ -47,7 +63,7 @@ The **Agent default** chooses the initial model for new Agent blocks. Choose an 
 
 ### Blocks
 
-**Core Blocks** contains blocks such as Agent, API, and Function; **Tools** contains integration blocks. All are allowed by default. Select a subset to restrict block types, then expand an integration to deny individual operations—for example, allow reads while refusing deletes.
+**Core Blocks** contains blocks such as Agent, API, and Function; **Integrations and Triggers** contains integration blocks. All are allowed by default. Select a subset to restrict block types, then expand an integration to deny individual operations—for example, allow reads while refusing deletes.
 
 The `start_trigger` entry block is always allowed. Existing workflows are not rewritten when a restriction changes. A run fails if it reaches a blocked type, provider, model, or tool operation.
 
@@ -104,7 +120,7 @@ Restricting **Tool Auto-Approval** prevents remembering approval for future call
 
 #### Organization-level permissions
 
-**Workspace Creation** and **Member Directory** read only the organization default, because those actions have no workspace scope. Other groups show them as inactive with an **Organization** tag, and **Select All** skips them. A newly created workspace uses the organization default until you add it to a workspace group.
+**Workspace Creation** and **Member Directory** read only the organization default, because those actions have no workspace scope. Other groups show them as inactive with an **Organization** tag, and **Set shown to…** skips them. A newly created workspace uses the organization default until you add it to a workspace group.
 
 **Integrations**, **API Keys**, **Invitations**, **Personal API Keys**, **CLI Access**, and **OAuth App Access** use the selected workspace group for workspace operations. Account-level operations use the organization default: minting a personal key, sending organization invitations, approving CLI login, authorizing or refreshing OAuth, and account-level billing or audit reads.
 
@@ -115,6 +131,14 @@ A human's governing group applies to session, personal API-key, OAuth, and deleg
 A **workspace API key** acts as the workspace. It has workspace-role and operation policies but no human user's permission group; Sim does not apply the key creator's group as a substitute. A human's permission to create or manage that key is still governed.
 
 Chat filters restricted blocks from its available block catalog. Generated steps can still reference a restricted MCP tool, custom tool, or skill; execution rejects the restricted operation when reached. After changing a group, verify both the person's available UI and a representative authorized run. For an existing workflow that fails, remove the restricted item or change the governing policy.
+
+## Access requests
+
+Members can request items marked **Can request** from a locked feature or **Settings → Requests → Browse access**. Administrators review the request and its impact before approving. Approval updates the governing permission group, so it affects everyone governed by that group; it is not a personal exception.
+
+An organization administrator can pause requests in **Settings → Requests → Review requests**. Requestable features remain discoverable, but new requests and approvals are disabled. The group's saved choices, request history, and cancellation remain available. Changing an item to **Unavailable** also prevents approval of an older pending request for that item or a dependent child. Administrators can still decline those requests.
+
+The API keeps the existing access fields. The optional `deniedAccessRequests` list stores canonical target keys such as `integration:salesforce` and `feature:hideTablesTab`. An absent or empty list preserves the previous request behavior. Partial configuration updates retain unspecified choices. Request approval never changes this list. Member credit-limit requests remain separate from permission-group access settings.
 
 ## Self-hosted setup
 

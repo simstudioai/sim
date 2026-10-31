@@ -79,6 +79,7 @@ export function useIntegrationAccessPolicy(
   const policy = useMemo(
     () =>
       createIntegrationAccessPolicy({
+        groupConfig: permissionData?.config,
         groupAllowlist: permissionData?.config?.allowedIntegrations ?? null,
         deploymentAllowlist: availabilityData?.allowedIntegrations ?? null,
         availability: availabilityData?.integrationAvailability ?? [],
