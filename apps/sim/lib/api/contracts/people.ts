@@ -114,8 +114,9 @@ export const importPeopleContract = defineRouteContract({
           (headers) => new Set(headers).size === headers.length,
           'Each column must have its own name'
         ),
+      /** Each row's cells in header order; a short row leaves its trailing cells blank. */
       rows: z
-        .array(z.record(z.string().max(200), z.string().max(1000)))
+        .array(z.array(z.string().max(1000)).max(100))
         .min(1, 'The file has no rows')
         .max(PEOPLE_IMPORT_MAX_ROWS, `Import at most ${PEOPLE_IMPORT_MAX_ROWS} rows at a time`),
       /** `false` previews the import without changing anything. */

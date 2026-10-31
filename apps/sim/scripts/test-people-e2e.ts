@@ -78,10 +78,7 @@ async function api(
 function importRows(member: Member, csv: string, apply: boolean, expected = 200) {
   const [headerLine, ...lines] = csv.trim().split('\n')
   const headers = headerLine.split(',')
-  const rows = lines.map((line) => {
-    const cells = line.split(',')
-    return Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? '']))
-  })
+  const rows = lines.map((line) => line.split(','))
   return api(member, '/import', { method: 'POST', body: { headers, rows, apply }, expected })
 }
 

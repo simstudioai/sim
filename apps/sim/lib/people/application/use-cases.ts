@@ -144,12 +144,15 @@ export const importPeople = defineAuthorizedOrganizationUseCase({
     input,
     context,
   }: OrganizationUseCaseContext<
-    OrganizationInput & { headers: string[]; rows: Record<string, string>[]; apply: boolean }
+    OrganizationInput & { headers: string[]; rows: string[][]; apply: boolean }
   >): Promise<PeopleImportResult> {
     const matched = matchPeopleColumns(input.headers)
     if (!matched.ok) throw new OrchestrationError('validation', matched.message)
+    const rows = input.rows.map((cells) =>
+      Object.fromEntries(input.headers.map((header, index) => [header, cells[index] ?? '']))
+    )
     const plan = (members: PeopleImportMember[]) =>
-      planPeopleImport({ columns: matched.columns, rows: input.rows, members })
+      planPeopleImport({ columns: matched.columns, rows, members })
     const result = input.apply
       ? await db.transaction(async (tx) => {
           await repository.lockProfiles(tx, input.organizationId)

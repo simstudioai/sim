@@ -27,11 +27,12 @@ const TEMPLATE_CSV =
 interface PeopleSheet {
   fileName: string
   headers: string[]
-  rows: Record<string, string>[]
+  /** Each row's cells, in `headers` order. */
+  rows: string[][]
 }
 
 /**
- * The first sheet as text rows keyed by header, one per sheet row (blank ones included) so the
+ * The first sheet's named columns and its rows of cells, one per sheet row (blank ones included) so the
  * row numbers in the preview match the spreadsheet. Delimited text is read verbatim so the server
  * interprets dates the same way for every file. A spreadsheet date cell is read from its stored
  * value, not the text its locale displays, so `31/01/2024` and `1/31/24` both arrive as
@@ -78,9 +79,7 @@ async function readPeopleSheet(file: File): Promise<PeopleSheet> {
     fileName: file.name,
     headers: columns.map(({ header }) => header),
     rows: Array.from({ length: rowCount }, (_, offset) =>
-      Object.fromEntries(
-        columns.map(({ header, index }) => [header, text(range.s.r + 1 + offset, index)])
-      )
+      columns.map(({ index }) => text(range.s.r + 1 + offset, index))
     ),
   }
 }

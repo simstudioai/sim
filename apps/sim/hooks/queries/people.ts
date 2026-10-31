@@ -87,7 +87,7 @@ export function useUpdatePerson(organizationId: string) {
 export function useImportPeople(organizationId: string) {
   const invalidate = useInvalidatePeople(organizationId)
   return useMutation({
-    mutationFn: (body: { headers: string[]; rows: Record<string, string>[]; apply: boolean }) =>
+    mutationFn: (body: { headers: string[]; rows: string[][]; apply: boolean }) =>
       requestJson(importPeopleContract, { params: { id: organizationId }, body }),
     onSuccess: (result) => {
       if (result.applied) return invalidate()
