@@ -543,7 +543,8 @@ try {
               path: join(directory, `image-${scene.variant}-${width}.png`),
               animations: 'disabled',
             })
-            await figure.getByRole('button').click()
+            const trigger = figure.getByRole('button')
+            await trigger.click()
             const viewer = page.getByRole('dialog')
             await expect(viewer.getByRole('img')).toBeVisible()
             await expect
@@ -589,6 +590,19 @@ try {
               })
             await page.keyboard.press('Escape')
             await expect(viewer).toHaveCount(0)
+            await expect(trigger).toBeFocused()
+            await trigger.press('Enter')
+            await expect(viewer).toBeVisible()
+            await page
+              .locator('.docs-portal[data-state="open"][aria-hidden="true"]')
+              .click({ position: { x: 1, y: 1 } })
+            await expect(viewer).toHaveCount(0)
+            await expect(trigger).toBeFocused()
+            await trigger.press('Enter')
+            await expect(viewer).toBeVisible()
+            await viewer.getByRole('button', { name: 'Close media viewer', exact: true }).click()
+            await expect(viewer).toHaveCount(0)
+            await expect(trigger).toBeFocused()
           } finally {
             await page.close()
           }

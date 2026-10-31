@@ -400,16 +400,19 @@ async function verifyDatabase() {
   await check(
     'Citation-only changes are stale and repair without replacing embeddings',
     async () => {
+      const citations = await sql<
+        Array<{ chunk_id: string; source_link: string; embedding: string }>
+      >`SELECT chunk_id, source_link, embedding::text FROM docs_embeddings WHERE source_document = ${page.sourcePath} ORDER BY chunk_id`
+      assert(citations.length > 0)
       await sql`UPDATE docs_embeddings SET source_link = 'https://old.example/introduction' WHERE source_document = ${page.sourcePath}`
       assert.equal((await index('check', 'citation-stale', ['/introduction'])).exitCode, 1)
       const repaired = await index('publish', 'citation-repaired', ['/introduction'])
       assert.equal(repaired.exitCode, 0)
       assert.deepEqual(await fingerprint(), fresh)
-      const [row] = await sql<
-        Array<{ source_link: string; embedding: string }>
-      >`SELECT source_link, embedding::text FROM docs_embeddings WHERE source_document = ${page.sourcePath}`
-      assert.equal(row?.source_link, 'https://docs.sim.ai/introduction')
-      assert.equal(row?.embedding, vector)
+      const repairedCitations = await sql<
+        Array<{ chunk_id: string; source_link: string; embedding: string }>
+      >`SELECT chunk_id, source_link, embedding::text FROM docs_embeddings WHERE source_document = ${page.sourcePath} ORDER BY chunk_id`
+      assert.deepEqual(repairedCitations, citations)
       assert.equal((await index('check', 'citation-fresh', ['/introduction'])).exitCode, 0)
     }
   )

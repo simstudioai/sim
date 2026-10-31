@@ -45,7 +45,6 @@
   --docs-hover: rgb(10 10 10 / 6%);
   --docs-selected: rgb(0 0 0 / 8%);
   --docs-selected-hover: var(--docs-selected);
-  --docs-current-edge: none;
   --docs-pressed: rgb(0 0 0 / 12%);
   --docs-link: #0066cc;
   --docs-prose-link: var(--docs-link);
@@ -134,7 +133,6 @@
   --docs-hover: #2b2b2b;
   --docs-selected: #333;
   --docs-selected-hover: var(--docs-pressed);
-  --docs-current-edge: inset 2px 0 0 var(--docs-boundary);
   --docs-pressed: #3a3a3a;
   --docs-link: #8abeff;
   --docs-prose-link: var(--docs-heading);
