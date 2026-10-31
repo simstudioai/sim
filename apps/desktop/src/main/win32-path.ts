@@ -50,9 +50,9 @@ const DRIVE_PATH_REQUIRED = 'Use a drive path such as C:\\Users\\name\\file or a
  * drive-relative `C:foo`, and rooted `\foo` (relative to the current drive)
  * are all refused. UNC shares are refused outright, even inside a granted
  * share, until grants can be matched lexically. A drive letter the user
- * mapped to a share stays allowed: it reaches only the server the user chose,
- * so a model-supplied path cannot name a new host through it. Each segment
- * must also pass {@link isWin32SafeSegment}.
+ * mapped to a share passes this check, since it reaches only the server the
+ * user chose; the file backend refuses it once it resolves to the share. Each
+ * segment must also pass {@link isWin32SafeSegment}.
  */
 export function resolveWin32NativePath(value: string, home: string): string {
   const homeRelative = value === '~' ? '' : HOME_RELATIVE.test(value) ? value.slice(2) : null

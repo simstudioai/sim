@@ -14,7 +14,6 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { PDFDocument } from 'pdf-lib'
 import type { LocalFileAccess } from '@/main/local-filesystem'
-import { readNativeDirectory } from '@/main/native-directory'
 
 const CHUNK_BYTES = 8 * 1024 * 1024
 const MAX_ENTRIES = 1000
@@ -47,7 +46,7 @@ function assertImportPath(root: string, candidate: string): void {
 async function readApprovedDirectory(path: string, access: LocalFileAccess) {
   const handle = await access.open(path, true)
   try {
-    const listing = await readNativeDirectory(handle.fd, MAX_ENTRIES)
+    const listing = await handle.readDirectory(MAX_ENTRIES)
     const canonical = await access.resolve(path)
     // bigint: NTFS file IDs exceed 2^53, and rounded IDs could compare equal.
     const current = await lstat(canonical, { bigint: true })

@@ -376,7 +376,6 @@ describe('registerIpcHandlers', () => {
     'computer-use:execute-tool',
     'browser-import:all',
     'browser-credentials:import',
-    'desktop:local-files',
     'browser-credentials:copy',
   ])('registers no handler on Windows for %s, which that shell does not ship', (channel) => {
     expect(collectHandlers().invoke.has(channel) || collectHandlers().on.has(channel)).toBe(true)
@@ -389,12 +388,13 @@ describe('registerIpcHandlers', () => {
     expect(invoke.has(channel) || on.has(channel)).toBe(false)
   })
 
-  it('keeps the user-local folder grants and password reveal on Windows', () => {
+  it('keeps the folder grants, native file tools, and password reveal on Windows', () => {
     vi.mocked(ipcMain.handle).mockClear()
     registerIpcHandlers({ ...deps, platform: 'win32' })
 
     const { invoke } = collectHandlers()
     expect(invoke.has('desktop:local-filesystem')).toBe(true)
+    expect(invoke.has('desktop:local-files')).toBe(true)
     expect(invoke.has('browser-credentials:reveal')).toBe(true)
   })
 

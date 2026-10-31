@@ -15,8 +15,9 @@ export interface DesktopFeatures {
   terminalThemes: boolean
   /**
    * `read_local_file` and `import_local_files`. They open files beneath a
-   * granted directory's identity through the POSIX native module. The
-   * user-local VFS grants are separate and run on Node fs everywhere.
+   * granted directory's identity: through the POSIX native module on macOS
+   * and Linux, and through checked Node fs opens on Windows. The user-local
+   * VFS grants are separate and run on Node fs everywhere.
    */
   localFiles: boolean
   /** Chrome cookie and password import. */
@@ -43,7 +44,7 @@ const WINDOWS_FEATURES: DesktopFeatures = {
   helpSearch: false,
   terminal: false,
   terminalThemes: false,
-  localFiles: false,
+  localFiles: true,
   browserImport: false,
   passwordCopy: false,
 }
