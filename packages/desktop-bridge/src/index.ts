@@ -600,7 +600,7 @@ interface SimDesktopBrowserCredentialsApi {
   copy?(id: string): Promise<boolean>
   /**
    * Copy saved passwords out of a Chrome profile into the vault. Absent where
-   * browser import is unavailable (Windows).
+   * browser import is unavailable (everything but macOS).
    */
   importFromChrome?(
     profileId?: string,
@@ -1212,10 +1212,7 @@ export interface SimDesktopApi {
    */
   server?: SimDesktopServerApi
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
-  /**
-   * Optional so older installed shells do not advertise the new native tools. Also absent on
-   * platforms whose shell cannot run them (Windows today).
-   */
+  /** Optional so older installed shells do not advertise the new native tools. */
   localFiles?(request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse>
   /**
    * Present on shells that claim each local read (`read_local_file`, user-local VFS reads) through
@@ -1236,8 +1233,7 @@ export interface SimDesktopApi {
   browserImport?: SimDesktopBrowserImportApi
   /** Saved passwords and user-driven fill for the built-in browser. */
   browserCredentials: SimDesktopBrowserCredentialsApi
-  /** Absent on platforms without the agent terminal (Windows today). */
-  terminal?: SimDesktopTerminalApi
+  terminal: SimDesktopTerminalApi
   /**
    * Runs desktop tools for chats the user is not viewing. Optional: shells without one leave
    * desktop tools to the chat view.

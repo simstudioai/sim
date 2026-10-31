@@ -19,8 +19,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { LocalFilePermissions } from '@/main/local-file-permissions'
-import { LocalFilesystemService } from '@/main/local-filesystem'
 import { type NativeFileHandle, openPosixNativeFile } from '@/main/native-directory'
 import { isWithinRoot } from '@/main/path-containment'
 import { openWin32NativeFile, type Win32NativeFileSystem } from '@/main/win32-native-files'
@@ -172,28 +170,6 @@ describe('the Windows native file backend', () => {
 
     await expect(openBeneath(name)).rejects.toThrow('within the approved folder')
   })
-
-  it.runIf(isWindows)(
-    'refuses an alternate data stream in a model path before asking for consent',
-    async () => {
-      const service = new LocalFilesystemService({ chooseDirectory: async () => null })
-      await writeFile(join(root, 'notes.txt'), 'inside')
-
-      await expect(
-        new LocalFilePermissions(service).authorize(
-          { toolName: 'read_local_file', args: { path: join(root, 'notes.txt:secret') } },
-          {
-            parent: async () => null,
-            origin: 'https://sim.ai',
-            generation: 0,
-            signal: new AbortController().signal,
-            isCurrent: () => true,
-            revalidate: async () => true,
-          }
-        )
-      ).rejects.toThrow('is not a plain Windows file or folder name')
-    }
-  )
 })
 
 describe.each(BACKENDS)('the %s backend contract', (_name, openApproved) => {

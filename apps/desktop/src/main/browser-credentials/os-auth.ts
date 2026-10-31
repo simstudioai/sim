@@ -24,10 +24,9 @@ const AUTH_GRACE_MS = 30_000
  * `reveal` hands the plaintext to the Sim renderer; `copy` publishes it to the
  * system clipboard, which every process on the machine can read, which
  * clipboard managers persist to disk beyond the 30s `clipboard.clear()`, and
- * which Universal Clipboard syncs to the user's other devices. (Windows keeps
- * the same text in Clipboard History and the cloud clipboard, which is why
- * copy is not offered there at all.) Ordering them
+ * which Universal Clipboard syncs to the user's other devices. Ordering them
  * either way lets one consent authorize an exposure the prompt never described.
+ * Windows does not offer copy at all: Clipboard History keeps the text.
  */
 export type SecretOperation = 'reveal' | 'copy'
 

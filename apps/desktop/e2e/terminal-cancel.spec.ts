@@ -158,7 +158,6 @@ function bridge(window: Page) {
       const terminalId = await window.evaluate(async (scopeId) => {
         const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi })
           .simDesktop.terminal
-        if (!terminal) throw new Error('No agent terminal on this platform')
         await terminal.activateScope(scopeId)
         terminal.setVisible?.(true, scopeId)
         terminal.setFocused(true, scopeId)
@@ -172,7 +171,7 @@ function bridge(window: Page) {
         ([id, text, scopeId]) =>
           (
             globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-          ).simDesktop.terminal?.write(id, text, scopeId),
+          ).simDesktop.terminal.write(id, text, scopeId),
         [terminalId, `${command}\r`, scope] as const
       )
     },
@@ -181,7 +180,6 @@ function bridge(window: Page) {
       return window.evaluate(async (scopeId) => {
         const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi })
           .simDesktop.terminal
-        if (!terminal) throw new Error('No agent terminal on this platform')
         await terminal.activateScope(scopeId)
         return terminal.suspendScope(scopeId)
       }, scope)

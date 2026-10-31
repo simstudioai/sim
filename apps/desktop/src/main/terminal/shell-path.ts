@@ -11,7 +11,6 @@ import { win32 } from 'node:path'
 export interface ShellPathContext {
   platform: NodeJS.Platform
   env: NodeJS.ProcessEnv
-  /** Whether a file exists at an absolute path. */
   exists(path: string): boolean
 }
 

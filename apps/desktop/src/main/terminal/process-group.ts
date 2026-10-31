@@ -66,7 +66,6 @@ async function readForegroundProcessGroup(shellPid: number): Promise<number | nu
   return isProcessId(pgid) && pgid !== shellPid ? pgid : null
 }
 
-/** Sends `signal` to every process in one group. */
 function signalProcessGroup(pgid: number, signal: NodeJS.Signals): void {
   try {
     process.kill(-pgid, signal)
@@ -103,7 +102,6 @@ async function readChildProcesses(shellPid: number): Promise<number[]> {
     .filter((pid) => isProcessId(pid) && pid !== shellPid)
 }
 
-/** Ends a process and everything it started. */
 function killProcessTree(pid: number): void {
   const taskkill = win32.join(windowsSystem32(), 'taskkill.exe')
   const child = spawn(taskkill, ['/T', '/F', '/PID', String(pid)], {

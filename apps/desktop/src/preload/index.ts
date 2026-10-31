@@ -46,7 +46,6 @@ import type {
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
-  SimDesktopTerminalApi,
   TerminalShortcutCommand,
   TerminalThemeProfile,
 } from '@sim/desktop-bridge'
@@ -118,7 +117,7 @@ function shellVersion(): string {
   return version || '0.0.0'
 }
 
-/** Every other platform keeps the Linux surface set, which is what it has always had. */
+/** Any other platform reports as Linux. */
 function bridgePlatform(): DesktopPlatform {
   return process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux'
 }
@@ -190,13 +189,8 @@ const api: SimDesktopApi = {
   },
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
-  ...(features.localFiles
-    ? {
-        localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
-          ipcRenderer.invoke('desktop:local-files', request),
-      }
-    : {}),
-  // Claims cover user-local VFS reads too, which run on every platform.
+  localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
+    ipcRenderer.invoke('desktop:local-files', request),
   localReadClaims: true,
   onCommand: (callback: (command: DesktopCommand) => void): (() => void) => {
     const listener = (_event: unknown, command: DesktopCommand) => callback(command)
@@ -498,11 +492,7 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-credentials:fill-selected', id, scopeId),
     onFillAvailability: subscribeFillAvailability,
   },
-  ...(features.terminal ? { terminal: terminalApi() } : {}),
-}
-
-function terminalApi(): SimDesktopTerminalApi {
-  return {
+  terminal: {
     restoreScope: (scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:restore-scope', scopeId),
     // The tool name rides alongside the call because the main process
@@ -623,7 +613,7 @@ function terminalApi(): SimDesktopTerminalApi {
         ipcRenderer.removeListener('terminal:scope-suspended', listener)
       }
     },
-  }
+  },
 }
 
 contextBridge.exposeInMainWorld('simDesktop', api)

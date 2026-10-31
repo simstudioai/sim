@@ -48,7 +48,7 @@ export function isDesktopApp(): boolean {
 
 /** True when the shell can serve read-only local-directory grants. */
 export function hasLocalFilesystem(): boolean {
-  return typeof getDesktopBridge()?.localFilesystem === 'function'
+  return isDesktopApp()
 }
 
 /** True when the shell hosts the embedded agent browser. */
@@ -58,7 +58,7 @@ export function hasBrowserAgent(): boolean {
 
 /** True when the shell can run an interactive local shell for the agent. */
 export function hasTerminal(): boolean {
-  return getDesktopBridge()?.terminal !== undefined
+  return isDesktopApp()
 }
 
 /** True when the shell exposes device-level desktop preferences. */
@@ -220,7 +220,7 @@ export async function getDesktopChatCapabilities(
   // spending a tool call to ask — and, more importantly, so it notices a
   // terminal that is occupied instead of launching a second copy into it.
   const terminals: DesktopTerminalHint[] =
-    terminal && bridge?.terminal
+    terminal && bridge
       ? await bridge.terminal
           .getTabs(scopeId)
           .then((state) =>

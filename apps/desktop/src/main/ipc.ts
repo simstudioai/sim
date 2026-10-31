@@ -405,12 +405,10 @@ export interface IpcDeps {
  * them too, so a renderer that calls one anyway finds no handler.
  */
 function platformFeatureFor(channel: string): keyof DesktopFeatures | null {
-  if (channel.startsWith('terminal:')) return 'terminal'
   if (channel.startsWith('terminal-themes:')) return 'terminalThemes'
   if (channel.startsWith('computer-use:')) return 'computerUse'
   if (channel.startsWith('browser-import:') || channel === 'browser-credentials:import')
     return 'browserImport'
-  if (channel === 'desktop:local-files') return 'localFiles'
   if (channel === 'browser-credentials:copy') return 'passwordCopy'
   return null
 }

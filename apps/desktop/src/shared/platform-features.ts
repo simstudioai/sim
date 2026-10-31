@@ -10,16 +10,8 @@ export interface DesktopFeatures {
   computerUse: boolean
   /** The native macOS Help menu search field. */
   helpSearch: boolean
-  terminal: boolean
   /** Terminal.app and iTerm2 color profiles. */
   terminalThemes: boolean
-  /**
-   * `read_local_file` and `import_local_files`. They open files beneath a
-   * granted directory's identity: through the POSIX native module on macOS
-   * and Linux, and through checked Node fs opens on Windows. The user-local
-   * VFS grants are separate and run on Node fs everywhere.
-   */
-  localFiles: boolean
   /** Chrome cookie and password import. */
   browserImport: boolean
   /**
@@ -32,9 +24,7 @@ export interface DesktopFeatures {
 const MAC_FEATURES: DesktopFeatures = {
   computerUse: true,
   helpSearch: true,
-  terminal: true,
   terminalThemes: true,
-  localFiles: true,
   browserImport: true,
   passwordCopy: true,
 }
@@ -42,14 +32,12 @@ const MAC_FEATURES: DesktopFeatures = {
 const WINDOWS_FEATURES: DesktopFeatures = {
   computerUse: false,
   helpSearch: false,
-  terminal: true,
   terminalThemes: false,
-  localFiles: true,
   browserImport: false,
   passwordCopy: false,
 }
 
-/** Linux is unpackaged; it keeps what the shell has always exposed there. */
+/** Linux is unpackaged: macOS's surfaces minus the macOS-only ones. */
 const LINUX_FEATURES: DesktopFeatures = {
   ...MAC_FEATURES,
   computerUse: false,

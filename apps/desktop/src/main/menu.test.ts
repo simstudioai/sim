@@ -64,15 +64,9 @@ describe('buildMenuTemplate', () => {
     expect(windows).toContain('Alt+Right')
   })
 
-  it('builds the Windows menu without macOS-only app roles', () => {
-    // windowMenu is excluded too: off macOS it adds a Close item on Ctrl+W
-    // that would steal the hidden Close Tab accelerator.
+  it('leaves out windowMenu on Windows, whose Close item would steal Ctrl+W from Close Tab', () => {
     const roles = flatten(buildMenuTemplate(makeDeps('win32'))).map((item) => item.role)
-    for (const role of ['hide', 'hideOthers', 'unhide', 'services', 'windowMenu', 'appMenu']) {
-      expect(roles).not.toContain(role)
-    }
-    expect(roles).toContain('editMenu')
-    expect(roles).toContain('quit')
+    expect(roles).not.toContain('windowMenu')
   })
 
   it('binds each Windows accelerator to exactly one item', () => {

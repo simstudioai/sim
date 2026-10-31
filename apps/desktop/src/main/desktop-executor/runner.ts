@@ -52,7 +52,6 @@ import type {
   DesktopImportEntryRequest,
   DesktopImportedEntry,
 } from '@/main/desktop-executor/protocol'
-import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopExecutorRunner')
 
@@ -79,15 +78,7 @@ function unsupported(toolName: string): DesktopToolCompletion {
   return { status: 'error', message, data: { error: message, notStarted: true } }
 }
 
-/** The tool needs a surface this platform's shell does not ship, so no update helps. */
-function notOnThisPlatform(toolName: string): DesktopToolCompletion {
-  const message = `Not run: this action never started, because the Sim desktop app cannot run ${toolName} on this operating system. Nothing happened on the user’s computer. Do not retry it; continue without it.`
-  return { status: 'error', message, data: { error: message, notStarted: true } }
-}
-
 export interface DesktopToolRunnerDeps {
-  /** Selects which {@link desktopFeatures} may run. Defaults to the host. */
-  platform?: NodeJS.Platform
   preferences: () => { browserEnabled: boolean; terminalEnabled: boolean }
   /** False while account-bearing local storage is unavailable; local tools then refuse. */
   accountDataAvailable: () => boolean
@@ -167,7 +158,6 @@ async function withDeadline<T>(
 }
 
 export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToolRunner {
-  const features = desktopFeatures(deps.platform ?? process.platform)
   /** Each chat's last terminal operation, until it actually settles. */
   const unsettledTerminalWork = new Map<string, Promise<void>>()
 
@@ -345,15 +335,7 @@ export function createDesktopToolRunner(deps: DesktopToolRunnerDeps): DesktopToo
     async run(call, signal) {
       try {
         if (isCurrentBrowserToolName(call.toolName)) return await runBrowser(call, call.toolName)
-        if (call.toolName === 'terminal') {
-          return features.terminal ? await runTerminal(call, signal) : notOnThisPlatform('terminal')
-        }
-        if (
-          !features.localFiles &&
-          (call.toolName === 'read_local_file' || call.toolName === 'import_local_files')
-        ) {
-          return notOnThisPlatform(call.toolName)
-        }
+        if (call.toolName === 'terminal') return await runTerminal(call, signal)
         if (!deps.accountDataAvailable()) return localAccessUnavailable()
         if (call.toolName === 'read_local_file') {
           return localFileReadCompletion(

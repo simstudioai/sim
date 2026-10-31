@@ -3,11 +3,9 @@ import { isAbsolute, relative, sep } from 'node:path'
 /**
  * Whether a resolved path is the granted root or sits beneath it.
  *
- * Uses `relative()` rather than prefix arithmetic. The `${root}${sep}` sentinel
- * that form needs to reject `/granted-evil` against `/granted` becomes `//` when
- * the root IS a separator — and the picker lets the user grant a volume root —
- * so every path under a granted `/` was denied while the bare root passed.
- * `relative()` has no such edge case: it returns `''` for the root itself and a
+ * Uses `relative()` rather than a `${root}${sep}` prefix check, which breaks
+ * when the root is itself a separator (the picker can grant a volume root).
+ * `relative()` returns `''` for the root itself and a
  * leading `..` segment for anything outside, on both separators. On Windows it
  * compares case-insensitively, as NTFS resolves names.
  */

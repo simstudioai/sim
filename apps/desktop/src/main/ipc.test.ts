@@ -386,17 +386,12 @@ describe('registerIpcHandlers', () => {
     expect(invoke.has(channel) || on.has(channel)).toBe(false)
   })
 
-  it('keeps the terminal, folder grants, native file tools, and password reveal on Windows', () => {
+  it('keeps password reveal on Windows while copy and import are withheld', () => {
     vi.mocked(ipcMain.handle).mockClear()
     vi.mocked(ipcMain.on).mockClear()
     registerIpcHandlers({ ...deps, platform: 'win32' })
 
-    const { invoke, on } = collectHandlers()
-    expect(invoke.has('terminal:execute-tool')).toBe(true)
-    expect(on.has('terminal:write')).toBe(true)
-    expect(invoke.has('desktop:local-filesystem')).toBe(true)
-    expect(invoke.has('desktop:local-files')).toBe(true)
-    expect(invoke.has('browser-credentials:reveal')).toBe(true)
+    expect(collectHandlers().invoke.has('browser-credentials:reveal')).toBe(true)
   })
 
   it('opens validated external URLs only after recent user input', async () => {

@@ -761,7 +761,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         markReady(version)
       })
 
-      /** Network failures belong to their request promises; native errors invalidate staging. */
+      // Network failures belong to their request promises; native errors invalidate staging.
       squirrelUpdater.on('error', (error) => {
         if (
           state.status !== 'downloading' &&
@@ -774,10 +774,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         failNativeInstall(error)
       })
     } else {
-      /**
-       * Without a native stage, the only installer failure left is launching
-       * it; download and signature failures reject their request promises.
-       */
+      // Without a native stage, only launching the installer can fail here;
+      // download and signature failures reject their request promises.
       autoUpdater.on('error', (error) => {
         if (!installInFlight && !relaunchRequested) return
         failNativeInstall(error)

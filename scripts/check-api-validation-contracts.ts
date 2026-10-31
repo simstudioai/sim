@@ -66,9 +66,8 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/demo-requests/route.ts',
   // Input-less session-bound GET: nothing to validate; response is
   // contract-typed via `satisfies InvitationDetails` in the route.
-  // Public updater feeds (macOS and Windows): input-less GETs, session-less,
-  // returning YAML (not JSON), so they can't be JSON-contract-bound. Wrapped in
-  // withRouteHandler.
+  // Public updater feeds (macOS and Windows): input-less, session-less GETs
+  // returning YAML, so they can't be JSON-contract-bound.
   'apps/sim/app/api/desktop/update/latest-mac.yml/route.ts',
   'apps/sim/app/api/desktop/update/latest.yml/route.ts',
   'apps/sim/app/api/invitations/route.ts',

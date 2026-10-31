@@ -255,16 +255,9 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
   ]
 
   const resourceFileItems: MenuItemConstructorOptions[] = [
-    /**
-     * Resource-scoped shortcuts: these act on whichever Browser/Terminal
-     * panel is focused, not on the app, so they stay out of the visible
-     * File menu. The accelerators still fire — macOS registers a hidden
-     * item's accelerator (`acceleratorWorksWhenHidden` defaults to true),
-     * and Windows always does.
-     * The numbered tab items sit flat here rather than under a "Select
-     * Tab" submenu because children of a hidden submenu do not reliably
-     * register their accelerators.
-     */
+    // Panel-scoped shortcuts stay out of the visible File menu; hidden items'
+    // accelerators still fire on both platforms. Tab items sit flat because a
+    // hidden submenu's children do not reliably register accelerators.
     {
       label: 'New Tab',
       accelerator: 'CmdOrCtrl+T',

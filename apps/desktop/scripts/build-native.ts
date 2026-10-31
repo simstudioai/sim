@@ -5,9 +5,9 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('DesktopNativeBuild')
 if (process.platform === 'win32') {
-  // Both modules back features the Windows build disables (native local-file
-  // tools and macOS Help search), so there is nothing to compile.
-  logger.info('Skipping native desktop modules on Windows: their features are macOS/Linux only')
+  // Windows opens local files through Node fs (win32-native-files.ts) and has
+  // no Help search, so neither module is needed.
+  logger.info('Skipping native desktop modules on Windows: local files use Node fs there')
   process.exit(0)
 }
 if (process.platform !== 'darwin' && process.platform !== 'linux') {
