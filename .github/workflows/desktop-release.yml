@@ -846,10 +846,9 @@ jobs:
             fi
             gh release upload "$VERSION" "$ARTIFACT" --repo "$RELEASE_REPOSITORY"
           }
-          for ARTIFACT in "${ARTIFACTS[@]:0:2}"; do
+          for ARTIFACT in "${ARTIFACTS[@]}"; do
             upload_or_verify "$ARTIFACT"
           done
-          upload_or_verify "${ARTIFACTS[2]}"
 
       - name: Upload artifacts to the workflow run
         if: ${{ !inputs.publish }}
