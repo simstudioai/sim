@@ -53,7 +53,7 @@ export async function POST(request: Request) {
   } catch {
     return fail('Check your feedback and try again.', 400)
   }
-  const page = getPage(input.page)
+  const page = getPage(input.page.replace(/\/$/, '') || '/')
   if (!page || page.url === '/') return fail('Documentation page not found.', 404)
   const endpoint = process.env.DOCS_FEEDBACK_WEBHOOK_URL
   const token = process.env.DOCS_FEEDBACK_WEBHOOK_TOKEN

@@ -203,7 +203,9 @@ try {
         )
         await send.click()
         expect((await response).status()).toBe(502)
-        await expect(page.getByRole('alert')).toContainText('Could not send feedback.')
+        await expect(page.getByRole('main').getByRole('alert')).toContainText(
+          'Could not send feedback.'
+        )
         await expect(comment).toHaveValue('  Explain deployment prerequisites.  ')
         await expect(send).toBeEnabled()
       }
