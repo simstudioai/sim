@@ -376,8 +376,11 @@ export class TerminalRegistry {
   }
 
   /** The command line holding each busy terminal's foreground, across every chat. */
-  runningCommands(): string[] {
-    return [...this.entries.values()].flatMap((entry) => entry.service.runningCommands())
+  async runningCommands(): Promise<string[]> {
+    const commands = await Promise.all(
+      [...this.entries.values()].map((entry) => entry.service.runningCommands())
+    )
+    return commands.flat()
   }
 
   /**

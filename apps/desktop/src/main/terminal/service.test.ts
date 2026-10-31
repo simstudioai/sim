@@ -104,6 +104,9 @@ const { stubSessions } = vi.hoisted(() => ({
       clearScrollback(): void
       /** Whether Ctrl-C ends the running command, as it does for most programs. */
       setInterruptible(interruptible: boolean): void
+      /** Whether the shell announces its commands, as zsh and bash do and fish does not. */
+      setShellIntegration(on: boolean): void
+      readonly pid: number
       /** Ends the running command the way its process exiting would. */
       finishRun(exitCode: number): void
       /** Returns the run as still going, its command left running, as a wait that ran out does. */
@@ -142,6 +145,7 @@ vi.mock('@/main/terminal/session', async () => {
           disposed: false,
           busy: false,
           interruptible: true,
+          shellIntegration: true,
           toolCallId: null as string | null,
           resolveRun: null as ((result: Record<string, unknown>) => void) | null,
         }
@@ -158,6 +162,9 @@ vi.mock('@/main/terminal/session', async () => {
           },
           setInterruptible: (interruptible: boolean) => {
             state.interruptible = interruptible
+          },
+          setShellIntegration: (on: boolean) => {
+            state.shellIntegration = on
           },
           finishRun,
           handBack: () => {
@@ -204,7 +211,9 @@ vi.mock('@/main/terminal/session', async () => {
           get isBusy() {
             return state.busy
           },
-          hasShellIntegration: true,
+          get hasShellIntegration() {
+            return state.shellIntegration
+          },
           /** Real sessions poll the pty here; a stub's cwd only ever changes on open. */
           refreshCwd: async () => {},
           dispose: () => {
@@ -474,6 +483,43 @@ describe('a shell that ends by itself', () => {
     const after = terminal.getTabs()
     expect(after.tabs).toHaveLength(0)
     expect(after.activeTerminalId).toBeNull()
+  })
+})
+
+describe('running work before a restart', () => {
+  function serviceWithForeground(read: (shellPid: number) => Promise<number | null>) {
+    const terminal = new TerminalService({
+      loadCwd: () => '/tmp',
+      processGroups: { foreground: vi.fn(read), signal: vi.fn() },
+    })
+    const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
+    const session = stubSessions.get(activeTerminalId as string)
+    if (!session) throw new Error('No stub session')
+    return { terminal, session }
+  }
+
+  it('asks the OS about a shell that announces nothing, and trusts one that does', async () => {
+    const { terminal, session } = serviceWithForeground(async () => 4242)
+    session.setShellIntegration(false)
+    await expect(terminal.runningCommands()).resolves.toEqual([''])
+
+    session.setShellIntegration(true)
+    await expect(terminal.runningCommands()).resolves.toEqual([])
+  })
+
+  it('counts a shell at its own prompt, or an unreadable foreground, as idle', async () => {
+    let read: () => Promise<number | null> = async () => null
+    const { terminal, session } = serviceWithForeground(() => read())
+    session.setShellIntegration(false)
+    await expect(terminal.runningCommands()).resolves.toEqual([])
+
+    read = async () => session.pid
+    await expect(terminal.runningCommands()).resolves.toEqual([])
+
+    read = async () => {
+      throw new Error('ps is unavailable')
+    }
+    await expect(terminal.runningCommands()).resolves.toEqual([])
   })
 })
 

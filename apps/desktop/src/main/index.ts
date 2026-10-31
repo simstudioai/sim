@@ -598,7 +598,6 @@ function main(): void {
     const otherRoutes = getWindows()
       .filter((win) => win !== active)
       .flatMap((win) => routeFromAppUrl(win.webContents.getURL()) ?? [])
-      .slice(0, MAX_RELAUNCH_WINDOWS)
     config.set('updateRelaunchRoutes', otherRoutes.length > 0 ? otherRoutes : undefined)
     config.flush()
   }
@@ -1171,9 +1170,10 @@ function main(): void {
         const windows = await countWindowsWithUnsavedChanges(
           getWindows().map((win) => win.webContents)
         )
+        const terminalCommands = await terminal.runningCommands()
         const computerUseActivity = computerUse.getActivity()
         return describeInFlightWork({
-          terminalCommands: terminal.runningCommands(),
+          terminalCommands,
           computerUseApp: computerUseActivity ? (computerUseActivity.appName ?? '') : null,
           browserToolRunning: isBrowserToolRunning(),
           agentWorkRunning,

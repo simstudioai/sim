@@ -30,6 +30,7 @@ import {
   type TerminalToolArgs,
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import type { BrowserWindow, WebContents } from 'electron'
 import {
@@ -218,6 +219,7 @@ const STOP_ESCALATION_MS = 2_000
 export class TerminalService {
   /** Insertion-ordered, which is also the tab order the user sees. */
   private readonly sessions = new Map<string, TerminalSession>()
+  private foregroundReadFailureLogged = false
   private activeId: string | null = null
   private readonly pendingCloseConfirmations = new Set<string>()
   private agentActiveId: string | null = null
@@ -303,11 +305,32 @@ export class TerminalService {
     this.cwdTimer = null
   }
 
-  /** The command line holding each busy terminal's foreground, `''` when unannounced. */
-  runningCommands(): string[] {
-    return [...this.sessions.values()].flatMap((session) =>
-      session.isBusy ? [session.foreground ?? ''] : []
+  /**
+   * The command line holding each busy terminal's foreground, `''` when unannounced. A shell
+   * without integration (fish, sh) announces nothing, so the OS's foreground process group
+   * answers for it; a failed read counts as idle so a restart is never held by a stale guess.
+   */
+  async runningCommands(): Promise<string[]> {
+    const groups = this.options.processGroups ?? OS_PROCESS_GROUPS
+    const commands = await Promise.all(
+      [...this.sessions.values()].map(async (session) => {
+        if (session.isBusy) return [session.foreground ?? '']
+        if (session.hasShellIntegration) return []
+        try {
+          const pgid = await groups.foreground(session.pid)
+          return pgid !== null && pgid !== session.pid ? [''] : []
+        } catch (error) {
+          if (!this.foregroundReadFailureLogged) {
+            this.foregroundReadFailureLogged = true
+            logger.warn('Could not read a terminal foreground process group', {
+              error: getErrorMessage(error),
+            })
+          }
+          return []
+        }
+      })
     )
+    return commands.flat()
   }
 
   getTabs(): TerminalTabsState {
