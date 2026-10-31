@@ -7,8 +7,9 @@ import { boundedMeetingContent } from '@/lib/sim-search/live/meeting-content'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
 
 const MAX_MEETING_CONTENT = 200_000
+const MAX_DIAGNOSTIC_TEXT_LENGTH = 65_536
 const UTC_DAY_MS = 86_400_000
-const logger = createLogger('FirefliesMcpSearch')
+const logger = createLogger('FirefliesMcpSearch', { logLevel: 'WARN' })
 
 /** Only fixed envelope keys and value kinds may enter diagnostics, never provider keys or values. */
 function responseShape(value: unknown) {
@@ -35,6 +36,8 @@ function responseShape(value: unknown) {
 
 function responseTextShape(value: unknown) {
   if (typeof value !== 'string') return undefined
+  if (value.length > MAX_DIAGNOSTIC_TEXT_LENGTH)
+    return { length: value.length, inspection: 'skipped_size_limit' }
   const text = value.trim()
   const fenced = text.match(/^```(?:json)?\r?\n([\s\S]*)\r?\n```$/i)?.[1]
   let jsonShape: ReturnType<typeof responseShape> | undefined
