@@ -45,6 +45,8 @@ import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import {
   applyRegistrationGate,
+  DISPOSABLE_EMAIL_ERROR_CODE,
+  DISPOSABLE_EMAIL_MESSAGE,
   getRequestedSignInProviderId,
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
@@ -151,6 +153,7 @@ import {
   processCredentialDraft,
   refuseConflictingCredentialReconnect,
 } from '@/lib/credentials/draft-processor'
+import { isDisposableEmail } from '@/lib/messaging/email/disposable'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -360,6 +363,15 @@ export const auth = betterAuth({
           const accessControl = await getAccessControlConfig()
           if (isEmailBlockedByAccessControl(user.email, accessControl)) {
             throw new Error('Sign-ups from this email are not allowed.')
+          }
+          if (isHosted && (await isDisposableEmail(user.email))) {
+            logger.warn('Refusing account creation for a disposable email domain', {
+              domain: user.email.split('@')[1],
+            })
+            throw new APIError('FORBIDDEN', {
+              code: DISPOSABLE_EMAIL_ERROR_CODE,
+              message: DISPOSABLE_EMAIL_MESSAGE,
+            })
           }
           return { data: user }
         },
