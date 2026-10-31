@@ -20,7 +20,7 @@
     "@sim/utils": "workspace:*",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "zod": "4.3.6"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
