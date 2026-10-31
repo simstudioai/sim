@@ -105,9 +105,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // The macOS desktop shell overlays native traffic lights on the
                 // workspace. Mark it before first paint so the sidebar reserves
                 // its inset title-bar lane without a post-hydration layout shift.
+                // Shells that predate the platform field are all macOS.
                 var collapsedSidebarWidth = 48;
                 try {
-                  if (window.simDesktop && /Mac/i.test(navigator.userAgent)) {
+                  if (window.simDesktop && (window.simDesktop.platform || 'darwin') === 'darwin') {
                     document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset');
                     collapsedSidebarWidth = 0;
                   }

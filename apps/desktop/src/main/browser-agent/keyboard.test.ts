@@ -5,6 +5,7 @@ vi.mock('electron', () => import('@/test/electron-mock'))
 import { WebContentsView } from 'electron'
 import {
   buildKeyDispatchPlan,
+  comboTouchesClipboard,
   dispatchKeyCombo,
   KeyDispatchError,
   modifierKeyEvents,
@@ -101,12 +102,31 @@ describe('buildKeyDispatchPlan', () => {
     expect(linuxDown.commands).toBeUndefined()
   })
 
+  it('sends a Cmd editing shortcut as Ctrl on Windows instead of the Windows key', () => {
+    const [down] = buildKeyDispatchPlan(parseKeyCombo('Cmd+Z', 'win32'), 'win32')
+    expect(down.modifiers).toBe(2)
+    expect(down.commands).toBeUndefined()
+  })
+
   it('encodes the CDP modifier bitmask (Alt=1 Ctrl=2 Meta=4 Shift=8)', () => {
     const [down] = buildKeyDispatchPlan(parseKeyCombo('Control+Shift+K'), 'linux')
     expect(down.modifiers).toBe(2 | 8)
     // Modified letters must not carry text — they are shortcuts, not typing.
     expect(down.type).toBe('rawKeyDown')
     expect(down.text).toBeUndefined()
+  })
+})
+
+describe('comboTouchesClipboard', () => {
+  it.each(['Shift+Insert', 'Control+Insert', 'Shift+Delete'])(
+    'refuses %s on Windows, where Blink binds it to paste, copy, or cut',
+    (key) => {
+      expect(comboTouchesClipboard(parseKeyCombo(key, 'win32'), 'win32')).toBe(true)
+    }
+  )
+
+  it.each(['Insert', 'Delete', 'Control+Delete'])('leaves %s alone on Windows', (key) => {
+    expect(comboTouchesClipboard(parseKeyCombo(key, 'win32'), 'win32')).toBe(false)
   })
 })
 

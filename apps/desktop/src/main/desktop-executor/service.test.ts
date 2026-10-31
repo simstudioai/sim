@@ -44,10 +44,13 @@ function fakeSim(protocolVersion = 1) {
    * `'offline'` for a request that never reached Sim.
    */
   const registrations: Array<(answer: boolean | number | 'offline') => void> = []
+  /** The JSON body of each registration request, in order. */
+  const registrationBodies: unknown[] = []
   const fetch = vi.fn(async (url: string, init: RequestInit): Promise<Response> => {
     const path = new URL(url).pathname
     requests.push(`${init.method} ${path}`)
     if (path === '/api/desktop/devices') {
+      registrationBodies.push(JSON.parse(String(init.body)))
       const answer = await new Promise<boolean | number | 'offline'>((resolve) =>
         registrations.push(resolve)
       )
@@ -93,10 +96,14 @@ function fakeSim(protocolVersion = 1) {
       init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
     )
   })
-  return { fetch, requests, registrations, offered }
+  return { fetch, requests, registrations, registrationBodies, offered }
 }
 
-async function service(protocolVersion = 1, userDataPath?: string) {
+async function service(
+  protocolVersion = 1,
+  userDataPath?: string,
+  platform: NodeJS.Platform = 'darwin'
+) {
   const sim = fakeSim(protocolVersion)
   /** What the sleep blocker was told, in order. */
   const busy: boolean[] = []
@@ -117,6 +124,7 @@ async function service(protocolVersion = 1, userDataPath?: string) {
       cancel: async () => {},
     },
     onBusyChange: (value) => busy.push(value),
+    platform,
   })
   return { sim, desktopExecutor, busy }
 }
@@ -219,6 +227,24 @@ describe('results recovery will hand to the model', () => {
 })
 
 describe('desktop executor registration', () => {
+  it.each([
+    ['darwin', true],
+    ['win32', false],
+  ] as const)(
+    'advertises the terminal and native file tools on %s: %s',
+    async (platform, shipped) => {
+      const { sim, desktopExecutor } = await service(1, undefined, platform)
+      desktopExecutor.start()
+      await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+
+      expect(sim.registrationBodies[0]).toMatchObject({
+        capabilities: { browser: true, terminal: shipped, localFiles: shipped },
+      })
+      sim.registrations[0]?.(false)
+      await desktopExecutor.signOut()
+    }
+  )
+
   it('offers the device for binding once Sim enables it', async () => {
     const { sim, desktopExecutor } = await service()
     desktopExecutor.start()

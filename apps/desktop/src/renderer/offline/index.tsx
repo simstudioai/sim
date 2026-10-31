@@ -112,7 +112,7 @@ function OfflinePage({ isSimCloud }: OfflinePageProps) {
 const container = document.getElementById('root')
 if (!container) throw new Error('Offline page root is missing')
 {
-  observeDesktopTitleBar(document.documentElement, navigator.userAgent, bridge)
+  observeDesktopTitleBar(document.documentElement, bridge)
   const root = createRoot(container)
   root.render(<OfflinePage isSimCloud={false} />)
   void bridge?.server

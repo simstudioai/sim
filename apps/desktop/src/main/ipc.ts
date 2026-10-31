@@ -98,6 +98,7 @@ import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
+import { type DesktopFeatures, desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopIpc')
 
@@ -394,6 +395,23 @@ export interface IpcDeps {
   }
   /** The device a new chat turn may bind to, or null while Sim has not enabled one. */
   getExecutorDevice: () => DesktopExecutorDevice | null
+  /** Selects the {@link desktopFeatures} whose channels are registered. Defaults to the host. */
+  platform?: NodeJS.Platform
+}
+
+/**
+ * The platform feature a channel belongs to, or null when every platform has it.
+ * The preload omits these surfaces where the platform lacks them; main refuses
+ * them too, so a renderer that calls one anyway finds no handler.
+ */
+function platformFeatureFor(channel: string): keyof DesktopFeatures | null {
+  if (channel.startsWith('terminal:')) return 'terminal'
+  if (channel.startsWith('terminal-themes:')) return 'terminalThemes'
+  if (channel.startsWith('computer-use:')) return 'computerUse'
+  if (channel.startsWith('browser-import:')) return 'browserImport'
+  if (channel === 'desktop:local-files') return 'localFiles'
+  if (channel === 'browser-credentials:copy') return 'passwordCopy'
+  return null
 }
 
 /**
@@ -2136,7 +2154,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     args: readonly unknown[]
   ): boolean => (typeof requirement === 'function' ? requirement(args) : requirement === true)
 
+  const features = desktopFeatures(deps.platform ?? process.platform)
+
   for (const [channel, spec] of Object.entries(channels)) {
+    const platformFeature = platformFeatureFor(channel)
+    if (platformFeature && !features[platformFeature]) continue
     if (spec.kind === 'invoke') {
       ipcMain.handle(channel, async (event, ...args) => {
         if (

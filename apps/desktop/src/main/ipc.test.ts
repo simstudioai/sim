@@ -305,6 +305,7 @@ describe('registerIpcHandlers', () => {
     deps = {
       appOrigin: () => APP,
       getExecutorDevice: () => null,
+      platform: 'darwin',
       allowHttpLocalhost: () => false,
       accountDataAvailable: () => true,
       isLocalPageUrl,
@@ -366,6 +367,34 @@ describe('registerIpcHandlers', () => {
   afterEach(() => {
     vi.useRealTimers()
     for (const root of computerRoots.splice(0)) rmSync(root, { recursive: true, force: true })
+  })
+
+  it.each([
+    'terminal:execute-tool',
+    'terminal:write',
+    'terminal-themes:list-profiles',
+    'computer-use:execute-tool',
+    'browser-import:all',
+    'desktop:local-files',
+    'browser-credentials:copy',
+  ])('registers no handler on Windows for %s, which that shell does not ship', (channel) => {
+    expect(collectHandlers().invoke.has(channel) || collectHandlers().on.has(channel)).toBe(true)
+    vi.mocked(ipcMain.handle).mockClear()
+    vi.mocked(ipcMain.on).mockClear()
+
+    registerIpcHandlers({ ...deps, platform: 'win32' })
+
+    const { invoke, on } = collectHandlers()
+    expect(invoke.has(channel) || on.has(channel)).toBe(false)
+  })
+
+  it('keeps the user-local folder grants and password reveal on Windows', () => {
+    vi.mocked(ipcMain.handle).mockClear()
+    registerIpcHandlers({ ...deps, platform: 'win32' })
+
+    const { invoke } = collectHandlers()
+    expect(invoke.has('desktop:local-filesystem')).toBe(true)
+    expect(invoke.has('browser-credentials:reveal')).toBe(true)
   })
 
   it('opens validated external URLs only after recent user input', async () => {

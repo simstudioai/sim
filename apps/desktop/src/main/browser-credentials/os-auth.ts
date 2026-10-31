@@ -22,9 +22,11 @@ const AUTH_GRACE_MS = 30_000
  *
  * Neither operation dominates the other, so a grant satisfies only its own.
  * `reveal` hands the plaintext to the Sim renderer; `copy` publishes it to the
- * macOS pasteboard, which every process on the machine can read, which
+ * system clipboard, which every process on the machine can read, which
  * clipboard managers persist to disk beyond the 30s `clipboard.clear()`, and
- * which Universal Clipboard syncs to the user's other devices. Ordering them
+ * which Universal Clipboard syncs to the user's other devices. (Windows keeps
+ * the same text in Clipboard History and the cloud clipboard, which is why
+ * copy is not offered there at all.) Ordering them
  * either way lets one consent authorize an exposure the prompt never described.
  */
 export type SecretOperation = 'reveal' | 'copy'
@@ -96,8 +98,8 @@ export function revokeSecretAuthorization(credentialId?: string): void {
  * renderer cannot drive or fake.
  *
  * Touch ID is used when the machine has it. Where it does not (a Mac mini
- * without a Touch ID keyboard, or a user who has not enrolled), the fallback
- * is a native modal that the main process owns. That is genuinely weaker than
+ * without a Touch ID keyboard, a user who has not enrolled, or any Windows
+ * machine), the fallback is a native modal that the main process owns. That is genuinely weaker than
  * biometric auth — it proves presence, not identity — so it is a deliberate,
  * documented trade rather than a silent one, and it still cannot be triggered
  * without a real click in the page.

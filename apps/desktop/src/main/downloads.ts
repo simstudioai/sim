@@ -6,6 +6,7 @@ import type { Session } from 'electron'
 import { app } from 'electron'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import type { EventRecorder } from '@/main/observability'
+import { toWin32SafeFileName } from '@/main/win32-path'
 
 const logger = createLogger('DesktopDownloads')
 
@@ -27,15 +28,20 @@ const MIME_EXTENSIONS: Record<string, string> = {
 
 /**
  * Strips path separators and control characters from a server- or
- * blob-suggested filename so it can never escape the chosen directory.
+ * blob-suggested filename so it can never escape the chosen directory. On
+ * Windows it also becomes a name NTFS stores exactly as spelled.
  */
-export function sanitizeFilename(name: string): string {
+export function sanitizeFilename(
+  name: string,
+  platform: NodeJS.Platform = process.platform
+): string {
   const cleaned = name
     .replace(/[/\\]/g, '_')
     .replace(/[\u0000-\u001f]/g, '')
     .replace(/^\.+/, '')
     .trim()
-  return cleaned.slice(0, MAX_FILENAME_LENGTH)
+    .slice(0, MAX_FILENAME_LENGTH)
+  return platform === 'win32' ? toWin32SafeFileName(cleaned) : cleaned
 }
 
 /**
