@@ -91,6 +91,9 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   const loaded = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
   const linksById = useMemo(() => new Map(loaded.map((link) => [link.id, link])), [loaded])
   const menuLink = menuLinkId ? linksById.get(menuLinkId) : undefined
+  // A row can leave the results while its menu is open; forgetting it keeps the menu from
+  // reappearing at the old position when the row comes back.
+  if (menuLinkId && !menuLink) setMenuLinkId(null)
 
   const rows: ResourceRow[] = useMemo(
     () =>
