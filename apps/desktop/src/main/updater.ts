@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
-import { unlinkSync } from 'node:fs'
+import { existsSync, unlinkSync } from 'node:fs'
+import { join } from 'node:path'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
@@ -59,7 +60,7 @@ export async function readUpdateManifest(response: Response): Promise<string | n
 
 /**
  * The per-environment update feed served by the Sim deployment this shell is
- * pointed at (`/api/desktop/update/latest-mac.yml`). Each environment pins
+ * pointed at (`/api/desktop/update/latest-mac.yml` or `latest.yml`). Each environment pins
  * which shell build its clients are offered — dev serves dev builds,
  * staging serves staging builds, prod stable — so the environment, not the client, is the
  * channel. Returns null for origins that can't host a feed.
@@ -88,7 +89,50 @@ const RELEASE_REPOSITORIES: Record<UpdateChannel, string> = {
   dev: 'simstudioai/sim-desktop-releases',
 }
 
-function isReleaseAssetUrl(rawUrl: string, version: string, channel: UpdateChannel): boolean {
+/**
+ * What differs between the platforms that self-update: the manifest
+ * electron-updater requests, the artifacts a release may point it at, and how a
+ * downloaded update becomes installable.
+ */
+interface UpdatePlatform {
+  /** The manifest electron-updater requests from the feed for this platform. */
+  manifest: 'latest-mac.yml' | 'latest.yml'
+  /** Every artifact a manifest for `version` may reference, most human-installable first. */
+  assetNames(version: string): readonly string[]
+  /**
+   * macOS hands the downloaded zip to Squirrel.Mac, which stages it and only
+   * then reports `update-downloaded` on Electron's native updater. NSIS has no
+   * native step: electron-updater's own `update-downloaded` fires after it has
+   * verified the installer's Authenticode publisher.
+   */
+  nativeStaging: boolean
+}
+
+const MAC_UPDATE_PLATFORM: UpdatePlatform = {
+  manifest: 'latest-mac.yml',
+  assetNames: (version) => [`Sim-${version}-universal.dmg`, `Sim-${version}-universal.zip`],
+  nativeStaging: true,
+}
+
+const WINDOWS_UPDATE_PLATFORM: UpdatePlatform = {
+  manifest: 'latest.yml',
+  assetNames: (version) => [`Sim-${version}-x64.exe`],
+  nativeStaging: false,
+}
+
+/** The update pipeline for a platform, or null where the shell does not update itself. */
+function updatePlatformFor(platform: NodeJS.Platform): UpdatePlatform | null {
+  if (platform === 'darwin') return MAC_UPDATE_PLATFORM
+  if (platform === 'win32') return WINDOWS_UPDATE_PLATFORM
+  return null
+}
+
+function isReleaseAssetUrl(
+  rawUrl: string,
+  version: string,
+  channel: UpdateChannel,
+  platform: UpdatePlatform
+): boolean {
   if (!isSafeExternalUrl(rawUrl)) return false
   try {
     const url = new URL(rawUrl)
@@ -96,10 +140,7 @@ function isReleaseAssetUrl(rawUrl: string, version: string, channel: UpdateChann
     const repository = RELEASE_REPOSITORIES[channel]
     const releasePath = `/${repository}/releases/download/v${normalizedVersion}/`
     const assetName = decodeURIComponent(url.pathname.slice(releasePath.length))
-    const expectedAssetNames = new Set([
-      `Sim-${normalizedVersion}-universal.dmg`,
-      `Sim-${normalizedVersion}-universal.zip`,
-    ])
+    const expectedAssetNames = new Set(platform.assetNames(normalizedVersion))
     return (
       url.origin === RELEASE_ASSET_ORIGIN &&
       url.username === '' &&
@@ -243,13 +284,13 @@ export interface UpdaterDeps {
   loadAutoUpdater?: () => typeof import('electron-updater')['autoUpdater']
   /** Test seam: overrides the origin feed availability probe. */
   probeOriginFeed?: (feedUrl: string) => Promise<boolean | 'no-release'>
-  /** Test seam: overrides Applications-folder and Developer ID eligibility detection. */
+  /** Test seam: overrides the platform's self-update eligibility detection. */
   canSelfUpdate?: () => Promise<boolean>
   /** Test seam: overrides the manual-mode manifest fetch (body or null). */
   fetchManifest?: (url: string) => Promise<string | null>
-  /** Test seam for the macOS-only updater gate. */
+  /** Test seam for the platform gate: macOS and Windows update, other platforms do not. */
   platform?: NodeJS.Platform
-  /** Flushes desktop-owned state before Squirrel terminates the process. */
+  /** Flushes desktop-owned state before the installer terminates the process. */
   beforeInstall?: () => Promise<void>
   /** Bypasses renderer unload guards only after the user confirms a relaunch. */
   setRelaunchPending?: (pending: boolean) => void
@@ -301,12 +342,15 @@ function isValidUpdateCandidate(candidateVersion: string, currentVersion: string
 
 /**
  * Squirrel.Mac can update only an app installed under /Applications whose
- * running bundle carries a Developer ID TeamIdentifier. Other packaged builds
- * use the manual-download pipeline.
+ * running bundle carries a Developer ID TeamIdentifier. On Windows the NSIS
+ * updater needs the `app-update.yml` the installer build writes into
+ * resources — it carries the publisher name the downloaded installer's
+ * signature is checked against. Other packaged builds use the manual-download
+ * pipeline.
  */
-async function detectSelfUpdateCapability(): Promise<boolean> {
-  if (process.platform !== 'darwin') {
-    return true
+async function detectSelfUpdateCapability(platform: NodeJS.Platform): Promise<boolean> {
+  if (platform === 'win32') {
+    return app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))
   }
   if (!app.isInApplicationsFolder()) {
     return false
@@ -353,7 +397,9 @@ interface UpdateEngine {
  * as manual downloads.
  */
 export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
-  if ((deps.platform ?? process.platform) !== 'darwin') {
+  const platformName = deps.platform ?? process.platform
+  const platform = updatePlatformFor(platformName)
+  if (!platform) {
     return NOOP_UPDATER_HANDLE
   }
   if (!app.isPackaged && !deps.loadAutoUpdater && !deps.canSelfUpdate) {
@@ -422,8 +468,10 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     let autoDownloadEnabled = deps.autoDownload?.() ?? true
     // Prevents the library from fetching a candidate before Sim validates its asset URLs.
     autoUpdater.autoDownload = false
-    // Explicit Update actions must reopen Sim after Squirrel swaps the bundle.
+    // Explicit Update actions must reopen Sim after the installer swaps the app.
     autoUpdater.autoRunAppAfterInstall = true
+    // Releases ship a full installer; there is no web-installer package to fetch.
+    if (!platform.nativeStaging) autoUpdater.disableWebInstaller = true
     // Never install without vetting the downloaded version first. Enabled per
     // download in the update-downloaded handler, but only for accepted updates
     // — so a blocked/downgrade build that was already downloaded is never
@@ -456,7 +504,12 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
             from: currentVersion,
             version: state.version ?? '',
           })
-          autoUpdater.quitAndInstall()
+          if (platform.nativeStaging) {
+            autoUpdater.quitAndInstall()
+          } else {
+            // Silent, then relaunch: the one-click installer shows no UI to confirm.
+            autoUpdater.quitAndInstall(true, true)
+          }
         })
         .catch((error) => {
           deps.setRelaunchPending?.(false)
@@ -592,7 +645,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       const validOriginAssets =
         !originFeedConfigured ||
         (info.files.length > 0 &&
-          info.files.every((file) => isReleaseAssetUrl(file.url, info.version, channel)))
+          info.files.every((file) => isReleaseAssetUrl(file.url, info.version, channel, platform)))
       const validCandidate =
         validOriginAssets && isValidUpdateCandidate(info.version, currentVersion)
       if (state.status === 'ready') {
@@ -646,9 +699,24 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       })
     })
 
+    /** A verified update is installable: persist the checkpoint and offer the restart. */
+    const markReady = (version: string) => {
+      stagedVersion = version
+      if (deps.installStatePath) {
+        try {
+          writeJsonFileAtomicallySync(deps.installStatePath, { version })
+        } catch (error) {
+          logger.warn('Could not persist update installation checkpoint', { error })
+        }
+      }
+      deps.events.record('update_downloaded', { version })
+      setState({ status: 'ready', version })
+    }
+
     autoUpdater.on('update-downloaded', (info) => {
       if (state.status !== 'downloading') return
-      // MacUpdater has replaced the native feed before emitting this event.
+      // MacUpdater has replaced the native feed before emitting this event, and
+      // NsisUpdater has replaced the cached installer.
       stagedVersion = null
       clearInstallState()
       if (
@@ -662,37 +730,16 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         return
       }
       acceptedUpdateVersion = null
-      pendingStagingVersion = info.version
       autoUpdater.autoInstallOnAppQuit = true
+      if (!platform.nativeStaging) {
+        markReady(info.version)
+        return
+      }
+      pendingStagingVersion = info.version
       setState({ status: 'downloading', version: info.version, percent: 100 })
     })
 
-    squirrelUpdater.on('update-downloaded', () => {
-      const version = pendingStagingVersion
-      if (version === null || state.status !== 'downloading') return
-      pendingStagingVersion = null
-      stagedVersion = version
-      if (deps.installStatePath) {
-        try {
-          writeJsonFileAtomicallySync(deps.installStatePath, { version })
-        } catch (error) {
-          logger.warn('Could not persist update installation checkpoint', { error })
-        }
-      }
-      deps.events.record('update_downloaded', { version })
-      setState({ status: 'ready', version })
-    })
-
-    /** Network failures belong to their request promises; native errors invalidate staging. */
-    squirrelUpdater.on('error', (error) => {
-      if (
-        state.status !== 'downloading' &&
-        state.status !== 'ready' &&
-        !installInFlight &&
-        !relaunchRequested
-      ) {
-        return
-      }
+    const failNativeInstall = (error: unknown) => {
       installInFlight = false
       relaunchRequested = false
       stagedVersion = null
@@ -704,13 +751,44 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       logger.warn('Native update failed', { message })
       deps.events.record('update_error', { message })
       setState({ status: 'error', version: state.version })
-    })
+    }
+
+    if (platform.nativeStaging) {
+      squirrelUpdater.on('update-downloaded', () => {
+        const version = pendingStagingVersion
+        if (version === null || state.status !== 'downloading') return
+        pendingStagingVersion = null
+        markReady(version)
+      })
+
+      /** Network failures belong to their request promises; native errors invalidate staging. */
+      squirrelUpdater.on('error', (error) => {
+        if (
+          state.status !== 'downloading' &&
+          state.status !== 'ready' &&
+          !installInFlight &&
+          !relaunchRequested
+        ) {
+          return
+        }
+        failNativeInstall(error)
+      })
+    } else {
+      /**
+       * Without a native stage, the only installer failure left is launching
+       * it; download and signature failures reject their request promises.
+       */
+      autoUpdater.on('error', (error) => {
+        if (!installInFlight && !relaunchRequested) return
+        failNativeInstall(error)
+      })
+    }
 
     /**
      * Prefer the per-environment feed served by the configured origin; fall
      * back to the packaged GitHub feed when the origin doesn't serve one (an
      * older or partial deployment). The origin feed is channel-resolved
-     * server-side, so the client always requests plain `latest-mac.yml`.
+     * server-side, so the client always requests the plain platform manifest.
      *
      * The fallback is stable-only: prerelease (dev/staging) builds exist
      * solely on their origin feed, and the GitHub feed could only offer them
@@ -721,7 +799,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     const probeOriginFeed =
       deps.probeOriginFeed ??
       (async (feedUrl: string) => {
-        const response = await net.fetch(`${feedUrl}/latest-mac.yml`, {
+        const response = await net.fetch(`${feedUrl}/${platform.manifest}`, {
           signal: AbortSignal.timeout(UPDATE_CHECK_TIMEOUT_MS),
         })
         if (response.ok) return true
@@ -885,7 +963,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       }, UPDATE_CHECK_TIMEOUT_MS)
       try {
         const feedUrl = feedUrlForOrigin(deps.appOrigin())
-        const manifest = feedUrl ? await fetchManifest(`${feedUrl}/latest-mac.yml`) : null
+        const manifest = feedUrl ? await fetchManifest(`${feedUrl}/${platform.manifest}`) : null
         if (activeCheckId !== checkId) return
         const version = manifest ? (/^version:\s*(\S+)\s*$/m.exec(manifest)?.[1] ?? null) : null
         if (!manifest || !version || !isValidUpdateCandidate(version, currentVersion)) {
@@ -894,7 +972,8 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         }
         if (refreshing && !isNewerVersion(version, offeredVersion)) return
         // The feed rewrites manifest urls to absolute GitHub asset URLs;
-        // prefer the dmg for a human download.
+        // prefer the platform's most human-installable artifact (the dmg on
+        // macOS).
         //
         // Filtered before selection, not just before opening: the manifest is
         // whatever the configured origin served, so `smb://…/x.dmg` or a bare
@@ -903,10 +982,14 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         const urls = Array.from(
           manifest.matchAll(/^\s*(?:-\s*)?url:\s*(\S+)\s*$/gm),
           (m) => m[1]
-        ).filter((url) => isReleaseAssetUrl(url, version, resolveUpdateChannel(currentVersion)))
+        ).filter((url) =>
+          isReleaseAssetUrl(url, version, resolveUpdateChannel(currentVersion), platform)
+        )
         const nextDownloadUrl =
-          urls.find((url) => url.endsWith('.dmg')) ??
-          urls.find((url) => url.endsWith('.zip')) ??
+          platform
+            .assetNames(version.replace(/^v/, ''))
+            .map((name) => urls.find((url) => url.endsWith(`/${encodeURIComponent(name)}`)))
+            .find((url) => url !== undefined) ??
           urls[0] ??
           null
         if (!nextDownloadUrl) {
@@ -961,7 +1044,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
   let pendingAutoDownload: boolean | null = null
   let pendingInteractiveCheck = false
 
-  const canSelfUpdate = deps.canSelfUpdate ?? detectSelfUpdateCapability
+  const canSelfUpdate = deps.canSelfUpdate ?? (() => detectSelfUpdateCapability(platformName))
   void canSelfUpdate()
     .catch((error) => {
       logger.warn('Could not detect self-update capability; using manual updates', {
