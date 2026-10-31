@@ -585,7 +585,7 @@ interface SimDesktopBrowserCredentialsApi {
    * This is the only method on the entire bridge that can produce password
    * plaintext, and it is heavily conditioned: it requires an active user
    * gesture, the shell prompts for Touch ID (or a native confirmation where
-   * Touch ID is unavailable) on every call, and it returns exactly one
+   * Touch ID is unavailable, including every Windows machine) on every call, and it returns exactly one
    * password. Resolves null when the user declines or the credential is gone.
    */
   reveal(id: string): Promise<string | null>
@@ -593,8 +593,11 @@ interface SimDesktopBrowserCredentialsApi {
    * Copy one saved password to the clipboard. Same authorization as
    * {@link reveal}, but the password never enters the renderer: the shell
    * writes the clipboard itself and clears it again shortly after.
+   *
+   * Absent on Windows, where Clipboard History and the cloud clipboard keep a
+   * copy that clearing the clipboard does not remove.
    */
-  copy(id: string): Promise<boolean>
+  copy?(id: string): Promise<boolean>
   /** Copy saved passwords out of a Chrome profile into the vault. */
   importFromChrome(
     profileId?: string,
@@ -938,7 +941,7 @@ export interface DesktopPreferences {
   notificationsOnlyWhenUnfocused: boolean
   launchAtLogin: boolean
   autoDownloadUpdates: boolean
-  /** Show the Sim status item (recent chats menu) in the macOS menu bar. */
+  /** Show the Sim status item (recent chats menu) in the macOS menu bar or the Windows system tray. */
   trayEnabled: boolean
   /** Let Chat drive the built-in agent browser on this device. */
   browserEnabled: boolean
@@ -1171,10 +1174,15 @@ interface SimDesktopExecutorApi {
   getDevice(): Promise<DesktopExecutorDevice | null>
 }
 
+/** The operating system a desktop shell runs on. */
+export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
+
 export interface SimDesktopApi {
   computerUse?: SimDesktopComputerUseApi
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
+  /** The shell's operating system. Absent on shells that predate it, all of which are macOS. */
+  platform?: DesktopPlatform
   openExternal(url: string): Promise<boolean>
   /** Opens the operating system's microphone privacy settings when supported. */
   openMicrophoneSettings?(): Promise<boolean>
@@ -1201,7 +1209,10 @@ export interface SimDesktopApi {
    */
   server?: SimDesktopServerApi
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
-  /** Optional so older installed shells do not advertise the new native tools. */
+  /**
+   * Optional so older installed shells do not advertise the new native tools. Also absent on
+   * platforms whose shell cannot run them (Windows today).
+   */
   localFiles?(request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse>
   /**
    * Present on shells that claim each local read (`read_local_file`, user-local VFS reads) through
@@ -1217,18 +1228,19 @@ export interface SimDesktopApi {
   browserAgent: SimDesktopBrowserAgentApi
   /**
    * Local Chrome import for the built-in browser. Absent on platforms without
-   * a supported importer.
+   * a supported importer (everything but macOS today).
    */
   browserImport?: SimDesktopBrowserImportApi
   /** Saved passwords and user-driven fill for the built-in browser. */
   browserCredentials: SimDesktopBrowserCredentialsApi
-  terminal: SimDesktopTerminalApi
+  /** Absent on platforms without the agent terminal (Windows today). */
+  terminal?: SimDesktopTerminalApi
   /**
    * Runs desktop tools for chats the user is not viewing. Optional: shells without one leave
    * desktop tools to the chat view.
    */
   desktopExecutor?: SimDesktopExecutorApi
-  /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
+  /** Reads and selects Terminal.app or iTerm2 color profiles. Present only on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
 export {

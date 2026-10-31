@@ -33,6 +33,7 @@ function terminalCall(toolCallId: string, operation: string): ClaimedDesktopCall
 
 function runner(overrides: Partial<DesktopToolRunnerDeps> = {}) {
   return createDesktopToolRunner({
+    platform: 'darwin',
     preferences: () => ({ browserEnabled: true, terminalEnabled: true }),
     accountDataAvailable: () => true,
     browser: {
@@ -136,6 +137,37 @@ describe('background terminal calls', () => {
 
     expect(completion.status).toBe('error')
     expect(started).toEqual(['wedged'])
+  })
+})
+
+describe('calls for a surface the platform does not ship', () => {
+  it.each([
+    ['terminal', { operation: 'run', args: { command: 'echo hi' } }],
+    ['read_local_file', { path: '~/notes.txt' }],
+    ['import_local_files', { path: '~/notes', targetWorkspaceId: 'ws-1' }],
+  ])('never starts %s on Windows', async (toolName, args) => {
+    const executeTool = vi.fn()
+    const request = vi.fn()
+    const completion = await runner({
+      platform: 'win32',
+      terminal: { executeTool, cancelTool: vi.fn(async () => true) },
+      localFiles: { request },
+    }).run(
+      {
+        toolCallId: 'call-1',
+        toolName,
+        args,
+        chatId: 'chat-b',
+        workspaceId: 'ws-1',
+        executionToken: 'token-call-1',
+      },
+      new AbortController().signal
+    )
+
+    expect(completion.data).toMatchObject({ notStarted: true })
+    expect(completion.message).toContain('on this operating system')
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
   })
 })
 

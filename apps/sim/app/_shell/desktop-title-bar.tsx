@@ -30,7 +30,7 @@ export function DesktopTitleBarLane() {
 export function DesktopTitleBarController() {
   useEffect(() => {
     const bridge = getDesktopBridge()
-    return observeDesktopTitleBar(document.documentElement, navigator.userAgent, bridge)
+    return observeDesktopTitleBar(document.documentElement, bridge)
   }, [])
 
   return null

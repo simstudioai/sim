@@ -163,6 +163,8 @@ const ChatMessageSchema = z
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         computerUse: z.boolean().optional(),
+        /** Optional: shells that predate it are all macOS. */
+        platform: z.enum(['darwin', 'win32', 'linux']).optional(),
         terminals: z
           .array(
             z.object({

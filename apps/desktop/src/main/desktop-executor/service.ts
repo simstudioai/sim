@@ -41,6 +41,7 @@ import {
   type DesktopImportEntryRequest,
   type DesktopImportedEntry,
 } from '@/main/desktop-executor/protocol'
+import { desktopFeatures } from '@/shared/platform-features'
 
 const logger = createLogger('DesktopExecutorService')
 
@@ -67,6 +68,8 @@ export interface DesktopExecutorServiceDeps {
   onResultDelivered?: (toolCallId: string) => void
   /** Sim is done with a call whose real result the model never got. */
   onResultNotDelivered?: (toolCallId: string) => void
+  /** Selects which {@link desktopFeatures} the device advertises. Defaults to the host. */
+  platform?: NodeJS.Platform
 }
 
 export interface DesktopExecutorService {
@@ -320,6 +323,8 @@ export function createDesktopExecutorService(
       return
     }
     const preferences = deps.preferences()
+    const platform = deps.platform ?? process.platform
+    const features = desktopFeatures(platform)
     const registrationClient = createDesktopExecutorClient({
       origin: deps.origin,
       fetch: fetchWithAppSession,
@@ -330,12 +335,12 @@ export function createDesktopExecutorService(
         deviceId: id,
         name: deviceName(),
         appVersion: app.getVersion(),
-        platform: `${process.platform}-${process.arch}`,
+        platform: `${platform}-${process.arch}`,
         capabilities: {
           executor: DESKTOP_EXECUTOR_PROTOCOL_VERSION,
           browser: preferences.browserEnabled,
-          terminal: preferences.terminalEnabled,
-          localFiles: deps.accountDataAvailable(),
+          terminal: features.terminal && preferences.terminalEnabled,
+          localFiles: features.localFiles && deps.accountDataAvailable(),
         },
       })
       if (registrationGeneration !== generation || id !== deviceId) return

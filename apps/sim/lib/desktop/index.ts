@@ -22,7 +22,7 @@
  *   capabilities consistently.
  */
 import type { BrowserKnownSession } from '@sim/browser-protocol'
-import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
+import type { DesktopPlatform, DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
 import { truncate } from '@sim/utils/string'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -47,7 +47,7 @@ export function isDesktopApp(): boolean {
 
 /** True when the shell can serve read-only local-directory grants. */
 export function hasLocalFilesystem(): boolean {
-  return isDesktopApp()
+  return typeof getDesktopBridge()?.localFilesystem === 'function'
 }
 
 /** True when the shell hosts the embedded agent browser. */
@@ -57,7 +57,7 @@ export function hasBrowserAgent(): boolean {
 
 /** True when the shell can run an interactive local shell for the agent. */
 export function hasTerminal(): boolean {
-  return isDesktopApp()
+  return getDesktopBridge()?.terminal !== undefined
 }
 
 /** True when the shell exposes device-level desktop preferences. */
@@ -139,6 +139,15 @@ export function getDesktopShellVersion(): string | undefined {
   return getDesktopBridge()?.version
 }
 
+/**
+ * The shell's operating system, or undefined in a browser. Shells that predate
+ * the field are all macOS.
+ */
+export function getDesktopPlatform(): DesktopPlatform | undefined {
+  const bridge = getDesktopBridge()
+  return bridge ? (bridge.platform ?? 'darwin') : undefined
+}
+
 /** The shell updater surface, when the installed shell provides one. */
 export function getDesktopUpdates(): SimDesktopApi['updates'] | undefined {
   return getDesktopBridge()?.updates
@@ -165,6 +174,7 @@ export interface DesktopChatCapabilities {
     browser?: true
     terminal?: true
     computerUse?: true
+    platform?: DesktopPlatform
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
     /** The desktop's background executor, offered to run this turn's desktop tools. */
@@ -207,7 +217,7 @@ export async function getDesktopChatCapabilities(
   // spending a tool call to ask — and, more importantly, so it notices a
   // terminal that is occupied instead of launching a second copy into it.
   const terminals: DesktopTerminalHint[] =
-    terminal && bridge
+    terminal && bridge?.terminal
       ? await bridge.terminal
           .getTabs(scopeId)
           .then((state) =>
@@ -250,6 +260,7 @@ export async function getDesktopChatCapabilities(
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),
             ...(computerUse ? { computerUse: true as const } : {}),
+            ...(bridge ? { platform: bridge.platform ?? 'darwin' } : {}),
             ...(terminals.length > 0 ? { terminals } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
             ...(executorDevice

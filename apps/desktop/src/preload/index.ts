@@ -35,6 +35,7 @@ import type {
   DesktopNotificationPayload,
   DesktopOAuthConnectResult,
   DesktopOAuthConnectScope,
+  DesktopPlatform,
   DesktopPreferenceKey,
   DesktopPreferences,
   DesktopServerChangeResult,
@@ -45,6 +46,7 @@ import type {
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
+  SimDesktopTerminalApi,
   TerminalShortcutCommand,
   TerminalThemeProfile,
 } from '@sim/desktop-bridge'
@@ -59,6 +61,7 @@ import {
 } from '@sim/terminal-protocol'
 import { contextBridge, ipcRenderer } from 'electron'
 import { exposeShellTheme, observeAppTheme } from '@/preload/shell-theme'
+import { desktopFeatures } from '@/shared/platform-features'
 
 exposeShellTheme()
 observeAppTheme()
@@ -115,13 +118,21 @@ function shellVersion(): string {
   return version || '0.0.0'
 }
 
+/** Every other platform keeps the Linux surface set, which is what it has always had. */
+function bridgePlatform(): DesktopPlatform {
+  return process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux'
+}
+
+const features = desktopFeatures(process.platform)
+
 /**
  * The narrow bridge exposed to pages. Every channel is validated and gated in
  * the main process — nothing here grants page code any privilege by itself.
  */
 const api: SimDesktopApi = {
   version: shellVersion(),
-  ...(process.platform === 'darwin'
+  platform: bridgePlatform(),
+  ...(features.computerUse
     ? {
         computerUse: {
           getActivity: () => ipcRenderer.invoke('computer-use:get-activity'),
@@ -179,8 +190,13 @@ const api: SimDesktopApi = {
   },
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
-  localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
-    ipcRenderer.invoke('desktop:local-files', request),
+  ...(features.localFiles
+    ? {
+        localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
+          ipcRenderer.invoke('desktop:local-files', request),
+      }
+    : {}),
+  // Claims cover user-local VFS reads too, which run on every platform.
   localReadClaims: true,
   onCommand: (callback: (command: DesktopCommand) => void): (() => void) => {
     const listener = (_event: unknown, command: DesktopCommand) => callback(command)
@@ -416,11 +432,7 @@ const api: SimDesktopApi = {
       }
     },
   },
-  // Omitted entirely off macOS, so the web app's feature detection reflects
-  // whether an import can actually run rather than only whether the shell is
-  // new enough. Chrome's App-Bound Encryption on Windows is deliberately not
-  // worked around.
-  ...(process.platform === 'darwin'
+  ...(features.terminalThemes
     ? {
         terminalThemes: {
           listProfiles: (): Promise<TerminalThemeProfile[]> =>
@@ -428,6 +440,14 @@ const api: SimDesktopApi = {
           selectProfile: (profileId: string): Promise<DesktopPreferences | null> =>
             ipcRenderer.invoke('terminal-themes:select-profile', profileId),
         },
+      }
+    : {}),
+  // Omitted entirely where no importer runs, so the web app's feature detection
+  // reflects whether an import can actually run rather than only whether the
+  // shell is new enough. Chrome's App-Bound Encryption on Windows is
+  // deliberately not worked around.
+  ...(features.browserImport
+    ? {
         browserImport: {
           listChromeProfiles: (): Promise<BrowserImportProfile[]> =>
             ipcRenderer.invoke('browser-import:list-profiles'),
@@ -455,7 +475,12 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-credentials:forget-all'),
     reveal: (id: string): Promise<string | null> =>
       ipcRenderer.invoke('browser-credentials:reveal', id),
-    copy: (id: string): Promise<boolean> => ipcRenderer.invoke('browser-credentials:copy', id),
+    ...(features.passwordCopy
+      ? {
+          copy: (id: string): Promise<boolean> =>
+            ipcRenderer.invoke('browser-credentials:copy', id),
+        }
+      : {}),
     importFromChrome: (
       profileId?: string,
       policy?: BrowserCredentialConflictPolicy
@@ -469,7 +494,11 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('browser-credentials:fill-selected', id, scopeId),
     onFillAvailability: subscribeFillAvailability,
   },
-  terminal: {
+  ...(features.terminal ? { terminal: terminalApi() } : {}),
+}
+
+function terminalApi(): SimDesktopTerminalApi {
+  return {
     restoreScope: (scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:restore-scope', scopeId),
     // The tool name rides alongside the call because the main process
@@ -590,7 +619,7 @@ const api: SimDesktopApi = {
         ipcRenderer.removeListener('terminal:scope-suspended', listener)
       }
     },
-  },
+  }
 }
 
 contextBridge.exposeInMainWorld('simDesktop', api)
