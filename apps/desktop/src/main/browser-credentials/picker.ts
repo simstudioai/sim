@@ -61,6 +61,8 @@ export class CredentialPicker {
         app.isPackaged
       ),
     })
+    // Windows attaches the app menu to every window; its accelerators would act inside the picker.
+    if (process.platform === 'win32') win.removeMenu()
     this.window = win
     const pageUrl = localPageUrl('credential-picker.html')
     attachShellTheme(win)
