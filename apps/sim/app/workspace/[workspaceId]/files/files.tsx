@@ -163,6 +163,7 @@ import {
   useWorkspaceFileRecord,
   workspaceFileRecordState,
 } from '@/hooks/queries/workspace-files'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -353,6 +354,7 @@ function FilesContent() {
   })
   /** An upload batch is in flight exactly while a total is set — matches the Tables page. */
   const uploading = uploadProgress.total > 0
+  useBeforeUnloadWhile(uploading)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
   /**

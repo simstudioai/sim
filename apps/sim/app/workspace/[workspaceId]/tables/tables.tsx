@@ -101,6 +101,7 @@ import {
 } from '@/hooks/queries/tables'
 import { getCanonicalFolderPath } from '@/hooks/queries/utils/folder-tree'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -326,6 +327,7 @@ function TablesContent() {
 
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const uploading = uploadProgress.total > 0
+  useBeforeUnloadWhile(uploading)
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   /**

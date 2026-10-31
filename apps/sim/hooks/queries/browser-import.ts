@@ -1,7 +1,7 @@
 'use client'
 
 import type { BrowserImportProfile, BrowserPendingSignIn } from '@sim/desktop-bridge'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getDesktopBridge } from '@/lib/desktop'
 
 /** Local browser data read through the desktop shell, never the server. */
@@ -56,6 +56,14 @@ export function usePendingSignIn(scopeId: string, enabled: boolean) {
   })
 }
 
+/**
+ * Refreshes every chat's pending sign-in, not just the one a mutation started under:
+ * a provisional chat id that saves mid-mutation moves the handoff to the saved id.
+ */
+function invalidatePendingSignIns(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: browserImportKeys.pendingSignIns() })
+}
+
 export function useStartSignInHandoff(scopeId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -69,8 +77,7 @@ export function useStartSignInHandoff(scopeId: string) {
     },
     // A failed or superseded launch can still retire the chat's previous
     // handoff, so the shell's answer replaces whatever the cache last held.
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: browserImportKeys.pendingSignIn(scopeId) }),
+    onSettled: () => invalidatePendingSignIns(queryClient),
   })
 }
 
@@ -82,8 +89,7 @@ export function useBringSignInBack(scopeId: string) {
       if (!bringSignInBack) throw new Error('Browser import is not available on this device.')
       return bringSignInBack(scopeId)
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: browserImportKeys.pendingSignIn(scopeId) }),
+    onSuccess: () => invalidatePendingSignIns(queryClient),
   })
 }
 
@@ -92,5 +98,6 @@ export function useCancelSignInHandoff(scopeId: string) {
   return useMutation({
     mutationFn: async () => browserImport()?.cancelSignIn?.(scopeId),
     onSuccess: () => queryClient.setQueryData(browserImportKeys.pendingSignIn(scopeId), null),
+    onSettled: () => invalidatePendingSignIns(queryClient),
   })
 }

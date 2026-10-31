@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  parseHttpsPage,
+  continuablePage,
   signInHintHost,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/sign-in-hosts'
 
+const APP_ORIGIN = 'https://www.sim.ai'
+
 function hintFor(url: string | undefined): string | null {
-  const page = parseHttpsPage(url)
+  const page = continuablePage(url, APP_ORIGIN)
   return page ? signInHintHost(page) : null
 }
 
@@ -40,5 +42,12 @@ describe('signInHintHost', () => {
     ['garbage', 'not a url'],
   ])('stays quiet on %s', (_label, url) => {
     expect(hintFor(url)).toBeNull()
+  })
+})
+
+describe('continuablePage', () => {
+  it("never offers Sim's own pages, which the shell refuses to hand off", () => {
+    expect(continuablePage(`${APP_ORIGIN}/workspace/w1/home`, APP_ORIGIN)).toBeNull()
+    expect(continuablePage('https://sim.ai/login', APP_ORIGIN)?.hostname).toBe('sim.ai')
   })
 })

@@ -1120,7 +1120,19 @@ export function checkForUpdatesInteractive(
         })
         return
       case 'ready':
-        handle.install()
+        // The user asked to check, not to restart: confirm before closing every window.
+        void showDialog({
+          type: 'info',
+          buttons: ['Restart to Update', 'Later'],
+          defaultId: 0,
+          cancelId: 1,
+          message: state.version
+            ? `Sim ${state.version} is ready to install`
+            : 'An update is ready to install',
+          detail: 'Restart Sim now to finish updating, or it installs the next time you quit.',
+        }).then(({ response }) => {
+          if (response === 0) handle.install()
+        })
         return
       case 'error':
         void showDialog({

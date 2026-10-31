@@ -847,6 +847,41 @@ describe('checkForUpdatesInteractive', () => {
     vi.useRealTimers()
   })
 
+  function readyHandle(): UpdaterHandle {
+    return {
+      setAutoDownload: () => {},
+      getState: () => ({ status: 'ready', version: '9.9.9' }),
+      check: vi.fn(),
+      install: vi.fn(),
+      onState: () => () => {},
+    }
+  }
+
+  it('asks before restarting when the check finds an update already staged', async () => {
+    const handle = readyHandle()
+
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Sim 9.9.9 is ready to install',
+        buttons: ['Restart to Update', 'Later'],
+      })
+    )
+    expect(handle.install).not.toHaveBeenCalled()
+  })
+
+  it('installs a staged update only once the user chooses Restart to Update', async () => {
+    const handle = readyHandle()
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 0, checkboxChecked: false })
+
+    checkForUpdatesInteractive({ getWindow: () => null, events, handle })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.install).toHaveBeenCalledTimes(1)
+  })
+
   it('fails a hung interactive check after twelve seconds instead of waiting thirty', async () => {
     const handle: UpdaterHandle = {
       setAutoDownload: () => {},

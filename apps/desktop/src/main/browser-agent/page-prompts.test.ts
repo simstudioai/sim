@@ -171,6 +171,16 @@ describe('HTTP sign-in', () => {
     answer(contents, { allowed: true, kind: 'http-auth', username: 'ada', password: 'pw' })
     expect(callback).toHaveBeenCalledExactlyOnceWith('ada', 'pw')
   })
+
+  it('cancels instead of leaving the page waiting when an accepted answer is malformed', () => {
+    const contents = agentContents()
+    noteMainFrameNavigation(contents, url)
+    const callback = login(contents)
+    // double-cast-allowed: an IPC payload is untyped; this is a renderer's malformed answer
+    answer(contents, { allowed: true, kind: 'http-auth' } as unknown as BrowserPagePromptResponse)
+    expect(callback).toHaveBeenCalledExactlyOnceWith()
+    expect(pagePromptForContents(contents)).toBeUndefined()
+  })
 })
 
 describe('client certificates', () => {
@@ -228,12 +238,18 @@ describe('client certificates', () => {
     expect(request(agentContents(otherSession), [first]).callback).not.toHaveBeenCalled()
   })
 
-  it("remembers Don't send, but not a prompt nobody answered", () => {
+  it("remembers Don't send, but not a closed picker or a prompt nobody answered", () => {
     const declined = agentContents()
     const refused = request(declined, [first])
-    answer(declined, { allowed: false })
+    answer(declined, { allowed: false, remember: true })
     expect(refused.callback).toHaveBeenCalledExactlyOnceWith()
     expect(request(agentContents(declined.session), [first]).callback).toHaveBeenCalledWith()
+
+    const closed = agentContents()
+    const dismissed = request(closed, [first])
+    answer(closed, { allowed: false })
+    expect(dismissed.callback).toHaveBeenCalledExactlyOnceWith()
+    expect(request(agentContents(closed.session), [first]).callback).not.toHaveBeenCalled()
 
     const ignored = agentContents()
     const unanswered = request(ignored, [first])

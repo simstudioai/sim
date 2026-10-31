@@ -12,6 +12,7 @@ import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/c
 import { uploadKnowledgeDocumentSession } from '@/lib/uploads/client/session-upload'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
 
 const logger = createLogger('KnowledgeUpload')
 
@@ -78,6 +79,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   })
   const [uploadError, setUploadError] = useState<UploadError | null>(null)
   const isUploading = uploadProgress.stage !== 'idle'
+  useBeforeUnloadWhile(isUploading)
 
   const updateFileStatus = (fileIndex: number, patch: Partial<FileUploadStatus>) => {
     setUploadProgress((prev) => ({

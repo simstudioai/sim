@@ -33,6 +33,7 @@ import {
 } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
 import { type CsvImportMode, useImportCsvIntoTable } from '@/hooks/queries/tables'
+import { useBeforeUnloadWhile } from '@/hooks/use-before-unload-while'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('ImportCsvDialog')
@@ -146,6 +147,7 @@ export function ImportCsvDialog({
   const [createHeaders, setCreateHeaders] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<CsvImportMode>('append')
   const importMutation = useImportCsvIntoTable()
+  useBeforeUnloadWhile(importMutation.isPending)
 
   function resetState() {
     setParsed(null)

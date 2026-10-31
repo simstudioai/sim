@@ -20,7 +20,11 @@ import {
   shell,
   WebContentsView,
 } from 'electron'
-import { appLaunchNoticeForContents } from '@/main/browser-agent/page-prompts'
+import {
+  appLaunchNoticeForContents,
+  handleBrowserLogin,
+  pagePromptForContents,
+} from '@/main/browser-agent/page-prompts'
 import * as panel from '@/main/browser-agent/panel'
 import { agentAppOrigin, routeAgentNavigation } from '@/main/browser-agent/registry'
 import * as sessionModule from '@/main/browser-agent/session'
@@ -1728,6 +1732,57 @@ describe('browser-agent session', () => {
       filename: 'report.csv',
       state: 'completed',
     })
+  })
+
+  it('asks about an HTTP sign-in only while its top-level navigation is still loading', () => {
+    const url = 'https://intranet.example/'
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    session.enablePagePrompts()
+    const emit = (eventName: string, ...args: unknown[]) => {
+      for (const [name, handler] of contents.on.mock.calls) {
+        if (name === eventName && typeof handler === 'function') handler(...args)
+      }
+    }
+    const signIn = () => {
+      const callback = vi.fn()
+      handleBrowserLogin(
+        { preventDefault: () => {} },
+        contents as unknown as WebContents,
+        { url, isRequestForNavigation: true, firstAuthAttempt: true } as never,
+        { isProxy: false, scheme: 'basic', host: 'intranet.example', port: 443, realm: '' },
+        callback
+      )
+      return callback
+    }
+
+    emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url })
+    const loading = signIn()
+    expect(loading).not.toHaveBeenCalled()
+    expect(pagePromptForContents(contents as unknown as WebContents)).toMatchObject({
+      kind: 'http-auth',
+    })
+
+    // The navigation is aborted: Chromium reports ERR_ABORTED, which records no failure.
+    emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url })
+    emit('did-stop-loading')
+    expect(signIn()).toHaveBeenCalledExactlyOnceWith()
+  })
+
+  it('counts a download as in flight for a restart only until it finishes', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'report.csv', totalBytes: 100 })
+
+    startMockDownload(contents, download)
+    await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
+    expect(session.countProgressingBrowserDownloads()).toBe(1)
+
+    download.emitDone('completed')
+    await vi.waitFor(() => expect(session.countProgressingBrowserDownloads()).toBe(0))
   })
 
   it('never overwrites a file that takes the allocated name before the download claims it', async () => {

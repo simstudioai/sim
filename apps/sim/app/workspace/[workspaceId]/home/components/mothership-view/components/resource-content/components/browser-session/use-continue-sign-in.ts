@@ -5,7 +5,7 @@ import type { BrowserContinueSignInError, BrowserImportProfile } from '@sim/desk
 import { toast } from '@sim/emcn'
 import { IMPORT_ERROR_MESSAGES } from '@/components/browser-import/browser-import-dialog'
 import {
-  parseHttpsPage,
+  continuablePage,
   signInHintHost,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/sign-in-hosts'
 import {
@@ -58,7 +58,7 @@ export function useContinueSignIn({ scopeId, pageUrl }: UseContinueSignInProps) 
   const { mutate: cancelHandoff } = useCancelSignInHandoff(scopeId)
   useSyncExternalStore(subscribeToDismissals, dismissalCount, dismissalCount)
 
-  const page = parseHttpsPage(pageUrl)
+  const page = continuablePage(pageUrl, typeof window === 'undefined' ? '' : window.location.origin)
   // The profiles cache is shared with the import dialog, which older shells
   // also support, so cached profiles alone must not reveal this feature.
   const canContinue = supported && profiles.length > 0 && page !== null

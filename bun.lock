@@ -59,6 +59,7 @@
         "@sim/utils": "workspace:*",
         "@xterm/headless": "6.0.0",
         "electron-updater": "6.8.9",
+        "lru-cache": "11.5.3",
         "micromatch": "4.0.8",
         "pdf-lib": "1.17.1",
         "safe-regex2": "5.1.2",

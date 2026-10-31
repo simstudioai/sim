@@ -335,7 +335,11 @@ export interface BrowserPanelAction {
  * Anything but an accepted answer of the request's own kind is a refusal.
  */
 export type BrowserPagePromptResponse =
-  | { allowed: false }
+  /**
+   * `remember` marks a deliberate refusal the shell may keep for the site, such as
+   * "Don't send" on a certificate picker; closing the prompt omits it and only cancels.
+   */
+  | { allowed: false; remember?: boolean }
   | { allowed: true; kind: 'http-auth'; username: string; password: string }
   | { allowed: true; kind: 'passkey-account' | 'client-certificate'; choiceId: string }
   /** `alwaysAllow` stops asking for this site and app until restart. */
