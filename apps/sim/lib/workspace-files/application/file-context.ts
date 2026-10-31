@@ -9,6 +9,7 @@ import {
   type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/file-manager'
 import { isWorkspaceFileVfsPath, VfsPathError } from '@/lib/vfs/path'
+import { UnresolvedWorkspaceFileVfsPathError } from '@/lib/workspace-files/application/unresolved-vfs-path'
 import { ownedFileKind } from '@/lib/workspace-files/owned-files'
 import { matchesFileOwner } from '@/lib/workspace-files/ownership'
 
@@ -77,36 +78,54 @@ function requireWorkspaceFileContext<C extends ActiveWorkspaceFileContext>(
   return canonical
 }
 
+/**
+ * A malformed path is decided before any read and says nothing about the workspace, so it stays a
+ * plain validation error. The lookup's own refusal (two names that display alike) does not.
+ */
+function rethrowVfsLookupError(vfsPath: string, workspaceId: string, error: unknown): never {
+  if (error instanceof VfsPathError) {
+    throw new OrchestrationError(
+      'validation',
+      `"${vfsPath}" is not a valid workspace file path: ${error.message}`
+    )
+  }
+  if (error instanceof OrchestrationError && error.code === 'validation') {
+    throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'validation', error.message)
+  }
+  throw error
+}
+
 /** A path becomes an id first, so the canonical load and every authorization check run unchanged. */
 async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> {
   if (!isWorkspaceFileVfsPath(input.fileId)) return input.fileId
-  if (input.assertedWorkspaceId === undefined) {
+  const workspaceId = input.assertedWorkspaceId
+  if (workspaceId === undefined) {
     throw new OrchestrationError('not_found', 'File not found')
   }
-  const file = await getWorkspaceFileByVfsPath(input.assertedWorkspaceId, input.fileId).catch(
-    (error: unknown) => {
-      if (!(error instanceof VfsPathError)) throw error
-      throw new OrchestrationError(
-        'validation',
-        `"${input.fileId}" is not a valid workspace file path: ${error.message}`
-      )
-    }
+  const file = await getWorkspaceFileByVfsPath(workspaceId, input.fileId).catch((error: unknown) =>
+    rethrowVfsLookupError(input.fileId, workspaceId, error)
   )
-  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  if (!file)
+    throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'not_found', 'File not found')
   return file.id
 }
 
 export async function resolveActiveWorkspaceFileContext(
   input: WorkspaceFileContextInput
 ): Promise<ActiveWorkspaceFileContext> {
-  const canonical = requireWorkspaceFileContext(
-    await loadActiveWorkspaceFileContext(await resolveFileId(input), {
-      includeDeleted: input.includeDeleted,
-      includeChatUploads: input.includeChatUploads,
-      includeOwnedFiles: Boolean(input.ownedFilePrincipal),
-    }),
-    input.assertedWorkspaceId
-  )
+  const loaded = await loadActiveWorkspaceFileContext(await resolveFileId(input), {
+    includeDeleted: input.includeDeleted,
+    includeChatUploads: input.includeChatUploads,
+    includeOwnedFiles: Boolean(input.ownedFilePrincipal),
+  })
+  if (!loaded && isWorkspaceFileVfsPath(input.fileId) && input.assertedWorkspaceId) {
+    throw new UnresolvedWorkspaceFileVfsPathError(
+      input.assertedWorkspaceId,
+      'not_found',
+      'File not found'
+    )
+  }
+  const canonical = requireWorkspaceFileContext(loaded, input.assertedWorkspaceId)
   if (input.ownedFilePrincipal) await assertOwnedFileAccess(input.ownedFilePrincipal, canonical)
   return canonical
 }
