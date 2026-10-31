@@ -12,6 +12,8 @@ const PROVIDER_TIMEOUT_MS = 1500
 const RESOLVE_DEADLINE_MS = 4000
 const HIT_TTL_SECONDS = 30 * 24 * 60 * 60
 const MISS_TTL_SECONDS = 24 * 60 * 60
+/** A parent's icon chosen because the host's own lookup timed out: retried a day later, not a month. */
+const PROVISIONAL_HIT_TTL_SECONDS = 24 * 60 * 60
 const UNAVAILABLE_TTL_SECONDS = 5 * 60
 /** Cached values: an icon's bytes, or one of these markers. */
 const MISS_MARKER = ''
@@ -28,7 +30,7 @@ const PROVIDERS: readonly ((host: string) => string)[] = [
 ]
 
 type FaviconResolution =
-  | { kind: 'hit'; contentType: string; bytes: Buffer }
+  | { kind: 'hit'; contentType: string; bytes: Buffer; provisional?: true }
   | { kind: 'miss' }
   | { kind: 'unavailable' }
 
@@ -57,7 +59,10 @@ async function writeCache(host: string, resolution: FaviconResolution): Promise<
   if (!redis) return
   const [value, ttl] =
     resolution.kind === 'hit'
-      ? ([resolution.bytes, HIT_TTL_SECONDS] as const)
+      ? ([
+          resolution.bytes,
+          resolution.provisional ? PROVISIONAL_HIT_TTL_SECONDS : HIT_TTL_SECONDS,
+        ] as const)
       : resolution.kind === 'miss'
         ? ([MISS_MARKER, MISS_TTL_SECONDS] as const)
         : ([UNAVAILABLE_MARKER, UNAVAILABLE_TTL_SECONDS] as const)
@@ -101,18 +106,21 @@ async function askProviders(host: string, signal: AbortSignal): Promise<FaviconR
 
 /**
  * The most specific host first, so a tenant's own icon beats its platform's. A parent already
- * resolved for a sibling subdomain is reused from the cache instead of asked again.
+ * resolved for a sibling subdomain is reused from the cache instead of asked again. A parent's
+ * icon reached only because a more specific lookup was unavailable is `provisional`: the host's
+ * own icon may exist, so it is not remembered for long.
  */
 async function walk(candidates: string[], signal: AbortSignal): Promise<FaviconResolution> {
   let unavailable = false
   for (const [index, host] of candidates.entries()) {
     const parent = index > 0
     const cached = parent ? await readCache(host) : null
-    if (cached) return cached.kind === 'miss' && unavailable ? { kind: 'unavailable' } : cached
+    if (cached?.kind === 'hit') return unavailable ? { ...cached, provisional: true } : cached
+    if (cached) return unavailable ? { kind: 'unavailable' } : cached
     const result = await askProviders(host, signal)
     if (result.kind === 'hit') {
       if (parent) await writeCache(host, result)
-      return result
+      return unavailable ? { ...result, provisional: true } : result
     }
     if (result.kind === 'unavailable') unavailable = true
   }
