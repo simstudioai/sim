@@ -2,46 +2,26 @@ import type { ToolResponse } from '@/tools/types'
 
 export interface CompanyEnrichParams {
   apiKey: string
-  domain: string
-}
-export interface CompanySearchParams {
-  apiKey: string
-  query: string
+  domain?: string
+  domains?: string[]
+  query?: string
+  semanticQuery?: string
   page?: number
   pageSize?: number
-}
-export interface CompanySimilarParams {
-  apiKey: string
-  domain: string
-  page?: number
-  pageSize?: number
-}
-interface CompanyRecord {
-  id: string
-  name: string | null
-  domain: string | null
-  website: string | null
-  description: string | null
-  industry: string | null
-  employees: string | null
-  revenue: string | null
-  founded_year: number | null
-  technologies: string[]
+  id?: string
+  email?: string
+  filters?: Record<string, unknown>
+  properties?: Record<string, unknown>
+  expand?: string[]
+  waitForEnrichment?: boolean
+  apiOperation?: string
+  body?: Record<string, unknown>
+  queryParameters?: Record<string, unknown>
+  pathParameters?: Record<string, unknown>
+  allow_beta?: boolean
 }
 export interface CompanyEnrichResponse extends ToolResponse {
-  output: { company: CompanyRecord }
-}
-export interface CompanySearchResponse extends ToolResponse {
-  output: { items: CompanyRecord[]; page: number; totalPages: number; totalItems: number }
-}
-export interface CompanySimilarResponse extends ToolResponse {
-  output: {
-    items: CompanyRecord[]
-    page: number
-    totalPages: number
-    totalItems: number
-    scores: Record<string, number>
-  }
+  output: Record<string, unknown>
 }
 
 export const COMPANY_OUTPUT_PROPERTIES = {

@@ -1,14 +1,16 @@
-import type { CompanySearchParams, CompanySearchResponse } from '@/tools/companyenrich/types'
+import { companyenrichRequest, responseData } from '@/tools/companyenrich/request'
+import type { CompanyEnrichParams, CompanyEnrichResponse } from '@/tools/companyenrich/types'
 import { COMPANY_OUTPUT_PROPERTIES } from '@/tools/companyenrich/types'
-import { pagination, parsePage } from '@/tools/companyenrich/utils'
+import { parsePage } from '@/tools/companyenrich/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const companyenrichSearchTool: ToolConfig<CompanySearchParams, CompanySearchResponse> = {
+export const companyenrichSearchTool: ToolConfig<CompanyEnrichParams, CompanyEnrichResponse> = {
   id: 'companyenrich_search',
   name: 'CompanyEnrich Search Companies',
   description:
-    'Search company names and domains. Costs 1 credit per result, with a 1-credit minimum per request.',
-  version: '1.0.0',
+    'Search Companies with CompanyEnrich. One request per execution; data requests can consume credits.',
+  version: '1.1.0',
+  errorExtractor: 'companyenrich-errors',
   params: {
     apiKey: {
       type: 'string',
@@ -18,45 +20,61 @@ export const companyenrichSearchTool: ToolConfig<CompanySearchParams, CompanySea
     },
     query: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Search query applied to company names and domains',
+      description: 'Literal company name/domain query, up to 250 characters.',
+    },
+    semanticQuery: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Natural-language company description, up to 500 characters.',
+    },
+    filters: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Documented request-body filters, including nested fields. Explicit inputs take precedence; unknown fields are forwarded to the API.',
     },
     page: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'One-based page number (default 1)',
+      description: 'One-based page number (default 1). One page per execution.',
     },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Companies per page, 1–100 (default 10). Each result consumes credits.',
+      description:
+        'Results per page, 1\u2013100 (default 10). Additional pages can consume credits.',
+    },
+    expand: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Expansion array: ["workforce"] for companies (can spend extra credits) or ["education"] for people.',
     },
   },
-  request: {
-    url: () => 'https://api.companyenrich.com/companies/search',
-    method: 'POST',
-    body: (params) => ({ query: params.query, ...pagination(params) }),
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
-  },
+  request: companyenrichRequest('post_companies_search'),
   transformResponse: async (response) => {
-    if (!response.ok) throw new Error(`CompanyEnrich request failed (HTTP ${response.status})`)
-    const data: unknown = await response.json()
-    return { success: true, output: { ...parsePage(data) } }
+    const data = await responseData(response)
+    return { success: true, output: { ...parsePage(data), data } }
   },
   outputs: {
     items: {
       type: 'array',
-      description: 'Matching companies',
+      description: 'Company profiles, including all provider fields.',
       items: { type: 'object', properties: COMPANY_OUTPUT_PROPERTIES },
     },
-    page: { type: 'number', description: 'Current page number' },
-    totalPages: { type: 'number', description: 'Total available pages' },
+    page: { type: 'number', description: 'Current page' },
+    totalPages: { type: 'number', description: 'Total pages' },
     totalItems: { type: 'number', description: 'Total matching companies' },
+    data: {
+      type: 'json',
+      description: 'Complete unmodified API page with metadata, scores and future fields.',
+    },
   },
 }
