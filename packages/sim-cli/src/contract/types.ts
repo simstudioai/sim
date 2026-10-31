@@ -255,6 +255,11 @@ export interface CommandSpec {
   command?: string
   /** Run this operation when its top-level group is invoked without a subcommand. */
   groupDefault?: boolean
+  /**
+   * Run this leaf when its group is named without a subcommand, as the group's default. The group
+   * keeps no options of its own, so the leaf parses its options in either spelling.
+   */
+  defaultSubcommand?: true
   /** Alternate leaf command names, such as `ls` for `list`. */
   aliases?: readonly string[]
   /**
