@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
-import { member, organization, outboxEvent, user } from '@sim/db/schema'
+import { member, organization, outboxEvent, permissions, user, workspace } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it } from 'vitest'
@@ -12,6 +13,7 @@ const memberId = generateId()
 const externalId = generateId()
 const organizationId = generateId()
 const membershipId = generateId()
+const workspaceId = generateId()
 let runtime: {
   membership: typeof import('@/lib/billing/organizations/membership')
   resources: typeof import('@/lib/organizations/resource-cleanup')
@@ -45,6 +47,22 @@ beforeAll(async () => {
     { id: generateId(), organizationId, userId: ownerId, role: 'owner', createdAt: new Date() },
     { id: membershipId, organizationId, userId: memberId, role: 'member', createdAt: new Date() },
   ])
+  // The external collaborator works in one of the organization's workspaces without membership.
+  await insertWorkspaceFixture(db, {
+    id: workspaceId,
+    name: 'Offboarding',
+    ownerId,
+    billedAccountUserId: ownerId,
+    organizationId,
+    workspaceMode: 'organization',
+  })
+  await db.insert(permissions).values({
+    id: generateId(),
+    userId: externalId,
+    entityType: 'workspace',
+    entityId: workspaceId,
+    permissionType: 'write',
+  })
 }, 60_000)
 
 afterAll(async () => {
@@ -56,6 +74,7 @@ afterAll(async () => {
         sql`${outboxEvent.payload}->'request'->'target'->>'organizationId' = ${organizationId}`
       )
     )
+  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(organization).where(eq(organization.id, organizationId))
   await db.delete(user).where(inArray(user.id, [ownerId, memberId, externalId]))
 })
@@ -101,10 +120,12 @@ it('queues private memory erasure with each committed departure and organization
     skipBillingLogic: true,
     onError: 'throw',
   })
-  await runtime.membership.removeExternalUserFromOrganizationWorkspaces({
-    organizationId,
-    userId: externalId,
-  })
+  expect(
+    await runtime.membership.removeExternalUserFromOrganizationWorkspaces({
+      organizationId,
+      userId: externalId,
+    })
+  ).toMatchObject({ success: true, workspaceAccessRevoked: 1 })
   expect(await queued()).toEqual(
     [`organization_member:${externalId}`, `organization_member:${memberId}`].sort()
   )
