@@ -136,6 +136,7 @@ function PreviewFlow({
           nodes={nodes}
           edges={initialEdges}
           onNodesChange={onNodesChange}
+          onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
           onPaneClick={onPaneClick}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
