@@ -2,13 +2,14 @@ import { db } from '@sim/db'
 import { simLink, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { escapeLikePattern } from '@sim/utils/string'
-import { and, asc, desc, eq, gt, ilike, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, ilike, lt, or, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   normalizeSimLinkName,
   type SimLinkFields,
   type SimLinkSort,
 } from '@/lib/sim-links/validation'
+import type { SortDirection } from '@/lib/url-state'
 
 const PAGE_SIZE = 50
 
@@ -72,15 +73,21 @@ function toRecord({
 }
 
 /**
- * The links `viewer` may browse: pages by name, or the most visited as a single page, since a
- * cursor over live visit counts would skip links that gain visits between pages. Unlisted links
- * are listed only to their creator and organization admins.
+ * The links `viewer` may browse: pages by name in either direction, or by visits as a single
+ * page, since a cursor over live visit counts would skip links that gain visits between pages.
+ * Unlisted links are listed only to their creator and organization admins.
  */
 export async function listSimLinks(
   organizationId: string,
   viewer: SimLinkViewer,
-  { search, cursor, sort = 'name' }: { search?: string; cursor?: string; sort?: SimLinkSort }
+  {
+    search,
+    cursor,
+    sort = 'name',
+    dir = sort === 'popular' ? 'desc' : 'asc',
+  }: { search?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
 ): Promise<{ links: SimLinkRecord[]; nextCursor: string | null }> {
+  const order = dir === 'asc' ? asc : desc
   const conditions: (SQL | undefined)[] = [eq(simLink.organizationId, organizationId)]
   if (!viewer.isAdmin) {
     conditions.push(or(eq(simLink.unlisted, false), eq(simLink.createdBy, viewer.userId)))
@@ -100,14 +107,18 @@ export async function listSimLinks(
   if (sort === 'popular') {
     const rows = await selectRecords(db)
       .where(and(...conditions))
-      .orderBy(desc(simLink.visitCount), asc(simLink.normalizedName))
+      .orderBy(order(simLink.visitCount), asc(simLink.normalizedName))
       .limit(PAGE_SIZE)
     return { links: rows.map(toRecord), nextCursor: null }
   }
-  if (cursor) conditions.push(gt(simLink.normalizedName, cursor))
+  if (cursor) {
+    conditions.push(
+      dir === 'asc' ? gt(simLink.normalizedName, cursor) : lt(simLink.normalizedName, cursor)
+    )
+  }
   const rows = await selectRecords(db)
     .where(and(...conditions))
-    .orderBy(asc(simLink.normalizedName))
+    .orderBy(order(simLink.normalizedName))
     .limit(PAGE_SIZE + 1)
   const links = rows.slice(0, PAGE_SIZE).map(toRecord)
   return {

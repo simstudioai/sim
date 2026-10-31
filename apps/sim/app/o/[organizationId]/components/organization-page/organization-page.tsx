@@ -20,7 +20,7 @@ import {
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 
-export interface OrganizationPageTab {
+interface OrganizationPageTab {
   id: string
   label: string
 }

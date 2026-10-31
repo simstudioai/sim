@@ -103,8 +103,9 @@ async function create(member: Member, body: SimLinkBody): Promise<string> {
   return link.id
 }
 
-async function listedNames(member: Member, search?: string): Promise<string[]> {
-  const query = search ? `?search=${encodeURIComponent(search)}` : ''
+async function listedNames(member: Member, search?: string, order?: string): Promise<string[]> {
+  const params = [search && `search=${encodeURIComponent(search)}`, order].filter(Boolean)
+  const query = params.length ? `?${params.join('&')}` : ''
   const { links } = await api(member, query, {})
   assert(Array.isArray(links), 'Expected a link list')
   return links.map((link) => (isRecordLike(link) ? String(link.name) : ''))
@@ -344,6 +345,21 @@ async function run() {
     assert.equal(visits.get('jira'), 4, 'Each jira redirect counts once')
     assert.equal(visits.get('gh'), 0, 'A link opened without its values is not a visit')
     await api(member, '?sort=popular&cursor=jira', { expected: 400 })
+    const descending = await listedNames(member, undefined, 'sort=name&dir=desc')
+    const sortKey = (name: string) => name.toLowerCase().replace(/[.:@&~_-]/g, '')
+    assert.deepEqual(
+      descending.map(sortKey),
+      descending.map(sortKey).sort().reverse(),
+      'Expected Z to A by the matching key'
+    )
+    const { links: leastUsed } = await api(member, '?sort=popular&dir=asc', {})
+    assert(Array.isArray(leastUsed), 'Expected a link list')
+    const ascending = leastUsed.map((link) => (isRecordLike(link) ? Number(link.visitCount) : -1))
+    assert.deepEqual(
+      ascending,
+      [...ascending].sort((a, b) => a - b),
+      'Expected least visited first'
+    )
   })
 
   await check('deleting a link stops it resolving and every change is audited', async () => {
