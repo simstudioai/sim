@@ -35,7 +35,8 @@ export function emailDomain(email: string): string {
 /**
  * True when the email's domain, or any parent of it, is a known disposable or temporary inbox
  * provider (Mailinator, temp-mail services, …). The server-side gate on self-service account
- * creation; `quickValidateEmail`'s short list is only client feedback.
+ * creation. `quickValidateEmail` keeps its own short synchronous list because it also runs in
+ * browser forms, where this list cannot ship.
  *
  * Fails open: if the list cannot load, the check logs and allows the signup, because refusing
  * every legitimate signup is worse than admitting a few throwaway ones.
