@@ -270,29 +270,36 @@ function writeBashFile(dir: string, nonce: string): string {
     `builtin printf '\\e]633;SimStartup;%s\\a' '${nonce}'
 # MSYS and Cygwin (Git Bash) set up PATH, /usr/bin included, in /etc/profile, which only a login
 # shell reads; their cwd is a POSIX path (/c/..., /tmp) that only cygpath can map to Windows.
+# Starting a process is slow there, so cygpath runs only when the directory changed.
 if [ -x /usr/bin/cygpath ]; then
   [ -f /etc/profile ] && builtin source /etc/profile
-  __sim_cwd() { /usr/bin/cygpath -w "$PWD" 2>/dev/null || builtin printf '%s' "$PWD"; }
+  __sim_cwd_of=''
+  __sim_cwd() {
+    [ "$PWD" = "$__sim_cwd_of" ] && return
+    __sim_cwd_of=$PWD
+    __sim_cwd_value=$(/usr/bin/cygpath -w "$PWD" 2>/dev/null) || __sim_cwd_value=$PWD
+  }
 else
-  __sim_cwd() { builtin printf '%s' "$PWD"; }
+  __sim_cwd() { __sim_cwd_value=$PWD; }
 fi
 [ -f "$HOME/.bashrc" ] && builtin source "$HOME/.bashrc"
 
 __sim_nonce='${nonce}'
 __sim_in_cmd=''
 
+# Sets __sim_escaped rather than printing it, so no subshell is forked to read it.
 __sim_esc() {
-  local s=\${1//\\\\/\\\\\\\\}
-  s=\${s//;/\\\\x3b}
-  s=\${s//$'\\n'/\\\\x0a}
-  builtin printf '%s' "$s"
+  __sim_escaped=\${1//\\\\/\\\\\\\\}
+  __sim_escaped=\${__sim_escaped//;/\\\\x3b}
+  __sim_escaped=\${__sim_escaped//$'\\n'/\\\\x0a}
 }
 
 __sim_preexec() {
   case "$BASH_COMMAND" in __sim_*) return ;; esac
   [ -n "$__sim_in_cmd" ] && return
   __sim_in_cmd=1
-  builtin printf '\\e]633;E;%s;%s\\a' "$(__sim_esc "$BASH_COMMAND")" "$__sim_nonce"
+  __sim_esc "$BASH_COMMAND"
+  builtin printf '\\e]633;E;%s;%s\\a' "$__sim_escaped" "$__sim_nonce"
   builtin printf '\\e]633;C;%s\\a' "$__sim_nonce"
 }
 
@@ -300,7 +307,9 @@ __sim_precmd() {
   local st=$?
   # Cwd is reported before the finish marker so a \`cd\` is already visible by
   # the time the command's result is resolved.
-  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$(__sim_cwd)")" "$__sim_nonce"
+  __sim_cwd
+  __sim_esc "$__sim_cwd_value"
+  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$__sim_escaped" "$__sim_nonce"
   if [ -n "$__sim_in_cmd" ]; then
     builtin printf '\\e]633;D;%s;%s\\a' "$st" "$__sim_nonce"
   fi
