@@ -8,7 +8,6 @@ import { FillCoordinator, type FillCoordinatorDeps } from '@/main/browser-creden
 import { authorizeForSecret, revokeSecretAuthorization } from '@/main/browser-credentials/os-auth'
 import { CredentialVault } from '@/main/browser-credentials/vault'
 import { clearSites } from '@/main/browser-sites'
-import { desktopFeatures } from '@/shared/platform-features'
 
 /** How long a copied password may sit on the clipboard before Sim clears it. */
 const CLIPBOARD_CLEAR_MS = 30_000
@@ -105,10 +104,10 @@ export async function revealCredential(id: string): Promise<string | null> {
  *
  * The clipboard is only cleared if it still holds this password — overwriting
  * whatever the user copied in the meantime would be its own small betrayal.
- * Refused where clearing cannot reach every copy (`DesktopFeatures.passwordCopy`).
+ * Where clearing cannot reach every copy (`DesktopFeatures.passwordCopy`), its IPC channel is
+ * never registered.
  */
 export async function copyCredential(id: string): Promise<boolean> {
-  if (!desktopFeatures(process.platform).passwordCopy) return false
   const authorized = await authorizeForSecret({
     credentialId: id,
     operation: 'copy',
