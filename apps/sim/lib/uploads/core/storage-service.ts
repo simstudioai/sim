@@ -808,8 +808,8 @@ export async function headObject(
   const { UPLOAD_DIR_SERVER } = await getLocalStorageSetup()
   try {
     const file = await stat(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
-    // A local write replaces the file in place, so its modification time is what changes with it.
-    return { size: file.size, version: `${file.mtimeMs}` }
+    const { localObjectVersion } = await import('@/lib/uploads/upload-session/provider')
+    return { size: file.size, version: localObjectVersion(file) }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return null

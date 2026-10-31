@@ -3,7 +3,7 @@ import { requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { isMarkdownFile } from '@/lib/uploads/utils/file'
+import { isMarkdownFile, needsRenderedArtifact } from '@/lib/uploads/utils/file'
 import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
@@ -14,11 +14,11 @@ export interface FileDownloadSource {
 }
 
 /**
- * Above this a file is handed to the browser's download manager instead of being read into the
- * page. Holding it as a `Blob` costs its whole size in tab memory and shows no progress until the
- * last byte lands; the download manager streams it to disk. Below it, fetching first keeps a
- * rejection — a document still compiling — on screen as an error rather than as a failed entry
- * in the browser's downloads list.
+ * Above this a stored file is handed to the browser's download manager instead of being read into
+ * the page. Holding it as a `Blob` costs its whole size in tab memory and shows no progress until
+ * the last byte lands; the download manager streams it to disk. Below it, and for a generated
+ * document, which must compile first, fetching keeps a rejection on screen as an error rather than
+ * as a failed entry in the browser's downloads list.
  */
 const IN_PAGE_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024
 
@@ -97,9 +97,16 @@ export async function triggerFileDownload(
     ? `/api/files/export/${encodeURIComponent(record.id)}`
     : `/api/files/serve/${encodeURIComponent(record.key)}?context=${record.storageContext ?? 'workspace'}&t=${Date.now()}`
 
-  if (!exportsMarkdown && record.size > IN_PAGE_DOWNLOAD_MAX_BYTES) {
-    // boundary-raw-fetch: HEAD probe of a binary path with no contract, so a refusal still surfaces here
-    const probe = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+  if (
+    !exportsMarkdown &&
+    !needsRenderedArtifact(record.type, record.name) &&
+    record.size > IN_PAGE_DOWNLOAD_MAX_BYTES
+  ) {
+    // A first-byte read opens storage itself, so a missing object is refused here, in place,
+    // rather than as a failed entry in the browser's downloads list.
+    // boundary-raw-fetch: ranged probe of a binary path with no contract
+    const probe = await fetch(url, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' })
+    await probe.body?.cancel()
     if (!probe.ok) throw new Error(`Failed to download "${record.name}"`)
     clickDownloadLink(url, record.name)
     return

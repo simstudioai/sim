@@ -449,15 +449,19 @@ function StreamedMediaPlayer({
   const diagnosing = useRef(false)
 
   /**
-   * A media element reports only that it failed, not why, so the URL is asked directly. A 404 means
-   * the key was replaced; the record is re-resolved, and a moved key re-renders this preview at the
-   * new URL. Bytes that are there but would not play are the browser's format support.
+   * A media element reports only that it failed, not why, so the URL is asked directly for its
+   * first byte, which opens storage. A 404 means the key was replaced; the record is re-resolved,
+   * and a moved key re-renders this preview at the new URL. Bytes that are there but would not play
+   * are the browser's format support.
    */
   const handleError = useCallback(async () => {
     if (diagnosing.current) return
     diagnosing.current = true
-    // boundary-raw-fetch: HEAD probe of the binary serve path, which has no contract
-    const probe = await fetch(src, { method: 'HEAD', cache: 'no-store' }).catch(() => null)
+    // boundary-raw-fetch: ranged probe of the binary serve path, which has no contract
+    const probe = await fetch(src, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' }).catch(
+      () => null
+    )
+    await probe?.body?.cancel()
     if (probe?.status === 404) await reresolveRecord()
     setStatus(probe?.ok ? 'unplayable' : 'unavailable')
   }, [src, reresolveRecord])

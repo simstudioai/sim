@@ -149,7 +149,7 @@ describe('large file downloads', () => {
     await triggerFileDownload(video)
 
     expect(fetchMock).toHaveBeenCalledOnce()
-    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'HEAD' })
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ headers: { Range: 'bytes=0-0' } })
     expect(createObjectURL).not.toHaveBeenCalled()
     expect(downloadedHref).toMatch(/^\/api\/files\/serve\/workspace%2Fworkspace-1%2Fclip\.mp4\?/)
     expect(downloadedName).toBe('clip.mp4')
@@ -165,7 +165,15 @@ describe('large file downloads', () => {
   it('keeps fetching a file small enough to hold, so a rejection still surfaces as an error', async () => {
     await triggerFileDownload({ ...video, size: 1024 })
 
-    expect(fetchMock.mock.calls[0]?.[1]).not.toMatchObject({ method: 'HEAD' })
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('headers')
+    expect(createObjectURL).toHaveBeenCalledOnce()
+  })
+
+  it('keeps fetching a large generated document, which must compile before it can be served', async () => {
+    await triggerFileDownload({ ...video, name: 'report.pdf', type: 'text/x-pdflibjs' })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty('headers')
     expect(createObjectURL).toHaveBeenCalledOnce()
   })
 })

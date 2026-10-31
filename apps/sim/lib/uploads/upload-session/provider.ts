@@ -790,7 +790,7 @@ async function headLocalObject(key: string): Promise<UploadObjectHead | null> {
     size: file.size,
     contentType: metadata.contentType,
     uploadId: metadata.uploadId,
-    version: localVersion(file),
+    version: localObjectVersion(file),
   }
 }
 
@@ -803,7 +803,7 @@ async function deleteLocalObjectVersion(key: string, version: string): Promise<v
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
     throw error
   }
-  if (localVersion(current) !== version) return
+  if (localObjectVersion(current) !== version) return
   await unlink(path)
   await rm(localMetadataPath(key), { force: true })
   await rmdir(dirname(path)).catch((error: NodeJS.ErrnoException) => {
@@ -841,7 +841,11 @@ async function readLocalMetadata(path: string): Promise<LocalUploadMetadata> {
   }
 }
 
-function localVersion(file: Awaited<ReturnType<typeof stat>>): string {
+/**
+ * Version of a local upload object: what changes whenever its bytes do, including a same-size
+ * replacement within one timestamp tick.
+ */
+export function localObjectVersion(file: Awaited<ReturnType<typeof stat>>): string {
   return `${file.dev}:${file.ino}:${file.size}:${file.mtimeMs}`
 }
 
