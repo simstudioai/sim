@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 /**
- * A site's icon by hostname: image bytes, or 404 when none can be served — neither the host nor
+ * A site's icon by hostname: image bytes, or 204 when none can be served — neither the host nor
  * a parent has one, the host is internal, or the providers are unavailable.
  */
 export const getFaviconContract = defineRouteContract({
@@ -15,5 +15,5 @@ export const getFaviconContract = defineRouteContract({
       .min(1, 'host is required')
       .max(253, 'host must be 253 characters or less'),
   }),
-  response: { mode: 'binary' },
+  response: { mode: 'binary', status: [200, 204] },
 })

@@ -8,7 +8,7 @@ import { classifyProviderResponse, MAX_ICON_BYTES } from '@/lib/favicon/probe'
 
 const logger = createLogger('Favicon')
 
-const PROVIDER_TIMEOUT_MS = 2000
+const PROVIDER_TIMEOUT_MS = 1500
 const RESOLVE_DEADLINE_MS = 4000
 const HIT_TTL_SECONDS = 30 * 24 * 60 * 60
 const MISS_TTL_SECONDS = 24 * 60 * 60
@@ -78,6 +78,10 @@ async function askProvider(url: string, signal: AbortSignal): Promise<FaviconRes
       signal,
       headers: { Accept: 'image/png,image/x-icon,image/jpeg,image/gif,image/webp' },
     })
+    if (response.status !== 200) {
+      await response.body?.cancel().catch(() => {})
+      return classifyProviderResponse(response.status, new Uint8Array())
+    }
     const bytes = Buffer.from(await response.arrayBuffer())
     const result = classifyProviderResponse(response.status, bytes)
     return result.kind === 'hit' ? { ...result, bytes } : result
@@ -86,19 +90,12 @@ async function askProvider(url: string, signal: AbortSignal): Promise<FaviconRes
   }
 }
 
-/** Every provider at once for one host; the earlier provider's icon still wins a tie. */
+/** One provider at a time, so the next only learns a host the previous had no icon for. */
 async function askProviders(host: string, signal: AbortSignal): Promise<FaviconResolution> {
-  const settled = new AbortController()
-  const pending = PROVIDERS.map((provider) =>
-    askProvider(provider(host), AbortSignal.any([signal, settled.signal]))
-  )
   let unavailable = false
-  for (const answer of pending) {
-    const result = await answer
-    if (result.kind === 'hit') {
-      settled.abort()
-      return result
-    }
+  for (const provider of PROVIDERS) {
+    const result = await askProvider(provider(host), signal)
+    if (result.kind === 'hit') return result
     if (result.kind === 'unavailable') unavailable = true
   }
   return unavailable ? { kind: 'unavailable' } : { kind: 'miss' }

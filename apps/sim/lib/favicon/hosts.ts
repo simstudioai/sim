@@ -8,13 +8,18 @@ const HOST_SHAPE = /^[^\s/?#@\\]+$/
  * `acme.atlassian.net` is invisible to providers, but its platform is not, so each parent
  * domain follows, stopping before the ICANN public suffix (`gitlab.io` is a valid last step;
  * `io` and `co.uk` are not). Internal hosts — IP literals, single labels, and names outside
- * the public DNS — yield nothing, so they never leave the server.
+ * the public DNS — yield nothing, so they never leave the server, and neither does a name with
+ * characters DNS can't hold, which could otherwise reshape a provider's URL.
  */
 export function faviconHostCandidates(input: string): string[] {
   const url = HOST_SHAPE.test(input) ? URL.parse(`https://${input}`) : null
   if (!url) return []
   const hostname = url.hostname.replace(/\.$/, '')
-  const { isIp, isIcann, publicSuffix } = parse(hostname, { allowPrivateDomains: false })
+  if (hostname.split('.').some((label) => !label)) return []
+  const { isIp, isIcann, publicSuffix } = parse(hostname, {
+    allowPrivateDomains: false,
+    validateHostname: true,
+  })
   if (isIp || !isIcann || !publicSuffix || /(^|\.)arpa$/.test(publicSuffix)) return []
   const labels = hostname.split('.')
   const candidateCount = labels.length - publicSuffix.split('.').length

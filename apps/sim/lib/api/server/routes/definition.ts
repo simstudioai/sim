@@ -20,6 +20,27 @@ export function requireJsonRouteDefinition(
     )
   }
 
+  return declaredSuccessStatuses(contract)
+}
+
+export function requireBinaryRouteDefinition(
+  contract: AnyApiRouteContract,
+  declaredOperation: ApplicationOperation,
+  useCaseOperation: ApplicationOperation
+): JsonRouteDefinitionMetadata {
+  if (contract.response.mode !== 'binary') {
+    throw new Error(`${contract.method} ${contract.path} requires a binary response contract`)
+  }
+  if (declaredOperation.id !== useCaseOperation.id) {
+    throw new Error(
+      `Route operation ${declaredOperation.id} does not match use case ${useCaseOperation.id}`
+    )
+  }
+  return declaredSuccessStatuses(contract)
+}
+
+/** The contract's success statuses, 200 by default; the first is a route's default status. */
+function declaredSuccessStatuses(contract: AnyApiRouteContract): JsonRouteDefinitionMetadata {
   const configuredStatus = contract.response.status
   const successStatuses =
     configuredStatus === undefined
@@ -39,30 +60,6 @@ export function requireJsonRouteDefinition(
     }
   }
   return { successStatus: successStatuses[0], successStatuses }
-}
-
-export function requireBinaryRouteDefinition(
-  contract: AnyApiRouteContract,
-  declaredOperation: ApplicationOperation,
-  useCaseOperation: ApplicationOperation
-): JsonRouteDefinitionMetadata {
-  if (contract.response.mode !== 'binary') {
-    throw new Error(`${contract.method} ${contract.path} requires a binary response contract`)
-  }
-  if (declaredOperation.id !== useCaseOperation.id) {
-    throw new Error(
-      `Route operation ${declaredOperation.id} does not match use case ${useCaseOperation.id}`
-    )
-  }
-  const configuredStatus = contract.response.status
-  if (configuredStatus !== undefined && typeof configuredStatus !== 'number') {
-    throw new Error(`${contract.method} ${contract.path} must declare one success status`)
-  }
-  const successStatus = configuredStatus ?? 200
-  if (successStatus < 200 || successStatus >= 300) {
-    throw new Error(`${contract.method} ${contract.path} has a non-success response status`)
-  }
-  return { successStatus, successStatuses: [successStatus] }
 }
 
 /**

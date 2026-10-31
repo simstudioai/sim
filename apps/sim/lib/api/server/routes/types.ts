@@ -30,6 +30,12 @@ export interface BinaryResponseDescriptor {
   headers?: HeadersInit
 }
 
+/** An empty success from a binary route whose contract declares 204. */
+export interface NoContentResponseDescriptor {
+  status: 204
+  headers?: HeadersInit
+}
+
 export interface JsonErrorResponseDescriptor {
   body: unknown
   status: number

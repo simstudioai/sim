@@ -19,12 +19,13 @@ function sniffIconType(bytes: Uint8Array): string | null {
 /**
  * Whether a provider's answer is a real icon. Providers answer a host they have no icon for
  * with a placeholder image under a 404, which a browser `<img>` would show as if it were one;
- * only the status separates the two. Rate limits and server errors are `unavailable`, so an
- * outage is never remembered as "this site has no icon".
+ * only the status separates the two. Any other failure — a block, a timeout, a rate limit, a
+ * server error — is `unavailable`, so it is never remembered as "this site has no icon".
  */
 export function classifyProviderResponse(status: number, bytes: Uint8Array): ProviderResult {
-  if (status === 429 || status >= 500) return { kind: 'unavailable' }
-  if (status !== 200 || bytes.length === 0 || bytes.length > MAX_ICON_BYTES) return { kind: 'miss' }
+  if (status === 404 || status === 410) return { kind: 'miss' }
+  if (status !== 200) return { kind: 'unavailable' }
+  if (bytes.length === 0 || bytes.length > MAX_ICON_BYTES) return { kind: 'miss' }
   const contentType = sniffIconType(bytes)
   return contentType ? { kind: 'hit', contentType } : { kind: 'miss' }
 }

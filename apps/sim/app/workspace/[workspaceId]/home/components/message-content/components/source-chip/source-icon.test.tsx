@@ -29,6 +29,6 @@ describe('source hostname branding', () => {
     container.innerHTML = renderToStaticMarkup(<SourceIcon source={{ url }} />)
     const image = container.querySelector('img')
     expect(image).not.toBeNull()
-    expect(new URL(image!.src).searchParams.get('domain')).toBe(new URL(url).hostname)
+    expect(new URL(image!.src).searchParams.get('host')).toBe(new URL(url).hostname)
   })
 })

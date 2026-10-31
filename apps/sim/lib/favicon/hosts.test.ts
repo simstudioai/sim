@@ -60,6 +60,27 @@ describe('faviconHostCandidates', () => {
     expect(faviconHostCandidates('bücher.de')).toEqual(['xn--bcher-kva.de'])
   })
 
+  it.each(['x.com&size=1.com', 'a&b=c.com', 'a%26b.com', "it's.com", 'a(b).com', 'a+b.com'])(
+    'offers nothing for %j, whose punctuation would reshape a provider URL',
+    (host) => {
+      expect(faviconHostCandidates(host)).toEqual([])
+    }
+  )
+
+  it.each(['example.com..', '.example.com', 'docs..example.com'])(
+    'offers nothing for %j, which has an empty label',
+    (host) => {
+      expect(faviconHostCandidates(host)).toEqual([])
+    }
+  )
+
+  it('keeps an underscore, which some real hosts use', () => {
+    expect(faviconHostCandidates('my_app.example.com')).toEqual([
+      'my_app.example.com',
+      'example.com',
+    ])
+  })
+
   it.each(['', 'https://example.com/path', 'exa mple.com', 'user@example.com', 'com'])(
     'offers nothing for %j',
     (host) => {

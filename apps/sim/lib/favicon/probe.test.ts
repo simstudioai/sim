@@ -38,7 +38,11 @@ describe('classifyProviderResponse', () => {
     expect(classifyProviderResponse(200, oversized)).toEqual({ kind: 'miss' })
   })
 
-  it.each([429, 500, 502, 503])('treats %i as unavailable, not as a miss', (status) => {
+  it('counts a 410 as a miss, like a 404', () => {
+    expect(classifyProviderResponse(410, PNG)).toEqual({ kind: 'miss' })
+  })
+
+  it.each([403, 408, 429, 500, 502, 503])('treats %i as unavailable, not as a miss', (status) => {
     expect(classifyProviderResponse(status, PNG)).toEqual({ kind: 'unavailable' })
   })
 })

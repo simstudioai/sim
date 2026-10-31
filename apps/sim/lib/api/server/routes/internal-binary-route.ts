@@ -19,6 +19,7 @@ import type {
   JsonErrorResponseDescriptor,
   JsonNextRouteHandler,
   JsonRouteContext,
+  NoContentResponseDescriptor,
 } from '@/lib/api/server/routes/types'
 import type { ParsedRequest, ParseRequestOptions } from '@/lib/api/server/validation'
 import { parseRequest } from '@/lib/api/server/validation'
@@ -35,7 +36,12 @@ interface InternalBinaryRouteDefinition<
   operation: O
   mapInput(input: ParsedRequest<C>): I
   useCase: OperationUseCase<NoInfer<O>, I, R>
-  present(result: R): BinaryResponseDescriptor | Promise<BinaryResponseDescriptor>
+  present(
+    result: R
+  ):
+    | BinaryResponseDescriptor
+    | NoContentResponseDescriptor
+    | Promise<BinaryResponseDescriptor | NoContentResponseDescriptor>
 }
 
 interface InternalBinaryRouteOptions<
@@ -64,7 +70,7 @@ export function defineInternalBinaryRoute<
   I,
   R,
 >(options: InternalBinaryRouteOptions<C, O, I, R>): JsonNextRouteHandler {
-  const { successStatus } = requireBinaryRouteDefinition(
+  const { successStatus, successStatuses } = requireBinaryRouteDefinition(
     options.contract,
     options.operation,
     options.useCase.operation
@@ -116,6 +122,14 @@ export function defineInternalBinaryRoute<
         const result = await options.useCase.execute({ principal, input, request })
         const descriptor = await options.present(result)
         await options.onSuccess?.({ principal, input, result })
+        if ('status' in descriptor) {
+          if (!successStatuses.includes(descriptor.status)) {
+            throw new Error(
+              `Internal binary route produced undeclared success status ${descriptor.status}; expected ${successStatuses.join(', ')}`
+            )
+          }
+          return new NextResponse(null, { status: descriptor.status, headers: descriptor.headers })
+        }
         const headers = new Headers(descriptor.headers)
         headers.set('Content-Type', descriptor.contentType)
         if (descriptor.contentDisposition) {
