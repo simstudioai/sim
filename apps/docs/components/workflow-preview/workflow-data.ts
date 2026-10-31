@@ -90,8 +90,6 @@ export const DIMMED_PREVIEW_CLASS =
 export interface HighlightOptions {
   highlightBlock?: string
   highlightEdge?: string
-  /** Ring one block (selection) without dimming the rest. */
-  selectedBlock?: string
 }
 
 /** Semantic container depth used for z-order while docs positions stay flattened. */
@@ -124,7 +122,7 @@ export function toReactFlowElements(
   animate = false,
   highlight: HighlightOptions = {}
 ): { nodes: PreviewNode[]; edges: PreviewFlowEdge[] } {
-  const { highlightBlock, highlightEdge, selectedBlock } = highlight
+  const { highlightBlock, highlightEdge } = highlight
   const hasHighlight = Boolean(highlightBlock || highlightEdge)
   const blockIndexMap = new Map(workflow.blocks.map((b, i) => [b.id, i]))
 
@@ -146,14 +144,7 @@ export function toReactFlowElements(
     const commonNode = {
       id: block.id,
       position,
-      zIndex:
-        selectedBlock === block.id
-          ? CONTAINER_CHILD_Z_BASE + 10
-          : isContainer
-            ? nestingDepth
-            : block.parentId
-              ? CONTAINER_CHILD_Z_BASE
-              : BLOCK_Z_BASE,
+      zIndex: isContainer ? nestingDepth : block.parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE,
       ...(block.size ? { style: { width: block.size.width, height: block.size.height } } : {}),
       draggable: true,
       selectable: false,
@@ -175,8 +166,8 @@ export function toReactFlowElements(
         parentId: block.parentId,
         index,
         animate,
-        isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
-        isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
+        isHighlighted: highlightBlock === block.id,
+        isDimmed: hasHighlight && highlightBlock !== block.id,
       }
       return {
         ...commonNode,
@@ -202,8 +193,8 @@ export function toReactFlowElements(
       parentId: block.parentId,
       index,
       animate,
-      isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
-      isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
+      isHighlighted: highlightBlock === block.id,
+      isDimmed: hasHighlight && highlightBlock !== block.id,
     }
     return {
       ...commonNode,

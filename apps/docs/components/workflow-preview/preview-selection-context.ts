@@ -1,12 +1,7 @@
 'use client'
 
-import { createContext, type ReactNode } from 'react'
+import { createContext } from 'react'
 
-interface PreviewSelection {
-  selectBlock?: (blockId: string) => void
-  renderDetails: (blockId: string) => ReactNode
-}
-
-export const PreviewSelectionContext = createContext<PreviewSelection>({
-  renderDetails: () => null,
-})
+export const PreviewSelectionContext = createContext<((blockId: string) => void) | undefined>(
+  undefined
+)

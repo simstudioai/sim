@@ -27,8 +27,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
   id,
   data,
 }: NodeProps<DocsContainerNodeType>) {
-  const { selectBlock, renderDetails } = useContext(PreviewSelectionContext)
-  const details = renderDetails(id)
+  const selectBlock = useContext(PreviewSelectionContext)
   const subflowData: SubflowNodeData = {
     kind: data.blockType === 'parallel' ? 'parallel' : 'loop',
     name: data.name,
@@ -40,7 +39,7 @@ export const DocsContainerNode = memo(function DocsContainerNode({
   }
 
   return (
-    <div className={cn('relative size-full', data.isDimmed && DIMMED_PREVIEW_CLASS)}>
+    <div className={cn('size-full', data.isDimmed && DIMMED_PREVIEW_CLASS)}>
       <SubflowNodeView
         id={id}
         data={subflowData}
@@ -49,11 +48,8 @@ export const DocsContainerNode = memo(function DocsContainerNode({
         isFocused={false}
         nestingLevel={0}
         canEditWorkflow={false}
-        onSelect={() => selectBlock?.(id)}
+        onSelect={selectBlock ? () => selectBlock(id) : undefined}
       />
-      {details && (
-        <div className='absolute inset-x-3 top-12 bottom-3 z-10 overflow-y-auto'>{details}</div>
-      )}
     </div>
   )
 })

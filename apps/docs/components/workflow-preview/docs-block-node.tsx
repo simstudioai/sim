@@ -57,7 +57,7 @@ export const DocsBlockNode = memo(function DocsBlockNode({
   id,
   data,
 }: NodeProps<DocsBlockNodeType>) {
-  const { selectBlock, renderDetails } = useContext(PreviewSelectionContext)
+  const selectBlock = useContext(PreviewSelectionContext)
   const {
     name,
     blockType,
@@ -181,7 +181,6 @@ export const DocsBlockNode = memo(function DocsBlockNode({
         }
         rows={rows}
       />
-      {renderDetails(id)}
     </m.div>
   )
 })

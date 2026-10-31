@@ -17,15 +17,12 @@ import { domAnimation, LazyMotion, m, useReducedMotion } from 'framer-motion'
 import '@xyflow/react/dist/style.css'
 import { DocsButton } from '@/components/docs/primitives'
 import { Lightbox } from '@/components/ui/lightbox'
-import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
-import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
 import { FitViewAfterInit } from '@/components/workflow-preview/fit-view-after-init'
 import { PreviewSelectionContext } from '@/components/workflow-preview/preview-selection-context'
 import {
   EASE_OUT,
-  type PreviewBlock,
   type PreviewFlowEdge,
   type PreviewNode,
   type PreviewWorkflow,
@@ -93,84 +90,23 @@ const PRO_OPTIONS = { hideAttribution: true }
 const FIT_VIEW_OPTIONS = { padding: 0.25 } as const
 const LIGHTBOX_FIT_VIEW_OPTIONS = { padding: 0.3 } as const
 
-/** Field titles rendered as multiline text in the inspector. */
-const TEXTAREA_TITLES = new Set(['Messages', 'Prompt', 'Code', 'Data', 'Body', 'Display'])
-/** Field titles rendered as dropdowns in the inspector. */
-const SELECT_TITLES = new Set([
-  'Model',
-  'Operation',
-  'Method',
-  'Unit',
-  'Event',
-  'Event type',
-  'Validation',
-  'Account',
-  'Table',
-  'Knowledge Base',
-  'Language',
-  'Workflow',
-  'Format',
-])
-
-function inspectorFieldsFor(block: PreviewBlock) {
-  // Show the block type's full field list (from the reference data) with this
-  // block's example values overlaid, so the inspector reads like the editor's
-  // panel — every field — not just the summary rows shown on the canvas node.
-  // Apply the template only when the block authored rows that are actually a
-  // subset of it; otherwise the type string is ambiguous (a `table` action vs
-  // the table trigger, a `webhook` trigger vs the webhook action) and the wrong
-  // template would win, so the block's own authored rows are the source of
-  // truth. A block with no rows (e.g. a router defined only by its branches)
-  // keeps its empty set rather than inheriting the template's invented defaults.
-  const exampleByTitle = new Map(block.rows.map((row) => [row.title, row.value]))
-  const template = BLOCK_DISPLAY_WORKFLOWS[block.type]?.blocks[0]?.rows
-  const fullRows =
-    template &&
-    block.rows.length > 0 &&
-    block.rows.every((row) => template.some((field) => field.title === row.title))
-      ? template
-      : block.rows
-  const rowFields = fullRows.map((row) => {
-    const value = exampleByTitle.get(row.title) ?? row.value
-    return {
-      label: row.title,
-      kind:
-        TEXTAREA_TITLES.has(row.title) || value.length > 40
-          ? ('textarea' as const)
-          : SELECT_TITLES.has(row.title)
-            ? ('select' as const)
-            : ('input' as const),
-      value,
-    }
-  })
-  const branchFields = (block.branches ?? []).map((branch) => ({
-    label: branch.label,
-    kind: 'code' as const,
-    // Match the canvas + the editor's getDisplayValue: a blank value reads as '-'.
-    value: branch.value || '-',
-  }))
-  return [...rowFields, ...branchFields]
-}
-
 function PreviewFlow({
   workflow,
   animate = false,
   highlightBlock,
   highlightEdge,
-  selectedBlock,
   interactive = false,
   onNodeClick,
   onPaneClick,
 }: WorkflowPreviewProps & {
-  selectedBlock?: string
   interactive?: boolean
   onNodeClick?: (blockId: string) => void
   onPaneClick?: () => void
 }) {
   const flowId = useId()
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => toReactFlowElements(workflow, animate, { highlightBlock, highlightEdge, selectedBlock }),
-    [workflow, animate, highlightBlock, highlightEdge, selectedBlock]
+    () => toReactFlowElements(workflow, animate, { highlightBlock, highlightEdge }),
+    [workflow, animate, highlightBlock, highlightEdge]
   )
 
   const colorMode = useCanvasColorMode()
@@ -192,47 +128,7 @@ function PreviewFlow({
 
   return (
     <ReactFlowProvider initialNodes={nodes} initialEdges={initialEdges}>
-      <PreviewSelectionContext
-        value={{
-          selectBlock: onNodeClick,
-          renderDetails: (id) => {
-            if (!interactive || selectedBlock !== id) return null
-            const block = workflow.blocks.find((block) => block.id === id)
-            if (!block) return null
-            return (
-              <section
-                aria-label={`${block.name} configuration`}
-                className='nodrag nopan nowheel max-h-80 overflow-y-auto rounded-lg border border-[var(--docs-border)] bg-[var(--docs-reading)]'
-              >
-                <div className='flex justify-end p-1'>
-                  <DocsButton
-                    aria-label={`Collapse ${block.name} configuration`}
-                    onClick={(event) => {
-                      event.currentTarget
-                        .closest('.react-flow__node')
-                        ?.querySelector<HTMLElement>('[role="button"]')
-                        ?.focus()
-                      onPaneClick?.()
-                    }}
-                  >
-                    Collapse
-                  </DocsButton>
-                </div>
-                <BlockInspector
-                  embedded
-                  name={block.name}
-                  type={block.type}
-                  color={block.bgColor}
-                  isIntegration={block.isIntegration}
-                  triggerMode={block.triggerMode}
-                  fields={inspectorFieldsFor(block)}
-                  tools={block.tools}
-                />
-              </section>
-            )
-          },
-        }}
-      >
+      <PreviewSelectionContext value={onNodeClick}>
         <ReactFlow<PreviewNode, PreviewFlowEdge>
           id={flowId}
           colorMode={colorMode}
@@ -272,8 +168,7 @@ function PreviewFlow({
  * Read-only, app-styled workflow diagram for docs pages. Renders a
  * {@link PreviewWorkflow} with ReactFlow — draggable, non-editable, no app
  * runtime. Clicking a block (or the expand control) opens a full-screen
- * lightbox with zoom and pan. Selecting a block expands its configuration
- * directly on the canvas.
+ * lightbox with zoom and pan.
  *
  * @example
  * <WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
@@ -287,11 +182,6 @@ export function WorkflowPreview({
 }: WorkflowPreviewProps) {
   const reducedMotion = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const openWith = (blockId: string | null) => {
-    setSelectedId(blockId)
-    setExpanded(true)
-  }
 
   return (
     <LazyMotion features={domAnimation}>
@@ -303,12 +193,9 @@ export function WorkflowPreview({
           <span className='min-w-0 text-docs-control'>{workflow.name}</span>
           <Lightbox
             open={expanded}
-            onOpenChange={(open) => {
-              setExpanded(open)
-              if (!open) setSelectedId(null)
-            }}
+            onOpenChange={setExpanded}
             title={workflow.name}
-            description='Interactive workflow preview. Select a block to inspect its configuration. Drag to pan and scroll to zoom. Press Escape to close.'
+            description='Interactive workflow preview. Drag to pan or move blocks, and scroll to zoom. Press Escape to close.'
             trigger={
               <DocsButton aria-label={`Inspect workflow: ${workflow.name}`}>
                 <Expand className='size-4' />
@@ -322,10 +209,7 @@ export function WorkflowPreview({
                 workflow={workflow}
                 highlightBlock={highlightBlock}
                 highlightEdge={highlightEdge}
-                selectedBlock={selectedId ?? undefined}
                 interactive
-                onNodeClick={(id) => setSelectedId((current) => (current === id ? null : id))}
-                onPaneClick={() => setSelectedId(null)}
               />
             </div>
           </Lightbox>
@@ -337,8 +221,8 @@ export function WorkflowPreview({
             animate={animate && !reducedMotion}
             highlightBlock={highlightBlock}
             highlightEdge={highlightEdge}
-            onNodeClick={(id) => openWith(id)}
-            onPaneClick={() => openWith(null)}
+            onNodeClick={() => setExpanded(true)}
+            onPaneClick={() => setExpanded(true)}
           />
         </div>
       </div>
