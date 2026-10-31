@@ -10347,3 +10347,33 @@ export function PlaneIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function CompanyEnrichIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 127 127' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect width='127' height='127' rx='15' fill='url(#companyenrich-gradient)' />
+      <path
+        d='M55.671 98.736C52.713 98.736 49.754 97.565 47.501 95.233L24.389 71.322C19.87 66.648 19.87 59.092 24.389 54.417L47.501 30.506C52.019 25.831 59.323 25.831 63.841 30.506C68.36 35.181 68.36 42.736 63.841 47.411L48.899 62.87L63.841 78.328C68.36 83.003 68.36 90.559 63.841 95.233C61.588 97.565 58.63 98.736 55.671 98.736Z'
+        fill='white'
+      />
+      <path
+        d='M72.168 98.736C69.21 98.736 66.252 97.565 63.998 95.233C59.48 90.559 59.48 83.003 63.998 78.328L78.94 62.87L63.998 47.411C59.48 42.736 59.48 35.181 63.998 30.506C68.517 25.831 75.82 25.831 80.338 30.506L103.451 54.417C107.969 59.092 107.969 66.648 103.451 71.322L80.338 95.233C78.085 97.565 75.127 98.736 72.168 98.736Z'
+        fill='white'
+        fillOpacity='0.71'
+      />
+      <defs>
+        <linearGradient
+          id='companyenrich-gradient'
+          x1='63.5'
+          y1='0'
+          x2='63.5'
+          y2='127'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#1488CC' />
+          <stop offset='1' stopColor='#086CD9' />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}

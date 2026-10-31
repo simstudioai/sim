@@ -1,0 +1,378 @@
+---
+title: CompanyEnrich
+description: Enrich and discover companies and people
+integration:
+  type: "companyenrich"
+  color: "#1488CC"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[CompanyEnrich](https://companyenrich.com/) provides company and people data. This block includes twelve native operations: domain enrichment, company search, lookalikes, people search, email lookup, workforce, properties enrichment, batch enrichment, company and person retrieval by ID, and company/search-similarity counts.
+
+Obtain an API key from the [CompanyEnrich dashboard](https://app.companyenrich.com/) and enter it in **API Key** without the `Bearer` prefix. The default **Enrich Company** operation accepts a domain such as `example.com`; a missing company returns HTTP 404. Company IDs are UUIDs. Enter person IDs as decimal strings to avoid rounding large identifiers.
+
+**Search Query** performs literal company name/domain matching; **Semantic Query** accepts a natural-language company description. Use **Filters (JSON)** for full documented structured filters. Explicit inputs override the same keys in Filters. **Domains (JSON Array)** accepts one to ten lookalike seeds and takes precedence over the legacy **Company Domain** input. Batch enrichment accepts one to fifty domains. Properties enrichment requires at least one name or social property. Workforce requires exactly one company domain or UUID.
+
+Search operations return one page per execution. **Page** defaults to 1 and **Page Size** to 10, with a maximum of 100; page times page size cannot exceed 10,000. Additional pages can consume credits. Enrichment costs 1 credit per call, search costs 1 per result (1 minimum), and similar-company discovery costs 5 per result (5 minimum). Optional **Expand (JSON Array)** supports `["workforce"]` on documented company operations or `["education"]` on people operations. Workforce expansion can spend additional credits. **Wait for Enrichment** is offered only on supported operations.
+
+**Advanced Request** exposes 42 fixed, documented API operations, including previews, counts, cursor scrolls, bulk/export jobs, job status/listing, education, taxonomy and geographic lookups. Select **API Operation**, then provide its documented Body, Query Parameters and Path Parameters. Each execution makes exactly one request: no retries, automatic pagination, job polling or result-URL downloads. Paged requests default to page 1 and page size 10. Export creation requires an explicit count of 1–50,000; bulk jobs require explicit domains/items. Email operations marked beta require **Allow Beta Email Operations**. Saved-list administration and account `/me` responses are excluded. Returned job/result URLs are available for a later caller-controlled step.
+
+The `data` output preserves the complete API JSON, including count zero, arrays, nested fields and metadata. Existing enrichment/search/lookalike outputs remain available: nullable scalar defaults and empty technology arrays retain their previous behavior, while company records now also retain extra provider fields. Similar-company results retain the convenience `scores` output. Use `data` when exact null values or the original response shape matter.
+
+See the official [API reference](https://docs.companyenrich.com/reference) for each operation's fields, credit costs, account requirements and beta status. Provider errors report HTTP status without exposing response bodies or credentials. This contribution was validated with mocked responses; live authenticated execution has not been verified.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Enrich companies, search companies and people, look up profiles, retrieve workforce data, and count matches. Advanced Request exposes 42 documented data and job operations. Data requests can consume credits; each execution makes one request.
+
+## Actions
+
+### CompanyEnrich Enrich Company
+
+Enrich Company with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `domain` | string | Yes | Company domain. For lookalikes, domains takes precedence over this legacy single seed. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+| `waitForEnrichment` | boolean | No | Wait for enrichment on supported company endpoints. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | Company profile, including all provider fields. |
+|   ↳ `id` | string | Company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Primary company domain |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Primary industry |
+|   ↳ `employees` | string | Employee count range |
+|   ↳ `revenue` | string | Annual revenue range in USD |
+|   ↳ `founded_year` | number | Year founded |
+|   ↳ `technologies` | array | Technologies used |
+| `data` | json | Complete unmodified company profile, preserving nulls and future fields. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Search Companies
+
+Search Companies with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `query` | string | No | Literal company name/domain query, up to 250 characters. |
+| `semanticQuery` | string | No | Natural-language company description, up to 500 characters. |
+| `filters` | json | No | Documented request-body filters, including nested fields. Explicit inputs take precedence; unknown fields are forwarded to the API. |
+| `page` | number | No | One-based page number \(default 1\). One page per execution. |
+| `pageSize` | number | No | Results per page, 1–100 \(default 10\). Additional pages can consume credits. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Company profiles, including all provider fields. |
+|   ↳ `id` | string | Company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Primary company domain |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Primary industry |
+|   ↳ `employees` | string | Employee count range |
+|   ↳ `revenue` | string | Annual revenue range in USD |
+|   ↳ `founded_year` | number | Year founded |
+|   ↳ `technologies` | array | Technologies used |
+| `page` | number | Current page |
+| `totalPages` | number | Total pages |
+| `totalItems` | number | Total matching companies |
+| `data` | json | Complete unmodified API page with metadata, scores and future fields. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Find Similar Companies
+
+Find Similar Companies with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `domain` | string | No | Company domain. For lookalikes, domains takes precedence over this legacy single seed. |
+| `domains` | json | No | Array of 1–10 seed domains for lookalikes or 1–50 domains for batch enrichment. |
+| `filters` | json | No | Documented request-body filters, including nested fields. Explicit inputs take precedence; unknown fields are forwarded to the API. |
+| `page` | number | No | One-based page number \(default 1\). One page per execution. |
+| `pageSize` | number | No | Results per page, 1–100 \(default 10\). Additional pages can consume credits. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+| `waitForEnrichment` | boolean | No | Wait for enrichment on supported company endpoints. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Company profiles, including all provider fields. |
+|   ↳ `id` | string | Company UUID |
+|   ↳ `name` | string | Company name |
+|   ↳ `domain` | string | Primary company domain |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `description` | string | Company description |
+|   ↳ `industry` | string | Primary industry |
+|   ↳ `employees` | string | Employee count range |
+|   ↳ `revenue` | string | Annual revenue range in USD |
+|   ↳ `founded_year` | number | Year founded |
+|   ↳ `technologies` | array | Technologies used |
+| `page` | number | Current page |
+| `totalPages` | number | Total pages |
+| `totalItems` | number | Total matching companies |
+| `data` | json | Complete unmodified API page with metadata, scores and future fields. |
+| `scores` | json | Similarity scores keyed by company UUID |
+
+</ReferenceDetails>
+
+### CompanyEnrich Search People
+
+Search People with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `filters` | json | No | Documented request-body filters, including nested fields. Explicit inputs take precedence; unknown fields are forwarded to the API. |
+| `page` | number | No | One-based page number \(default 1\). One page per execution. |
+| `pageSize` | number | No | Results per page, 1–100 \(default 10\). Additional pages can consume credits. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Lookup Person
+
+Lookup Person with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `email` | string | Yes | Email address to look up. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Get Company Workforce
+
+Get Company Workforce with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `domain` | string | No | Company domain. For lookalikes, domains takes precedence over this legacy single seed. |
+| `id` | string | No | Company UUID or positive person ID; use a decimal string for person IDs to avoid precision loss. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Enrich by Properties
+
+Enrich by Properties with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `properties` | json | Yes | At least one company name or social property: name, linkedinUrl, linkedinId, twitterUrl, facebookUrl, instagramUrl or youTubeUrl. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Batch Enrich Companies
+
+Batch Enrich Companies with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `domains` | json | Yes | Array of 1–10 seed domains for lookalikes or 1–50 domains for batch enrichment. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Get Company
+
+Get Company with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `id` | string | Yes | Company UUID or positive person ID; use a decimal string for person IDs to avoid precision loss. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Get Person
+
+Get Person with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `id` | string | Yes | Company UUID or positive person ID; use a decimal string for person IDs to avoid precision loss. |
+| `expand` | json | No | Expansion array: \["workforce"\] for companies \(can spend extra credits\) or \["education"\] for people. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Count Companies
+
+Count Companies with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `query` | string | No | Literal company name/domain query, up to 250 characters. |
+| `semanticQuery` | string | No | Natural-language company description, up to 500 characters. |
+| `filters` | json | No | Documented request-body filters, including nested fields. Explicit inputs take precedence; unknown fields are forwarded to the API. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Count Similar Companies
+
+Count Similar Companies with CompanyEnrich. One request per execution; data requests can consume credits.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `domain` | string | No | Company domain. For lookalikes, domains takes precedence over this legacy single seed. |
+| `domains` | json | No | Array of 1–10 seed domains for lookalikes or 1–50 domains for batch enrichment. |
+| `filters` | json | No | Documented request-body filters, including nested fields. Explicit inputs take precedence; unknown fields are forwarded to the API. |
+| `waitForEnrichment` | boolean | No | Wait for enrichment on supported company endpoints. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+### CompanyEnrich Advanced Request
+
+Execute one of 42 allowlisted CompanyEnrich data, lookup or job operations. No retries, pagination, polling or result downloads. Email beta requires explicit opt-in; saved-list administration and account responses are excluded.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | CompanyEnrich API key without the Bearer prefix |
+| `apiOperation` | string | Yes | Documented operation ID from the advanced selector; exactly one request, without polling or downloads. |
+| `body` | json | No | Full documented JSON body; export count must be explicit and at most 50,000. |
+| `queryParameters` | json | No | Documented query parameters as an object. |
+| `pathParameters` | json | No | Documented path parameters such as jobId or countryCode. |
+| `allow_beta` | boolean | No | Explicitly allow beta email operations and their credit costs \(default false\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Complete API response; an object, array or count according to the selected operation. |
+
+</ReferenceDetails>
+
+

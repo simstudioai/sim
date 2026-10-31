@@ -28,6 +28,7 @@ export interface PreparedToolRequest {
   proxyUrl?: string
   stripAuthOnRedirect?: boolean
   redirectPolicy?: HttpRedirectPolicy
+  maxRedirects?: 0
 }
 
 function haveExactOwnKeys(
@@ -231,6 +232,7 @@ function formatToolRequest(
     timeout: validTimeout,
     proxyUrl,
     stripAuthOnRedirect: tool.request.stripAuthOnRedirect,
+    maxRedirects: tool.request.maxRedirects,
     redirectPolicy,
   }
 }
