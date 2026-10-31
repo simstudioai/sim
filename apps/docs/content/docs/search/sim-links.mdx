@@ -9,7 +9,7 @@ Open **Sim Links** in the organization sidebar to see every link in your organiz
 
 ## Open a link
 
-Go to `https://sim.ai/sim/<name>`, for example `https://sim.ai/sim/handbook`. On a self-hosted deployment, use your Sim address instead of `sim.ai`. Sim sends you to the link's destination. If you aren't signed in, Sim asks you to sign in first, then continues to the link.
+Go to `https://www.sim.ai/sim/<name>`, for example `https://www.sim.ai/sim/handbook`. On a self-hosted deployment, use your Sim address instead. Sim sends you to the link's destination. If you aren't signed in, Sim asks you to sign in first, then continues to the link.
 
 Names ignore case and punctuation, so `sim/Team-Handbook`, `sim/team_handbook`, and `sim/teamhandbook` all open the same link. The destination still applies its own permissions.
 
@@ -21,7 +21,7 @@ Add Sim as a site search shortcut in Chrome so you can type `sim handbook` inste
 
 1. Open Chrome **Settings → Search engine → Manage search engines and site search**.
 2. Next to **Site search**, select **Add**.
-3. Enter `Sim` as the name, `sim` as the shortcut, and `https://sim.ai/sim/%s` as the URL.
+3. Enter `Sim` as the name, `sim` as the shortcut, and `https://www.sim.ai/sim/%s` as the URL.
 
 Type `sim`, press **Space** or **Tab**, then type a link name such as `handbook` or `jira/123` and press **Enter**.
 
@@ -30,7 +30,7 @@ Chrome administrators can add this shortcut for everyone with the `SiteSearchSet
 ## Create a link
 
 1. Open **Sim Links** and select **New link**.
-2. Enter the **Destination URL**, a full `https://` address.
+2. Enter the **Destination URL**, a full `https://` or `http://` address.
 3. Enter a **Name**. Use letters, numbers, and `. : @ & ~ - _`.
 4. Optionally add a **Description** so teammates know what the link is for.
 5. Select **Create**.
@@ -53,12 +53,12 @@ Each value fills the next `{*}` in order, and the last `{*}` takes everything th
 
 ## Control access
 
-Under **Access**, the creator of a link can choose:
+The **Access** section of a link has two options. Only the link's creator and organization admins can change them:
 
-- **Unlist**: hides the link from the Sim Links page for everyone except the creator and organization admins. Anyone who knows the name can still open it.
-- **Restrict editing**: only the creator and organization admins can edit or delete the link. Everyone can still open it.
+- **Hide from the Sim Links page for everyone except you and admins**: the link is listed only for its creator and organization admins. Anyone who knows the name can still open it.
+- **Restrict editing to you and admins**: only the creator and organization admins can edit or delete the link. Everyone can still open it.
 
-Without restrictions, any member can edit or delete a link. Only the creator and organization admins can change its access settings. Creating, editing, and deleting links is recorded in your organization's [audit logs](/platform/enterprise/audit-logs).
+The **Access** column on the Sim Links page shows **Unlisted** or **Restricted** for links that use them. Without either option, any member can edit or delete a link. Creating, editing, and deleting links is recorded in your organization's [audit logs](/platform/enterprise/audit-logs).
 
 ## Related docs
 

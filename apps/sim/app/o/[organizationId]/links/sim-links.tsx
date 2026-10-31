@@ -8,6 +8,7 @@ import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkPath } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import SimLinksLoading from '@/app/o/[organizationId]/links/loading'
 import {
   simLinksParsers,
   simLinksSortParams,
@@ -38,14 +39,14 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('SimLinks')
 
-const COLUMNS: ResourceColumn[] = [
+const COLUMNS = [
   { id: 'name', header: 'Name' },
   { id: 'destination', header: 'Destination', widthMultiplier: 2 },
   { id: 'description', header: 'Description', widthMultiplier: 1.4 },
   { id: 'owner', header: 'Created by' },
   { id: 'access', header: 'Access' },
   { id: 'updated', header: 'Updated' },
-]
+] as const satisfies readonly ResourceColumn[]
 
 const SORT_OPTIONS = [
   { id: 'name', label: 'Name' },
@@ -130,6 +131,8 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   const searching = Boolean(debouncedSearch.trim())
   const startCreate = () => void setView({ create: '' })
 
+  if (!links.data && !links.isLoadingError) return <SimLinksLoading />
+
   return (
     <Resource>
       <Resource.Header
@@ -164,7 +167,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
               <p className='text-[var(--text-error)] text-small'>{links.error.message}</p>
               <Chip onClick={() => void links.refetch()}>Retry</Chip>
             </div>
-          ) : !links.data ? undefined : searching ? (
+          ) : searching ? (
             <ResourceNoResults
               search={debouncedSearch}
               filterCount={0}

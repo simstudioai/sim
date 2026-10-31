@@ -3,7 +3,7 @@ import { SIM_LINK_SORTS } from '@/lib/sim-links/validation'
 import { createSortParams } from '@/lib/url-state'
 
 /** `create` opens the new-link editor, prefilled with its value as the name. */
-export const simLinkViewParsers = { create: parseAsString } as const
+const simLinkViewParsers = { create: parseAsString } as const
 
 export const serializeSimLinkView = createSerializer(simLinkViewParsers)
 
