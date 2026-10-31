@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
+import { SYNC_EMBEDDING_SEARCH_FUNCTION } from '@sim/db/knowledge-projection'
 import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill_embedding_search'
 import {
   backfillSearchVectors,
   buildSearchIndexes,
+  runDevSearchBackfill,
 } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
@@ -351,4 +353,20 @@ describe('search projection upgrade in PostgreSQL', () => {
     await runScriptMigrations(sql)
     await sql`DELETE FROM embedding WHERE id LIKE 'upgrade-%'`
   }, 60_000)
+
+  it('reinstalls a changed projection function on a dev push that already recorded 0016', async () => {
+    await sql`CREATE TABLE IF NOT EXISTS script_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`
+    await sql`INSERT INTO script_migrations (name) VALUES ('0016_backfill_search_vectors')
+      ON CONFLICT (name) DO NOTHING`
+    await sql.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_search()
+      RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$`)
+    await runDevSearchBackfill(sql)
+    const [installed] = await sql<{ body: string }[]>`
+      SELECT prosrc AS body FROM pg_proc
+      WHERE oid = ${`"${schemaName}".sync_embedding_search`}::regproc`
+    const normalized = (text: string) => text.replace(/\s+/g, ' ').trim()
+    expect(normalized(installed.body)).toBe(
+      normalized(SYNC_EMBEDDING_SEARCH_FUNCTION.split('$$')[1])
+    )
+  })
 })

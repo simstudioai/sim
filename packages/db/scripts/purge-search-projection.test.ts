@@ -1,4 +1,5 @@
 import {
+  connectOperatorDatabase,
   parseOperatorDatabaseUrl,
   SearchProjectionPurgeError,
 } from '@sim/db/scripts/purge-search-projection'
@@ -7,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 const primary = 'postgresql://operator:secret@fixture.pg.psdb.cloud:5432/app'
 const tls = 'sslmode=verify-full&sslrootcert=system'
 
-describe('purge connection refusal', () => {
+describe('purge operator connection', () => {
   it.each([
     ['a missing URL', undefined],
     ['a non-PostgreSQL URL', 'mysql://operator:secret@fixture.pg.psdb.cloud:5432/app'],
@@ -33,5 +34,16 @@ describe('purge connection refusal', () => {
     expect(parseOperatorDatabaseUrl('postgresql://postgres@localhost:5432/sim_test').hosted).toBe(
       false
     )
+  })
+
+  it('sends no TLS URL parameter as a startup parameter, enforcing it as ssl instead', async () => {
+    const sql = connectOperatorDatabase(`${primary}?${tls}`)
+    try {
+      expect(sql.options.ssl).toBe('verify-full')
+      expect(Object.keys(sql.options.connection)).not.toContain('sslrootcert')
+      expect(Object.keys(sql.options.connection)).not.toContain('sslmode')
+    } finally {
+      await sql.end()
+    }
   })
 })

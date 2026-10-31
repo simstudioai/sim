@@ -306,6 +306,41 @@ describe('Search candidate retirement in PostgreSQL', () => {
     expect(await candidateCount('search')).toBe(3)
   })
 
+  it('stops when its connection is replaced, since the new session lacks the purge lock', async () => {
+    await seedBase({ id: 'search', width: 1536, model: 'text-embedding-3-small', chunks: 5 }, true)
+    let closed: () => void = () => undefined
+    const purger = postgres(fixtureUrl.toString(), {
+      max: 1,
+      prepare: false,
+      onnotice: () => undefined,
+      onclose: () => closed(),
+    })
+    const [{ pid }] = await purger<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+    try {
+      await expect(
+        purgeSearchProjection(purger, {
+          batchSize: 2,
+          pauseMs: 0,
+          onBatch: async () => {
+            // Wait until the client has seen the close, as it has after a real pause.
+            const seen = new Promise<void>((resolve) => {
+              closed = resolve
+            })
+            await sql`SELECT pg_terminate_backend(${pid})`
+            await seen
+          },
+        })
+      ).rejects.toBeInstanceOf(SearchProjectionPurgeError)
+    } finally {
+      await purger.end()
+    }
+    expect(await candidateCount('search')).toBe(3)
+    expect(await purgeSearchProjection(sql, { batchSize: 2, pauseMs: 0 })).toMatchObject({
+      deleted: 3,
+      remaining: false,
+    })
+  })
+
   it('runs as an operator command: dry run by default, deletes only with --execute', async () => {
     await seedBase({ id: 'search', width: 1536, model: 'text-embedding-3-small', chunks: 3 }, true)
     await seedBase({ id: 'ordinary', width: 1536, model: 'text-embedding-3-small', chunks: 2 })
@@ -331,5 +366,29 @@ describe('Search candidate retirement in PostgreSQL', () => {
     expect(await candidateCount('ordinary')).toBe(2)
 
     expect(run('--execute', '--batch-size', '50000').status).toBe(1)
+  })
+
+  it('runs the operator command on the public tables whatever the database search_path', async () => {
+    await seedBase({ id: 'search', width: 1536, model: 'text-embedding-3-small', chunks: 3 }, true)
+    await sql`CREATE SCHEMA shadow`
+    await sql`CREATE TABLE shadow.knowledge_base (id text, is_search_index boolean)`
+    await sql.unsafe(`ALTER DATABASE "${database}" SET search_path = shadow, public`)
+    try {
+      const execute = spawnSync(
+        'bun',
+        ['--no-env-file', './scripts/purge-search-projection.ts', '--execute', '--pause-ms', '0'],
+        {
+          cwd: packageRoot,
+          env: { ...process.env, MIGRATION_DATABASE_URL: fixtureUrl.toString() },
+          encoding: 'utf8',
+          timeout: 30_000,
+        }
+      )
+      expect(execute.status, execute.stdout + execute.stderr).toBe(0)
+    } finally {
+      await sql.unsafe(`ALTER DATABASE "${database}" RESET search_path`)
+      await sql`DROP SCHEMA shadow CASCADE`
+    }
+    expect(await candidateCount('search')).toBe(0)
   })
 })

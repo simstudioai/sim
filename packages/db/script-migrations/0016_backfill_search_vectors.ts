@@ -140,7 +140,11 @@ export const backfillSearchVectorsMigration: ScriptMigration = {
   },
 }
 
-/** Records the dev push backfill only after success, so later deploys skip the full scan. */
+/**
+ * Records the dev push backfill only after success, so later deploys skip the full scan. A push
+ * runs no versioned migration, so an already-backfilled database still reinstalls the trigger
+ * function, which takes no table lock, to pick up a changed body.
+ */
 export async function runDevSearchBackfill(sql: Sql): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS script_migrations (
@@ -152,7 +156,8 @@ export async function runDevSearchBackfill(sql: Sql): Promise<void> {
     SELECT name FROM script_migrations WHERE name = ${backfillSearchVectorsMigration.name}
   `
   if (applied) {
-    logger.info('Dev search backfill already applied; skipping')
+    await sql.unsafe(SYNC_EMBEDDING_SEARCH_FUNCTION)
+    logger.info('Dev search backfill already applied; refreshed the projection function only')
     return
   }
 

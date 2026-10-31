@@ -16,6 +16,14 @@ const LOCK_TIMEOUT_MS = 1_000
 const PROBE_STATEMENT_TIMEOUT_MS = 30_000
 const PURGE_LOCK = 'sim:search-projection-purge'
 /**
+ * Whether this backend holds the session-level purge lock. A bigint advisory key appears in
+ * `pg_locks` split into `classid` (high 32 bits) and `objid` (low 32 bits) with `objsubid` 1.
+ */
+const HOLDS_PURGE_LOCK = `EXISTS (
+  SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted
+    AND objsubid = 1 AND ((classid::bigint << 32) | objid::bigint) = hashtextextended('${PURGE_LOCK}', 0)
+)`
+/**
  * Keeps every scan on `embedding_search_kb_idx`: a sequential scan would restart from the heap's
  * start each batch, over the dead rows earlier batches left, and a bitmap scan would collect a
  * whole knowledge base's rows before its LIMIT applies.
@@ -108,6 +116,35 @@ export function parseOperatorDatabaseUrl(rawUrl: string | undefined): OperatorDa
   return { url, hosted }
 }
 
+/**
+ * The purge's single-backend client for a validated operator URL. The TLS query parameters are
+ * enforced here as `ssl` and removed from the URL: postgres.js forwards `sslrootcert` to the
+ * server as a startup parameter, which PostgreSQL rejects as unrecognized. The search path is
+ * pinned because the purge reads and deletes unqualified tables. Connects on the first query.
+ */
+export function connectOperatorDatabase(rawUrl: string | undefined): Sql {
+  const { url, hosted } = parseOperatorDatabaseUrl(rawUrl)
+  const clientUrl = new URL(url)
+  clientUrl.searchParams.delete('sslmode')
+  clientUrl.searchParams.delete('sslrootcert')
+  return postgres(clientUrl.toString(), {
+    port: Number(url.port || '5432'),
+    ssl: hosted ? 'verify-full' : false,
+    max: 1,
+    prepare: false,
+    connect_timeout: 5,
+    max_lifetime: null,
+    connection: {
+      application_name: 'sim-search-projection-purge',
+      search_path: 'public, pg_temp',
+      statement_timeout: STATEMENT_TIMEOUT_MS,
+      lock_timeout: LOCK_TIMEOUT_MS,
+      idle_in_transaction_session_timeout: 5_000,
+    },
+    onnotice: () => undefined,
+  })
+}
+
 /** Search knowledge bases in id order; the table is small and read once per run. */
 async function searchKnowledgeBases(sql: Sql): Promise<string[]> {
   const rows = await sql<{ id: string }[]>`
@@ -167,10 +204,18 @@ interface SearchProjectionPurgeResult {
  * Deletes one batch of a Search knowledge base's candidate rows. The rows are chosen through
  * `embedding_search_kb_idx` and deleted by tuple id, re-checking the knowledge base so a row
  * moved or reassigned since the scan is left alone. Deletes nothing when the knowledge base is gone.
+ * Refuses when this backend no longer holds the purge lock: the client reconnects silently after a
+ * dropped connection, and the new backend does not inherit the old one's session lock.
  */
 async function purgeBatch(sql: Sql, knowledgeBaseId: string, batchSize: number): Promise<number> {
   return sql.begin(async (tx) => {
-    await tx`SELECT ${tx.unsafe(INDEX_SCANS_ONLY)}`
+    const [session] = await tx<{ locked: boolean }[]>`
+      SELECT ${tx.unsafe(HOLDS_PURGE_LOCK)} AS locked, ${tx.unsafe(INDEX_SCANS_ONLY)}`
+    if (!session.locked) {
+      throw new SearchProjectionPurgeError(
+        'The database connection was replaced and no longer holds the purge lock; rerun to continue'
+      )
+    }
     const [base] = await tx<{ is_search_index: boolean }[]>`
       SELECT is_search_index FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR SHARE`
     if (!base) return 0
@@ -194,9 +239,10 @@ async function purgeBatch(sql: Sql, knowledgeBaseId: string, batchSize: number):
 }
 
 /**
- * Deletes the candidate rows of every Search knowledge base, batch by batch, pausing after each.
- * Stateless: whatever a stopped run leaves, the next run finds and deletes. Canonical
- * `embedding` and `document` rows are never touched.
+ * Deletes the candidate rows of every Search knowledge base, batch by batch, pausing after each,
+ * while holding a session lock that keeps a second run out. Stateless: whatever a stopped run
+ * leaves, the next run finds and deletes. Canonical `embedding` and `document` rows are never
+ * touched.
  */
 export async function purgeSearchProjection(
   sql: Sql,
@@ -205,20 +251,28 @@ export async function purgeSearchProjection(
   const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
   const pauseMs = options.pauseMs ?? DEFAULT_PAUSE_MS
   const maxBatches = options.maxBatches ?? Number.POSITIVE_INFINITY
+  const [{ acquired }] = await sql<{ acquired: boolean }[]>`
+    SELECT pg_try_advisory_lock(hashtextextended(${PURGE_LOCK}, 0)) AS acquired`
+  if (!acquired) throw new SearchProjectionPurgeError('Another purge is running')
   let deleted = 0
   let batches = 0
-  for (const knowledgeBaseId of await searchKnowledgeBases(sql)) {
-    for (;;) {
-      if (batches >= maxBatches) return { deleted, batches, remaining: true }
-      const count = await purgeBatch(sql, knowledgeBaseId, batchSize)
-      if (count === 0) break
-      batches += 1
-      deleted += count
-      await options.onBatch?.({ knowledgeBaseId, deleted: count })
-      if (pauseMs > 0) await sleep(pauseMs)
+  try {
+    for (const knowledgeBaseId of await searchKnowledgeBases(sql)) {
+      for (;;) {
+        if (batches >= maxBatches) return { deleted, batches, remaining: true }
+        const count = await purgeBatch(sql, knowledgeBaseId, batchSize)
+        if (count === 0) break
+        batches += 1
+        deleted += count
+        await options.onBatch?.({ knowledgeBaseId, deleted: count })
+        if (pauseMs > 0) await sleep(pauseMs)
+      }
     }
+    return { deleted, batches, remaining: false }
+  } finally {
+    // On a replaced connection this unlocks nothing; the old backend's lock ended with it.
+    await sql`SELECT pg_advisory_unlock(hashtextextended(${PURGE_LOCK}, 0))`
   }
-  return { deleted, batches, remaining: false }
 }
 
 function integerOption(
@@ -253,23 +307,7 @@ async function main(): Promise<void> {
   const pauseMs = integerOption(values['pause-ms'], DEFAULT_PAUSE_MS, 0, MAX_PAUSE_MS)
   const maxBatches =
     values['max-batches'] === undefined ? undefined : integerOption(values['max-batches'], 1, 1)
-  const rawUrl = process.env.MIGRATION_DATABASE_URL
-  const { url, hosted } = parseOperatorDatabaseUrl(rawUrl)
-  const sql = postgres(url.toString(), {
-    port: Number(url.port || '5432'),
-    ssl: hosted ? 'verify-full' : false,
-    max: 1,
-    prepare: false,
-    connect_timeout: 5,
-    max_lifetime: null,
-    connection: {
-      application_name: 'sim-search-projection-purge',
-      statement_timeout: STATEMENT_TIMEOUT_MS,
-      lock_timeout: LOCK_TIMEOUT_MS,
-      idle_in_transaction_session_timeout: 5_000,
-    },
-    onnotice: () => undefined,
-  })
+  const sql = connectOperatorDatabase(process.env.MIGRATION_DATABASE_URL)
   try {
     if (!values.execute) {
       const states = await inspectSearchProjection(sql)
@@ -288,9 +326,6 @@ async function main(): Promise<void> {
       throw new SearchProjectionPurgeError(
         'A shadow-copy Search retirement job is still installed; abort it with the release that shipped it first'
       )
-    const [{ acquired }] = await sql<{ acquired: boolean }[]>`
-      SELECT pg_try_advisory_lock(hashtextextended(${PURGE_LOCK}, 0)) AS acquired`
-    if (!acquired) throw new SearchProjectionPurgeError('Another purge is running')
     const result = await purgeSearchProjection(sql, {
       batchSize,
       pauseMs,
