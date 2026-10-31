@@ -24,6 +24,7 @@ import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionMessage,
 } from '@/lib/mothership/tools/workflow-tools'
+import { getWorkflowExecutionLogStatus } from '@/lib/workflows/executor/execution-state'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotWorkflowClientFallback')
@@ -67,7 +68,8 @@ const CLIENT_CLAIM_POLL_MS = 5000
  * Once `waitTimeoutMs` has passed, settles a browser-run workflow call as running in the
  * background, the same detach a browser sends on `pagehide`: its waiter answers the call with
  * the run's ids and the browser's run goes on, bound to the call, so a Stop still cancels it.
- * A call no browser has claimed yet is re-read until one does or the wait ends.
+ * A call no browser has claimed yet, or whose run has no log yet, is re-read until it does or the
+ * wait ends.
  */
 async function detachClientRunAfterWait(params: {
   toolCallId: string
@@ -86,6 +88,11 @@ async function detachClientRunAfterWait(params: {
     if (!row || row.status !== ASYNC_TOOL_STATUS.running) return
     const executionId = getClaimedWorkflowExecutionId(row.claimedBy)
     if (!executionId || row.clientWorkflowExecutionId !== executionId) continue
+    // The claim precedes the run's log; answer running only once the run is readable by its id.
+    const logged = await getWorkflowExecutionLogStatus(executionId, workflowId).catch(
+      () => undefined
+    )
+    if (!logged) continue
     const status = ASYNC_TOOL_CONFIRMATION_STATUS.background
     await settleClientToolCall({
       toolCallId,

@@ -156,7 +156,7 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
   async function executionLog(
     toolCallId: string,
     executionId: string,
-    status: 'completed' | 'failed' | 'cancelled' | 'pending'
+    status: 'completed' | 'failed' | 'cancelled' | 'pending' | 'running'
   ) {
     const snapshotId = generateId()
     snapshotIds.push(snapshotId)
@@ -496,6 +496,8 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
 
   it("settles a browser run that outlasts the worker's wait as running, bound to the call", async () => {
     const { toolCallId, executionId } = await claimed()
+    // The execute route's log of the browser's run, still going: what the worker waits on.
+    await executionLog(toolCallId, executionId, 'running')
     const runOnServer = vi.fn()
 
     const outcome = await raceWorkflowToolClientPickup({

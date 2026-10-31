@@ -301,6 +301,8 @@ async function answerWithinWait(
     while (!result && !(await runIsReadable(executionId, workflowId))) {
       result = await Promise.race([settled, waited(RUN_LOG_POLL_MS)])
     }
+    // A run that settled while its log was being read answers with its result.
+    result ??= await Promise.race([settled, Promise.resolve(null)])
     if (result) return result
   } finally {
     stopWaiting.abort()
