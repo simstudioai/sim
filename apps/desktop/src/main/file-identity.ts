@@ -10,7 +10,7 @@ export interface FileIdentity {
 }
 
 /** What `fs.Stats` and `fs.Dirent` both say about a file's type. */
-export interface FileTypeInfo {
+interface FileTypeInfo {
   isFile(): boolean
   isDirectory(): boolean
   isSymbolicLink(): boolean

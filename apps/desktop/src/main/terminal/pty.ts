@@ -15,7 +15,7 @@ import { spawn } from '@lydell/node-pty'
 const DEVICE_ATTRIBUTES_QUERY = '\u001b[c'
 const DEVICE_ATTRIBUTES_REPLY = '\u001b[?1;2c'
 
-export interface TerminalPtyOptions {
+interface TerminalPtyOptions {
   platform: NodeJS.Platform
   shellPath: string
   /** The shell's arguments; omitted, it starts as a login shell where the platform has one. */
@@ -40,6 +40,7 @@ export interface TerminalPty {
   kill(signal?: NodeJS.Signals): void
 }
 
+/** Spawns `options.shellPath` in a pseudo-terminal, set up for the platform it runs on. */
 export function spawnTerminalPty(options: TerminalPtyOptions): TerminalPty {
   const windows = options.platform === 'win32'
   const pty = spawn(options.shellPath, options.args ?? (windows ? [] : ['-l']), {
