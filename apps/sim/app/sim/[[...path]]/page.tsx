@@ -31,7 +31,10 @@ function decodeSimLinkPath(path: string[]): string[] {
   return segments.length === 1 ? segments[0].split('/').filter(Boolean) : segments
 }
 
-/** The typed `?…` query, rebuilt from Next's parsed params, which group repeated keys. */
+/**
+ * The query, from the params Next has already parsed and normalized (it re-serializes every
+ * request's query before app code sees it, so the typed spelling isn't recoverable here).
+ */
 function toQueryString(searchParams: Record<string, string | string[] | undefined>): string {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(searchParams)) {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import {
   Checkbox,
   ChipModal,
@@ -10,12 +11,12 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@sim/emcn'
+import { SIM_DOCS_URL } from '@sim/utils/site'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import {
   isVariableSimLinkUrl,
   SIM_LINK_DESCRIPTION_MAX_LENGTH,
-  SIM_LINK_NAME_MAX_LENGTH,
   SIM_LINK_VARIABLE,
   simLinkFieldsSchema,
   toSimLinkName,
@@ -24,7 +25,7 @@ import { useCreateSimLink, useUpdateSimLink } from '@/hooks/queries/sim-links'
 
 type Field = 'name' | 'url' | 'defaultUrl' | 'description'
 
-const SIM_LINKS_DOCS_URL = 'https://docs.sim.ai/search/sim-links'
+const SIM_LINKS_DOCS_URL = `${SIM_DOCS_URL}/search/sim-links`
 
 function openDocs() {
   window.open(SIM_LINKS_DOCS_URL, '_blank', 'noopener,noreferrer')
@@ -173,7 +174,7 @@ export function SimLinkModal({ organizationId, onClose, link, initialName }: Sim
                   onCheckedChange={(checked) => change('restrictEdit', checked === true)}
                 />
                 <span className='text-[var(--text-primary)] text-small'>
-                  Only you and admins can edit
+                  Only the creator and admins can edit
                 </span>
               </label>
             </div>

@@ -7,13 +7,13 @@ const simLinkViewParsers = { create: parseAsString } as const
 
 export const serializeSimLinkView = createSerializer(simLinkViewParsers)
 
-/** `search` filters by name, destination, or description; only its URL write is debounced. */
+/** `search` filters by name, destination, or description. */
 export const simLinksParsers = {
   ...simLinkViewParsers,
   search: parseAsString.withDefault(''),
 } as const
 
-/** Shared `sort` + `dir` params for the Sim Links list. Default: alphabetical. */
+/** Shared `sort` + `dir` params for the Sim Links list. */
 export const simLinksSortParams = createSortParams(SIM_LINK_SORTS, {
   column: 'name',
   direction: 'asc',

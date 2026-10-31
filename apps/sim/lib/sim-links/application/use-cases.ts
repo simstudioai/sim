@@ -249,7 +249,7 @@ export const resolveSimLink = defineAuthorizedOrganizationUseCase({
   >): Promise<SimLinkResolution> {
     const link = await repository.findSimLinkDestination(input.organizationId, input.name)
     if (!link) return { kind: 'not_found' }
-    const target = resolveSimLinkTarget(link, input.values, new URLSearchParams(input.query))
+    const target = resolveSimLinkTarget(link, input.values, input.query)
     if (target.kind === 'redirect') await countVisit(input.organizationId, link.id)
     return target
   },

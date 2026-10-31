@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -66,19 +65,13 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role).catch(
-    (error) => {
-      logger.warn('Could not resolve People navigation access', {
-        organizationId,
-        error: getErrorMessage(error),
-      })
-      return false
-    }
-  )
+  const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
+  const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
   if (
     !context.mothershipAvailable &&
     !context.searchAccess.memberScoped &&
-    !(await peopleEnabledLookup)
+    !(await peopleEnabledLookup) &&
+    !(await simLinksEnabledLookup)
   )
     redirect(WORKSPACE_SETTINGS_PATH)
 
@@ -110,7 +103,7 @@ export default async function OrganizationLayout({
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
-    isSimLinksEnabled(organizationId),
+    simLinksEnabledLookup,
     peopleEnabledLookup,
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'

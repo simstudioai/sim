@@ -150,7 +150,7 @@
     },
     "apps/extension": {
       "name": "@sim/extension",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@sim/browser-extension-protocol": "workspace:*",
         "@sim/emcn": "workspace:*",

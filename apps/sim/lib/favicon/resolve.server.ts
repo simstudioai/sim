@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
@@ -34,12 +35,10 @@ const PROVIDERS: readonly ((host: string) => string)[] = [
   (host) => `https://icons.duckduckgo.com/ip3/${host}.ico`,
 ]
 
-type FaviconResolution =
+export type FaviconResolution =
   | { kind: 'hit'; contentType: string; bytes: Buffer; provisional?: true }
   | { kind: 'miss' }
   | { kind: 'unavailable' }
-
-const inFlight = new Map<string, Promise<FaviconResolution>>()
 
 const cacheKey = (host: string) => `favicon:v3:${host}`
 
@@ -53,6 +52,8 @@ async function readCache(host: string): Promise<FaviconResolution | null> {
     if (cached.toString() === UNAVAILABLE_MARKER) return { kind: 'unavailable' }
     const prefix = cached.subarray(0, 1).toString()
     const bytes = cached.subarray(1)
+    // Cached under an earlier, larger cap: look it up again rather than serve it or call it a miss.
+    if (bytes.length > MAX_ICON_BYTES) return null
     const result = classifyProviderResponse(200, bytes)
     if (result.kind !== 'hit') return { kind: 'miss' }
     return prefix === PROVISIONAL_HIT_PREFIX
@@ -150,6 +151,12 @@ async function walk(candidates: string[], signal: AbortSignal): Promise<FaviconR
   return unavailable ? { kind: 'unavailable' } : { kind: 'miss' }
 }
 
+/** The cached answer for a host, or `null` when it would take a lookup to know. */
+export async function cachedFavicon(host: string): Promise<FaviconResolution | null> {
+  const requested = faviconHostCandidates(host)[0]
+  return requested ? readCache(requested) : { kind: 'miss' }
+}
+
 /**
  * The icon for a host, or its nearest parent domain's, from public icon providers — Sim never
  * contacts the destination itself (a provider may, from its own servers), so a host behind a
@@ -161,10 +168,7 @@ export async function resolveFavicon(host: string): Promise<FaviconResolution> {
   const candidates = faviconHostCandidates(host)
   const requested = candidates[0]
   if (!requested) return { kind: 'miss' }
-  const pending = inFlight.get(requested)
-  if (pending) return pending
-
-  const resolution = (async (): Promise<FaviconResolution> => {
+  return coalesceLocally(`favicon:${requested}`, async (): Promise<FaviconResolution> => {
     const cached = await readCache(requested)
     if (cached) return cached
     const resolved = await runWithOutboundOrganization(null, () =>
@@ -172,7 +176,5 @@ export async function resolveFavicon(host: string): Promise<FaviconResolution> {
     ).catch((): FaviconResolution => ({ kind: 'unavailable' }))
     await writeCache(requested, resolved)
     return resolved
-  })().finally(() => inFlight.delete(requested))
-  inFlight.set(requested, resolution)
-  return resolution
+  }).catch((): FaviconResolution => ({ kind: 'unavailable' }))
 }

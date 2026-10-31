@@ -20,7 +20,7 @@ function redirectUrl(
   defaultUrl: string | null = null,
   query?: string
 ): string {
-  const target = resolveSimLinkTarget({ url, defaultUrl }, values, new URLSearchParams(query))
+  const target = resolveSimLinkTarget({ url, defaultUrl }, values, query)
   if (target.kind !== 'redirect') throw new Error(`Expected a redirect, got ${target.kind}`)
   return target.url
 }
@@ -137,7 +137,15 @@ describe('Sim link destinations', () => {
   })
 
   it.each([
-    ['https://ex.com/p', [], null, 'a=1&b=two words', 'https://ex.com/p?a=1&b=two+words'],
+    [
+      'https://ex.com/p',
+      [],
+      null,
+      'a=1&b=two%20words&edit',
+      'https://ex.com/p?a=1&b=two%20words&edit',
+    ],
+    ['https://ex.com/p', [], null, 'q=a b', 'https://ex.com/p?q=a%20b'],
+    ['https://ex.com/p', [], null, 'q=&flag', 'https://ex.com/p?q=&flag'],
     ['https://ex.com/p?x=1#top', ['y'], null, 'x=2', 'https://ex.com/p/y?x=1&x=2#top'],
     [
       'https://ex.com/search?q={*}',
@@ -156,6 +164,18 @@ describe('Sim link destinations', () => {
 })
 
 describe('parseTypedSimLink', () => {
+  it.each([
+    [' onboarding', 'onboarding'],
+    ['onboarding ', 'onboarding'],
+    ['onboarding ).', 'onboarding'],
+  ])('drops the spaces around %j, which no name can hold', (name, trimmed) => {
+    expect(parseTypedSimLink([name]).name).toBe(trimmed)
+  })
+
+  it('trims the name but keeps values verbatim when values follow', () => {
+    expect(parseTypedSimLink([' jira ', ' ABC-1 '])).toEqual({ name: 'jira', values: [' ABC-1 '] })
+  })
+
   it.each([
     ['onboarding).', 'onboarding'],
     ['onboarding,', 'onboarding'],

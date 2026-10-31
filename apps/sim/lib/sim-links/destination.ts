@@ -26,13 +26,13 @@ function encodeSegments(values: readonly string[]): string {
 
 /**
  * Values fill only what follows a closed authority, so leaving `origin` is a broken invariant.
- * The typed query follows the destination's own parameters, whose encoding is kept as stored.
+ * The typed query follows the destination's own parameters, both kept as spelled; the `search`
+ * setter percent-encodes anything a query can't hold, so a `#` in it can't start a fragment.
  */
-function redirectWithin(origin: string, url: string, query: URLSearchParams): SimLinkTarget {
+function redirectWithin(origin: string, url: string, query: string): SimLinkTarget {
   const parsed = parseHttpUrl(url)
   if (parsed?.origin !== origin) throw new Error('Sim link resolved outside its fixed origin')
-  const typed = query.toString()
-  if (typed) parsed.search = parsed.search ? `${parsed.search}&${typed}` : typed
+  if (query) parsed.search = parsed.search ? `${parsed.search}&${query}` : query
   return { kind: 'redirect', url: parsed.toString() }
 }
 
@@ -45,7 +45,7 @@ function redirectWithin(origin: string, url: string, query: URLSearchParams): Si
 export function resolveSimLinkTarget(
   link: SimLinkDestination,
   values: readonly string[],
-  query: URLSearchParams = new URLSearchParams()
+  query = ''
 ): SimLinkTarget {
   const origin = simLinkOrigin(link.url)
   if (!origin) throw new Error('Sim link destination has no fixed http(s) origin')
