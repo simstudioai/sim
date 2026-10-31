@@ -10,7 +10,14 @@ import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
 import { getBrowserExtensionOrigins } from '@/lib/core/security/extension'
 import { isMarketingPath } from '@/lib/landing/routes'
 import { isAuthSurfacePath } from '@/lib/navigation/auth-surfaces'
-import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
+import {
+  APP_ENTRY_PATH,
+  isAppSurfacePath,
+  isNoindexPath,
+  isPathOrDescendant,
+  SIM_LINK_ROOT,
+} from '@/lib/navigation/paths'
+import { SIM_LINK_QUERY_HEADER, typedQuery } from '@/lib/sim-links/typed-query'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
@@ -202,6 +209,13 @@ export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
 }
 
 const CORS_PREFLIGHT_MAX_AGE = '86400'
+
+/** The request headers with the typed `sim/` query attached, replacing any a client sent. */
+function withTypedSimLinkQuery(request: NextRequest): Headers {
+  const headers = new Headers(request.headers)
+  headers.set(SIM_LINK_QUERY_HEADER, typedQuery(request.nextUrl.search))
+  return headers
+}
 
 function applyCorsHeaders(response: NextResponse, policy: CorsPolicy): void {
   response.headers.set('Access-Control-Allow-Origin', policy.origin)
@@ -440,7 +454,9 @@ export function proxy(request: NextRequest) {
   const securityBlock = handleSecurityFiltering(request)
   if (securityBlock) return applyIndexingPolicy(request, securityBlock)
 
-  const response = NextResponse.next()
+  const response = isPathOrDescendant(url.pathname, SIM_LINK_ROOT)
+    ? NextResponse.next({ request: { headers: withTypedSimLinkQuery(request) } })
+    : NextResponse.next()
   response.headers.set('Content-Security-Policy', generateRuntimeCSP())
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')

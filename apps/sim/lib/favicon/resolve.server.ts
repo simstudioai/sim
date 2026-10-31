@@ -53,6 +53,8 @@ async function readCache(host: string): Promise<FaviconResolution | null> {
     if (cached.toString() === UNAVAILABLE_MARKER) return { kind: 'unavailable' }
     const prefix = cached.subarray(0, 1).toString()
     const bytes = cached.subarray(1)
+    // Cached under an earlier, larger cap: look it up again rather than serve it or call it a miss.
+    if (bytes.length > MAX_ICON_BYTES) return null
     const result = classifyProviderResponse(200, bytes)
     if (result.kind !== 'hit') return { kind: 'miss' }
     return prefix === PROVISIONAL_HIT_PREFIX
@@ -156,8 +158,9 @@ async function walk(candidates: string[], signal: AbortSignal): Promise<FaviconR
  * login still gets its platform's icon. Results are cached per host (30 days for an icon, a day
  * for none or for a parent's icon chosen after a timeout, minutes after an outage), and
  * concurrent lookups of one host in this process share a single resolution. `admitLookup` is
- * asked only when nothing is cached, before any provider is: refused, the host is reported
- * unavailable and nothing is cached, so cached icons stay free while new lookups are budgeted.
+ * the caller's own budget, asked only when nothing is cached and no lookup of the host is already
+ * running: refused, the host is reported unavailable to this caller alone and nothing is cached,
+ * so cached icons and lookups shared with another caller stay free.
  */
 export async function resolveFavicon(
   host: string,
@@ -166,13 +169,16 @@ export async function resolveFavicon(
   const candidates = faviconHostCandidates(host)
   const requested = candidates[0]
   if (!requested) return { kind: 'miss' }
+  const joined = inFlight.get(requested)
+  if (joined) return joined
+  const cached = await readCache(requested)
+  if (cached) return cached
+  if (!(await admitLookup())) return { kind: 'unavailable' }
+  // Another caller may have started the same lookup while this one read the cache and its budget.
   const pending = inFlight.get(requested)
   if (pending) return pending
 
   const resolution = (async (): Promise<FaviconResolution> => {
-    const cached = await readCache(requested)
-    if (cached) return cached
-    if (!(await admitLookup())) return { kind: 'unavailable' }
     const resolved = await runWithOutboundOrganization(null, () =>
       walk(candidates, AbortSignal.timeout(RESOLVE_DEADLINE_MS))
     ).catch((): FaviconResolution => ({ kind: 'unavailable' }))

@@ -39,17 +39,21 @@ function readTyped(text: string): { name: string; rest: string } {
     : { name: typed.slice(0, nameEnd), rest: typed.slice(nameEnd) }
 }
 
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/** Code points XML forbids even as references, besides lone surrogates. */
+const NON_XML_CHARACTER = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g
+
 /**
- * Suggestion text is XML, where these five characters are markup and control characters are not
- * allowed even as references, so one bad description can't make Chrome drop every suggestion.
+ * Suggestion text is XML, where these five characters are markup and some code points aren't
+ * allowed at all, so one bad description can't make Chrome drop every suggestion.
  */
 function escapeXml(text: string): string {
   return text
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(NON_XML_CHARACTER, '')
+    .replace(LONE_SURROGATE, '')
     .replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`)
 }
-
-const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
 
 /** `encodeURIComponent`, except a lone surrogate (which it refuses) is dropped. */
 function encodeSegment(segment: string): string {

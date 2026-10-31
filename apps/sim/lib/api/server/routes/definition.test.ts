@@ -6,6 +6,7 @@ import {
   requireBinaryRouteDefinition,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
+import { defineOperation } from '@/lib/core/application'
 
 const renameOperation = {
   id: 'files.rename',
@@ -35,12 +36,16 @@ describe('declarative route definition invariants', () => {
         path: '/icon',
         response: { mode: 'binary', status },
       })
-    expect(() =>
-      requireBinaryRouteDefinition(contract([204, 200]), renameOperation, renameOperation)
-    ).toThrow('carries a body first')
+    const operation = defineOperation({
+      id: 'icons.get',
+      principalKinds: ['session'],
+      capability: 'none',
+    })
+    expect(() => requireBinaryRouteDefinition(contract([204, 200]), operation, operation)).toThrow(
+      'carries a body first'
+    )
     expect(
-      requireBinaryRouteDefinition(contract([200, 204]), renameOperation, renameOperation)
-        .successStatus
+      requireBinaryRouteDefinition(contract([200, 204]), operation, operation).successStatus
     ).toBe(200)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveSimLinkTarget, typedQueryString } from '@/lib/sim-links/destination'
+import { resolveSimLinkTarget } from '@/lib/sim-links/destination'
 import { parseTypedSimLink, simLinkFieldsSchema } from '@/lib/sim-links/validation'
 
 const fields = {
@@ -145,6 +145,7 @@ describe('Sim link destinations', () => {
       'https://ex.com/p?a=1&b=two%20words&edit',
     ],
     ['https://ex.com/p', [], null, 'q=a b', 'https://ex.com/p?q=a%20b'],
+    ['https://ex.com/p', [], null, 'q=&flag', 'https://ex.com/p?q=&flag'],
     ['https://ex.com/p?x=1#top', ['y'], null, 'x=2', 'https://ex.com/p/y?x=1&x=2#top'],
     [
       'https://ex.com/search?q={*}',
@@ -159,22 +160,6 @@ describe('Sim link destinations', () => {
     ['https://ex.com/p', [], null, '', 'https://ex.com/p'],
   ])('carries the typed query to %s', (url, values, defaultUrl, query, expected) => {
     expect(redirectUrl(url, values, defaultUrl, query)).toBe(expected)
-  })
-})
-
-describe('typedQueryString', () => {
-  it('keeps the spelling a destination reads: spaces as %20 and bare flags bare', () => {
-    expect(typedQueryString({ q: 'hello world', edit: '', tag: ['a', 'b&c'] })).toBe(
-      'q=hello%20world&edit&tag=a&tag=b%26c'
-    )
-  })
-
-  it('carries a typed # as data, never a fragment, once on a destination', () => {
-    const query = typedQueryString({ q: 'a#b' })
-    expect(resolveSimLinkTarget({ url: 'https://ex.com/p', defaultUrl: null }, [], query)).toEqual({
-      kind: 'redirect',
-      url: 'https://ex.com/p?q=a%23b',
-    })
   })
 })
 

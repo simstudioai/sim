@@ -59,9 +59,12 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
+/** The path the `sim/<name>` resolver serves. */
+export const SIM_LINK_ROOT = '/sim'
+
 /** Where `sim/<name>/<values…>` resolves in this app: the address a member types, kept verbatim. */
 export function simLinkPath(...segments: string[]): string {
-  return ['/sim', ...segments.map(encodeURIComponent)].join('/')
+  return [SIM_LINK_ROOT, ...segments.map(encodeURIComponent)].join('/')
 }
 
 /** Whether `pathname` is `root` itself or a route beneath it. */

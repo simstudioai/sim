@@ -1,11 +1,12 @@
 import { ChipLink, StatusPageContent } from '@sim/emcn'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { resolveSimLink, type SimLinkResolution } from '@/lib/sim-links/application/use-cases'
-import { typedQueryString } from '@/lib/sim-links/destination'
+import { SIM_LINK_QUERY_HEADER } from '@/lib/sim-links/typed-query'
 import { parseTypedSimLink, simLinkNameSchema } from '@/lib/sim-links/validation'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
@@ -18,7 +19,6 @@ export const metadata: Metadata = {
 
 interface SimLinkPageProps {
   params: Promise<{ path?: string[] }>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 /**
@@ -50,8 +50,9 @@ function describeUnresolved(result: SimLinkResolution, validName: boolean, name:
  * Where `sim/<name>/<values…>?<query>` lands: the viewer's organization link's destination,
  * or a page that offers to create the link when nobody has yet.
  */
-export default async function SimLinkPage({ params, searchParams }: SimLinkPageProps) {
-  const [{ path = [] }, query] = await Promise.all([params, searchParams.then(typedQueryString)])
+export default async function SimLinkPage({ params }: SimLinkPageProps) {
+  const [{ path = [] }, requestHeaders] = await Promise.all([params, headers()])
+  const query = requestHeaders.get(SIM_LINK_QUERY_HEADER) ?? ''
   const segments = decodeSimLinkPath(path)
   const session = await getSession()
   if (!session?.user)

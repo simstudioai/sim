@@ -15,25 +15,6 @@ export type SimLinkTarget =
   | { kind: 'missing_values'; required: number }
   | { kind: 'invalid_values' }
 
-/**
- * A typed query rebuilt from parsed parameters with its spelling kept: values percent-encoded as
- * a URL path would be (a space stays `%20`, not `+`), and a key typed without a value stays bare
- * (`?edit`, not `?edit=`). Parameters with the same key come out together, after the first one.
- */
-export function typedQueryString(
-  params: Readonly<Record<string, string | readonly string[] | undefined>>
-): string {
-  return Object.entries(params)
-    .flatMap(([key, value]) =>
-      [value ?? []]
-        .flat()
-        .map((item) =>
-          item ? `${encodeURIComponent(key)}=${encodeURIComponent(item)}` : encodeURIComponent(key)
-        )
-    )
-    .join('&')
-}
-
 /** URL parsers resolve `.` and `..` even when encoded, so a value could climb out of the link's path. */
 function isDotSegment(value: string): boolean {
   return value === '.' || value === '..'
