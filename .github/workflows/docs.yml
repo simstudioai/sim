@@ -7,6 +7,10 @@ on:
         required: false
       OPENAI_API_KEY:
         required: false
+      TS_OAUTH_CLIENT_ID:
+        required: false
+      TS_AUDIENCE:
+        required: false
   workflow_dispatch:
     inputs:
       publish:
@@ -40,6 +44,10 @@ jobs:
     concurrency:
       group: docs-search-index-production
       cancel-in-progress: false
+    permissions:
+      contents: read
+      # Tailscale workload identity federation exchanges this job's OIDC token.
+      id-token: write
 
     steps:
       - name: Record verified deployment and backup
@@ -67,6 +75,16 @@ jobs:
         with:
           provider: ${{ vars.CI_PROVIDER }}
           node-version: '24'
+
+      # Database IP restrictions admit the tailnet's app connector; see migrate.yml.
+      - name: Join the tailnet
+        if: vars.CI_DB_TAILNET == 'true'
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          args: --accept-routes
 
       - name: Process docs embeddings
         working-directory: ./apps/docs
