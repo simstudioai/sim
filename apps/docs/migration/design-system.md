@@ -22,7 +22,7 @@ Three-column reading begins at 1280px. At 1024–1279px the TOC becomes a compac
 | Code | Geist Mono | 13 / 22px | 400 | normal |
 | Keyboard | Geist | 11 / 14px | 400 | normal |
 
-Marketing calls to action use variable weight 450, matching the landing page. Heading weight remains 500; selection in the sidebar uses a neutral surface and, in dark mode, a 2px inset left edge without changing text color or weight.
+Marketing calls to action use variable weight 450, matching the landing page. Heading weight remains 500; selection in the sidebar uses a neutral surface in both themes without changing text color or weight. Keyboard focus retains its separate outline.
 
 The header keeps weight 400 in every navigation state at the user's request, matching the landing navigation and preventing label widths from shifting. Current-section ink changes without changing geometry. The shared wordmark uses the landing's visible SVG overflow and optical offset; header and footer links do not initiate native drag operations. Root vertical overscroll is disabled while normal page and contained reference scrolling remain available.
 
