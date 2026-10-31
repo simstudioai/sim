@@ -62,6 +62,25 @@ const deleteFile = (fileId: string, userId = alice) =>
     input: { fileId, assertedWorkspaceId: workspaceId },
   })
 
+/** The `{ code, message }` each path is refused with, or null where it resolved. */
+const refusalsFor = (
+  principal: Parameters<typeof readWorkspaceFileMetadataWithVersion.execute>[0]['principal'],
+  paths: string[]
+) =>
+  Promise.all(
+    paths.map((fileId) =>
+      readWorkspaceFileMetadataWithVersion
+        .execute({ principal, input: { fileId, assertedWorkspaceId: workspaceId } })
+        .then(
+          () => null,
+          (error: { code?: string; message?: string }) => ({
+            code: error.code,
+            message: error.message,
+          })
+        )
+    )
+  )
+
 describe('single-file operations addressed by VFS path', () => {
   const ids = {
     rootReport: '',
@@ -76,6 +95,8 @@ describe('single-file operations addressed by VFS path', () => {
     alikeSpaced: '',
     alikeSingle: '',
   }
+
+  const ambiguousPath = async () => workspaceFileVfsPath((await describeFile(ids.alikeSingle)).file)
 
   beforeAll(async () => {
     assertDisposableTestDatabaseUrl(process.env.DATABASE_URL ?? '')
@@ -225,24 +246,45 @@ describe('single-file operations addressed by VFS path', () => {
   })
 
   it('answers a non-member the same for an ambiguous, a missing and an existing path', async () => {
-    const ambiguous = workspaceFileVfsPath((await describeFile(ids.alikeSingle)).file)
-    const outcomes = await Promise.all(
-      [ambiguous, 'files/missing.csv', 'files/report.csv'].map((path) =>
-        describeFile(path, carol).then(
-          () => null,
-          (error: { code?: string; message?: string }) => ({
-            code: error.code,
-            message: error.message,
-          })
-        )
-      )
-    )
+    const outcomes = await refusalsFor(session(carol), [
+      await ambiguousPath(),
+      'files/missing.csv',
+      'files/report.csv',
+    ])
     expect(outcomes[0]).toMatchObject({ code: 'forbidden' })
     expect(outcomes[1]).toEqual(outcomes[0])
     expect(outcomes[2]).toEqual(outcomes[0])
     await expect(describeFile('files/Docs/../report.csv', carol)).rejects.toMatchObject({
       code: 'validation',
     })
+  })
+
+  it('answers a delegation scoped to one file the same for every other path', async () => {
+    const delegated = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      subjectUserId: alice,
+      workspaceId,
+      delegationId: generateId(),
+      audience: 'sim:workspace-files',
+      issuedAt: new Date(Date.now() - 1_000),
+      expiresAt: new Date(Date.now() + 60_000),
+      resourceScope: { fileId: ids.rootReport, executionId: generateId() },
+    }
+    await expect(
+      readWorkspaceFileMetadataWithVersion.execute({
+        principal: delegated,
+        input: { fileId: 'files/report.csv', assertedWorkspaceId: workspaceId },
+      })
+    ).resolves.toMatchObject({ file: { id: ids.rootReport } })
+    const outcomes = await refusalsFor(delegated, [
+      await ambiguousPath(),
+      'files/missing.csv',
+      'files/Docs/content',
+    ])
+    expect(outcomes[0]).toMatchObject({ code: 'forbidden' })
+    expect(outcomes[1]).toEqual(outcomes[0])
+    expect(outcomes[2]).toEqual(outcomes[0])
   })
 
   it('rejects a dot-segment path instead of walking out of its folder', async () => {

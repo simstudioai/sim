@@ -1,18 +1,15 @@
 import type { Principal } from '@sim/auth/principal'
-import { isRecordLike } from '@sim/utils/object'
-import { authorizeWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFileByVfsPath,
-  loadActiveWorkspaceContext,
   loadActiveWorkspaceFileContext,
   loadWorkspaceFileLifecycleContext,
   type WorkspaceFileLifecycleContext,
 } from '@/lib/uploads/contexts/workspace/file-manager'
-import { decodeVfsReferenceSegments, isWorkspaceFileVfsPath, VfsPathError } from '@/lib/vfs/path'
-import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { isWorkspaceFileVfsPath, VfsPathError } from '@/lib/vfs/path'
+import { UnresolvedWorkspaceFileVfsPathError } from '@/lib/workspace-files/application/unresolved-vfs-path'
 import { ownedFileKind } from '@/lib/workspace-files/owned-files'
 import { matchesFileOwner } from '@/lib/workspace-files/ownership'
 
@@ -81,71 +78,54 @@ function requireWorkspaceFileContext<C extends ActiveWorkspaceFileContext>(
   return canonical
 }
 
-function invalidVfsPathError(vfsPath: string, error: unknown): unknown {
-  if (!(error instanceof VfsPathError)) return error
-  return new OrchestrationError(
-    'validation',
-    `"${vfsPath}" is not a valid workspace file path: ${error.message}`
-  )
-}
-
 /**
- * Admits the principal into the asserted workspace before a `files/…` path is looked up by name
- * there, so nothing the lookup answers (a missing file, two names that display alike) reaches a
- * caller with no access to that workspace. A malformed path is refused first: deciding that reads
- * nothing and says nothing about the workspace. Any other input passes untouched. A delegation
- * scoped to one file is checked once the path names a file, by the use case's own authorization.
+ * A malformed path is decided before any read and says nothing about the workspace, so it stays a
+ * plain validation error. The lookup's own refusal (two names that display alike) does not.
  */
-export async function authorizeWorkspaceFileVfsPath(
-  principal: Principal,
-  operation: WorkspaceOperation,
-  input: unknown
-): Promise<void> {
-  if (!isRecordLike(input)) return
-  const { fileId: vfsPath, assertedWorkspaceId } = input
-  if (typeof vfsPath !== 'string' || !isWorkspaceFileVfsPath(vfsPath)) return
-  if (typeof assertedWorkspaceId !== 'string') return
-  try {
-    decodeVfsReferenceSegments(vfsPath.slice('files/'.length))
-  } catch (error) {
-    throw invalidVfsPathError(vfsPath, error)
+function rethrowVfsLookupError(vfsPath: string, workspaceId: string, error: unknown): never {
+  if (error instanceof VfsPathError) {
+    throw new OrchestrationError(
+      'validation',
+      `"${vfsPath}" is not a valid workspace file path: ${error.message}`
+    )
   }
-  const workspace = await loadActiveWorkspaceContext(assertedWorkspaceId)
-  if (!workspace) throw new OrchestrationError('not_found', 'File not found')
-  await authorizeWorkspaceOperation(principal, operation, workspace, {
-    delegation: { audience: WORKSPACE_FILES_DELEGATION_AUDIENCE, isWithinScope: () => true },
-  })
+  if (error instanceof OrchestrationError && error.code === 'validation') {
+    throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'validation', error.message)
+  }
+  throw error
 }
 
-/**
- * A path becomes an id first, so the canonical load and every authorization check run unchanged.
- * Use cases reach this only after {@link authorizeWorkspaceFileVfsPath} admitted the caller.
- */
+/** A path becomes an id first, so the canonical load and every authorization check run unchanged. */
 async function resolveFileId(input: WorkspaceFileContextInput): Promise<string> {
   if (!isWorkspaceFileVfsPath(input.fileId)) return input.fileId
-  if (input.assertedWorkspaceId === undefined) {
+  const workspaceId = input.assertedWorkspaceId
+  if (workspaceId === undefined) {
     throw new OrchestrationError('not_found', 'File not found')
   }
-  const file = await getWorkspaceFileByVfsPath(input.assertedWorkspaceId, input.fileId).catch(
-    (error: unknown) => {
-      throw invalidVfsPathError(input.fileId, error)
-    }
+  const file = await getWorkspaceFileByVfsPath(workspaceId, input.fileId).catch((error: unknown) =>
+    rethrowVfsLookupError(input.fileId, workspaceId, error)
   )
-  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  if (!file)
+    throw new UnresolvedWorkspaceFileVfsPathError(workspaceId, 'not_found', 'File not found')
   return file.id
 }
 
 export async function resolveActiveWorkspaceFileContext(
   input: WorkspaceFileContextInput
 ): Promise<ActiveWorkspaceFileContext> {
-  const canonical = requireWorkspaceFileContext(
-    await loadActiveWorkspaceFileContext(await resolveFileId(input), {
-      includeDeleted: input.includeDeleted,
-      includeChatUploads: input.includeChatUploads,
-      includeOwnedFiles: Boolean(input.ownedFilePrincipal),
-    }),
-    input.assertedWorkspaceId
-  )
+  const loaded = await loadActiveWorkspaceFileContext(await resolveFileId(input), {
+    includeDeleted: input.includeDeleted,
+    includeChatUploads: input.includeChatUploads,
+    includeOwnedFiles: Boolean(input.ownedFilePrincipal),
+  })
+  if (!loaded && isWorkspaceFileVfsPath(input.fileId) && input.assertedWorkspaceId) {
+    throw new UnresolvedWorkspaceFileVfsPathError(
+      input.assertedWorkspaceId,
+      'not_found',
+      'File not found'
+    )
+  }
+  const canonical = requireWorkspaceFileContext(loaded, input.assertedWorkspaceId)
   if (input.ownedFilePrincipal) await assertOwnedFileAccess(input.ownedFilePrincipal, canonical)
   return canonical
 }
