@@ -163,6 +163,7 @@ import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
   mapMicrosoftProfileToUser,
+  microsoftAccountSubjectPlugin,
 } from '@/lib/oauth/microsoft'
 import {
   assertMicrosoftDataverseOAuthLinkRequest,
@@ -1409,6 +1410,7 @@ export const auth = betterAuth({
           }),
         ]
       : []),
+    microsoftAccountSubjectPlugin(),
     admin(),
     oneTimeToken({
       /**
@@ -1483,13 +1485,10 @@ export const auth = betterAuth({
         }
       },
       /**
-       * Without this, /sign-in/email-otp auto-registers any unknown email —
-       * bypassing the signup gate entirely (no captcha, no /sign-up path).
-       * Gated by the same DISABLE_EMAIL_SIGNUP flag as the signup form (and by
-       * DISABLE_REGISTRATION, whose /sign-up path check has the same blind
-       * spot); when set, better-auth also silently skips sending OTPs to
-       * unknown emails (enumeration-safe) while existing users keep OTP
-       * sign-in.
+       * Keeps the plugin from creating users under the same DISABLE_EMAIL_SIGNUP and
+       * DISABLE_REGISTRATION flags as the signup form (the auth route also refuses
+       * `sign-in/email-otp`). When set, better-auth silently skips sending OTPs to
+       * unknown emails (enumeration-safe).
        */
       disableSignUp: isEmailSignupDisabled || isRegistrationDisabled,
       sendVerificationOnSignUp: false,
