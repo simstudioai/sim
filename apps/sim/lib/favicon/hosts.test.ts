@@ -40,6 +40,79 @@ describe('faviconHostCandidates', () => {
     ])
   })
 
+  it.each([
+    ['portal.awsapps.com', ['portal.awsapps.com', 'awsapps.com', 'aws.amazon.com']],
+    ['acme.coupahost.com', ['acme.coupahost.com', 'coupahost.com', 'coupa.com']],
+    [
+      'docs.acme.gitlab-dedicated.site',
+      [
+        'docs.acme.gitlab-dedicated.site',
+        'acme.gitlab-dedicated.site',
+        'gitlab-dedicated.site',
+        'gitlab.com',
+      ],
+    ],
+    [
+      'acme.gitlab-dedicated.com',
+      ['acme.gitlab-dedicated.com', 'gitlab-dedicated.com', 'gitlab.com'],
+    ],
+    ['acme.testrail.io', ['acme.testrail.io', 'testrail.io', 'testrail.com']],
+    [
+      'acme.databricksapps.mil',
+      ['acme.databricksapps.mil', 'databricksapps.mil', 'databricks.com'],
+    ],
+    [
+      'dbc-1.cloud.databricks.us',
+      ['dbc-1.cloud.databricks.us', 'cloud.databricks.us', 'databricks.us', 'databricks.com'],
+    ],
+  ])(
+    'ends a platform tenant %s at the platform, after its own host and parents',
+    (host, expected) => {
+      expect(faviconHostCandidates(host)).toEqual(expected)
+    }
+  )
+
+  it.each([
+    ['gitlab.acme-internal.io', 'gitlab.com'],
+    ['jira.acme-internal.io', 'atlassian.com'],
+    ['testrail.qa.acme-internal.io', 'testrail.com'],
+  ])('ends a self-hosted %s at its product', (host, product) => {
+    expect(faviconHostCandidates(host).at(-1)).toBe(product)
+  })
+
+  it.each([
+    'mygitlab.acme-internal.io',
+    'docs.gitlab.acme-internal.io',
+    'notawsapps.com',
+    'acme.herokuapp.com',
+    'gitlab.azurewebsites.net',
+    'gitlab.acme.vercel.app',
+  ])('adds no platform for %s, which only resembles one', (host) => {
+    const candidates = faviconHostCandidates(host)
+    expect(candidates).not.toContain('gitlab.com')
+    expect(candidates).not.toContain('aws.amazon.com')
+    expect(candidates.length).toBeGreaterThan(0)
+  })
+
+  it.each(['gitlab.corp', 'gitlab', 'jira.local'])(
+    'still offers nothing for internal %s',
+    (host) => {
+      expect(faviconHostCandidates(host)).toEqual([])
+    }
+  )
+
+  it('adds nothing for a platform whose parent the walk already reaches', () => {
+    expect(faviconHostCandidates('acme.my.salesforce.com')).toEqual([
+      'acme.my.salesforce.com',
+      'my.salesforce.com',
+      'salesforce.com',
+    ])
+  })
+
+  it('never repeats a host the walk already reaches', () => {
+    expect(faviconHostCandidates('gitlab.gitlab.com')).toEqual(['gitlab.gitlab.com', 'gitlab.com'])
+  })
+
   it('tries at most three parents', () => {
     expect(faviconHostCandidates('a.b.c.d.e.example.com')).toEqual([
       'a.b.c.d.e.example.com',
