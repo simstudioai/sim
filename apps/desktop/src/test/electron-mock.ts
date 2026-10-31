@@ -80,6 +80,7 @@ export const systemPreferences = {
 
 export const nativeTheme = {
   shouldUseDarkColors: false,
+  themeSource: 'system' as 'system' | 'light' | 'dark',
   on: vi.fn(),
 }
 

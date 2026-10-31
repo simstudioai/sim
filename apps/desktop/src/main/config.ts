@@ -74,6 +74,30 @@ export const APP_NAME_FOR_CHANNEL: Record<DesktopChannel, string> = {
   local: 'Sim Local',
 }
 
+/**
+ * Per-channel installer app IDs. On Windows this is also the AppUserModelID:
+ * the running process must claim the same ID the installer stamped on its
+ * Start-menu shortcut, or toasts lose their attribution and taskbar pins
+ * group under a separate icon.
+ */
+export const APP_ID_FOR_CHANNEL: Record<DesktopChannel, string> = {
+  prod: 'ai.sim.desktop',
+  staging: 'ai.sim.desktop.staging',
+  dev: 'ai.sim.desktop.dev',
+  local: 'ai.sim.desktop.local',
+}
+
+/**
+ * Per-channel app icons under `static/`, for runs with no packaged bundle or
+ * executable icon to inherit, and for the Windows tray.
+ */
+export const APP_ICON_FOR_CHANNEL: Record<DesktopChannel, string> = {
+  prod: 'dock-icon.png',
+  staging: 'dock-icon-staging.png',
+  dev: 'dock-icon-dev.png',
+  local: 'dock-icon-local.png',
+}
+
 export interface WindowBounds {
   x?: number
   y?: number

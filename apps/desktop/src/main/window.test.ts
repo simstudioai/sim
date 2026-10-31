@@ -3,11 +3,23 @@ import { createSecureWebPreferences } from '@/main/window-preferences'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, dialog, screen, systemPreferences, WebContentsView } from 'electron'
+import {
+  BrowserWindow,
+  dialog,
+  nativeTheme,
+  screen,
+  systemPreferences,
+  WebContentsView,
+} from 'electron'
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
-import { createMainWindow, resolvePermission, setupPermissionHandlers } from '@/main/window'
+import {
+  createMainWindow,
+  handleSecondInstance,
+  resolvePermission,
+  setupPermissionHandlers,
+} from '@/main/window'
 
 const APP = 'https://sim.ai'
 
@@ -142,7 +154,10 @@ describe('createMainWindow', () => {
     } as never)
   })
 
-  function createTestWindow(isCommittedRelaunchPending: () => boolean = () => false) {
+  function createTestWindow(
+    isCommittedRelaunchPending: () => boolean = () => false,
+    platform?: NodeJS.Platform
+  ) {
     const config = {
       filePath: '/tmp/settings.json',
       getOrigin: vi.fn(() => APP),
@@ -163,6 +178,7 @@ describe('createMainWindow', () => {
       isPackaged: false,
       onClosed: vi.fn(),
       isCommittedRelaunchPending,
+      platform,
     })
     const contentHandlers = new Map(
       vi.mocked(win.webContents.on).mock.calls as unknown as Array<
@@ -193,5 +209,70 @@ describe('createMainWindow', () => {
     vi.mocked(dialog.showMessageBoxSync).mockReturnValueOnce(1)
     handler?.(event as never)
     expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
+
+  describe('native theme on Windows', () => {
+    afterEach(() => {
+      nativeTheme.themeSource = 'system'
+    })
+
+    function reportTheme(platform: NodeJS.Platform) {
+      const { win } = createTestWindow(undefined, platform)
+      Object.defineProperty(win.webContents.mainFrame, 'url', { value: `${APP}/workspace` })
+      const handler = new Map(
+        vi.mocked(win.webContents.ipc.on).mock.calls as unknown as Array<
+          [string, (event: unknown, theme: unknown, preference?: unknown) => void]
+        >
+      ).get('shell:app-theme')
+      if (!handler) throw new Error('shell:app-theme handler not registered')
+      const event = { sender: win.webContents, senderFrame: win.webContents.mainFrame }
+      return (theme: string, preference?: string) => handler(event, theme, preference)
+    }
+
+    it('never pins the OS theme from a resolved theme alone', () => {
+      // Pinning would also pin prefers-color-scheme and freeze a Sim that follows the system.
+      reportTheme('win32')('light')
+      expect(nativeTheme.themeSource).toBe('system')
+    })
+
+    it('follows an explicit choice and releases it when Sim follows the system again', () => {
+      const report = reportTheme('win32')
+      report('dark', 'dark')
+      expect(nativeTheme.themeSource).toBe('dark')
+      report('dark', 'system')
+      expect(nativeTheme.themeSource).toBe('system')
+    })
+
+    it('leaves macOS appearance alone', () => {
+      reportTheme('darwin')('dark', 'dark')
+      expect(nativeTheme.themeSource).toBe('system')
+    })
+  })
+})
+
+describe('handleSecondInstance', () => {
+  function deps(platform: NodeJS.Platform) {
+    const existing = new BrowserWindow()
+    return {
+      existing,
+      ensureMainWindow: vi.fn(() => Promise.resolve(existing)),
+      createWindow: vi.fn(() => Promise.resolve(new BrowserWindow())),
+      showWindow: vi.fn(),
+      platform,
+    }
+  }
+
+  it('surfaces the running window on Windows instead of opening another', async () => {
+    const d = deps('win32')
+    await handleSecondInstance(d)
+    expect(d.createWindow).not.toHaveBeenCalled()
+    expect(d.showWindow).toHaveBeenCalledWith(d.existing)
+  })
+
+  it('still opens another window for an explicit extra launch on macOS', async () => {
+    const d = deps('darwin')
+    await handleSecondInstance(d)
+    expect(d.createWindow).toHaveBeenCalledOnce()
+    expect(d.showWindow).not.toHaveBeenCalled()
   })
 })
