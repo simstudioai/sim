@@ -1,9 +1,9 @@
 import {
-  createMockRedis,
   inputValidationMock,
   inputValidationMockFns,
-  redisConfigMockFns,
-} from '@sim/testing'
+} from '@sim/testing/mocks/input-validation.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveFavicon } from '@/lib/favicon/resolve.server'
 
