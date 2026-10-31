@@ -486,7 +486,11 @@ describe('stopping a tool call', () => {
     let foreground: number[] = [COMMAND_GROUP]
     const processGroups = {
       foreground: vi.fn(async (_shellPid: number) => foreground),
+      stillRunning: vi.fn(async (_shellPid: number, ids: number[]) =>
+        ids.filter((id) => foreground.includes(id))
+      ),
       signal: vi.fn((_ids: number[], _signal: NodeJS.Signals) => {}),
+      escalations: ['SIGTERM', 'SIGKILL'] as NodeJS.Signals[],
     }
     const terminal = new TerminalService({ loadCwd: () => '/tmp', processGroups })
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
@@ -521,6 +525,7 @@ describe('stopping a tool call', () => {
 
     expect(session.kill).toHaveBeenCalledWith('SIGINT')
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+    expect(processGroups.foreground).not.toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
   })
 
@@ -540,26 +545,58 @@ describe('stopping a tool call', () => {
     const { terminal, session, processGroups, setForeground } = cancellableService()
     session.setInterruptible(false)
     setForeground([101, 102])
-    processGroups.signal.mockImplementation(() => session.finishRun(1))
+    // One of a Windows pipeline's processes exits after the first escalation.
+    processGroups.signal.mockImplementationOnce(() => setForeground([102, 103]))
+    processGroups.signal.mockImplementationOnce(() => session.finishRun(1))
     const { running } = await startRun(terminal, session, 'call-pipeline')
-    // One of a Windows pipeline's processes exits on Ctrl-C and its pid is handed to a new one.
-    session.kill.mockImplementation(() => setForeground([102, 103]))
 
     await terminal.cancelTool('call-pipeline')
 
-    expect(processGroups.signal).toHaveBeenCalledWith([102], 'SIGTERM')
+    expect(processGroups.signal).toHaveBeenNthCalledWith(1, [101, 102], 'SIGTERM')
+    expect(processGroups.signal).toHaveBeenNthCalledWith(2, [102], 'SIGKILL')
+    expect(processGroups.foreground).toHaveBeenCalledTimes(1)
     await running
   })
 
   it('never signals a different command that took the foreground meanwhile', async () => {
     const { terminal, session, processGroups, setForeground } = cancellableService()
     session.setInterruptible(false)
+    processGroups.signal.mockImplementation(() => setForeground([9999]))
     const { running } = await startRun(terminal, session, 'call-replaced')
-    session.kill.mockImplementation(() => setForeground([9999]))
 
     await terminal.cancelTool('call-replaced')
 
+    expect(processGroups.signal).toHaveBeenCalledTimes(1)
+    expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
+    session.finishRun(0)
+    await running
+  })
+
+  it('signals nothing when the command ends while its processes are read', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setInterruptible(false)
+    processGroups.foreground.mockImplementation(async () => {
+      session.finishRun(0)
+      return [COMMAND_GROUP]
+    })
+    const { running } = await startRun(terminal, session, 'call-ended')
+
+    await terminal.cancelTool('call-ended')
+
     expect(processGroups.signal).not.toHaveBeenCalled()
+    await running
+  })
+
+  it('stops escalating after the last signal the platform has', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setInterruptible(false)
+    const { running } = await startRun(terminal, session, 'call-windows')
+    processGroups.escalations = ['SIGTERM']
+
+    await terminal.cancelTool('call-windows')
+
+    expect(processGroups.signal).toHaveBeenCalledTimes(1)
+    expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
     session.finishRun(0)
     await running
   })

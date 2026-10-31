@@ -957,19 +957,22 @@ export class TerminalService {
 
   /**
    * Interrupts the command a run started. Escalation is bound to that command's own processes,
-   * read while it still holds the foreground, and each signal goes only to those of them that still
-   * hold it while the same call does, so a command the user starts meanwhile is never hit.
+   * read only once Ctrl-C has failed (on Windows the lookup starts PowerShell) and while it still
+   * holds the foreground; each signal goes only to those of them still running while the same call
+   * does, so a command the user starts meanwhile is never hit.
    */
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
     if (session.agentCommandToolCallId !== toolCallId) return
-    const groups = this.options.processGroups ?? osProcessGroups(process.platform)
-    const command = await groups.foreground(session.pid)
-    if (session.agentCommandToolCallId !== toolCallId) return
+    const groups = this.options.processGroups ?? osProcessGroups
     session.kill('SIGINT')
-    for (const escalation of ['SIGTERM', 'SIGKILL'] as const) {
+    let command: number[] | undefined
+    for (const escalation of groups.escalations) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
-      const foreground = await groups.foreground(session.pid)
-      const remaining = command.filter((id) => foreground.includes(id))
+      const remaining =
+        command === undefined
+          ? await groups.foreground(session.pid)
+          : await groups.stillRunning(session.pid, command)
+      command ??= remaining
       if (remaining.length === 0) return
       if (session.agentCommandToolCallId !== toolCallId) return
       logger.info('Stopped command ignored the previous signal; escalating', {

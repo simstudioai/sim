@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process'
 import { win32 } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { windowsPowerShellPath, windowsSystem32 } from '@/main/terminal/shell-path'
 
 const logger = createLogger('DesktopTerminalProcessGroup')
 
@@ -25,8 +26,12 @@ export interface TerminalProcessGroups {
    * lookup failed.
    */
   foreground(shellPid: number): Promise<number[]>
+  /** Those of `ids`, from an earlier {@link foreground}, that still run the foreground command. */
+  stillRunning(shellPid: number, ids: number[]): Promise<number[]>
   /** Sends `signal` to each id {@link foreground} returned. */
   signal(ids: number[], signal: NodeJS.Signals): void
+  /** The signals a command that ignored Ctrl-C is sent, in order, until one ends it. */
+  escalations: readonly NodeJS.Signals[]
 }
 
 const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
@@ -34,26 +39,32 @@ const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
     const pgid = await readForegroundProcessGroup(shellPid)
     return pgid === null ? [] : [pgid]
   },
+  stillRunning: async (shellPid, pgids) => {
+    const foreground = await POSIX_PROCESS_GROUPS.foreground(shellPid)
+    return pgids.filter((pgid) => foreground.includes(pgid))
+  },
   signal: (pgids, signal) => {
     for (const pgid of pgids) signalProcessGroup(pgid, signal)
   },
+  escalations: ['SIGTERM', 'SIGKILL'],
 }
 
 /**
- * Every escalation is a forced tree kill: a Windows console program cannot be asked to terminate,
- * and Ctrl-C, the one request it can trap, has already been sent.
+ * The one escalation is a forced tree kill: a Windows console program cannot be asked to
+ * terminate, and Ctrl-C, the one request it can trap, has already been sent.
  */
 const WINDOWS_PROCESS_GROUPS: TerminalProcessGroups = {
   foreground: readChildProcesses,
+  stillRunning: async (_shellPid, pids) => pids.filter(isRunning),
   signal: (pids) => {
     for (const pid of pids) killProcessTree(pid)
   },
+  escalations: ['SIGTERM'],
 }
 
-/** The operating system's way of reading and stopping a terminal's foreground command. */
-export function osProcessGroups(platform: NodeJS.Platform): TerminalProcessGroups {
-  return platform === 'win32' ? WINDOWS_PROCESS_GROUPS : POSIX_PROCESS_GROUPS
-}
+/** This operating system's way of reading and stopping a terminal's foreground command. */
+export const osProcessGroups: TerminalProcessGroups =
+  process.platform === 'win32' ? WINDOWS_PROCESS_GROUPS : POSIX_PROCESS_GROUPS
 
 /**
  * The tty's foreground process group, read from `ps`. Null when it cannot be read, or when the
@@ -77,16 +88,11 @@ function signalProcessGroup(pgid: number, signal: NodeJS.Signals): void {
   }
 }
 
-/** `%SystemRoot%\System32`, named in full so a program on PATH cannot stand in for the system's. */
-function windowsSystem32(): string {
-  return win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32')
-}
-
 /** The shell's direct children, from the process table; each one's tree is what it runs. */
 async function readChildProcesses(shellPid: number): Promise<number[]> {
   if (!isProcessId(shellPid)) return []
   const stdout = await readOutput(
-    win32.join(windowsSystem32(), 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    windowsPowerShellPath(process.env),
     [
       '-NoLogo',
       '-NoProfile',
@@ -103,7 +109,7 @@ async function readChildProcesses(shellPid: number): Promise<number[]> {
 }
 
 function killProcessTree(pid: number): void {
-  const taskkill = win32.join(windowsSystem32(), 'taskkill.exe')
+  const taskkill = win32.join(windowsSystem32(process.env), 'taskkill.exe')
   const child = spawn(taskkill, ['/T', '/F', '/PID', String(pid)], {
     stdio: 'ignore',
     windowsHide: true,
@@ -111,6 +117,16 @@ function killProcessTree(pid: number): void {
   child.on('error', (error) => {
     logger.warn('Could not end a terminal process tree', { error: getErrorMessage(error) })
   })
+}
+
+/** Whether `pid` still names a process; signal 0 tests for one without sending anything. */
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
 }
 
 function isProcessId(value: number): boolean {

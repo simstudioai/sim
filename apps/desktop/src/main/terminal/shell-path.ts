@@ -33,19 +33,22 @@ function configuredWindowsShell({ env, exists }: ShellPathContext): string | nul
   return shell && WINDOWS_ABSOLUTE_PATH.test(shell) && exists(shell) ? shell : null
 }
 
+/** `%SystemRoot%\System32`, named in full so a program on PATH cannot stand in for the system's. */
+export function windowsSystem32(env: NodeJS.ProcessEnv): string {
+  return win32.join(windowsEnv(env, 'SystemRoot') || 'C:\\Windows', 'System32')
+}
+
+/** The Windows PowerShell 5.1 every Windows ships. */
+export function windowsPowerShellPath(env: NodeJS.ProcessEnv): string {
+  return win32.join(windowsSystem32(env), 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+}
+
 function defaultWindowsShell(context: ShellPathContext): string {
-  const systemRoot = windowsEnv(context.env, 'SystemRoot') || 'C:\\Windows'
-  const windowsPowerShell = win32.join(
-    systemRoot,
-    'System32',
-    'WindowsPowerShell',
-    'v1.0',
-    'powershell.exe'
-  )
+  const windowsPowerShell = windowsPowerShellPath(context.env)
   return (
     findOnPath('pwsh.exe', context) ??
     (context.exists(windowsPowerShell) ? windowsPowerShell : null) ??
-    (windowsEnv(context.env, 'ComSpec') || win32.join(systemRoot, 'System32', 'cmd.exe'))
+    (windowsEnv(context.env, 'ComSpec') || win32.join(windowsSystem32(context.env), 'cmd.exe'))
   )
 }
 
