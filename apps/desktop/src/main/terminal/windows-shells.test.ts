@@ -29,7 +29,8 @@ const WINDOWS_POWERSHELL = join(
 interface ShellUnderTest {
   name: string
   path: string
-  succeed: string
+  /** Prints `sim-ok-<n>`. */
+  succeed(n: number): string
   fail: string
   /** A cmdlet that fails, which sets no exit code of its own. */
   failingCmdlet?: string
@@ -41,7 +42,7 @@ interface ShellUnderTest {
 }
 
 const POWERSHELL: Omit<ShellUnderTest, 'name' | 'path'> = {
-  succeed: 'Write-Output sim-ok',
+  succeed: (n) => `Write-Output sim-ok-${n}`,
   fail: 'cmd /c exit 3',
   failingCmdlet: 'Get-Item -LiteralPath C:\\sim-does-not-exist',
   quote: (path) => `'${path}'`,
@@ -55,7 +56,7 @@ const SHELLS: ShellUnderTest[] = [
   {
     name: 'Git Bash',
     path: 'C:\\Program Files\\Git\\bin\\bash.exe',
-    succeed: 'echo sim-ok',
+    succeed: (n) => `echo sim-ok-${n}`,
     fail: "sh -c 'exit 3'",
     quote: (path) => `'${path.replaceAll('\\', '/')}'`,
     cd: 'cd',
@@ -69,6 +70,9 @@ const STUBBORN_SCRIPT = `param($PidFile)
 Set-Content -LiteralPath $PidFile -Value $PID
 Start-Sleep -Seconds 120
 `
+
+/** Enough runs that output lost to a reordering ConPTY (a quarter of runs or more) shows. */
+const OUTPUT_RUNS = 12
 
 /** A shell's first start on a cold CI runner, then the Stop escalation, take a while. */
 const SHELL_TEST_TIMEOUT_MS = 90_000
@@ -115,12 +119,16 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
     const installed = existsSync(shell.path)
 
     it.runIf(installed)(
-      "reports a successful command's output and exit code",
+      "reports each successful command's output and exit code",
       async () => {
-        const result = await run(open(shell), 'call-ok', shell.succeed)
+        const terminal = open(shell)
+        // Repeated: a ConPTY that reorders output past the finish marker loses it only some runs.
+        for (let n = 0; n < OUTPUT_RUNS; n++) {
+          const result = await run(terminal, `call-ok-${n}`, shell.succeed(n))
 
-        expect(result).toMatchObject({ status: 'completed', exitCode: 0 })
-        expect(result.output).toContain('sim-ok')
+          expect(result).toMatchObject({ status: 'completed', exitCode: 0 })
+          expect(result.output).toContain(`sim-ok-${n}`)
+        }
       },
       SHELL_TEST_TIMEOUT_MS
     )
@@ -190,7 +198,7 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
         await expect(terminal.cancelTool('call-stubborn')).resolves.toBe(true)
         expect(await running).toMatchObject({ status: 'completed' })
         expect(isAlive(pid)).toBe(false)
-        expect(await run(terminal, 'call-after', shell.succeed)).toMatchObject({ exitCode: 0 })
+        expect(await run(terminal, 'call-after', shell.succeed(0))).toMatchObject({ exitCode: 0 })
       },
       SHELL_TEST_TIMEOUT_MS
     )

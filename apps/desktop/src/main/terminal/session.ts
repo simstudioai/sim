@@ -422,6 +422,9 @@ export class TerminalSession {
       rows: options.rows,
       cwd: options.cwd,
       env: shellEnv,
+      // The ConPTY built into Windows can deliver an OSC marker ahead of the text written before
+      // it, so a command's output lands after its finish marker; the bundled build keeps order.
+      ...(platform === 'win32' ? { useConptyDll: true } : {}),
     })
 
     logger.info('Started terminal session', { shell: shellPath, instrumented: shell !== null })
