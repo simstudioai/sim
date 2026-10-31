@@ -151,7 +151,7 @@ async function authenticateClient(
     return { success: true, value: client }
   }
 
-  /** Better Auth 1.6 marked public clients with `public`; 1.7 only registers them with `none`. */
+  /** A client flagged `public` never authenticates with a secret, whatever method it carries. */
   if (client.public || !client.clientSecret || !credentials.clientSecret) {
     return protocolError('invalid_client', 'Client authentication failed.')
   }

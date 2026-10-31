@@ -88,12 +88,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       delegatedForm.delete('resource')
       const response = await withOAuthResourceIssuance(resource, () =>
         withOAuthProviderIssuanceCompensation(() =>
-          betterAuthPOST(
-            buildDelegatedOAuthRequest(request, {
-              ...parsed.value,
-              rawBody: delegatedForm.toString(),
-            })
-          )
+          betterAuthPOST(buildDelegatedOAuthRequest(request, delegatedForm.toString()))
         )
       )
       return normalizeDelegatedOAuthTokenResponse(response, parsed.value.credentials.method)
