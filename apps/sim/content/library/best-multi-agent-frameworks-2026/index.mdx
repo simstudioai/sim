@@ -219,17 +219,17 @@ A visual workspace is not inherently better than an SDK; code-first frameworks f
 
 **Production teams should evaluate the latest stable release documented by each active project, record the exact package version, and pin it rather than relying on an unbounded latest tag.** The entries below are an October 2026 snapshot; AutoGen's final listed release is retained only for teams maintaining an existing system during migration.
 
-| Framework or platform | Release recorded as of October 2026 |
+| Framework or platform | Current stable release and date |
 |---|---|
-| Sim | [v0.9.14](https://github.com/simstudioai/sim/releases/tag/v0.9.14) |
-| LangGraph | [langgraph 1.2.18](https://github.com/langchain-ai/langgraph/releases/tag/1.2.18) |
-| Microsoft Agent Framework | [.NET 1.23.0](https://github.com/microsoft/agent-framework/releases/tag/dotnet-1.23.0); [Python 1.24.0](https://github.com/microsoft/agent-framework/releases/tag/python-1.24.0) |
-| Microsoft Semantic Kernel | [.NET 1.80.1](https://github.com/microsoft/semantic-kernel/releases/tag/dotnet-1.80.1); [Python 1.45.0](https://github.com/microsoft/semantic-kernel/releases/tag/python-1.45.0) |
-| n8n | [2.42.3 stable](https://github.com/n8n-io/n8n/releases/tag/stable) |
-| Google Agent Development Kit | [Python 2.11.0](https://github.com/google/adk-python/releases/tag/v2.11.0); [JavaScript 2.2.0](https://github.com/google/adk-js/releases/tag/main-v2.2.0); Go [1.8.0](https://github.com/google/adk-go/releases/tag/v1.8.0) and [2.1.0](https://github.com/google/adk-go/releases/tag/v2.1.0) maintained release lines |
-| OpenAI Agents SDK | [Python 0.24.0](https://github.com/openai/openai-agents-python/releases); [JavaScript/TypeScript 0.19.0](https://github.com/openai/openai-agents-js/releases/tag/%40openai/agents%400.19.0) |
-| CrewAI | [1.15.23](https://github.com/crewAIInc/crewAI/releases/tag/1.15.23) |
-| Microsoft AutoGen | [Python 0.7.5](https://github.com/microsoft/autogen/releases/tag/python-v0.7.5) |
+| Sim | [v0.9.14, October 5, 2026](https://github.com/simstudioai/sim/releases/tag/v0.9.14) |
+| LangGraph | [langgraph 1.2.18, October 26, 2026](https://github.com/langchain-ai/langgraph/releases/tag/1.2.18) |
+| Microsoft Agent Framework | [.NET 1.23.0, October 1, 2026](https://github.com/microsoft/agent-framework/releases/tag/dotnet-1.23.0); [Python 1.24.0, October 30, 2026](https://github.com/microsoft/agent-framework/releases/tag/python-1.24.0) |
+| Microsoft Semantic Kernel | [.NET 1.80.1, September 3, 2026](https://github.com/microsoft/semantic-kernel/releases/tag/dotnet-1.80.1); [Python 1.45.0, October 6, 2026](https://github.com/microsoft/semantic-kernel/releases/tag/python-1.45.0) |
+| n8n | [2.42.3 stable, October 5, 2026](https://github.com/n8n-io/n8n/releases/tag/stable) |
+| Google Agent Development Kit | [Python 2.11.0, October 2, 2026](https://github.com/google/adk-python/releases/tag/v2.11.0); [JavaScript 2.2.0, September 30, 2026](https://github.com/google/adk-js/releases/tag/main-v2.2.0); Go [1.8.0, October 5, 2026](https://github.com/google/adk-go/releases/tag/v1.8.0) and [2.1.0, July 23, 2026](https://github.com/google/adk-go/releases/tag/v2.1.0) maintained release lines |
+| OpenAI Agents SDK | [Python 0.24.0, October 15, 2026](https://github.com/openai/openai-agents-python/releases); [JavaScript/TypeScript 0.19.0, October 5, 2026](https://github.com/openai/openai-agents-js/releases/tag/%40openai/agents%400.19.0) |
+| CrewAI | [1.15.23, September 28, 2026](https://github.com/crewAIInc/crewAI/releases/tag/1.15.23) |
+| Microsoft AutoGen | [Python 0.7.5, September 30, 2025](https://github.com/microsoft/autogen/releases/tag/python-v0.7.5) |
 
 A production record should also capture the supported runtime, migration notes, security advisories, persistence compatibility, and whether state written by the pinned release can survive an upgrade.
 
@@ -243,7 +243,9 @@ A production record should also capture the supported runtime, migration notes, 
 
 [LangGraph is the better fit](https://docs.langchain.com/oss/python/langgraph/overview) when a Python team needs custom graph state and runtime behavior. [OpenAI Agents SDK is a strong fit](https://openai.github.io/openai-agents-python/) when a lightweight code-first SDK is enough. [CrewAI is clearer](https://docs.crewai.com/en/introduction) for role-based agent teams. [Microsoft Agent Framework is the current Microsoft choice](https://learn.microsoft.com/en-us/agent-framework/overview/). [n8n is strongest](https://docs.n8n.io/) when the central problem is SaaS automation and integration breadth rather than agent-native orchestration.
 
-## What is Sim best for?
+## 1. Sim
+
+### What is Sim best for?
 
 **Sim fits teams that want agent reasoning, deterministic controls, and deployment in one visual workspace.**
 
@@ -287,7 +289,9 @@ According to the [Sim cost documentation](https://docs.sim.ai/platform/costs), o
 
 **Sim hosted usage is credit-metered, while BYOK avoids Sim's model usage charge because the model provider bills the customer directly.** The self-hosting documentation covers Ollama, vLLM, LM Studio, and LiteLLM connections, which do not require Enterprise.
 
-## What is LangGraph best for?
+## 2. LangGraph
+
+### What is LangGraph best for?
 
 **LangGraph is the code-first option for low-level stateful graph control.**
 
@@ -328,7 +332,9 @@ The open-source LangGraph framework uses the [MIT License](https://github.com/la
 
 As of October 2026, [LangSmith Plus includes one free small serverless deployment](https://www.langchain.com/pricing), and additional deployment usage is metered. The [LangSmith deployment documentation](https://docs.langchain.com/langsmith/deployment) states that managed cloud deployment requires Plus or above. The MIT-licensed LangGraph framework itself carries no license fee.
 
-## What is OpenAI Agents SDK best for?
+## 3. OpenAI Agents SDK
+
+### What is OpenAI Agents SDK best for?
 
 **OpenAI Agents SDK is the third detailed profile and the lightweight-SDK option in this comparison.**
 
@@ -362,7 +368,9 @@ The official project [supports Python](https://openai.github.io/openai-agents-py
 
 **As of October 2026, the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) is distributed under the MIT License without a separate framework fee.** Model API usage and infrastructure costs are separate from the SDK. Teams should price the model providers, hosting, storage, tracing retention, and other services used by their implementation rather than treating the SDK itself as a hosted plan.
 
-## What is CrewAI best for?
+## 4. CrewAI
+
+### What is CrewAI best for?
 
 **CrewAI is the fourth detailed profile and the role-based option in this comparison.**
 
@@ -401,7 +409,9 @@ CrewAI's open-source framework uses the [MIT License](https://github.com/crewAII
 
 As of October 2026, [CrewAI does not publish a self-service mid-tier](https://crewai.com/pricing) on its official pricing page. The open-source MIT-licensed framework has no software license fee, while model usage, infrastructure, and any commercial platform agreement remain separate costs.
 
-## What is Microsoft Agent Framework best for?
+## 5. Microsoft Agent Framework
+
+### What is Microsoft Agent Framework best for?
 
 **Microsoft Agent Framework is the current Microsoft-backed option for new production agent systems.**
 
@@ -435,7 +445,9 @@ The framework [supports Python, .NET, and Go development](https://learn.microsof
 
 **As of October 2026, [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) is distributed under the MIT License without a separate framework fee.** Model providers, Microsoft cloud services, infrastructure, and other dependencies are billed separately according to the services selected by the implementation. Teams should not treat the absence of a framework license fee as the absence of production operating costs.
 
-## What is AutoGen best for?
+## 6. AutoGen
+
+### What is AutoGen best for?
 
 **AutoGen is the Microsoft comparison for existing systems and migration planning.**
 
@@ -469,7 +481,9 @@ That status changes AutoGen's production fit. A team with a working AutoGen appl
 
 **As of October 2026, AutoGen's Python framework packages use the [MIT License](https://github.com/microsoft/autogen/blob/HEAD/LICENSE-CODE) without a separate framework fee.** The `autogen-agentchat` and `autogen-ext` package manifests for version 0.7.5 identify that code license directly. Model usage, deployment infrastructure, storage, and observability services remain separate operating costs.
 
-## What is n8n best for?
+## 7. n8n
+
+### What is n8n best for?
 
 **n8n is the incumbent workflow-automation comparison for integration-led production work.**
 
@@ -529,7 +543,9 @@ The team remains responsible for deployment, security, observability, and the co
 
 The MIT-licensed SDK has no separate framework fee. Model, infrastructure, and Microsoft cloud service costs depend on the implementation.
 
-## What is Google Agent Development Kit best for?
+## When should a team choose Google Agent Development Kit?
+
+### What is Google Agent Development Kit best for?
 
 ### Best for
 
