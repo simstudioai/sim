@@ -16,7 +16,7 @@ const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 
 /**
  * Real PostgreSQL proof, on a private database provisioned through the same command as the shared
- * fixture (migrate or push): migration 0448 installs the provisioning paths' function, chunk
+ * fixture (migrate or push): migration 0449 installs the provisioning paths' function, chunk
  * writes in Search knowledge bases project nothing and delete stale rows, ordinary bases project
  * every width as before with their source ACL, and the purge deletes only Search candidate rows,
  * reruns as a no-op and stops when a base stops being Search-marked.
@@ -27,7 +27,7 @@ describe('Search candidate retirement in PostgreSQL', () => {
   const fixtureUrl = new URL(databaseUrl)
   fixtureUrl.pathname = `/${database}`
   let sql: Sql
-  /** The function and triggers the provisioning command installed, before migration 0448 replays. */
+  /** The function and triggers the provisioning command installed, before migration 0449 replays. */
   let provisioned: Definitions
 
   interface Definitions {
@@ -91,7 +91,7 @@ describe('Search candidate retirement in PostgreSQL', () => {
     ;[provisioned] = await definitions()
     // Every behaviour below runs on the function the versioned migration installs, replayed twice.
     const migration = await readFile(
-      new URL('../migrations/0448_retire_search_projection_writes.sql', import.meta.url),
+      new URL('../migrations/0449_retire_search_projection_writes.sql', import.meta.url),
       'utf8'
     )
     for (let replay = 0; replay < 2; replay++) {

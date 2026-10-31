@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest'
 const normalized = (text: string) => text.replace(/\s+/g, ' ').trim()
 
 describe('sync_embedding_search installers', () => {
-  it('keeps migration 0448 and the provisioning paths on the same function', () => {
+  it('keeps migration 0449 and the provisioning paths on the same function', () => {
     const migration = readFileSync(
-      new URL('./migrations/0448_retire_search_projection_writes.sql', import.meta.url),
+      new URL('./migrations/0449_retire_search_projection_writes.sql', import.meta.url),
       'utf8'
     )
     const statement = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION'))

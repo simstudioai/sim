@@ -101,7 +101,7 @@ function searchVectorShortened(model: string, prefix: string): string {
 
 /**
  * The `embedding_search_sync` trigger function: projects an ordinary-KB chunk and deletes the row
- * of a Search-KB chunk. Migration 0448 installs this exact body; fresh databases and pushes install
+ * of a Search-KB chunk. Migration 0449 installs this exact body; fresh databases and pushes install
  * it through `0016_backfill_search_vectors`.
  *
  * contract-pending(after Search KB candidate rows are purged and Search KBs are unwritable): drop
