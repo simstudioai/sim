@@ -202,8 +202,10 @@ interface SearchProjectionPurgeResult {
 
 /**
  * Deletes one batch of a Search knowledge base's candidate rows. The rows are chosen through
- * `embedding_search_kb_idx` and deleted by tuple id, re-checking the knowledge base so a row
- * moved or reassigned since the scan is left alone. Deletes nothing when the knowledge base is gone.
+ * `embedding_search_kb_idx` and locked by one statement, then deleted by tuple id in the next.
+ * The lock returns a concurrently updated row at its current tuple id and keeps it there, and the
+ * delete's later snapshot sees that version, so an empty batch means no row is left. The knowledge
+ * base re-check leaves a reassigned row alone. Deletes nothing when the knowledge base is gone.
  * Refuses when this backend no longer holds the purge lock: the client reconnects silently after a
  * dropped connection, and the new backend does not inherit the old one's session lock.
  */
@@ -224,13 +226,16 @@ async function purgeBatch(sql: Sql, knowledgeBaseId: string, batchSize: number):
         'A knowledge base is no longer Search-marked; stopped before deleting its candidate rows'
       )
     }
+    const [chosen] = await tx<{ ctids: string | null }[]>`
+      SELECT array_agg(ctid)::text AS ctids FROM (
+        SELECT ctid FROM embedding_search WHERE knowledge_base_id = ${knowledgeBaseId}
+        LIMIT ${batchSize} FOR UPDATE
+      ) batch`
+    if (!chosen.ctids) return 0
     const [row] = await tx<{ deleted: number }[]>`
       WITH deleted AS (
         DELETE FROM embedding_search
-        WHERE ctid = ANY (ARRAY(
-          SELECT ctid FROM embedding_search WHERE knowledge_base_id = ${knowledgeBaseId}
-          LIMIT ${batchSize}
-        )) AND knowledge_base_id = ${knowledgeBaseId}
+        WHERE ctid = ANY (${chosen.ctids}::tid[]) AND knowledge_base_id = ${knowledgeBaseId}
         RETURNING 1
       )
       SELECT count(*)::int AS deleted FROM deleted`

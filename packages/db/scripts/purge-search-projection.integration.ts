@@ -8,6 +8,7 @@ import {
   SearchProjectionPurgeError,
 } from '@sim/db/scripts/purge-search-projection'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -304,6 +305,31 @@ describe('Search candidate retirement in PostgreSQL', () => {
       })
     ).rejects.toBeInstanceOf(SearchProjectionPurgeError)
     expect(await candidateCount('search')).toBe(3)
+  })
+
+  it('deletes rows a concurrent update moved after the batch chose them', async () => {
+    await seedBase({ id: 'search', width: 1536, model: 'text-embedding-3-small', chunks: 3 }, true)
+    const writer = postgres(fixtureUrl.toString(), { max: 1, onnotice: () => undefined })
+    try {
+      let purge: ReturnType<typeof purgeSearchProjection> | undefined
+      await writer.begin(async (tx) => {
+        // Every candidate row gets a new tuple version, committed only once the purge waits on it.
+        await tx`UPDATE embedding_search SET enabled = enabled WHERE knowledge_base_id = 'search'`
+        purge = purgeSearchProjection(sql, { batchSize: 10, pauseMs: 0 })
+        for (;;) {
+          const [{ waiting }] = await tx<{ waiting: boolean }[]>`
+            SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+              WHERE datname = current_database() AND wait_event_type = 'Lock'
+                AND pid <> pg_backend_pid()) AS waiting`
+          if (waiting) break
+          await sleep(20)
+        }
+      })
+      expect(await purge).toEqual({ deleted: 3, batches: 1, remaining: false })
+    } finally {
+      await writer.end()
+    }
+    expect(await candidateCount('search')).toBe(0)
   })
 
   it('stops when its connection is replaced, since the new session lacks the purge lock', async () => {
