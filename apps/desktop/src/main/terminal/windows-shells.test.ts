@@ -9,7 +9,6 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TerminalRunResult } from '@sim/terminal-protocol'
-import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
 
@@ -106,7 +105,6 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
   afterEach(() => {
     service?.dispose()
     service = null
-    vi.unstubAllEnvs()
   })
 
   function open(shell: ShellUnderTest, cwd = scratchDirectory()): TerminalService {
@@ -192,8 +190,6 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
           interval: 100,
         })
         const pid = Number.parseInt(readFileSync(pidFile, 'utf8'), 10)
-        // Ctrl-C is already a keystroke once the pid is written; this lets Start-Sleep begin.
-        await sleep(500)
 
         await expect(terminal.cancelTool('call-stubborn')).resolves.toBe(true)
         expect(await running).toMatchObject({ status: 'completed' })

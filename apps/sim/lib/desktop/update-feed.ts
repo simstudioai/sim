@@ -190,7 +190,7 @@ export const DESKTOP_RELEASES_PAGE_SIZE = 100
  */
 export const MAX_DESKTOP_RELEASE_PAGES = 5
 
-export interface DesktopReleaseAssets {
+interface DesktopReleaseAssets {
   manifest: string
   installer: { name: string; browser_download_url: string }
 }
