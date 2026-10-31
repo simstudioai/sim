@@ -2343,18 +2343,37 @@ async function getWorkspaceFileByExactReference(
 }
 
 /**
- * The live workspace file at an exact `files/…` VFS path, or null. Unlike
- * {@link resolveWorkspaceFileReference} there is no name or listing fallback, so a mutation
- * addressed by path lands only on the one file it names. Throws `VfsPathError` if malformed.
+ * The live workspace file whose canonical `files/…` path — as listings print it — is `vfsPath`,
+ * or null. Unlike {@link findWorkspaceFileRecord} there is no virtual `/content` or `/meta.json`
+ * suffix and no leaf-name fallback, so a mutation addressed by path lands only on the file it
+ * names. Two names that display alike are ambiguous and refused. Throws `VfsPathError` if
+ * malformed.
  */
 export async function getWorkspaceFileByVfsPath(
   workspaceId: string,
   vfsPath: string
 ): Promise<WorkspaceFileRecord | null> {
-  return getWorkspaceFileByExactReference(
-    workspaceId,
-    normalizeWorkspaceFileReferenceSegments(vfsPath)
+  const segments = decodeVfsReferenceSegments(vfsPath.slice('files/'.length))
+  const leaf = segments.at(-1)
+  if (leaf === undefined) return null
+  const pathKey = segments.map(normalizeVfsSegment).join('/')
+  const candidates = await listWorkspaceFileCandidates(workspaceId, {
+    ids: [],
+    leafNames: [normalizeDisplaySegment(leaf)],
+  })
+  const matches = candidates.filter(
+    (file) =>
+      canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }).slice(
+        'files/'.length
+      ) === pathKey
   )
+  if (matches.length > 1) {
+    throw new OrchestrationError(
+      'validation',
+      `"${vfsPath}" names more than one file whose names display alike; pass the file id instead`
+    )
+  }
+  return matches[0] ?? null
 }
 
 /**

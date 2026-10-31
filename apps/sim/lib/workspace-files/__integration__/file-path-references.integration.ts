@@ -11,6 +11,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { readWorkspaceFileMetadataWithVersion } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
@@ -69,6 +70,11 @@ describe('single-file operations addressed by VFS path', () => {
     foreignReport: '',
     chatUpload: '',
     archived: '',
+    docsContent: '',
+    docsOnly: '',
+    spaced: '',
+    alikeSpaced: '',
+    alikeSingle: '',
   }
 
   beforeAll(async () => {
@@ -125,6 +131,11 @@ describe('single-file operations addressed by VFS path', () => {
     })
     ids.chatUpload = await insertFile({ name: 'notes.txt', context: 'mothership' })
     ids.archived = await insertFile({ name: 'old.csv', deleted: true })
+    ids.docsContent = await insertFile({ name: 'content', folderId: folders.docs })
+    ids.docsOnly = await insertFile({ name: 'only-here.csv', folderId: folders.docs })
+    ids.spaced = await insertFile({ name: 'my  notes.csv' })
+    ids.alikeSpaced = await insertFile({ name: 'a  b.csv', folderId: folders.media })
+    ids.alikeSingle = await insertFile({ name: 'a b.csv', folderId: folders.media })
   })
 
   afterAll(async () => {
@@ -139,6 +150,33 @@ describe('single-file operations addressed by VFS path', () => {
       code: 'not_found',
     })
     await expect(describeFile('files/Docs')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(describeFile('files/only-here.csv')).rejects.toMatchObject({
+      code: 'not_found',
+    })
+  })
+
+  it('treats a trailing `content` or `meta.json` as a name, never as the parent file', async () => {
+    expect((await describeFile('files/Docs/content')).file.id).toBe(ids.docsContent)
+    await expect(deleteFile('files/report.csv/content')).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    await expect(deleteFile('files/report.csv/meta.json')).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    expect((await row(ids.rootReport))?.deletedAt).toBeNull()
+  })
+
+  it('resolves the path a listing prints for a name it displays normalized', async () => {
+    const listed = workspaceFileVfsPath((await describeFile(ids.spaced)).file)
+    expect((await describeFile(listed)).file.id).toBe(ids.spaced)
+  })
+
+  it('refuses a path two display-alike names share instead of picking one', async () => {
+    const listed = workspaceFileVfsPath((await describeFile(ids.alikeSingle)).file)
+    await expect(deleteFile(listed)).rejects.toMatchObject({ code: 'validation' })
+    for (const id of [ids.alikeSpaced, ids.alikeSingle]) {
+      expect((await row(id))?.deletedAt).toBeNull()
+    }
   })
 
   it('renames and deletes only the file the path names', async () => {
