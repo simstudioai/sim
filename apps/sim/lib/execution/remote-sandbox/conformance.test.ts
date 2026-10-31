@@ -1261,6 +1261,18 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     })
   })
 
+  it("leads a failed command's error with its exit code and the signal it stands for", async () => {
+    const warning = 'Warning: You are sending unauthenticated requests to the HF Hub.'
+    stubShellCommand(provider, provider === 'daytona' ? warning : '', warning, 137)
+
+    const res = await executeShellInSandbox({ code: 'python train.py', envs: {}, timeoutMs: 1000 })
+
+    expect(res.error).toBe(
+      `Process exited with code 137 (the exit code of SIGKILL, usually out of memory): ${warning}`
+    )
+    expect(res.stdout).toContain(warning)
+  })
+
   it('terminates shell execution when streamed process output exceeds the byte budget', async () => {
     const oversized = 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1)
     if (provider === 'e2b') {

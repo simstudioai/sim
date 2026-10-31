@@ -11,6 +11,7 @@ import {
 import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import { describeProcessExit } from '@/lib/execution/remote-sandbox/code-failure'
 import {
   type CreatedSandbox,
   createSandbox,
@@ -1152,8 +1153,10 @@ async function executeShellInSandboxWithinBudget(
     if (result.exitCode !== 0) {
       // Daytona merges both streams into stdout (stderr is always empty), so fall
       // back to stdout for the real command output before the generic message.
-      const errorMessage =
-        result.stderr || result.stdout || `Process exited with code ${result.exitCode}`
+      const output = result.stderr || result.stdout
+      const errorMessage = output
+        ? `${describeProcessExit(result.exitCode)}: ${output}`
+        : describeProcessExit(result.exitCode)
       logger.error('Sandbox shell execution error', {
         sandboxId,
         exitCode: result.exitCode,
