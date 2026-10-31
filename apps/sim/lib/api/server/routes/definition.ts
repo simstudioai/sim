@@ -24,7 +24,7 @@ export function requireJsonRouteDefinition(
 }
 
 /** Statuses a response body can't accompany, so never a binary route's default. */
-const BODYLESS_STATUSES = new Set([204, 205, 304])
+const BODYLESS_STATUSES = new Set([204, 205])
 
 export function requireBinaryRouteDefinition(
   contract: AnyApiRouteContract,

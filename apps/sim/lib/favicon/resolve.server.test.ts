@@ -6,7 +6,7 @@ import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_ICON_BYTES } from '@/lib/favicon/probe'
-import { resolveFavicon } from '@/lib/favicon/resolve.server'
+import { cachedFavicon, resolveFavicon } from '@/lib/favicon/resolve.server'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -73,21 +73,6 @@ describe('resolveFavicon', () => {
     expect(ttlOf('acme.example.com')).toBe(30 * DAY)
   })
 
-  it('asks no provider and caches nothing when a lookup is not admitted', async () => {
-    answers = { 'acme.example.com': 'icon' }
-    expect((await resolveFavicon('acme.example.com', async () => false)).kind).toBe('unavailable')
-    expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
-    expect(ttlOf('acme.example.com')).toBeUndefined()
-  })
-
-  it('serves a cached icon without asking to admit a lookup', async () => {
-    answers = { 'acme.example.com': 'icon' }
-    await resolveFavicon('acme.example.com')
-    const admit = vi.fn(async () => false)
-    expect((await resolveFavicon('acme.example.com', admit)).kind).toBe('hit')
-    expect(admit).not.toHaveBeenCalled()
-  })
-
   it('looks up an icon cached under an earlier, larger cap again instead of serving it', async () => {
     answers = { 'acme.example.com': 'icon' }
     const oversized = Buffer.concat([Buffer.from('h'), PNG, Buffer.alloc(MAX_ICON_BYTES)])
@@ -97,37 +82,20 @@ describe('resolveFavicon', () => {
     expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenCalled()
   })
 
-  it("never lets one caller's refused budget answer another caller's lookup", async () => {
+  it('reports nothing cached until a lookup has stored an answer', async () => {
     answers = { 'acme.example.com': 'icon' }
-    const [refused, admitted] = await Promise.all([
-      resolveFavicon('acme.example.com', async () => false),
-      resolveFavicon('acme.example.com', async () => true),
-    ])
-    expect(refused.kind).toBe('unavailable')
-    expect(admitted.kind).toBe('hit')
+    expect(await cachedFavicon('acme.example.com')).toBeNull()
+    await resolveFavicon('acme.example.com')
+    expect((await cachedFavicon('acme.example.com'))?.kind).toBe('hit')
   })
 
-  it('does not charge a caller who joins a lookup already asking the providers', async () => {
+  it('shares one lookup between concurrent callers of a host', async () => {
     answers = { 'acme.example.com': 'icon' }
-    const fetchProvider = inputValidationMockFns.mockSecureFetchWithValidation
-    const answerProvider = fetchProvider.getMockImplementation()
-    let release = () => {}
-    const released = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    fetchProvider.mockImplementation(
-      async (...args: Parameters<NonNullable<typeof answerProvider>>) => {
-        await released
-        return answerProvider?.(...args)
-      }
-    )
-    const first = resolveFavicon('acme.example.com')
-    await vi.waitFor(() => expect(fetchProvider).toHaveBeenCalled())
-    const joinerAdmit = vi.fn(async () => true)
-    const joined = resolveFavicon('acme.example.com', joinerAdmit)
-    release()
-    expect((await joined).kind).toBe('hit')
-    expect((await first).kind).toBe('hit')
-    expect(joinerAdmit).not.toHaveBeenCalled()
+    const results = await Promise.all([
+      resolveFavicon('acme.example.com'),
+      resolveFavicon('acme.example.com'),
+    ])
+    expect(results.map((result) => result.kind)).toEqual(['hit', 'hit'])
+    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
   })
 })

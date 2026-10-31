@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -66,15 +65,7 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role).catch(
-    (error) => {
-      logger.warn('Could not resolve People navigation access', {
-        organizationId,
-        error: getErrorMessage(error),
-      })
-      return false
-    }
-  )
+  const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
   if (
     !context.mothershipAvailable &&

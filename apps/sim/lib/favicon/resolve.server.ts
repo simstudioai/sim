@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
@@ -34,12 +35,10 @@ const PROVIDERS: readonly ((host: string) => string)[] = [
   (host) => `https://icons.duckduckgo.com/ip3/${host}.ico`,
 ]
 
-type FaviconResolution =
+export type FaviconResolution =
   | { kind: 'hit'; contentType: string; bytes: Buffer; provisional?: true }
   | { kind: 'miss' }
   | { kind: 'unavailable' }
-
-const inFlight = new Map<string, Promise<FaviconResolution>>()
 
 const cacheKey = (host: string) => `favicon:v3:${host}`
 
@@ -152,39 +151,30 @@ async function walk(candidates: string[], signal: AbortSignal): Promise<FaviconR
   return unavailable ? { kind: 'unavailable' } : { kind: 'miss' }
 }
 
+/** The cached answer for a host, or `null` when it would take a lookup to know. */
+export async function cachedFavicon(host: string): Promise<FaviconResolution | null> {
+  const requested = faviconHostCandidates(host)[0]
+  return requested ? readCache(requested) : { kind: 'miss' }
+}
+
 /**
  * The icon for a host, or its nearest parent domain's, from public icon providers — Sim never
  * contacts the destination itself (a provider may, from its own servers), so a host behind a
  * login still gets its platform's icon. Results are cached per host (30 days for an icon, a day
  * for none or for a parent's icon chosen after a timeout, minutes after an outage), and
- * concurrent lookups of one host in this process share a single resolution. `admitLookup` is
- * the caller's own budget, asked only when nothing is cached and no lookup of the host is already
- * running: refused, the host is reported unavailable to this caller alone and nothing is cached,
- * so cached icons and lookups shared with another caller stay free.
+ * concurrent lookups of one host in this process share a single resolution.
  */
-export async function resolveFavicon(
-  host: string,
-  admitLookup: () => Promise<boolean> = async () => true
-): Promise<FaviconResolution> {
+export async function resolveFavicon(host: string): Promise<FaviconResolution> {
   const candidates = faviconHostCandidates(host)
   const requested = candidates[0]
   if (!requested) return { kind: 'miss' }
-  const joined = inFlight.get(requested)
-  if (joined) return joined
-  const cached = await readCache(requested)
-  if (cached) return cached
-  if (!(await admitLookup())) return { kind: 'unavailable' }
-  // Another caller may have started the same lookup while this one read the cache and its budget.
-  const pending = inFlight.get(requested)
-  if (pending) return pending
-
-  const resolution = (async (): Promise<FaviconResolution> => {
+  return coalesceLocally(`favicon:${requested}`, async (): Promise<FaviconResolution> => {
+    const cached = await readCache(requested)
+    if (cached) return cached
     const resolved = await runWithOutboundOrganization(null, () =>
       walk(candidates, AbortSignal.timeout(RESOLVE_DEADLINE_MS))
     ).catch((): FaviconResolution => ({ kind: 'unavailable' }))
     await writeCache(requested, resolved)
     return resolved
-  })().finally(() => inFlight.delete(requested))
-  inFlight.set(requested, resolution)
-  return resolution
+  }).catch((): FaviconResolution => ({ kind: 'unavailable' }))
 }

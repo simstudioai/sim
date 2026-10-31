@@ -2,13 +2,13 @@ import type { SessionPrincipal } from '@sim/auth/principal'
 import { defineOperation } from '@/lib/core/application'
 import { RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
-import { resolveFavicon } from '@/lib/favicon/resolve.server'
+import { cachedFavicon, type FaviconResolution, resolveFavicon } from '@/lib/favicon/resolve.server'
 
 const rateLimiter = new RateLimiter()
 
 /**
- * Lookups that reach the icon providers, per user; icons already cached are not charged. Each
- * lookup can ask the providers about several hosts, and every icon it finds is cached for days.
+ * Lookups that may reach the icon providers, per user; an icon already cached is served without
+ * charge. Each lookup can ask the providers about several hosts, and caches what it finds for days.
  */
 const PROVIDER_LOOKUP_LIMIT: TokenBucketConfig = {
   maxTokens: 120,
@@ -24,12 +24,19 @@ export const getFavicon = defineAuthorizedCredentialUserUseCase({
     principalKinds: ['session'],
     capability: 'none',
   }),
-  execute: ({ principal, input }: { principal: SessionPrincipal; input: { host: string } }) =>
-    resolveFavicon(input.host, async () => {
-      const { allowed } = await rateLimiter.checkRateLimitDirect(
-        `route:favicon-lookup:user:${principal.userId}`,
-        PROVIDER_LOOKUP_LIMIT
-      )
-      return allowed
-    }),
+  async execute({
+    principal,
+    input,
+  }: {
+    principal: SessionPrincipal
+    input: { host: string }
+  }): Promise<FaviconResolution> {
+    const cached = await cachedFavicon(input.host)
+    if (cached) return cached
+    const { allowed } = await rateLimiter.checkRateLimitDirect(
+      `route:favicon-lookup:user:${principal.userId}`,
+      PROVIDER_LOOKUP_LIMIT
+    )
+    return allowed ? resolveFavicon(input.host) : { kind: 'unavailable' }
+  },
 })

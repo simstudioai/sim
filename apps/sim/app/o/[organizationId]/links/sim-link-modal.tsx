@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import {
   Checkbox,
   ChipModal,
@@ -16,7 +17,6 @@ import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import {
   isVariableSimLinkUrl,
   SIM_LINK_DESCRIPTION_MAX_LENGTH,
-  SIM_LINK_NAME_MAX_LENGTH,
   SIM_LINK_VARIABLE,
   simLinkFieldsSchema,
   toSimLinkName,

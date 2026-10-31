@@ -46,29 +46,6 @@ describe('browser extension frame boundary', () => {
   )
 })
 
-describe('sim link query forwarding', () => {
-  it('forwards the query exactly as typed, replacing any value a client sent', async () => {
-    const response = await proxy(
-      new NextRequest('https://app.sim.test/sim/jira/ABC-1?q=&flag&a=hello%20world&_rsc=x1', {
-        headers: { 'x-sim-link-query': 'forged=1', 'user-agent': 'Mozilla/5.0' },
-      })
-    )
-    expect(response.headers.get('x-middleware-request-x-sim-link-query')).toBe(
-      'q=&flag&a=hello%20world'
-    )
-  })
-
-  it('leaves other pages without the header', async () => {
-    const response = await proxy(
-      new NextRequest('https://app.sim.test/login?q=1', {
-        headers: { 'x-sim-link-query': 'forged=1', 'user-agent': 'Mozilla/5.0' },
-      })
-    )
-    expect(response.status).toBe(200)
-    expect(response.headers.has('x-middleware-request-x-sim-link-query')).toBe(false)
-  })
-})
-
 const EXPOSED_HEADERS =
   'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 

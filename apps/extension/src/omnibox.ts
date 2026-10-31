@@ -1,4 +1,5 @@
 import {
+  SIM_LINK_NAME_MAX_LENGTH,
   SIM_LINK_SUGGESTIONS_PATH,
   simLinkSuggestionsSchema,
 } from '@sim/browser-extension-protocol'
@@ -11,9 +12,6 @@ const logger = createLogger('BrowserExtensionOmnibox')
 
 /** Longer than the gap between a typist's keystrokes, so a name is looked up once it settles. */
 const SUGGEST_DELAY_MS = 220
-
-/** Link names are at most this long, so nothing longer can match. */
-const MAX_NAME_LENGTH = 64
 
 /** A Sim link as suggested: its name, and what it shows beside the name. */
 interface SuggestedLink {
@@ -62,15 +60,17 @@ function encodeSegment(segment: string): string {
 
 /**
  * The resolver address for what was typed, as the address bar would send `sim/<typed>`: each
- * `/` starts a value, kept in position even when empty, and a trailing `/` adds none.
+ * `/` starts a value, kept in position even when empty, and a trailing `/` adds none. The query
+ * is passed on as typed.
  */
 function simLinkUrl(text: string): string {
   const { name, rest } = readTyped(text)
   const queryStart = rest.indexOf('?')
   const path = `${name}${queryStart === -1 ? rest : rest.slice(0, queryStart)}`.replace(/\/$/, '')
-  const query = queryStart === -1 ? '' : new URLSearchParams(rest.slice(queryStart + 1)).toString()
   const segments = path ? path.split('/').map(encodeSegment) : []
-  return `${SIM_ORIGIN}/${['sim', ...segments].join('/')}${query ? `?${query}` : ''}`
+  const url = new URL(`${SIM_ORIGIN}/${['sim', ...segments].join('/')}`)
+  if (queryStart !== -1) url.search = rest.slice(queryStart + 1)
+  return url.toString()
 }
 
 /** The links Sim suggests for `name`, or `null` when it couldn't answer (signed out, rate limited). */
@@ -119,7 +119,7 @@ export function registerSimLinkOmnibox() {
       description: `Open <match>sim/${escapeXml(`${name}${rest}`)}</match>`,
     })
     // A name can't hold a space, so `sim card prices` is a search, not a link: ask Sim nothing.
-    if (/\s/.test(name) || name.length > MAX_NAME_LENGTH) {
+    if (/\s/.test(name) || name.length > SIM_LINK_NAME_MAX_LENGTH) {
       suggest([])
       return
     }

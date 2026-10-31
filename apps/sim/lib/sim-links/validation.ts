@@ -1,9 +1,9 @@
+import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
-export const SIM_LINK_NAME_MAX_LENGTH = 64
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
 const URL_MAX_LENGTH = 2048
 
