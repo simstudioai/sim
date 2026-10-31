@@ -37,25 +37,21 @@ export function attachShellWindowSizing(
 }
 
 /**
- * Raises a window above whatever app currently has the foreground — the user
- * just finished something in the browser or relaunched Sim and expects it in
- * front. macOS activates the app (`steal` is macOS-only). Windows ignores
- * focus requests from a background process and only flashes the taskbar
- * button, so a momentary always-on-top lift puts the window in front first.
+ * Raises a window above whatever app currently has the foreground, restoring it if minimized —
+ * the user just finished something in the browser or relaunched Sim and expects it in front.
+ * macOS activates the app (`steal` is macOS-only). Windows ignores focus requests from a
+ * background process and only flashes the taskbar button, so a momentary always-on-top lift puts
+ * the window in front first.
  */
-export function bringWindowToFront(
-  win: BrowserWindow,
-  platform: NodeJS.Platform = process.platform
-): void {
-  if (platform === 'win32') {
-    if (win.isMinimized()) win.restore()
-    win.show()
+export function bringWindowToFront(win: BrowserWindow): void {
+  if (win.isMinimized()) win.restore()
+  win.show()
+  if (process.platform === 'win32') {
     win.setAlwaysOnTop(true)
     win.focus()
     win.setAlwaysOnTop(false)
     return
   }
-  win.show()
   win.focus()
   app.focus({ steal: true })
 }

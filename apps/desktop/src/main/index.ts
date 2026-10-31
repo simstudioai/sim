@@ -310,9 +310,6 @@ function main(): void {
       app.focus({ steal: true })
       return
     }
-    if (win.isMinimized()) {
-      win.restore()
-    }
     bringWindowToFront(win)
   }
 
