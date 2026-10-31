@@ -44,7 +44,7 @@ export interface ColumnOption {
 }
 
 export interface SortConfig {
-  options: ColumnOption[]
+  options: readonly ColumnOption[]
   active: { column: string; direction: SortDirection } | null
   onSort: (column: string, direction: SortDirection) => void
   onClear?: () => void

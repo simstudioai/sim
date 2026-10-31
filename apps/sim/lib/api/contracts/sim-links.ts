@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { SIM_LINK_SORTS, simLinkFieldsSchema } from '@/lib/sim-links/validation'
+import { SORT_DIRECTIONS } from '@/lib/url-state'
 
 const params = z.object({ id: organizationIdSchema })
 const linkParams = params.extend({ linkId: z.string().min(1).max(255) })
@@ -39,6 +40,7 @@ export const listSimLinksContract = defineRouteContract({
       search: z.string().max(200).optional(),
       cursor: z.string().min(1).max(128).optional(),
       sort: z.enum(SIM_LINK_SORTS).optional(),
+      dir: z.enum(SORT_DIRECTIONS).optional(),
     })
     .refine((query) => !(query.sort === 'popular' && query.cursor), {
       path: ['cursor'],

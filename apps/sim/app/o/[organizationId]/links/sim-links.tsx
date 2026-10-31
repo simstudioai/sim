@@ -1,174 +1,202 @@
 'use client'
 
-import { useState } from 'react'
-import {
-  Chip,
-  ChipConfirmModal,
-  ChipModalError,
-  ChipTag,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  writeTextToClipboard,
-} from '@sim/emcn'
-import { MoreHorizontal, Plus } from '@sim/emcn/icons'
+import { useMemo, useState } from 'react'
+import { Avatar, Chip, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
+import { Link, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { formatRelativeTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
 import { simLinkPath } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import SimLinksLoading from '@/app/o/[organizationId]/links/loading'
 import {
-  OrganizationPage,
-  type OrganizationPageTab,
-  useOrganizationPageFilters,
-} from '@/app/o/[organizationId]/components/organization-page'
-import { simLinkViewParsers } from '@/app/o/[organizationId]/links/search-params'
+  simLinksParsers,
+  simLinksSortParams,
+  simLinksUrlKeys,
+} from '@/app/o/[organizationId]/links/search-params'
+import { SimLinkContextMenu } from '@/app/o/[organizationId]/links/sim-link-context-menu'
 import { SimLinkIcon } from '@/app/o/[organizationId]/links/sim-link-icon'
 import { SimLinkModal } from '@/app/o/[organizationId]/links/sim-link-modal'
-import { SimLinksEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsListPagination } from '@/app/workspace/[workspaceId]/settings/components/settings-list-pagination'
+  ResourceNoResults,
+  SimLinksEmptyState,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type {
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+  Resource,
+  type ResourceColumn,
+  type ResourceRow,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { useDeleteSimLink, useSimLinks } from '@/hooks/queries/sim-links'
-import { useDebounce } from '@/hooks/use-debounce'
+import { useContextMenu } from '@/hooks/use-context-menu'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('SimLinks')
 
-const SORT_TABS = [
-  { id: 'name', label: 'A–Z' },
-  { id: 'popular', label: 'Most used' },
-] as const satisfies readonly OrganizationPageTab[]
+const COLUMNS = [
+  { id: 'name', header: 'Name' },
+  { id: 'destination', header: 'Destination', widthMultiplier: 2 },
+  { id: 'description', header: 'Description', widthMultiplier: 1.4 },
+  { id: 'owner', header: 'Created by' },
+  { id: 'access', header: 'Access' },
+  { id: 'updated', header: 'Updated' },
+] as const satisfies readonly ResourceColumn[]
 
-async function copyLink(path: string) {
+const SORT_OPTIONS = [
+  { id: 'name', label: 'Name' },
+  { id: 'popular', label: 'Opens' },
+] as const
+
+/** How the link is shared beyond the default: open to everyone and editable by any member. */
+function accessLabel(link: SimLink): string | null {
+  const limits = [link.unlisted && 'Unlisted', link.restrictEdit && 'Restricted'].filter(Boolean)
+  return limits.length ? limits.join(', ') : null
+}
+
+function openLink(name: string) {
+  window.open(simLinkPath(name), '_blank', 'noopener,noreferrer')
+}
+
+async function copyLink(name: string) {
   try {
-    await writeTextToClipboard(new URL(path, window.location.origin).href)
+    await writeTextToClipboard(new URL(simLinkPath(name), window.location.origin).href)
   } catch (error) {
     logger.error('Failed to copy Sim link', { error })
   }
-}
-
-interface SimLinkDetailsProps {
-  link: SimLink
-}
-
-/** Who made the link, how often it is used, when it last changed, and how it is shared. */
-function SimLinkDetails({ link }: SimLinkDetailsProps) {
-  const details = [
-    link.createdBy?.name,
-    link.visitCount > 0 && `${link.visitCount} ${link.visitCount === 1 ? 'open' : 'opens'}`,
-    formatRelativeTime(link.updatedAt),
-  ].filter(Boolean)
-  return (
-    <>
-      <span className='hidden text-[var(--text-muted)] text-caption sm:inline'>
-        {details.join(' · ')}
-      </span>
-      {link.unlisted && <ChipTag>Unlisted</ChipTag>}
-      {link.restrictEdit && <ChipTag>Restricted</ChipTag>}
-    </>
-  )
 }
 
 interface SimLinksProps {
   organizationId: string
 }
 
-/** Every Sim link the viewer may browse, with create, edit, and delete in place. */
+/** Every Sim link the viewer may browse, in the shared resource table. */
 export function SimLinks({ organizationId }: SimLinksProps) {
-  const { search, tab } = useOrganizationPageFilters()
-  const query = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
-  const sort = tab === 'popular' ? 'popular' : 'name'
-  const links = useSimLinks(organizationId, query, sort)
+  const [{ search, create }, setView] = useQueryStates(simLinksParsers, simLinksUrlKeys)
+  const setSearch = useDebouncedSearchSetter((value, options) =>
+    setView({ search: value }, options)
+  )
+  const debouncedSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS)
+  const { sort, dir, activeSort, onSort, onClear } = useUrlSort(simLinksSortParams, simLinksUrlKeys)
+  const links = useSimLinks(organizationId, debouncedSearch.trim(), sort, dir)
   const remove = useDeleteSimLink(organizationId)
-  const [{ create }, setView] = useQueryStates(simLinkViewParsers)
+  const contextMenu = useContextMenu()
+  const [menuLink, setMenuLink] = useState<SimLink | null>(null)
   const [editing, setEditing] = useState<SimLink | null>(null)
   const [deleting, setDeleting] = useState<SimLink | null>(null)
-  const rows = links.data?.pages.flatMap((page) => page.links) ?? []
+
+  const loaded = useMemo(() => links.data?.pages.flatMap((page) => page.links) ?? [], [links.data])
+  const linksById = useMemo(() => new Map(loaded.map((link) => [link.id, link])), [loaded])
+
+  const rows: ResourceRow[] = useMemo(
+    () =>
+      loaded.map((link) => ({
+        id: link.id,
+        cells: {
+          name: { icon: <SimLinkIcon url={link.url} />, label: `sim/${link.name}` },
+          destination: { label: link.url },
+          description: { label: link.description },
+          owner: link.createdBy
+            ? {
+                icon: (
+                  <Avatar
+                    size='xs'
+                    name={link.createdBy.name}
+                    src={link.createdBy.image}
+                    aria-hidden
+                  />
+                ),
+                label: link.createdBy.name,
+              }
+            : { label: null },
+          access: { label: accessLabel(link) },
+          updated: timeCell(link.updatedAt),
+        },
+      })),
+    [loaded]
+  )
+
+  const searchConfig: SearchConfig = {
+    value: search,
+    onChange: setSearch,
+    onClearAll: () => setSearch(''),
+    placeholder: 'Search Sim links...',
+  }
+  const sortConfig: SortConfig = { options: SORT_OPTIONS, active: activeSort, onSort, onClear }
+  const searching = Boolean(debouncedSearch.trim())
+  const startCreate = () => void setView({ create: '' })
+
+  if (!links.data && !links.isLoadingError) return <SimLinksLoading />
 
   return (
-    <OrganizationPage
-      title='Sim Links'
-      description='Short, shareable links that take your organization straight to the right page.'
-      tabs={SORT_TABS}
-      searchMode='expanded'
-      searchPlaceholder='Search Sim links'
-      action={
-        <Chip leftIcon={Plus} onClick={() => void setView({ create: '' })}>
-          New link
-        </Chip>
-      }
-    >
-      <div className={RESOURCE_LIST_STACK}>
-        {links.isLoadingError ? (
-          <SettingsQueryErrorState
-            error={links.error}
-            fallback='Could not load Sim links'
-            isRetrying={links.isFetching}
-            onRetry={() => void links.refetch()}
-            variant='inline'
-          />
-        ) : !links.data ? (
-          <SettingsEmptyState variant='inline'>Loading Sim links</SettingsEmptyState>
-        ) : !rows.length && query ? (
-          <SettingsEmptyState variant='inline'>No matching Sim links</SettingsEmptyState>
-        ) : !rows.length ? (
-          <SimLinksEmptyState onCreate={() => void setView({ create: '' })} />
-        ) : (
-          rows.map((link) => {
-            const path = simLinkPath(link.name)
-            return (
-              <SettingsResourceRow
-                key={link.id}
-                icon={<SimLinkIcon url={link.url} />}
-                title={`sim/${link.name}`}
-                description={link.description ? `${link.description} · ${link.url}` : link.url}
-                badge={<SimLinkDetails link={link} />}
-                onClick={() => window.open(path, '_blank', 'noopener,noreferrer')}
-                clickLabel={`Open sim/${link.name}`}
-                trailing={
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Chip leftIcon={MoreHorizontal} aria-label={`sim/${link.name} actions`} />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align='end'>
-                      <DropdownMenuItem onSelect={() => void copyLink(path)}>
-                        Copy link
-                      </DropdownMenuItem>
-                      {link.canEdit && (
-                        <>
-                          <DropdownMenuItem onSelect={() => setEditing(link)}>
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className='text-[var(--text-error)]'
-                            onSelect={() => {
-                              remove.reset()
-                              setDeleting(link)
-                            }}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+    <Resource>
+      <Resource.Header
+        icon={Link}
+        title='Sim Links'
+        actions={[
+          { id: 'create', text: 'New link', icon: Plus, variant: 'primary', onSelect: startCreate },
+        ]}
+      />
+      <Resource.Options search={searchConfig} sort={sortConfig} />
+      <Resource.Table
+        columns={COLUMNS}
+        rows={rows}
+        onRowClick={(id) => {
+          const link = linksById.get(id)
+          if (link) openLink(link.name)
+        }}
+        onRowContextMenu={(event, id) => {
+          const link = linksById.get(id)
+          if (!link) return
+          setMenuLink(link)
+          contextMenu.handleContextMenu(event)
+        }}
+        onLoadMore={() => void links.fetchNextPage()}
+        hasMore={links.hasNextPage}
+        isLoadingMore={links.isFetchingNextPage}
+        isFetching={links.isFetching}
+        loadMoreFailed={links.isFetchNextPageError}
+        emptyState={
+          links.isLoadingError ? (
+            <div role='alert' className='flex flex-col items-center gap-3 p-6'>
+              <p className='text-[var(--text-error)] text-small'>{links.error.message}</p>
+              <Chip onClick={() => void links.refetch()}>Retry</Chip>
+            </div>
+          ) : searching ? (
+            <ResourceNoResults
+              search={debouncedSearch}
+              filterCount={0}
+              searchScope='Searched every Sim link in your organization.'
+              onClear={() => setSearch('')}
+            />
+          ) : (
+            <SimLinksEmptyState onCreate={startCreate} />
+          )
+        }
+      />
+      {menuLink && (
+        <SimLinkContextMenu
+          isOpen={contextMenu.isOpen}
+          position={contextMenu.position}
+          onClose={contextMenu.closeMenu}
+          onOpen={() => openLink(menuLink.name)}
+          onCopyLink={() => void copyLink(menuLink.name)}
+          onEdit={menuLink.canEdit ? () => setEditing(menuLink) : undefined}
+          onDelete={
+            menuLink.canEdit
+              ? () => {
+                  remove.reset()
+                  setDeleting(menuLink)
                 }
-              />
-            )
-          })
-        )}
-        <SettingsListPagination {...links} fallback='Could not load more Sim links' />
-      </div>
+              : undefined
+          }
+        />
+      )}
       {create !== null && (
         <SimLinkModal
           key={create}
@@ -204,6 +232,6 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       >
         <ChipModalError>{remove.error?.message}</ChipModalError>
       </ChipConfirmModal>
-    </OrganizationPage>
+    </Resource>
   )
 }

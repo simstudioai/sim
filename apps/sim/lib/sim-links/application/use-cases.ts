@@ -17,6 +17,7 @@ import { requireSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import type { SimLinkAccess, SimLinkRecord, SimLinkViewer } from '@/lib/sim-links/repository'
 import * as repository from '@/lib/sim-links/repository'
 import type { SimLinkFields, SimLinkSort } from '@/lib/sim-links/validation'
+import type { SortDirection } from '@/lib/url-state'
 
 const logger = createLogger('SimLinks')
 
@@ -139,7 +140,12 @@ export const listSimLinks = defineAuthorizedOrganizationUseCase({
     input,
     context,
   }: OrganizationUseCaseContext<
-    OrganizationInput & { search?: string; cursor?: string; sort?: SimLinkSort }
+    OrganizationInput & {
+      search?: string
+      cursor?: string
+      sort?: SimLinkSort
+      dir?: SortDirection
+    }
   >) {
     const viewer = viewerOf(context)
     const page = await repository.listSimLinks(context.organizationId, viewer, input)

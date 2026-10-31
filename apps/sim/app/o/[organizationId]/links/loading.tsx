@@ -1,19 +1,34 @@
-import { cn } from '@sim/emcn'
-import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
-import { PAGE_COLUMN_CLASS } from '@/app/o/[organizationId]/components/organization-page'
+'use client'
+
+import { Link, Plus } from '@sim/emcn/icons'
+import {
+  type ChromeActionSpec,
+  ResourceChromeFallback,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
+import type { ResourceColumn } from '@/app/workspace/[workspaceId]/components/resource/resource'
+
+const COLUMNS = [
+  { id: 'name', header: 'Name' },
+  { id: 'destination', header: 'Destination', widthMultiplier: 2 },
+  { id: 'description', header: 'Description', widthMultiplier: 1.4 },
+  { id: 'owner', header: 'Created by' },
+  { id: 'access', header: 'Access' },
+  { id: 'updated', header: 'Updated' },
+] as const satisfies readonly ResourceColumn[]
+
+const ACTIONS = [
+  { text: 'New link', icon: Plus, variant: 'primary' },
+] as const satisfies readonly ChromeActionSpec[]
 
 export default function SimLinksLoading() {
   return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className={PAGE_HEADER_BAR}>
-        <div className={HEADER_ACTION_CLUSTER} />
-      </div>
-      <div className={cn(PAGE_COLUMN_CLASS, 'pt-8')}>
-        <h1 className='text-[var(--text-primary)] text-lg'>Sim Links</h1>
-        <p role='status' className='mt-4 text-[var(--text-muted)] text-small'>
-          Loading Sim links
-        </p>
-      </div>
-    </div>
+    <ResourceChromeFallback
+      icon={Link}
+      title='Sim Links'
+      columns={COLUMNS}
+      actions={ACTIONS}
+      searchPlaceholder='Search Sim links...'
+      hasSort
+    />
   )
 }
