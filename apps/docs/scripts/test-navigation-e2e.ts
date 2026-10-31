@@ -593,7 +593,9 @@ try {
             await expect(trigger).toBeFocused()
             await trigger.press('Enter')
             await expect(viewer).toBeVisible()
-            await page.mouse.click(1, 1)
+            await page
+              .locator('.docs-portal[data-state="open"][aria-hidden="true"]')
+              .click({ position: { x: 1, y: 1 } })
             await expect(viewer).toHaveCount(0)
             await expect(trigger).toBeFocused()
             await trigger.press('Enter')
