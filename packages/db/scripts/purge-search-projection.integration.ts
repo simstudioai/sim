@@ -316,7 +316,8 @@ describe('Search candidate retirement in PostgreSQL', () => {
         // Every candidate row gets a new tuple version, committed only once the purge waits on it.
         await tx`UPDATE embedding_search SET enabled = enabled WHERE knowledge_base_id = 'search'`
         purge = purgeSearchProjection(sql, { batchSize: 10, pauseMs: 0 })
-        for (;;) {
+        for (let attempt = 0; ; attempt++) {
+          if (attempt === 250) throw new Error('The purge never waited on the updated rows')
           const [{ waiting }] = await tx<{ waiting: boolean }[]>`
             SELECT EXISTS (SELECT 1 FROM pg_stat_activity
               WHERE datname = current_database() AND wait_event_type = 'Lock'
